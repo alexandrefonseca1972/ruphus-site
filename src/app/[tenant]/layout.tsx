@@ -2,10 +2,12 @@
 
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, use, useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { Tenant } from "@/lib/tenants";
+import { cn } from "@/lib/utils";
 
 const TenantContext = createContext<Tenant | null>(null);
 
@@ -18,6 +20,7 @@ export function useTenant() {
 export default function TenantLayout({ children }: { children: React.ReactNode }) {
   const { tenant: slug } = useParams<{ tenant: string }>();
   const router = useRouter();
+  const pathname = usePathname();
   const [state, setState] = useState<Tenant | "loading" | "denied">("loading");
 
   useEffect(
@@ -37,5 +40,33 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
 
   if (state === "loading") return <p className="p-8">Carregando…</p>;
   if (state === "denied") return <p className="p-8">Tenant não encontrado ou sem acesso.</p>;
-  return <TenantContext value={state}>{children}</TenantContext>;
+
+  const links = [
+    { href: `/${slug}`, label: "Agenda" },
+    { href: `/${slug}/servicos`, label: "Serviços" },
+    { href: `/${slug}/profissionais`, label: "Profissionais" },
+  ];
+  return (
+    <TenantContext value={state}>
+      <header className="border-b">
+        <nav className="mx-auto flex max-w-4xl flex-wrap items-center gap-1 p-2 text-sm">
+          <Link href="/" className="mr-2 px-2 font-semibold">{state.name}</Link>
+          {links.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              aria-current={pathname === l.href ? "page" : undefined}
+              className={cn("rounded-md px-3 py-1.5 hover:bg-muted", pathname === l.href && "bg-muted font-medium")}
+            >
+              {l.label}
+            </Link>
+          ))}
+          <a href={`/agendar/${slug}`} target="_blank" rel="noreferrer" className="ml-auto rounded-md px-3 py-1.5 text-muted-foreground hover:bg-muted">
+            Página de agendamento ↗
+          </a>
+        </nav>
+      </header>
+      <main className="mx-auto grid w-full max-w-4xl gap-6 p-4">{children}</main>
+    </TenantContext>
+  );
 }

@@ -1,0 +1,104 @@
+import { z } from "zod";
+
+// ponytail: fuso único para todos os tenants; vira campo do tenant quando houver clientes fora do horário de Brasília
+export const TIMEZONE = "America/Sao_Paulo";
+export const SLOT_STEP_MIN = 15;
+export const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+
+const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário inválido");
+const id = z.string().min(1).max(128).regex(/^[^/]+$/);
+
+export const Service = z.object({
+  name: z.string().trim().min(1, "Informe o nome").max(80),
+  durationMin: z.number().int().min(5, "Duração mínima de 5 minutos").max(480, "Duração máxima de 8 horas"),
+  priceCents: z.number().int().min(0, "Preço inválido"),
+  active: z.boolean(),
+});
+export type Service = z.infer<typeof Service>;
+
+export const Window = z
+  .object({ start: hhmm, end: hhmm })
+  .refine((w) => w.start < w.end, "O fim do expediente precisa ser depois do início");
+export type Window = z.infer<typeof Window>;
+
+export const Staff = z.object({
+  name: z.string().trim().min(1, "Informe o nome").max(80),
+  serviceIds: z.array(id).min(1, "Escolha pelo menos um serviço"),
+  // Chave = dia da semana (0 = domingo). Dia ausente = não atende.
+  hours: z.partialRecord(z.enum(["0", "1", "2", "3", "4", "5", "6"]), Window),
+  active: z.boolean(),
+});
+export type Staff = z.infer<typeof Staff>;
+
+export const SlotQuery = z.object({
+  tenantId: id,
+  serviceId: id,
+  staffId: id,
+  date: z.iso.date(),
+});
+export type SlotQuery = z.infer<typeof SlotQuery>;
+
+export const BookingInput = SlotQuery.extend({
+  time: hhmm,
+  customerName: z.string().trim().min(2, "Informe seu nome").max(80),
+  customerPhone: z.string().trim().regex(/^[\d\s()+-]{8,20}$/, "Informe um telefone válido"),
+});
+export type BookingInput = z.infer<typeof BookingInput>;
+
+const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+const toHHMM = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+
+function offsetMinutes(at: Date, tz: string) {
+  const name = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "longOffset" })
+    .formatToParts(at)
+    .find((p) => p.type === "timeZoneName")!.value; // "GMT-03:00" ou "GMT"
+  const m = name.match(/([+-])(\d{2}):(\d{2})/);
+  return m ? (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) : 0;
+}
+
+/** "2026-09-20" + "09:00" no fuso do negócio → instante UTC */
+export function zonedTime(date: string, time: string, tz = TIMEZONE) {
+  const guess = new Date(`${date}T${time}:00Z`);
+  // ponytail: offset medido no próprio instante; erra por 1h só na virada de horário de verão
+  return new Date(guess.getTime() - offsetMinutes(guess, tz) * 60_000);
+}
+
+export const weekday = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();
+
+export function addDays(date: string, days: number) {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+export const todayIn = (tz = TIMEZONE) => new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+
+export const formatTime = (d: Date, tz = TIMEZONE) =>
+  new Intl.DateTimeFormat("pt-BR", { timeZone: tz, hour: "2-digit", minute: "2-digit" }).format(d);
+
+export const formatBRL = (cents: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+
+export const formatDuration = (min: number) =>
+  min < 60 ? `${min} min` : `${Math.floor(min / 60)}h${min % 60 ? String(min % 60).padStart(2, "0") : ""}`;
+
+/** Horários de início livres no dia, em "HH:MM" local. */
+export function freeSlots(args: {
+  date: string;
+  window: Window | undefined;
+  durationMin: number;
+  busy: { start: Date; end: Date }[];
+  now: Date;
+}) {
+  const { date, window, durationMin, busy, now } = args;
+  if (!window) return [];
+  const slots: string[] = [];
+  for (let m = toMin(window.start); m + durationMin <= toMin(window.end); m += SLOT_STEP_MIN) {
+    const start = zonedTime(date, toHHMM(m));
+    const end = new Date(start.getTime() + durationMin * 60_000);
+    if (start <= now) continue;
+    if (busy.some((b) => b.start < end && b.end > start)) continue;
+    slots.push(toHHMM(m));
+  }
+  return slots;
+}

@@ -16,7 +16,11 @@ export const Role = z.enum(["owner", "admin", "member"]);
 export type Role = z.infer<typeof Role>;
 
 export const TenantInput = z.object({
-  slug: z.string().regex(/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/, "Use 3-32 letras minúsculas, números ou hífen"),
+  slug: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/, "Use 3-32 letras minúsculas, números ou hífen")
+    // Rotas fixas do app têm prioridade sobre /[tenant]
+    .refine((s) => !["login", "agendar", "api"].includes(s), "Esse endereço é reservado"),
   name: z.string().trim().min(1).max(80),
 });
 
