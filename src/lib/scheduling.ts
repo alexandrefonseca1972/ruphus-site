@@ -32,7 +32,11 @@ export type Staff = z.infer<typeof Staff>;
 
 export const SlotQuery = z.object({
   tenantId: id,
-  serviceId: id,
+  serviceIds: z
+    .array(id)
+    .min(1, "Escolha pelo menos um serviço")
+    .max(5, "Escolha até 5 serviços")
+    .refine((ids) => new Set(ids).size === ids.length),
   staffId: id,
   date: z.iso.date(),
 });

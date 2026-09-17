@@ -38,35 +38,41 @@ function Choice({ selected, ...props }: React.ComponentProps<"button"> & { selec
 }
 
 export function BookingForm({ tenantId, today, name, services, staff }: Props) {
-  const [serviceId, setServiceId] = useState("");
+  const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [staffId, setStaffId] = useState("");
   const [date, setDate] = useState(today);
   const [time, setTime] = useState("");
   const [slotsVersion, setSlotsVersion] = useState(0);
-  const slotsKey = `${serviceId}|${staffId}|${date}|${slotsVersion}`;
+  const slotsKey = `${serviceIds.join(",")}|${staffId}|${date}|${slotsVersion}`;
   const [fetched, setFetched] = useState<{ for: string; slots: string[] } | null>(null);
   const slots = fetched?.for === slotsKey ? fetched.slots : null;
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
 
-  const service = services.find((s) => s.id === serviceId);
-  const professionals = staff.filter((p) => p.serviceIds.includes(serviceId));
+  const chosen = services.filter((s) => serviceIds.includes(s.id));
+  const totalMin = chosen.reduce((sum, s) => sum + s.durationMin, 0);
+  const totalCents = chosen.reduce((sum, s) => sum + s.priceCents, 0);
+  const doesAll = (p: Props["staff"][number], ids: string[]) => ids.every((id) => p.serviceIds.includes(id));
+  const professionals = staff.filter((p) => doesAll(p, serviceIds));
   const professional = professionals.find((p) => p.id === staffId);
 
   useEffect(() => {
-    if (!serviceId || !staffId || !date) return;
+    if (!serviceIds.length || !staffId || !date) return;
     let current = true;
-    getSlots({ tenantId, serviceId, staffId, date }).then((s) => current && setFetched({ for: slotsKey, slots: s }));
+    getSlots({ tenantId, serviceIds, staffId, date }).then((s) => current && setFetched({ for: slotsKey, slots: s }));
     return () => {
       current = false;
     };
-  }, [tenantId, serviceId, staffId, date, slotsKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- serviceIds já está em slotsKey
+  }, [tenantId, staffId, date, slotsKey]);
 
-  function pickService(id: string) {
-    setServiceId(id);
-    const available = staff.filter((p) => p.serviceIds.includes(id));
-    setStaffId(available.length === 1 ? available[0].id : "");
+  function toggleService(id: string) {
+    // Mantém a ordem do catálogo: "Corte + Barba", não a ordem dos cliques
+    const ids = services.map((s) => s.id).filter((s) => (s === id ? !serviceIds.includes(id) : serviceIds.includes(s)));
+    setServiceIds(ids);
+    const available = staff.filter((p) => doesAll(p, ids));
+    if (!available.some((p) => p.id === staffId)) setStaffId(available.length === 1 ? available[0].id : "");
     setTime("");
     setError("");
   }
@@ -76,7 +82,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
     setBusy(true);
     const result = await createBooking({
       tenantId,
-      serviceId,
+      serviceIds,
       staffId,
       date,
       time,
@@ -90,7 +96,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
     setSlotsVersion((v) => v + 1);
   }
 
-  if (done && service && professional) {
+  if (done && chosen.length && professional) {
     return (
       <main className="mx-auto w-full max-w-lg p-4 py-12">
         <Card>
@@ -98,7 +104,8 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
             <CardTitle>Agendamento confirmado</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-1 text-sm">
-            <p className="text-base font-medium">{service.name} com {professional.name}</p>
+            <p className="text-base font-medium">{chosen.map((s) => s.name).join(" + ")} com {professional.name}</p>
+            <p>{formatDuration(totalMin)} · {formatBRL(totalCents)}</p>
             <p className="first-letter:uppercase">{longDate(date)}, às {time}</p>
             <p className="text-muted-foreground">{name}</p>
             <Button className="mt-4" variant="outline" onClick={() => location.reload()}>
@@ -118,11 +125,13 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
       </header>
 
       <section aria-labelledby="s-service" className="grid gap-2">
-        <h2 id="s-service" className="font-medium">1. Serviço</h2>
+        <h2 id="s-service" className="font-medium">
+          1. Serviços <span className="text-sm font-normal text-muted-foreground">(escolha um ou mais)</span>
+        </h2>
         {services.length === 0 && <p className="text-sm text-muted-foreground">Nenhum serviço disponível no momento.</p>}
         <div className="grid gap-2">
           {services.map((s) => (
-            <Choice key={s.id} selected={s.id === serviceId} onClick={() => pickService(s.id)} className="flex justify-between gap-4">
+            <Choice key={s.id} selected={serviceIds.includes(s.id)} onClick={() => toggleService(s.id)} className="flex justify-between gap-4">
               <span className="font-medium">{s.name}</span>
               <span className="shrink-0 opacity-80">
                 {formatDuration(s.durationMin)} · {formatBRL(s.priceCents)}
@@ -130,12 +139,21 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
             </Choice>
           ))}
         </div>
+        {chosen.length > 1 && (
+          <p className="text-sm text-muted-foreground">
+            Total: {formatDuration(totalMin)} · {formatBRL(totalCents)}
+          </p>
+        )}
       </section>
 
-      {service && (
+      {chosen.length > 0 && (
         <section aria-labelledby="s-staff" className="grid gap-2">
           <h2 id="s-staff" className="font-medium">2. Profissional</h2>
-          {professionals.length === 0 && <p className="text-sm text-muted-foreground">Nenhum profissional disponível para este serviço.</p>}
+          {professionals.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Nenhum profissional faz {chosen.length > 1 ? "todos esses serviços juntos. Tente separar em agendamentos diferentes." : "este serviço."}
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-2">
             {professionals.map((p) => (
               <Choice key={p.id} selected={p.id === staffId} onClick={() => {

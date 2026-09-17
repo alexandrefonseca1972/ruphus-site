@@ -38,12 +38,22 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
 
 async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery) {
   const t = db.collection("tenants").doc(q.tenantId);
-  const [svcSnap, staffSnap] = await tx.getAll(t.collection("services").doc(q.serviceId), t.collection("staff").doc(q.staffId));
-  const svc = Service.safeParse(svcSnap.data());
+  const [staffSnap, ...svcSnaps] = await tx.getAll(
+    t.collection("staff").doc(q.staffId),
+    ...q.serviceIds.map((id) => t.collection("services").doc(id)),
+  );
   const staff = Staff.safeParse(staffSnap.data());
-  if (!svc.success || !svc.data.active || !staff.success || !staff.data.active || !staff.data.serviceIds.includes(q.serviceId)) {
+  const services = svcSnaps.map((s) => Service.safeParse(s.data()));
+  if (
+    !staff.success ||
+    !staff.data.active ||
+    !q.serviceIds.every((id) => staff.data.serviceIds.includes(id)) ||
+    services.some((s) => !s.success || !s.data.active)
+  ) {
     return null;
   }
+  const svc = services.map((s) => s.data!);
+  const durationMin = svc.reduce((sum, s) => sum + s.durationMin, 0);
   // Lido dentro da transação: uma reserva concorrente no mesmo dia/profissional força retry
   const booked = await tx.get(
     t
@@ -55,13 +65,13 @@ async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery) {
   const slots = freeSlots({
     date: q.date,
     window: staff.data.hours[String(weekday(q.date)) as keyof Staff["hours"]],
-    durationMin: svc.data.durationMin,
+    durationMin,
     busy: booked.docs
       .filter((d) => d.get("status") !== "cancelled")
       .map((d) => ({ start: (d.get("start") as Timestamp).toDate(), end: (d.get("end") as Timestamp).toDate() })),
     now: new Date(),
   });
-  return { t, svc: svc.data, staff: staff.data, slots };
+  return { t, svc, durationMin, staff: staff.data, slots };
 }
 
 export async function availableSlots(db: Firestore, q: SlotQuery) {
@@ -78,14 +88,14 @@ export async function book(db: Firestore, input: BookingInput) {
     const start = zonedTime(input.date, input.time);
     const ref = ctx.t.collection("appointments").doc();
     tx.create(ref, {
-      serviceId: input.serviceId,
-      serviceName: ctx.svc.name,
-      durationMin: ctx.svc.durationMin,
-      priceCents: ctx.svc.priceCents,
+      serviceIds: input.serviceIds,
+      serviceName: ctx.svc.map((s) => s.name).join(" + "),
+      durationMin: ctx.durationMin,
+      priceCents: ctx.svc.reduce((sum, s) => sum + s.priceCents, 0),
       staffId: input.staffId,
       staffName: ctx.staff.name,
       start,
-      end: new Date(start.getTime() + ctx.svc.durationMin * 60_000),
+      end: new Date(start.getTime() + ctx.durationMin * 60_000),
       customerName: input.customerName,
       customerPhone: input.customerPhone,
       status: "booked",
