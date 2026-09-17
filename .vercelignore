@@ -1,0 +1,4 @@
+importantes/
+*-firebase-adminsdk-*.json
+.env*
+*.log
