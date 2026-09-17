@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tranças Afro da Chris · Studio de Tranças em Manaus</title>
+<meta name="description" content="O maior studio de tranças de Manaus: box braids, nagô, goddess, crochet e loja de fibras. Nota 4.9 no Google. Realizando sonhos através do trançado.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;0,700;0,900;1,400&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --noite:#17100a; --cafe:#241709; --ambar:#e8a33d; --terracota:#c4572e;
+  --areia:#f4e9d8; --creme:#fbf6ec; --verde:#3f5d43;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{overflow-x:hidden}
+img{max-width:100%;min-width:0}
+html{scroll-behavior:smooth}
+body{font-family:'Sora',sans-serif;background:var(--creme);color:var(--noite);line-height:1.65}
+h1,h2,h3,.serif{font-family:'Fraunces',serif}
+img{max-width:100%;display:block}
+.wrap{width:100%;max-width:1140px;margin:0 auto;padding:0 24px}
+.kente{height:8px;background:repeating-linear-gradient(90deg,var(--ambar) 0 26px,var(--terracota) 26px 52px,var(--verde) 52px 78px,var(--noite) 78px 104px)}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(23,16,10,.94);backdrop-filter:blur(8px)}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:70px}
+.logo{font-family:'Fraunces',serif;font-weight:900;font-size:1.25rem;color:var(--areia);text-decoration:none;letter-spacing:.01em}
+.logo em{color:var(--ambar);font-style:normal}
+.nav-links{display:flex;gap:26px;align-items:center}
+.nav-links a{color:#d8c7ae;text-decoration:none;font-size:.86rem;font-weight:500}
+.nav-links a:hover{color:var(--ambar)}
+.nav-links a.btn{color:var(--noite)}
+.nav-links a.btn:hover{color:#fff}
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--ambar);color:var(--noite);font-weight:700;font-size:.9rem;padding:13px 28px;border-radius:6px;text-decoration:none;border:none;cursor:pointer;transition:.25s}
+.btn:hover{background:var(--terracota);color:#fff;transform:translateY(-2px)}
+.btn.line{background:transparent;border:2px solid var(--ambar);color:var(--ambar)}
+.btn.line:hover{background:var(--ambar);color:var(--noite)}
+.btn.wpp{background:#25d366;color:#062b16}
+.btn.wpp:hover{background:#1eb856}
+@media(max-width:860px){.nav-links a:not(.btn){display:none}}
+
+.hero{background:var(--noite);color:var(--areia);padding:150px 0 90px;position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:0;background:radial-gradient(700px 420px at 85% 15%,rgba(196,87,46,.28),transparent 65%)}
+.hero .wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center;position:relative}
+.hero h1{font-size:clamp(2.3rem,4.8vw,4rem);line-height:1.05;font-weight:900}
+.hero h1 em{color:var(--ambar);font-style:italic;font-weight:400}
+.hero .lead{color:#cbb99d;margin:24px 0 32px;font-size:1.05rem;max-width:520px}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap}
+.hero-foto{position:relative}
+.hero-foto img{border-radius:14px;width:100%;height:560px;object-fit:cover;box-shadow:16px 16px 0 var(--terracota)}
+.hero-foto .badge{position:absolute;bottom:-20px;left:-20px;background:var(--areia);color:var(--noite);padding:14px 22px;border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.35)}
+.badge .n{font-family:'Fraunces',serif;font-weight:900;font-size:1.5rem}
+.badge small{display:block;font-size:.72rem;color:#6b5b45}
+.stars{color:var(--ambar);letter-spacing:2px}
+@media(max-width:900px){.hero .wrap{grid-template-columns:minmax(0,1fr)}.hero-foto img{height:400px}.hero-foto .badge{left:10px}}
+
+section{padding:96px 0}
+.eyebrow{color:var(--terracota);text-transform:uppercase;letter-spacing:.24em;font-size:.74rem;font-weight:700}
+.h2{font-size:clamp(1.9rem,3.6vw,2.8rem);margin:12px 0 18px;line-height:1.12;font-weight:900}
+.center{text-align:center}
+.center p.sub{color:#7a6a55;max-width:600px;margin:0 auto}
+
+/* manifesto */
+.manifesto{background:var(--noite);color:var(--areia)}
+.manifesto .wrap{max-width:860px;text-align:center}
+.manifesto .h2{color:var(--areia)}
+.manifesto p{color:#cbb99d;font-size:1.06rem;margin-bottom:18px}
+.manifesto .mv{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:44px;text-align:left}
+.mv div{border:1px solid #3a2c1a;border-radius:12px;padding:28px;background:#1f1509}
+.mv h3{color:var(--ambar);font-size:1.15rem;margin-bottom:10px}
+.mv p{font-size:.92rem;margin:0}
+@media(max-width:700px){.manifesto .mv{grid-template-columns:minmax(0,1fr)}}
+
+/* serviços */
+.s-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:50px}
+.s-card{background:#fff;border-radius:14px;overflow:hidden;border:1px solid #ecdfc9;transition:.3s}
+.s-card:hover{transform:translateY(-6px);box-shadow:0 22px 44px rgba(36,23,9,.14)}
+.s-card img{height:230px;width:100%;object-fit:cover}
+.s-card .b{padding:26px}
+.s-card h3{font-size:1.2rem;font-weight:900}
+.s-card p{font-size:.88rem;color:#7a6a55;margin-top:8px}
+.s-card .pill{display:inline-block;margin-top:14px;font-size:.7rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;background:var(--areia);color:var(--terracota);padding:5px 12px;border-radius:999px}
+@media(max-width:900px){.s-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* loja + curso */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:50px}
+.duo-card{border-radius:16px;overflow:hidden;position:relative;min-height:420px;display:flex;align-items:flex-end;color:#fff;text-decoration:none}
+.duo-card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:.5s}
+.duo-card::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(23,16,10,0) 30%,rgba(23,16,10,.92))}
+.duo-card:hover img{transform:scale(1.05)}
+.duo-card .b{position:relative;z-index:1;padding:32px}
+.duo-card h3{font-size:1.5rem;font-weight:900}
+.duo-card p{font-size:.9rem;color:#e6d9c2;margin:10px 0 16px}
+.duo-card .preco{display:inline-block;background:var(--ambar);color:var(--noite);font-weight:700;font-size:.82rem;padding:6px 14px;border-radius:999px;margin-bottom:12px}
+@media(max-width:800px){.duo{grid-template-columns:minmax(0,1fr)}}
+
+/* fundadora */
+.fund .wrap{display:grid;grid-template-columns:.9fr 1.1fr;gap:60px;align-items:center}
+.fund img{border-radius:14px;height:460px;width:100%;object-fit:cover;box-shadow:-16px 16px 0 var(--ambar)}
+.fund p{color:#7a6a55;margin-bottom:16px}
+.press{margin-top:22px;border-left:4px solid var(--terracota);padding:14px 20px;background:#fff;border-radius:0 10px 10px 0}
+.press p{font-size:.92rem;color:var(--noite);font-style:italic;margin:0}
+.press small{color:#7a6a55;font-style:normal}
+@media(max-width:900px){.fund .wrap{grid-template-columns:minmax(0,1fr)}}
+
+/* prova social */
+.social{background:var(--noite);color:var(--areia);text-align:center}
+.social .big{font-family:'Fraunces',serif;font-size:clamp(3rem,7vw,5.5rem);font-weight:900;color:var(--ambar);line-height:1}
+.social .stars{font-size:1.6rem;margin:10px 0}
+.social p{color:#cbb99d;max-width:560px;margin:0 auto}
+.social .row{display:flex;justify-content:center;gap:48px;margin-top:44px;flex-wrap:wrap}
+.social .row b{font-family:'Fraunces',serif;font-size:2rem;display:block;color:var(--areia)}
+.social .row span{font-size:.8rem;color:#cbb99d}
+
+/* contato */
+.contato .wrap{display:grid;grid-template-columns:1fr 1fr;gap:60px}
+.info-card{background:#fff;border:1px solid #ecdfc9;border-radius:14px;padding:30px;margin-bottom:18px}
+.info-card h3{font-size:1.05rem;margin-bottom:8px}
+.info-card p, .info-card a{font-size:.9rem;color:#7a6a55;text-decoration:none}
+.info-card a{color:var(--terracota);font-weight:600}
+.form{background:var(--noite);border-radius:16px;padding:36px;color:var(--areia)}
+.form h3{font-size:1.4rem;font-weight:900;margin-bottom:6px}
+.form label{display:block;font-size:.74rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ambar);margin:16px 0 6px}
+.form input,.form select,.form textarea{width:100%;background:#241709;border:1.5px solid #3a2c1a;color:var(--areia);border-radius:8px;padding:12px 14px;font-family:'Sora',sans-serif;font-size:.9rem}
+.form input:focus,.form select:focus,.form textarea:focus{outline:none;border-color:var(--ambar)}
+.form .btn{width:100%;justify-content:center;margin-top:22px}
+@media(max-width:900px){.contato .wrap{grid-template-columns:minmax(0,1fr)}}
+
+footer{background:#100b06;color:#8f7c62;padding:52px 0 26px}
+.foot{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:40px}
+footer h4{color:var(--areia);font-family:'Fraunces',serif;margin-bottom:14px}
+footer a{color:#c9b691;text-decoration:none;font-size:.86rem;display:block;margin-bottom:8px}
+footer a:hover{color:var(--ambar)}
+footer p{font-size:.86rem;margin-bottom:8px}
+.socials{display:flex;gap:12px;margin-top:14px}
+.socials a{width:40px;height:40px;border-radius:8px;background:#241709;display:flex;align-items:center;justify-content:center;transition:.25s}
+.socials a:hover{background:var(--terracota)}
+.socials svg{width:18px;height:18px;fill:var(--areia)}
+.copy{border-top:1px solid #241709;margin-top:34px;padding-top:18px;text-align:center;font-size:.76rem}
+@media(max-width:800px){.foot{grid-template-columns:minmax(0,1fr)}}
+
+.wpp-float{position:fixed;bottom:24px;right:24px;width:60px;height:60px;border-radius:50%;background:#25d366;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 26px rgba(37,211,102,.45);z-index:60;transition:.25s}
+.wpp-float:hover{transform:scale(1.08)}
+.wpp-float svg{width:30px;height:30px;fill:#fff}
+.soc-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}.soc-pill{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:999px;border:1.5px solid var(--noite);color:var(--noite);text-decoration:none;font-size:.82rem;font-weight:600;transition:.25s;line-height:1;}.soc-pill:hover{background:var(--noite);color:var(--areia)}.soc-pill svg{width:15px;height:15px;fill:currentColor;flex:none}.soc-pill.wpp{border-color:#25d366;color:#1eb856}.soc-pill.wpp:hover{background:#25d366;color:#fff}.soc-pill.terra{border-color:var(--terracota);color:var(--terracota)}.soc-pill.terra:hover{background:var(--terracota);color:#fff}.soc-pill.verde{border-color:var(--verde);color:var(--verde)}.soc-pill.verde:hover{background:var(--verde);color:#fff}
+/* chips sociais personalizados */
+a[href*="instagram.com"] svg{background:linear-gradient(45deg,#feda75,#fa7e1e 25%,#d62976 55%,#962fbf 80%,#4f5bd5)!important;fill:#fff!important;color:#fff;border-radius:9px;padding:4px;margin:-4px;box-sizing:content-box}
+</style>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#17100a">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317100a'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-size='36' font-weight='400' fill='%23e8a33d' text-anchor='middle'%3ET%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="favicon-180.png">
+<meta name="geo.region" content="BR-AM">
+<meta name="geo.placename" content="Manaus">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Tranças Afro da Chris · Studio de Tranças em Manaus">
+<meta property="og:description" content="O maior studio de tranças de Manaus. Box braids, nagô, goddess, crochet e loja de fibras. Nota 4.9 no Google. Realizando sonhos através do trançado desde 2015.">
+<meta property="og:image" content="https://www.ysis.app/trancasafro/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Cliente com box braids finalizadas no studio Tranças Afro da Chris">
+<meta property="og:site_name" content="Tranças Afro da Chris">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Tranças Afro da Chris · Studio de Tranças em Manaus">
+<meta name="twitter:description" content="O maior studio de tranças de Manaus. Box braids, nagô, goddess, crochet e loja de fibras. Nota 4.9 no Google. Realizando sonhos através do trançado desde 2015.">
+<meta name="twitter:image" content="https://www.ysis.app/trancasafro/og.jpg">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BeautySalon", "name": "Tranças Afro da Chris", "address": {"@type": "PostalAddress", "streetAddress": "Av. Itacoatiara, 183 — Cachoeirinha", "addressLocality": "Manaus", "addressRegion": "AM", "addressCountry": "BR"}, "telephone": "+55 92 98823-0604", "aggregateRating": {"@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "251"}, "openingHoursSpecification": [{"@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], "opens": "09:00", "closes": "18:00"}], "sameAs": ["https://www.instagram.com/trancasafrodachris", "https://linktr.ee/trancasafrodachris"], "image": "https://kimi-web-img.kimi.ai/img/images.pexels.com/caba83d22369bbdb0dc7f15ae558c8dbce5f765f.jpeg", "description": "O maior studio de tranças de Manaus. Box braids, nagô, goddess, crochet e loja de fibras. Nota 4.9 no Google. Realizando sonhos através do trançado desde 2015.", "hasMap": "https://www.google.com/maps/search/?api=1&query=Av.%20Itacoatiara%2C%20183%20%E2%80%94%20Cachoeirinha%2C%20Manaus%20-%20AM", "openingHours": ["Mo-Sa 09:00-18:00"]}</script>
+<link rel="canonical" href="https://www.ysis.app/trancasafro/">
+<meta property="og:url" content="https://www.ysis.app/trancasafro/">
+</head>
+<body>
+<aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">Esta página é uma proposta da <a href="https://www.ysis.app/" style="color:#f2b56b">Ysis</a>, não o site oficial. <a href="https://wa.me/5511948680554?text=Quero%20remover%20a%20p%C3%A1gina%20de%20proposta%20trancasafro" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ysis.app/privacidade/" style="color:#a2918d">Privacidade</a></aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){var b=document.querySelector("aside[data-ysis=proposta]");if(!b)return;var h=b.getBoundingClientRect().height;document.querySelectorAll("header,nav,.site-header,.nav,.topo").forEach(function(el){var s=getComputedStyle(el);if(s.position==="fixed"||s.position==="sticky")el.style.top=h+"px"});});</script>
+
+<div class="kente" style="position:fixed;top:0;left:0;right:0;z-index:60"></div>
+<nav>
+  <div class="wrap nav-in">
+    <a class="logo" href="#top">Tranças Afro <em>da Chris</em></a>
+    <div class="nav-links">
+      <a href="#manifesto">Manifesto</a>
+      <a href="#servicos">Tranças</a>
+      <a href="#loja">Loja &amp; Curso</a>
+      <a href="#contato">Contato</a>
+      <a class="btn" href="https://wa.me/5592988230604?text=Ol%C3%A1!%20Quero%20agendar%20minhas%20tranças%20%E2%9C%A8" target="_blank" rel="noopener">Agendar</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Manaus · AM — desde 2015</span>
+      <h1>Tranças que carregam <em>ancestralidade</em> e transformam vidas.</h1>
+      <p class="lead">O maior studio de tranças de Manaus — e loja completa de fibras, cabelos e acessórios. Um espaço onde pessoas de todos os gêneros e crianças celebram a beleza afro e a autoestima.</p>
+      <div class="hero-cta">
+        <a class="btn" href="https://wa.me/5592988230604?text=Ol%C3%A1!%20Quero%20agendar%20minhas%20tranças%20%E2%9C%A8" target="_blank" rel="noopener">Agendar pelo WhatsApp</a>
+        <a class="btn line" href="https://linktr.ee/trancasafrodachris" target="_blank" rel="noopener">Ver catálogo da loja</a>
+      </div>
+    </div>
+    <div class="hero-foto">
+      <img fetchpriority="high" decoding="async" src="img/caba83d22369.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/caba83d22369bbdb0dc7f15ae558c8dbce5f765f.jpeg'" alt="Mulher com box braids sorrindo">
+      <div class="badge">
+        <span class="n">4,9</span> <span class="stars">★★★★★</span>
+        <small>251 avaliações no Google</small>
+      </div>
+    </div>
+  </div>
+</header>
+<div class="kente"></div>
+
+<section class="manifesto" id="manifesto">
+  <div class="wrap">
+    <span class="eyebrow">Nosso manifesto</span>
+    <h2 class="h2">Beleza, autoestima e empoderamento</h2>
+    <p>Valorizamos e incentivamos o uso das tranças — símbolo de ancestralidade africana e de resistência. Desde 2015, o Tranças Afro da Chris é um lugar onde pessoas de todos os gêneros, e também crianças, fazem seus penteados e trocam ideias sobre as culturas africana e brasileira.</p>
+    <div class="mv">
+      <div>
+        <h3>Missão</h3>
+        <p>Realizar sonhos e transformar vidas através do trançado.</p>
+      </div>
+      <div>
+        <h3>Visão</h3>
+        <p>Ser a maior fornecedora de cabelos de fibra e acessórios de Manaus.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="servicos">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow">O que fazemos</span>
+      <h2 class="h2">Estilos que contam histórias</h2>
+      <p class="sub">Cada técnica tem sua raiz, seu ritmo e sua beleza. Escolha a sua — ou chegue para descobrir com a gente.</p>
+    </div>
+    <div class="s-grid">
+      <div class="s-card">
+        <img loading="lazy" decoding="async" src="img/f9c5b981194f.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/f9c5b981194fbe1f1e29ad1077717f5e0671b24c.jpeg'" alt="Aplicação de box braids">
+        <div class="b"><h3>Box Braids</h3><p>As clássicas tranças soltas divididas na raiz — versáteis, duráveis e cheias de atitude.</p><span class="pill">Mais pedidas</span></div>
+      </div>
+      <div class="s-card">
+        <img loading="lazy" decoding="async" src="img/5aae30d4a6c0.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/5aae30d4a6c0d27cef5a870bc3d838eeeeefd69b.jpeg'" alt="Trança nagô sendo trançada rente ao couro cabeludo">
+        <div class="b"><h3>Nagô</h3><p>Trançadas rente ao couro cabeludo, em desenhos que são pura arte ancestral.</p><span class="pill">Ancestral</span></div>
+      </div>
+      <div class="s-card">
+        <img loading="lazy" decoding="async" src="img/beb5f5b71445.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/beb5f5b714450cb3da7c61f561bf45d583128343.jpeg'" alt="Box braids finalizadas">
+        <div class="b"><h3>Goddess &amp; Twists</h3><p>Tranças com cachos nas pontas, twists e crochet braids — leveza e movimento.</p><span class="pill">Tendência</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="loja" style="background:var(--areia)">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow">Além do studio</span>
+      <h2 class="h2">Loja completa &amp; curso de tranças</h2>
+    </div>
+    <div class="duo">
+      <a class="duo-card" href="https://linktr.ee/trancasafrodachris" target="_blank" rel="noopener">
+        <img loading="lazy" decoding="async" src="img/7880402c1ed8.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/7880402c1ed805f146183ee23bb498e54748ad40.jpeg'" alt="Fibras coloridas para tranças">
+        <div class="b">
+          <span class="preco">Fibras a partir de R$ 20</span>
+          <h3>Loja Afro da Chris</h3>
+          <p>A maior fornecedora de fibras, cabelos e acessórios de Manaus. Catálogo completo no nosso Linktree.</p>
+          <span class="btn">Abrir catálogo</span>
+        </div>
+      </a>
+      <a class="duo-card" href="https://wa.me/5592988230604?text=Ol%C3%A1!%20Quero%20saber%20sobre%20o%20curso%20de%20tranças%20%F0%9F%8E%93" target="_blank" rel="noopener">
+        <img loading="lazy" decoding="async" src="img/36aa820d7ce1.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/36aa820d7ce19a37095de31296e0f8400fb7fa23.jpeg'" alt="Trancista trabalhando">
+        <div class="b">
+          <span class="preco">Formação profissional</span>
+          <h3>Curso de Tranças</h3>
+          <p>Aprenda as técnicas com quem é referência desde 2015 e transforme o trançado em profissão.</p>
+          <span class="btn">Quero aprender</span>
+        </div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="fund">
+  <div class="wrap">
+    <img loading="lazy" decoding="async" src="img/5aae30d4a6c0.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/5aae30d4a6c0d27cef5a870bc3d838eeeeefd69b.jpeg'" alt="Detalhe de trabalho de trancista">
+    <div>
+      <span class="eyebrow">Quem comanda</span>
+      <h2 class="h2">Christiane Eveng</h2>
+      <p>Fundadora e trancista, Chris abriu o espaço em 2015 com um propósito claro: contribuir com a beleza, a autoestima e o bem-estar das mulheres — e com o empoderamento de quem veste sua coroa todos os dias.</p>
+      <p>Hoje o studio é também loja, escola e ponto de encontro de cultura em Manaus.</p>
+      <div class="press">
+        <p>"Comandado por Christiane Eveng, o Tranças Afro da Chris existe desde 2015 em Manaus (AM). Além do serviço de tranças, dispõe de uma loja de cabelos."</p>
+        <small>— Destaque na reportagem "Estéticas negras: 8 trancistas para conhecer e se inspirar", Nós, Mulheres da Periferia</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="social">
+  <div class="wrap">
+    <div class="big">4,9</div>
+    <div class="stars">★★★★★</div>
+    <p>Nota do Google construída por 251 clientes que viveram a experiência — quase todas com 5 estrelas.</p>
+    <div class="row">
+      <div><b>251</b><span>avaliações no Google</span></div>
+      <div><b>10+</b><span>anos de estrada</span></div>
+      <div><b>#1</b><span>loja de fibras de Manaus</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="contato" id="contato">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Visite ou chame</span>
+      <h2 class="h2">Bora trançar?</h2>
+      <div class="info-card">
+        <h3>Endereço</h3>
+        <p>Av. Itacoatiara, 183 — Cachoeirinha, Manaus/AM</p>
+      </div>
+      <div class="info-card">
+        <h3>Horários</h3>
+        <p>Segunda a sábado · 9h às 18h</p>
+      </div>
+      <div class="info-card">
+        <h3>Canais oficiais</h3>
+      <div class="soc-row"><a class="soc-pill wpp" href="https://wa.me/5592988230604" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 1.8a8.2 8.2 0 11-4.2 15.3l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 0112 3.8zm-3.3 4c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.1s.9 2.4 1 2.6c.1.2 1.8 2.8 4.4 3.9 2.2.9 2.6.7 3.1.7.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.2-.2-.5-.3l-1.7-.8c-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.1-.2 0-.4.1-.5l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.8-1.8c-.2-.4-.4-.5-.5-.5h-.4z"/></svg>(92) 98823-0604</a><a class="soc-pill terra" href="https://www.instagram.com/trancasafrodachris" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.07 3.2.15 4.7 1.7 4.8 4.8.07 1.3.07 1.6.07 4.9s0 3.6-.07 4.9c-.15 3.1-1.6 4.7-4.8 4.8-1.3.07-1.6.07-4.9.07s-3.6 0-4.9-.07c-3.2-.15-4.7-1.7-4.8-4.8C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9C2.42 4 3.9 2.42 7.1 2.27 8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.8.07-2.4.11-3.5 1.3-3.6 3.6C3.5 8.9 3.5 9.3 3.5 12s0 3.1.07 4.3c.11 2.3 1.2 3.5 3.6 3.6 1.3.06 1.7.07 4.8.07s3.5 0 4.8-.07c2.4-.11 3.5-1.3 3.6-3.6.06-1.2.07-1.6.07-4.3s0-3.1-.07-4.3c-.11-2.3-1.2-3.5-3.6-3.6-1.3-.06-1.7-.07-4.8-.07zm0 3.1a4.9 4.9 0 110 9.8 4.9 4.9 0 010-9.8zm0 8.1a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4zm5.1-9.5a1.15 1.15 0 11-2.3 0 1.15 1.15 0 012.3 0z"/></svg>@trancasafrodachris</a><a class="soc-pill verde" href="https://linktr.ee/trancasafrodachris" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M10.6 13.4a1 1 0 001.4 1.4l3-3a3 3 0 000-4.2 3 3 0 00-4.2 0l-1.5 1.5a1 1 0 001.4 1.4l1.5-1.5a1 1 0 011.4 0 1 1 0 010 1.4l-3 3zm2.8-2.8a1 1 0 00-1.4-1.4l-3 3a3 3 0 000 4.2 3 3 0 004.2 0l1.5-1.5a1 1 0 00-1.4-1.4l-1.5 1.5a1 1 0 01-1.4 0 1 1 0 010-1.4l3-3z"/></svg>Catálogo &amp; curso</a></div>
+      </div>
+    </div>
+    <form class="form" id="form-contato">
+      <h3>Monte seu estilo</h3>
+      <p style="font-size:.85rem;color:#cbb99d">Conte o que você quer e respondemos com orçamento e horários.</p>
+      <label for="nome">Seu nome</label>
+      <input id="nome" type="text" placeholder="Seu nome" required>
+      <label for="estilo">Estilo desejado</label>
+      <select id="estilo">
+        <option>Box Braids</option>
+        <option>Nagô</option>
+        <option>Goddess</option>
+        <option>Crochet Braids</option>
+        <option>Twists</option>
+        <option>Infantil</option>
+        <option>Curso de tranças</option>
+        <option>Comprar fibras/acessórios</option>
+      </select>
+      <label for="msg">Detalhes</label>
+      <textarea id="msg" rows="3" placeholder="Comprimento, cor, referência..."></textarea>
+      <button type="submit" class="btn wpp">Pedir orçamento no WhatsApp</button>
+    <p data-ysis="aviso" style="margin-top:14px;font-size:.8rem;line-height:1.5;opacity:.72">Seus dados não ficam neste site: o formulário monta a mensagem e abre o WhatsApp para você enviar. Nada é gravado aqui, e o retorno vem pelo mesmo canal.</p>
+</form>
+  </div>
+</section>
+<section class="mapa-sec" aria-label="Mapa e como chegar" style="padding:0 22px 64px"><div style="max-width:1120px;margin:0 auto"><h2 style="color:var(--ink,#26221a);font-size:1.6rem;margin:0 0 16px">Como chegar</h2><div style="border-radius:18px;overflow:hidden;border:1px solid var(--line,#e3ddd2);background:var(--card,#fff);box-shadow:0 10px 30px rgba(0,0,0,.05)"><iframe title="Mapa: Av. Itacoatiara, 183 — Cachoeirinha, Manaus - AM" src="https://www.google.com/maps?q=Av.%20Itacoatiara%2C%20183%20%E2%80%94%20Cachoeirinha%2C%20Manaus%20-%20AM&amp;output=embed" style="width:100%;height:320px;border:0;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe><div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 18px"><span style="color:var(--mut,#777);font-size:.92rem">Av. Itacoatiara, 183 — Cachoeirinha, Manaus - AM</span><a href="https://www.google.com/maps/dir/?api=1&amp;destination=Av.%20Itacoatiara%2C%20183%20%E2%80%94%20Cachoeirinha%2C%20Manaus%20-%20AM" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:var(--acc,#4c7a63);color:var(--btntxt,#fff);padding:11px 18px;border-radius:999px;font-weight:700;font-size:.92rem;text-decoration:none"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg> Como chegar</a></div></div></div></section>
+<div class="kente"></div>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <a class="logo" href="#top">Tranças Afro <em>da Chris</em></a>
+        <p style="margin-top:12px">Realizando sonhos e transformando vidas através do trançado — desde 2015.</p>
+        <div class="socials">
+          <a href="https://www.instagram.com/trancasafrodachris" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.07 3.2.15 4.7 1.7 4.8 4.8.07 1.3.07 1.6.07 4.9s0 3.6-.07 4.9c-.15 3.1-1.6 4.7-4.8 4.8-1.3.07-1.6.07-4.9.07s-3.6 0-4.9-.07c-3.2-.15-4.7-1.7-4.8-4.8C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9C2.42 4 3.9 2.42 7.1 2.27 8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.8.07-2.4.11-3.5 1.3-3.6 3.6C3.5 8.9 3.5 9.3 3.5 12s0 3.1.07 4.3c.11 2.3 1.2 3.5 3.6 3.6 1.3.06 1.7.07 4.8.07s3.5 0 4.8-.07c2.4-.11 3.5-1.3 3.6-3.6.06-1.2.07-1.6.07-4.3s0-3.1-.07-4.3c-.11-2.3-1.2-3.5-3.6-3.6-1.3-.06-1.7-.07-4.8-.07zm0 3.1a4.9 4.9 0 110 9.8 4.9 4.9 0 010-9.8zm0 8.1a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4zm5.1-9.5a1.15 1.15 0 11-2.3 0 1.15 1.15 0 012.3 0z"/></svg></a>
+          <a href="https://linktr.ee/trancasafrodachris" target="_blank" rel="noopener" aria-label="Linktree"><svg viewBox="0 0 24 24"><path d="M8.9 2h6.2v6.9h5.7v4.2h-5.7V22H8.9v-8.9H3.2V8.9h5.7V2z"/></svg></a>
+        </div>
+      </div>
+      <div>
+        <h4>Contato</h4>
+        <a href="https://wa.me/5592988230604" target="_blank" rel="noopener">WhatsApp: (92) 98823-0604</a>
+        <p>Av. Itacoatiara, 183<br>Cachoeirinha — Manaus/AM</p>
+      </div>
+      <div>
+        <h4>Atalhos</h4>
+        <a href="#servicos">Estilos de tranças</a>
+        <a href="#loja">Loja de fibras</a>
+        <a href="#loja">Curso de tranças</a>
+      </div>
+    </div>
+    <div class="copy">© 2026 Tranças Afro da Chris · Manaus/AM — ancestralidade em cada trança.</div>
+  </div>
+<div style="text-align:center;font-size:.72rem;opacity:.55;margin-top:16px;letter-spacing:.05em">powered by <b>Ruphus</b><p data-ysis="fonte" style="margin:16px 0 0;text-align:center;font-size:.76rem;line-height:1.5;opacity:.6">Nota e número de avaliações do Google, consultados em agosto de 2026. Valores públicos, sujeitos a mudança.</p></div>
+</footer>
+
+<a class="wpp-float" href="https://wa.me/5592988230604?text=Ol%C3%A1!%20Vim%20pelo%20site%20e%20quero%20trançar%20%E2%9C%A8" target="_blank" rel="noopener" aria-label="WhatsApp">
+  <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 1.8a8.2 8.2 0 11-4.2 15.3l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 0112 3.8zm-3.3 4c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.1s.9 2.4 1 2.6c.1.2 1.8 2.8 4.4 3.9 2.2.9 2.6.7 3.1.7.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.2-.2-.5-.3l-1.7-.8c-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.1-.2 0-.4.1-.5l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.8-1.8c-.2-.4-.4-.5-.5-.5h-.4z"/></svg>
+</a>
+
+<script>
+document.getElementById('form-contato').addEventListener('submit', function(e){
+  e.preventDefault();
+  const nome = document.getElementById('nome').value.trim();
+  const est  = document.getElementById('estilo').value;
+  const msg  = document.getElementById('msg').value.trim();
+  let texto = `Olá! Sou ${nome || 'cliente'} e quero orçamento para: ${est}.`;
+  if(msg) texto += ` Detalhes: ${msg}`;
+  window.open('https://wa.me/5592988230604?text=' + encodeURIComponent(texto), '_blank');
+});
+</script>
+<a href="https://wa.me/5592988230604?text=Ol%C3%A1%21%20Vim%20pelo%20site%20e%20quero%20agendar%20um%20hor%C3%A1rio." target="_blank" rel="noopener" aria-label="Agendar pelo WhatsApp" style="position:fixed;right:18px;bottom:18px;z-index:60;width:56px;height:56px;border-radius:50%;background:#25d366;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(0,0,0,.25)"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3.1.8.8-3-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.6-6.1c-.3-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.3-.6.8-.8 1-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.6-1.3.1-.2 0-.4 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1.1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2l-.6-.2z"/></svg></a>
+<script data-ysis="medicao">
+(function(){
+  var SITE = 'trancasafro';
+  // A chave web do Firebase é pública por natureza. A proteção não está nela e
+  // sim na regra do Firestore: a coleção `eventos` só aceita criar, com campos
+  // fixos e canal dentro de uma lista — não lê, não altera, não apaga.
+  var URL = 'https://firestore.googleapis.com/v1/projects/ysis-crm/databases/'
+          + '(default)/documents/eventos?key=AIzaSyCEXBCVXmhDnVIF6XbSsv3-f-L6P9knu5o';
+
+  function hoje(){
+    var d = new Date(), z = function(n){ return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+  }
+  function origem(){
+    try {
+      var u = new URLSearchParams(location.search).get('utm_source');
+      if (u) return u.slice(0, 60);
+      if (document.referrer) return new URL(document.referrer).hostname.slice(0, 60);
+    } catch (e) {}
+    return '';
+  }
+  function medir(nome, canal){
+    var f = { nome: { stringValue: nome }, site: { stringValue: SITE },
+              dia: { stringValue: hoje() } };
+    if (canal) f.canal = { stringValue: canal };
+    var o = origem();
+    if (o) f.origem = { stringValue: o };
+    try {
+      fetch(URL, { method: 'POST', body: JSON.stringify({ fields: f }),
+                   headers: { 'Content-Type': 'application/json' }, keepalive: true });
+    } catch (e) {}
+  }
+
+  // captura na fase de captura: o formulário destas páginas dá preventDefault
+  // e abre o canal, então um listener na fase de bolha não veria o envio
+  document.addEventListener('click', function(ev){
+    var a = ev.target && ev.target.closest && ev.target.closest('a[href]');
+    if (!a) return;
+    var h = a.getAttribute('href') || '';
+    var canal = /wa\.me|api\.whatsapp/.test(h) ? 'whatsapp'
+      : /ig\.me|instagram\.com/.test(h) ? 'instagram'
+      : h.indexOf('tel:') === 0 ? 'telefone'
+      : h.indexOf('mailto:') === 0 ? 'email'
+      : /google\.[a-z.]+\/maps|maps\.app\.goo/.test(h) ? 'mapa'
+      : /agendamento|avec|trinks|booksy|appbarber|bestbarbers|calendly|cal\.com|frizzar|agendaservico/.test(h) ? 'agenda'
+      : '';
+    if (canal) medir('contato', canal);
+  }, true);
+  document.addEventListener('submit', function(ev){
+    if (ev.target && ev.target.tagName === 'FORM') medir('formulario', '');
+  }, true);
+})();
+</script>
+</body>
+</html>

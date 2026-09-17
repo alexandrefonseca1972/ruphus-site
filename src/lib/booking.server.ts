@@ -4,7 +4,7 @@ import { FieldValue, type Firestore, type Timestamp, type Transaction } from "fi
 import { addDays, customerKey, freeSlots, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { Service, Staff, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
 
-const SLUG = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
+const SLUG = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
 
 /** Dados públicos da página de agendamento. Nunca inclui dados de clientes. */
 export async function loadCatalog(db: Firestore, tenantId: string) {

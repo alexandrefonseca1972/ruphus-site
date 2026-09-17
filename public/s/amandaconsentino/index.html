@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amanda Consentino · Micropigmentação e Sobrancelhas em Manaus</title>
+<meta name="description" content="Amanda Consentino — especialista em micropigmentação Soft Shadow, design de sobrancelhas e extensão de cílios em Manaus. Nota 4.8 no Google. Agende já.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Italiana&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --marfim:#faf6f1; --tinta:#2b2320; --rose:#b98a78; --rose-escuro:#9a6a5a;
+  --suave:#8d7a70; --linha:#e8dcd2;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{overflow-x:hidden}
+img{max-width:100%;min-width:0}
+html{scroll-behavior:smooth}
+body{font-family:'Manrope',sans-serif;background:var(--marfim);color:var(--tinta);line-height:1.7}
+h1,h2,h3,.serif{font-family:'Italiana',serif;font-weight:400}
+img{max-width:100%;display:block}
+.wrap{width:100%;max-width:1080px;margin:0 auto;padding:0 24px}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(250,246,241,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--linha)}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:74px}
+.logo{font-family:'Italiana',serif;font-size:1.45rem;color:var(--tinta);text-decoration:none;letter-spacing:.1em}
+.logo em{color:var(--rose);font-style:normal}
+.nav-links{display:flex;gap:26px;align-items:center}
+.nav-links a{color:var(--tinta);text-decoration:none;font-size:.84rem;font-weight:500}
+.nav-links a:hover{color:var(--rose)}
+.nav-links a.btn{color:var(--marfim)}
+.nav-links a.btn:hover{color:var(--marfim)}
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--tinta);color:var(--marfim);text-decoration:none;font-weight:600;font-size:.85rem;padding:13px 30px;border-radius:999px;border:none;cursor:pointer;transition:.3s}
+.btn:hover{background:var(--rose-escuro)}
+.btn.line{background:transparent;border:1.5px solid var(--tinta);color:var(--tinta)}
+.btn.line:hover{background:var(--tinta);color:var(--marfim)}
+.btn.wpp{background:#25d366;color:#fff}
+.btn.wpp:hover{background:#1eb856}
+@media(max-width:860px){.nav-links a:not(.btn){display:none}}
+
+.hero{padding:160px 0 90px}
+.hero .wrap{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
+.hero h1{font-size:clamp(2.6rem,5vw,4.2rem);line-height:1.02}
+.hero h1 em{color:var(--rose-escuro)}
+.hero .lead{color:var(--suave);margin:22px 0 30px;font-size:1rem;max-width:460px}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap}
+.hero-foto{position:relative}
+.hero-foto img{border-radius:200px 200px 18px 18px;width:100%;height:580px;object-fit:cover}
+.hero-foto .chip{position:absolute;bottom:24px;left:-26px;background:#fff;border:1px solid var(--linha);border-radius:16px;padding:14px 20px;box-shadow:0 16px 40px rgba(43,35,32,.12)}
+.chip b{font-family:'Italiana',serif;font-size:1.6rem;display:block;line-height:1}
+.chip small{color:var(--suave);font-size:.72rem}
+.stars{color:var(--rose);letter-spacing:2px}
+.desde{position:absolute;top:-16px;right:-14px;background:var(--tinta);color:var(--marfim);border-radius:50%;width:118px;height:118px;padding:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;line-height:1.5}
+.desde b{font-family:'Italiana',serif;font-size:1.35rem;color:var(--rose)}
+@media(max-width:900px){.hero .wrap{grid-template-columns:minmax(0,1fr)}.hero-foto img{height:420px}.hero-foto .chip{left:10px}}
+
+section{padding:92px 0}
+.eyebrow{color:var(--rose-escuro);text-transform:uppercase;letter-spacing:.26em;font-size:.72rem;font-weight:700}
+.h2{font-size:clamp(2rem,3.6vw,3rem);margin:12px 0 16px;line-height:1.1}
+.center{text-align:center}
+.center p.sub{color:var(--suave);max-width:540px;margin:0 auto;font-size:.95rem}
+
+.servicos{background:#fff;border-top:1px solid var(--linha);border-bottom:1px solid var(--linha)}
+.s-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;margin-top:52px}
+.s-card{border:1px solid var(--linha);border-radius:18px;overflow:hidden;transition:.35s;background:var(--marfim)}
+.s-card:hover{transform:translateY(-8px);box-shadow:0 24px 50px rgba(154,106,90,.16)}
+.s-card img{height:240px;width:100%;object-fit:cover}
+.s-card .b{padding:28px}
+.s-card h3{font-size:1.5rem}
+.s-card p{font-size:.86rem;color:var(--suave);margin-top:8px}
+.s-card .tag{display:inline-block;margin-top:16px;font-size:.7rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--rose-escuro);border:1px solid var(--rose);padding:5px 14px;border-radius:999px}
+@media(max-width:900px){.s-grid{grid-template-columns:minmax(0,1fr)}}
+
+.sobre .wrap{display:grid;grid-template-columns:.95fr 1.05fr;gap:64px;align-items:center}
+.sobre img{border-radius:18px;height:520px;width:100%;object-fit:cover}
+.sobre p{color:var(--suave);margin-bottom:16px;font-size:.95rem}
+.sobre .assin{font-family:'Italiana',serif;font-size:1.6rem;color:var(--rose-escuro);margin-top:8px}
+.missao{margin-top:26px;background:#fff;border:1px solid var(--linha);border-radius:16px;padding:22px 26px}
+.missao p{font-size:.92rem;color:var(--tinta);margin:0;font-style:italic}
+.missao small{color:var(--suave);font-style:normal}
+@media(max-width:900px){.sobre .wrap{grid-template-columns:minmax(0,1fr)}}
+
+.depo{background:var(--tinta);color:var(--marfim)}
+.depo .h2{color:var(--marfim)}
+.depo-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:50px}
+.post{background:#3a302b;border:1px solid #4c4039;border-radius:18px;padding:30px}
+.post .hd{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.post .av{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--rose-escuro));display:flex;align-items:center;justify-content:center;font-family:'Italiana',serif;font-size:1.2rem;color:#fff}
+.post .hd b{font-size:.88rem;display:block}
+.post .hd small{color:#b3a296;font-size:.72rem}
+.post p{font-size:.92rem;color:#e8ddd2}
+.post .src{margin-top:16px;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--rose)}
+.depo .nota-google{margin-top:44px;text-align:center}
+.nota-google .n{font-family:'Italiana',serif;font-size:3rem;color:var(--rose)}
+.nota-google small{color:#b3a296;display:block;font-size:.78rem;margin-top:6px;letter-spacing:.12em;text-transform:uppercase}
+@media(max-width:800px){.depo-grid{grid-template-columns:minmax(0,1fr)}}
+
+.contato .wrap{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:start}
+.i-card{background:#fff;border:1px solid var(--linha);border-radius:16px;padding:26px;margin-bottom:16px}
+.i-card h3{font-size:1.3rem;margin-bottom:6px}
+.i-card p, .i-card a{font-size:.88rem;color:var(--suave);text-decoration:none}
+.i-card a{color:var(--rose-escuro);font-weight:600}
+.form{background:#fff;border:1px solid var(--linha);border-radius:18px;padding:38px}
+.form h3{font-size:1.7rem;margin-bottom:4px}
+.form p{font-size:.85rem;color:var(--suave)}
+.form label{display:block;font-size:.7rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--rose-escuro);margin:16px 0 6px}
+.form input,.form select,.form textarea{width:100%;border:1.5px solid var(--linha);border-radius:10px;padding:13px 14px;font-family:'Manrope',sans-serif;font-size:.88rem;background:var(--marfim)}
+.form input:focus,.form select:focus,.form textarea:focus{outline:none;border-color:var(--rose)}
+.form .btn{width:100%;justify-content:center;margin-top:20px}
+@media(max-width:900px){.contato .wrap{grid-template-columns:minmax(0,1fr)}}
+
+footer{background:#241d1a;color:#a08d81;padding:52px 0 26px}
+.foot{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:40px}
+footer h4{color:var(--marfim);font-family:'Italiana',serif;font-size:1.25rem;margin-bottom:12px;font-weight:400}
+footer a{color:#c4aca0;text-decoration:none;font-size:.85rem;display:block;margin-bottom:8px}
+footer a:hover{color:#fff}
+footer p{font-size:.85rem;margin-bottom:8px}
+footer .logo{color:var(--marfim)}
+.socials{display:flex;gap:12px;margin-top:14px}
+.socials a{width:40px;height:40px;border-radius:50%;background:#372c27;display:flex;align-items:center;justify-content:center;transition:.25s}
+.socials a:hover{background:var(--rose)}
+.socials svg{width:18px;height:18px;fill:#fff}
+.copy{border-top:1px solid #372c27;margin-top:34px;padding-top:18px;text-align:center;font-size:.75rem}
+@media(max-width:800px){.foot{grid-template-columns:minmax(0,1fr)}}
+
+.wpp-float{position:fixed;bottom:24px;right:24px;width:60px;height:60px;border-radius:50%;background:#25d366;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 26px rgba(37,211,102,.45);z-index:60;transition:.25s}
+.wpp-float:hover{transform:scale(1.08)}
+.wpp-float svg{width:30px;height:30px;fill:#fff}
+.soc-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}.soc-pill{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:999px;border:1.5px solid var(--tinta);color:var(--tinta);text-decoration:none;font-size:.82rem;font-weight:600;transition:.25s;line-height:1;}.soc-pill:hover{background:var(--tinta);color:var(--marfim)}.soc-pill svg{width:15px;height:15px;fill:currentColor;flex:none}
+/* chips sociais personalizados */
+a[href*="instagram.com"] svg{background:linear-gradient(45deg,#feda75,#fa7e1e 25%,#d62976 55%,#962fbf 80%,#4f5bd5)!important;fill:#fff!important;color:#fff;border-radius:9px;padding:4px;margin:-4px;box-sizing:content-box}
+</style>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#faf6f1">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232b2320'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-size='36' font-weight='400' fill='%23faf6f1' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="favicon-180.png">
+<meta name="geo.region" content="BR-AM">
+<meta name="geo.placename" content="Manaus">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Amanda Consentino · Micropigmentação e Sobrancelhas em Manaus">
+<meta property="og:description" content="Amanda Consentino — especialista em micropigmentação Soft Shadow, design de sobrancelhas e extensão de cílios em Manaus. Nota 4.8 no Google. Agende já.">
+<meta property="og:image" content="https://www.ysis.app/amandaconsentino/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Detalhe de sobrancelha e cílios finalizados por Amanda Consentino">
+<meta property="og:site_name" content="Amanda Consentino — Micropigmentação e Sobrancelhas">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Amanda Consentino · Micropigmentação e Sobrancelhas em Manaus">
+<meta name="twitter:description" content="Amanda Consentino — especialista em micropigmentação Soft Shadow, design de sobrancelhas e extensão de cílios em Manaus. Nota 4.8 no Google. Agende já.">
+<meta name="twitter:image" content="https://www.ysis.app/amandaconsentino/og.jpg">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BeautySalon", "name": "Amanda Consentino — Micropigmentação e Sobrancelhas", "address": {"@type": "PostalAddress", "streetAddress": "Rua Leopoldo Carpinteiro Péres, 559 — Petrópolis", "addressLocality": "Manaus", "addressRegion": "AM", "addressCountry": "BR"}, "telephone": "+55 92 99603-6123", "aggregateRating": {"@type": "AggregateRating", "ratingValue": "4.8", "reviewCount": "152"}, "sameAs": ["https://www.instagram.com/amandaconsentinopmu", "https://www.threads.com/@amandaconsentinopmu"], "image": "https://kimi-web-img.kimi.ai/img/images.pexels.com/c5d3e08da6e7af13d11ffeb5c9963d07a51e2e44.jpeg", "description": "Amanda Consentino — especialista em micropigmentação Soft Shadow, design de sobrancelhas e extensão de cílios em Manaus. Nota 4.8 no Google. Agende já.", "hasMap": "https://www.google.com/maps/search/?api=1&query=Rua%20Leopoldo%20Carpinteiro%20P%C3%A9res%2C%20559%20%E2%80%94%20Petr%C3%B3polis%2C%20Manaus%20-%20AM"}</script>
+<link rel="canonical" href="https://www.ysis.app/amandaconsentino/">
+<meta property="og:url" content="https://www.ysis.app/amandaconsentino/">
+</head>
+<body>
+<aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">Esta página é uma proposta da <a href="https://www.ysis.app/" style="color:#f2b56b">Ysis</a>, não o site oficial. <a href="https://wa.me/5511948680554?text=Quero%20remover%20a%20p%C3%A1gina%20de%20proposta%20amandaconsentino" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ysis.app/privacidade/" style="color:#a2918d">Privacidade</a></aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){var b=document.querySelector("aside[data-ysis=proposta]");if(!b)return;var h=b.getBoundingClientRect().height;document.querySelectorAll("header,nav,.site-header,.nav,.topo").forEach(function(el){var s=getComputedStyle(el);if(s.position==="fixed"||s.position==="sticky")el.style.top=h+"px"});});</script>
+
+
+<nav>
+  <div class="wrap nav-in">
+    <a class="logo" href="#top">Amanda <em>Consentino</em></a>
+    <div class="nav-links">
+      <a href="#servicos">Técnicas</a>
+      <a href="#sobre">Sobre</a>
+      <a href="#depo">Depoimentos</a>
+      <a class="btn" href="https://wa.me/5592996036123?text=Ol%C3%A1%2C%20Amanda!%20Quero%20agendar%20um%20hor%C3%A1rio%20%E2%9C%A8" target="_blank" rel="noopener">Agendar</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Micropigmentação · Sobrancelhas · Cílios — Manaus</span>
+      <h1>Eu transformo você em uma <em>obra de arte</em>.</h1>
+      <p class="lead">Especialista em micropigmentação Soft Shadow desde 2018. Um olhar reconstruído com todo carinho — e a delicadeza em cada detalhe.</p>
+      <div class="hero-cta">
+        <a class="btn" href="https://wa.me/5592996036123?text=Ol%C3%A1%2C%20Amanda!%20Quero%20agendar%20um%20hor%C3%A1rio%20%E2%9C%A8" target="_blank" rel="noopener">Agendar pelo WhatsApp</a>
+        <a class="btn line" href="#servicos">Conhecer as técnicas</a>
+      </div>
+    </div>
+    <div class="hero-foto">
+      <div class="desde">especialista<b>desde 2018</b></div>
+      <img fetchpriority="high" decoding="async" src="img/c5d3e08da6e7.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/c5d3e08da6e7af13d11ffeb5c9963d07a51e2e44.jpeg'" alt="Detalhe de sobrancelha e cílios finalizados">
+      <div class="chip">
+        <b>4,8 <span class="stars" style="font-size:.9rem">★★★★★</span></b>
+        <small>152 avaliações no Google</small>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section class="servicos" id="servicos">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow">Técnicas</span>
+      <h2 class="h2">Assinatura de olhar</h2>
+      <p class="sub">Procedimentos sob medida para o seu rosto — nada de resultado padronizado.</p>
+    </div>
+    <div class="s-grid">
+      <div class="s-card">
+        <img loading="lazy" decoding="async" src="img/85cbefb6dfc7.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/85cbefb6dfc732efe89d1ea85cd5d9fe5c67fce9.jpeg'" alt="Procedimento de micropigmentação de sobrancelhas">
+        <div class="b">
+          <h3>Micropigmentação Soft Shadow</h3>
+          <p>Sombreado suave que preenche e define com aspecto natural — a técnica que a Amanda escolheu como especialidade desde 2018.</p>
+          <span class="tag">Especialidade da casa</span>
+        </div>
+      </div>
+      <div class="s-card">
+        <img loading="lazy" decoding="async" src="img/54e333e0c2a9.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/54e333e0c2a9a1f0de743241202bb05fb2e57ed1.jpeg'" alt="Design de sobrancelhas feito com fio e pinça">
+        <div class="b">
+          <h3>Design de Sobrancelhas + Henna</h3>
+          <p>Mapeamento facial, fio a fio e henna para um desenho que valoriza sua expressão.</p>
+          <span class="tag">O queridinho</span>
+        </div>
+      </div>
+      <div class="s-card">
+        <img loading="lazy" decoding="async" src="img/258617cdf768.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/258617cdf7680a6f8bee854e9df111e9e345e76a.jpeg'" alt="Aplicação de extensão de cílios">
+        <div class="b">
+          <h3>Extensão de Cílios — Volume Brasileiro</h3>
+          <p>Olhar marcante com conforto e leveza, aplicado fio a fio com precisão.</p>
+          <span class="tag">Volume brasileiro</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sobre" id="sobre">
+  <div class="wrap">
+    <img loading="lazy" decoding="async" src="img/241e4a55c1d2.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/241e4a55c1d27bbd415de3327a6af3a4bb58373f.jpeg'" alt="Amanda aplicando procedimento em cliente">
+    <div>
+      <span class="eyebrow">A artista</span>
+      <h2 class="h2">Amanda Consentino</h2>
+      <p>"Desde 2018 eu já sabia em qual técnica eu seria especialista." Foi assim que nasceu uma das referências em sobrancelhas de Manaus: estudo constante, mão delicada e um cuidado que vai além do procedimento.</p>
+      <p>Aqui, beleza é também propósito: transformar a autoestima de outras mulheres e abraçar o potencial empreendedor de cada uma.</p>
+      <div class="missao">
+        <p>"As pequenas mudanças acontecem cuidando da sua autoestima — com a beleza e a autoestima renovadas, estamos prontas para enfrentar as novas etapas."</p>
+        <small>— Amanda, em publicação nas redes</small>
+      </div>
+      <p class="assin">Amanda Consentino</p>
+    </div>
+  </div>
+</section>
+
+<section class="depo" id="depo">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow" style="color:var(--rose)">Depoimentos &amp; bastidores</span>
+      <h2 class="h2">O que rola nas redes e no Google</h2>
+    </div>
+    <div class="depo-grid">
+      <div class="post">
+        <div class="hd"><div class="av">A</div><div><b>Amanda Consentino</b><small>@amandaconsentinopmu</small></div></div>
+        <p>"Era pra ser um design e henna + extensão de volume brasileiro ✨ Porém eu transformo você em uma obra de arte 🪄"</p>
+        <div class="src">Threads · @amandaconsentinopmu</div>
+      </div>
+      <div class="post">
+        <div class="hd"><div class="av">A</div><div><b>Amanda Consentino</b><small>@amandaconsentinopmu</small></div></div>
+        <p>"Eu vejo a delicadeza em cada detalhe ✨ Soft Shadow. Desde 2018 eu já sabia em qual técnica eu seria especialista. Um olhar reconstruído com todo carinho."</p>
+        <div class="src">Threads · @amandaconsentinopmu</div>
+      </div>
+    </div>
+    <div class="nota-google">
+      <span class="n">4,8 ★★★★★</span>
+      <small>152 avaliações no Google · Petrópolis, Manaus</small>
+    </div>
+  </div>
+</section>
+
+<section class="contato" id="contato">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Agendamento</span>
+      <h2 class="h2">Agende seu horário</h2>
+      <div class="i-card">
+        <h3>WhatsApp</h3>
+        <p><a href="https://wa.me/5592996036123" target="_blank" rel="noopener">(92) 99603-6123 →</a><br>Agendamentos e avaliação do seu caso.</p>
+      </div>
+      <div class="i-card">
+        <h3>Studio</h3>
+        <p>R. Leopoldo Carpinteiro Péres, 559<br>Petrópolis — Manaus/AM</p>
+      </div>
+      <div class="i-card">
+        <h3>Redes</h3>
+      <div class="soc-row"><a class="soc-pill" href="https://www.instagram.com/amandaconsentinopmu" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.07 3.2.15 4.7 1.7 4.8 4.8.07 1.3.07 1.6.07 4.9s0 3.6-.07 4.9c-.15 3.1-1.6 4.7-4.8 4.8-1.3.07-1.6.07-4.9.07s-3.6 0-4.9-.07c-3.2-.15-4.7-1.7-4.8-4.8C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9C2.42 4 3.9 2.42 7.1 2.27 8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.8.07-2.4.11-3.5 1.3-3.6 3.6C3.5 8.9 3.5 9.3 3.5 12s0 3.1.07 4.3c.11 2.3 1.2 3.5 3.6 3.6 1.3.06 1.7.07 4.8.07s3.5 0 4.8-.07c2.4-.11 3.5-1.3 3.6-3.6.06-1.2.07-1.6.07-4.3s0-3.1-.07-4.3c-.11-2.3-1.2-3.5-3.6-3.6-1.3-.06-1.7-.07-4.8-.07zm0 3.1a4.9 4.9 0 110 9.8 4.9 4.9 0 010-9.8zm0 8.1a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4zm5.1-9.5a1.15 1.15 0 11-2.3 0 1.15 1.15 0 012.3 0z"/></svg>Instagram</a><a class="soc-pill" href="https://www.threads.com/@amandaconsentinopmu" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M12.2 2c5.5 0 9.8 4.1 9.8 9.5 0 3.9-2.2 7.2-5.5 8.8-.4.2-1-.3-.8-.8 1.4-2.3 2-4.7 2-6.4 0-4.1-2.9-7.1-6.9-7.1-3.6 0-6.3 2.4-6.6 5.7-.1.6-.9.7-1 .1C2.5 7 6.8 2 12.2 2zm.5 5.3c-2.5-.3-4.9 1.4-5.2 3.9-.1.9.1 1.9.6 2.6.2.3.1.7-.2.9-.3.2-.7.1-.9-.2-.7-1-.9-2.3-.8-3.5.4-3.3 3.3-5.4 6.6-5.1 3.1.3 5.5 3 5.3 6.2-.2 2.6-2.1 4.7-4.6 5.2-1.3.3-2.8.1-4-.4-.3-.2-.4-.6-.2-.9.2-.3.6-.4.9-.2.9.4 2 .5 3 .3 1.9-.4 3.3-2 3.5-3.9.2-2.4-1.7-4.5-4-4.9z"/></svg>Threads</a></div>
+      </div>
+    </div>
+    <form class="form" id="form-contato">
+      <h3 class="serif">Bonita, agende aqui 😉</h3>
+      <p>Conte o que deseja e a Amanda responde com disponibilidade.</p>
+      <label for="nome">Seu nome</label>
+      <input id="nome" type="text" placeholder="Seu nome" required>
+      <label for="servico">Procedimento</label>
+      <select id="servico">
+        <option>Micropigmentação Soft Shadow</option>
+        <option>Design de sobrancelhas + henna</option>
+        <option>Extensão de cílios — volume brasileiro</option>
+        <option>Avaliação / ainda não sei</option>
+      </select>
+      <label for="msg">Mensagem</label>
+      <textarea id="msg" rows="3" placeholder="Conte um pouco do que você procura..."></textarea>
+      <button type="submit" class="btn wpp">Enviar pelo WhatsApp</button>
+    <p data-ysis="aviso" style="margin-top:14px;font-size:.8rem;line-height:1.5;opacity:.72">Seus dados não ficam neste site: o formulário monta a mensagem e abre o WhatsApp para você enviar. Nada é gravado aqui, e o retorno vem pelo mesmo canal.</p>
+</form>
+  </div>
+</section>
+<section class="mapa-sec" aria-label="Mapa e como chegar" style="padding:0 22px 64px"><div style="max-width:1120px;margin:0 auto"><h2 style="color:var(--ink,#26221a);font-size:1.6rem;margin:0 0 16px">Como chegar</h2><div style="border-radius:18px;overflow:hidden;border:1px solid var(--line,#e3ddd2);background:var(--card,#fff);box-shadow:0 10px 30px rgba(0,0,0,.05)"><iframe title="Mapa: Rua Leopoldo Carpinteiro Péres, 559 — Petrópolis, Manaus - AM" src="https://www.google.com/maps?q=Rua%20Leopoldo%20Carpinteiro%20P%C3%A9res%2C%20559%20%E2%80%94%20Petr%C3%B3polis%2C%20Manaus%20-%20AM&amp;output=embed" style="width:100%;height:320px;border:0;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe><div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 18px"><span style="color:var(--mut,#777);font-size:.92rem">Rua Leopoldo Carpinteiro Péres, 559 — Petrópolis, Manaus - AM</span><a href="https://www.google.com/maps/dir/?api=1&amp;destination=Rua%20Leopoldo%20Carpinteiro%20P%C3%A9res%2C%20559%20%E2%80%94%20Petr%C3%B3polis%2C%20Manaus%20-%20AM" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:var(--acc,#4c7a63);color:var(--btntxt,#fff);padding:11px 18px;border-radius:999px;font-weight:700;font-size:.92rem;text-decoration:none"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg> Como chegar</a></div></div></div></section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <a class="logo" href="#top">Amanda <em>Consentino</em></a>
+        <p style="margin-top:12px">Micropigmentação, sobrancelhas e cílios em Manaus. Especialista desde 2018.</p>
+        <div class="socials">
+          <a href="https://www.instagram.com/amandaconsentinopmu" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.07 3.2.15 4.7 1.7 4.8 4.8.07 1.3.07 1.6.07 4.9s0 3.6-.07 4.9c-.15 3.1-1.6 4.7-4.8 4.8-1.3.07-1.6.07-4.9.07s-3.6 0-4.9-.07c-3.2-.15-4.7-1.7-4.8-4.8C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9C2.42 4 3.9 2.42 7.1 2.27 8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.8.07-2.4.11-3.5 1.3-3.6 3.6C3.5 8.9 3.5 9.3 3.5 12s0 3.1.07 4.3c.11 2.3 1.2 3.5 3.6 3.6 1.3.06 1.7.07 4.8.07s3.5 0 4.8-.07c2.4-.11 3.5-1.3 3.6-3.6.06-1.2.07-1.6.07-4.3s0-3.1-.07-4.3c-.11-2.3-1.2-3.5-3.6-3.6-1.3-.06-1.7-.07-4.8-.07zm0 3.1a4.9 4.9 0 110 9.8 4.9 4.9 0 010-9.8zm0 8.1a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4zm5.1-9.5a1.15 1.15 0 11-2.3 0 1.15 1.15 0 012.3 0z"/></svg></a>
+          <a href="https://www.threads.com/@amandaconsentinopmu" target="_blank" rel="noopener" aria-label="Threads"><svg viewBox="0 0 24 24"><path d="M12.2 2c5.5 0 9.8 4.1 9.8 9.5 0 3.9-2.2 7.2-5.5 8.8-.4.2-1-.3-.8-.8 1.4-2.3 2-4.7 2-6.4 0-4.1-2.9-7.1-6.9-7.1-3.6 0-6.3 2.4-6.6 5.7-.1.6-.9.7-1 .1C2.5 7 6.8 2 12.2 2zm.5 5.3c-2.5-.3-4.9 1.4-5.2 3.9-.1.9.1 1.9.6 2.6.2.3.1.7-.2.9-.3.2-.7.1-.9-.2-.7-1-.9-2.3-.8-3.5.4-3.3 3.3-5.4 6.6-5.1 3.1.3 5.5 3 5.3 6.2-.2 2.6-2.1 4.7-4.6 5.2-1.3.3-2.8.1-4-.4-.3-.2-.4-.6-.2-.9.2-.3.6-.4.9-.2.9.4 2 .5 3 .3 1.9-.4 3.3-2 3.5-3.9.2-2.4-1.7-4.5-4-4.9z"/></svg></a>
+        </div>
+      </div>
+      <div>
+        <h4>Contato</h4>
+        <a href="https://wa.me/5592996036123" target="_blank" rel="noopener">WhatsApp: (92) 99603-6123</a>
+        <p>R. Leopoldo Carpinteiro Péres, 559<br>Petrópolis — Manaus/AM</p>
+      </div>
+      <div>
+        <h4>Técnicas</h4>
+        <a href="#servicos">Soft Shadow</a>
+        <a href="#servicos">Design + Henna</a>
+        <a href="#servicos">Volume brasileiro</a>
+      </div>
+    </div>
+    <div class="copy">© 2026 Amanda Consentino · Manaus/AM — delicadeza em cada detalhe.</div>
+  </div>
+<div style="text-align:center;font-size:.72rem;opacity:.55;margin-top:16px;letter-spacing:.05em">powered by <b>Ruphus</b><p data-ysis="fonte" style="margin:16px 0 0;text-align:center;font-size:.76rem;line-height:1.5;opacity:.6">Nota e número de avaliações do Google, consultados em agosto de 2026. Valores públicos, sujeitos a mudança.</p></div>
+</footer>
+
+<a class="wpp-float" href="https://wa.me/5592996036123?text=Ol%C3%A1%2C%20Amanda!%20Vim%20pelo%20site%20e%20quero%20agendar%20%E2%9C%A8" target="_blank" rel="noopener" aria-label="WhatsApp">
+  <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 1.8a8.2 8.2 0 11-4.2 15.3l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 0112 3.8zm-3.3 4c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.1s.9 2.4 1 2.6c.1.2 1.8 2.8 4.4 3.9 2.2.9 2.6.7 3.1.7.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.2-.2-.5-.3l-1.7-.8c-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.1-.2 0-.4.1-.5l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.8-1.8c-.2-.4-.4-.5-.5-.5h-.4z"/></svg>
+</a>
+
+<script>
+document.getElementById('form-contato').addEventListener('submit', function(e){
+  e.preventDefault();
+  const nome = document.getElementById('nome').value.trim();
+  const serv = document.getElementById('servico').value;
+  const msg  = document.getElementById('msg').value.trim();
+  let texto = `Olá, Amanda! Sou ${nome || 'cliente'} e quero agendar: ${serv}.`;
+  if(msg) texto += ` ${msg}`;
+  window.open('https://wa.me/5592996036123?text=' + encodeURIComponent(texto), '_blank');
+});
+</script>
+<a href="https://wa.me/5592996036123?text=Ol%C3%A1%21%20Vim%20pelo%20site%20e%20quero%20agendar%20um%20hor%C3%A1rio." target="_blank" rel="noopener" aria-label="Agendar pelo WhatsApp" style="position:fixed;right:18px;bottom:18px;z-index:60;width:56px;height:56px;border-radius:50%;background:#25d366;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(0,0,0,.25)"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3.1.8.8-3-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.6-6.1c-.3-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.3-.6.8-.8 1-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.6-1.3.1-.2 0-.4 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1.1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2l-.6-.2z"/></svg></a>
+<script data-ysis="medicao">
+(function(){
+  var SITE = 'amandaconsentino';
+  // A chave web do Firebase é pública por natureza. A proteção não está nela e
+  // sim na regra do Firestore: a coleção `eventos` só aceita criar, com campos
+  // fixos e canal dentro de uma lista — não lê, não altera, não apaga.
+  var URL = 'https://firestore.googleapis.com/v1/projects/ysis-crm/databases/'
+          + '(default)/documents/eventos?key=AIzaSyCEXBCVXmhDnVIF6XbSsv3-f-L6P9knu5o';
+
+  function hoje(){
+    var d = new Date(), z = function(n){ return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+  }
+  function origem(){
+    try {
+      var u = new URLSearchParams(location.search).get('utm_source');
+      if (u) return u.slice(0, 60);
+      if (document.referrer) return new URL(document.referrer).hostname.slice(0, 60);
+    } catch (e) {}
+    return '';
+  }
+  function medir(nome, canal){
+    var f = { nome: { stringValue: nome }, site: { stringValue: SITE },
+              dia: { stringValue: hoje() } };
+    if (canal) f.canal = { stringValue: canal };
+    var o = origem();
+    if (o) f.origem = { stringValue: o };
+    try {
+      fetch(URL, { method: 'POST', body: JSON.stringify({ fields: f }),
+                   headers: { 'Content-Type': 'application/json' }, keepalive: true });
+    } catch (e) {}
+  }
+
+  // captura na fase de captura: o formulário destas páginas dá preventDefault
+  // e abre o canal, então um listener na fase de bolha não veria o envio
+  document.addEventListener('click', function(ev){
+    var a = ev.target && ev.target.closest && ev.target.closest('a[href]');
+    if (!a) return;
+    var h = a.getAttribute('href') || '';
+    var canal = /wa\.me|api\.whatsapp/.test(h) ? 'whatsapp'
+      : /ig\.me|instagram\.com/.test(h) ? 'instagram'
+      : h.indexOf('tel:') === 0 ? 'telefone'
+      : h.indexOf('mailto:') === 0 ? 'email'
+      : /google\.[a-z.]+\/maps|maps\.app\.goo/.test(h) ? 'mapa'
+      : /agendamento|avec|trinks|booksy|appbarber|bestbarbers|calendly|cal\.com|frizzar|agendaservico/.test(h) ? 'agenda'
+      : '';
+    if (canal) medir('contato', canal);
+  }, true);
+  document.addEventListener('submit', function(ev){
+    if (ev.target && ev.target.tagName === 'FORM') medir('formulario', '');
+  }, true);
+})();
+</script>
+</body>
+</html>

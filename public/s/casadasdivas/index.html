@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Casa das Divas · Salão de Beleza em Manaus</title>
+<meta name="description" content="Casa das Divas — espaço de beleza completo em Manaus. Nota 5.0 no Google com 397 avaliações. Cabelo, maquiagem, unhas e mais. Agende sua experiência.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --rosa:#d66e8f; --rosa-forte:#b74d70; --blush:#fdf1f4; --blush2:#f9e2e8;
+  --carvao:#33262b; --cinza:#8a747c; --ouro:#c9a24b; --branco:#fff;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{overflow-x:hidden}
+img{max-width:100%;min-width:0}
+html{scroll-behavior:smooth}
+body{font-family:'Poppins',sans-serif;color:var(--carvao);background:var(--branco);line-height:1.6}
+h1,h2,h3,.serif{font-family:'Playfair Display',serif}
+img{max-width:100%;display:block}
+.wrap{width:100%;max-width:1120px;margin:0 auto;padding:0 24px}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-bottom:1px solid #f3dde3}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:68px}
+.logo{font-family:'Playfair Display',serif;font-size:1.35rem;font-weight:700;color:var(--rosa-forte);text-decoration:none}
+.logo span{color:var(--ouro)}
+.nav-links{display:flex;gap:28px;align-items:center}
+.nav-links a{text-decoration:none;color:var(--carvao);font-size:.88rem;font-weight:500;letter-spacing:.02em}
+.nav-links a:hover{color:var(--rosa-forte)}
+.nav-links a.btn{color:#fff}
+.nav-links a.btn:hover{color:#fff}
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--rosa);color:#fff;text-decoration:none;font-weight:600;font-size:.9rem;padding:12px 26px;border-radius:999px;border:none;cursor:pointer;transition:.25s;box-shadow:0 6px 18px rgba(214,110,143,.35)}
+.btn:hover{background:var(--rosa-forte);transform:translateY(-2px)}
+.btn.ghost{background:transparent;color:var(--rosa-forte);border:2px solid var(--rosa);box-shadow:none}
+.btn.ghost:hover{background:var(--rosa);color:#fff}
+.btn.wpp{background:#25d366;box-shadow:0 6px 18px rgba(37,211,102,.35)}
+.btn.wpp:hover{background:#1eb856}
+@media(max-width:860px){.nav-links a:not(.btn){display:none}}
+
+/* HERO */
+.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:120px 0 80px;overflow:hidden;background:linear-gradient(160deg,var(--blush) 0%,#fff 55%)}
+.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
+.hero h1{font-size:clamp(2.4rem,4.6vw,3.9rem);line-height:1.08;font-weight:700}
+.hero h1 em{color:var(--rosa-forte)}
+.hero p.lead{margin:22px 0 30px;color:var(--cinza);font-size:1.06rem;max-width:480px}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap}
+.hero-img{position:relative}
+.hero-img img{border-radius:28px;box-shadow:0 30px 70px rgba(183,77,112,.25);width:100%;height:560px;object-fit:cover}
+.hero-img::before{content:"";position:absolute;inset:-18px;border:2px solid var(--blush2);border-radius:36px;z-index:-1}
+.rating-pill{position:absolute;bottom:26px;left:-24px;background:#fff;border-radius:18px;padding:14px 20px;box-shadow:0 14px 40px rgba(51,38,43,.14);display:flex;align-items:center;gap:12px}
+.rating-pill .nota{font-family:'Playfair Display',serif;font-size:1.7rem;font-weight:700;color:var(--carvao)}
+.stars{color:var(--ouro);letter-spacing:2px;font-size:.95rem}
+.rating-pill small{color:var(--cinza);display:block;font-size:.72rem}
+.g-badge{width:20px;height:20px}
+@media(max-width:900px){.hero .wrap{grid-template-columns:minmax(0,1fr)}.hero-img img{height:380px}.rating-pill{left:12px}}
+
+/* ticker */
+.ticker{background:var(--rosa-forte);color:#fff;overflow:hidden;padding:12px 0}
+.ticker-in{display:flex;gap:48px;white-space:nowrap;animation:tick 26s linear infinite;font-size:.85rem;letter-spacing:.14em;text-transform:uppercase}
+@keyframes tick{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* sections */
+section{padding:96px 0}
+.eyebrow{color:var(--rosa);text-transform:uppercase;letter-spacing:.22em;font-size:.75rem;font-weight:600}
+.h2{font-size:clamp(1.9rem,3.4vw,2.7rem);margin:10px 0 18px;line-height:1.15}
+.center{text-align:center}
+.center p.sub{color:var(--cinza);max-width:560px;margin:0 auto}
+
+/* sobre */
+.sobre-grid{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center}
+.sobre-foto{position:relative}
+.sobre-foto img{border-radius:24px;height:480px;width:100%;object-fit:cover}
+.selo{position:absolute;top:-22px;right:-18px;background:var(--ouro);color:#fff;font-family:'Playfair Display',serif;font-weight:700;width:120px;height:120px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:.8rem;line-height:1.2;box-shadow:0 12px 30px rgba(201,162,75,.4)}
+.selo b{font-size:1.5rem}
+.sobre-grid p{color:var(--cinza);margin-bottom:16px}
+.nums{display:flex;gap:36px;margin-top:28px}
+.nums b{font-family:'Playfair Display',serif;font-size:2rem;color:var(--rosa-forte);display:block}
+.nums span{font-size:.8rem;color:var(--cinza)}
+@media(max-width:900px){.sobre-grid{grid-template-columns:minmax(0,1fr)}.selo{right:10px}}
+
+/* serviços */
+.servicos{background:var(--blush)}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin-top:48px}
+.card{background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 10px 30px rgba(183,77,112,.08);transition:.3s}
+.card:hover{transform:translateY(-8px);box-shadow:0 22px 46px rgba(183,77,112,.18)}
+.card img{height:210px;width:100%;object-fit:cover}
+.card .body{padding:22px}
+.card h3{font-size:1.15rem;margin-bottom:8px}
+.card p{font-size:.86rem;color:var(--cinza)}
+.card .tag{display:inline-block;margin-top:14px;font-size:.72rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--rosa-forte);background:var(--blush2);padding:5px 12px;border-radius:999px}
+@media(max-width:1000px){.cards{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.cards{grid-template-columns:minmax(0,1fr)}}
+
+/* equipe */
+.equipe-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:48px}
+.pessoa{border:1px solid #f3dde3;border-radius:20px;padding:34px 26px;text-align:center;transition:.3s;background:#fff}
+.pessoa:hover{border-color:var(--rosa)}
+.avatar{width:74px;height:74px;border-radius:50%;margin:0 auto 16px;background:linear-gradient(135deg,var(--rosa),var(--ouro));display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Playfair Display',serif;font-size:1.7rem;font-weight:700}
+.pessoa h3{font-size:1.1rem}
+.pessoa small{color:var(--rosa-forte);font-weight:600;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase}
+.pessoa p{font-size:.85rem;color:var(--cinza);margin-top:12px}
+@media(max-width:800px){.equipe-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* depoimentos */
+.depo{background:linear-gradient(180deg,var(--blush),#fff)}
+.depo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:48px}
+.quote{background:#fff;border-radius:20px;padding:28px;box-shadow:0 10px 30px rgba(183,77,112,.08);position:relative}
+.quote .q-mark{font-family:'Playfair Display',serif;font-size:3rem;color:var(--blush2);position:absolute;top:8px;left:18px;line-height:1}
+.quote p{font-size:.9rem;color:var(--carvao);position:relative}
+.quote .who{margin-top:18px;display:flex;align-items:center;gap:10px}
+.quote .who .avatar{width:38px;height:38px;font-size:.95rem;margin:0}
+.quote .who b{font-size:.85rem;display:block}
+.quote .who small{color:var(--cinza);font-size:.72rem}
+.depo-note{margin-top:26px;text-align:center;font-size:.8rem;color:var(--cinza)}
+@media(max-width:900px){.depo-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* agendamento */
+.agenda{background:var(--carvao);color:#fff;border-radius:0;position:relative;overflow:hidden}
+.agenda::after{content:"";position:absolute;right:-120px;top:-120px;width:380px;height:380px;border-radius:50%;background:radial-gradient(circle,rgba(214,110,143,.35),transparent 70%)}
+.agenda .wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center;position:relative;z-index:1}
+.agenda h2{color:#fff}
+.agenda p{color:#cfb9c0;margin-bottom:26px}
+.form{background:#fff;border-radius:22px;padding:32px;color:var(--carvao)}
+.form label{font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--rosa-forte);display:block;margin:14px 0 6px}
+.form input,.form select,.form textarea{width:100%;border:1.5px solid #efd8de;border-radius:12px;padding:12px 14px;font-family:'Poppins',sans-serif;font-size:.9rem;background:#fff}
+.form input:focus,.form select:focus,.form textarea:focus{outline:none;border-color:var(--rosa)}
+.form .btn{width:100%;justify-content:center;margin-top:20px}
+.horarios{margin-top:26px;font-size:.85rem;color:#cfb9c0}
+.horarios b{color:#fff}
+@media(max-width:900px){.agenda .wrap{grid-template-columns:minmax(0,1fr)}}
+
+/* footer */
+footer{background:#241a1e;color:#b9a4ab;padding:56px 0 28px}
+.foot-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:40px}
+footer h4{color:#fff;font-family:'Playfair Display',serif;margin-bottom:14px;font-size:1.05rem}
+footer a{color:#e8cdd5;text-decoration:none;font-size:.88rem;display:block;margin-bottom:8px}
+footer a:hover{color:var(--rosa)}
+footer p{font-size:.88rem;margin-bottom:8px}
+.socials{display:flex;gap:12px;margin-top:14px}
+.socials a{width:40px;height:40px;border-radius:50%;background:#3a2b31;display:flex;align-items:center;justify-content:center;transition:.25s}
+.socials a:hover{background:var(--rosa)}
+.socials svg{width:18px;height:18px;fill:#fff}
+.copy{border-top:1px solid #3a2b31;margin-top:36px;padding-top:20px;text-align:center;font-size:.78rem}
+@media(max-width:800px){.foot-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* whatsapp float */
+.wpp-float{position:fixed;bottom:24px;right:24px;width:60px;height:60px;border-radius:50%;background:#25d366;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 26px rgba(37,211,102,.45);z-index:60;transition:.25s}
+.wpp-float:hover{transform:scale(1.08)}
+.wpp-float svg{width:30px;height:30px;fill:#fff}
+.soc-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}.soc-pill{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:999px;border:1.5px solid rgba(255,255,255,.55);color:rgba(255,255,255,.55);text-decoration:none;font-size:.82rem;font-weight:600;transition:.25s;line-height:1;}.soc-pill:hover{background:rgba(255,255,255,.55);color:var(--rosa-forte)}.soc-pill svg{width:15px;height:15px;fill:currentColor;flex:none}.soc-pill{color:#fff}.soc-pill:hover{border-color:#fff;background:#fff}
+/* chips sociais personalizados */
+a[href*="instagram.com"] svg{background:linear-gradient(45deg,#feda75,#fa7e1e 25%,#d62976 55%,#962fbf 80%,#4f5bd5)!important;fill:#fff!important;color:#fff;border-radius:9px;padding:4px;margin:-4px;box-sizing:content-box}
+</style>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#d66e8f">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23d66e8f'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-size='36' font-weight='400' fill='%23ffffff' text-anchor='middle'%3EC%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="favicon-180.png">
+<meta name="geo.region" content="BR-AM">
+<meta name="geo.placename" content="Manaus">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Casa das Divas · Salão de Beleza em Manaus">
+<meta property="og:description" content="Casa das Divas — espaço de beleza completo em Manaus. Nota 5.0 no Google com 397 avaliações. Cabelo, maquiagem, unhas e mais. Agende sua experiência.">
+<meta property="og:image" content="https://www.ysis.app/casadasdivas/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Interior aconchegante do salão Casa das Divas">
+<meta property="og:site_name" content="Casa das Divas">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Casa das Divas · Salão de Beleza em Manaus">
+<meta name="twitter:description" content="Casa das Divas — espaço de beleza completo em Manaus. Nota 5.0 no Google com 397 avaliações. Cabelo, maquiagem, unhas e mais. Agende sua experiência.">
+<meta name="twitter:image" content="https://www.ysis.app/casadasdivas/og.jpg">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BeautySalon", "name": "Casa das Divas", "address": {"@type": "PostalAddress", "streetAddress": "Rua Rio Javari, 17 — Nossa Senhora das Graças", "addressLocality": "Manaus", "addressRegion": "AM", "addressCountry": "BR"}, "telephone": "+55 92 98163-7626", "aggregateRating": {"@type": "AggregateRating", "ratingValue": "5.0", "reviewCount": "397"}, "sameAs": ["https://www.instagram.com/csdasdivas", "https://www.threads.com/@csdasdivas"], "image": "https://kimi-web-img.kimi.ai/img/images.pexels.com/af8d97a34f91015f890f4003416cc1dc33d877a3.jpeg", "description": "Casa das Divas — espaço de beleza completo em Manaus. Nota 5.0 no Google com 397 avaliações. Cabelo, maquiagem, unhas e mais. Agende sua experiência.", "hasMap": "https://www.google.com/maps/search/?api=1&query=Rua%20Rio%20Javari%2C%2017%20%E2%80%94%20Nossa%20Senhora%20das%20Gra%C3%A7as%2C%20Manaus%20-%20AM"}</script>
+<link rel="canonical" href="https://www.ysis.app/casadasdivas/">
+<meta property="og:url" content="https://www.ysis.app/casadasdivas/">
+</head>
+<body>
+<aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">Esta página é uma proposta da <a href="https://www.ysis.app/" style="color:#f2b56b">Ysis</a>, não o site oficial. <a href="https://wa.me/5511948680554?text=Quero%20remover%20a%20p%C3%A1gina%20de%20proposta%20casadasdivas" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ysis.app/privacidade/" style="color:#a2918d">Privacidade</a></aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){var b=document.querySelector("aside[data-ysis=proposta]");if(!b)return;var h=b.getBoundingClientRect().height;document.querySelectorAll("header,nav,.site-header,.nav,.topo").forEach(function(el){var s=getComputedStyle(el);if(s.position==="fixed"||s.position==="sticky")el.style.top=h+"px"});});</script>
+
+
+<nav>
+  <div class="wrap nav-in">
+    <a class="logo" href="#top">Casa das <span>Divas</span></a>
+    <div class="nav-links">
+      <a href="#sobre">Sobre</a>
+      <a href="#servicos">Serviços</a>
+      <a href="#equipe">Equipe</a>
+      <a href="#depoimentos">Avaliações</a>
+      <a class="btn" href="https://agendamento.avec.beauty" target="_blank" rel="noopener">Agendar horário</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Manaus · AM — desde 2014</span>
+      <h1>A casa rosa mais amada de Manaus. <em>Aqui você está em casa.</em></h1>
+      <p class="lead">Espaço de beleza completo: cabelo, maquiagem, unhas e aquele atendimento que faz você se sentir valorizada do início ao fim. Mais de 28.000 serviços realizados.</p>
+      <div class="hero-cta">
+        <a class="btn" href="https://agendamento.avec.beauty" target="_blank" rel="noopener">Agende sua experiência</a>
+        <a class="btn wpp" href="https://wa.me/5592981637626?text=Ol%C3%A1!%20Quero%20agendar%20um%20hor%C3%A1rio%20na%20Casa%20das%20Divas%20%E2%9C%A8" target="_blank" rel="noopener">Chamar no WhatsApp</a>
+      </div>
+    </div>
+    <div class="hero-img">
+      <img fetchpriority="high" decoding="async" src="img/fe730c0870f1.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/af8d97a34f91015f890f4003416cc1dc33d877a3.jpeg'" alt="Cliente recebendo corte em camadas no salão">
+      <div class="rating-pill">
+        <svg class="g-badge" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.5 12.3c0-.9-.1-1.5-.3-2.2H12v4.3h6.5c-.1 1.1-.8 2.7-2.4 3.8l-.02.15 3.5 2.7.24.02c2.2-2 3.5-5 3.5-8.7z"/><path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.8-2.9c-1 .7-2.4 1.2-4.1 1.2-3.1 0-5.8-2.1-6.8-5l-.14.01-3.1 2.4-.04.11C3.9 21.3 7.6 24 12 24z"/><path fill="#FBBC05" d="M5.2 14.4c-.2-.7-.4-1.5-.4-2.4s.2-1.7.5-2.4l-.01-.16-3.2-2.4-.1.05C1.3 8.7 1 10.3 1 12s.3 3.3 1 4.9l3.2-2.5z"/><path fill="#EA4335" d="M12 4.6c2.3 0 3.8 1 4.7 1.8l3.4-3.3C18 1.2 15.2 0 12 0 7.6 0 3.9 2.7 1.9 7.1l3.3 2.5c1-2.9 3.7-5 6.8-5z"/></svg>
+        <div>
+          <span class="nota">5,0</span> <span class="stars">★★★★★</span>
+          <small>397 avaliações no Google</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="ticker"><div class="ticker-in">
+  <span>Cabelo</span><span>·</span><span>Maquiagem</span><span>·</span><span>Unhas</span><span>·</span><span>Liso perfeito</span><span>·</span><span>Massagem capilar</span><span>·</span><span>Nota 5,0 no Google</span><span>·</span>
+  <span>Cabelo</span><span>·</span><span>Maquiagem</span><span>·</span><span>Unhas</span><span>·</span><span>Liso perfeito</span><span>·</span><span>Massagem capilar</span><span>·</span><span>Nota 5,0 no Google</span><span>·</span>
+</div></div>
+
+<section id="sobre">
+  <div class="wrap sobre-grid">
+    <div class="sobre-foto">
+      <div class="selo"><b>+28 mil</b>serviços realizados</div>
+      <img loading="lazy" decoding="async" src="img/f366e33d1f52.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/f366e33d1f52286fdd5738747a6c289e59a945a7.jpeg'" alt="Profissional finalizando escova em cliente">
+    </div>
+    <div>
+      <span class="eyebrow">Nossa casa</span>
+      <h2 class="h2">Um espaço pensado para você se sentir em casa</h2>
+      <p>Desde 2014, a Casa das Divas é aquele lugar em Manaus onde o cuidado vai além do serviço: é recepção carinhosa, ambiente acolhedor e profissionais que tratam cada detalhe como se fosse o mais importante.</p>
+      <p>Usamos produtos de alta performance — até uma simples lavagem vira ritual, com massagem que as clientes elogiam pelo nome. É por isso que quem chega, volta. E recomenda.</p>
+      <div class="nums">
+        <div><b>5,0</b><span>nota no Google</span></div>
+        <div><b>397</b><span>avaliações reais</span></div>
+        <div><b>11+</b><span>anos de história</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="servicos" id="servicos">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow">Serviços</span>
+      <h2 class="h2">Beleza completa em um só lugar</h2>
+      <p class="sub">Do corte à maquiagem, tudo com agendamento online e aquele capricho que virou nossa assinatura.</p>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <img loading="lazy" decoding="async" src="img/81cedc3fe44d.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/81cedc3fe44ddc9b25997153d92612dd82a267b1.jpeg'" alt="Corte e finalização de cabelo">
+        <div class="body">
+          <h3>Cabelo</h3>
+          <p>Corte, escova modelada e alinhamento de fios — inclusive o liso perfeito que é febre entre as divas.</p>
+          <span class="tag">Corte · Escova · Liso</span>
+        </div>
+      </div>
+      <div class="card">
+        <img loading="lazy" decoding="async" src="img/ae011c7c4f5d.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/ae011c7c4f5d7218a966ebbe4e67ceab78dc2f59.jpeg'" alt="Maquiagem profissional sendo aplicada">
+        <div class="body">
+          <h3>Maquiagem</h3>
+          <p>Produção leve, elegante e impecável — a preferida de quem quer brilhar sem exagero.</p>
+          <span class="tag">Social · Eventos</span>
+        </div>
+      </div>
+      <div class="card">
+        <img loading="lazy" decoding="async" src="img/60c2a6a822da.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/60c2a6a822da44e1bc813e77d688eb230cf10497.jpeg'" alt="Unhas com esmaltação impecável">
+        <div class="body">
+          <h3>Unhas</h3>
+          <p>Manicure e pedicure com acabamento perfeito, do clássico ao alongamento.</p>
+          <span class="tag">Mani · Pedi</span>
+        </div>
+      </div>
+      <div class="card">
+        <img loading="lazy" decoding="async" src="img/fe730c0870f1.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/af8d97a34f91015f890f4003416cc1dc33d877a3.jpeg'" alt="Cliente recebendo corte em camadas no salão">
+        <div class="body">
+          <h3>Ritual de lavagem</h3>
+          <p>Lavagem com massagem capilar elogiada em dezenas de avaliações. Você sai renovada.</p>
+          <span class="tag">Spa capilar</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="equipe">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow">Quem cuida de você</span>
+      <h2 class="h2">As divas por trás das divas</h2>
+      <p class="sub">Profissionais citadas pelo nome nas avaliações — carinho que a cliente reconhece.</p>
+    </div>
+    <div class="equipe-grid">
+      <div class="pessoa">
+        <div class="avatar">D</div>
+        <h3>Day</h3>
+        <small>Cabelo &amp; finalização</small>
+        <p>"A Day foi maravilhosa, realizou um ótimo trabalho" — trecho de avaliação real no Google.</p>
+      </div>
+      <div class="pessoa">
+        <div class="avatar">A</div>
+        <h3>Dona Ana</h3>
+        <small>Cabelo &amp; recepção</small>
+        <p>Carinho de mãe em cada atendimento: nome lembrado com gratidão pelas clientes.</p>
+      </div>
+      <div class="pessoa">
+        <div class="avatar">T</div>
+        <h3>Thais</h3>
+        <small>Maquiagem</small>
+        <p>"Sempre me produz com todo carinho e profissionalismo" — avaliação de cliente fiel.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="depo" id="depoimentos">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow">Prova social</span>
+      <h2 class="h2">O que dizem as avaliações no Google</h2>
+      <p class="sub">Comentários reais, publicados por clientes no perfil da Casa das Divas.</p>
+    </div>
+    <div class="depo-grid">
+      <div class="quote"><span class="q-mark">"</span>
+        <p>Simplesmente maravilhosa! Superou todas as minhas expectativas. Atendimento atencioso, ambiente acolhedor e serviços de altíssima qualidade. Recomendo de olhos fechados!</p>
+        <div class="who"><div class="avatar">C</div><div><b>Cliente verificada</b><small>Avaliação no Google · ★★★★★</small></div></div>
+      </div>
+      <div class="quote"><span class="q-mark">"</span>
+        <p>Ótimo atendimento! Fiz corte e escova. A Day e dona Ana foram maravilhosas. Usam os melhores produtos — uma simples lavagem e o cabelo ficou leve e com muito brilho, além da massagem maravilhosa. Obrigada, divas!</p>
+        <div class="who"><div class="avatar">C</div><div><b>Cliente verificada</b><small>Avaliação no Google · ★★★★★</small></div></div>
+      </div>
+      <div class="quote"><span class="q-mark">"</span>
+        <p>Simplesmente encantada! Desde a recepção até o resultado final, tudo perfeito. Minha maquiagem sempre fica impecável, leve e super elegante. Agradecimento especial à Thais, por sempre me produzir com todo carinho.</p>
+        <div class="who"><div class="avatar">C</div><div><b>Cliente verificada</b><small>Avaliação no Google · ★★★★★</small></div></div>
+      </div>
+      <div class="quote"><span class="q-mark">"</span>
+        <p>Experiência maravilhosa! Fiz corte, alinhamento de fios e manicure, e adorei o resultado de tudo. Cabelo impecável e unhas perfeitas. Atendimento nota 10, super recomendo!</p>
+        <div class="who"><div class="avatar">C</div><div><b>Cliente verificada</b><small>Avaliação no Google · ★★★★★</small></div></div>
+      </div>
+      <div class="quote"><span class="q-mark">"</span>
+        <p>Que experiência maravilhosa! Eu e minha mãe amamos demais — nos sentimos muito acolhidas e amadas por todas. Gratidão de verdade.</p>
+        <div class="who"><div class="avatar">C</div><div><b>Cliente verificada</b><small>Avaliação no Google · ★★★★★</small></div></div>
+      </div>
+      <div class="quote"><span class="q-mark">"</span>
+        <p>Dá para ver o cuidado em cada detalhe — me senti super bem recebida e valorizada. Com certeza voltarei!</p>
+        <div class="who"><div class="avatar">C</div><div><b>Cliente verificada</b><small>Avaliação no Google · ★★★★★</small></div></div>
+      </div>
+    </div>
+    <p class="depo-note">Nota geral 5,0 de 5 · 397 avaliações no Google (agosto/2026)</p>
+  </div>
+</section>
+
+<section class="agenda" id="agendar">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow" style="color:var(--rosa)">Agende sua experiência</span>
+      <h2 class="h2">Seu horário te esperando</h2>
+      <p>Agende online pela nossa plataforma oficial ou chame no WhatsApp. Também aceitamos pedidos pelo formulário ao lado — respondemos rapidinho.</p>
+      <div class="hero-cta">
+        <a class="btn" href="https://agendamento.avec.beauty" target="_blank" rel="noopener">Agendar online (Avec)</a>
+        <a class="btn wpp" href="https://wa.me/5592981637626" target="_blank" rel="noopener">WhatsApp (92) 98163-7626</a>
+        <a class="soc-pill" href="https://www.instagram.com/csdasdivas" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.07 3.2.15 4.7 1.7 4.8 4.8.07 1.3.07 1.6.07 4.9s0 3.6-.07 4.9c-.15 3.1-1.6 4.7-4.8 4.8-1.3.07-1.6.07-4.9.07s-3.6 0-4.9-.07c-3.2-.15-4.7-1.7-4.8-4.8C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9C2.42 4 3.9 2.42 7.1 2.27 8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.8.07-2.4.11-3.5 1.3-3.6 3.6C3.5 8.9 3.5 9.3 3.5 12s0 3.1.07 4.3c.11 2.3 1.2 3.5 3.6 3.6 1.3.06 1.7.07 4.8.07s3.5 0 4.8-.07c2.4-.11 3.5-1.3 3.6-3.6.06-1.2.07-1.6.07-4.3s0-3.1-.07-4.3c-.11-2.3-1.2-3.5-3.6-3.6-1.3-.06-1.7-.07-4.8-.07zm0 3.1a4.9 4.9 0 110 9.8 4.9 4.9 0 010-9.8zm0 8.1a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4zm5.1-9.5a1.15 1.15 0 11-2.3 0 1.15 1.15 0 012.3 0z"/></svg>@csdasdivas</a>
+      </div>
+      <div class="horarios">
+        <b>Horários:</b> segunda a sábado, com agendamento · <b>domingo:</b> fechado<br>
+        <b>Endereço:</b> Rua Rio Javari, 17 — Nossa Sra. das Graças, Manaus/AM
+      </div>
+    </div>
+    <form class="form" id="form-contato">
+      <span class="eyebrow">Fale com a gente</span>
+      <h3 class="serif" style="font-size:1.4rem;margin-top:6px">Peça seu horário por aqui</h3>
+      <label for="nome">Seu nome</label>
+      <input id="nome" type="text" placeholder="Como podemos te chamar?" required>
+      <label for="servico">Serviço desejado</label>
+      <select id="servico">
+        <option>Cabelo (corte, escova, liso)</option>
+        <option>Maquiagem</option>
+        <option>Unhas (manicure/pedicure)</option>
+        <option>Pacote completo diva</option>
+        <option>Outro</option>
+      </select>
+      <label for="msg">Mensagem</label>
+      <textarea id="msg" rows="3" placeholder="Melhor dia e horário para você..."></textarea>
+      <button type="submit" class="btn wpp">Enviar pelo WhatsApp</button>
+    <p data-ysis="aviso" style="margin-top:14px;font-size:.8rem;line-height:1.5;opacity:.72">Seus dados não ficam neste site: o formulário monta a mensagem e abre o WhatsApp para você enviar. Nada é gravado aqui, e o retorno vem pelo mesmo canal.</p>
+</form>
+  </div>
+</section>
+<section class="mapa-sec" aria-label="Mapa e como chegar" style="padding:0 22px 64px"><div style="max-width:1120px;margin:0 auto"><h2 style="color:var(--ink,#26221a);font-size:1.6rem;margin:0 0 16px">Como chegar</h2><div style="border-radius:18px;overflow:hidden;border:1px solid var(--line,#e3ddd2);background:var(--card,#fff);box-shadow:0 10px 30px rgba(0,0,0,.05)"><iframe title="Mapa: Rua Rio Javari, 17 — Nossa Senhora das Graças, Manaus - AM" src="https://www.google.com/maps?q=Rua%20Rio%20Javari%2C%2017%20%E2%80%94%20Nossa%20Senhora%20das%20Gra%C3%A7as%2C%20Manaus%20-%20AM&amp;output=embed" style="width:100%;height:320px;border:0;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe><div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 18px"><span style="color:var(--mut,#777);font-size:.92rem">Rua Rio Javari, 17 — Nossa Senhora das Graças, Manaus - AM</span><a href="https://www.google.com/maps/dir/?api=1&amp;destination=Rua%20Rio%20Javari%2C%2017%20%E2%80%94%20Nossa%20Senhora%20das%20Gra%C3%A7as%2C%20Manaus%20-%20AM" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:var(--acc,#4c7a63);color:var(--btntxt,#fff);padding:11px 18px;border-radius:999px;font-weight:700;font-size:.92rem;text-decoration:none"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg> Como chegar</a></div></div></div></section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <a class="logo" href="#top" style="font-size:1.5rem">Casa das <span>Divas</span></a>
+        <p style="margin-top:12px">Espaço de beleza completo em Manaus. Aqui você está em casa. 💖</p>
+        <div class="socials">
+          <a href="https://www.instagram.com/csdasdivas" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.07 3.2.15 4.7 1.7 4.8 4.8.07 1.3.07 1.6.07 4.9s0 3.6-.07 4.9c-.15 3.1-1.6 4.7-4.8 4.8-1.3.07-1.6.07-4.9.07s-3.6 0-4.9-.07c-3.2-.15-4.7-1.7-4.8-4.8C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9C2.42 4 3.9 2.42 7.1 2.27 8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.8.07-2.4.11-3.5 1.3-3.6 3.6C3.5 8.9 3.5 9.3 3.5 12s0 3.1.07 4.3c.11 2.3 1.2 3.5 3.6 3.6 1.3.06 1.7.07 4.8.07s3.5 0 4.8-.07c2.4-.11 3.5-1.3 3.6-3.6.06-1.2.07-1.6.07-4.3s0-3.1-.07-4.3c-.11-2.3-1.2-3.5-3.6-3.6-1.3-.06-1.7-.07-4.8-.07zm0 3.1a4.9 4.9 0 110 9.8 4.9 4.9 0 010-9.8zm0 8.1a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4zm5.1-9.5a1.15 1.15 0 11-2.3 0 1.15 1.15 0 012.3 0z"/></svg></a>
+          <a href="https://www.threads.com/@csdasdivas" target="_blank" rel="noopener" aria-label="Threads"><svg viewBox="0 0 24 24"><path d="M12.2 2c5.5 0 9.8 4.1 9.8 9.5 0 3.9-2.2 7.2-5.5 8.8-.4.2-1-.3-.8-.8 1.4-2.3 2-4.7 2-6.4 0-4.1-2.9-7.1-6.9-7.1-3.6 0-6.3 2.4-6.6 5.7-.1.6-.9.7-1 .1C2.5 7 6.8 2 12.2 2zm.5 5.3c-2.5-.3-4.9 1.4-5.2 3.9-.1.9.1 1.9.6 2.6.2.3.1.7-.2.9-.3.2-.7.1-.9-.2-.7-1-.9-2.3-.8-3.5.4-3.3 3.3-5.4 6.6-5.1 3.1.3 5.5 3 5.3 6.2-.2 2.6-2.1 4.7-4.6 5.2-1.3.3-2.8.1-4-.4-.3-.2-.4-.6-.2-.9.2-.3.6-.4.9-.2.9.4 2 .5 3 .3 1.9-.4 3.3-2 3.5-3.9.2-2.4-1.7-4.5-4-4.9z"/></svg></a>
+        </div>
+      </div>
+      <div>
+        <h4>Contato</h4>
+        <a href="https://wa.me/5592981637626" target="_blank" rel="noopener">WhatsApp: (92) 98163-7626</a>
+        <p>Rua Rio Javari, 17<br>Nossa Sra. das Graças — Manaus/AM</p>
+      </div>
+      <div>
+        <h4>Atalhos</h4>
+        <a href="#servicos">Serviços</a>
+        <a href="#depoimentos">Avaliações</a>
+        <a href="https://agendamento.avec.beauty" target="_blank" rel="noopener">Agendamento online</a>
+      </div>
+    </div>
+    <div class="copy">© 2026 Casa das Divas · Manaus/AM — feito com carinho para as divas.</div>
+  </div>
+<div style="text-align:center;font-size:.72rem;opacity:.55;margin-top:16px;letter-spacing:.05em">powered by <b>Ruphus</b><p data-ysis="fonte" style="margin:16px 0 0;text-align:center;font-size:.76rem;line-height:1.5;opacity:.6">Nota e número de avaliações do Google, consultados em agosto de 2026. Valores públicos, sujeitos a mudança.</p></div>
+</footer>
+
+<a class="wpp-float" href="https://wa.me/5592981637626?text=Ol%C3%A1!%20Vim%20pelo%20site%20e%20quero%20agendar%20%E2%9C%A8" target="_blank" rel="noopener" aria-label="WhatsApp">
+  <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 1.8a8.2 8.2 0 11-4.2 15.3l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 0112 3.8zm-3.3 4c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.1s.9 2.4 1 2.6c.1.2 1.8 2.8 4.4 3.9 2.2.9 2.6.7 3.1.7.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.2-.2-.5-.3l-1.7-.8c-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.1-.2 0-.4.1-.5l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.8-1.8c-.2-.4-.4-.5-.5-.5h-.4z"/></svg>
+</a>
+
+<script>
+document.getElementById('form-contato').addEventListener('submit', function(e){
+  e.preventDefault();
+  const nome = document.getElementById('nome').value.trim();
+  const serv = document.getElementById('servico').value;
+  const msg  = document.getElementById('msg').value.trim();
+  let texto = `Olá! Sou ${nome || 'uma nova diva'} e gostaria de agendar: ${serv}.`;
+  if(msg) texto += ` ${msg}`;
+  window.open('https://wa.me/5592981637626?text=' + encodeURIComponent(texto), '_blank');
+});
+</script>
+<a href="https://wa.me/5592981637626?text=Ol%C3%A1%21%20Vim%20pelo%20site%20e%20quero%20agendar%20um%20hor%C3%A1rio." target="_blank" rel="noopener" aria-label="Agendar pelo WhatsApp" style="position:fixed;right:18px;bottom:18px;z-index:60;width:56px;height:56px;border-radius:50%;background:#25d366;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(0,0,0,.25)"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3.1.8.8-3-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.6-6.1c-.3-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.3-.6.8-.8 1-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.6-1.3.1-.2 0-.4 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1.1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2l-.6-.2z"/></svg></a>
+<script data-ysis="medicao">
+(function(){
+  var SITE = 'casadasdivas';
+  // A chave web do Firebase é pública por natureza. A proteção não está nela e
+  // sim na regra do Firestore: a coleção `eventos` só aceita criar, com campos
+  // fixos e canal dentro de uma lista — não lê, não altera, não apaga.
+  var URL = 'https://firestore.googleapis.com/v1/projects/ysis-crm/databases/'
+          + '(default)/documents/eventos?key=AIzaSyCEXBCVXmhDnVIF6XbSsv3-f-L6P9knu5o';
+
+  function hoje(){
+    var d = new Date(), z = function(n){ return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+  }
+  function origem(){
+    try {
+      var u = new URLSearchParams(location.search).get('utm_source');
+      if (u) return u.slice(0, 60);
+      if (document.referrer) return new URL(document.referrer).hostname.slice(0, 60);
+    } catch (e) {}
+    return '';
+  }
+  function medir(nome, canal){
+    var f = { nome: { stringValue: nome }, site: { stringValue: SITE },
+              dia: { stringValue: hoje() } };
+    if (canal) f.canal = { stringValue: canal };
+    var o = origem();
+    if (o) f.origem = { stringValue: o };
+    try {
+      fetch(URL, { method: 'POST', body: JSON.stringify({ fields: f }),
+                   headers: { 'Content-Type': 'application/json' }, keepalive: true });
+    } catch (e) {}
+  }
+
+  // captura na fase de captura: o formulário destas páginas dá preventDefault
+  // e abre o canal, então um listener na fase de bolha não veria o envio
+  document.addEventListener('click', function(ev){
+    var a = ev.target && ev.target.closest && ev.target.closest('a[href]');
+    if (!a) return;
+    var h = a.getAttribute('href') || '';
+    var canal = /wa\.me|api\.whatsapp/.test(h) ? 'whatsapp'
+      : /ig\.me|instagram\.com/.test(h) ? 'instagram'
+      : h.indexOf('tel:') === 0 ? 'telefone'
+      : h.indexOf('mailto:') === 0 ? 'email'
+      : /google\.[a-z.]+\/maps|maps\.app\.goo/.test(h) ? 'mapa'
+      : /agendamento|avec|trinks|booksy|appbarber|bestbarbers|calendly|cal\.com|frizzar|agendaservico/.test(h) ? 'agenda'
+      : '';
+    if (canal) medir('contato', canal);
+  }, true);
+  document.addEventListener('submit', function(ev){
+    if (ev.target && ev.target.tagName === 'FORM') medir('formulario', '');
+  }, true);
+})();
+</script>
+</body>
+</html>

@@ -7,9 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "import:sites": "tsx --env-file=.env.local scripts/import-sites.mts",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-siteflow 'node rules.test.mjs'",
     "test:booking": "firebase emulators:exec --only firestore,auth --project demo-siteflow 'tsx --conditions=react-server booking.test.mts'",
-    "test:scale": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server scale.test.mts'"
+    "test:scale": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server scale.test.mts'",
+    "test:proxy": "tsx proxy.test.mts",
+    "sync:sites": "sh scripts/sync-sites.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

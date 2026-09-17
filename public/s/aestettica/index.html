@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A Estettica · Estética Facial e Corporal em Manaus</title>
+<meta name="description" content="A Estettica: clínica de estética facial e corporal em Manaus com mais de 14 anos e 50 mil atendimentos. Resultados naturais. Nota 4,9 no Google.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --gelo:#f4f8fa; --branco:#ffffff; --aco:#3a6079; --aco-2:#2b4a5f; --prata:#b9c9d2;
+  --tinta:#1f2b33; --suave:#647885; --linha:#dce7ec;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{overflow-x:hidden}
+img{max-width:100%;min-width:0}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--gelo);color:var(--tinta);line-height:1.65;font-weight:300}
+h1,h2,.serif{font-family:'DM Serif Display',serif;font-weight:400;line-height:1.12}
+h3{font-family:'Inter',sans-serif;font-weight:600}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+.container{width:100%;max-width:1140px;margin:0 auto;padding:0 24px}
+.eyebrow{font-size:12px;letter-spacing:.34em;text-transform:uppercase;color:var(--aco);font-weight:600;display:flex;align-items:center;gap:12px}
+.eyebrow::before{content:'';width:30px;height:1px;background:var(--aco)}
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(244,248,250,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--linha)}
+.nav-in{width:100%;max-width:1140px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+.brand{font-family:'DM Serif Display',serif;font-size:26px;color:var(--aco-2)}
+.brand i{font-style:italic;color:var(--aco)}
+.nav-links{display:flex;gap:30px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;font-weight:500}
+.nav-links a{color:var(--suave);transition:color .3s}
+.nav-links a:hover{color:var(--aco-2)}
+.nav-links a.btn{color:#fff}
+.nav-links a.btn:hover{color:#fff}
+.btn{display:inline-block;padding:14px 32px;border-radius:8px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;transition:all .3s;cursor:pointer;background:var(--aco);color:#fff;border:2px solid var(--aco)}
+.btn:hover{background:var(--aco-2);border-color:var(--aco-2)}
+.btn.ghost{background:transparent;color:var(--aco);border-color:var(--aco)}
+.btn.ghost:hover{background:var(--aco);color:#fff}
+/* HERO */
+.hero{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:60px;align-items:center;padding:140px max(24px,calc((100vw - 1140px)/2 + 24px)) 70px;position:relative;overflow:hidden}
+.hero h1{font-size:clamp(44px,5.4vw,72px);color:var(--aco-2);margin:22px 0 22px}
+.hero h1 i{color:var(--aco)}
+.hero p{font-size:17px;color:var(--suave);max-width:470px;margin-bottom:34px}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap}
+.hero-img{position:relative}
+.hero-img img{border-radius:20px;width:100%;height:min(64vh,600px);object-fit:cover;box-shadow:0 44px 90px -44px rgba(43,74,95,.5)}
+.hero-img::before{content:'';position:absolute;inset:18px -18px -18px 18px;border:1px solid var(--prata);border-radius:20px;z-index:-1}
+.selo-cruz{position:absolute;top:-22px;right:20px;width:64px;height:64px;background:var(--aco);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 18px 40px -14px rgba(43,74,95,.5)}
+/* NÚMEROS */
+.numeros{background:var(--aco-2);color:var(--gelo);padding:70px 0}
+.num-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;text-align:center}
+.num-grid b{font-family:'DM Serif Display',serif;font-size:clamp(46px,5.6vw,72px);font-weight:400;color:#fff;display:block;line-height:1}
+.num-grid b i{font-style:italic;color:var(--prata)}
+.num-grid span{font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--prata);display:block;margin-top:12px}
+/* SEÇÕES */
+section{padding:110px 0}
+.sec-head{max-width:660px;margin-bottom:56px}
+.sec-head h2{font-size:clamp(34px,4.2vw,54px);color:var(--aco-2);margin:16px 0 14px}
+.sec-head p{color:var(--suave);font-size:16px}
+/* PROTOCOLOS */
+.prot-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.prot{background:#fff;border:1px solid var(--linha);border-radius:16px;overflow:hidden;transition:transform .35s,box-shadow .35s}
+.prot:hover{transform:translateY(-6px);box-shadow:0 34px 64px -34px rgba(43,74,95,.4)}
+.prot img{width:100%;height:230px;object-fit:cover}
+.prot-body{padding:28px}
+.prot-body h3{font-size:18px;margin-bottom:8px;color:var(--aco-2)}
+.prot-body p{color:var(--suave);font-size:14px;margin-bottom:16px}
+.prot-body a{font-size:12px;letter-spacing:.18em;text-transform:uppercase;font-weight:600;color:var(--aco);border-bottom:1px solid var(--aco);padding-bottom:2px}
+/* MÉTODO */
+.metodo{background:#fff;border-top:1px solid var(--linha);border-bottom:1px solid var(--linha)}
+.met-grid{display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:center}
+.met-img img{border-radius:20px;box-shadow:0 40px 80px -44px rgba(43,74,95,.45)}
+.met-passos{display:flex;flex-direction:column;gap:0;margin-top:26px}
+.passo{display:flex;gap:22px;padding:22px 0;border-bottom:1px solid var(--linha)}
+.passo:last-child{border-bottom:none}
+.passo .pn{flex:none;width:44px;height:44px;border:1px solid var(--aco);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display',serif;font-size:19px;color:var(--aco)}
+.passo h3{font-size:16px;margin-bottom:4px}
+.passo p{color:var(--suave);font-size:14px}
+/* PROVA */
+.prova{position:relative}
+.prova-in{width:100%;max-width:760px;margin:0 auto;text-align:center}
+.estrelas{color:#e0a83c;font-size:24px;letter-spacing:8px;margin-bottom:20px}
+.prova .nota{font-family:'DM Serif Display',serif;font-size:clamp(72px,9vw,110px);color:var(--aco-2);line-height:1}
+.prova .nota small{font-size:.3em;color:var(--aco);font-style:italic}
+.prova-in p{color:var(--suave);margin:16px 0 32px;font-size:16px}
+/* CONTATO */
+.contato{background:var(--aco-2);color:var(--gelo)}
+.contato-grid{display:grid;grid-template-columns:1fr 1fr;gap:70px}
+.contato .eyebrow{color:var(--prata)}.contato .eyebrow::before{background:var(--prata)}
+.contato h2{color:#fff;font-size:clamp(34px,4.2vw,52px);margin:18px 0 18px}
+.contato p{color:rgba(244,248,250,.7)}
+.contato-links{margin-top:30px;display:flex;flex-direction:column;gap:16px;font-size:15px}
+.contato-links a{display:flex;align-items:center;gap:14px;color:var(--gelo);transition:color .3s}
+.contato-links a:hover{color:#fff}
+.contato-links svg{color:var(--prata);flex:none}
+form{background:rgba(255,255,255,.06);border:1px solid rgba(185,201,210,.35);border-radius:16px;padding:40px}
+form label{display:block;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--prata);font-weight:600;margin-bottom:8px}
+form input,form select{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(185,201,210,.45);color:#fff;font-family:'Inter',sans-serif;font-size:16px;padding:10px 2px;margin-bottom:24px;outline:none}
+form input::placeholder{color:rgba(244,248,250,.4)}
+form select option{color:var(--tinta)}
+form input:focus,form select:focus{border-color:#fff}
+footer{background:#20394a;color:rgba(244,248,250,.55);padding:40px 0;font-size:13px}
+.foot{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px}
+footer .brand{color:#fff}
+.whats{position:fixed;right:26px;bottom:26px;width:60px;height:60px;background:#25d366;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 14px 34px -8px rgba(37,211,102,.55);z-index:60;transition:transform .3s}
+.whats:hover{transform:scale(1.1)}
+@media(max-width:900px){
+  .nav-links{display:none}
+  .hero,.met-grid,.contato-grid{grid-template-columns:minmax(0,1fr);gap:44px}
+  .hero{padding-top:120px}
+  .prot-grid{grid-template-columns:minmax(0,1fr)}
+  .num-grid{grid-template-columns:minmax(0,1fr);gap:40px}
+}
+</style>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#f4f8fa">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%233a6079'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-size='36' font-weight='400' fill='%23f4f8fa' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="favicon-180.png">
+<meta name="geo.region" content="BR-AM">
+<meta name="geo.placename" content="Manaus">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="A Estettica · Estética Facial e Corporal em Manaus">
+<meta property="og:description" content="A Estettica: clínica de estética facial e corporal em Manaus com mais de 14 anos e 50 mil atendimentos. Resultados naturais. Nota 4,9 no Google.">
+<meta property="og:image" content="https://www.ysis.app/aestettica/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Aplicação de máscara facial em clínica de estética">
+<meta property="og:site_name" content="A Estettica">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="A Estettica · Estética Facial e Corporal em Manaus">
+<meta name="twitter:description" content="A Estettica: clínica de estética facial e corporal em Manaus com mais de 14 anos e 50 mil atendimentos. Resultados naturais. Nota 4,9 no Google.">
+<meta name="twitter:image" content="https://www.ysis.app/aestettica/og.jpg">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "HealthAndBeautyBusiness", "name": "A Estettica", "address": {"@type": "PostalAddress", "streetAddress": "Rua Rio Jutaí, 18 — Vieiralves", "addressLocality": "Manaus", "addressRegion": "AM", "addressCountry": "BR"}, "telephone": "+55 92 98114-3634", "aggregateRating": {"@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "120"}, "priceRange": "$$$", "image": "https://kimi-web-img.kimi.ai/img/images.pexels.com/4bf86a8ebcadedbb488559f8ad37ab0a6c54af4a.jpeg", "description": "A Estettica: clínica de estética facial e corporal em Manaus com mais de 14 anos e 50 mil atendimentos. Resultados naturais. Nota 4,9 no Google.", "hasMap": "https://www.google.com/maps/search/?api=1&query=Rua%20Rio%20Juta%C3%AD%2C%2018%20%E2%80%94%20Vieiralves%2C%20Manaus%20-%20AM"}</script>
+<link rel="canonical" href="https://www.ysis.app/aestettica/">
+<meta property="og:url" content="https://www.ysis.app/aestettica/">
+</head>
+<body>
+<aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">Esta página é uma proposta da <a href="https://www.ysis.app/" style="color:#f2b56b">Ysis</a>, não o site oficial. <a href="https://wa.me/5511948680554?text=Quero%20remover%20a%20p%C3%A1gina%20de%20proposta%20aestettica" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ysis.app/privacidade/" style="color:#a2918d">Privacidade</a></aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){var b=document.querySelector("aside[data-ysis=proposta]");if(!b)return;var h=b.getBoundingClientRect().height;document.querySelectorAll("header,nav,.site-header,.nav,.topo").forEach(function(el){var s=getComputedStyle(el);if(s.position==="fixed"||s.position==="sticky")el.style.top=h+"px"});});</script>
+
+
+<nav>
+  <div class="nav-in">
+    <a href="#" class="brand">A <i>Estettica</i></a>
+    <div class="nav-links">
+      <a href="#protocolos">Tratamentos</a>
+      <a href="#metodo">Método</a>
+      <a href="#prova">Resultados</a>
+      <a href="#contato">Contato</a>
+    </div>
+    <a class="btn" href="https://wa.me/5592981143634?text=Ol%C3%A1!%20Quero%20agendar%20uma%20avalia%C3%A7%C3%A3o%20na%20A%20Estettica." target="_blank" rel="noopener">Agendar avaliação</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div>
+    <span class="eyebrow">Clínica de Estética · Vieiralves, Manaus</span>
+    <h1>Estética facial e corporal com <i>resultados naturais</i></h1>
+    <p>Mais de 14 anos de clínica e mais de 50 mil atendimentos em Manaus. Ciência, técnica e um compromisso: realçar — nunca transformar além de você.</p>
+    <div style="display:inline-flex;align-items:center;gap:10px;background:rgba(127,127,127,.07);border:1px solid rgba(127,127,127,.22);border-radius:999px;padding:9px 18px;font-size:.9rem;font-weight:600;margin:0 0 20px"><span style="color:#3a6079;letter-spacing:2px">★★★★★</span> 4,9 · 120 avaliações no Google</div>
+<div class="hero-cta">
+      <a class="btn" href="https://wa.me/5592981143634?text=Ol%C3%A1!%20Quero%20agendar%20uma%20avalia%C3%A7%C3%A3o%20na%20A%20Estettica." target="_blank" rel="noopener">Agendar avaliação</a>
+      <a class="btn ghost" href="#protocolos">Conhecer tratamentos</a>
+    </div>
+  </div>
+  <div class="hero-img">
+    <img fetchpriority="high" decoding="async" src="img/4bf86a8ebcad.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/4bf86a8ebcadedbb488559f8ad37ab0a6c54af4a.jpeg'" alt="Avaliação facial em clínica de estética">
+    <div class="selo-cruz">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 4v16M4 12h16"/></svg>
+    </div>
+  </div>
+</header>
+
+<div class="numeros">
+  <div class="container num-grid">
+    <div><b>14<i>+</i></b><span>Anos de clínica</span></div>
+    <div><b>50<i> mil</i></b><span>Atendimentos realizados</span></div>
+    <div><b>4,9<i>★</i></b><span>Nota no Google · 120 avaliações</span></div>
+  </div>
+</div>
+
+<section id="protocolos">
+  <div class="container">
+    <div class="sec-head">
+      <span class="eyebrow">Tratamentos</span>
+      <h2>Protocolos faciais e corporais</h2>
+      <p>Cada tratamento começa com avaliação individual. Os protocolos e valores são definidos para a sua pele e o seu objetivo — consulte a equipe.</p>
+    </div>
+    <div class="prot-grid">
+      <div class="prot">
+        <img loading="lazy" decoding="async" src="img/764e31451e8c.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/764e31451e8cd9a3a642dff49a66467966bc3455.jpeg'" alt="Aplicação de máscara facial em tratamento">
+        <div class="prot-body">
+          <h3>Estética Facial</h3>
+          <p>Limpeza de pele, revitalização e protocolos de rejuvenescimento com foco em naturalidade.</p>
+          <a href="https://wa.me/5592981143634?text=Ol%C3%A1!%20Quero%20saber%20mais%20sobre%20est%C3%A9tica%20facial%20na%20A%20Estettica." target="_blank" rel="noopener">Consultar</a>
+        </div>
+      </div>
+      <div class="prot">
+        <img loading="lazy" decoding="async" src="img/0486f660ff02.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/0486f660ff02f5d1ad9c46071da42cd5dbc5dc0d.jpeg'" alt="Procedimento estético realizado com luvas e técnica">
+        <div class="prot-body">
+          <h3>Procedimentos Avançados</h3>
+          <p>Técnicas injetáveis e procedimentos de precisão, sempre com avaliação prévia e responsabilidade técnica.</p>
+          <a href="https://wa.me/5592981143634?text=Ol%C3%A1!%20Quero%20uma%20avalia%C3%A7%C3%A3o%20para%20procedimentos%20faciais%20na%20A%20Estettica." target="_blank" rel="noopener">Consultar</a>
+        </div>
+      </div>
+      <div class="prot">
+        <img loading="lazy" decoding="async" src="img/d5a7f4b068b9.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/d5a7f4b068b92451d7ead42b1e7eadf53a9cca5f.jpeg'" alt="Equipamento de estética em clínica">
+        <div class="prot-body">
+          <h3>Estética Corporal</h3>
+          <p>Protocolos corporais com tecnologia de aparelhos e acompanhamento de evolução.</p>
+          <a href="https://wa.me/5592981143634?text=Ol%C3%A1!%20Quero%20saber%20mais%20sobre%20est%C3%A9tica%20corporal%20na%20A%20Estettica." target="_blank" rel="noopener">Consultar</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="metodo" id="metodo">
+  <div class="container met-grid">
+    <div class="met-img"><img loading="lazy" decoding="async" src="img/764e31451e8c.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/764e31451e8cd9a3a642dff49a66467966bc3455.jpeg'" alt="Detalhe de tratamento facial"></div>
+    <div>
+      <span class="eyebrow">O Método</span>
+      <h2 style="font-size:clamp(32px,4vw,50px);color:var(--aco-2);margin:16px 0 6px">Como funciona o seu primeiro atendimento</h2>
+      <div class="met-passos">
+        <div class="passo">
+          <span class="pn">1</span>
+          <div><h3>Avaliação individual</h3><p>Análise da pele, histórico e objetivo — nenhum protocolo começa sem essa conversa.</p></div>
+        </div>
+        <div class="passo">
+          <span class="pn">2</span>
+          <div><h3>Plano sob medida</h3><p>Protocolo definido para o seu caso, com expectativas realistas e transparentes.</p></div>
+        </div>
+        <div class="passo">
+          <span class="pn">3</span>
+          <div><h3>Acompanhamento</h3><p>Evolução registrada a cada sessão — resultado natural é resultado construído.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="prova" id="prova">
+  <div class="container prova-in">
+    <div class="estrelas">★★★★★</div>
+    <div class="nota">4,9 <small>/ 5 no Google</small></div>
+    <p>120 avaliações de clientes reais sustentam a nota 4,9 da A Estettica. Em mais de 14 anos e 50 mil atendimentos, a reputação é o ativo mais importante da clínica — e o mais bem cuidado.</p>
+    <a class="btn" href="https://wa.me/5592981143634?text=Ol%C3%A1!%20Vi%20a%20nota%204%2C9%20de%20voc%C3%AAs%20no%20Google%20e%20quero%20agendar%20uma%20avalia%C3%A7%C3%A3o." target="_blank" rel="noopener">Agendar minha avaliação</a>
+  </div>
+</section>
+
+<section class="contato" id="contato">
+  <div class="container contato-grid">
+    <div>
+      <span class="eyebrow">Contato</span>
+      <h2>Comece pela avaliação</h2>
+      <p>Preencha ao lado e a mensagem chega direto no WhatsApp da clínica. A equipe responde com horários disponíveis e orienta o primeiro passo.</p>
+      <div class="contato-links">
+        <a href="https://wa.me/5592981143634" target="_blank" rel="noopener">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm5.1 13.9c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1-.4-.1-.9-.3-1.5-.6-2.6-1.1-4.3-3.8-4.4-4-.1-.2-1.1-1.4-1.1-2.7 0-1.3.7-1.9.9-2.2.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6c-.2.2-.4.4-.2.8.2.4 1 1.6 2.1 2.6 1.4 1.3 2.6 1.7 3 1.9.4.2.6.1.8-.1l1-1.2c.2-.3.4-.2.7-.1l2 .9c.3.2.5.2.6.4 0 .1 0 .7-.2 1.3z"/></svg>
+          (92) 98114-3634
+        </a>
+        <a href="https://www.google.com/maps/search/?api=1&query=Rua+Rio+Juta%C3%AD+18+Vieiralves+Manaus" target="_blank" rel="noopener">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-5.6-7-11a7 7 0 1114 0c0 5.4-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
+          Rua Rio Jutaí, 18 — Vieiralves, Manaus – AM
+        </a>
+        <a href="https://wa.me/5592981143634" target="_blank" rel="noopener">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>
+          Horários sob consulta no WhatsApp
+        </a>
+      </div>
+    </div>
+    <form id="form-contato">
+      <label for="nome">Seu nome</label>
+      <input id="nome" type="text" required placeholder="Como podemos te chamar?">
+      <label for="interesse">Área de interesse</label>
+      <select id="interesse" required>
+        <option value="" disabled selected>Escolha uma opção</option>
+        <option>Estética facial</option>
+        <option>Procedimentos avançados</option>
+        <option>Estética corporal</option>
+        <option>Quero uma avaliação geral</option>
+      </select>
+      <label for="msg">Conte um pouco do seu objetivo</label>
+      <input id="msg" type="text" placeholder="Ex.: quero melhorar a firmeza da pele">
+      <button class="btn" type="submit" style="width:100%;background:#fff;color:var(--aco-2);border-color:#fff">Enviar pelo WhatsApp</button>
+    <p data-ysis="aviso" style="margin-top:14px;font-size:.8rem;line-height:1.5;opacity:.72">Seus dados não ficam neste site: o formulário monta a mensagem e abre o WhatsApp para você enviar. Nada é gravado aqui, e o retorno vem pelo mesmo canal.</p>
+</form>
+  </div>
+</section>
+<section class="mapa-sec" aria-label="Mapa e como chegar" style="padding:0 22px 64px"><div style="max-width:1120px;margin:0 auto"><h2 style="color:var(--ink,#26221a);font-size:1.6rem;margin:0 0 16px">Como chegar</h2><div style="border-radius:18px;overflow:hidden;border:1px solid var(--line,#e3ddd2);background:var(--card,#fff);box-shadow:0 10px 30px rgba(0,0,0,.05)"><iframe title="Mapa: Rua Rio Jutaí, 18 — Vieiralves, Manaus - AM" src="https://www.google.com/maps?q=Rua%20Rio%20Juta%C3%AD%2C%2018%20%E2%80%94%20Vieiralves%2C%20Manaus%20-%20AM&amp;output=embed" style="width:100%;height:320px;border:0;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe><div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 18px"><span style="color:var(--mut,#777);font-size:.92rem">Rua Rio Jutaí, 18 — Vieiralves, Manaus - AM</span><a href="https://www.google.com/maps/dir/?api=1&amp;destination=Rua%20Rio%20Juta%C3%AD%2C%2018%20%E2%80%94%20Vieiralves%2C%20Manaus%20-%20AM" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:var(--acc,#4c7a63);color:var(--btntxt,#fff);padding:11px 18px;border-radius:999px;font-weight:700;font-size:.92rem;text-decoration:none"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg> Como chegar</a></div></div></div></section>
+
+<footer>
+  <div class="container foot">
+    <a href="#" class="brand">A <i>Estettica</i></a>
+    <span>Rua Rio Jutaí, 18 – Vieiralves, Manaus – AM</span>
+    <span>© A Estettica · Resultados naturais desde sempre</span>
+  </div>
+<div style="text-align:center;font-size:.72rem;opacity:.55;margin-top:16px;letter-spacing:.05em">powered by <b>Ruphus</b><p data-ysis="fonte" style="margin:16px 0 0;text-align:center;font-size:.76rem;line-height:1.5;opacity:.6">Nota e número de avaliações do Google, consultados em agosto de 2026. Valores públicos, sujeitos a mudança.</p></div>
+</footer>
+
+<a class="whats" href="https://wa.me/5592981143634?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20A%20Estettica." target="_blank" rel="noopener" aria-label="WhatsApp">
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm5.1 13.9c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1-.4-.1-.9-.3-1.5-.6-2.6-1.1-4.3-3.8-4.4-4-.1-.2-1.1-1.4-1.1-2.7 0-1.3.7-1.9.9-2.2.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6c-.2.2-.4.4-.2.8.2.4 1 1.6 2.1 2.6 1.4 1.3 2.6 1.7 3 1.9.4.2.6.1.8-.1l1-1.2c.2-.3.4-.2.7-.1l2 .9c.3.2.5.2.6.4 0 .1 0 .7-.2 1.3z"/></svg>
+</a>
+
+<script>
+document.getElementById('form-contato').addEventListener('submit', function(e){
+  e.preventDefault();
+  var nome = document.getElementById('nome').value.trim();
+  var inter = document.getElementById('interesse').value;
+  var msg  = document.getElementById('msg').value.trim();
+  var texto = 'Olá! Sou ' + nome + ' e tenho interesse em: ' + inter + (msg ? '. ' + msg : '') + '.';
+  window.open('https://wa.me/5592981143634?text=' + encodeURIComponent(texto), '_blank');
+});
+</script>
+<a href="https://wa.me/5592981143634?text=Ol%C3%A1%21%20Vim%20pelo%20site%20e%20quero%20agendar%20um%20hor%C3%A1rio." target="_blank" rel="noopener" aria-label="Agendar pelo WhatsApp" style="position:fixed;right:18px;bottom:18px;z-index:60;width:56px;height:56px;border-radius:50%;background:#25d366;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(0,0,0,.25)"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3.1.8.8-3-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.6-6.1c-.3-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.3-.6.8-.8 1-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.6-1.3.1-.2 0-.4 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1.1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2l-.6-.2z"/></svg></a>
+<script data-ysis="medicao">
+(function(){
+  var SITE = 'aestettica';
+  // A chave web do Firebase é pública por natureza. A proteção não está nela e
+  // sim na regra do Firestore: a coleção `eventos` só aceita criar, com campos
+  // fixos e canal dentro de uma lista — não lê, não altera, não apaga.
+  var URL = 'https://firestore.googleapis.com/v1/projects/ysis-crm/databases/'
+          + '(default)/documents/eventos?key=AIzaSyCEXBCVXmhDnVIF6XbSsv3-f-L6P9knu5o';
+
+  function hoje(){
+    var d = new Date(), z = function(n){ return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+  }
+  function origem(){
+    try {
+      var u = new URLSearchParams(location.search).get('utm_source');
+      if (u) return u.slice(0, 60);
+      if (document.referrer) return new URL(document.referrer).hostname.slice(0, 60);
+    } catch (e) {}
+    return '';
+  }
+  function medir(nome, canal){
+    var f = { nome: { stringValue: nome }, site: { stringValue: SITE },
+              dia: { stringValue: hoje() } };
+    if (canal) f.canal = { stringValue: canal };
+    var o = origem();
+    if (o) f.origem = { stringValue: o };
+    try {
+      fetch(URL, { method: 'POST', body: JSON.stringify({ fields: f }),
+                   headers: { 'Content-Type': 'application/json' }, keepalive: true });
+    } catch (e) {}
+  }
+
+  // captura na fase de captura: o formulário destas páginas dá preventDefault
+  // e abre o canal, então um listener na fase de bolha não veria o envio
+  document.addEventListener('click', function(ev){
+    var a = ev.target && ev.target.closest && ev.target.closest('a[href]');
+    if (!a) return;
+    var h = a.getAttribute('href') || '';
+    var canal = /wa\.me|api\.whatsapp/.test(h) ? 'whatsapp'
+      : /ig\.me|instagram\.com/.test(h) ? 'instagram'
+      : h.indexOf('tel:') === 0 ? 'telefone'
+      : h.indexOf('mailto:') === 0 ? 'email'
+      : /google\.[a-z.]+\/maps|maps\.app\.goo/.test(h) ? 'mapa'
+      : /agendamento|avec|trinks|booksy|appbarber|bestbarbers|calendly|cal\.com|frizzar|agendaservico/.test(h) ? 'agenda'
+      : '';
+    if (canal) medir('contato', canal);
+  }, true);
+  document.addEventListener('submit', function(ev){
+    if (ev.target && ev.target.tagName === 'FORM') medir('formulario', '');
+  }, true);
+})();
+</script>
+</body>
+</html>

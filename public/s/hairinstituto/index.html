@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hair Instituto de Beleza · Studio Capilar no Flores, Manaus</title>
+<meta name="description" content="Hair Instituto de Beleza — studio capilar no Flores, Manaus. Nota 4.8 no Google com 161 avaliações. Corte, cor e tratamento com agendamento pelo WhatsApp.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#16130f; --carvao:#211c16; --caramelo:#c08a4e; --caramelo-claro:#e2b980;
+  --creme:#f6f1e9; --fumaca:#a79a89;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{overflow-x:hidden}
+img{max-width:100%;min-width:0}
+html{scroll-behavior:smooth}
+body{font-family:'Outfit',sans-serif;background:var(--ink);color:var(--creme);line-height:1.65}
+h1,h2,h3,.serif{font-family:'Marcellus',serif;font-weight:400}
+img{max-width:100%;display:block}
+.wrap{width:100%;max-width:1120px;margin:0 auto;padding:0 24px}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(22,19,15,.9);backdrop-filter:blur(10px);border-bottom:1px solid #2e2820}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:72px}
+.logo{font-family:'Marcellus',serif;font-size:1.3rem;color:var(--creme);text-decoration:none;letter-spacing:.14em;text-transform:uppercase}
+.logo em{color:var(--caramelo);font-style:normal}
+.nav-links{display:flex;gap:28px;align-items:center}
+.nav-links a{color:var(--fumaca);text-decoration:none;font-size:.85rem;letter-spacing:.06em}
+.nav-links a:hover{color:var(--caramelo-claro)}
+.nav-links a.btn{color:var(--ink)}
+.nav-links a.btn:hover{color:var(--ink)}
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--caramelo);color:var(--ink);text-decoration:none;font-weight:600;font-size:.88rem;padding:13px 30px;border:none;cursor:pointer;transition:.25s;letter-spacing:.08em;text-transform:uppercase;font-size:.78rem}
+.btn:hover{background:var(--caramelo-claro)}
+.btn.wpp{background:#25d366}
+.btn.wpp:hover{background:#3be07a}
+@media(max-width:860px){.nav-links a:not(.btn){display:none}}
+
+.hero{min-height:100vh;display:flex;align-items:center;padding:130px 0 80px;position:relative;overflow:hidden}
+.hero .bg{position:absolute;inset:0}
+.hero .bg img{width:100%;height:100%;object-fit:cover;opacity:.62;filter:brightness(1.06) saturate(1.05)}
+.hero .bg::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 75% 62% at 50% 50%,rgba(22,19,15,.80),rgba(22,19,15,.42) 78%),linear-gradient(180deg,rgba(22,19,15,.38),rgba(22,19,15,.52) 70%,var(--ink))}
+.hero .wrap{position:relative;text-align:center;max-width:820px}
+.hero .eyebrow{color:var(--caramelo-claro)}
+.hero h1{font-size:clamp(2.6rem,6vw,4.6rem);line-height:1.06;margin:18px 0 22px}
+.hero h1 em{color:var(--caramelo-claro)}
+.hero .lead{color:#cabcab;max-width:520px;margin:0 auto 34px;font-size:1.02rem}
+.hero-cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.rating-line{margin-top:44px;display:inline-flex;align-items:center;gap:14px;border:1px solid #3a3128;padding:12px 24px;border-radius:999px}
+.rating-line .n{font-family:'Marcellus',serif;font-size:1.4rem;color:var(--caramelo-claro)}
+.rating-line small{color:var(--fumaca);font-size:.74rem;text-align:left;line-height:1.35}
+.stars{color:var(--caramelo-claro);letter-spacing:3px}
+
+section{padding:96px 0}
+.eyebrow{color:var(--caramelo);text-transform:uppercase;letter-spacing:.26em;font-size:.72rem;font-weight:600}
+.h2{font-size:clamp(1.9rem,3.4vw,2.7rem);margin:12px 0 16px;line-height:1.15}
+.center{text-align:center}
+.center p.sub{color:var(--fumaca);max-width:520px;margin:0 auto;font-size:.95rem}
+
+.servicos{background:var(--carvao)}
+.s-rows{margin-top:52px;border-top:1px solid #352d23}
+.s-row{display:grid;grid-template-columns:80px 1fr 1.2fr auto;gap:26px;align-items:center;padding:30px 8px;border-bottom:1px solid #352d23;transition:.25s}
+.s-row:hover{background:#2a231b;padding-left:18px}
+.s-row .num{font-family:'Marcellus',serif;color:var(--caramelo);font-size:1.5rem}
+.s-row h3{font-size:1.4rem;letter-spacing:.04em}
+.s-row p{color:var(--fumaca);font-size:.88rem}
+.s-row a{color:var(--caramelo-claro);text-decoration:none;font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--caramelo)}
+@media(max-width:760px){.s-row{grid-template-columns:50px 1fr;gap:14px}.s-row p{grid-column:2}.s-row a{grid-column:2;justify-self:start}}
+
+.galeria{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:48px}
+.galeria img{border-radius:4px;height:340px;width:100%;object-fit:cover;transition:.4s;filter:saturate(.92)}
+.galeria img:hover{transform:scale(1.02);filter:saturate(1.05)}
+.galeria .v2{height:340px;object-position:top}
+@media(max-width:900px){.galeria{grid-template-columns:repeat(2,1fr)}.galeria img{height:240px}}
+
+.prova{background:var(--carvao);text-align:center}
+.prova .big{font-family:'Marcellus',serif;font-size:clamp(3.4rem,8vw,6rem);color:var(--caramelo-claro);line-height:1}
+.prova .stars{font-size:1.5rem;margin:14px 0}
+.prova p{color:var(--fumaca);max-width:520px;margin:0 auto}
+.prova .row{display:flex;justify-content:center;gap:56px;margin-top:48px;flex-wrap:wrap}
+.prova .row b{font-family:'Marcellus',serif;font-size:1.9rem;display:block;color:var(--creme)}
+.prova .row span{font-size:.78rem;color:var(--fumaca);letter-spacing:.08em;text-transform:uppercase}
+
+.contato .wrap{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:start}
+.info p, .info a{color:var(--fumaca);font-size:.92rem;text-decoration:none}
+.info a{color:var(--caramelo-claro)}
+.i-row{border-bottom:1px solid #352d23;padding:22px 0}
+.i-row h3{font-size:1.15rem;letter-spacing:.06em;margin-bottom:6px;color:var(--creme)}
+.form{background:var(--carvao);border:1px solid #352d23;padding:38px}
+.form h3{font-size:1.5rem;margin-bottom:4px}
+.form p{font-size:.85rem;color:var(--fumaca)}
+.form label{display:block;font-size:.7rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--caramelo-claro);margin:18px 0 6px}
+.form input,.form select,.form textarea{width:100%;background:var(--ink);border:1px solid #3d332a;color:var(--creme);padding:13px 14px;font-family:'Outfit',sans-serif;font-size:.9rem;border-radius:2px}
+.form input:focus,.form select:focus,.form textarea:focus{outline:none;border-color:var(--caramelo)}
+.form .btn{width:100%;justify-content:center;margin-top:22px}
+@media(max-width:900px){.contato .wrap{grid-template-columns:minmax(0,1fr)}}
+
+footer{background:#100d0a;color:#7c7061;padding:48px 0 26px;border-top:1px solid #2a231b}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+footer p, footer a{font-size:.82rem;color:#7c7061;text-decoration:none}
+footer a:hover{color:var(--caramelo-claro)}
+.copy{margin-top:26px;text-align:center;font-size:.74rem;color:#5c5142}
+
+.wpp-float{position:fixed;bottom:24px;right:24px;width:60px;height:60px;border-radius:50%;background:#25d366;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 26px rgba(37,211,102,.45);z-index:60;transition:.25s}
+.wpp-float:hover{transform:scale(1.08)}
+.wpp-float svg{width:30px;height:30px;fill:#fff}
+.socials{display:flex;gap:12px;margin-top:14px}.socials a{width:40px;height:40px;border-radius:50%;background:#2a241d;border:1px solid rgba(226,185,128,.35);display:flex;align-items:center;justify-content:center;transition:.25s}.socials a:hover{background:var(--caramelo)}.socials svg{width:17px;height:17px;fill:var(--caramelo-claro)}.socials a:hover svg{fill:var(--ink)}.soc-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}.soc-pill{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:999px;border:1.5px solid var(--caramelo);color:var(--caramelo);text-decoration:none;font-size:.82rem;font-weight:600;transition:.25s;line-height:1;}.soc-pill:hover{background:var(--caramelo);color:var(--ink)}.soc-pill svg{width:15px;height:15px;fill:currentColor;flex:none}
+/* chips sociais personalizados */
+a[href*="instagram.com"] svg{background:linear-gradient(45deg,#feda75,#fa7e1e 25%,#d62976 55%,#962fbf 80%,#4f5bd5)!important;fill:#fff!important;color:#fff;border-radius:9px;padding:4px;margin:-4px;box-sizing:content-box}
+</style>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#16130f">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2316130f'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-size='36' font-weight='400' fill='%23c08a4e' text-anchor='middle'%3EH%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="favicon-180.png">
+<meta name="geo.region" content="BR-AM">
+<meta name="geo.placename" content="Manaus">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Hair Instituto de Beleza · Studio Capilar no Flores, Manaus">
+<meta property="og:description" content="Hair Instituto de Beleza — studio capilar no Flores, Manaus. Nota 4.8 no Google com 161 avaliações. Corte, cor e tratamento com agendamento pelo WhatsApp.">
+<meta property="og:image" content="https://www.ysis.app/hairinstituto/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Aplicação de mechas com papel alumínio em salão">
+<meta property="og:site_name" content="Hair Instituto de Beleza">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Hair Instituto de Beleza · Studio Capilar no Flores, Manaus">
+<meta name="twitter:description" content="Hair Instituto de Beleza — studio capilar no Flores, Manaus. Nota 4.8 no Google com 161 avaliações. Corte, cor e tratamento com agendamento pelo WhatsApp.">
+<meta name="twitter:image" content="https://www.ysis.app/hairinstituto/og.jpg">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "HairSalon", "name": "Hair Instituto de Beleza", "address": {"@type": "PostalAddress", "streetAddress": "Rua Dallas, 02, QD D — Flores", "addressLocality": "Manaus", "addressRegion": "AM", "postalCode": "69058-125", "addressCountry": "BR"}, "telephone": "+55 92 99234-4520", "aggregateRating": {"@type": "AggregateRating", "ratingValue": "4.8", "reviewCount": "161"}, "sameAs": ["https://www.instagram.com/hair_institutodebeleza/"], "image": "https://kimi-web-img.kimi.ai/img/images.pexels.com/cadbc9fe75d304089d7b46226153ef0bfec2aec6.jpeg", "description": "Hair Instituto de Beleza — studio capilar no Flores, Manaus. Nota 4.8 no Google com 161 avaliações. Corte, cor e tratamento com agendamento pelo WhatsApp.", "hasMap": "https://www.google.com/maps/search/?api=1&query=Rua%20Dallas%2C%2002%2C%20QD%20D%20%E2%80%94%20Flores%2C%20Manaus%20-%20AM"}</script>
+<link rel="canonical" href="https://www.ysis.app/hairinstituto/">
+<meta property="og:url" content="https://www.ysis.app/hairinstituto/">
+</head>
+<body>
+<aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">Esta página é uma proposta da <a href="https://www.ysis.app/" style="color:#f2b56b">Ysis</a>, não o site oficial. <a href="https://wa.me/5511948680554?text=Quero%20remover%20a%20p%C3%A1gina%20de%20proposta%20hairinstituto" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ysis.app/privacidade/" style="color:#a2918d">Privacidade</a></aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){var b=document.querySelector("aside[data-ysis=proposta]");if(!b)return;var h=b.getBoundingClientRect().height;document.querySelectorAll("header,nav,.site-header,.nav,.topo").forEach(function(el){var s=getComputedStyle(el);if(s.position==="fixed"||s.position==="sticky")el.style.top=h+"px"});});</script>
+
+
+<nav>
+  <div class="wrap nav-in">
+    <a class="logo" href="#top">Hair <em>Instituto</em></a>
+    <div class="nav-links">
+      <a href="#servicos">Serviços</a>
+      <a href="#galeria">Trabalhos</a>
+      <a href="#contato">Contato</a>
+      <a class="btn" href="https://wa.me/5592992344520?text=Ol%C3%A1!%20Quero%20agendar%20no%20Hair%20Instituto%20de%20Beleza" target="_blank" rel="noopener">Agendar</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="bg"><img fetchpriority="high" decoding="async" src="img/cadbc9fe75d3.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/cadbc9fe75d304089d7b46226153ef0bfec2aec6.jpeg'" alt="Cabelo loiro ondulado finalizado"></div>
+  <div class="wrap">
+    <span class="eyebrow">Flores · Manaus — AM</span>
+    <h1>Seu cabelo tratado como <em>obra de arte</em>.</h1>
+    <p class="lead">Studio capilar com atendimento próximo, técnica apurada e uma das reputações mais altas do bairro: 4,8 de nota no Google.</p>
+    <div class="hero-cta">
+      <a class="btn" href="https://wa.me/5592992344520?text=Ol%C3%A1!%20Quero%20agendar%20no%20Hair%20Instituto%20de%20Beleza" target="_blank" rel="noopener">Agendar pelo WhatsApp</a>
+    </div>
+    <div class="rating-line">
+      <span class="n">4,8</span>
+      <span class="stars">★★★★★</span>
+      <small>161 avaliações<br>no Google</small>
+    </div>
+  </div>
+</header>
+
+<section class="servicos" id="servicos">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow">Menu capilar</span>
+      <h2 class="h2">Serviços</h2>
+      <p class="sub">Valores e duração sob consulta — cada cabelo pede um plano. Chame no WhatsApp e receba seu orçamento.</p>
+    </div>
+    <div class="s-rows">
+      <div class="s-row">
+        <span class="num">01</span>
+        <h3>Corte &amp; Estilo</h3>
+        <p>Cortes femininos com análise de formato de rosto e estilo de vida — do reto clássico às camadas modernas.</p>
+        <a href="https://wa.me/5592992344520?text=Quero%20or%C3%A7amento%20para%20corte" target="_blank" rel="noopener">Consultar →</a>
+      </div>
+      <div class="s-row">
+        <span class="num">02</span>
+        <h3>Cor &amp; Mechas</h3>
+        <p>Coloração, iluminados e loiros com técnica e proteção da fibra em cada etapa.</p>
+        <a href="https://wa.me/5592992344520?text=Quero%20or%C3%A7amento%20para%20cor%20e%20mechas" target="_blank" rel="noopener">Consultar →</a>
+      </div>
+      <div class="s-row">
+        <span class="num">03</span>
+        <h3>Tratamentos</h3>
+        <p>Hidratação, reconstrução e rituais de lavatório para devolver força e brilho ao fio.</p>
+        <a href="https://wa.me/5592992344520?text=Quero%20or%C3%A7amento%20para%20tratamento%20capilar" target="_blank" rel="noopener">Consultar →</a>
+      </div>
+      <div class="s-row">
+        <span class="num">04</span>
+        <h3>Finalização</h3>
+        <p>Escova, modelagem e penteados para o dia a dia ou para aquele evento especial.</p>
+        <a href="https://wa.me/5592992344520?text=Quero%20or%C3%A7amento%20para%20escova%20ou%20penteado" target="_blank" rel="noopener">Consultar →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="galeria">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow">Portfólio</span>
+      <h2 class="h2">Trabalhos que falam por nós</h2>
+      <p class="sub">O dia a dia do studio, do lavatório à finalização.</p>
+    </div>
+    <div class="galeria">
+      <img loading="lazy" decoding="async" src="img/eb6e1e3cc7db.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/eb6e1e3cc7db3a2ea0cb724259db89803e5502f8.jpeg'" alt="Aplicação de coloração">
+      <img loading="lazy" decoding="async" class="v2" src="img/6f6be556fb70.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/6f6be556fb70a4bc8d50f78da48fae51dbeae378.jpeg'" alt="Loiro finalizado com laço">
+      <img loading="lazy" decoding="async" src="img/bc2ebfb13104.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/bc2ebfb1310447b8e31f4aa8b309b74a50ff7607.jpeg'" alt="Styling e finalização">
+      <img loading="lazy" decoding="async" src="img/7c836b71b0f1.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/7c836b71b0f1a6e0b1535043d43f6ce0af370936.jpeg'" alt="Ritual de lavatório">
+    </div>
+  </div>
+</section>
+
+<section class="prova">
+  <div class="wrap">
+    <div class="big">4,8</div>
+    <div class="stars">★★★★★</div>
+    <p>Uma das maiores notas do segmento no Flores — construída atendimento a atendimento, avaliação a avaliação.</p>
+    <div class="row">
+      <div><b>161</b><span>avaliações no Google</span></div>
+      <div><b>4,8 / 5</b><span>nota média</span></div>
+      <div><b>Flores</b><span>Manaus · AM</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="contato" id="contato">
+  <div class="wrap">
+    <div class="info">
+      <span class="eyebrow">Contato</span>
+      <h2 class="h2">Agende seu horário</h2>
+      <div class="i-row">
+        <h3>Endereço</h3>
+        <p>Rua Dallas, 02 — Quadra D, Flores<br>Manaus/AM · CEP 69058-125</p>
+      </div>
+      <div class="i-row">
+        <h3>WhatsApp</h3>
+        <p><a href="https://wa.me/5592992344520" target="_blank" rel="noopener">(92) 99234-4520 →</a><br>Agendamentos, orçamentos e dúvidas.</p>
+      </div>
+      <div class="i-row">
+        <h3>Instagram</h3>
+        <p><a href="https://www.instagram.com/hair_institutodebeleza/" target="_blank" rel="noopener">@hair_institutodebeleza →</a><br>Bastidores, transformações e agenda da semana.</p>
+      <div class="soc-row"><a class="soc-pill" href="https://www.instagram.com/hair_institutodebeleza/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.07 3.2.15 4.7 1.7 4.8 4.8.07 1.3.07 1.6.07 4.9s0 3.6-.07 4.9c-.15 3.1-1.6 4.7-4.8 4.8-1.3.07-1.6.07-4.9.07s-3.6 0-4.9-.07c-3.2-.15-4.7-1.7-4.8-4.8C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9C2.42 4 3.9 2.42 7.1 2.27 8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.8.07-2.4.11-3.5 1.3-3.6 3.6C3.5 8.9 3.5 9.3 3.5 12s0 3.1.07 4.3c.11 2.3 1.2 3.5 3.6 3.6 1.3.06 1.7.07 4.8.07s3.5 0 4.8-.07c2.4-.11 3.5-1.3 3.6-3.6.06-1.2.07-1.6.07-4.3s0-3.1-.07-4.3c-.11-2.3-1.2-3.5-3.6-3.6-1.3-.06-1.7-.07-4.8-.07zm0 3.1a4.9 4.9 0 110 9.8 4.9 4.9 0 010-9.8zm0 8.1a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4zm5.1-9.5a1.15 1.15 0 11-2.3 0 1.15 1.15 0 012.3 0z"/></svg>Seguir no Instagram</a></div>
+      </div>
+      <div class="i-row">
+        <h3>Horários</h3>
+        <p>Atendimento com hora marcada — consulte a agenda da semana pelo WhatsApp.</p>
+      </div>
+    </div>
+    <form class="form" id="form-contato">
+      <h3 class="serif">Peça seu orçamento</h3>
+      <p>Conte o que deseja e respondemos com valores e horários livres.</p>
+      <label for="nome">Seu nome</label>
+      <input id="nome" type="text" placeholder="Seu nome" required>
+      <label for="servico">Serviço</label>
+      <select id="servico">
+        <option>Corte &amp; estilo</option>
+        <option>Cor &amp; mechas</option>
+        <option>Tratamento capilar</option>
+        <option>Escova / penteado</option>
+        <option>Não sei ainda — quero uma avaliação</option>
+      </select>
+      <label for="msg">Detalhes</label>
+      <textarea id="msg" rows="3" placeholder="Comprimento atual, referência, ocasião..."></textarea>
+      <button type="submit" class="btn wpp">Enviar pelo WhatsApp</button>
+    <p data-ysis="aviso" style="margin-top:14px;font-size:.8rem;line-height:1.5;opacity:.72">Seus dados não ficam neste site: o formulário monta a mensagem e abre o WhatsApp para você enviar. Nada é gravado aqui, e o retorno vem pelo mesmo canal.</p>
+</form>
+  </div>
+</section>
+<section class="mapa-sec" aria-label="Mapa e como chegar" style="padding:0 22px 64px"><div style="max-width:1120px;margin:0 auto"><h2 style="color:var(--ink,#26221a);font-size:1.6rem;margin:0 0 16px">Como chegar</h2><div style="border-radius:18px;overflow:hidden;border:1px solid var(--line,#e3ddd2);background:var(--card,#fff);box-shadow:0 10px 30px rgba(0,0,0,.05)"><iframe title="Mapa: Rua Dallas, 02, QD D — Flores, Manaus - AM" src="https://www.google.com/maps?q=Rua%20Dallas%2C%2002%2C%20QD%20D%20%E2%80%94%20Flores%2C%20Manaus%20-%20AM&amp;output=embed" style="width:100%;height:320px;border:0;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe><div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 18px"><span style="color:var(--mut,#777);font-size:.92rem">Rua Dallas, 02, QD D — Flores, Manaus - AM</span><a href="https://www.google.com/maps/dir/?api=1&amp;destination=Rua%20Dallas%2C%2002%2C%20QD%20D%20%E2%80%94%20Flores%2C%20Manaus%20-%20AM" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:var(--acc,#4c7a63);color:var(--btntxt,#fff);padding:11px 18px;border-radius:999px;font-weight:700;font-size:.92rem;text-decoration:none"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg> Como chegar</a></div></div></div></section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <a class="logo" href="#top">Hair <em>Instituto</em></a>
+      <p>Rua Dallas, 02 — QD D, Flores · Manaus/AM · <a href="https://wa.me/5592992344520" target="_blank" rel="noopener">(92) 99234-4520</a></p>
+      <div class="socials"><a href="https://www.instagram.com/hair_institutodebeleza/" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.07 3.2.15 4.7 1.7 4.8 4.8.07 1.3.07 1.6.07 4.9s0 3.6-.07 4.9c-.15 3.1-1.6 4.7-4.8 4.8-1.3.07-1.6.07-4.9.07s-3.6 0-4.9-.07c-3.2-.15-4.7-1.7-4.8-4.8C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9C2.42 4 3.9 2.42 7.1 2.27 8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.8.07-2.4.11-3.5 1.3-3.6 3.6C3.5 8.9 3.5 9.3 3.5 12s0 3.1.07 4.3c.11 2.3 1.2 3.5 3.6 3.6 1.3.06 1.7.07 4.8.07s3.5 0 4.8-.07c2.4-.11 3.5-1.3 3.6-3.6.06-1.2.07-1.6.07-4.3s0-3.1-.07-4.3c-.11-2.3-1.2-3.5-3.6-3.6-1.3-.06-1.7-.07-4.8-.07zm0 3.1a4.9 4.9 0 110 9.8 4.9 4.9 0 010-9.8zm0 8.1a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4zm5.1-9.5a1.15 1.15 0 11-2.3 0 1.15 1.15 0 012.3 0z"/></svg></a></div>
+    </div>
+    <div class="copy">© 2026 Hair Instituto de Beleza · Manaus/AM</div>
+  </div>
+<div style="text-align:center;font-size:.72rem;opacity:.55;margin-top:16px;letter-spacing:.05em">powered by <b>Ruphus</b><p data-ysis="fonte" style="margin:16px 0 0;text-align:center;font-size:.76rem;line-height:1.5;opacity:.6">Nota e número de avaliações do Google, consultados em agosto de 2026. Valores públicos, sujeitos a mudança.</p></div>
+</footer>
+
+<a class="wpp-float" href="https://wa.me/5592992344520?text=Ol%C3%A1!%20Vim%20pelo%20site%20e%20quero%20agendar" target="_blank" rel="noopener" aria-label="WhatsApp">
+  <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 1.8a8.2 8.2 0 11-4.2 15.3l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 0112 3.8zm-3.3 4c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.1s.9 2.4 1 2.6c.1.2 1.8 2.8 4.4 3.9 2.2.9 2.6.7 3.1.7.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.2-.2-.5-.3l-1.7-.8c-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.1-.2 0-.4.1-.5l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.8-1.8c-.2-.4-.4-.5-.5-.5h-.4z"/></svg>
+</a>
+
+<script>
+document.getElementById('form-contato').addEventListener('submit', function(e){
+  e.preventDefault();
+  const nome = document.getElementById('nome').value.trim();
+  const serv = document.getElementById('servico').value;
+  const msg  = document.getElementById('msg').value.trim();
+  let texto = `Olá! Sou ${nome || 'cliente'} e quero orçamento para: ${serv}.`;
+  if(msg) texto += ` Detalhes: ${msg}`;
+  window.open('https://wa.me/5592992344520?text=' + encodeURIComponent(texto), '_blank');
+});
+</script>
+<a href="https://wa.me/5592992344520?text=Ol%C3%A1%21%20Vim%20pelo%20site%20e%20quero%20agendar%20um%20hor%C3%A1rio." target="_blank" rel="noopener" aria-label="Agendar pelo WhatsApp" style="position:fixed;right:18px;bottom:18px;z-index:60;width:56px;height:56px;border-radius:50%;background:#25d366;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(0,0,0,.25)"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3.1.8.8-3-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.6-6.1c-.3-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.3-.6.8-.8 1-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.6-1.3.1-.2 0-.4 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1.1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2l-.6-.2z"/></svg></a>
+<script data-ysis="medicao">
+(function(){
+  var SITE = 'hairinstituto';
+  // A chave web do Firebase é pública por natureza. A proteção não está nela e
+  // sim na regra do Firestore: a coleção `eventos` só aceita criar, com campos
+  // fixos e canal dentro de uma lista — não lê, não altera, não apaga.
+  var URL = 'https://firestore.googleapis.com/v1/projects/ysis-crm/databases/'
+          + '(default)/documents/eventos?key=AIzaSyCEXBCVXmhDnVIF6XbSsv3-f-L6P9knu5o';
+
+  function hoje(){
+    var d = new Date(), z = function(n){ return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+  }
+  function origem(){
+    try {
+      var u = new URLSearchParams(location.search).get('utm_source');
+      if (u) return u.slice(0, 60);
+      if (document.referrer) return new URL(document.referrer).hostname.slice(0, 60);
+    } catch (e) {}
+    return '';
+  }
+  function medir(nome, canal){
+    var f = { nome: { stringValue: nome }, site: { stringValue: SITE },
+              dia: { stringValue: hoje() } };
+    if (canal) f.canal = { stringValue: canal };
+    var o = origem();
+    if (o) f.origem = { stringValue: o };
+    try {
+      fetch(URL, { method: 'POST', body: JSON.stringify({ fields: f }),
+                   headers: { 'Content-Type': 'application/json' }, keepalive: true });
+    } catch (e) {}
+  }
+
+  // captura na fase de captura: o formulário destas páginas dá preventDefault
+  // e abre o canal, então um listener na fase de bolha não veria o envio
+  document.addEventListener('click', function(ev){
+    var a = ev.target && ev.target.closest && ev.target.closest('a[href]');
+    if (!a) return;
+    var h = a.getAttribute('href') || '';
+    var canal = /wa\.me|api\.whatsapp/.test(h) ? 'whatsapp'
+      : /ig\.me|instagram\.com/.test(h) ? 'instagram'
+      : h.indexOf('tel:') === 0 ? 'telefone'
+      : h.indexOf('mailto:') === 0 ? 'email'
+      : /google\.[a-z.]+\/maps|maps\.app\.goo/.test(h) ? 'mapa'
+      : /agendamento|avec|trinks|booksy|appbarber|bestbarbers|calendly|cal\.com|frizzar|agendaservico/.test(h) ? 'agenda'
+      : '';
+    if (canal) medir('contato', canal);
+  }, true);
+  document.addEventListener('submit', function(ev){
+    if (ev.target && ev.target.tagName === 'FORM') medir('formulario', '');
+  }, true);
+})();
+</script>
+</body>
+</html>

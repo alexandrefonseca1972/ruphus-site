@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spartan Barbearia · Corte e Barba na Cachoeirinha, Manaus</title>
+<meta name="description" content="Spartan Barbearia em Manaus: alinhamento completo com corte a partir de R$ 170. Duas unidades na Cachoeirinha. Agende pelo AppBarber. Nota 4,8 no Google.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --carvao:#121110; --carvao-2:#1b1917; --carvao-3:#252220;
+  --bronze:#b0803c; --bronze-2:#d3a55e; --osso:#efe9df; --cinza:#9a9288;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{overflow-x:hidden}
+img{max-width:100%;min-width:0}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--carvao);color:var(--osso);line-height:1.65;font-weight:300}
+h1,h2,h3,.cond{font-family:'Oswald',sans-serif;text-transform:uppercase;line-height:1.08;font-weight:600;letter-spacing:.01em}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+.container{width:100%;max-width:1160px;margin:0 auto;padding:0 24px}
+.eyebrow{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:.42em;text-transform:uppercase;color:var(--bronze-2);font-weight:500;display:flex;align-items:center;gap:16px}
+.eyebrow::before{content:'';width:40px;height:2px;background:var(--bronze)}
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(18,17,16,.94);backdrop-filter:blur(8px);border-bottom:1px solid rgba(176,128,60,.3)}
+.nav-in{width:100%;max-width:1160px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:12px}
+.lambda{width:38px;height:38px;border:2px solid var(--bronze);display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;font-weight:700;font-size:20px;color:var(--bronze-2)}
+.brand b{font-family:'Oswald',sans-serif;font-size:21px;letter-spacing:.18em;font-weight:600}
+.brand b i{font-style:normal;color:var(--bronze-2)}
+.nav-links{display:flex;gap:32px;font-family:'Oswald',sans-serif;font-size:14px;letter-spacing:.24em;font-weight:400}
+.nav-links a{color:var(--cinza);transition:color .3s}
+.nav-links a:hover{color:var(--bronze-2)}
+.nav-links a.btn{color:#121110}
+.nav-links a.btn:hover{color:var(--bronze-2)}
+.btn{display:inline-block;padding:15px 36px;background:var(--bronze);color:#121110;font-family:'Oswald',sans-serif;font-size:14px;letter-spacing:.26em;text-transform:uppercase;font-weight:600;transition:all .3s;cursor:pointer;border:2px solid var(--bronze)}
+.btn:hover{background:transparent;color:var(--bronze-2)}
+.btn.ghost{background:transparent;color:var(--osso);border-color:rgba(239,233,223,.4)}
+.btn.ghost:hover{border-color:var(--bronze);color:var(--bronze-2)}
+/* HERO */
+.hero{min-height:100vh;position:relative;display:flex;align-items:center;overflow:hidden}
+.hero-bg{position:absolute;inset:0}
+.hero-bg img{width:100%;height:100%;object-fit:cover;opacity:.34}
+.hero-bg::after{content:'';position:absolute;inset:0;background:linear-gradient(100deg,rgba(18,17,16,.97) 25%,rgba(18,17,16,.55) 65%,rgba(18,17,16,.85))}
+.hero-in{position:relative;padding:150px 0 90px;max-width:760px}
+.hero h1{font-size:clamp(52px,7.4vw,104px);font-weight:700;margin:26px 0 22px}
+.hero h1 span{color:var(--bronze-2)}
+.hero p{font-size:17px;color:var(--cinza);max-width:520px;margin-bottom:38px}
+.hero-cta{display:flex;gap:16px;flex-wrap:wrap}
+.hero-stats{display:flex;gap:0;margin-top:64px;border:1px solid rgba(176,128,60,.35);width:fit-content}
+.hero-stats div{padding:20px 34px;border-right:1px solid rgba(176,128,60,.35)}
+.hero-stats div:last-child{border-right:none}
+.hero-stats b{font-family:'Oswald',sans-serif;font-size:34px;font-weight:600;color:var(--bronze-2);display:block;line-height:1}
+.hero-stats span{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--cinza)}
+/* FAIXA */
+.faixa{background:var(--bronze);color:#121110;padding:16px 0;overflow:hidden}
+.faixa-in{display:flex;justify-content:center;gap:clamp(20px,5vw,70px);flex-wrap:wrap;font-family:'Oswald',sans-serif;font-size:15px;letter-spacing:.3em;text-transform:uppercase;font-weight:600}
+/* SEÇÕES */
+section{padding:110px 0}
+.sec-head{margin-bottom:60px;max-width:680px}
+.sec-head h2{font-size:clamp(38px,4.6vw,60px);margin:20px 0 14px}
+.sec-head p{color:var(--cinza);font-size:16px}
+/* SERVIÇOS / TABELA */
+.tabela{border:1px solid rgba(176,128,60,.3)}
+.t-row{display:grid;grid-template-columns:1fr auto auto;gap:20px;align-items:center;padding:26px 32px;border-bottom:1px solid rgba(176,128,60,.3);background:var(--carvao-2);transition:background .3s}
+.t-row:last-child{border-bottom:none}
+.t-row:hover{background:var(--carvao-3)}
+.t-row h3{font-size:22px;font-weight:500}
+.t-row p{color:var(--cinza);font-size:14px;margin-top:4px}
+.t-preco{font-family:'Oswald',sans-serif;font-size:30px;font-weight:600;color:var(--bronze-2);white-space:nowrap}
+.t-preco small{font-size:13px;color:var(--cinza);font-weight:400;display:block;text-align:right;letter-spacing:.1em}
+.t-cta{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:.24em;text-transform:uppercase;color:var(--bronze-2);border:1px solid var(--bronze);padding:10px 22px;transition:all .3s;white-space:nowrap}
+.t-cta:hover{background:var(--bronze);color:#121110}
+.t-nota{padding:18px 32px;color:var(--cinza);font-size:13px;background:var(--carvao);letter-spacing:.04em}
+/* GALERIA */
+.galeria{background:var(--carvao-2)}
+.g-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.g-grid figure{overflow:hidden;position:relative}
+.g-grid img{width:100%;height:420px;object-fit:cover;filter:grayscale(.35) contrast(1.05);transition:filter .5s,transform .6s}
+.g-grid figure:hover img{filter:grayscale(0);transform:scale(1.05)}
+.g-grid figcaption{position:absolute;left:14px;bottom:12px;font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:.3em;text-transform:uppercase;color:var(--osso);background:rgba(18,17,16,.75);padding:6px 12px;border-left:2px solid var(--bronze)}
+/* PROVA */
+.prova{display:grid;grid-template-columns:1fr 1.4fr;gap:70px;align-items:center}
+.prova-nota{border-left:3px solid var(--bronze);padding-left:34px}
+.prova-nota b{font-family:'Oswald',sans-serif;font-size:clamp(80px,10vw,130px);font-weight:700;color:var(--bronze-2);line-height:1;display:block}
+.prova-nota span{font-size:13px;letter-spacing:.26em;text-transform:uppercase;color:var(--cinza)}
+.estrelas{color:var(--bronze-2);font-size:22px;letter-spacing:6px;margin-top:14px}
+.prova-txt h2{font-size:clamp(34px,4vw,52px);margin:18px 0 16px}
+.prova-txt p{color:var(--cinza);font-size:16px;margin-bottom:26px}
+/* UNIDADES */
+.unid-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.unid{background:var(--carvao-2);border:1px solid rgba(176,128,60,.3);padding:40px 36px;position:relative;transition:border-color .3s,transform .3s}
+.unid:hover{border-color:var(--bronze);transform:translateY(-5px)}
+.unid .tag{position:absolute;top:0;right:0;background:var(--bronze);color:#121110;font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:.3em;padding:7px 16px;text-transform:uppercase;font-weight:600}
+.unid h3{font-size:26px;margin-bottom:14px;color:var(--bronze-2)}
+.unid p{color:var(--cinza);font-size:15px;margin-bottom:6px}
+.unid p b{color:var(--osso);font-weight:500}
+.horarios{margin-top:18px;padding-top:18px;border-top:1px solid rgba(176,128,60,.25);font-size:14px;color:var(--cinza)}
+.horarios div{display:flex;justify-content:space-between;padding:5px 0}
+.horarios div span:last-child{color:var(--osso)}
+/* CONTATO */
+.contato{background:var(--carvao-2);border-top:1px solid rgba(176,128,60,.3)}
+.contato-grid{display:grid;grid-template-columns:1fr 1fr;gap:70px}
+.contato h2{font-size:clamp(36px,4.4vw,56px);margin:20px 0 18px}
+.contato p{color:var(--cinza)}
+.sociais{margin-top:30px;display:flex;flex-direction:column;gap:16px;font-size:15px}
+.sociais a{display:flex;align-items:center;gap:14px;color:var(--osso);transition:color .3s}
+.sociais a:hover{color:var(--bronze-2)}
+.sociais svg{color:var(--bronze-2);flex:none}
+form{border:1px solid rgba(176,128,60,.35);padding:40px;background:var(--carvao)}
+form label{display:block;font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--bronze-2);margin-bottom:8px}
+form input,form select{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(176,128,60,.4);color:var(--osso);font-family:'Inter',sans-serif;font-size:16px;padding:10px 2px;margin-bottom:26px;outline:none}
+form select option{color:#121110}
+form input:focus,form select:focus{border-color:var(--bronze-2)}
+footer{background:#0c0b0a;border-top:1px solid rgba(176,128,60,.25);padding:40px 0;color:var(--cinza);font-size:13px}
+.foot{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px}
+.whats{position:fixed;right:26px;bottom:26px;width:60px;height:60px;background:#25d366;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 14px 34px -8px rgba(37,211,102,.55);z-index:60;transition:transform .3s}
+.whats:hover{transform:scale(1.1)}
+@media(max-width:900px){
+  .nav-links{display:none}
+  .hero-stats{flex-direction:column;width:100%}
+  .hero-stats div{border-right:none;border-bottom:1px solid rgba(176,128,60,.35)}
+  .g-grid{grid-template-columns:1fr 1fr}
+  .g-grid img{height:300px}
+  .prova,.contato-grid,.unid-grid{grid-template-columns:minmax(0,1fr);gap:44px}
+  .t-row{grid-template-columns:minmax(0,1fr);gap:12px;padding:24px}
+  .t-preco small{text-align:left}
+}
+/* chips sociais personalizados */
+a[href*="instagram.com"] svg{background:linear-gradient(45deg,#feda75,#fa7e1e 25%,#d62976 55%,#962fbf 80%,#4f5bd5)!important;fill:#fff!important;color:#fff;border-radius:9px;padding:4px;margin:-4px;box-sizing:content-box}
+</style>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#121110">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23121110'/%3E%3Ctext x='32' y='45' font-family='Arial Narrow,Arial,sans-serif' font-size='36' font-weight='700' fill='%23b0803c' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="favicon-180.png">
+<meta name="geo.region" content="BR-AM">
+<meta name="geo.placename" content="Manaus">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Spartan Barbearia · Corte e Barba na Cachoeirinha, Manaus">
+<meta property="og:description" content="Spartan Barbearia em Manaus: alinhamento completo com corte a partir de R$ 170. Duas unidades na Cachoeirinha. Agende pelo AppBarber. Nota 4,8 no Google.">
+<meta property="og:image" content="https://www.ysis.app/spartan/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Interior da Spartan Barbearia em Manaus">
+<meta property="og:site_name" content="Spartan Barbearia">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Spartan Barbearia · Corte e Barba na Cachoeirinha, Manaus">
+<meta name="twitter:description" content="Spartan Barbearia em Manaus: alinhamento completo com corte a partir de R$ 170. Duas unidades na Cachoeirinha. Agende pelo AppBarber. Nota 4,8 no Google.">
+<meta name="twitter:image" content="https://www.ysis.app/spartan/og.jpg">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Barbershop", "name": "Spartan Barbearia", "address": {"@type": "PostalAddress", "streetAddress": "Av. Castelo Branco, 1530 — Cachoeirinha", "addressLocality": "Manaus", "addressRegion": "AM", "addressCountry": "BR"}, "telephone": "+55 92 99186-0935", "aggregateRating": {"@type": "AggregateRating", "ratingValue": "4.8", "reviewCount": "137"}, "openingHoursSpecification": [{"@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday", "Tuesday", "Wednesday"], "opens": "09:00", "closes": "19:00"}, {"@type": "OpeningHoursSpecification", "dayOfWeek": ["Thursday", "Friday", "Saturday"], "opens": "09:00", "closes": "20:00"}], "priceRange": "$$", "sameAs": ["https://www.instagram.com/barbeariaspartan", "https://sites.appbarber.com.br/spartanbarbeari-nga6"], "image": "https://kimi-web-img.kimi.ai/img/images.pexels.com/2f688dddfcafa7497c59bfb9dc8758dd40654d0a.jpeg", "description": "Spartan Barbearia em Manaus: alinhamento completo com corte a partir de R$ 170. Duas unidades na Cachoeirinha. Agende pelo AppBarber. Nota 4,8 no Google.", "hasMap": "https://www.google.com/maps/search/?api=1&query=Av.%20Castelo%20Branco%2C%201530%20%E2%80%94%20Cachoeirinha%2C%20Manaus%20-%20AM"}</script>
+<link rel="canonical" href="https://www.ysis.app/spartan/">
+<meta property="og:url" content="https://www.ysis.app/spartan/">
+</head>
+<body>
+<aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">Esta página é uma proposta da <a href="https://www.ysis.app/" style="color:#f2b56b">Ysis</a>, não o site oficial. <a href="https://wa.me/5511948680554?text=Quero%20remover%20a%20p%C3%A1gina%20de%20proposta%20spartan" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ysis.app/privacidade/" style="color:#a2918d">Privacidade</a></aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){var b=document.querySelector("aside[data-ysis=proposta]");if(!b)return;var h=b.getBoundingClientRect().height;document.querySelectorAll("header,nav,.site-header,.nav,.topo").forEach(function(el){var s=getComputedStyle(el);if(s.position==="fixed"||s.position==="sticky")el.style.top=h+"px"});});</script>
+
+
+<nav>
+  <div class="nav-in">
+    <a href="#" class="brand"><span class="lambda">Λ</span><b>SPAR<i>TAN</i></b></a>
+    <div class="nav-links">
+      <a href="#servicos">Serviços</a>
+      <a href="#galeria">A Casa</a>
+      <a href="#unidades">Unidades</a>
+      <a href="#contato">Contato</a>
+    </div>
+    <a class="btn" href="https://sites.appbarber.com.br/spartanbarbeari-nga6" target="_blank" rel="noopener">Agendar</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-bg"><img fetchpriority="high" decoding="async" src="img/991c2cf066fd.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/2f688dddfcafa7497c59bfb9dc8758dd40654d0a.jpeg'" alt="Cliente recebendo barba com toalha quente"></div>
+  <div class="container hero-in">
+    <span class="eyebrow">Barbearia · Cachoeirinha, Manaus</span>
+    <h1>Corte com <span>disciplina.</span><br>Barba com <span>honra.</span></h1>
+    <p>Alinhamento completo — corte, barba e sobrancelha — com preço fechado e agendamento online. Duas unidades na Cachoeirinha para você nunca ficar na mão.</p>
+    <div class="hero-cta">
+      <a class="btn" href="https://sites.appbarber.com.br/spartanbarbeari-nga6" target="_blank" rel="noopener">Agendar pelo AppBarber</a>
+      <a class="btn ghost" href="https://wa.me/5592991860935?text=Fala%2C%20Spartan!%20Quero%20agendar%20um%20hor%C3%A1rio." target="_blank" rel="noopener">Chamar no WhatsApp</a>
+    </div>
+    <div class="hero-stats">
+      <div><b>4,8★</b><span>Nota no Google</span></div>
+      <div><b>100+</b><span>Avaliações</span></div>
+      <div><b>2</b><span>Unidades em Manaus</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="faixa">
+  <div class="faixa-in">
+    <span>Corte</span><span>·</span><span>Barba</span><span>·</span><span>Sobrancelha</span><span>·</span><span>Alinhamento Completo</span>
+  </div>
+</div>
+
+<section id="servicos">
+  <div class="container">
+    <div class="sec-head">
+      <span class="eyebrow">Tabela de Serviços</span>
+      <h2>Preço fechado, sem surpresa</h2>
+      <p>Os pacotes de alinhamento da Spartan, direto da agenda oficial. Outros serviços avulsos sob consulta no WhatsApp.</p>
+    </div>
+    <div class="tabela">
+      <div class="t-row">
+        <div><h3>Alinhamento c/ Corte</h3><p>Corte + barba + sobrancelha · o pacote completo do guerreiro</p></div>
+        <div class="t-preco">R$ 225<small>60 min</small></div>
+        <a class="t-cta" href="https://sites.appbarber.com.br/spartanbarbeari-nga6" target="_blank" rel="noopener">Agendar</a>
+      </div>
+      <div class="t-row">
+        <div><h3>Alinhamento s/ Corte</h3><p>Barba completa com toalha quente e acabamento de navalha</p></div>
+        <div class="t-preco">R$ 170<small>75 min</small></div>
+        <a class="t-cta" href="https://sites.appbarber.com.br/spartanbarbeari-nga6" target="_blank" rel="noopener">Agendar</a>
+      </div>
+      <div class="t-row">
+        <div><h3>Serviços Avulsos</h3><p>Corte, barba, sobrancelha e combos — consulte disponibilidade e valores</p></div>
+        <div class="t-preco">Sob<small>consulta</small></div>
+        <a class="t-cta" href="https://wa.me/5592991860935?text=Fala%2C%20Spartan!%20Quero%20saber%20os%20valores%20dos%20servi%C3%A7os%20avulsos." target="_blank" rel="noopener">Consultar</a>
+      </div>
+      <div class="t-nota">Valores conforme agenda oficial da Spartan no AppBarber. Sujeitos a atualização pela barbearia.</div>
+    </div>
+  </div>
+</section>
+
+<section class="galeria" id="galeria">
+  <div class="container">
+    <div class="sec-head">
+      <span class="eyebrow">A Casa</span>
+      <h2>Cadeira, navalha e respeito</h2>
+      <p>Ambiente de barbearia clássica: sem pressa, sem conversa fiada, com o capricho que seu corte merece.</p>
+    </div>
+    <div class="g-grid">
+      <figure><img loading="lazy" decoding="async" src="img/0080f117eef3.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/0080f117eef3684b84a09a6117bf51574d047b52.jpeg'" alt="Barba sendo aparada com precisão"><figcaption>Barba</figcaption></figure>
+      <figure><img loading="lazy" decoding="async" src="img/b7f64c2a5d06.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/b7f64c2a5d063d2d0fe961e5bf01e23d6af8e338.jpeg'" alt="Corte degradê em execução"><figcaption>Corte</figcaption></figure>
+      <figure><img loading="lazy" decoding="async" src="img/e1dd5b040951.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/e1dd5b040951ed4168da7c3018f3b4aa6e4071d6.jpeg'" alt="Acabamento de barba na navalha"><figcaption>Navalha</figcaption></figure>
+      <figure><img loading="lazy" decoding="async" src="img/7e28008732bf.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/328805ea76c540aa366a317a7408dee0b249c759.jpeg'" alt="Barbeiro cuidando da barba do cliente"><figcaption>A Casa</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container prova">
+    <div class="prova-nota">
+      <b>4,8</b>
+      <span>Média no Google</span>
+      <div class="estrelas">★★★★★</div>
+    </div>
+    <div class="prova-txt">
+      <span class="eyebrow">Prova Social</span>
+      <h2>Quem senta na cadeira, volta</h2>
+      <p>Mais de 100 avaliações no Google sustentam a nota 4,8 da Spartan — clientes que destacam o capricho no alinhamento, o atendimento e o custo-benefício dos pacotes de corte + barba.</p>
+      <a class="btn ghost" href="https://www.instagram.com/barbeariaspartan" target="_blank" rel="noopener">Seguir @barbeariaspartan</a>
+    </div>
+  </div>
+</section>
+
+<section id="unidades" style="background:var(--carvao-2)">
+  <div class="container">
+    <div class="sec-head">
+      <span class="eyebrow">Onde Estamos</span>
+      <h2>Duas unidades na Cachoeirinha</h2>
+    </div>
+    <div class="unid-grid">
+      <div class="unid">
+        <span class="tag">Unidade</span>
+        <h3>Av. Castelo Branco</h3>
+        <p><b>Av. Castelo Branco, 1530</b></p>
+        <p>Cachoeirinha · Manaus – AM</p>
+        <div class="horarios">
+          <div><span>Seg – Qua</span><span>9h às 19h</span></div>
+          <div><span>Qui – Sáb</span><span>9h às 20h</span></div>
+          <div><span>Domingo</span><span>Consulte a agenda</span></div>
+        </div>
+      </div>
+      <div class="unid">
+        <span class="tag">Matriz</span>
+        <h3>Av. Carvalho Leal</h3>
+        <p><b>Av. Carvalho Leal, 1524</b></p>
+        <p>Cachoeirinha · Manaus – AM</p>
+        <div class="horarios">
+          <div><span>Seg – Qua</span><span>9h às 19h</span></div>
+          <div><span>Qui – Sáb</span><span>9h às 20h</span></div>
+          <div><span>Domingo</span><span>Consulte a agenda</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="contato" id="contato">
+  <div class="container contato-grid">
+    <div>
+      <span class="eyebrow">Contato</span>
+      <h2>Garanta seu horário</h2>
+      <p>Agende online em menos de um minuto pelo AppBarber ou mande mensagem direto no WhatsApp da barbearia.</p>
+      <div class="sociais">
+        <a href="https://wa.me/5592991860935" target="_blank" rel="noopener">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm5.1 13.9c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1-.4-.1-.9-.3-1.5-.6-2.6-1.1-4.3-3.8-4.4-4-.1-.2-1.1-1.4-1.1-2.7 0-1.3.7-1.9.9-2.2.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6c-.2.2-.4.4-.2.8.2.4 1 1.6 2.1 2.6 1.4 1.3 2.6 1.7 3 1.9.4.2.6.1.8-.1l1-1.2c.2-.3.4-.2.7-.1l2 .9c.3.2.5.2.6.4 0 .1 0 .7-.2 1.3z"/></svg>
+          (92) 99186-0935
+        </a>
+        <a href="https://www.instagram.com/barbeariaspartan" target="_blank" rel="noopener" aria-label="Instagram">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.6" cy="6.4" r="1.3" fill="currentColor" stroke="none"/></svg>
+          @barbeariaspartan
+        </a>
+        <a href="https://sites.appbarber.com.br/spartanbarbeari-nga6" target="_blank" rel="noopener" aria-label="Agenda online no AppBarber">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>
+          Agenda online no AppBarber
+        </a>
+      </div>
+    </div>
+    <form id="form-contato">
+      <label for="nome">Seu nome</label>
+      <input id="nome" type="text" required placeholder="Como te chamamos?">
+      <label for="servico">Serviço</label>
+      <select id="servico" required>
+        <option value="" disabled selected>Escolha o serviço</option>
+        <option>Alinhamento c/ Corte — R$ 225</option>
+        <option>Alinhamento s/ Corte — R$ 170</option>
+        <option>Corte avulso</option>
+        <option>Barba avulsa</option>
+        <option>Outro</option>
+      </select>
+      <label for="unid">Unidade preferida</label>
+      <select id="unid">
+        <option>Av. Castelo Branco, 1530</option>
+        <option>Av. Carvalho Leal, 1524 (matriz)</option>
+        <option>Tanto faz</option>
+      </select>
+      <button class="btn" type="submit" style="width:100%">Enviar pelo WhatsApp</button>
+    <p data-ysis="aviso" style="margin-top:14px;font-size:.8rem;line-height:1.5;opacity:.72">Seus dados não ficam neste site: o formulário monta a mensagem e abre o WhatsApp para você enviar. Nada é gravado aqui, e o retorno vem pelo mesmo canal.</p>
+</form>
+  </div>
+</section>
+<section class="mapa-sec" aria-label="Mapa e como chegar" style="padding:0 22px 64px"><div style="max-width:1120px;margin:0 auto"><h2 style="color:var(--ink,#26221a);font-size:1.6rem;margin:0 0 16px">Como chegar</h2><div style="border-radius:18px;overflow:hidden;border:1px solid var(--line,#e3ddd2);background:var(--card,#fff);box-shadow:0 10px 30px rgba(0,0,0,.05)"><iframe title="Mapa: Av. Castelo Branco, 1530 — Cachoeirinha, Manaus - AM" src="https://www.google.com/maps?q=Av.%20Castelo%20Branco%2C%201530%20%E2%80%94%20Cachoeirinha%2C%20Manaus%20-%20AM&amp;output=embed" style="width:100%;height:320px;border:0;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe><div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 18px"><span style="color:var(--mut,#777);font-size:.92rem">Av. Castelo Branco, 1530 — Cachoeirinha, Manaus - AM</span><a href="https://www.google.com/maps/dir/?api=1&amp;destination=Av.%20Castelo%20Branco%2C%201530%20%E2%80%94%20Cachoeirinha%2C%20Manaus%20-%20AM" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:var(--acc,#4c7a63);color:var(--btntxt,#fff);padding:11px 18px;border-radius:999px;font-weight:700;font-size:.92rem;text-decoration:none"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg> Como chegar</a></div></div></div></section>
+
+<footer>
+  <div class="container foot">
+    <a href="#" class="brand"><span class="lambda">Λ</span><b>SPAR<i>TAN</i></b></a>
+    <span>Cachoeirinha · Manaus – AM · CNPJ 31.658.288/0001-10</span>
+    <span>© Spartan Barbearia</span>
+  </div>
+<div style="text-align:center;font-size:.72rem;opacity:.55;margin-top:16px;letter-spacing:.05em">powered by <b>Ruphus</b><p data-ysis="fonte" style="margin:16px 0 0;text-align:center;font-size:.76rem;line-height:1.5;opacity:.6">Nota e número de avaliações do Google, consultados em agosto de 2026. Valores públicos, sujeitos a mudança.</p></div>
+</footer>
+
+<a class="whats" href="https://wa.me/5592991860935?text=Fala%2C%20Spartan!%20Vim%20pelo%20site." target="_blank" rel="noopener" aria-label="WhatsApp">
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm5.1 13.9c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1-.4-.1-.9-.3-1.5-.6-2.6-1.1-4.3-3.8-4.4-4-.1-.2-1.1-1.4-1.1-2.7 0-1.3.7-1.9.9-2.2.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6c-.2.2-.4.4-.2.8.2.4 1 1.6 2.1 2.6 1.4 1.3 2.6 1.7 3 1.9.4.2.6.1.8-.1l1-1.2c.2-.3.4-.2.7-.1l2 .9c.3.2.5.2.6.4 0 .1 0 .7-.2 1.3z"/></svg>
+</a>
+
+<script>
+document.getElementById('form-contato').addEventListener('submit', function(e){
+  e.preventDefault();
+  var nome = document.getElementById('nome').value.trim();
+  var serv = document.getElementById('servico').value;
+  var unid = document.getElementById('unid').value;
+  var texto = 'Fala, Spartan! Sou ' + nome + ' e quero agendar: ' + serv + ' (unidade: ' + unid + ').';
+  window.open('https://wa.me/5592991860935?text=' + encodeURIComponent(texto), '_blank');
+});
+</script>
+<a href="https://wa.me/5592991860935?text=Ol%C3%A1%21%20Vim%20pelo%20site%20e%20quero%20agendar%20um%20hor%C3%A1rio." target="_blank" rel="noopener" aria-label="Agendar pelo WhatsApp" style="position:fixed;right:18px;bottom:18px;z-index:60;width:56px;height:56px;border-radius:50%;background:#25d366;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(0,0,0,.25)"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3.1.8.8-3-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.6-6.1c-.3-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.3-.6.8-.8 1-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.6-1.3.1-.2 0-.4 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1.1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2l-.6-.2z"/></svg></a>
+<script data-ysis="medicao">
+(function(){
+  var SITE = 'spartan';
+  // A chave web do Firebase é pública por natureza. A proteção não está nela e
+  // sim na regra do Firestore: a coleção `eventos` só aceita criar, com campos
+  // fixos e canal dentro de uma lista — não lê, não altera, não apaga.
+  var URL = 'https://firestore.googleapis.com/v1/projects/ysis-crm/databases/'
+          + '(default)/documents/eventos?key=AIzaSyCEXBCVXmhDnVIF6XbSsv3-f-L6P9knu5o';
+
+  function hoje(){
+    var d = new Date(), z = function(n){ return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+  }
+  function origem(){
+    try {
+      var u = new URLSearchParams(location.search).get('utm_source');
+      if (u) return u.slice(0, 60);
+      if (document.referrer) return new URL(document.referrer).hostname.slice(0, 60);
+    } catch (e) {}
+    return '';
+  }
+  function medir(nome, canal){
+    var f = { nome: { stringValue: nome }, site: { stringValue: SITE },
+              dia: { stringValue: hoje() } };
+    if (canal) f.canal = { stringValue: canal };
+    var o = origem();
+    if (o) f.origem = { stringValue: o };
+    try {
+      fetch(URL, { method: 'POST', body: JSON.stringify({ fields: f }),
+                   headers: { 'Content-Type': 'application/json' }, keepalive: true });
+    } catch (e) {}
+  }
+
+  // captura na fase de captura: o formulário destas páginas dá preventDefault
+  // e abre o canal, então um listener na fase de bolha não veria o envio
+  document.addEventListener('click', function(ev){
+    var a = ev.target && ev.target.closest && ev.target.closest('a[href]');
+    if (!a) return;
+    var h = a.getAttribute('href') || '';
+    var canal = /wa\.me|api\.whatsapp/.test(h) ? 'whatsapp'
+      : /ig\.me|instagram\.com/.test(h) ? 'instagram'
+      : h.indexOf('tel:') === 0 ? 'telefone'
+      : h.indexOf('mailto:') === 0 ? 'email'
+      : /google\.[a-z.]+\/maps|maps\.app\.goo/.test(h) ? 'mapa'
+      : /agendamento|avec|trinks|booksy|appbarber|bestbarbers|calendly|cal\.com|frizzar|agendaservico/.test(h) ? 'agenda'
+      : '';
+    if (canal) medir('contato', canal);
+  }, true);
+  document.addEventListener('submit', function(ev){
+    if (ev.target && ev.target.tagName === 'FORM') medir('formulario', '');
+  }, true);
+})();
+</script>
+</body>
+</html>

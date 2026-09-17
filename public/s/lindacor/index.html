@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linda Cor · Centro de Beleza e Estética — Parque 10, Manaus</title>
+<meta name="description" content="Linda Cor Centro de Beleza e Estética em Manaus: esmalteria, manicure, pedicure e estética. Nota 4.8 no Google. Agende online. Segunda a sábado, 8h às 19h.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --rosewood:#a4716a; --rosewood-escuro:#8a5952; --nude:#f5ece7; --nude2:#efe0d9;
+  --tinta:#3d2c29; --suave:#94766f; --branco:#fff;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{overflow-x:hidden}
+img{max-width:100%;min-width:0}
+html{scroll-behavior:smooth}
+body{font-family:'Montserrat',sans-serif;color:var(--tinta);background:var(--branco);line-height:1.7}
+h1,h2,h3,.serif{font-family:'Cormorant Garamond',serif}
+img{max-width:100%;display:block}
+.wrap{width:100%;max-width:1100px;margin:0 auto;padding:0 24px}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--nude2)}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:76px}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none}
+.brand img{width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid var(--nude2)}
+.brand span{font-family:'Cormorant Garamond',serif;font-size:1.5rem;font-weight:700;color:var(--rosewood-escuro);letter-spacing:.04em}
+.nav-links{display:flex;gap:26px;align-items:center}
+.nav-links a{text-decoration:none;color:var(--tinta);font-size:.84rem;font-weight:500;letter-spacing:.03em}
+.nav-links a:hover{color:var(--rosewood)}
+.nav-links a.btn{color:#fff}
+.nav-links a.btn:hover{color:#fff}
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--rosewood);color:#fff;text-decoration:none;font-weight:600;font-size:.88rem;padding:12px 28px;border-radius:4px;border:none;cursor:pointer;transition:.25s;letter-spacing:.04em}
+.btn:hover{background:var(--rosewood-escuro)}
+.btn.line{background:transparent;border:1.5px solid var(--rosewood);color:var(--rosewood)}
+.btn.line:hover{background:var(--rosewood);color:#fff}
+.btn.wpp{background:#25d366}
+.btn.wpp:hover{background:#1eb856}
+@media(max-width:860px){.nav-links a:not(.btn){display:none}}
+
+.hero{padding:150px 0 90px;background:linear-gradient(150deg,var(--nude) 0%,#fff 60%)}
+.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
+.hero h1{font-size:clamp(2.5rem,4.6vw,3.8rem);line-height:1.08;font-weight:600}
+.hero h1 em{color:var(--rosewood);font-style:italic}
+.hero .lead{color:var(--suave);margin:20px 0 30px;font-size:1rem;max-width:470px}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap}
+.hero-grid-img{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.hero-grid-img img{border-radius:12px;width:100%;height:100%;object-fit:cover}
+.hero-grid-img .tall{grid-row:span 2;height:520px}
+.hero-grid-img .short{height:253px}
+.hero-strip{display:flex;gap:10px;margin-top:26px;align-items:center;flex-wrap:wrap}
+.pill{background:#fff;border:1px solid var(--nude2);border-radius:999px;padding:8px 16px;font-size:.78rem;font-weight:600;color:var(--rosewood-escuro)}
+.pill b{color:var(--rosewood)}
+@media(max-width:900px){.hero .wrap{grid-template-columns:minmax(0,1fr)}.hero-grid-img .tall{height:340px}}
+
+section{padding:92px 0}
+.eyebrow{color:var(--rosewood);text-transform:uppercase;letter-spacing:.24em;font-size:.72rem;font-weight:700}
+.h2{font-size:clamp(2rem,3.4vw,2.8rem);margin:10px 0 16px;line-height:1.15;font-weight:600}
+.center{text-align:center}
+.center p.sub{color:var(--suave);max-width:540px;margin:0 auto;font-size:.95rem}
+
+.servicos{background:var(--nude)}
+.s-list{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:48px}
+.s-item{background:#fff;border-radius:14px;overflow:hidden;transition:.3s;border:1px solid var(--nude2)}
+.s-item:hover{transform:translateY(-6px);box-shadow:0 20px 44px rgba(164,113,106,.16)}
+.s-item img{height:220px;width:100%;object-fit:cover}
+.s-item .b{padding:22px}
+.s-item h3{font-size:1.35rem;font-weight:600}
+.s-item p{font-size:.82rem;color:var(--suave);margin-top:6px}
+@media(max-width:1000px){.s-list{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.s-list{grid-template-columns:minmax(0,1fr)}}
+
+.exp .wrap{display:grid;grid-template-columns:.95fr 1.05fr;gap:60px;align-items:center}
+.exp img{border-radius:14px;height:480px;width:100%;object-fit:cover}
+.exp p{color:var(--suave);margin-bottom:14px;font-size:.95rem}
+.feats{margin-top:24px;display:grid;gap:14px}
+.feat{display:flex;gap:14px;align-items:flex-start}
+.feat .ic{width:40px;height:40px;flex:none;border-radius:10px;background:var(--nude);display:flex;align-items:center;justify-content:center}
+.feat .ic svg{width:20px;height:20px;stroke:var(--rosewood);fill:none;stroke-width:1.8}
+.feat b{font-size:.9rem;display:block}
+.feat span{font-size:.8rem;color:var(--suave)}
+@media(max-width:900px){.exp .wrap{grid-template-columns:minmax(0,1fr)}}
+
+.quote-band{background:var(--rosewood-escuro);color:#fff;text-align:center}
+.quote-band .big{font-family:'Cormorant Garamond',serif;font-size:clamp(1.5rem,3vw,2.2rem);font-style:italic;font-weight:500;max-width:760px;margin:0 auto;line-height:1.4}
+.quote-band small{display:block;margin-top:22px;color:var(--nude2);letter-spacing:.14em;text-transform:uppercase;font-size:.72rem}
+.quote-band .stars{color:#f0c98f;letter-spacing:4px;margin-bottom:20px;font-size:1.1rem}
+
+.agenda .wrap{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+.h-card{border:1px solid var(--nude2);border-radius:14px;padding:26px;margin-bottom:16px;background:#fff}
+.h-card h3{font-size:1.25rem;font-weight:600;margin-bottom:6px}
+.h-card p, .h-card a{font-size:.88rem;color:var(--suave);text-decoration:none}
+.h-card a{color:var(--rosewood-escuro);font-weight:600}
+.pay{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.pay span{font-size:.7rem;font-weight:600;border:1px solid var(--nude2);border-radius:999px;padding:5px 12px;color:var(--suave)}
+.form{background:var(--nude);border-radius:16px;padding:36px}
+.form h3{font-size:1.6rem;font-weight:600;margin-bottom:4px}
+.form p{font-size:.85rem;color:var(--suave)}
+.form label{display:block;font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--rosewood-escuro);margin:16px 0 6px}
+.form input,.form select,.form textarea{width:100%;border:1.5px solid #e4d1c8;border-radius:8px;padding:12px 14px;font-family:'Montserrat',sans-serif;font-size:.88rem;background:#fff}
+.form input:focus,.form select:focus,.form textarea:focus{outline:none;border-color:var(--rosewood)}
+.form .btn{width:100%;justify-content:center;margin-top:20px}
+@media(max-width:900px){.agenda .wrap{grid-template-columns:minmax(0,1fr)}}
+
+footer{background:#2e211e;color:#b09690;padding:52px 0 26px}
+.foot{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:40px}
+.foot .brand span{color:#fff}
+.foot .brand img{border-color:#4a3733}
+footer h4{color:#fff;font-family:'Cormorant Garamond',serif;font-size:1.2rem;margin-bottom:12px}
+footer a{color:#cdb3ae;text-decoration:none;font-size:.85rem;display:block;margin-bottom:8px}
+footer a:hover{color:#fff}
+footer p{font-size:.85rem;margin-bottom:8px}
+.socials{display:flex;gap:12px;margin-top:14px}
+.socials a{width:40px;height:40px;border-radius:50%;background:#44312d;display:flex;align-items:center;justify-content:center;transition:.25s}
+.socials a:hover{background:var(--rosewood)}
+.socials svg{width:18px;height:18px;fill:#fff}
+.copy{border-top:1px solid #44312d;margin-top:34px;padding-top:18px;text-align:center;font-size:.76rem}
+@media(max-width:800px){.foot{grid-template-columns:minmax(0,1fr)}}
+
+.wpp-float{position:fixed;bottom:24px;right:24px;width:60px;height:60px;border-radius:50%;background:#25d366;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 26px rgba(37,211,102,.45);z-index:60;transition:.25s}
+.wpp-float:hover{transform:scale(1.08)}
+.wpp-float svg{width:30px;height:30px;fill:#fff}
+.soc-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}.soc-pill{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:999px;border:1.5px solid var(--rosewood);color:var(--rosewood);text-decoration:none;font-size:.82rem;font-weight:600;transition:.25s;line-height:1;}.soc-pill:hover{background:var(--rosewood);color:#fff}.soc-pill svg{width:15px;height:15px;fill:currentColor;flex:none}
+/* chips sociais personalizados */
+a[href*="instagram.com"] svg{background:linear-gradient(45deg,#feda75,#fa7e1e 25%,#d62976 55%,#962fbf 80%,#4f5bd5)!important;fill:#fff!important;color:#fff;border-radius:9px;padding:4px;margin:-4px;box-sizing:content-box}
+a[href*="facebook.com"] svg{background:#1877f2!important;fill:#fff!important;color:#fff;border-radius:9px;padding:4px;margin:-4px;box-sizing:content-box}
+</style>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#a4716a">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23a4716a'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-size='36' font-weight='400' fill='%23ffffff' text-anchor='middle'%3EL%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="favicon-180.png">
+<meta name="geo.region" content="BR-AM">
+<meta name="geo.placename" content="Manaus">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Linda Cor · Centro de Beleza e Estética — Parque 10, Manaus">
+<meta property="og:description" content="Linda Cor Centro de Beleza e Estética em Manaus: esmalteria, manicure, pedicure e estética. Nota 4.8 no Google. Agende online. Segunda a sábado, 8h às 19h.">
+<meta property="og:image" content="https://www.ysis.app/lindacor/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Logo oficial da Linda Cor Esmalteria e Estética">
+<meta property="og:site_name" content="Linda Cor Esmalteria e Estética">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Linda Cor · Centro de Beleza e Estética — Parque 10, Manaus">
+<meta name="twitter:description" content="Linda Cor Centro de Beleza e Estética em Manaus: esmalteria, manicure, pedicure e estética. Nota 4.8 no Google. Agende online. Segunda a sábado, 8h às 19h.">
+<meta name="twitter:image" content="https://www.ysis.app/lindacor/og.jpg">
+
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "NailSalon", "name": "Linda Cor Esmalteria e Estética", "image": "https://www.ysis.app/lindacor/img/logo-lindacor.jpg", "address": {"@type": "PostalAddress", "streetAddress": "Rua do Comércio II, 115, Loja 07 — Parque 10", "addressLocality": "Manaus", "addressRegion": "AM", "addressCountry": "BR"}, "telephone": "+55 92 99534-3007", "aggregateRating": {"@type": "AggregateRating", "ratingValue": "4.8", "reviewCount": "167"}, "openingHoursSpecification": [{"@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], "opens": "08:00", "closes": "19:00"}], "paymentAccepted": "Visa, Mastercard, Elo, American Express, Diners, QR Code", "sameAs": ["https://www.trinks.com/lindacoresmalteria"], "description": "Linda Cor Centro de Beleza e Estética em Manaus: esmalteria, manicure, pedicure e estética. Nota 4.8 no Google. Agende online. Segunda a sábado, 8h às 19h.", "hasMap": "https://www.google.com/maps/search/?api=1&query=Rua%20do%20Com%C3%A9rcio%20II%2C%20115%2C%20Loja%2007%20%E2%80%94%20Parque%2010%2C%20Manaus%20-%20AM", "openingHours": ["Mo-Sa 08:00-19:00"]}</script>
+<link rel="canonical" href="https://www.ysis.app/lindacor/">
+<meta property="og:url" content="https://www.ysis.app/lindacor/">
+</head>
+<body>
+<aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">Esta página é uma proposta da <a href="https://www.ysis.app/" style="color:#f2b56b">Ysis</a>, não o site oficial. <a href="https://wa.me/5511948680554?text=Quero%20remover%20a%20p%C3%A1gina%20de%20proposta%20lindacor" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ysis.app/privacidade/" style="color:#a2918d">Privacidade</a></aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){var b=document.querySelector("aside[data-ysis=proposta]");if(!b)return;var h=b.getBoundingClientRect().height;document.querySelectorAll("header,nav,.site-header,.nav,.topo").forEach(function(el){var s=getComputedStyle(el);if(s.position==="fixed"||s.position==="sticky")el.style.top=h+"px"});});</script>
+
+
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">
+      <img fetchpriority="high" decoding="async" src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwMDAgQDAwMEBAQFBgoGBgUFBgwICQcKDgwPDg4MDQ0PERYTDxAVEQ0NExoTFRcYGRkZDxIbHRsYHRYYGRj/2wBDAQQEBAYFBgsGBgsYEA0QGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBj/wAARCADcANwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3KiiiuE9gKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiijr0oGFG6lAO4gnkjgYrEuvEGu+F0Opano2kaxo8Mga5RGMV3DbuwUOBjDsCR3HGaCW0lc2s5orrPGVjYaNpMUmh6fZzXc210NzIQmzsduO9cnveQBpY4klx86wZ2A+1BMZ32CiiigsKKActgYY4+76/jToIpZ5Vt4IpJJ/8AnmoJx+I60ANorWHhvU0i8y8azsk7vdXCx7fwPNUZrQIC1vfWN+nVvsMyy+UM4yx7UCuivRRRQMKKKKACiiigAooooAKKKKACiiigAooooAKMgEZzz6UDnoRnOAM8k4zx61b060F5MZJHEVtGN0zHrIP7g9DQJsjt7WW4R5EKJEv3pZXCKn1z1+g5qtJqWg27tFCuq6vKOpsIliiz6bpcZ/CrOoXCahMoMKpZx/6i2xwMd29TUO47duWCdkB+UfhQLUqtroGGT4e6wyAdft0O7/0KsnXte8O3fhm90vVdF8U6GsoQG4eCO4iTLryWTJ/DpW/0Py7h/tZFZHi18/D/AFhTI7FokBJYgDEi9gaCZQ909I8XwW8qaLYwajYCV7VRBHcziN5lA4KKxz6D61yt3bX1mxXULW5tm4/1ikKfp2NbPxI0fR9c0TQItW062vI1tVK+YCrDgY2spDL+dcLa6Vr/AIfUL4S8X3lpARtOnavm9tm/2Rn5x7fNQZ020rG0cDoQ/wDuMP5daBggEHOejDpWX/wlUlkCPGPgy608DrqXhwfaoW92h++v513uh6VpxtF1j7SmqSXEAnsbHiKSZT0YxnkH2oNfaW3My30i3g0/+0tela2sjytumPOuT/sjsKhute1J4WstKxodjjASAZnYdt7nlT9KZq76lNfm71a3mil/hLodsY9F9KogpsIAYIT95ssSfr3oJtcoy6Jp08vnXds9/PyfNvZDcO303dKXS9D0yy13UNdsrG2tka1WwZLZAkc753MwUcHAI/EGt620maRUlvnNjb9RK/DfVV6mq1xNDJIkVrGIbe2VkhA5xu+8x9z1oDlIKKKKDUKKKKACiiigAooooAKKKKACiiigAooooEyvfXcenaddalOR5dpC07MBkx4Gc1fkkjXRLK1t51lgeFbnz0OfMdxu5x7ECqzKrI0UkYKSDDK3SUehpIooYIhDbxRwxpwIoxxH7UAh+WPX8aKKKBhWN4tH/FAaufSJf/Ri1s1jeL+PAGse0Cn/AMfWh7A/hPQvFzbtJ0L2tI/5CuYJKncCAQc5Izj3ra125FxpOjHqEtE/kK52eV1hjEXzXMz+XAh/vngGoi9DOOxraLZ20zzXmoEDS7I+ZMdx/fseg9+e1Y/ifT9M8Y6il1rulxTzxf8AHq4BjeBf+mZU/LWrd3EcOm2uk2hJtbcb5G/vzfxSfUdPxqlVJ3LST3My207WdOG3RPHXia1QceVJci5RfYKwH86ux3Xi0ZE/je9cH+OG1S2l98MM/wAqmophyohW3XeZZZJruY9Z7mQySH6n/wCtUp+8AF2qKWigOUKKKKBhRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABj5dvbrR2oooAKKKKACsTxiT/AMK71s55FuPy3rW3WJ4z/wCSca6fS0/9mWoezA3xd/aNI04k7glugY+g2/41jRXIufGEsYbK2EexsdpG/rjBqPQ79T4djuZgBFFaI8gJ7bM1Q8DLJcaBLqlxnzrydpW9znAP/fIArnjJtRSCx1By5zn+Lf8AjRR0orsasAUUUZA+9nHsKErgBzjigZBwBuNAJBwfvnoByPx9KpSXZe4+w2Z8yZeZZAflj+nrUylygXRyxOQR6CkFNhhSGPaMk+pNPzmmAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFA60ABBB5rC8bA/8Kz8QcdLIt+G5a3QcBi3avP8Axd448Py6Nq3hxjfC4k3WspFuzLnIJwe44rOpdRbQFa4v3tPg1q8+/H+hQQ5HJG7C/wBa7LwvGkPg/TYxhf8AR1bB47Y/pXkmoeJdHf4aanoJubqGSVIjHMYCqARMGIJPfArrNH+JOg6foFpaXUd48iRjDwReYrDGev41yUXazYHo2R6j86B8xwMZ3BPxNcP/AMLV8M/88NT/APAc/wCFKvxZ8OpKjRw6mHXoJLc8479K7HWTV2B1tlqNjqKytZXKTLFIYZGHAVx1XPrVsMVyfu4HzF+Ao9T6V594N8Q6Fpfhu4kM7O1zePIkbJ+9lYnOAnfr1rfis9T19RNryzWNgTlNPhbMj+m8+nt2rNVOZAWTey6rM9lpBMdrGcS3h6P6getaVtawWUHlWyEKvIJ+8x9zUqRpDAkMUUcKIMCKP7qj/GlrSKvuAUUUVYBRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRSuFgoooouAUuR6R/iin+lJRT9QEkRJo2ikt4pkZSrRFFCyhhtZDx6EmvHYdK8afCzUrm38PWD+JPC8kpaA2kQ8+3BOfLkVuoUk4NexEAjBAI9D/P607JLbiSWzkseSah049APNLf4paxeuIbHwJqj3I6qlqM5/HArSgi+I3iE771rfw3Zv95I0WSdh6EYwv513bzSuMPIxHoaZweCAw9G5FR7K+4GPo3hfS9CYvBELm7fmS6lbe7n1zj+VbHIY/MSfeggEYwB9BijtitVCCWgBRRRTAKKKKVwCiiimAUUUUAFFFFK4LUKKKKYPQOccjB7j0o4Ayc47nHSlOSSWHOcH61JbyCC8SV4Y5lRvmjlGUbjo1Fgk+xCWCoGYjB6HPFKORnt69q7Y6hpS+Bo9aXwxpy3DT+SYwPlHuK4uV/OuZZgvlbj8sS/dFOxEJOSY3IDLuICtn5uv6Um5T0PWuz8EHTdS1FdJvdDsZSkZkFxt+Ymql3r+l2+o3FunhLTHWOQpuOQTjvT5UR7RqVrHMDJ7UDk4GGP+yc4ro18QaBLlb3wjbJFjlrZjvp114csb/S31PwvcNcRJzJZyDa8X+NHKi/a90c1RRngnsDgn3o71Ja1FCkgkAnHJpONobPy+tKNm5Wkj3KrAn5sbv9mvQrDwvoWs+Gft9tYyWt1KjeUjNknHXAosRUqcqR552BHOaKQq0TeWwIZHKkHqKWgtO6TCiiigAJAGT0pSrDrgemT1oX71W9K0bUdZult7GAOVP7yV/up9aLCbSKYBYZUEj25o6ZyRge/P5V0z2HhDS38vUdQvNTnH8FqMKPrRBJ4FvpxbSWF3p7OdqXGcqD7mqshe0t0OYVgwyM49xilrV17QrvQtSWCdvOhkXdDcAcOPSsnIwTnp1pNDUubVC0meueQO6/NUkUMs9wsEMTSSsdqooySfSulOiaNoluH8R30k13jd9gtRggejUWJlKxy2eBkdeeOaXk9B+tdIfEWhxcWXhCy2djKxJNC6t4UvX8u/8NfYy3WezPI/+tQ0ifaPsc2cA4z+FFb+o+HPJ006ro1yL/Te7pzIn+97VgqrOoZVJB7ilYpSudd4z0aIND4h00D7HdDMoHRT2NcgM7cHqBg+/vXZeDdWguYJfDGqkNa3IPlbucMe3t61zmsaTNomrzadNk7fmRj3U9DVsiDs3Fmq/wDySWH/AK//AOgrm66WT/kksP8A1/8A9BXNVLKpPc6z4c/8jr/2wP8AOud1L/kN3v8A13f+ddF8Of8Akdf+2B/nXO6l/wAhu9/67v8Azq38JH/Lwqjbn5zhe9avh/VZtH8R29zuJhYiKaHsQTjOKyj6UFivzj7wGc1C3NHsdF400yLSvFLyQACC4j81VHbNc7grwe1dx4/Aax0SYgbmgOf++RXEDONw/jO3mqn8QqPwk1lZy6hqcFlF9+VtgH14/Qc11z+II9O+IdpFbvjTrFRYkDo3HzN+eaz/AAqI7Cyv/E0oHl2abIQf4pG44/CuakLEv5pJkLF2P15ovy6kyXO7HReNdM/s7xTPJGuLe6HmocdCev5f1rna7rUx/wAJF8MINRiBa7sPlcdSccN/SuFpSXUqm9Ldgooo/wAak0tcfDBLc3MdvCu6SRwij6nFdh4luF8P6PF4X007CU330y8OR7Vk+C4Vn8d2Ub/d3M35KTUXi2Zp/GuoSnP+s2Y9torSOxg3zSsYwyOVJZvU0AZDIzD5udw7GlowPSszaSudTa+I9PvfCx0bxAspdBiG5UZwfc1zDEbtykNtOEJ9PWm9sdvSmucRkgdBTW5KXIjs/DsUOg+DrnxRJGHupB5dtu6f71chLPLc3T3NzI0ssncmu38UoIPhzoVtH9wlSSP92uGPBxVTJp6tsAMDBNIf8n0paO2Kg2Rs+GNak0jXF3MWtZiEmjfldp6kCrXiLw/LpuvyxWOWgkAlT2Ddq5pziMn0HFe6WcENzpVpNMqlzCudwBPStVscs3aVzw5WaOWOWNirg/Kw7HqK7+cJ428F/aYsHVLIEPjgvxzXn4ClV5yCMnH6VqeH9Zl0PXob1GIjJ2zL2YVEX3NalPTmRoOSPhLErAhv7Qxj04Ga5uvQ/GkFlB4Mhk08DyLm688EdASOa88pz30FRd0zrPhz/wAjr/2wP865zUv+Q3e/9d2/nXR/Dnnxk7LyFgIJHrmuc1LI129BVgfPbjB9ab+EhO07lY5PC/ePQntUtvE1xfQW8al2ldUVB1PPJpIra6uHEUFtNK7cBUU5Ndjo+mW/hSM654gCR3KrttrUEM4J9R0rNGjmthvxEuI11KysVOfstuNwHYkYrjDkbAOXyVX3Y9Ks317PqOqTX9026WZvm9l7Crvhe3ivPGenQXOPLaXdg/xEVT1kEV7OGpf8Qn+y9B03w0uPMjT7TcY7uex9sdq5tQzSRRqjO7MAgAyWPvWp4p+0f8JhqBugyuZMqDwWUcAL68Vq6fEnhfQf7ZvIla/uBts4X+8gPVmHtTa11Jg9Lrc3PBOkarp7XdvqcMUVpeLhUZ/nJx6Vwmq2LaXrV1p7ZJhk2gnup+7QNUvk1eLUri7la5QhhIW9+cD0xXVePLeG7tLDxNalPIuIwJWXruxlT/Sq0aI5nCWvU4rnuMHvRQAQBuznqc0VmzpvfY1/C90lj4vsrqRgqh8En3GKs+M7Vrbxrenadsi+ev8AtDGOK5/njAycgiuyMkfjTQ4bfzI01uzGEDHaJl9BQmZSVnc42ipbm3uLO6NveQyW8g7SLgfn0qHchGQ6kZxlTu59MClZl8wp2hCzNtA6nGaGA2k528ZAPcetdTpdhH4f0yTXddtkDvGVtbOTlnJ/iI9MYrlgWDhpAC7Zb2Ge30oGnzHa3DHWvhDC8eWl05vnAHpxn6VxWSQOMnGSw6Vr+H9cfQdRaRUaa1kXy5YD/EvfHvV/UPDP2uJtV8Llbyyk5aBGHmRnuCPam3cxi+RtM5n8c0YJzj8/SnyQywnZJDMhXgho2BB/KrNnpepX8yx2ljPLu9FwPxz0pGntEQWttJf38FjbqRLO4VM85Gea9C8Q+K/7E1ZdMt2jZYYUU5GcHHIrJgFj4Kga6uJIrnW3UpFFGdywA9zXISu1xcyXFwxeWRizH3NO5jZylcYM7RkKD329KUjI25wp60UVKVjqWxck1XUJdFj0mWbfbxtuT2qnRRTbEopG3YeK9a0y0it7SS3jjXOXEQ34/Kph4019huf7CCec+QpJ+vHWueop8zehDprc3n8Z+IjGypewQcfeigGfpwKxLiea5n86eaV5G5MjncT7Y7UyikCikFPime3mS4hZleE7kI6hvamUU763NJK51DeO9QkgjF1pmnz3CDCzyJuYf7X4elYF/f3up3zXN/P9pmIwJD8q49l7VWoqnO5nGCT0JbaWO3vY5/s6yiMYKueDXTHxw72IsW0KwNkF2mH5uD145rlKKlOxU4p2bHSOJJmkEaRhjkInRfbmm0UUmxph07Z9qcrMpEgdgV+4yHay02ilcbVzoIPGGrLbiG9gs9UX+7dJ0/GpH8YzxvvsNF0m2fHMghyT+HtXN0VfMZOCJry9vL+8a6vZnupG/jc8L7Be1QDj5Vye5J/pS0VLLj7oVLb3VzZyrJZTvC6nOYiUH5d6iooB2Zvp408R7cNdR3BHeSFc/wAqhuvFOv3cJje/ZEPVIlCZ9sgVkIoZyDSE8Y7UEqKXQTPzFwTluuOv4k9aKKKCj//Z" alt="Logo Linda Cor">
+      <span>LINDA COR</span>
+    </a>
+    <div class="nav-links">
+      <a href="#servicos">Serviços</a>
+      <a href="#sobre">O espaço</a>
+      <a href="#agendar">Agendar</a>
+      <a class="btn" href="https://www.trinks.com/lindacoresmalteria" target="_blank" rel="noopener">Agendar online</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Parque 10 de Novembro · Manaus</span>
+      <h1>Bem-vinda à <em>Linda Cor</em>, seu centro de beleza e estética.</h1>
+      <p class="lead">Esmalteria e estética com agendamento online, atendimento pontual e aquele capricho que faz da gente um dos serviços mais bem avaliados da cidade.</p>
+      <div class="hero-cta">
+        <a class="btn" href="https://www.trinks.com/lindacoresmalteria" target="_blank" rel="noopener">Agendar pela Trinks</a>
+        <a class="btn wpp" href="https://wa.me/5592995343007?text=Ol%C3%A1!%20Quero%20agendar%20na%20Linda%20Cor%20%F0%9F%92%85" target="_blank" rel="noopener">WhatsApp</a>
+      </div>
+      <div class="hero-strip">
+        <span class="pill"><b>4,8 ★</b> no Google</span>
+        <span class="pill">167 avaliações</span>
+        <span class="pill">Seg–Sáb · 8h às 19h</span>
+      </div>
+    </div>
+    <div class="hero-grid-img">
+      <img loading="lazy" decoding="async" class="tall" src="img/51bd55d124c9.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/51bd55d124c93ce5512adb21574d65641a163d77.jpeg'" alt="Manicure cuidando das unhas de cliente">
+      <img loading="lazy" decoding="async" class="short" src="img/38c360501923.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/38c3605019239a21af94463bc3e68b1fd2f04c76.jpeg'" alt="Mulher com pele radiante após cuidado facial">
+      <img loading="lazy" decoding="async" class="short" src="img/53d97fd48a66.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/53d97fd48a66c6adc98284959c35a3879c35ffb9.jpeg'" alt="Nail art elegante">
+    </div>
+  </div>
+</header>
+
+<section class="servicos" id="servicos">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow">Serviços</span>
+      <h2 class="h2">Tudo para a sua beleza, em um só endereço</h2>
+      <p class="sub">Agende online em minutos e escolha o horário que cabe na sua rotina.</p>
+    </div>
+    <div class="s-list">
+      <div class="s-item">
+        <img loading="lazy" decoding="async" src="img/51bd55d124c9.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/51bd55d124c93ce5512adb21574d65641a163d77.jpeg'" alt="Manicure">
+        <div class="b"><h3>Manicure</h3><p>Cuticulagem cuidadosa, esmaltação impecável e acabamento que dura.</p></div>
+      </div>
+      <div class="s-item">
+        <img loading="lazy" decoding="async" src="img/53d97fd48a66.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/53d97fd48a66c6adc98284959c35a3879c35ffb9.jpeg'" alt="Nail art">
+        <div class="b"><h3>Nail art</h3><p>Do clássico ao ousado: decoração, francesinha e tendências da estação.</p></div>
+      </div>
+      <div class="s-item">
+        <img loading="lazy" decoding="async" src="img/e9afb02a55e2.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/e9afb02a55e292456420cc90850836cee9458b2b.jpeg'" alt="Estética facial">
+        <div class="b"><h3>Estética facial</h3><p>Cuidados para a pele do rosto com técnicas e produtos profissionais.</p></div>
+      </div>
+      <div class="s-item">
+        <img loading="lazy" decoding="async" src="img/9d7f13e0f2ec.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/9d7f13e0f2ec0fad3cebda098429c0ea0f32ce24.jpeg'" alt="Limpeza e cuidado">
+        <div class="b"><h3>Bem-estar</h3><p>Momentos de cuidado completo para você sair renovada.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="exp" id="sobre">
+  <div class="wrap">
+    <img loading="lazy" decoding="async" src="img/126d9f9ba1f6.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/126d9f9ba1f632a6193e459e9ba7c7a3322b9914.jpeg'" alt="Cuidado facial e bem-estar na Linda Cor">
+    <div>
+      <span class="eyebrow">O espaço</span>
+      <h2 class="h2">Praticidade de shopping de bairro, carinho de salão de família</h2>
+      <p>Estamos no coração do Parque 10 de Novembro, em uma galeria de fácil acesso, com estacionamento e comércio ao redor. Você agenda pelo celular, escolhe o horário e chega no seu tempo — sem espera.</p>
+      <div class="feats">
+        <div class="feat">
+          <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+          <div><b>Segunda a sábado, 8h às 19h</b><span>Horário estendido para caber na sua agenda.</span></div>
+        </div>
+        <div class="feat">
+          <div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/></svg></div>
+          <div><b>Pagamento do seu jeito</b><span>Cartões, QR Code, link de pagamento e Pix.</span></div>
+        </div>
+        <div class="feat">
+          <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 21s-7-4.6-9.2-9A5.4 5.4 0 0112 6.7 5.4 5.4 0 0121.2 12C19 16.4 12 21 12 21z"/></svg></div>
+          <div><b>Avaliação 4,8 no Google</b><span>167 clientes já contaram suas experiências.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="quote-band">
+  <div class="wrap">
+    <div class="stars">★★★★★</div>
+    <p class="big">"O atendimento é excelente. O serviço é um dos melhores da cidade. Já frequentei várias esmalterias e salões, e aqui é diferente."</p>
+    <small>Avaliação real no Google · Cliente verificada</small>
+  </div>
+</section>
+
+<section class="agenda" id="agendar">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Agendamento</span>
+      <h2 class="h2">Reserve seu horário</h2>
+      <div class="h-card">
+        <h3>Agende online</h3>
+        <p>Pelo nosso sistema oficial Trinks — confirmação na hora:</p>
+        <p style="margin-top:10px"><a href="https://www.trinks.com/lindacoresmalteria" target="_blank" rel="noopener">trinks.com/lindacoresmalteria →</a></p>
+      </div>
+      <div class="h-card">
+        <h3>Endereço</h3>
+        <p>Rua do Comércio II, 115 — Loja 07<br>Parque 10 de Novembro, Manaus/AM</p>
+      </div>
+      <div class="h-card">
+        <h3>Formas de pagamento</h3>
+        <div class="pay">
+          <span>Visa</span><span>Mastercard</span><span>Elo</span><span>Amex</span><span>Diners</span><span>QR Code</span><span>Link de pagamento</span><span>Débito</span>
+        </div>
+      </div>
+      <div class="h-card">
+        <h3>Horário de atendimento</h3>
+      <div class="soc-row"><span class="soc-pill"><svg viewBox="0 0 24 24" style="fill:none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Seg–Sáb · 8h às 19h</span></div>
+      </div>
+    </div>
+    <form class="form" id="form-contato">
+      <h3 class="serif">Prefere chamar direto?</h3>
+      <p>Preencha e a gente responde no WhatsApp com horários disponíveis.</p>
+      <label for="nome">Seu nome</label>
+      <input id="nome" type="text" placeholder="Seu nome" required>
+      <label for="servico">Serviço</label>
+      <select id="servico">
+        <option>Manicure</option>
+        <option>Pedicure</option>
+        <option>Mão + pé</option>
+        <option>Nail art / decoração</option>
+        <option>Estética facial</option>
+        <option>Outro</option>
+      </select>
+      <label for="msg">Melhor dia/horário</label>
+      <textarea id="msg" rows="3" placeholder="Ex.: sábado de manhã"></textarea>
+      <button type="submit" class="btn wpp">Enviar pelo WhatsApp</button>
+    <p data-ysis="aviso" style="margin-top:14px;font-size:.8rem;line-height:1.5;opacity:.72">Seus dados não ficam neste site: o formulário monta a mensagem e abre o WhatsApp para você enviar. Nada é gravado aqui, e o retorno vem pelo mesmo canal.</p>
+</form>
+  </div>
+</section>
+<section class="mapa-sec" aria-label="Mapa e como chegar" style="padding:0 22px 64px"><div style="max-width:1120px;margin:0 auto"><h2 style="color:var(--ink,#26221a);font-size:1.6rem;margin:0 0 16px">Como chegar</h2><div style="border-radius:18px;overflow:hidden;border:1px solid var(--line,#e3ddd2);background:var(--card,#fff);box-shadow:0 10px 30px rgba(0,0,0,.05)"><iframe title="Mapa: Rua do Comércio II, 115, Loja 07 — Parque 10, Manaus - AM" src="https://www.google.com/maps?q=Rua%20do%20Com%C3%A9rcio%20II%2C%20115%2C%20Loja%2007%20%E2%80%94%20Parque%2010%2C%20Manaus%20-%20AM&amp;output=embed" style="width:100%;height:320px;border:0;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe><div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 18px"><span style="color:var(--mut,#777);font-size:.92rem">Rua do Comércio II, 115, Loja 07 — Parque 10, Manaus - AM</span><a href="https://www.google.com/maps/dir/?api=1&amp;destination=Rua%20do%20Com%C3%A9rcio%20II%2C%20115%2C%20Loja%2007%20%E2%80%94%20Parque%2010%2C%20Manaus%20-%20AM" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:var(--acc,#4c7a63);color:var(--btntxt,#fff);padding:11px 18px;border-radius:999px;font-weight:700;font-size:.92rem;text-decoration:none"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg> Como chegar</a></div></div></div></section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <a class="brand" href="#top"><img loading="lazy" decoding="async" src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwMDAgQDAwMEBAQFBgoGBgUFBgwICQcKDgwPDg4MDQ0PERYTDxAVEQ0NExoTFRcYGRkZDxIbHRsYHRYYGRj/2wBDAQQEBAYFBgsGBgsYEA0QGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBj/wAARCADcANwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3KiiiuE9gKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiijr0oGFG6lAO4gnkjgYrEuvEGu+F0Opano2kaxo8Mga5RGMV3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" alt="Logo Linda Cor"><span>LINDA COR</span></a>
+        <p style="margin-top:12px">Centro de beleza e estética no Parque 10. Bem-vinda!</p>
+        
+      </div>
+      <div>
+        <h4>Contato</h4>
+        <a href="https://wa.me/5592995343007" target="_blank" rel="noopener">WhatsApp: (92) 99534-3007</a>
+        <p>Rua do Comércio II, 115 — Loja 07<br>Parque 10 de Novembro, Manaus/AM</p>
+      </div>
+      <div>
+        <h4>Atalhos</h4>
+        <a href="#servicos">Serviços</a>
+        <a href="https://www.trinks.com/lindacoresmalteria" target="_blank" rel="noopener">Agendamento online</a>
+      </div>
+    </div>
+    <div class="copy">© 2026 Linda Cor Centro de Beleza e Estética · Manaus/AM</div>
+  </div>
+<div style="text-align:center;font-size:.72rem;opacity:.55;margin-top:16px;letter-spacing:.05em">powered by <b>Ruphus</b><p data-ysis="fonte" style="margin:16px 0 0;text-align:center;font-size:.76rem;line-height:1.5;opacity:.6">Nota e número de avaliações do Google, consultados em agosto de 2026. Valores públicos, sujeitos a mudança.</p></div>
+</footer>
+
+<a class="wpp-float" href="https://wa.me/5592995343007?text=Ol%C3%A1!%20Vim%20pelo%20site%20e%20quero%20agendar%20%F0%9F%92%85" target="_blank" rel="noopener" aria-label="WhatsApp">
+  <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 1.8a8.2 8.2 0 11-4.2 15.3l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 0112 3.8zm-3.3 4c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.1s.9 2.4 1 2.6c.1.2 1.8 2.8 4.4 3.9 2.2.9 2.6.7 3.1.7.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.2-.2-.5-.3l-1.7-.8c-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.1-.2 0-.4.1-.5l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.8-1.8c-.2-.4-.4-.5-.5-.5h-.4z"/></svg>
+</a>
+
+<script>
+document.getElementById('form-contato').addEventListener('submit', function(e){
+  e.preventDefault();
+  const nome = document.getElementById('nome').value.trim();
+  const serv = document.getElementById('servico').value;
+  const msg  = document.getElementById('msg').value.trim();
+  let texto = `Olá! Sou ${nome || 'cliente'} e quero agendar: ${serv}.`;
+  if(msg) texto += ` Preferência: ${msg}`;
+  window.open('https://wa.me/5592995343007?text=' + encodeURIComponent(texto), '_blank');
+});
+</script>
+<a href="https://wa.me/5592995343007?text=Ol%C3%A1%21%20Vim%20pelo%20site%20e%20quero%20agendar%20um%20hor%C3%A1rio." target="_blank" rel="noopener" aria-label="Agendar pelo WhatsApp" style="position:fixed;right:18px;bottom:18px;z-index:60;width:56px;height:56px;border-radius:50%;background:#25d366;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(0,0,0,.25)"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3.1.8.8-3-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.6-6.1c-.3-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.3-.6.8-.8 1-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.6-1.3.1-.2 0-.4 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1.1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2l-.6-.2z"/></svg></a>
+<script data-ysis="medicao">
+(function(){
+  var SITE = 'lindacor';
+  // A chave web do Firebase é pública por natureza. A proteção não está nela e
+  // sim na regra do Firestore: a coleção `eventos` só aceita criar, com campos
+  // fixos e canal dentro de uma lista — não lê, não altera, não apaga.
+  var URL = 'https://firestore.googleapis.com/v1/projects/ysis-crm/databases/'
+          + '(default)/documents/eventos?key=AIzaSyCEXBCVXmhDnVIF6XbSsv3-f-L6P9knu5o';
+
+  function hoje(){
+    var d = new Date(), z = function(n){ return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+  }
+  function origem(){
+    try {
+      var u = new URLSearchParams(location.search).get('utm_source');
+      if (u) return u.slice(0, 60);
+      if (document.referrer) return new URL(document.referrer).hostname.slice(0, 60);
+    } catch (e) {}
+    return '';
+  }
+  function medir(nome, canal){
+    var f = { nome: { stringValue: nome }, site: { stringValue: SITE },
+              dia: { stringValue: hoje() } };
+    if (canal) f.canal = { stringValue: canal };
+    var o = origem();
+    if (o) f.origem = { stringValue: o };
+    try {
+      fetch(URL, { method: 'POST', body: JSON.stringify({ fields: f }),
+                   headers: { 'Content-Type': 'application/json' }, keepalive: true });
+    } catch (e) {}
+  }
+
+  // captura na fase de captura: o formulário destas páginas dá preventDefault
+  // e abre o canal, então um listener na fase de bolha não veria o envio
+  document.addEventListener('click', function(ev){
+    var a = ev.target && ev.target.closest && ev.target.closest('a[href]');
+    if (!a) return;
+    var h = a.getAttribute('href') || '';
+    var canal = /wa\.me|api\.whatsapp/.test(h) ? 'whatsapp'
+      : /ig\.me|instagram\.com/.test(h) ? 'instagram'
+      : h.indexOf('tel:') === 0 ? 'telefone'
+      : h.indexOf('mailto:') === 0 ? 'email'
+      : /google\.[a-z.]+\/maps|maps\.app\.goo/.test(h) ? 'mapa'
+      : /agendamento|avec|trinks|booksy|appbarber|bestbarbers|calendly|cal\.com|frizzar|agendaservico/.test(h) ? 'agenda'
+      : '';
+    if (canal) medir('contato', canal);
+  }, true);
+  document.addEventListener('submit', function(ev){
+    if (ev.target && ev.target.tagName === 'FORM') medir('formulario', '');
+  }, true);
+})();
+</script>
+</body>
+</html>

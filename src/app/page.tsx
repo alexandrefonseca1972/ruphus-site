@@ -14,7 +14,7 @@ import { createTenant, myTenantIds } from "@/lib/tenants";
 import { handleSubmit } from "@/lib/utils";
 
 const slugify = (s: string) =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 63);
 
 export default function Home() {
   const router = useRouter();

@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Studio Hewellin Silva — Coroado, Manaus | Nota 5,0 no Google</title>
+<meta name="description" content="Studio Hewellin Silva: salão no Coroado, Manaus, com nota máxima 5,0 no Google e 130 avaliações. Agende pelo WhatsApp.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --petrol:#0e5450; --petrol-2:#0a3d3a; --areia:#f3ede4; --areia-2:#eae1d2;
+  --coral:#d96f4a; --tinta:#1c1f1e; --suave:#6f7a76;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{overflow-x:hidden}
+img{max-width:100%;min-width:0}
+html{scroll-behavior:smooth}
+body{font-family:'Space Grotesk',sans-serif;background:var(--areia);color:var(--tinta);line-height:1.6;font-weight:300}
+h1,h2,.serif{font-family:'Instrument Serif',serif;font-weight:400;line-height:1.08}
+h3{font-family:'Space Grotesk',sans-serif;font-weight:600}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+.container{width:100%;max-width:1140px;margin:0 auto;padding:0 24px}
+.eyebrow{font-size:12px;letter-spacing:.34em;text-transform:uppercase;color:var(--coral);font-weight:600}
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(243,237,228,.9);backdrop-filter:blur(10px);border-bottom:1px solid rgba(14,84,80,.15)}
+.nav-in{width:100%;max-width:1140px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+.brand{font-size:19px;font-weight:600;letter-spacing:.02em}
+.brand span{font-family:'Instrument Serif',serif;font-style:italic;font-weight:400;color:var(--petrol)}
+.nav-links{display:flex;gap:30px;font-size:13px;letter-spacing:.16em;text-transform:uppercase;font-weight:500}
+.nav-links a{color:var(--suave);transition:color .3s}
+.nav-links a:hover{color:var(--petrol)}
+.nav-links a.btn{color:var(--areia)}
+.nav-links a.btn:hover{color:var(--petrol)}
+.btn{display:inline-block;padding:14px 32px;border-radius:999px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;transition:all .3s;cursor:pointer;border:2px solid var(--petrol);background:var(--petrol);color:var(--areia)}
+.btn:hover{background:transparent;color:var(--petrol)}
+.btn.coral{background:var(--coral);border-color:var(--coral);color:#fff}
+.btn.coral:hover{background:transparent;color:var(--coral)}
+/* HERO */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:150px 0 80px;position:relative}
+.hero h1{font-size:clamp(52px,8vw,120px);letter-spacing:-.01em}
+.hero h1 em{color:var(--petrol)}
+.hero-row{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:end;margin-top:34px}
+.hero p{font-size:17px;color:var(--suave);max-width:460px;margin-bottom:34px}
+.hero-img{position:relative}
+.hero-img img{border-radius:200px 200px 20px 20px;width:100%;height:min(58vh,560px);object-fit:cover}
+.nota-flutuante{position:absolute;top:26px;left:-34px;background:var(--petrol);color:var(--areia);border-radius:20px;padding:20px 28px;box-shadow:0 26px 60px -20px rgba(14,84,80,.55);transform:rotate(-4deg)}
+.nota-flutuante b{font-family:'Instrument Serif',serif;font-size:44px;font-weight:400;display:block;line-height:1;color:#ffd9a0}
+.nota-flutuante span{font-size:11px;letter-spacing:.2em;text-transform:uppercase}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap}
+.marquee{margin-top:70px;border-top:1px solid rgba(14,84,80,.2);border-bottom:1px solid rgba(14,84,80,.2);padding:16px 0;overflow:hidden;white-space:nowrap}
+.marquee span{display:inline-block;font-family:'Instrument Serif',serif;font-style:italic;font-size:22px;color:var(--petrol);animation:slide 22s linear infinite}
+@keyframes slide{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+/* SEÇÕES */
+section{padding:110px 0}
+.sec-head{max-width:640px;margin-bottom:56px}
+.sec-head h2{font-size:clamp(36px,4.4vw,58px);margin:16px 0 14px}
+.sec-head p{color:var(--suave);font-size:16px}
+/* SERVIÇOS */
+.serv-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.serv{background:#fff;border:1px solid rgba(14,84,80,.14);border-radius:24px;padding:40px 36px;display:flex;gap:26px;align-items:flex-start;transition:transform .35s,box-shadow .35s}
+.serv:hover{transform:translateY(-6px);box-shadow:0 30px 60px -30px rgba(14,84,80,.35)}
+.serv .n{flex:none;width:52px;height:52px;border-radius:50%;background:var(--areia-2);display:flex;align-items:center;justify-content:center;font-family:'Instrument Serif',serif;font-style:italic;font-size:22px;color:var(--petrol)}
+.serv h3{font-size:19px;margin-bottom:8px}
+.serv p{color:var(--suave);font-size:15px;margin-bottom:14px}
+.serv a{font-size:12px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;color:var(--coral);border-bottom:1px solid var(--coral);padding-bottom:2px}
+/* NOTA 5.0 */
+.cinco{background:var(--petrol);color:var(--areia);position:relative;overflow:hidden}
+.cinco::before{content:'5,0';position:absolute;right:-40px;top:50%;transform:translateY(-50%);font-family:'Instrument Serif',serif;font-size:clamp(240px,34vw,460px);color:rgba(243,237,228,.07);line-height:1}
+.cinco-grid{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;position:relative}
+.cinco .eyebrow{color:#ffd9a0}
+.cinco h2{color:var(--areia);font-size:clamp(40px,5vw,64px);margin:18px 0 18px}
+.cinco p{color:rgba(243,237,228,.72);font-size:16px;margin-bottom:30px}
+.cinco-img img{border-radius:24px;box-shadow:0 40px 80px -40px rgba(0,0,0,.5)}
+.estrelas-cinco{color:#ffd9a0;font-size:24px;letter-spacing:8px;margin-bottom:18px}
+/* ESPAÇO */
+.espaco-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.espaco-grid img{width:100%;height:400px;object-fit:cover;border-radius:24px}
+.espaco-grid figure{position:relative;overflow:hidden;border-radius:24px}
+.espaco-grid figcaption{position:absolute;left:20px;bottom:16px;background:rgba(243,237,228,.92);color:var(--petrol-2);font-size:12px;letter-spacing:.22em;text-transform:uppercase;font-weight:600;padding:8px 16px;border-radius:999px}
+/* INFO + CONTATO */
+.contato{background:var(--areia-2)}
+.contato-grid{display:grid;grid-template-columns:1fr 1fr;gap:70px}
+.contato h2{font-size:clamp(36px,4.4vw,56px);margin:16px 0 18px}
+.contato p{color:var(--suave)}
+.info-list{margin-top:30px;display:flex;flex-direction:column;gap:18px}
+.info-list div{display:flex;gap:16px;align-items:flex-start;font-size:15px}
+.info-list svg{flex:none;color:var(--coral);margin-top:2px}
+.info-list b{font-weight:600}
+form{background:#fff;border-radius:24px;padding:40px;border:1px solid rgba(14,84,80,.14)}
+form label{display:block;font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--petrol);font-weight:600;margin-bottom:8px}
+form input,form select{width:100%;background:var(--areia);border:1px solid transparent;border-radius:12px;color:var(--tinta);font-family:'Space Grotesk',sans-serif;font-size:15px;padding:14px 16px;margin-bottom:20px;outline:none;transition:border-color .3s}
+form input:focus,form select:focus{border-color:var(--petrol)}
+form select option{color:var(--tinta)}
+footer{background:var(--petrol-2);color:rgba(243,237,228,.65);padding:40px 0;font-size:13px}
+.foot{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px}
+.foot .brand{color:var(--areia)}
+.whats{position:fixed;right:26px;bottom:26px;width:60px;height:60px;background:#25d366;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 14px 34px -8px rgba(37,211,102,.55);z-index:60;transition:transform .3s}
+.whats:hover{transform:scale(1.1)}
+@media(max-width:900px){.hero h1{font-size:clamp(38px,11vw,64px)}
+  .nav-links{display:none}
+  .container{min-width:0}
+  .hero-row,.serv-grid,.cinco-grid,.contato-grid,.espaco-grid{grid-template-columns:minmax(0,1fr);gap:40px}
+  .hero-row>*,.serv-grid>*,.cinco-grid>*,.contato-grid>*,.espaco-grid>*{min-width:0}
+  .hero-img img{min-width:0}
+  .nota-flutuante{left:14px;top:-24px}
+  .espaco-grid img{height:300px}
+}
+</style>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0e5450">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e5450'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-size='36' font-weight='400' fill='%23f3ede4' text-anchor='middle'%3EH%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="favicon-180.png">
+<meta name="geo.region" content="BR-AM">
+<meta name="geo.placename" content="Manaus">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Studio Hewellin Silva — Coroado, Manaus | Nota 5,0 no Google">
+<meta property="og:description" content="Studio Hewellin Silva: salão no Coroado, Manaus, com nota máxima 5,0 no Google e 130 avaliações. Agende pelo WhatsApp.">
+<meta property="og:image" content="https://www.ysis.app/hewellin/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Profissional do Studio Hewellin Silva finalizando escova">
+<meta property="og:site_name" content="Studio Hewellin Silva">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Studio Hewellin Silva — Coroado, Manaus | Nota 5,0 no Google">
+<meta name="twitter:description" content="Studio Hewellin Silva: salão no Coroado, Manaus, com nota máxima 5,0 no Google e 130 avaliações. Agende pelo WhatsApp.">
+<meta name="twitter:image" content="https://www.ysis.app/hewellin/og.jpg">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "HairSalon", "name": "Studio Hewellin Silva", "address": {"@type": "PostalAddress", "streetAddress": "Rua da Paz, 50 — Coroado", "addressLocality": "Manaus", "addressRegion": "AM", "addressCountry": "BR"}, "telephone": "+55 92 98213-5593", "aggregateRating": {"@type": "AggregateRating", "ratingValue": "5.0", "reviewCount": "130"}, "image": "https://kimi-web-img.kimi.ai/img/images.pexels.com/ebeb772ebd61fd760201f18ef0377053c6afbe39.jpeg", "description": "Studio Hewellin Silva: salão no Coroado, Manaus, com nota máxima 5,0 no Google e 130 avaliações. Agende pelo WhatsApp.", "hasMap": "https://www.google.com/maps/search/?api=1&query=Rua%20da%20Paz%2C%2050%20%E2%80%94%20Coroado%2C%20Manaus%20-%20AM"}</script>
+<link rel="canonical" href="https://www.ysis.app/hewellin/">
+<meta property="og:url" content="https://www.ysis.app/hewellin/">
+</head>
+<body>
+<aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">Esta página é uma proposta da <a href="https://www.ysis.app/" style="color:#f2b56b">Ysis</a>, não o site oficial. <a href="https://wa.me/5511948680554?text=Quero%20remover%20a%20p%C3%A1gina%20de%20proposta%20hewellin" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ysis.app/privacidade/" style="color:#a2918d">Privacidade</a></aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){var b=document.querySelector("aside[data-ysis=proposta]");if(!b)return;var h=b.getBoundingClientRect().height;document.querySelectorAll("header,nav,.site-header,.nav,.topo").forEach(function(el){var s=getComputedStyle(el);if(s.position==="fixed"||s.position==="sticky")el.style.top=h+"px"});});</script>
+
+
+<nav>
+  <div class="nav-in">
+    <a href="#" class="brand">STUDIO <span>Hewellin Silva</span></a>
+    <div class="nav-links">
+      <a href="#servicos">Serviços</a>
+      <a href="#cinco">Nota 5,0</a>
+      <a href="#espaco">Espaço</a>
+      <a href="#contato">Contato</a>
+    </div>
+    <a class="btn" href="https://wa.me/5592982135593?text=Ol%C3%A1!%20Quero%20agendar%20um%20hor%C3%A1rio%20no%20Studio%20Hewellin%20Silva." target="_blank" rel="noopener">Agendar</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="container">
+    <span class="eyebrow">Salão · Coroado, Manaus</span>
+    <h1>Cabelo bom é<br>cabelo <em>bem cuidado.</em></h1>
+    <div class="hero-row">
+      <div>
+        <p>O Studio Hewellin Silva é um dos poucos salões de Manaus com nota máxima absoluta no Google: 5,0 estrelas em 130 avaliações. Aqui, cada cliente sai com vontade de voltar — e volta.</p>
+        <div class="hero-cta">
+          <a class="btn coral" href="https://wa.me/5592982135593?text=Ol%C3%A1!%20Quero%20agendar%20um%20hor%C3%A1rio%20no%20Studio%20Hewellin%20Silva." target="_blank" rel="noopener">Agendar pelo WhatsApp</a>
+          <a class="btn" href="#servicos">Ver serviços</a>
+        </div>
+      </div>
+      <div class="hero-img">
+        <img fetchpriority="high" decoding="async" src="img/ebeb772ebd61.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/ebeb772ebd61fd760201f18ef0377053c6afbe39.jpeg'" alt="Profissional finalizando o cabelo de uma cliente">
+        <div class="nota-flutuante"><b>5,0★</b><span>130 avaliações no Google</span></div>
+      </div>
+    </div>
+    <div class="marquee">
+      <span>corte · escova · coloração · tratamentos · nota 5,0 no Google · Coroado, Manaus · corte · escova · coloração · tratamentos · nota 5,0 no Google · Coroado, Manaus ·&nbsp;</span>
+    </div>
+  </div>
+</header>
+
+<section id="servicos">
+  <div class="container">
+    <div class="sec-head">
+      <span class="eyebrow">Serviços</span>
+      <h2>O que acontece na cadeira</h2>
+      <p>Valores sob consulta — o orçamento é montado para o seu cabelo, sem tabela genérica. Chame no WhatsApp e receba na hora.</p>
+    </div>
+    <div class="serv-grid">
+      <div class="serv">
+        <span class="n">01</span>
+        <div>
+          <h3>Corte &amp; Estilo</h3>
+          <p>Cortes que respeitam o seu rosto e a sua rotina — do reto impecável às camadas com movimento.</p>
+          <a href="https://wa.me/5592982135593?text=Ol%C3%A1!%20Quero%20or%C3%A7amento%20de%20corte%20no%20Studio%20Hewellin%20Silva." target="_blank" rel="noopener">Pedir orçamento</a>
+        </div>
+      </div>
+      <div class="serv">
+        <span class="n">02</span>
+        <div>
+          <h3>Escova &amp; Finalização</h3>
+          <p>Escova lisa, modelada ou aquele blowout de evento: cabelo pronto para durar a semana inteira.</p>
+          <a href="https://wa.me/5592982135593?text=Ol%C3%A1!%20Quero%20agendar%20uma%20escova%20no%20Studio%20Hewellin%20Silva." target="_blank" rel="noopener">Pedir orçamento</a>
+        </div>
+      </div>
+      <div class="serv">
+        <span class="n">03</span>
+        <div>
+          <h3>Cor &amp; Transformação</h3>
+          <p>Coloração, mechas e mudanças de visual com avaliação antes de qualquer química.</p>
+          <a href="https://wa.me/5592982135593?text=Ol%C3%A1!%20Quero%20mudar%20a%20cor%20do%20cabelo.%20Podem%20me%20passar%20um%20or%C3%A7amento%3F" target="_blank" rel="noopener">Pedir orçamento</a>
+        </div>
+      </div>
+      <div class="serv">
+        <span class="n">04</span>
+        <div>
+          <h3>Tratamentos</h3>
+          <p>Hidratação e reconstrução para cabelos que passaram por química, sol e rotina pesada.</p>
+          <a href="https://wa.me/5592982135593?text=Ol%C3%A1!%20Meu%20cabelo%20precisa%20de%20tratamento.%20Podem%20me%20ajudar%3F" target="_blank" rel="noopener">Pedir orçamento</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cinco" id="cinco">
+  <div class="container cinco-grid">
+    <div>
+      <div class="estrelas-cinco">★★★★★</div>
+      <span class="eyebrow">Reputação</span>
+      <h2>Nota máxima.<br>Literalmente.</h2>
+      <p>5,0 é a nota mais alta que o Google permite — e é a nota do Studio Hewellin Silva, mantida em 130 avaliações de clientes reais. Nenhuma estrela a menos. Isso não acontece por acaso: acontece quando cada atendimento é tratado como o único do dia.</p>
+      <a class="btn coral" href="https://wa.me/5592982135593?text=Ol%C3%A1!%20Vi%20que%20o%20Studio%20tem%20nota%205%2C0%20no%20Google%20e%20quero%20conhecer!" target="_blank" rel="noopener">Quero ser atendida</a>
+    </div>
+    <div class="cinco-img"><img loading="lazy" decoding="async" src="img/7d198bc7b972.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/7d198bc7b9724d739ff440b68f1fb5ab73415aa9.jpeg'" alt="Cliente sendo atendida no salão"></div>
+  </div>
+</section>
+
+<section id="espaco">
+  <div class="container">
+    <div class="sec-head">
+      <span class="eyebrow">O Espaço</span>
+      <h2>Simples, limpo e seu por uma hora</h2>
+      <p>Um salão de bairro com padrão de studio: atendimento atento, ambiente cuidado e nada de pressa.</p>
+    </div>
+    <div class="espaco-grid">
+      <figure><img loading="lazy" decoding="async" src="img/ec562ba23b6e.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/22ba6a2b6cd0c26e5d7713a903672a9ac4314cdd.jpeg'" alt="Cabeleireira cortando o cabelo da cliente"><figcaption>O studio</figcaption></figure>
+      <figure><img loading="lazy" decoding="async" src="img/63c9ba83c4be.jpg" onerror="this.onerror=null;this.src='https://kimi-web-img.kimi.ai/img/images.pexels.com/339c1393fd60d9811d742236e0eab57e12618de4.jpeg'" alt="Acabamento de corte com tesoura e pente"><figcaption>Finalização</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section class="contato" id="contato">
+  <div class="container contato-grid">
+    <div>
+      <span class="eyebrow">Contato</span>
+      <h2>Bora marcar?</h2>
+      <p>O Studio atende com hora marcada pelo WhatsApp. Mande mensagem, diga o que seu cabelo precisa e receba o orçamento na conversa.</p>
+      <div class="info-list">
+        <div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-5.6-7-11a7 7 0 1114 0c0 5.4-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
+          <span><b>Rua da Paz, 50</b> — Coroado, Manaus – AM</span>
+        </div>
+        <div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm5.1 13.9c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1-.4-.1-.9-.3-1.5-.6-2.6-1.1-4.3-3.8-4.4-4-.1-.2-1.1-1.4-1.1-2.7 0-1.3.7-1.9.9-2.2.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6c-.2.2-.4.4-.2.8.2.4 1 1.6 2.1 2.6 1.4 1.3 2.6 1.7 3 1.9.4.2.6.1.8-.1l1-1.2c.2-.3.4-.2.7-.1l2 .9c.3.2.5.2.6.4 0 .1 0 .7-.2 1.3z"/></svg>
+          <span><b><a data-ysis="tel" href="tel:+5592982135593" style="color:inherit;text-decoration:none">(92) 98213-5593</a></b> — WhatsApp direto</span>
+        </div>
+        <div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>
+          <span>Horários e disponibilidade <b>sob consulta no WhatsApp</b></span>
+        </div>
+      </div>
+    </div>
+    <form id="form-contato">
+      <label for="nome">Seu nome</label>
+      <input id="nome" type="text" required placeholder="Como podemos te chamar?">
+      <label for="servico">O que seu cabelo precisa?</label>
+      <select id="servico" required>
+        <option value="" disabled selected>Escolha um serviço</option>
+        <option>Corte &amp; Estilo</option>
+        <option>Escova &amp; Finalização</option>
+        <option>Cor &amp; Transformação</option>
+        <option>Tratamento</option>
+        <option>Não sei ainda — quero uma avaliação</option>
+      </select>
+      <label for="dia">Melhor dia</label>
+      <input id="dia" type="text" placeholder="Ex.: quinta à tarde">
+      <button class="btn coral" type="submit" style="width:100%">Enviar pelo WhatsApp</button>
+    <p data-ysis="aviso" style="margin-top:14px;font-size:.8rem;line-height:1.5;opacity:.72">Seus dados não ficam neste site: o formulário monta a mensagem e abre o WhatsApp para você enviar. Nada é gravado aqui, e o retorno vem pelo mesmo canal.</p>
+</form>
+  </div>
+</section>
+<section class="mapa-sec" aria-label="Mapa e como chegar" style="padding:0 22px 64px"><div style="max-width:1120px;margin:0 auto"><h2 style="color:var(--ink,#26221a);font-size:1.6rem;margin:0 0 16px">Como chegar</h2><div style="border-radius:18px;overflow:hidden;border:1px solid var(--line,#e3ddd2);background:var(--card,#fff);box-shadow:0 10px 30px rgba(0,0,0,.05)"><iframe title="Mapa: Rua da Paz, 50 — Coroado, Manaus - AM" src="https://www.google.com/maps?q=Rua%20da%20Paz%2C%2050%20%E2%80%94%20Coroado%2C%20Manaus%20-%20AM&amp;output=embed" style="width:100%;height:320px;border:0;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe><div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 18px"><span style="color:var(--mut,#777);font-size:.92rem">Rua da Paz, 50 — Coroado, Manaus - AM</span><a href="https://www.google.com/maps/dir/?api=1&amp;destination=Rua%20da%20Paz%2C%2050%20%E2%80%94%20Coroado%2C%20Manaus%20-%20AM" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:var(--acc,#4c7a63);color:var(--btntxt,#fff);padding:11px 18px;border-radius:999px;font-weight:700;font-size:.92rem;text-decoration:none"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg> Como chegar</a></div></div></div></section>
+
+<footer>
+  <div class="container foot">
+    <a href="#" class="brand">STUDIO <span>Hewellin Silva</span></a>
+    <span>Rua da Paz, 50 – Coroado, Manaus – AM</span>
+    <span>© Studio Hewellin Silva · Nota 5,0 no Google</span>
+  </div>
+<div style="text-align:center;font-size:.72rem;opacity:.55;margin-top:16px;letter-spacing:.05em">powered by <b>Ruphus</b><p data-ysis="fonte" style="margin:16px 0 0;text-align:center;font-size:.76rem;line-height:1.5;opacity:.6">Nota e número de avaliações do Google, consultados em agosto de 2026. Valores públicos, sujeitos a mudança.</p></div>
+</footer>
+
+<a class="whats" href="https://wa.me/5592982135593?text=Ol%C3%A1!%20Vim%20pelo%20site%20do%20Studio%20Hewellin%20Silva." target="_blank" rel="noopener" aria-label="WhatsApp">
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm5.1 13.9c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1-.4-.1-.9-.3-1.5-.6-2.6-1.1-4.3-3.8-4.4-4-.1-.2-1.1-1.4-1.1-2.7 0-1.3.7-1.9.9-2.2.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6c-.2.2-.4.4-.2.8.2.4 1 1.6 2.1 2.6 1.4 1.3 2.6 1.7 3 1.9.4.2.6.1.8-.1l1-1.2c.2-.3.4-.2.7-.1l2 .9c.3.2.5.2.6.4 0 .1 0 .7-.2 1.3z"/></svg>
+</a>
+
+<script>
+document.getElementById('form-contato').addEventListener('submit', function(e){
+  e.preventDefault();
+  var nome = document.getElementById('nome').value.trim();
+  var serv = document.getElementById('servico').value;
+  var dia  = document.getElementById('dia').value.trim();
+  var texto = 'Olá! Sou ' + nome + ' e quero agendar: ' + serv + (dia ? ' — de preferência ' + dia : '') + '.';
+  window.open('https://wa.me/5592982135593?text=' + encodeURIComponent(texto), '_blank');
+});
+</script>
+<a href="https://wa.me/5592982135593?text=Ol%C3%A1%21%20Vim%20pelo%20site%20e%20quero%20agendar%20um%20hor%C3%A1rio." target="_blank" rel="noopener" aria-label="Agendar pelo WhatsApp" style="position:fixed;right:18px;bottom:18px;z-index:60;width:56px;height:56px;border-radius:50%;background:#25d366;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(0,0,0,.25)"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3.1.8.8-3-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.6-6.1c-.3-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.3-.6.8-.8 1-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.6-1.3.1-.2 0-.4 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1.1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2l-.6-.2z"/></svg></a>
+<script data-ysis="medicao">
+(function(){
+  var SITE = 'hewellin';
+  // A chave web do Firebase é pública por natureza. A proteção não está nela e
+  // sim na regra do Firestore: a coleção `eventos` só aceita criar, com campos
+  // fixos e canal dentro de uma lista — não lê, não altera, não apaga.
+  var URL = 'https://firestore.googleapis.com/v1/projects/ysis-crm/databases/'
+          + '(default)/documents/eventos?key=AIzaSyCEXBCVXmhDnVIF6XbSsv3-f-L6P9knu5o';
+
+  function hoje(){
+    var d = new Date(), z = function(n){ return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+  }
+  function origem(){
+    try {
+      var u = new URLSearchParams(location.search).get('utm_source');
+      if (u) return u.slice(0, 60);
+      if (document.referrer) return new URL(document.referrer).hostname.slice(0, 60);
+    } catch (e) {}
+    return '';
+  }
+  function medir(nome, canal){
+    var f = { nome: { stringValue: nome }, site: { stringValue: SITE },
+              dia: { stringValue: hoje() } };
+    if (canal) f.canal = { stringValue: canal };
+    var o = origem();
+    if (o) f.origem = { stringValue: o };
+    try {
+      fetch(URL, { method: 'POST', body: JSON.stringify({ fields: f }),
+                   headers: { 'Content-Type': 'application/json' }, keepalive: true });
+    } catch (e) {}
+  }
+
+  // captura na fase de captura: o formulário destas páginas dá preventDefault
+  // e abre o canal, então um listener na fase de bolha não veria o envio
+  document.addEventListener('click', function(ev){
+    var a = ev.target && ev.target.closest && ev.target.closest('a[href]');
+    if (!a) return;
+    var h = a.getAttribute('href') || '';
+    var canal = /wa\.me|api\.whatsapp/.test(h) ? 'whatsapp'
+      : /ig\.me|instagram\.com/.test(h) ? 'instagram'
+      : h.indexOf('tel:') === 0 ? 'telefone'
+      : h.indexOf('mailto:') === 0 ? 'email'
+      : /google\.[a-z.]+\/maps|maps\.app\.goo/.test(h) ? 'mapa'
+      : /agendamento|avec|trinks|booksy|appbarber|bestbarbers|calendly|cal\.com|frizzar|agendaservico/.test(h) ? 'agenda'
+      : '';
+    if (canal) medir('contato', canal);
+  }, true);
+  document.addEventListener('submit', function(ev){
+    if (ev.target && ev.target.tagName === 'FORM') medir('formulario', '');
+  }, true);
+})();
+</script>
+</body>
+</html>
