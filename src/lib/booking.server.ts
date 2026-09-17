@@ -97,6 +97,22 @@ export async function availableSlots(db: Firestore, q: SlotQuery) {
 }
 
 type Actor = { uid: string; email?: string };
+// Reservas concorrentes no mesmo profissional/dia disputam a mesma transação: mais tentativas antes de desistir
+const TX = { maxAttempts: 10 };
+const BUSY_ERROR = "Muita gente agendando ao mesmo tempo. Tente de novo em instantes.";
+
+/** Erro de disputa (ABORTED/lock timeout) vira mensagem para a pessoa, e não exceção. */
+async function contended<T>(run: () => Promise<T>): Promise<T | { ok: false; error: string }> {
+  try {
+    return await run();
+  } catch (err) {
+    const code = (err as { code?: number | string }).code;
+    if (code === 10 || code === "aborted" || /ABORTED|lock timeout|contention/i.test(String(err))) {
+      return { ok: false as const, error: BUSY_ERROR };
+    }
+    throw err;
+  }
+}
 type SlotContext = NonNullable<Awaited<ReturnType<typeof slotContext>>>;
 
 /** Grava agendamento + registro "created" + cadastro do cliente. Só escritas: chame depois de todas as leituras. */
@@ -140,7 +156,7 @@ function writeAppointment(
 }
 
 export async function book(db: Firestore, input: BookingInput) {
-  return db.runTransaction(async (tx) => {
+  return contended(() => db.runTransaction(async (tx) => {
     const ctx = await slotContext(tx, db, input);
     if (!ctx) return { ok: false as const, error: "Serviço ou profissional indisponível." };
     if (!ctx.slots.includes(input.time)) {
@@ -149,12 +165,12 @@ export async function book(db: Firestore, input: BookingInput) {
     const customer = await tx.get(ctx.t.collection("customers").doc(customerKey(input.customerPhone)));
     const id = writeAppointment(tx, ctx, input, { by: "cliente", byName: input.customerName }, { renameCustomer: !customer.exists });
     return { ok: true as const, id };
-  });
+  }, TX));
 }
 
 /** Cria o plano e um agendamento por semana. Datas ocupadas (ou já passadas) são puladas e devolvidas. */
 export async function createPlan(db: Firestore, input: PlanInput, actor: Actor) {
-  return db.runTransaction(async (tx) => {
+  return contended(() => db.runTransaction(async (tx) => {
     const dates = planDates(input.startDate, input.weekday, input.weeks);
     const free: { date: string; ctx: SlotContext }[] = [];
     const skipped: string[] = [];
@@ -189,7 +205,7 @@ export async function createPlan(db: Firestore, input: PlanInput, actor: Actor) 
     });
     for (const { date, ctx } of free) writeAppointment(tx, ctx, { ...input, date }, by, { planId: plan.id, renameCustomer: true });
     return { ok: true as const, planId: plan.id, created: free.map((f) => f.date), skipped };
-  });
+  }, TX));
 }
 
 /** Encerra o plano: cancela os agendamentos futuros dele, com registro no histórico. */
@@ -227,7 +243,7 @@ export async function rescheduleSlots(db: Firestore, q: Omit<RescheduleInput, "t
 }
 
 export async function reschedule(db: Firestore, input: RescheduleInput, actor: Actor) {
-  return db.runTransaction(async (tx) => {
+  return contended(() => db.runTransaction(async (tx) => {
     const ctx = await rescheduleContext(tx, db, input);
     if (!ctx) return { ok: false as const, error: "Agendamento, serviço ou profissional indisponível." };
     if (!ctx.slots.includes(input.time)) return { ok: false as const, error: "Esse horário não está livre. Escolha outro." };
@@ -255,5 +271,5 @@ export async function reschedule(db: Firestore, input: RescheduleInput, actor: A
       rescheduledAt: FieldValue.serverTimestamp(),
     });
     return { ok: true as const };
-  });
+  }, TX));
 }

@@ -19,7 +19,9 @@ import {
   whatsappLink,
   zonedTime,
 } from "@/lib/scheduling";
+import { Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
+import { cn } from "@/lib/utils";
 import { ConfirmPanel } from "./confirm-panel";
 import { History } from "./history";
 import { useTenant } from "./layout";
@@ -28,6 +30,7 @@ import { STATUS } from "./status";
 
 const Appointment = z.object({
   serviceName: z.string(),
+  staffId: z.string(),
   staffName: z.string(),
   priceCents: z.number(),
   start: z.instanceof(Timestamp),
@@ -63,6 +66,8 @@ export default function AgendaPage() {
   const [rescheduling, setRescheduling] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<{ id: string; kind: "cancel" | "no_show" } | null>(null);
+  const [staffFilter, setStaffFilter] = useState("");
+  const [staff] = useCollection(tenant.id, "staff", Staff, [orderBy("name")]);
   const [notice, setNotice] = useState<{ text: string; link: string } | null>(null);
   // ponytail: instante fixo ao abrir a página; "Faltou" de horários que passaram depois aparece ao recarregar
   const [now] = useState(Date.now);
@@ -106,7 +111,8 @@ export default function AgendaPage() {
     return changeStatus(a, "cancelled");
   }
 
-  const active = items?.filter((a) => a.status === "booked" || a.status === "confirmed") ?? [];
+  const shown = items?.filter((a) => !staffFilter || a.staffId === staffFilter) ?? null;
+  const active = shown?.filter((a) => a.status === "booked" || a.status === "confirmed") ?? [];
 
   return (
     <>
@@ -141,17 +147,36 @@ export default function AgendaPage() {
           </div>
         </div>
       )}
+      {(staff?.length ?? 0) > 1 && (
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por profissional">
+          {[{ id: "", name: "Todos" }, ...(staff ?? [])].map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              aria-pressed={staffFilter === p.id}
+              onClick={() => setStaffFilter(p.id)}
+              className={cn(
+                "rounded-full border px-3 py-1 text-sm hover:bg-muted",
+                staffFilter === p.id && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
+              )}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {(error || loadError) && <p role="alert" className="text-sm text-destructive">{error || loadError}</p>}
 
-      {!items ? (
+      {!shown ? (
         <p className="text-sm text-muted-foreground">Carregando…</p>
-      ) : items.length === 0 ? (
+      ) : shown.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Nenhum agendamento neste dia.
+          {staffFilter ? "Nenhum agendamento para este profissional neste dia." : "Nenhum agendamento neste dia."}
         </p>
       ) : (
         <ul className="divide-y rounded-lg border">
-          {items.map((a) => (
+          {shown.map((a) => (
             <li key={a.id} className="grid gap-3 p-3">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <span className={`w-28 font-medium tabular-nums ${a.status === "cancelled" ? "text-muted-foreground line-through" : ""}`}>
