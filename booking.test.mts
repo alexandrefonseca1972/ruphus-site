@@ -55,6 +55,9 @@ await t.collection("staff").doc("ana").set({ name: "Ana", serviceIds: ["corte", 
 await t.collection("staff").doc("bia").set({ name: "Bia", serviceIds: ["corte"], hours, active: true });
 
 const date = addDays(todayIn(), 7);
+let seq = 0;
+/** Cada cliente com seu telefone: o limite por telefone é testado à parte */
+const outro = () => ({ customerPhone: `11 96${String(100000 + seq++)}` });
 const base = { tenantId: "salao", staffId: "ana", date, customerName: "Cliente", customerPhone: "11 91234-5678" };
 
 const catalog = await loadCatalog(db, "salao");
@@ -71,14 +74,14 @@ assert.equal((await book(db, { ...base, serviceIds: ["luzes"], time: "09:15" }))
 assert.equal((await book(db, { ...base, serviceIds: ["corte"], time: "09:07" })).ok, false, "fora da grade de 15 min");
 assert.equal((await book(db, { ...base, staffId: "bia", serviceIds: ["luzes"], time: "10:00" })).ok, false, "serviço que ela não faz");
 assert.equal((await book(db, { ...base, serviceIds: ["off"], time: "10:00" })).ok, false, "serviço inativo");
-assert.equal((await book(db, { ...base, staffId: "bia", serviceIds: ["corte"], time: "09:00" })).ok, true, "outra profissional, mesmo horário");
+assert.equal((await book(db, { ...base, ...outro(), staffId: "bia", serviceIds: ["corte"], time: "09:00" })).ok, true, "outra profissional, mesmo horário");
 assert.equal((await book(db, { ...base, serviceIds: ["corte"], time: "09:00", date: addDays(todayIn(), -1) })).ok, false, "no passado");
 
 // Vários serviços: Bia faz só corte; Ana faz corte + luzes (30 + 90 = 120 min, R$ 250)
 assert.equal((await book(db, { ...base, staffId: "bia", serviceIds: ["corte", "luzes"], time: "11:00" })).ok, false, "profissional não faz todos");
 assert.equal((await book(db, { ...base, serviceIds: ["corte", "off"], time: "11:00" })).ok, false, "um dos serviços inativo");
 assert.equal(BookingInput.safeParse({ ...base, serviceIds: ["corte", "corte"], time: "11:00" }).success, false, "serviço repetido");
-const combo = { ...base, date: addDays(todayIn(), 8), serviceIds: ["corte", "luzes"] };
+const combo = { ...base, ...outro(), date: addDays(todayIn(), 8), serviceIds: ["corte", "luzes"] };
 assert.deepEqual(await availableSlots(db, combo), ["09:00", "09:15", "09:30", "09:45", "10:00"]); // termina até 12:00
 const booked = await book(db, { ...combo, time: "09:30" });
 assert.equal(booked.ok, true, "combo");
@@ -93,14 +96,16 @@ assert.deepEqual(await availableSlots(db, { ...combo, serviceIds: ["corte"] }), 
 
 // Concorrência: 10 clientes no mesmo horário, só 1 consegue
 const results = await Promise.all(
-  Array.from({ length: 10 }, (_, i) => book(db, { ...base, serviceIds: ["luzes"], time: "10:00", customerName: `C${i}` })),
+  Array.from({ length: 10 }, (_, i) =>
+    book(db, { ...base, serviceIds: ["luzes"], time: "10:00", customerName: `C${i}`, customerPhone: `11 97000-00${String(10 + i)}` }),
+  ),
 );
 assert.equal(results.filter((r) => r.ok).length, 1, "concorrência");
 
 // Cancelado libera o horário
 const luzes = await t.collection("appointments").where("serviceIds", "==", ["luzes"]).get();
 await luzes.docs[0].ref.update({ status: "cancelled" });
-assert.equal((await book(db, { ...base, serviceIds: ["luzes"], time: "10:00" })).ok, true, "após cancelamento");
+assert.equal((await book(db, { ...base, ...outro(), serviceIds: ["luzes"], time: "10:00" })).ok, true, "após cancelamento");
 
 // Remarcar (Ana: corte 09:00 no dia D; combo 09:30–11:30 no dia D+1)
 const D = base.date, D1 = addDays(todayIn(), 8);
@@ -194,6 +199,36 @@ const endLog = (await t.collection("history").doc(after.docs[0].get("lastHistory
 assert.deepEqual([endLog.type, endLog.reason], ["cancelled", "plan_ended"]);
 assert.equal((await t.collection("plans").doc(plan.planId).get()).get("status"), "ended");
 assert.equal((await endPlan(db, { tenantId: "salao", planId: plan.planId }, actor)).ok, false);
+
+// Limites contra reservas em massa (telefone e dispositivo)
+const limDate = addDays(todayIn(), 20);
+const spam = { tenantId: "salao", staffId: "bia", serviceIds: ["corte"], customerName: "Robô", customerPhone: "11 98888-1111" };
+const horarios = ["09:00", "09:30", "10:00", "10:30", "11:00"];
+const feitas = [];
+for (const [i, time] of horarios.entries()) feitas.push(await book(db, { ...spam, date: addDays(limDate, i), time }, "203.0.113.5"));
+assert.deepEqual(feitas.map((r) => r.ok), [true, true, true, false, false], "4ª reserva barrada: já tem 3 futuras");
+assert.match(("error" in feitas[3] && feitas[3].error) || "", /já tem 3 horários/);
+// Cancelar libera o limite de "ativas"
+const doRobo = await t.collection("appointments").where("customerKey", "==", "5511988881111").get();
+for (const d of doRobo.docs.slice(0, 3)) await d.ref.update({ status: "cancelled" });
+assert.equal((await book(db, { ...spam, date: addDays(limDate, 10), time: "09:00" }, "203.0.113.5")).ok, true, "após cancelar, volta a poder");
+// Limite diário por telefone: conta as que deram certo (5 por dia)
+const cancelarTudo = async () => {
+  const snap = await t.collection("appointments").where("customerKey", "==", "5511988881111").get();
+  for (const d of snap.docs) await d.ref.update({ status: "cancelled" });
+};
+await cancelarTudo();
+assert.equal((await book(db, { ...spam, date: addDays(limDate, 11), time: "09:00" }, "203.0.113.5")).ok, true, "5ª do dia ainda passa");
+await cancelarTudo();
+const r5 = await book(db, { ...spam, date: addDays(limDate, 12), time: "09:30" }, "203.0.113.5");
+assert.equal(r5.ok, false, "6ª do dia barrada mesmo sem horários ativos");
+assert.match(("error" in r5 && r5.error) || "", /Muitos agendamentos com este WhatsApp/);
+// Outro telefone, mesmo dispositivo, continua funcionando (limite maior)
+assert.equal((await book(db, { ...spam, customerPhone: "11 98888-2222", date: addDays(limDate, 13), time: "09:00" }, "203.0.113.5")).ok, true);
+// Contadores ficam fora do alcance do app (regras) e guardam só o hash do IP
+const limits = await t.collection("limits").get();
+assert.ok(limits.size >= 2);
+assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP não aparece em claro");
 
 console.log("booking ok");
 process.exit(0);

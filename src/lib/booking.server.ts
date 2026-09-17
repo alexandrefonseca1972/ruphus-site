@@ -1,6 +1,7 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
-import { addDays, customerKey, freeSlots, planDates, weekday, zonedTime } from "@/lib/datetime";
+import { addDays, customerKey, freeSlots, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { Service, Staff, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
@@ -88,6 +89,43 @@ export async function availableSlots(db: Firestore, q: SlotQuery) {
 }
 
 type Actor = { uid: string; email?: string };
+
+// Trava simples contra reservas em massa pela página pública (sem captcha nem serviço externo)
+export const LIMITS = { activePerPhone: 3, dailyPerPhone: 5, dailyPerDevice: 20 };
+const deviceId = (ip: string) => createHash("sha256").update(`siteflow:${ip}`).digest("hex").slice(0, 16);
+
+/** Conta e valida limites do dia. Devolve a mensagem quando estourou. */
+async function limitError(
+  tx: Transaction,
+  t: FirebaseFirestore.DocumentReference,
+  input: BookingInput,
+  ip: string | undefined,
+) {
+  const key = customerKey(input.customerPhone);
+  const day = todayIn();
+  const phoneRef = t.collection("limits").doc(`phone-${key}-${day}`);
+  const deviceRef = ip ? t.collection("limits").doc(`device-${deviceId(ip)}-${day}`) : null;
+  const [phoneDoc, deviceDoc] = await tx.getAll(phoneRef, ...(deviceRef ? [deviceRef] : []));
+  const future = await tx.get(
+    t.collection("appointments").where("customerKey", "==", key).where("start", ">", new Date()),
+  );
+  const active = future.docs.filter((d) => ["booked", "confirmed"].includes(d.get("status"))).length;
+
+  if (active >= LIMITS.activePerPhone) {
+    return { error: `Você já tem ${LIMITS.activePerPhone} horários marcados. Cancele um deles com o salão para marcar outro.` };
+  }
+  if ((phoneDoc.get("count") ?? 0) >= LIMITS.dailyPerPhone) {
+    return { error: "Muitos agendamentos com este WhatsApp hoje. Tente amanhã ou fale com o salão." };
+  }
+  if (deviceDoc && (deviceDoc.get("count") ?? 0) >= LIMITS.dailyPerDevice) {
+    return { error: "Muitos agendamentos deste dispositivo hoje. Tente amanhã ou fale com o salão." };
+  }
+  // ponytail: contadores por dia ficam guardados; se incomodar, ligue TTL no campo day
+  return { bump: () => {
+    tx.set(phoneRef, { count: FieldValue.increment(1), day }, { merge: true });
+    if (deviceRef) tx.set(deviceRef, { count: FieldValue.increment(1), day }, { merge: true });
+  } };
+}
 // Reservas concorrentes no mesmo profissional/dia disputam a mesma transação: mais tentativas antes de desistir
 const TX = { maxAttempts: 10 };
 const BUSY_ERROR = "Muita gente agendando ao mesmo tempo. Tente de novo em instantes.";
@@ -149,15 +187,18 @@ function writeAppointment(
   return ref.id;
 }
 
-export async function book(db: Firestore, input: BookingInput) {
+export async function book(db: Firestore, input: BookingInput, ip?: string) {
   return contended(() => db.runTransaction(async (tx) => {
     const ctx = await slotContext(tx, db, input);
     if (!ctx) return { ok: false as const, error: "Serviço ou profissional indisponível." };
     if (!ctx.slots.includes(input.time)) {
       return { ok: false as const, error: "Esse horário acabou de ser ocupado. Escolha outro." };
     }
+    const limit = await limitError(tx, ctx.t, input, ip);
+    if (limit.error) return { ok: false as const, error: limit.error, field: true as const };
     const customer = await tx.get(ctx.t.collection("customers").doc(customerKey(input.customerPhone)));
     const id = writeAppointment(tx, ctx, input, { by: "cliente", byName: input.customerName }, { renameCustomer: !customer.exists });
+    limit.bump!();
     return { ok: true as const, id };
   }, TX));
 }

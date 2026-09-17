@@ -97,7 +97,7 @@ for (const staffCount of [1, 2, 3, 4, 5]) {
         date,
         time,
         customerName: `Cliente ${staffId}-${time}-${k}`,
-        customerPhone: `1190000${String(1000 + i).slice(-4)}`,
+        customerPhone: `11${String(900000000 + i * 7 + k).slice(-9)}`, // telefone único por tentativa
       })),
     ),
   );
@@ -108,7 +108,7 @@ for (const staffCount of [1, 2, 3, 4, 5]) {
   }
   const burst = await Promise.all(
     Array.from({ length: 10 }, (_, k) =>
-      book(db, { tenantId, staffId: staffIds[0], serviceIds: ["combo"], date: addDays(date, 1), time: "10:00", customerName: `Rajada ${k}`, customerPhone: "11955551111" }),
+      book(db, { tenantId, staffId: staffIds[0], serviceIds: ["combo"], date: addDays(date, 1), time: "10:00", customerName: `Rajada ${k}`, customerPhone: `11955551${String(100 + k)}` }),
     ),
   );
   assert.equal(burst.filter((r) => r.ok).length, 1, "rajada no mesmo horário: só 1 entra");
@@ -120,7 +120,7 @@ for (const staffCount of [1, 2, 3, 4, 5]) {
   // Plano recorrente para cada profissional, no mesmo horário (sem conflito entre eles)
   const plans = await Promise.all(
     staffIds.map((staffId) =>
-      createPlan(db, { tenantId, customerName: `Mensalista ${staffId}`, customerPhone: "11955554444", serviceIds: ["corte"], staffId, weekday: 1, time: "12:00", startDate: addDays(todayIn(), 7), weeks: 8 }, actor),
+      createPlan(db, { tenantId, customerName: `Mensalista ${staffId}`, customerPhone: `1195555${String(4440 + Number(staffId.slice(-1)))}`, serviceIds: ["corte"], staffId, weekday: 1, time: "12:00", startDate: addDays(todayIn(), 7), weeks: 8 }, actor),
     ),
   );
   assert.ok(plans.every((p) => p.ok), "todos os planos criados");

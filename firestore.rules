@@ -71,6 +71,8 @@ service cloud.firestore {
           && getAfter(/databases/$(database)/documents/tenants/$(t)/appointments/$(request.resource.data.appointmentId)).data.status == request.resource.data.type;
       }
 
+      // Contadores anti-abuso: nem leitura nem escrita pelo app
+
       // Clientes e planos recorrentes: gravados só pelo servidor
       match /customers/{c} {
         allow read: if isMember(t);
@@ -81,7 +83,7 @@ service cloud.firestore {
 
       // Qualquer outra coleção do tenant (um nível só: nada de subcoleções como .../members aninhado)
       match /{collection}/{doc} {
-        allow read, write: if !(collection in ['members', 'appointments', 'history', 'customers', 'plans']) && isMember(t);
+        allow read, write: if !(collection in ['members', 'appointments', 'history', 'customers', 'plans', 'limits']) && isMember(t);
       }
     }
   }

@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { adminDb } from "@/lib/admin";
 import { availableSlots, book } from "@/lib/booking.server";
 import { MAX_DAYS_AHEAD, addDays, todayIn } from "@/lib/datetime";
@@ -19,5 +20,7 @@ export async function createBooking(input: unknown) {
   if (!withinRange(b.data.date)) {
     return { ok: false as const, error: `Agende com até ${MAX_DAYS_AHEAD} dias de antecedência.`, field: true as const };
   }
-  return book(adminDb, b.data);
+  // IP só para contar tentativas por dispositivo; guardado apenas como hash
+  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim();
+  return book(adminDb, b.data, ip);
 }
