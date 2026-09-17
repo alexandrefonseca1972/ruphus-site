@@ -63,6 +63,8 @@ assert.deepEqual(await availableSlots(db, combo), ["09:00", "09:15", "09:30", "0
 const booked = await book(db, { ...combo, time: "09:30" });
 assert.equal(booked.ok, true, "combo");
 const saved = (await t.collection("appointments").doc(booked.ok ? booked.id : "").get()).data()!;
+const created = (await t.collection("history").doc(saved.lastHistoryId).get()).data()!;
+assert.deepEqual([created.type, created.by, created.byName, created.appointmentId], ["created", "cliente", "Cliente", booked.ok && booked.id]);
 assert.equal(saved.serviceName, "Corte + Luzes");
 assert.equal(saved.durationMin, 120);
 assert.equal(saved.priceCents, 25000);
@@ -84,20 +86,28 @@ assert.equal((await book(db, { ...base, serviceIds: ["luzes"], time: "10:00" }))
 const D = base.date, D1 = addDays(todayIn(), 8);
 const [corte] = (await t.collection("appointments").where("staffId", "==", "ana").where("start", "==", zonedTime(D, "09:00")).get()).docs;
 assert.ok((await rescheduleSlots(db, { tenantId: "salao", appointmentId: corte.id, date: D })).includes("09:00"), "próprio horário não conta como ocupado");
-assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "10:00" })).ok, false, "conflito com combo");
+const actor = { uid: "owner", email: "dono@teste.dev" };
+assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "10:00" }, actor)).ok, false, "conflito com combo");
 await corte.ref.update({ status: "confirmed" });
-assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D, time: "09:15" })).ok, true, "sobrepõe só a si mesmo");
+assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D, time: "09:15" }, actor)).ok, true, "sobrepõe só a si mesmo");
 let moved = (await corte.ref.get()).data()!;
+const log = (await t.collection("history").doc(moved.lastHistoryId).get()).data()!;
+assert.deepEqual([log.type, log.by, log.byName], ["rescheduled", "owner", "dono@teste.dev"]);
+assert.equal(log.from.start.toMillis(), zonedTime(D, "09:00").getTime());
+assert.equal(log.to.start.toMillis(), zonedTime(D, "09:15").getTime());
 assert.equal(moved.start.toMillis(), zonedTime(D, "09:15").getTime());
 assert.equal(moved.end.toMillis() - moved.start.toMillis(), 30 * 60_000);
 assert.equal(moved.status, "booked", "remarcado volta a aguardar confirmação");
-assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "11:30" })).ok, true, "outro dia");
+assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "11:30" }, actor)).ok, true, "outro dia");
 moved = (await corte.ref.get()).data()!;
 assert.equal(moved.start.toMillis(), zonedTime(D1, "11:30").getTime());
 assert.ok((await availableSlots(db, { ...base, serviceIds: ["corte"] })).includes("09:00"), "horário antigo liberado");
-assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: "nao-existe", date: D1, time: "09:00" })).ok, false);
+assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: "nao-existe", date: D1, time: "09:00" }, actor)).ok, false);
+assert.equal((await t.collection("history").where("appointmentId", "==", corte.id).get()).size, 3, "criado + 2 remarcações");
+await corte.ref.update({ status: "no_show" });
+assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "09:00" }, actor)).ok, false, "falta não remarca");
 await corte.ref.update({ status: "cancelled" });
-assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "09:00" })).ok, false, "cancelado não remarca");
+assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "09:00" }, actor)).ok, false, "cancelado não remarca");
 
 // Membro do tenant (emulador de Auth)
 const auth = getAuth(app);

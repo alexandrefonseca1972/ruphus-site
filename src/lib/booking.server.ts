@@ -92,6 +92,8 @@ export async function availableSlots(db: Firestore, q: SlotQuery) {
   return db.runTransaction(async (tx) => (await slotContext(tx, db, q))?.slots ?? [], { readOnly: true });
 }
 
+type Actor = { uid: string; email?: string };
+
 export async function book(db: Firestore, input: BookingInput) {
   return db.runTransaction(async (tx) => {
     const ctx = await slotContext(tx, db, input);
@@ -101,7 +103,16 @@ export async function book(db: Firestore, input: BookingInput) {
     }
     const start = zonedTime(input.date, input.time);
     const ref = ctx.t.collection("appointments").doc();
+    const history = ctx.t.collection("history").doc();
+    tx.create(history, {
+      appointmentId: ref.id,
+      type: "created",
+      at: FieldValue.serverTimestamp(),
+      by: "cliente",
+      byName: input.customerName,
+    });
     tx.create(ref, {
+      lastHistoryId: history.id,
       serviceIds: input.serviceIds,
       serviceName: ctx.svc.map((s) => s.name).join(" + "),
       durationMin: ctx.durationMin,
@@ -122,25 +133,37 @@ export async function book(db: Firestore, input: BookingInput) {
 async function rescheduleContext(tx: Transaction, db: Firestore, q: Omit<RescheduleInput, "time">) {
   const ref = db.doc(`tenants/${q.tenantId}/appointments/${q.appointmentId}`);
   const appt = await tx.get(ref);
-  if (!appt.exists || appt.get("status") === "cancelled") return null;
+  if (!appt.exists || !["booked", "confirmed"].includes(appt.get("status"))) return null;
   const query = { tenantId: q.tenantId, serviceIds: appt.get("serviceIds") as string[], staffId: appt.get("staffId") as string, date: q.date };
   const ctx = await slotContext(tx, db, query, q.appointmentId);
-  return ctx && { ...ctx, ref };
+  return ctx && { ...ctx, ref, appt };
 }
 
 export async function rescheduleSlots(db: Firestore, q: Omit<RescheduleInput, "time">) {
   return db.runTransaction(async (tx) => (await rescheduleContext(tx, db, q))?.slots ?? [], { readOnly: true });
 }
 
-export async function reschedule(db: Firestore, input: RescheduleInput) {
+export async function reschedule(db: Firestore, input: RescheduleInput, actor: Actor) {
   return db.runTransaction(async (tx) => {
     const ctx = await rescheduleContext(tx, db, input);
     if (!ctx) return { ok: false as const, error: "Agendamento, serviço ou profissional indisponível." };
     if (!ctx.slots.includes(input.time)) return { ok: false as const, error: "Esse horário não está livre. Escolha outro." };
     const start = zonedTime(input.date, input.time);
+    const end = new Date(start.getTime() + ctx.durationMin * 60_000);
+    const history = ctx.t.collection("history").doc();
+    tx.create(history, {
+      appointmentId: ctx.ref.id,
+      type: "rescheduled",
+      at: FieldValue.serverTimestamp(),
+      by: actor.uid,
+      byName: actor.email ?? actor.uid,
+      from: { start: ctx.appt.get("start"), end: ctx.appt.get("end") },
+      to: { start, end },
+    });
     tx.update(ctx.ref, {
+      lastHistoryId: history.id,
       start,
-      end: new Date(start.getTime() + ctx.durationMin * 60_000),
+      end,
       status: "booked", // precisa de nova confirmação
       rescheduledAt: FieldValue.serverTimestamp(),
     });

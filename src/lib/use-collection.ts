@@ -27,7 +27,7 @@ export function useCollection<S extends z.ZodType>(
         setResult({
           for: current,
           items: snap.docs.flatMap((d) => {
-            const r = schema.safeParse(d.data());
+            const r = schema.safeParse(d.data({ serverTimestamps: "estimate" }));
             return r.success ? [{ ...(r.data as object), id: d.id } as Item] : [];
           }),
         }),

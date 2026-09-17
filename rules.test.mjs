@@ -1,6 +1,6 @@
 // Rode: npm run test:rules
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
-import { collectionGroup, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch } from "firebase/firestore";
+import { collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from "firebase/firestore";
 import { getBytes, ref, uploadBytes } from "firebase/storage";
 import { readFileSync } from "node:fs";
 
@@ -9,7 +9,7 @@ const env = await initializeTestEnvironment({
   firestore: { rules: readFileSync("firestore.rules", "utf8"), host: "127.0.0.1", port: 8080 },
   storage: { rules: readFileSync("storage.rules", "utf8"), host: "127.0.0.1", port: 9199 },
 });
-const as = (uid) => env.authenticatedContext(uid).firestore();
+const as = (uid) => env.authenticatedContext(uid, { email: `${uid}@teste.dev` }).firestore();
 
 function create(db, slug, uid) {
   const b = writeBatch(db);
@@ -44,6 +44,38 @@ await assertFails(updateDoc(doc(bob, "tenants/acme"), { ownerId: "bob" }));
 // Meus tenants
 await assertSucceeds(getDocs(query(collectionGroup(bob, "members"), where("uid", "==", "bob"))));
 await assertFails(getDocs(collectionGroup(mallory, "members")));
+
+// Agendamentos + histórico (criados pelo servidor; aqui simulados sem regras)
+await env.withSecurityRulesDisabled(async (ctx) => {
+  const db = ctx.firestore();
+  await setDoc(doc(db, "tenants/acme/appointments/a1"), { status: "booked", start: new Date(), customerName: "X" });
+  await setDoc(doc(db, "tenants/acme/history/old"), { appointmentId: "a1", type: "created", by: "cliente" });
+});
+function changeStatus(db, uid, status, { apptId = "a1", type = status, byName = `${uid}@teste.dev`, extra = {}, apptExtra = {}, reuse } = {}) {
+  const h = reuse ? doc(db, "tenants/acme/history", reuse) : doc(collection(db, "tenants/acme/history"));
+  const b = writeBatch(db);
+  b.set(h, { appointmentId: apptId, type, at: serverTimestamp(), by: uid, byName, ...extra });
+  b.update(doc(db, "tenants/acme/appointments", apptId), { status, lastHistoryId: h.id, ...apptExtra });
+  return b.commit();
+}
+await assertFails(updateDoc(doc(bob, "tenants/acme/appointments/a1"), { status: "confirmed" })); // sem histórico
+await assertFails(changeStatus(mallory, "mallory", "confirmed")); // não membro
+await assertFails(changeStatus(bob, "bob", "confirmed", { type: "cancelled" })); // histórico mente o tipo
+await assertFails(changeStatus(bob, "bob", "confirmed", { byName: "alice@teste.dev" })); // se passa por outro
+await assertFails(changeStatus(bob, "bob", "confirmed", { reuse: "old" })); // reaproveita registro existente
+await assertFails(updateDoc(doc(bob, "tenants/acme/appointments/a1"), { status: "cancelled", lastHistoryId: "old" })); // aponta para registro antigo
+await assertFails(changeStatus(bob, "bob", "confirmed", { apptExtra: { start: new Date(0) } })); // muda horário pelo cliente
+await assertFails(changeStatus(bob, "bob", "confirmed", { extra: { note: "x" } })); // campo extra
+await assertFails(changeStatus(bob, "bob", "booked")); // status inválido
+await assertSucceeds(changeStatus(bob, "bob", "confirmed"));
+await assertSucceeds(changeStatus(alice, "alice", "no_show"));
+await assertFails(changeStatus(alice, "alice", "confirmed")); // falta é final no painel
+await assertFails(updateDoc(doc(alice, "tenants/acme/history/old"), { type: "x" }));
+await assertFails(deleteDoc(doc(alice, "tenants/acme/history/old")));
+await assertFails(deleteDoc(doc(alice, "tenants/acme/appointments/a1")));
+await assertFails(setDoc(doc(alice, "tenants/acme/appointments/novo"), { status: "booked" })); // só o servidor cria
+await assertSucceeds(getDocs(query(collection(bob, "tenants/acme/history"), where("appointmentId", "==", "a1"))));
+await assertFails(getDocs(query(collection(mallory, "tenants/acme/history"), where("appointmentId", "==", "a1"))));
 
 // Storage (bob é admin de acme, mallory não é membro)
 const file = (uid, path) => ref(env.authenticatedContext(uid).storage(), path);

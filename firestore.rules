@@ -44,9 +44,35 @@ service cloud.firestore {
         allow delete: if hasRole(t, ['owner', 'admin']) && resource.data.role != 'owner';
       }
 
+      // Agendamentos são criados e remarcados só pelo servidor (Admin SDK).
+      // No painel apenas o status muda, sempre com um registro novo no histórico no mesmo batch.
+      // Não há delete: o histórico de tudo fica guardado.
+      match /appointments/{a} {
+        allow read: if isMember(t);
+        allow update: if isMember(t)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'lastHistoryId'])
+          && resource.data.status in ['booked', 'confirmed']
+          && request.resource.data.status in ['confirmed', 'cancelled', 'no_show']
+          && request.resource.data.status != resource.data.status
+          && !exists(/databases/$(database)/documents/tenants/$(t)/history/$(request.resource.data.lastHistoryId))
+          && getAfter(/databases/$(database)/documents/tenants/$(t)/history/$(request.resource.data.lastHistoryId)).data.appointmentId == a;
+      }
+
+      // Histórico: membros leem e criam; ninguém edita ou apaga
+      match /history/{h} {
+        allow read: if isMember(t);
+        allow create: if isMember(t)
+          && request.resource.data.keys().hasOnly(['appointmentId', 'type', 'at', 'by', 'byName'])
+          && request.resource.data.by == request.auth.uid
+          && request.resource.data.byName == request.auth.token.email
+          && request.resource.data.at == request.time
+          && getAfter(/databases/$(database)/documents/tenants/$(t)/appointments/$(request.resource.data.appointmentId)).data.lastHistoryId == h
+          && getAfter(/databases/$(database)/documents/tenants/$(t)/appointments/$(request.resource.data.appointmentId)).data.status == request.resource.data.type;
+      }
+
       // Qualquer outra coleção do tenant: só membros
       match /{collection}/{doc=**} {
-        allow read, write: if collection != 'members' && isMember(t);
+        allow read, write: if !(collection in ['members', 'appointments', 'history']) && isMember(t);
       }
     }
   }

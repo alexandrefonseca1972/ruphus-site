@@ -18,10 +18,11 @@ export async function getRescheduleSlots(idToken: string, input: unknown) {
 export async function rescheduleAppointment(idToken: string, input: unknown) {
   const r = RescheduleInput.safeParse(input);
   if (!r.success) return { ok: false as const, error: r.error.issues[0].message };
+  let user;
   try {
-    await requireMember(verifyFirebaseToken, adminDb, idToken, r.data.tenantId);
+    user = await requireMember(verifyFirebaseToken, adminDb, idToken, r.data.tenantId);
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
   }
-  return reschedule(adminDb, r.data);
+  return reschedule(adminDb, r.data, user);
 }
