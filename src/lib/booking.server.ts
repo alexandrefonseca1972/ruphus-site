@@ -97,8 +97,9 @@ async function contended<T>(run: () => Promise<T>): Promise<T | { ok: false; err
   try {
     return await run();
   } catch (err) {
-    const code = (err as { code?: number | string }).code;
-    if (code === 10 || code === "aborted") {
+    const { code, message = "" } = err as { code?: number | string; message?: string };
+    // 10 = ABORTED; 4 = DEADLINE_EXCEEDED, que o Firestore usa para estouro de trava
+    if (code === 10 || code === "aborted" || (code === 4 && /lock|contention/i.test(message))) {
       console.error("[booking] disputa na transação", err);
       return { ok: false as const, error: BUSY_ERROR };
     }
@@ -184,6 +185,8 @@ export async function createPlan(db: Firestore, input: PlanInput, actor: Actor) 
     const svc = services.map((s) => s.data!);
     const durationMin = svc.reduce((sum, s) => sum + s.durationMin, 0);
     const ctx: WriteContext = { t, svc, durationMin, staff: staff.data };
+    // ponytail: uma consulta para toda a janela trava o período inteiro do plano;
+    // se planos longos começarem a falhar por disputa, quebre em blocos mensais
     const booked = await tx.get(
       t
         .collection("appointments")

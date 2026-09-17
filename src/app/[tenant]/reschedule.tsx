@@ -31,7 +31,11 @@ export function Reschedule(props: {
     let current = true;
     idToken()
       .then((token) => getRescheduleSlots(token, { tenantId, appointmentId: appointment.id, date }))
-      .then((s) => current && (setError(""), setFetched({ for: key, slots: s })))
+      .then((r) => {
+        if (!current) return;
+        if (!r.ok) setError(r.error);
+        setFetched({ for: key, slots: r.ok ? r.slots : [] });
+      })
       .catch((err: Error) => current && (setError(err.message), setFetched({ for: key, slots: [] })));
     return () => {
       current = false;
@@ -73,6 +77,7 @@ export function Reschedule(props: {
             onChange={(e) => {
               setDate(e.target.value);
               setTime("");
+              setError("");
             }}
           />
         </div>

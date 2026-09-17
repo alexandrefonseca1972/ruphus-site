@@ -203,6 +203,8 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
     const result = await createBooking({ tenantId, serviceIds, staffId, date, time, customerName, customerPhone })
       .catch(() => ({ ok: false as const, error: "Não foi possível confirmar agora. Verifique sua conexão e tente de novo." }))
       .finally(() => setBusy(false));
+    // Erro nos dados: fica junto dos campos, sem perder o horário escolhido
+    if (!result.ok && "field" in result) return setSubmitError(result.error);
     if (result.ok) {
       try {
         localStorage.setItem(CONTACT_KEY, JSON.stringify({ name: customerName.trim(), phone: customerPhone }));
@@ -214,7 +216,10 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
     setSlotError(result.error);
     setTime("");
     setSlotsVersion((v) => v + 1);
-    requestAnimationFrame(() => (slotErrorRef.current ?? dateRef.current)?.focus?.() ?? scrollToSection(dateRef.current));
+    requestAnimationFrame(() => {
+      if (slotErrorRef.current) slotErrorRef.current.focus();
+      else scrollToSection(dateRef.current);
+    });
   }
 
   if (done && professional) {

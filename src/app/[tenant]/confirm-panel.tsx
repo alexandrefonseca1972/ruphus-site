@@ -10,7 +10,7 @@ export function ConfirmPanel(props: {
   confirmLabel: string;
   /** Mostra "Avisar o cliente pelo WhatsApp" (marcado por padrão) */
   notifyLabel?: string;
-  onConfirm: (notify: boolean) => void | Promise<void>;
+  onConfirm: (notify: boolean) => unknown | Promise<unknown>;
   onCancel: () => void;
 }) {
   const { title, description, confirmLabel, notifyLabel, onConfirm, onCancel } = props;

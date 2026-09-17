@@ -72,28 +72,35 @@ export default function AgendaPage() {
   );
 
   // Toda mudança de status grava um registro no histórico no mesmo batch (exigido pelas regras)
+  /** Devolve true quando gravou; só então o cliente pode ser avisado. */
   async function changeStatus(a: Appointment, status: "confirmed" | "cancelled" | "no_show") {
     setError("");
     const user = auth.currentUser;
-    if (!user) return setError("Sessão expirada. Entre novamente.");
+    if (!user) {
+      setError("Sessão expirada. Entre novamente.");
+      return false;
+    }
     const entry = doc(collection(db, "tenants", tenant.id, "history"));
     const batch = writeBatch(db);
     batch.set(entry, { appointmentId: a.id, type: status, at: serverTimestamp(), by: user.uid, byName: user.email });
     batch.update(doc(db, "tenants", tenant.id, "appointments", a.id), { status, lastHistoryId: entry.id });
     try {
       await batch.commit();
+      return true;
     } catch (err) {
       setError(errorMessage(err));
+      return false;
     }
   }
 
   async function notifyAndChange(a: Appointment, status: "confirmed" | "cancelled", message: string) {
-    const link = whatsappLink(a.customerPhone, message);
-    const opened = openExternal(link); // nova aba; false = webview bloqueou
     setPending(a.id);
-    await changeStatus(a, status);
+    const saved = await changeStatus(a, status);
     setPending(null);
-    if (!opened) location.assign(link); // só depois de gravar, senão a mudança se perde
+    // Falhou a gravação: não avisa o cliente de algo que não aconteceu
+    if (!saved) return;
+    const link = whatsappLink(a.customerPhone, message);
+    if (!openExternal(link)) location.assign(link); // webview bloqueou a aba nova
   }
 
   function cancel(a: Appointment, notify: boolean) {

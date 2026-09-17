@@ -15,7 +15,9 @@ export async function getSlots(input: unknown) {
 
 export async function createBooking(input: unknown) {
   const b = BookingInput.safeParse(input);
-  if (!b.success) return { ok: false as const, error: b.error.issues[0].message };
-  if (!withinRange(b.data.date)) return { ok: false as const, error: `Agende com até ${MAX_DAYS_AHEAD} dias de antecedência.` };
+  if (!b.success) return { ok: false as const, error: b.error.issues[0].message, field: true as const };
+  if (!withinRange(b.data.date)) {
+    return { ok: false as const, error: `Agende com até ${MAX_DAYS_AHEAD} dias de antecedência.`, field: true as const };
+  }
   return book(adminDb, b.data);
 }

@@ -5,7 +5,7 @@ const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário inválido")
 const id = z.string().min(1).max(128).regex(/^[^/]+$/);
 
 export const Service = z.object({
-  name: z.string().trim().min(1, "Informe o nome").max(80),
+  name: z.string().trim().min(1, "Informe o nome").max(80, "Nome muito longo"),
   durationMin: z.number().int().min(5, "Duração mínima de 5 minutos").max(480, "Duração máxima de 8 horas"),
   priceCents: z.number().int().min(0, "Preço inválido"),
   active: z.boolean(),
@@ -17,7 +17,7 @@ export const WindowSchema = z
   .refine((w) => w.start < w.end, "O fim do expediente precisa ser depois do início");
 
 export const Staff = z.object({
-  name: z.string().trim().min(1, "Informe o nome").max(80),
+  name: z.string().trim().min(1, "Informe o nome").max(80, "Nome muito longo"),
   serviceIds: z.array(id).min(1, "Escolha pelo menos um serviço"),
   // Chave = dia da semana (0 = domingo). Dia ausente = não atende.
   hours: z.partialRecord(z.enum(["0", "1", "2", "3", "4", "5", "6"]), WindowSchema),
@@ -39,7 +39,7 @@ export type SlotQuery = z.infer<typeof SlotQuery>;
 
 export const BookingInput = SlotQuery.extend({
   time: hhmm,
-  customerName: z.string().trim().min(2, "Informe seu nome").max(80),
+  customerName: z.string().trim().min(2, "Informe seu nome").max(80, "Nome muito longo"),
   customerPhone: z
     .string()
     .trim()

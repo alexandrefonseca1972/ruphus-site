@@ -18,6 +18,10 @@ export const handleSubmit =
 export function openExternal(url: string) {
   const win = window.open(url, "_blank");
   if (!win) return false;
-  win.opener = null;
+  try {
+    win.opener = null;
+  } catch {
+    // Já navegou para outro domínio: opener vira somente leitura
+  }
   return true;
 }

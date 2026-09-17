@@ -11,13 +11,14 @@ const SlotsInput = RescheduleInput.omit({ time: true });
 
 export async function getRescheduleSlots(idToken: string, input: unknown) {
   const q = SlotsInput.safeParse(input);
-  if (!q.success) return [];
+  if (!q.success) return { ok: false as const, error: "Dados inválidos." };
   try {
     await requireMember(verifyFirebaseToken, adminDb, idToken, q.data.tenantId);
-    return await rescheduleSlots(adminDb, q.data);
+    return { ok: true as const, slots: await rescheduleSlots(adminDb, q.data) };
   } catch (err) {
+    if (err instanceof UserError) return { ok: false as const, error: err.message };
     console.error("[agenda] falha ao buscar horários para remarcar", err);
-    return [];
+    return { ok: false as const, error: "Não foi possível carregar os horários." };
   }
 }
 
