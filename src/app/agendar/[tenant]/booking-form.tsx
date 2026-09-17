@@ -225,7 +225,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
         details: `Com ${professional.name}. ${formatBRL(totalCents)}.`,
       });
     return (
-      <main className="mx-auto w-full max-w-lg p-4 py-12">
+      <main className="mx-auto w-full max-w-lg p-4 py-12 pb-[max(3rem,env(safe-area-inset-bottom))]">
         <Card>
           <CardHeader>
             <p className="text-sm text-emerald-700 dark:text-emerald-400" role="status">✓ Agendamento confirmado</p>
@@ -253,7 +253,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
   }
 
   return (
-    <main className="mx-auto grid w-full max-w-lg gap-8 p-4 py-10">
+    <main className="mx-auto grid w-full max-w-lg gap-8 p-4 py-10 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
       <header>
         <p className="text-sm text-muted-foreground">Agendamento online</p>
         <h1 className="text-2xl font-semibold">{name}</h1>
@@ -312,7 +312,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
                   disabled={!worksOn(d)}
                   onClick={() => pickDate(d)}
                   aria-label={`${longDate(d)}${worksOn(d) ? "" : " (não atende)"}`}
-                  className="grid w-16 shrink-0 snap-start justify-items-center gap-0 px-1 py-2 text-center"
+                  className="grid min-h-11 w-16 shrink-0 snap-start justify-items-center gap-0 px-1 py-2 text-center"
                 >
                   <span className="text-xs capitalize opacity-80">{i === 0 ? "hoje" : i === 1 ? "amanhã" : chip.weekday}</span>
                   <span className="text-lg leading-6 font-semibold tabular-nums">{chip.day}</span>
@@ -326,7 +326,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
             <Input
               id="date"
               type="date"
-              className="w-auto"
+              className="h-11 w-auto md:h-8"
               value={date}
               min={today}
               max={addDays(today, MAX_DAYS_AHEAD)}
@@ -358,7 +358,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
                       <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{period.label}</h3>
                       <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
                         {list.map((s) => (
-                          <Choice key={s} selected={s === time} onClick={() => pickTime(s)} className="text-center tabular-nums">
+                          <Choice key={s} selected={s === time} onClick={() => pickTime(s)} className="min-h-11 text-center tabular-nums">
                             {s}
                           </Choice>
                         ))}
@@ -416,7 +416,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
               )}
             </Field>
             {submitError && <p role="alert" className="text-sm text-destructive">{submitError}</p>}
-            <Button type="submit" size="lg" disabled={busy}>
+            <Button type="submit" size="lg" className="h-12 text-base" disabled={busy}>
               {busy ? "Confirmando…" : `Confirmar agendamento às ${time}`}
             </Button>
           </form>
