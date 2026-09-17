@@ -1,0 +1,982 @@
+{
+ "tosa-mesa": {
+  "alt": "Profissional tosando um cão na mesa de banho e tosa",
+  "pexels": "19145893",
+  "w": 1400,
+  "h": 934,
+  "kb": 167
+ },
+ "tosa-pente": {
+  "alt": "Pente passando no pelo de um cão durante a tosa",
+  "pexels": "6816850",
+  "w": 1400,
+  "h": 933,
+  "kb": 117
+ },
+ "tosa-pomerania": {
+  "alt": "Tosa de um lulu da pomerânia sobre a mesa",
+  "pexels": "7391070",
+  "w": 1400,
+  "h": 933,
+  "kb": 123
+ },
+ "tosa-salao": {
+  "alt": "Cão esperando o banho no salão de banho e tosa",
+  "pexels": "19145874",
+  "w": 1400,
+  "h": 934,
+  "kb": 88
+ },
+ "banho-banheira": {
+  "alt": "Cão tomando banho na banheira do pet shop",
+  "pexels": "19145895",
+  "w": 1400,
+  "h": 934,
+  "kb": 92
+ },
+ "banho-ducha": {
+  "alt": "Yorkshire recebendo ducha durante o banho",
+  "pexels": "6131161",
+  "w": 933,
+  "h": 1400,
+  "kb": 91
+ },
+ "banho-secagem": {
+  "alt": "Cão pequeno sendo lavado com shampoo",
+  "pexels": "19145891",
+  "w": 934,
+  "h": 1400,
+  "kb": 98
+ },
+ "vet-dupla": {
+  "alt": "Dois veterinários examinando um cão na clínica",
+  "pexels": "7469222",
+  "w": 1400,
+  "h": 933,
+  "kb": 109
+ },
+ "vet-consulta": {
+  "alt": "Veterinário segurando um cão durante a consulta",
+  "pexels": "6235648",
+  "w": 1400,
+  "h": 933,
+  "kb": 81
+ },
+ "vet-mesa": {
+  "alt": "Veterinário examinando um cão sobre a mesa clínica",
+  "pexels": "6235114",
+  "w": 1400,
+  "h": 933,
+  "kb": 115
+ },
+ "vet-exame": {
+  "alt": "Veterinário usando equipamento para examinar um cão",
+  "pexels": "6235240",
+  "w": 1400,
+  "h": 933,
+  "kb": 81
+ },
+ "vet-cao-calmo": {
+  "alt": "Veterinário acalmando um cão antes do exame",
+  "pexels": "7468978",
+  "w": 1400,
+  "h": 933,
+  "kb": 82
+ },
+ "gato-exame": {
+  "alt": "Veterinária examinando um gato branco na clínica",
+  "pexels": "6816859",
+  "w": 1400,
+  "h": 933,
+  "kb": 112
+ },
+ "gato-filhote": {
+  "alt": "Filhote de gato sendo atendido na mesa da clínica",
+  "pexels": "33998172",
+  "w": 1400,
+  "h": 933,
+  "kb": 111
+ },
+ "gato-vacina": {
+  "alt": "Aplicação de vacina em um gato na clínica",
+  "pexels": "6816869",
+  "w": 1400,
+  "h": 933,
+  "kb": 115
+ },
+ "proc-ultrassom": {
+  "alt": "Veterinária fazendo ultrassom em um cão",
+  "pexels": "6234980",
+  "w": 1400,
+  "h": 933,
+  "kb": 77
+ },
+ "proc-curativo": {
+  "alt": "Curativo sendo feito na pata de um gato",
+  "pexels": "6816862",
+  "w": 1400,
+  "h": 933,
+  "kb": 112
+ },
+ "proc-dental": {
+  "alt": "Limpeza dental em um cão de pequeno porte",
+  "pexels": "6816865",
+  "w": 933,
+  "h": 1400,
+  "kb": 137
+ },
+ "loja-balcao": {
+  "alt": "Atendimento no balcão de um pet shop",
+  "pexels": "37648959",
+  "w": 1400,
+  "h": 933,
+  "kb": 195
+ },
+ "loja-coleiras": {
+  "alt": "Coleiras e acessórios expostos no pet shop",
+  "pexels": "37559533",
+  "w": 1400,
+  "h": 933,
+  "kb": 324
+ },
+ "loja-racao": {
+  "alt": "Ração seca em close, grãos para cães",
+  "pexels": "34952074",
+  "w": 1400,
+  "h": 933,
+  "kb": 172
+ },
+ "feliz-tutora": {
+  "alt": "Tutora abraçando o cão sorrindo",
+  "pexels": "5212467",
+  "w": 1400,
+  "h": 1122,
+  "kb": 135
+ },
+ "feliz-lambida": {
+  "alt": "Cão lambendo o rosto da tutora",
+  "pexels": "3726677",
+  "w": 1400,
+  "h": 933,
+  "kb": 103
+ },
+ "feliz-colo": {
+  "alt": "Cão no colo do tutor recebendo carinho",
+  "pexels": "5257628",
+  "w": 1400,
+  "h": 933,
+  "kb": 115
+ },
+ "hotel-corrida": {
+  "alt": "Dois cães correndo soltos no gramado",
+  "pexels": "31815130",
+  "w": 1400,
+  "h": 933,
+  "kb": 148
+ },
+ "hotel-bolinha": {
+  "alt": "Cão correndo com a bolinha no parque",
+  "pexels": "34060703",
+  "w": 933,
+  "h": 1400,
+  "kb": 246
+ },
+ "br-tutora-pit": {
+  "alt": "Tutora brasileira abraçando seu cão no gramado",
+  "pexels": "16938627",
+  "w": 1400,
+  "h": 933,
+  "kb": 189
+ },
+ "br-casal-sp": {
+  "alt": "Casal brasileiro em casa com o cão no colo",
+  "pexels": "35316893",
+  "w": 933,
+  "h": 1400,
+  "kb": 115
+ },
+ "br-retrato": {
+  "alt": "Tutora brasileira ao lado do seu cão preto",
+  "pexels": "32057783",
+  "w": 933,
+  "h": 1400,
+  "kb": 90
+ },
+ "br-abraco": {
+  "alt": "Mulher brasileira abraçando o cão sorrindo",
+  "pexels": "5257594",
+  "w": 933,
+  "h": 1400,
+  "kb": 169
+ },
+ "br-sorriso": {
+  "alt": "Tutora sorrindo com o cão no colo",
+  "pexels": "5257633",
+  "w": 933,
+  "h": 1400,
+  "kb": 134
+ },
+ "br-parque-sp": {
+  "alt": "Tutora acariciando o cão em um parque de São Paulo",
+  "pexels": "16620577",
+  "w": 933,
+  "h": 1400,
+  "kb": 127
+ },
+ "vt-22504402": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "22504402",
+  "w": 1400,
+  "h": 933,
+  "kb": 146
+ },
+ "vt-23692683": {
+  "alt": "Veterinário examinando um pet na clínica",
+  "pexels": "23692683",
+  "w": 933,
+  "h": 1400,
+  "kb": 166
+ },
+ "vt-28644631": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "28644631",
+  "w": 933,
+  "h": 1400,
+  "kb": 92
+ },
+ "vt-33394308": {
+  "alt": "Veterinário examinando um pet na clínica",
+  "pexels": "33394308",
+  "w": 1400,
+  "h": 933,
+  "kb": 107
+ },
+ "vt-33394322": {
+  "alt": "Consulta veterinária com o pet sobre a mesa",
+  "pexels": "33394322",
+  "w": 1400,
+  "h": 933,
+  "kb": 162
+ },
+ "vt-33394375": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "33394375",
+  "w": 1400,
+  "h": 933,
+  "kb": 253
+ },
+ "vt-4074727": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "4074727",
+  "w": 1400,
+  "h": 933,
+  "kb": 96
+ },
+ "ts-6130968": {
+  "alt": "Profissional fazendo a tosa de um pet",
+  "pexels": "6130968",
+  "w": 933,
+  "h": 1400,
+  "kb": 110
+ },
+ "ts-6130984": {
+  "alt": "Banho e tosa em salão especializado",
+  "pexels": "6130984",
+  "w": 933,
+  "h": 1400,
+  "kb": 74
+ },
+ "ts-6130985": {
+  "alt": "Escovação e acabamento do pelo no salão pet",
+  "pexels": "6130985",
+  "w": 933,
+  "h": 1400,
+  "kb": 95
+ },
+ "vt-6234607": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "6234607",
+  "w": 933,
+  "h": 1400,
+  "kb": 87
+ },
+ "vt-6234608": {
+  "alt": "Consulta veterinária com o pet sobre a mesa",
+  "pexels": "6234608",
+  "w": 1400,
+  "h": 933,
+  "kb": 100
+ },
+ "vt-6234615": {
+  "alt": "Veterinário examinando um pet na clínica",
+  "pexels": "6234615",
+  "w": 933,
+  "h": 1400,
+  "kb": 100
+ },
+ "vt-6234627": {
+  "alt": "Veterinário examinando um pet na clínica",
+  "pexels": "6234627",
+  "w": 933,
+  "h": 1400,
+  "kb": 74
+ },
+ "vt-6235011": {
+  "alt": "Veterinário examinando um pet na clínica",
+  "pexels": "6235011",
+  "w": 1400,
+  "h": 933,
+  "kb": 116
+ },
+ "vt-6235013": {
+  "alt": "Consulta veterinária com o pet sobre a mesa",
+  "pexels": "6235013",
+  "w": 1400,
+  "h": 933,
+  "kb": 103
+ },
+ "vt-6235023": {
+  "alt": "Veterinário examinando um pet na clínica",
+  "pexels": "6235023",
+  "w": 933,
+  "h": 1400,
+  "kb": 76
+ },
+ "vt-6235108": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "6235108",
+  "w": 1400,
+  "h": 933,
+  "kb": 110
+ },
+ "vt-6235111": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "6235111",
+  "w": 1400,
+  "h": 933,
+  "kb": 74
+ },
+ "vt-6235112": {
+  "alt": "Consulta veterinária com o pet sobre a mesa",
+  "pexels": "6235112",
+  "w": 933,
+  "h": 1400,
+  "kb": 82
+ },
+ "vt-6235115": {
+  "alt": "Consulta veterinária com o pet sobre a mesa",
+  "pexels": "6235115",
+  "w": 933,
+  "h": 1400,
+  "kb": 94
+ },
+ "vt-6235116": {
+  "alt": "Veterinário examinando um pet na clínica",
+  "pexels": "6235116",
+  "w": 1400,
+  "h": 933,
+  "kb": 103
+ },
+ "vt-6235117": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "6235117",
+  "w": 933,
+  "h": 1400,
+  "kb": 117
+ },
+ "vt-6235225": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "6235225",
+  "w": 933,
+  "h": 1400,
+  "kb": 95
+ },
+ "vt-6235231": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "6235231",
+  "w": 1400,
+  "h": 933,
+  "kb": 108
+ },
+ "vt-6235243": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "6235243",
+  "w": 1400,
+  "h": 933,
+  "kb": 91
+ },
+ "vt-6235651": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "6235651",
+  "w": 933,
+  "h": 1400,
+  "kb": 97
+ },
+ "vt-6235654": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "6235654",
+  "w": 933,
+  "h": 1400,
+  "kb": 87
+ },
+ "vt-6235657": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "6235657",
+  "w": 933,
+  "h": 1400,
+  "kb": 84
+ },
+ "vt-6235664": {
+  "alt": "Consulta veterinária com o pet sobre a mesa",
+  "pexels": "6235664",
+  "w": 933,
+  "h": 1400,
+  "kb": 100
+ },
+ "vt-6560385": {
+  "alt": "Veterinário examinando um pet na clínica",
+  "pexels": "6560385",
+  "w": 1400,
+  "h": 937,
+  "kb": 142
+ },
+ "ts-6816836": {
+  "alt": "Escovação e acabamento do pelo no salão pet",
+  "pexels": "6816836",
+  "w": 1400,
+  "h": 933,
+  "kb": 117
+ },
+ "vt-6816857": {
+  "alt": "Consulta veterinária com o pet sobre a mesa",
+  "pexels": "6816857",
+  "w": 933,
+  "h": 1400,
+  "kb": 101
+ },
+ "vt-7121954": {
+  "alt": "Consulta veterinária com o pet sobre a mesa",
+  "pexels": "7121954",
+  "w": 1400,
+  "h": 908,
+  "kb": 178
+ },
+ "vt-7469224": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "7469224",
+  "w": 1400,
+  "h": 933,
+  "kb": 116
+ },
+ "vt-7469231": {
+  "alt": "Consulta veterinária com o pet sobre a mesa",
+  "pexels": "7469231",
+  "w": 933,
+  "h": 1400,
+  "kb": 115
+ },
+ "vt-7469234": {
+  "alt": "Consulta veterinária com o pet sobre a mesa",
+  "pexels": "7469234",
+  "w": 933,
+  "h": 1400,
+  "kb": 118
+ },
+ "vt-7469274": {
+  "alt": "Veterinário examinando um pet na clínica",
+  "pexels": "7469274",
+  "w": 1400,
+  "h": 933,
+  "kb": 130
+ },
+ "vt-7470631": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "7470631",
+  "w": 933,
+  "h": 1400,
+  "kb": 97
+ },
+ "vt-7470754": {
+  "alt": "Atendimento veterinário em consultório",
+  "pexels": "7470754",
+  "w": 1400,
+  "h": 933,
+  "kb": 123
+ },
+ "vt-7474859": {
+  "alt": "Consulta veterinária com o pet sobre a mesa",
+  "pexels": "7474859",
+  "w": 1400,
+  "h": 933,
+  "kb": 107
+ },
+ "rc-10996400": {
+  "alt": "Alimentação do pet, imagem ilustrativa",
+  "pexels": "10996400",
+  "w": 933,
+  "h": 1400,
+  "kb": 214
+ },
+ "pt-12661459": {
+  "alt": "Cão e gato, imagem ilustrativa do dia a dia pet",
+  "pexels": "12661459",
+  "w": 933,
+  "h": 1400,
+  "kb": 74
+ },
+ "pt-13119262": {
+  "alt": "Cão e gato, imagem ilustrativa do dia a dia pet",
+  "pexels": "13119262",
+  "w": 1050,
+  "h": 1400,
+  "kb": 217
+ },
+ "pt-13923477": {
+  "alt": "Pet feliz, imagem ilustrativa de atendimento",
+  "pexels": "13923477",
+  "w": 935,
+  "h": 1400,
+  "kb": 132
+ },
+ "pt-14458505": {
+  "alt": "Pet bem cuidado, imagem ilustrativa",
+  "pexels": "14458505",
+  "w": 787,
+  "h": 1400,
+  "kb": 74
+ },
+ "pt-16273308": {
+  "alt": "Pet feliz, imagem ilustrativa de atendimento",
+  "pexels": "16273308",
+  "w": 933,
+  "h": 1400,
+  "kb": 162
+ },
+ "pt-16366333": {
+  "alt": "Cão e gato, imagem ilustrativa do dia a dia pet",
+  "pexels": "16366333",
+  "w": 1400,
+  "h": 933,
+  "kb": 247
+ },
+ "pt-16395150": {
+  "alt": "Pet feliz, imagem ilustrativa de atendimento",
+  "pexels": "16395150",
+  "w": 1400,
+  "h": 932,
+  "kb": 130
+ },
+ "pt-16440218": {
+  "alt": "Pet bem cuidado, imagem ilustrativa",
+  "pexels": "16440218",
+  "w": 1400,
+  "h": 932,
+  "kb": 175
+ },
+ "pt-17628647": {
+  "alt": "Pet bem cuidado, imagem ilustrativa",
+  "pexels": "17628647",
+  "w": 1400,
+  "h": 933,
+  "kb": 153
+ },
+ "pt-18240757": {
+  "alt": "Cão e gato, imagem ilustrativa do dia a dia pet",
+  "pexels": "18240757",
+  "w": 933,
+  "h": 1400,
+  "kb": 93
+ },
+ "pt-19490691": {
+  "alt": "Pet feliz, imagem ilustrativa de atendimento",
+  "pexels": "19490691",
+  "w": 1400,
+  "h": 933,
+  "kb": 198
+ },
+ "pt-220876": {
+  "alt": "Cão e gato, imagem ilustrativa do dia a dia pet",
+  "pexels": "220876",
+  "w": 1400,
+  "h": 933,
+  "kb": 173
+ },
+ "pt-23021510": {
+  "alt": "Pet bem cuidado, imagem ilustrativa",
+  "pexels": "23021510",
+  "w": 933,
+  "h": 1400,
+  "kb": 100
+ },
+ "rc-27175967": {
+  "alt": "Alimentação do pet, imagem ilustrativa",
+  "pexels": "27175967",
+  "w": 1400,
+  "h": 933,
+  "kb": 117
+ },
+ "pt-28852102": {
+  "alt": "Cão e gato, imagem ilustrativa do dia a dia pet",
+  "pexels": "28852102",
+  "w": 1400,
+  "h": 933,
+  "kb": 171
+ },
+ "pt-28914761": {
+  "alt": "Pet bem cuidado, imagem ilustrativa",
+  "pexels": "28914761",
+  "w": 933,
+  "h": 1400,
+  "kb": 122
+ },
+ "pt-29357039": {
+  "alt": "Pet bem cuidado, imagem ilustrativa",
+  "pexels": "29357039",
+  "w": 1400,
+  "h": 933,
+  "kb": 137
+ },
+ "pt-29748152": {
+  "alt": "Pet bem cuidado, imagem ilustrativa",
+  "pexels": "29748152",
+  "w": 933,
+  "h": 1400,
+  "kb": 111
+ },
+ "pt-30192039": {
+  "alt": "Pet feliz, imagem ilustrativa de atendimento",
+  "pexels": "30192039",
+  "w": 933,
+  "h": 1400,
+  "kb": 90
+ },
+ "pt-30239303": {
+  "alt": "Pet bem cuidado, imagem ilustrativa",
+  "pexels": "30239303",
+  "w": 1400,
+  "h": 996,
+  "kb": 143
+ },
+ "pt-30586500": {
+  "alt": "Pet feliz, imagem ilustrativa de atendimento",
+  "pexels": "30586500",
+  "w": 1400,
+  "h": 933,
+  "kb": 150
+ },
+ "rc-30769356": {
+  "alt": "Pet se alimentando com ração",
+  "pexels": "30769356",
+  "w": 933,
+  "h": 1400,
+  "kb": 81
+ },
+ "pt-31155006": {
+  "alt": "Pet feliz, imagem ilustrativa de atendimento",
+  "pexels": "31155006",
+  "w": 933,
+  "h": 1400,
+  "kb": 159
+ },
+ "pt-32234780": {
+  "alt": "Pet bem cuidado, imagem ilustrativa",
+  "pexels": "32234780",
+  "w": 932,
+  "h": 1400,
+  "kb": 158
+ },
+ "pt-32269523": {
+  "alt": "Pet bem cuidado, imagem ilustrativa",
+  "pexels": "32269523",
+  "w": 1400,
+  "h": 933,
+  "kb": 147
+ },
+ "pt-32355795": {
+  "alt": "Pet feliz, imagem ilustrativa de atendimento",
+  "pexels": "32355795",
+  "w": 932,
+  "h": 1400,
+  "kb": 77
+ },
+ "pt-32392782": {
+  "alt": "Pet feliz, imagem ilustrativa de atendimento",
+  "pexels": "32392782",
+  "w": 933,
+  "h": 1400,
+  "kb": 82
+ },
+ "pt-32557420": {
+  "alt": "Cão e gato, imagem ilustrativa do dia a dia pet",
+  "pexels": "32557420",
+  "w": 933,
+  "h": 1400,
+  "kb": 110
+ },
+ "pt-32595482": {
+  "alt": "Pet bem cuidado, imagem ilustrativa",
+  "pexels": "32595482",
+  "w": 1400,
+  "h": 934,
+  "kb": 91
+ },
+ "pt-32598523": {
+  "alt": "Cão e gato, imagem ilustrativa do dia a dia pet",
+  "pexels": "32598523",
+  "w": 1400,
+  "h": 933,
+  "kb": 90
+ },
+ "pt-34531298": {
+  "alt": "Pet bem cuidado, imagem ilustrativa",
+  "pexels": "34531298",
+  "w": 933,
+  "h": 1400,
+  "kb": 79
+ },
+ "pt-35088736": {
+  "alt": "Cão e gato, imagem ilustrativa do dia a dia pet",
+  "pexels": "35088736",
+  "w": 788,
+  "h": 1400,
+  "kb": 60
+ },
+ "pt-35711491": {
+  "alt": "Cão e gato, imagem ilustrativa do dia a dia pet",
+  "pexels": "35711491",
+  "w": 1400,
+  "h": 935,
+  "kb": 204
+ },
+ "pt-35864648": {
+  "alt": "Pet bem cuidado, imagem ilustrativa",
+  "pexels": "35864648",
+  "w": 933,
+  "h": 1400,
+  "kb": 129
+ },
+ "pt-36715861": {
+  "alt": "Cão e gato, imagem ilustrativa do dia a dia pet",
+  "pexels": "36715861",
+  "w": 787,
+  "h": 1400,
+  "kb": 142
+ },
+ "pt-37891869": {
+  "alt": "Pet feliz, imagem ilustrativa de atendimento",
+  "pexels": "37891869",
+  "w": 1400,
+  "h": 1050,
+  "kb": 308
+ },
+ "pt-39495643": {
+  "alt": "Cão e gato, imagem ilustrativa do dia a dia pet",
+  "pexels": "39495643",
+  "w": 1400,
+  "h": 933,
+  "kb": 120
+ },
+ "rc-5482828": {
+  "alt": "Ração servida no comedouro do pet",
+  "pexels": "5482828",
+  "w": 933,
+  "h": 1400,
+  "kb": 127
+ },
+ "rc-6568950": {
+  "alt": "Pet se alimentando com ração",
+  "pexels": "6568950",
+  "w": 1400,
+  "h": 933,
+  "kb": 109
+ },
+ "rc-7086030": {
+  "alt": "Pet se alimentando com ração",
+  "pexels": "7086030",
+  "w": 1400,
+  "h": 933,
+  "kb": 164
+ },
+ "pt-8057550": {
+  "alt": "Pet feliz, imagem ilustrativa de atendimento",
+  "pexels": "8057550",
+  "w": 1400,
+  "h": 935,
+  "kb": 146
+ },
+ "rc-8434676": {
+  "alt": "Alimentação do pet, imagem ilustrativa",
+  "pexels": "8434676",
+  "w": 1400,
+  "h": 933,
+  "kb": 115
+ },
+ "rc-8434725": {
+  "alt": "Pet se alimentando com ração",
+  "pexels": "8434725",
+  "w": 1400,
+  "h": 933,
+  "kb": 121
+ },
+ "rc-8473447": {
+  "alt": "Ração servida no comedouro do pet",
+  "pexels": "8473447",
+  "w": 933,
+  "h": 1400,
+  "kb": 89
+ },
+ "pt-9455270": {
+  "alt": "Pet bem cuidado, imagem ilustrativa",
+  "pexels": "9455270",
+  "w": 1400,
+  "h": 787,
+  "kb": 115
+ },
+ "ts-16544122": {
+  "alt": "Banho e tosa em salão especializado",
+  "pexels": "16544122",
+  "w": 1050,
+  "h": 1400,
+  "kb": 102
+ },
+ "ts-19145872": {
+  "alt": "Banho e tosa em salão especializado",
+  "pexels": "19145872",
+  "w": 1400,
+  "h": 787,
+  "kb": 72
+ },
+ "ts-19145877": {
+  "alt": "Profissional fazendo a tosa de um pet",
+  "pexels": "19145877",
+  "w": 934,
+  "h": 1400,
+  "kb": 132
+ },
+ "ts-19145879": {
+  "alt": "Escovação e acabamento do pelo no salão pet",
+  "pexels": "19145879",
+  "w": 1400,
+  "h": 934,
+  "kb": 105
+ },
+ "ts-19145894": {
+  "alt": "Escovação e acabamento do pelo no salão pet",
+  "pexels": "19145894",
+  "w": 1400,
+  "h": 934,
+  "kb": 145
+ },
+ "ts-23542061": {
+  "alt": "Escovação e acabamento do pelo no salão pet",
+  "pexels": "23542061",
+  "w": 1120,
+  "h": 1400,
+  "kb": 143
+ },
+ "ts-6130974": {
+  "alt": "Profissional fazendo a tosa de um pet",
+  "pexels": "6130974",
+  "w": 1400,
+  "h": 933,
+  "kb": 96
+ },
+ "ts-6130982": {
+  "alt": "Escovação e acabamento do pelo no salão pet",
+  "pexels": "6130982",
+  "w": 933,
+  "h": 1400,
+  "kb": 107
+ },
+ "ts-6130986": {
+  "alt": "Profissional fazendo a tosa de um pet",
+  "pexels": "6130986",
+  "w": 1400,
+  "h": 999,
+  "kb": 95
+ },
+ "ts-6130999": {
+  "alt": "Banho e tosa em salão especializado",
+  "pexels": "6130999",
+  "w": 933,
+  "h": 1400,
+  "kb": 72
+ },
+ "ts-6131005": {
+  "alt": "Banho e tosa em salão especializado",
+  "pexels": "6131005",
+  "w": 933,
+  "h": 1400,
+  "kb": 115
+ },
+ "ts-6131092": {
+  "alt": "Banho e tosa em salão especializado",
+  "pexels": "6131092",
+  "w": 933,
+  "h": 1400,
+  "kb": 95
+ },
+ "ts-6131099": {
+  "alt": "Escovação e acabamento do pelo no salão pet",
+  "pexels": "6131099",
+  "w": 1400,
+  "h": 933,
+  "kb": 105
+ },
+ "ts-6131566": {
+  "alt": "Banho e tosa em salão especializado",
+  "pexels": "6131566",
+  "w": 933,
+  "h": 1400,
+  "kb": 145
+ },
+ "ts-6816838": {
+  "alt": "Banho e tosa em salão especializado",
+  "pexels": "6816838",
+  "w": 1400,
+  "h": 933,
+  "kb": 100
+ },
+ "ts-6816845": {
+  "alt": "Escovação e acabamento do pelo no salão pet",
+  "pexels": "6816845",
+  "w": 1400,
+  "h": 933,
+  "kb": 108
+ },
+ "ts-6816855": {
+  "alt": "Profissional fazendo a tosa de um pet",
+  "pexels": "6816855",
+  "w": 1400,
+  "h": 933,
+  "kb": 83
+ },
+ "ts-6816870": {
+  "alt": "Profissional fazendo a tosa de um pet",
+  "pexels": "6816870",
+  "w": 1400,
+  "h": 933,
+  "kb": 112
+ },
+ "ts-7516820": {
+  "alt": "Escovação e acabamento do pelo no salão pet",
+  "pexels": "7516820",
+  "w": 933,
+  "h": 1400,
+  "kb": 49
+ },
+ "ts-8498858": {
+  "alt": "Escovação e acabamento do pelo no salão pet",
+  "pexels": "8498858",
+  "w": 933,
+  "h": 1400,
+  "kb": 143
+ },
+ "ts-8498861": {
+  "alt": "Escovação e acabamento do pelo no salão pet",
+  "pexels": "8498861",
+  "w": 933,
+  "h": 1400,
+  "kb": 120
+ }
+}

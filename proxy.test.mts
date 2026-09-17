@@ -15,3 +15,13 @@ assert.equal(siteSlug("localhost:3000"), null);
 assert.equal(siteSlug("barbeariasoul.ruphus.site.evil.com"), null);
 assert.equal(siteSlug("a.b.ruphus.site"), null);
 console.log("proxy ok");
+
+import { sitePath } from "@/proxy";
+// raiz do site vira o arquivo; assets é compartilhada entre todos os sites
+assert.equal(sitePath("lindass", "/"), "/s/lindass/index.html");
+assert.equal(sitePath("lindass", "/img/8040045c087e.jpg"), "/s/lindass/img/8040045c087e.jpg");
+assert.equal(sitePath("samurai-pet", "/assets/pet/loja-racao-800.jpg"), "/s/assets/pet/loja-racao-800.jpg");
+assert.equal(sitePath("samurai-pet", "/assets/fx.js"), "/s/assets/fx.js");
+// nome parecido não é a pasta compartilhada
+assert.equal(sitePath("lindass", "/assetsfoo/x.png"), "/s/lindass/assetsfoo/x.png");
+console.log("sitePath ok");
