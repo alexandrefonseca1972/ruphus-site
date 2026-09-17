@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function memberPath(t) {
+      return /databases/$(database)/documents/tenants/$(t)/members/$(request.auth.uid);
+    }
+    function isMember(t) {
+      return request.auth != null && exists(memberPath(t));
+    }
+    function hasRole(t, roles) {
+      return isMember(t) && get(memberPath(t)).data.role in roles;
+    }
+
+    // "Meus tenants": collectionGroup("members") where uid == me
+    match /{path=**}/members/{uid} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
+    match /tenants/{t} {
+      allow read: if isMember(t);
+      // Criado junto com o membro owner, no mesmo batch
+      allow create: if request.auth != null
+        && request.resource.data.ownerId == request.auth.uid
+        && getAfter(memberPath(t)).data.role == 'owner';
+      allow update: if hasRole(t, ['owner', 'admin'])
+        && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if hasRole(t, ['owner']);
+
+      match /members/{uid} {
+        allow read: if isMember(t);
+        // Bootstrap do owner na criação do tenant
+        allow create: if request.auth != null && uid == request.auth.uid
+          && request.resource.data.uid == uid
+          && request.resource.data.role == 'owner'
+          && !exists(/databases/$(database)/documents/tenants/$(t))
+          && getAfter(/databases/$(database)/documents/tenants/$(t)).data.ownerId == uid;
+        allow create: if hasRole(t, ['owner', 'admin'])
+          && request.resource.data.uid == uid
+          && request.resource.data.role in ['admin', 'member'];
+        allow update: if hasRole(t, ['owner', 'admin'])
+          && resource.data.role != 'owner'
+          && request.resource.data.uid == uid
+          && request.resource.data.role in ['admin', 'member'];
+        allow delete: if hasRole(t, ['owner', 'admin']) && resource.data.role != 'owner';
+      }
+
+      // Qualquer outra coleção do tenant: só membros
+      match /{collection}/{doc=**} {
+        allow read, write: if collection != 'members' && isMember(t);
+      }
+    }
+  }
+}
