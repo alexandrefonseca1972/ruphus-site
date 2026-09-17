@@ -1,5 +1,4 @@
 import "server-only";
-import type { Auth } from "firebase-admin/auth";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
 import {
   addDays,
@@ -39,13 +38,15 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
 }
 
 /** Garante que o token é válido e o usuário é membro do tenant. */
-export async function requireMember(auth: Auth, db: Firestore, idToken: string, tenantId: string) {
-  const { uid } = await auth.verifyIdToken(idToken).catch(() => {
+export type VerifyToken = (idToken: string) => Promise<{ uid: string; email?: string }>;
+
+export async function requireMember(verify: VerifyToken, db: Firestore, idToken: string, tenantId: string) {
+  const user = await verify(idToken).catch(() => {
     throw new Error("Sessão expirada. Entre novamente.");
   });
-  const member = await db.doc(`tenants/${tenantId}/members/${uid}`).get();
+  const member = await db.doc(`tenants/${tenantId}/members/${user.uid}`).get();
   if (!member.exists) throw new Error("Sem acesso a este espaço.");
-  return uid;
+  return user;
 }
 
 // excludeId: ao remarcar, o próprio agendamento não conta como ocupado

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { verifyFirebaseToken } from "@/lib/verify-token";
 import { availableSlots, book, loadCatalog, requireMember, reschedule, rescheduleSlots } from "@/lib/booking.server";
 import { addDays, BookingInput, freeSlots, todayIn, weekday, zonedTime } from "@/lib/scheduling";
 
@@ -110,9 +111,13 @@ async function tokenFor(uid: string) {
   return ((await r.json()) as { idToken: string }).idToken;
 }
 await t.collection("members").doc("owner").set({ uid: "owner", role: "owner" });
-assert.equal(await requireMember(auth, db, await tokenFor("owner"), "salao"), "owner");
-await assert.rejects(requireMember(auth, db, await tokenFor("intruso"), "salao"), /Sem acesso/);
-await assert.rejects(requireMember(auth, db, "token-falso", "salao"), /Sessão expirada/);
+const emulatorVerify = (token: string) => auth.verifyIdToken(token);
+assert.equal((await requireMember(emulatorVerify, db, await tokenFor("owner"), "salao")).uid, "owner");
+await assert.rejects(requireMember(emulatorVerify, db, await tokenFor("intruso"), "salao"), /Sem acesso/);
+await assert.rejects(requireMember(emulatorVerify, db, "token-falso", "salao"), /Sessão expirada/);
+// Verificador de produção: token do emulador (sem assinatura) e lixo são recusados
+await assert.rejects(verifyFirebaseToken(await tokenFor("owner"), "demo-siteflow"));
+await assert.rejects(verifyFirebaseToken("a.b.c", "demo-siteflow"));
 
 console.log("booking ok");
 process.exit(0);
