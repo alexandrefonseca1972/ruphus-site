@@ -4,13 +4,11 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { auth } from "@/lib/firebase";
+import { idToken } from "@/lib/firebase";
 import { addDays, dateIn, formatLongDate, todayIn, zonedTime } from "@/lib/scheduling";
 import { cn } from "@/lib/utils";
 import { getRescheduleSlots, rescheduleAppointment } from "./actions";
 import type { Appointment } from "./page";
-
-const idToken = () => auth.currentUser?.getIdToken() ?? Promise.reject(new Error("Sessão expirada. Entre novamente."));
 
 export function Reschedule(props: {
   tenantId: string;

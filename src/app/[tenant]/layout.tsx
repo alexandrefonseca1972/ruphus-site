@@ -45,7 +45,9 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
     { href: `/${slug}`, label: "Agenda" },
     { href: `/${slug}/servicos`, label: "Serviços" },
     { href: `/${slug}/profissionais`, label: "Profissionais" },
+    { href: `/${slug}/clientes`, label: "Clientes" },
   ];
+  const isActive = (href: string) => pathname === href || (href !== `/${slug}` && pathname.startsWith(`${href}/`));
   return (
     <TenantContext value={state}>
       <header className="border-b">
@@ -55,8 +57,8 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
             <Link
               key={l.href}
               href={l.href}
-              aria-current={pathname === l.href ? "page" : undefined}
-              className={cn("rounded-md px-3 py-1.5 hover:bg-muted", pathname === l.href && "bg-muted font-medium")}
+              aria-current={isActive(l.href) ? "page" : undefined}
+              className={cn("rounded-md px-3 py-1.5 hover:bg-muted", isActive(l.href) && "bg-muted font-medium")}
             >
               {l.label}
             </Link>

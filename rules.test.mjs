@@ -77,6 +77,14 @@ await assertFails(setDoc(doc(alice, "tenants/acme/appointments/novo"), { status:
 await assertSucceeds(getDocs(query(collection(bob, "tenants/acme/history"), where("appointmentId", "==", "a1"))));
 await assertFails(getDocs(query(collection(mallory, "tenants/acme/history"), where("appointmentId", "==", "a1"))));
 
+// Clientes e planos: membros leem, ninguém grava pelo app
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/customers/5511912345678"), { name: "X" }));
+await assertSucceeds(getDoc(doc(bob, "tenants/acme/customers/5511912345678")));
+await assertFails(getDoc(doc(mallory, "tenants/acme/customers/5511912345678")));
+await assertFails(setDoc(doc(alice, "tenants/acme/customers/5511912345678"), { name: "Y" }));
+await assertFails(setDoc(doc(alice, "tenants/acme/plans/p1"), { status: "active" }));
+await assertSucceeds(getDocs(collection(bob, "tenants/acme/plans")));
+
 // Storage (bob é admin de acme, mallory não é membro)
 const file = (uid, path) => ref(env.authenticatedContext(uid).storage(), path);
 const bytes = (n) => new Uint8Array(n);

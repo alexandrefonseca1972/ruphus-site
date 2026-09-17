@@ -70,9 +70,17 @@ service cloud.firestore {
           && getAfter(/databases/$(database)/documents/tenants/$(t)/appointments/$(request.resource.data.appointmentId)).data.status == request.resource.data.type;
       }
 
+      // Clientes e planos recorrentes: gravados só pelo servidor
+      match /customers/{c} {
+        allow read: if isMember(t);
+      }
+      match /plans/{p} {
+        allow read: if isMember(t);
+      }
+
       // Qualquer outra coleção do tenant: só membros
       match /{collection}/{doc=**} {
-        allow read, write: if !(collection in ['members', 'appointments', 'history']) && isMember(t);
+        allow read, write: if !(collection in ['members', 'appointments', 'history', 'customers', 'plans']) && isMember(t);
       }
     }
   }

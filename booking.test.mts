@@ -4,13 +4,17 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
-import { availableSlots, book, loadCatalog, requireMember, reschedule, rescheduleSlots } from "@/lib/booking.server";
-import { addDays, BookingInput, freeSlots, todayIn, weekday, zonedTime } from "@/lib/scheduling";
+import { availableSlots, book, createPlan, endPlan, loadCatalog, requireMember, reschedule, rescheduleSlots } from "@/lib/booking.server";
+import { addDays, BookingInput, customerKey, freeSlots, planDates, todayIn, weekday, zonedTime } from "@/lib/scheduling";
 
 // Funções puras
 assert.equal(zonedTime("2026-09-20", "09:00").toISOString(), "2026-09-20T12:00:00.000Z");
 assert.equal(weekday("2026-09-20"), 0); // domingo
 assert.equal(addDays("2026-12-31", 1), "2027-01-01");
+assert.equal(customerKey("(11) 91234-5678"), "5511912345678");
+assert.equal(customerKey("+55 11 91234-5678"), "5511912345678");
+assert.deepEqual(planDates("2026-09-17", 1, 3), ["2026-09-21", "2026-09-28", "2026-10-05"]); // quinta → segundas
+assert.deepEqual(planDates("2026-09-21", 1, 2), ["2026-09-21", "2026-09-28"]); // já é segunda
 const day = "2030-01-07"; // segunda-feira
 const at = (t: string) => zonedTime(day, t);
 const w = { start: "09:00", end: "10:00" };
@@ -128,6 +132,42 @@ await assert.rejects(requireMember(emulatorVerify, db, "token-falso", "salao"), 
 // Verificador de produção: token do emulador (sem assinatura) e lixo são recusados
 await assert.rejects(verifyFirebaseToken(await tokenFor("owner"), "demo-siteflow"));
 await assert.rejects(verifyFirebaseToken("a.b.c", "demo-siteflow"));
+
+// Cliente salvo a cada reserva
+const cliente = (await t.collection("customers").doc("5511912345678").get()).data()!;
+assert.deepEqual([cliente.name, cliente.phone], ["Cliente", "11 91234-5678"]);
+assert.ok((await t.collection("appointments").where("customerKey", "==", "5511912345678").get()).size > 0);
+
+// Plano recorrente: toda segunda 10:00 com a Bia, 4 semanas a partir de daqui a 14 dias
+const planStart = addDays(todayIn(), 14);
+const segundas = planDates(planStart, 1, 4);
+// ocupa a 2ª segunda antes de criar o plano
+assert.equal((await book(db, { ...base, staffId: "bia", date: segundas[1], serviceIds: ["corte"], time: "10:00", customerName: "Outro", customerPhone: "11 90000-0000" })).ok, true);
+const planInput = { tenantId: "salao", customerName: "Xavier", customerPhone: "(11) 97777-0000", serviceIds: ["corte"], staffId: "bia", weekday: 1, time: "10:00", startDate: planStart, weeks: 4 };
+assert.equal((await createPlan(db, { ...planInput, serviceIds: ["luzes"] }, actor)).ok, false, "Bia não faz luzes");
+const plan = await createPlan(db, planInput, actor);
+assert.ok(plan.ok);
+assert.deepEqual(plan.created, [segundas[0], segundas[2], segundas[3]]);
+assert.deepEqual(plan.skipped, [segundas[1]]);
+const planAppts = await t.collection("appointments").where("planId", "==", plan.planId).orderBy("start").get();
+assert.equal(planAppts.size, 3);
+assert.equal(planAppts.docs[0].get("start").toMillis(), zonedTime(segundas[0], "10:00").getTime());
+assert.equal(planAppts.docs[0].get("customerKey"), "5511977770000");
+const planLog = (await t.collection("history").doc(planAppts.docs[0].get("lastHistoryId")).get()).data()!;
+assert.deepEqual([planLog.type, planLog.planId, planLog.byName], ["created", plan.planId, "dono@teste.dev"]);
+assert.equal((await t.collection("customers").doc("5511977770000").get()).get("name"), "Xavier");
+assert.equal((await createPlan(db, planInput, actor)).ok, false, "mesmo plano de novo: tudo ocupado");
+
+// Encerrar plano: cancela os futuros, com histórico; não encerra duas vezes
+await planAppts.docs[2].ref.update({ status: "no_show" }); // não ativo: fica como está
+const ended = await endPlan(db, { tenantId: "salao", planId: plan.planId }, actor);
+assert.deepEqual(ended, { ok: true, cancelled: 2 });
+const after = await t.collection("appointments").where("planId", "==", plan.planId).orderBy("start").get();
+assert.deepEqual(after.docs.map((d) => d.get("status")), ["cancelled", "cancelled", "no_show"]);
+const endLog = (await t.collection("history").doc(after.docs[0].get("lastHistoryId")).get()).data()!;
+assert.deepEqual([endLog.type, endLog.reason], ["cancelled", "plan_ended"]);
+assert.equal((await t.collection("plans").doc(plan.planId).get()).get("status"), "ended");
+assert.equal((await endPlan(db, { tenantId: "salao", planId: plan.planId }, actor)).ok, false);
 
 console.log("booking ok");
 process.exit(0);

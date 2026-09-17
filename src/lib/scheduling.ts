@@ -100,11 +100,33 @@ export const RescheduleInput = z.object({
 });
 export type RescheduleInput = z.infer<typeof RescheduleInput>;
 
-/** Link do WhatsApp; números com 10-11 dígitos recebem o DDI 55 */
-export function whatsappLink(phone: string, text?: string) {
+/** Telefone só com dígitos e DDI (55 quando vier com 10-11 dígitos). Também é o id do cliente. */
+export function customerKey(phone: string) {
   const digits = phone.replace(/\D/g, "");
-  const number = digits.length <= 11 ? `55${digits}` : digits;
-  return `https://wa.me/${number}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+  return digits.length <= 11 ? `55${digits}` : digits;
+}
+
+export function whatsappLink(phone: string, text?: string) {
+  return `https://wa.me/${customerKey(phone)}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+}
+
+export const PlanInput = z.object({
+  tenantId: id,
+  customerName: BookingInput.shape.customerName,
+  customerPhone: BookingInput.shape.customerPhone,
+  serviceIds: SlotQuery.shape.serviceIds,
+  staffId: id,
+  weekday: z.number().int().min(0).max(6),
+  time: hhmm,
+  startDate: z.iso.date(),
+  weeks: z.number().int().min(1, "Mínimo de 1 semana").max(52, "Máximo de 52 semanas"),
+});
+export type PlanInput = z.infer<typeof PlanInput>;
+
+/** Datas do plano: a partir de startDate, no dia da semana pedido, uma por semana */
+export function planDates(startDate: string, day: number, weeks: number) {
+  const first = addDays(startDate, (day - weekday(startDate) + 7) % 7);
+  return Array.from({ length: weeks }, (_, i) => addDays(first, 7 * i));
 }
 
 /** Horários de início livres no dia, em "HH:MM" local. */

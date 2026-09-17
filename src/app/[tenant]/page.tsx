@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { collection, doc, orderBy, serverTimestamp, Timestamp, where, writeBatch } from "firebase/firestore";
 import { useState } from "react";
 import { z } from "zod";
@@ -10,6 +11,7 @@ import { errorMessage } from "@/lib/auth-errors";
 import { auth, db } from "@/lib/firebase";
 import {
   addDays,
+  customerKey,
   formatBRL,
   formatLongDate,
   formatTime,
@@ -21,6 +23,7 @@ import { useCollection } from "@/lib/use-collection";
 import { History } from "./history";
 import { useTenant } from "./layout";
 import { Reschedule } from "./reschedule";
+import { STATUS } from "./status";
 
 const Appointment = z.object({
   serviceName: z.string(),
@@ -30,6 +33,7 @@ const Appointment = z.object({
   end: z.instanceof(Timestamp),
   customerName: z.string(),
   customerPhone: z.string(),
+  planId: z.string().optional(),
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
 });
 export type Appointment = z.infer<typeof Appointment> & { id: string };
@@ -45,12 +49,6 @@ export function rescheduleText(a: Appointment, business: string, start: Date) {
   return `Olá, ${firstName(a.customerName)}! Seu horário na ${business} foi remarcado para ${formatLongDate(start)} às ${formatTime(start)} (${a.serviceName} com ${a.staffName}). Se não puder, é só responder esta mensagem.`;
 }
 
-const STATUS = {
-  booked: { label: "Aguardando confirmação", className: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200" },
-  confirmed: { label: "Confirmado", className: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200" },
-  cancelled: { label: "Cancelado", className: "bg-muted text-muted-foreground" },
-  no_show: { label: "Faltou", className: "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200" },
-};
 
 export default function AgendaPage() {
   const tenant = useTenant();
@@ -154,7 +152,10 @@ export default function AgendaPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2 font-medium">
-                    {a.customerName}
+                    <Link href={`/${tenant.id}/clientes/${customerKey(a.customerPhone)}`} className="underline-offset-4 hover:underline">
+                      {a.customerName}
+                    </Link>
+                    {a.planId && <span className="rounded-full border px-2 py-0.5 text-xs font-normal">Recorrente</span>}
                     <span className={`rounded-full px-2 py-0.5 text-xs font-normal ${STATUS[a.status].className}`}>
                       {STATUS[a.status].label}
                     </span>

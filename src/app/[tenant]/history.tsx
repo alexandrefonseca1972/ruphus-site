@@ -11,6 +11,8 @@ const Entry = z.object({
   at: z.instanceof(Timestamp),
   by: z.string(),
   byName: z.string().nullish(),
+  planId: z.string().optional(),
+  reason: z.string().optional(),
   from: Range.optional(),
   to: Range.optional(),
 });
@@ -23,7 +25,7 @@ function describe(e: Entry) {
   const who = e.byName || e.by;
   switch (e.type) {
     case "created":
-      return `Agendado online por ${who}`;
+      return e.planId ? `Agendado pelo plano recorrente por ${who}` : `Agendado online por ${who}`;
     case "confirmed":
       return `Confirmado pelo WhatsApp por ${who}`;
     case "rescheduled":
@@ -31,7 +33,7 @@ function describe(e: Entry) {
         ? `Remarcado de ${when(e.from.start.toDate())} para ${when(e.to.start.toDate())} por ${who}`
         : `Remarcado por ${who}`;
     case "cancelled":
-      return `Cancelado por ${who}`;
+      return e.reason === "plan_ended" ? `Cancelado ao encerrar o plano recorrente, por ${who}` : `Cancelado por ${who}`;
     case "no_show":
       return `Falta registrada por ${who}`;
   }
