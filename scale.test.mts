@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, type Firestore, type Timestamp } from "firebase-admin/firestore";
 import { availableSlots, book, createPlan, endPlan, loadCatalog } from "@/lib/booking.server";
-import { addDays, freeSlots, todayIn, weekday, type Window } from "@/lib/scheduling";
+import { addDays, freeSlots, todayIn, type Window, weekday } from "@/lib/datetime";
 
 const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
 const actor = { uid: "dono", email: "dono@teste.dev" };

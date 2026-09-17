@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   addDays,
-  BookingInput,
   formatBRL,
   formatDuration,
   formatLongDate,
@@ -17,7 +16,7 @@ import {
   TIMEZONE,
   weekday,
   zonedTime,
-} from "@/lib/scheduling";
+} from "@/lib/datetime";
 import { cn } from "@/lib/utils";
 import { createBooking, getSlots } from "./actions";
 
@@ -62,7 +61,7 @@ function Choice({ selected, ...props }: React.ComponentProps<"button"> & { selec
       aria-pressed={selected}
       {...props}
       className={cn(
-        "rounded-lg border p-3 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
+        "rounded-lg border p-3 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent",
         selected && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
         props.className,
       )}
@@ -84,7 +83,7 @@ function Field(props: {
       <Label htmlFor={id}>{label}</Label>
       {children({ "aria-invalid": invalid, "aria-describedby": invalid ? `${id}-error` : undefined })}
       <p id={`${id}-error`} className={cn("min-h-5 text-sm", invalid ? "text-destructive" : "text-emerald-700 dark:text-emerald-400")} aria-live="polite">
-        {invalid ? error : show && !error ? "✓" : ""}
+        {invalid ? error : show && !error ? <span aria-label={`${label} preenchido`}>✓</span> : ""}
       </p>
     </div>
   );
@@ -112,6 +111,8 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
   const contactRef = useRef<HTMLElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
+  const slotErrorRef = useRef<HTMLParagraphElement>(null);
+  const selectedDayRef = useRef<HTMLButtonElement>(null);
 
   const chosen = services.filter((s) => serviceIds.includes(s.id));
   const totalMin = chosen.reduce((sum, s) => sum + s.durationMin, 0);
@@ -123,6 +124,11 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
   const quickDays = Array.from({ length: QUICK_DAYS }, (_, i) => addDays(today, i));
   const worksOn = (d: string) => !!professional?.workDays.includes(weekday(d));
   const firstWorkDay = (p: Props["staff"][number]) => quickDays.find((d) => p.workDays.includes(weekday(d))) ?? "";
+
+  // Mantém o dia escolhido visível na faixa horizontal
+  useEffect(() => {
+    selectedDayRef.current?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }, [date]);
 
   // Contato lembrado da última reserva neste navegador
   useEffect(() => {
@@ -160,7 +166,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
     }
     setTime("");
     setSlotError("");
-    if (ids.length === 1 && serviceIds.length === 0) scrollToSection(staffRef.current);
+    if (services.length === 1 && ids.length === 1) scrollToSection(staffRef.current);
   }
 
   function pickStaff(id: string) {
@@ -192,10 +198,9 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
     setTouched({ name: true, phone: true });
     if (errors.name) return nameRef.current?.focus();
     if (errors.phone) return phoneRef.current?.focus();
-    const input = BookingInput.safeParse({ tenantId, serviceIds, staffId, date, time, customerName, customerPhone });
-    if (!input.success) return setSubmitError(input.error.issues[0].message);
     setBusy(true);
-    const result = await createBooking(input.data)
+    // O servidor valida de novo com o mesmo schema
+    const result = await createBooking({ tenantId, serviceIds, staffId, date, time, customerName, customerPhone })
       .catch(() => ({ ok: false as const, error: "Não foi possível confirmar agora. Verifique sua conexão e tente de novo." }))
       .finally(() => setBusy(false));
     if (result.ok) {
@@ -209,7 +214,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
     setSlotError(result.error);
     setTime("");
     setSlotsVersion((v) => v + 1);
-    scrollToSection(dateRef.current);
+    requestAnimationFrame(() => (slotErrorRef.current ?? dateRef.current)?.focus?.() ?? scrollToSection(dateRef.current));
   }
 
   if (done && professional) {
@@ -239,7 +244,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
               O estabelecimento pode entrar em contato pelo WhatsApp {customerPhone} para confirmar.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <a href={calendarUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/80">
+              <a href={calendarUrl} rel="noreferrer" className="inline-flex h-11 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/80">
                 Adicionar ao Google Agenda
               </a>
               <Button variant="outline" onClick={() => location.reload()}>
@@ -308,6 +313,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
               return (
                 <Choice
                   key={d}
+                  ref={d === date ? selectedDayRef : undefined}
                   selected={d === date}
                   disabled={!worksOn(d)}
                   onClick={() => pickDate(d)}
@@ -335,17 +341,29 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
           </div>
 
           {date && (
-            <div className="grid gap-3" aria-live="polite">
+            <div className="grid gap-3">
+              <p className="sr-only" aria-live="polite">
+                {!worksOn(date)
+                  ? "Profissional não atende neste dia"
+                  : slots === null
+                    ? "Buscando horários"
+                    : slots.length === 0
+                      ? "Nenhum horário livre nesta data"
+                      : `${slots.length} horários disponíveis`}
+              </p>
               <p className="text-sm text-muted-foreground first-letter:uppercase">{longDate(date)}</p>
-              {slotError && <p role="alert" className="rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{slotError}</p>}
+              {slotError && (
+                <p ref={slotErrorRef} tabIndex={-1} role="alert" className="rounded-lg bg-destructive/10 p-2 text-sm text-destructive outline-none">
+                  {slotError}
+                </p>
+              )}
               {!worksOn(date) ? (
                 <p className="text-sm text-muted-foreground">{professional.name} não atende neste dia da semana. Escolha outra data.</p>
               ) : slots === null ? (
                 <div className="grid grid-cols-4 gap-2 sm:grid-cols-5" aria-label="Buscando horários">
-                  {Array.from({ length: 8 }, (_, i) => (
+                  {Array.from({ length: 20 }, (_, i) => (
                     <div key={i} className="h-11 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
                   ))}
-                  <span className="sr-only">Buscando horários…</span>
                 </div>
               ) : slots.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum horário livre nesta data. Tente outro dia.</p>
@@ -387,6 +405,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
                   ref={nameRef}
                   id="customerName"
                   autoComplete="name"
+                  enterKeyHint="next"
                   maxLength={80}
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
@@ -400,8 +419,9 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
                 <Input
                   ref={phoneRef}
                   id="customerPhone"
-                  type="tel"
+                  type="text"
                   inputMode="numeric"
+                  enterKeyHint="done"
                   autoComplete="tel-national"
                   placeholder="(11) 91234-5678"
                   value={customerPhone}

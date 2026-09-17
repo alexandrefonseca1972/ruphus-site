@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { db, idToken } from "@/lib/firebase";
-import { dateIn, formatBRL, formatLongDate, formatTime, whatsappLink } from "@/lib/scheduling";
+import { dateIn, formatBRL, formatLongDate, formatTime, whatsappLink } from "@/lib/datetime";
 import { useCollection } from "@/lib/use-collection";
 import { endPlanAction } from "../../actions";
 import { ConfirmPanel } from "../../confirm-panel";
@@ -43,7 +43,8 @@ const shortDate = (date: string) =>
 
 export default function CustomerPage() {
   const tenant = useTenant();
-  const { customer: key } = useParams<{ customer: string }>();
+  const { customer: rawKey } = useParams<{ customer: string }>();
+  const key = /^\d{10,15}$/.test(rawKey) ? rawKey : ""; // id do cliente = telefone só com dígitos
   const [customer, setCustomer] = useState<{ name: string; phone: string } | null | undefined>(undefined);
   const [appointments] = useCollection(tenant.id, "appointments", Appointment, [where("customerKey", "==", key), orderBy("start", "desc")], key);
   const [plans] = useCollection(tenant.id, "plans", Plan, [where("customerKey", "==", key)], key);
@@ -53,15 +54,14 @@ export default function CustomerPage() {
   const [error, setError] = useState("");
   const [now] = useState(Date.now);
 
-  useEffect(
-    () =>
-      onSnapshot(
+  useEffect(() => {
+    if (!key) return setCustomer(null); // eslint-disable-line react-hooks/set-state-in-effect -- chave inválida na URL
+    return onSnapshot(
         doc(db, "tenants", tenant.id, "customers", key),
         (snap) => setCustomer(snap.exists() ? { name: snap.get("name"), phone: snap.get("phone") } : null),
-        () => setCustomer(null),
-      ),
-    [tenant.id, key],
-  );
+      () => setCustomer(null),
+    );
+  }, [tenant.id, key]);
 
   async function endPlan(planId: string) {
     setEndingPlan(null);

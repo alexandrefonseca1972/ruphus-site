@@ -9,16 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
 import { auth, db } from "@/lib/firebase";
-import {
-  addDays,
-  customerKey,
-  formatBRL,
-  formatLongDate,
-  formatTime,
-  todayIn,
-  whatsappLink,
-  zonedTime,
-} from "@/lib/scheduling";
+import { addDays, customerKey, formatBRL, formatLongDate, formatTime, todayIn, whatsappLink, zonedTime } from "@/lib/datetime";
 import { Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { cn, openExternal } from "@/lib/utils";
@@ -66,6 +57,7 @@ export default function AgendaPage() {
   const [rescheduling, setRescheduling] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<{ id: string; kind: "cancel" | "no_show" } | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
   const [staffFilter, setStaffFilter] = useState("");
   const [staff] = useCollection(tenant.id, "staff", Staff, [orderBy("name")]);
   const [notice, setNotice] = useState<{ text: string; link: string } | null>(null);
@@ -95,20 +87,21 @@ export default function AgendaPage() {
     }
   }
 
-  function confirmViaWhatsapp(a: Appointment) {
-    // Abre a janela antes de qualquer await, senão o navegador bloqueia o pop-up
-    openExternal(whatsappLink(a.customerPhone, confirmationText(a, tenant.name)));
-    changeStatus(a, "confirmed");
+  async function notifyAndChange(a: Appointment, status: "confirmed" | "cancelled", message: string) {
+    const link = whatsappLink(a.customerPhone, message);
+    const opened = openExternal(link); // nova aba; false = webview bloqueou
+    setPending(a.id);
+    await changeStatus(a, status);
+    setPending(null);
+    if (!opened) location.assign(link); // só depois de gravar, senão a mudança se perde
   }
 
   function cancel(a: Appointment, notify: boolean) {
-    // Abre o WhatsApp antes do await (bloqueio de pop-up)
-    if (notify) {
-      const url = `${location.origin}/agendar/${tenant.id}`;
-      openExternal(whatsappLink(a.customerPhone, cancellationText(a, tenant.name, url)));
-    }
     setConfirming(null);
-    return changeStatus(a, "cancelled");
+    const url = `${location.origin}/agendar/${tenant.id}`;
+    return notify
+      ? notifyAndChange(a, "cancelled", cancellationText(a, tenant.name, url))
+      : changeStatus(a, "cancelled");
   }
 
   const shown = items?.filter((a) => !staffFilter || a.staffId === staffFilter) ?? null;
@@ -203,8 +196,12 @@ export default function AgendaPage() {
                   {(a.status === "booked" || a.status === "confirmed") && (
                     <>
                     {a.status === "booked" && (
-                      <Button size="sm" onClick={() => confirmViaWhatsapp(a)}>
-                        Confirmar pelo WhatsApp
+                      <Button
+                        size="sm"
+                        disabled={pending === a.id}
+                        onClick={() => notifyAndChange(a, "confirmed", confirmationText(a, tenant.name))}
+                      >
+                        {pending === a.id ? "Confirmando…" : "Confirmar pelo WhatsApp"}
                       </Button>
                     )}
                     <Button variant="outline" size="sm" aria-expanded={rescheduling === a.id} onClick={() => setRescheduling(rescheduling === a.id ? null : a.id)}>

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { idToken } from "@/lib/firebase";
-import { addDays, dateIn, formatLongDate, todayIn, zonedTime } from "@/lib/scheduling";
+import { addDays, dateIn, formatLongDate, todayIn, zonedTime } from "@/lib/datetime";
 import { cn } from "@/lib/utils";
 import { getRescheduleSlots, rescheduleAppointment } from "./actions";
 import type { Appointment } from "./page";
@@ -31,7 +31,7 @@ export function Reschedule(props: {
     let current = true;
     idToken()
       .then((token) => getRescheduleSlots(token, { tenantId, appointmentId: appointment.id, date }))
-      .then((s) => current && setFetched({ for: key, slots: s }))
+      .then((s) => current && (setError(""), setFetched({ for: key, slots: s })))
       .catch((err: Error) => current && (setError(err.message), setFetched({ for: key, slots: [] })));
     return () => {
       current = false;

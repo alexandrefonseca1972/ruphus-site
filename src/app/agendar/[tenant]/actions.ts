@@ -2,7 +2,8 @@
 
 import { adminDb } from "@/lib/admin";
 import { availableSlots, book } from "@/lib/booking.server";
-import { addDays, BookingInput, MAX_DAYS_AHEAD, SlotQuery, todayIn } from "@/lib/scheduling";
+import { MAX_DAYS_AHEAD, addDays, todayIn } from "@/lib/datetime";
+import { BookingInput, SlotQuery } from "@/lib/scheduling";
 
 // Chamáveis por qualquer pessoa via POST: toda entrada é validada aqui
 const withinRange = (date: string) => date >= todayIn() && date <= addDays(todayIn(), MAX_DAYS_AHEAD);

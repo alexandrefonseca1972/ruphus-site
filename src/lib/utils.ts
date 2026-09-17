@@ -10,8 +10,14 @@ export const handleSubmit =
     fn(new FormData(e.currentTarget), e.currentTarget);
   };
 
-/** Abre link externo; se o navegador (ou webview do Instagram/Facebook) bloquear, navega na própria aba. */
+/**
+ * Abre link externo em nova aba. Devolve false quando o navegador bloqueia
+ * (webview do Instagram/Facebook), para quem chamou decidir quando navegar na própria aba.
+ * Obs.: com "noopener" na lista de features, window.open devolve null mesmo quando abre.
+ */
 export function openExternal(url: string) {
-  const win = window.open(url, "_blank", "noopener");
-  if (!win) location.href = url;
+  const win = window.open(url, "_blank");
+  if (!win) return false;
+  win.opener = null;
+  return true;
 }

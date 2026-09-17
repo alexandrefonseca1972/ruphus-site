@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { idToken } from "@/lib/firebase";
-import { formatLongDate, planDates, Service, Staff, todayIn, WEEKDAYS, zonedTime } from "@/lib/scheduling";
+import { WEEKDAYS, formatLongDate, planDates, todayIn, zonedTime } from "@/lib/datetime";
+import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { createPlanAction } from "./actions";
 

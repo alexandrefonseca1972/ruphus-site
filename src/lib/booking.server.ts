@@ -1,19 +1,7 @@
 import "server-only";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
-import {
-  addDays,
-  type BookingInput,
-  customerKey,
-  freeSlots,
-  type PlanInput,
-  planDates,
-  type RescheduleInput,
-  Service,
-  type SlotQuery,
-  Staff,
-  weekday,
-  zonedTime,
-} from "@/lib/scheduling";
+import { addDays, customerKey, freeSlots, planDates, weekday, zonedTime } from "@/lib/datetime";
+import { Service, Staff, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
 
@@ -44,12 +32,15 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
 /** Garante que o token é válido e o usuário é membro do tenant. */
 export type VerifyToken = (idToken: string) => Promise<{ uid: string; email?: string }>;
 
+/** Erro cuja mensagem pode ser mostrada para a pessoa */
+export class UserError extends Error {}
+
 export async function requireMember(verify: VerifyToken, db: Firestore, idToken: string, tenantId: string) {
   const user = await verify(idToken).catch(() => {
-    throw new Error("Sessão expirada. Entre novamente.");
+    throw new UserError("Sessão expirada. Entre novamente.");
   });
   const member = await db.doc(`tenants/${tenantId}/members/${user.uid}`).get();
-  if (!member.exists) throw new Error("Sem acesso a este espaço.");
+  if (!member.exists) throw new UserError("Sem acesso a este espaço.");
   return user;
 }
 
@@ -107,18 +98,20 @@ async function contended<T>(run: () => Promise<T>): Promise<T | { ok: false; err
     return await run();
   } catch (err) {
     const code = (err as { code?: number | string }).code;
-    if (code === 10 || code === "aborted" || /ABORTED|lock timeout|contention/i.test(String(err))) {
+    if (code === 10 || code === "aborted") {
+      console.error("[booking] disputa na transação", err);
       return { ok: false as const, error: BUSY_ERROR };
     }
     throw err;
   }
 }
 type SlotContext = NonNullable<Awaited<ReturnType<typeof slotContext>>>;
+type WriteContext = Pick<SlotContext, "t" | "svc" | "durationMin" | "staff">;
 
 /** Grava agendamento + registro "created" + cadastro do cliente. Só escritas: chame depois de todas as leituras. */
 function writeAppointment(
   tx: Transaction,
-  ctx: SlotContext,
+  ctx: WriteContext,
   a: { serviceIds: string[]; staffId: string; date: string; time: string; customerName: string; customerPhone: string },
   by: { by: string; byName: string },
   opts: { planId?: string; renameCustomer: boolean },
@@ -172,45 +165,78 @@ export async function book(db: Firestore, input: BookingInput) {
 export async function createPlan(db: Firestore, input: PlanInput, actor: Actor) {
   return contended(() => db.runTransaction(async (tx) => {
     const dates = planDates(input.startDate, input.weekday, input.weeks);
-    const free: { date: string; ctx: SlotContext }[] = [];
+    const t = db.collection("tenants").doc(input.tenantId);
+    // Uma leitura só para o profissional e os serviços, e uma consulta para toda a janela do plano
+    const [staffSnap, ...svcSnaps] = await tx.getAll(
+      t.collection("staff").doc(input.staffId),
+      ...input.serviceIds.map((id) => t.collection("services").doc(id)),
+    );
+    const staff = Staff.safeParse(staffSnap.data());
+    const services = svcSnaps.map((s) => Service.safeParse(s.data()));
+    if (
+      !staff.success ||
+      !staff.data.active ||
+      !input.serviceIds.every((id) => staff.data.serviceIds.includes(id)) ||
+      services.some((s) => !s.success || !s.data.active)
+    ) {
+      return { ok: false as const, error: "Serviço ou profissional indisponível." };
+    }
+    const svc = services.map((s) => s.data!);
+    const durationMin = svc.reduce((sum, s) => sum + s.durationMin, 0);
+    const ctx: WriteContext = { t, svc, durationMin, staff: staff.data };
+    const booked = await tx.get(
+      t
+        .collection("appointments")
+        .where("staffId", "==", input.staffId)
+        .where("start", ">=", zonedTime(dates[0], "00:00"))
+        .where("start", "<", zonedTime(addDays(dates.at(-1)!, 1), "00:00")),
+    );
+    const busy = booked.docs
+      .filter((d) => d.get("status") !== "cancelled")
+      .map((d) => ({ start: (d.get("start") as Timestamp).toDate(), end: (d.get("end") as Timestamp).toDate() }));
+    const now = new Date();
+    const free: string[] = [];
     const skipped: string[] = [];
     for (const date of dates) {
-      const ctx = await slotContext(tx, db, { ...input, date });
-      if (!ctx) return { ok: false as const, error: "Serviço ou profissional indisponível." };
-      if (ctx.slots.includes(input.time)) free.push({ date, ctx });
-      else skipped.push(date);
+      const slots = freeSlots({
+        date,
+        window: staff.data.hours[String(weekday(date)) as keyof Staff["hours"]],
+        durationMin,
+        busy,
+        now,
+      });
+      (slots.includes(input.time) ? free : skipped).push(date);
     }
     if (free.length === 0) {
       return { ok: false as const, error: "Nenhuma das datas tem esse horário livre com o profissional." };
     }
-    const t = db.collection("tenants").doc(input.tenantId);
     const plan = t.collection("plans").doc();
     const by = { by: actor.uid, byName: actor.email ?? actor.uid };
     tx.create(plan, {
       customerKey: customerKey(input.customerPhone),
       customerName: input.customerName,
       serviceIds: input.serviceIds,
-      serviceName: free[0].ctx.svc.map((s) => s.name).join(" + "),
+      serviceName: svc.map((s) => s.name).join(" + "),
       staffId: input.staffId,
-      staffName: free[0].ctx.staff.name,
+      staffName: staff.data.name,
       weekday: input.weekday,
       time: input.time,
-      firstDate: free[0].date,
-      lastDate: free.at(-1)!.date,
+      firstDate: free[0],
+      lastDate: free.at(-1)!,
       count: free.length,
       skipped,
       status: "active",
       createdAt: FieldValue.serverTimestamp(),
       createdBy: by.byName,
     });
-    for (const { date, ctx } of free) writeAppointment(tx, ctx, { ...input, date }, by, { planId: plan.id, renameCustomer: true });
-    return { ok: true as const, planId: plan.id, created: free.map((f) => f.date), skipped };
+    for (const date of free) writeAppointment(tx, ctx, { ...input, date }, by, { planId: plan.id, renameCustomer: true });
+    return { ok: true as const, planId: plan.id, created: free, skipped };
   }, TX));
 }
 
 /** Encerra o plano: cancela os agendamentos futuros dele, com registro no histórico. */
 export async function endPlan(db: Firestore, input: { tenantId: string; planId: string }, actor: Actor) {
-  return db.runTransaction(async (tx) => {
+  return contended(() => db.runTransaction(async (tx) => {
     const t = db.collection("tenants").doc(input.tenantId);
     const plan = await tx.get(t.collection("plans").doc(input.planId));
     if (!plan.exists || plan.get("status") !== "active") return { ok: false as const, error: "Plano não encontrado ou já encerrado." };
@@ -226,7 +252,7 @@ export async function endPlan(db: Firestore, input: { tenantId: string; planId: 
     }
     tx.update(plan.ref, { status: "ended", endedAt: FieldValue.serverTimestamp(), endedBy: by.byName });
     return { ok: true as const, cancelled: toCancel.length };
-  });
+  }, TX));
 }
 
 async function rescheduleContext(tx: Transaction, db: Firestore, q: Omit<RescheduleInput, "time">) {

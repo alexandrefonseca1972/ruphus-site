@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { adminDb } from "@/lib/admin";
 import { loadCatalog } from "@/lib/booking.server";
-import { todayIn } from "@/lib/scheduling";
+import { todayIn } from "@/lib/datetime";
 import { BookingForm } from "./booking-form";
 
 // Metadata e página compartilham a mesma leitura

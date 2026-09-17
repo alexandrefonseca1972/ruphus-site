@@ -5,7 +5,8 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { availableSlots, book, createPlan, endPlan, loadCatalog, requireMember, reschedule, rescheduleSlots } from "@/lib/booking.server";
-import { addDays, BookingInput, customerKey, formatPhone, phoneError, freeSlots, planDates, todayIn, weekday, zonedTime } from "@/lib/scheduling";
+import { addDays, customerKey, formatPhone, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import { BookingInput } from "@/lib/scheduling";
 
 // Funções puras
 assert.equal(zonedTime("2026-09-20", "09:00").toISOString(), "2026-09-20T12:00:00.000Z");

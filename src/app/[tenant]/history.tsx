@@ -2,7 +2,7 @@
 
 import { orderBy, Timestamp, where } from "firebase/firestore";
 import { z } from "zod";
-import { formatLongDate, formatTime, TIMEZONE } from "@/lib/scheduling";
+import { TIMEZONE, formatLongDate, formatTime } from "@/lib/datetime";
 import { useCollection } from "@/lib/use-collection";
 
 const Range = z.object({ start: z.instanceof(Timestamp), end: z.instanceof(Timestamp) });

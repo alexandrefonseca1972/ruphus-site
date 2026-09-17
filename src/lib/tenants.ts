@@ -8,9 +8,8 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore";
-import { ref } from "firebase/storage";
 import { z } from "zod";
-import { auth, db, storage } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 
 export const Role = z.enum(["owner", "admin", "member"]);
 export type Role = z.infer<typeof Role>;
@@ -53,7 +52,3 @@ export async function myTenantIds() {
 // Todo dado de negócio vive em tenants/{id}/<coleção>
 export const tenantCollection = (tenantId: string, name: string) =>
   collection(db, "tenants", tenantId, name);
-
-// Arquivos do tenant vivem em tenants/{id}/<caminho> no Storage
-export const tenantFile = (tenantId: string, path: string) =>
-  ref(storage, `tenants/${tenantId}/${path}`);

@@ -1,15 +1,19 @@
 import { ImageResponse } from "next/og";
+import { notFound } from "next/navigation";
 import { adminDb } from "@/lib/admin";
 import { loadCatalog } from "@/lib/booking.server";
-import { formatBRL } from "@/lib/scheduling";
+import { formatBRL } from "@/lib/datetime";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "Agendamento online";
+// A prévia muda pouco e os apps buscam com pressa: serve do cache por 1 dia
+export const revalidate = 86400;
 
 export default async function OgImage({ params }: { params: Promise<{ tenant: string }> }) {
   const catalog = await loadCatalog(adminDb, (await params).tenant);
-  const services = catalog?.services.slice(0, 3) ?? [];
+  if (!catalog) notFound();
+  const services = catalog.services.slice(0, 3);
   return new ImageResponse(
     (
       <div
@@ -27,7 +31,7 @@ export default async function OgImage({ params }: { params: Promise<{ tenant: st
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <span style={{ fontSize: 30, color: "#a1a1aa" }}>Agendamento online</span>
-          <span style={{ fontSize: 76, fontWeight: 700, lineHeight: 1.1 }}>{catalog?.name ?? "Agende seu horário"}</span>
+          <span style={{ fontSize: 76, fontWeight: 700, lineHeight: 1.1 }}>{catalog.name}</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {services.map((s) => (
