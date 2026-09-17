@@ -1,8 +1,9 @@
 // Rode: npm run test:booking  (lógica de horários + reservas no emulador do Firestore)
 import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { availableSlots, book, loadCatalog } from "@/lib/booking.server";
+import { availableSlots, book, loadCatalog, requireMember, reschedule, rescheduleSlots } from "@/lib/booking.server";
 import { addDays, BookingInput, freeSlots, todayIn, weekday, zonedTime } from "@/lib/scheduling";
 
 // Funções puras
@@ -21,7 +22,8 @@ assert.deepEqual(
 assert.deepEqual(freeSlots({ date: day, window: w, durationMin: 15, busy: [], now: at("09:20") }), ["09:30", "09:45"]);
 
 // Reservas no emulador
-const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
+const app = initializeApp({ projectId: "demo-siteflow" });
+const db = getFirestore(app);
 const t = db.collection("tenants").doc("salao");
 await t.set({ name: "Salão Teste", ownerId: "owner" });
 await t.collection("services").doc("corte").set({ name: "Corte", durationMin: 30, priceCents: 5000, active: true });
@@ -76,6 +78,41 @@ assert.equal(results.filter((r) => r.ok).length, 1, "concorrência");
 const luzes = await t.collection("appointments").where("serviceIds", "==", ["luzes"]).get();
 await luzes.docs[0].ref.update({ status: "cancelled" });
 assert.equal((await book(db, { ...base, serviceIds: ["luzes"], time: "10:00" })).ok, true, "após cancelamento");
+
+// Remarcar (Ana: corte 09:00 no dia D; combo 09:30–11:30 no dia D+1)
+const D = base.date, D1 = addDays(todayIn(), 8);
+const [corte] = (await t.collection("appointments").where("staffId", "==", "ana").where("start", "==", zonedTime(D, "09:00")).get()).docs;
+assert.ok((await rescheduleSlots(db, { tenantId: "salao", appointmentId: corte.id, date: D })).includes("09:00"), "próprio horário não conta como ocupado");
+assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "10:00" })).ok, false, "conflito com combo");
+await corte.ref.update({ status: "confirmed" });
+assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D, time: "09:15" })).ok, true, "sobrepõe só a si mesmo");
+let moved = (await corte.ref.get()).data()!;
+assert.equal(moved.start.toMillis(), zonedTime(D, "09:15").getTime());
+assert.equal(moved.end.toMillis() - moved.start.toMillis(), 30 * 60_000);
+assert.equal(moved.status, "booked", "remarcado volta a aguardar confirmação");
+assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "11:30" })).ok, true, "outro dia");
+moved = (await corte.ref.get()).data()!;
+assert.equal(moved.start.toMillis(), zonedTime(D1, "11:30").getTime());
+assert.ok((await availableSlots(db, { ...base, serviceIds: ["corte"] })).includes("09:00"), "horário antigo liberado");
+assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: "nao-existe", date: D1, time: "09:00" })).ok, false);
+await corte.ref.update({ status: "cancelled" });
+assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "09:00" })).ok, false, "cancelado não remarca");
+
+// Membro do tenant (emulador de Auth)
+const auth = getAuth(app);
+async function tokenFor(uid: string) {
+  const custom = await auth.createCustomToken(uid);
+  const r = await fetch(`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=fake`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: custom, returnSecureToken: true }),
+  });
+  return ((await r.json()) as { idToken: string }).idToken;
+}
+await t.collection("members").doc("owner").set({ uid: "owner", role: "owner" });
+assert.equal(await requireMember(auth, db, await tokenFor("owner"), "salao"), "owner");
+await assert.rejects(requireMember(auth, db, await tokenFor("intruso"), "salao"), /Sem acesso/);
+await assert.rejects(requireMember(auth, db, "token-falso", "salao"), /Sessão expirada/);
 
 console.log("booking ok");
 process.exit(0);

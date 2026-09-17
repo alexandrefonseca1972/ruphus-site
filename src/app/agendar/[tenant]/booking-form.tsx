@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { addDays, formatBRL, formatDuration } from "@/lib/scheduling";
+import { addDays, formatBRL, formatDuration, formatLongDate, zonedTime } from "@/lib/scheduling";
 import { cn } from "@/lib/utils";
 import { createBooking, getSlots } from "./actions";
 
@@ -17,10 +17,7 @@ type Props = {
   staff: { id: string; name: string; serviceIds: string[] }[];
 };
 
-const longDate = (date: string) =>
-  new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(
-    new Date(`${date}T12:00:00Z`),
-  );
+const longDate = (date: string) => formatLongDate(zonedTime(date, "12:00"));
 
 function Choice({ selected, ...props }: React.ComponentProps<"button"> & { selected: boolean }) {
   return (

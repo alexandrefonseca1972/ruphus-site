@@ -1,5 +1,6 @@
 import "server-only";
 import { applicationDefault, cert, getApps, initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
 // Vercel: FIREBASE_SERVICE_ACCOUNT com o JSON da conta de serviço.
@@ -14,3 +15,4 @@ const app =
   });
 
 export const adminDb = getFirestore(app);
+export const adminAuth = getAuth(app);

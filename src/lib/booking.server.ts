@@ -1,9 +1,11 @@
 import "server-only";
+import type { Auth } from "firebase-admin/auth";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
 import {
   addDays,
   type BookingInput,
   freeSlots,
+  type RescheduleInput,
   Service,
   type SlotQuery,
   Staff,
@@ -36,7 +38,18 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
   };
 }
 
-async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery) {
+/** Garante que o token é válido e o usuário é membro do tenant. */
+export async function requireMember(auth: Auth, db: Firestore, idToken: string, tenantId: string) {
+  const { uid } = await auth.verifyIdToken(idToken).catch(() => {
+    throw new Error("Sessão expirada. Entre novamente.");
+  });
+  const member = await db.doc(`tenants/${tenantId}/members/${uid}`).get();
+  if (!member.exists) throw new Error("Sem acesso a este espaço.");
+  return uid;
+}
+
+// excludeId: ao remarcar, o próprio agendamento não conta como ocupado
+async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery, excludeId?: string) {
   const t = db.collection("tenants").doc(q.tenantId);
   const [staffSnap, ...svcSnaps] = await tx.getAll(
     t.collection("staff").doc(q.staffId),
@@ -67,7 +80,7 @@ async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery) {
     window: staff.data.hours[String(weekday(q.date)) as keyof Staff["hours"]],
     durationMin,
     busy: booked.docs
-      .filter((d) => d.get("status") !== "cancelled")
+      .filter((d) => d.get("status") !== "cancelled" && d.id !== excludeId)
       .map((d) => ({ start: (d.get("start") as Timestamp).toDate(), end: (d.get("end") as Timestamp).toDate() })),
     now: new Date(),
   });
@@ -102,5 +115,34 @@ export async function book(db: Firestore, input: BookingInput) {
       createdAt: FieldValue.serverTimestamp(),
     });
     return { ok: true as const, id: ref.id };
+  });
+}
+
+async function rescheduleContext(tx: Transaction, db: Firestore, q: Omit<RescheduleInput, "time">) {
+  const ref = db.doc(`tenants/${q.tenantId}/appointments/${q.appointmentId}`);
+  const appt = await tx.get(ref);
+  if (!appt.exists || appt.get("status") === "cancelled") return null;
+  const query = { tenantId: q.tenantId, serviceIds: appt.get("serviceIds") as string[], staffId: appt.get("staffId") as string, date: q.date };
+  const ctx = await slotContext(tx, db, query, q.appointmentId);
+  return ctx && { ...ctx, ref };
+}
+
+export async function rescheduleSlots(db: Firestore, q: Omit<RescheduleInput, "time">) {
+  return db.runTransaction(async (tx) => (await rescheduleContext(tx, db, q))?.slots ?? [], { readOnly: true });
+}
+
+export async function reschedule(db: Firestore, input: RescheduleInput) {
+  return db.runTransaction(async (tx) => {
+    const ctx = await rescheduleContext(tx, db, input);
+    if (!ctx) return { ok: false as const, error: "Agendamento, serviço ou profissional indisponível." };
+    if (!ctx.slots.includes(input.time)) return { ok: false as const, error: "Esse horário não está livre. Escolha outro." };
+    const start = zonedTime(input.date, input.time);
+    tx.update(ctx.ref, {
+      start,
+      end: new Date(start.getTime() + ctx.durationMin * 60_000),
+      status: "booked", // precisa de nova confirmação
+      rescheduledAt: FieldValue.serverTimestamp(),
+    });
+    return { ok: true as const };
   });
 }

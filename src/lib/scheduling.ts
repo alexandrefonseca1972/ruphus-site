@@ -75,16 +75,37 @@ export function addDays(date: string, days: number) {
   return d.toISOString().slice(0, 10);
 }
 
-export const todayIn = (tz = TIMEZONE) => new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+/** Data "AAAA-MM-DD" de um instante, no fuso do negócio */
+export const dateIn = (d: Date, tz = TIMEZONE) => new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d);
+export const todayIn = (tz = TIMEZONE) => dateIn(new Date(), tz);
 
 export const formatTime = (d: Date, tz = TIMEZONE) =>
   new Intl.DateTimeFormat("pt-BR", { timeZone: tz, hour: "2-digit", minute: "2-digit" }).format(d);
+
+/** "segunda-feira, 21 de setembro" */
+export const formatLongDate = (d: Date, tz = TIMEZONE) =>
+  new Intl.DateTimeFormat("pt-BR", { timeZone: tz, weekday: "long", day: "numeric", month: "long" }).format(d);
 
 export const formatBRL = (cents: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 
 export const formatDuration = (min: number) =>
   min < 60 ? `${min} min` : `${Math.floor(min / 60)}h${min % 60 ? String(min % 60).padStart(2, "0") : ""}`;
+
+export const RescheduleInput = z.object({
+  tenantId: id,
+  appointmentId: id,
+  date: z.iso.date(),
+  time: hhmm,
+});
+export type RescheduleInput = z.infer<typeof RescheduleInput>;
+
+/** Link do WhatsApp; números com 10-11 dígitos recebem o DDI 55 */
+export function whatsappLink(phone: string, text?: string) {
+  const digits = phone.replace(/\D/g, "");
+  const number = digits.length <= 11 ? `55${digits}` : digits;
+  return `https://wa.me/${number}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+}
 
 /** Horários de início livres no dia, em "HH:MM" local. */
 export function freeSlots(args: {
