@@ -44,3 +44,4 @@ next-env.d.ts
 # credenciais
 importantes/
 *-firebase-adminsdk-*.json
+*-debug.log

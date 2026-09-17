@@ -1,11 +1,13 @@
 // Rode: npm run test:rules
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { collectionGroup, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch } from "firebase/firestore";
+import { getBytes, ref, uploadBytes } from "firebase/storage";
 import { readFileSync } from "node:fs";
 
 const env = await initializeTestEnvironment({
   projectId: "demo-siteflow",
   firestore: { rules: readFileSync("firestore.rules", "utf8"), host: "127.0.0.1", port: 8080 },
+  storage: { rules: readFileSync("storage.rules", "utf8"), host: "127.0.0.1", port: 9199 },
 });
 const as = (uid) => env.authenticatedContext(uid).firestore();
 
@@ -42,6 +44,17 @@ await assertFails(updateDoc(doc(bob, "tenants/acme"), { ownerId: "bob" }));
 // Meus tenants
 await assertSucceeds(getDocs(query(collectionGroup(bob, "members"), where("uid", "==", "bob"))));
 await assertFails(getDocs(collectionGroup(mallory, "members")));
+
+// Storage (bob é admin de acme, mallory não é membro)
+const file = (uid, path) => ref(env.authenticatedContext(uid).storage(), path);
+const bytes = (n) => new Uint8Array(n);
+await assertSucceeds(uploadBytes(file("bob", "tenants/acme/logo.png"), bytes(10)));
+await assertSucceeds(getBytes(file("alice", "tenants/acme/logo.png")));
+await assertFails(getBytes(file("mallory", "tenants/acme/logo.png")));
+await assertFails(uploadBytes(file("mallory", "tenants/acme/x.png"), bytes(10)));
+await assertFails(getBytes(ref(env.unauthenticatedContext().storage(), "tenants/acme/logo.png")));
+await assertFails(uploadBytes(file("alice", "tenants/acme/big.bin"), bytes(10 * 1024 * 1024)));
+await assertFails(uploadBytes(file("alice", "outro/lugar.png"), bytes(10)));
 
 await env.cleanup();
 console.log("rules ok");

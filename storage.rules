@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Mesmo vínculo do Firestore: só membros do tenant acessam tenants/{t}/...
+    function isMember(t) {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/tenants/$(t)/members/$(request.auth.uid));
+    }
+
+    match /tenants/{t}/{path=**} {
+      allow read, delete: if isMember(t);
+      // ponytail: limite único de 10 MB; por tipo de arquivo quando houver uploads grandes (vídeo etc.)
+      allow create, update: if isMember(t) && request.resource.size < 10 * 1024 * 1024;
+    }
+    // Qualquer outro caminho: negado
+  }
+}
