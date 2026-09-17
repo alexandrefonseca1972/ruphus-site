@@ -9,3 +9,9 @@ export const handleSubmit =
     e.preventDefault();
     fn(new FormData(e.currentTarget), e.currentTarget);
   };
+
+/** Abre link externo; se o navegador (ou webview do Instagram/Facebook) bloquear, navega na própria aba. */
+export function openExternal(url: string) {
+  const win = window.open(url, "_blank", "noopener");
+  if (!win) location.href = url;
+}

@@ -21,7 +21,7 @@ import {
 } from "@/lib/scheduling";
 import { Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
-import { cn } from "@/lib/utils";
+import { cn, openExternal } from "@/lib/utils";
 import { ConfirmPanel } from "./confirm-panel";
 import { History } from "./history";
 import { useTenant } from "./layout";
@@ -97,7 +97,7 @@ export default function AgendaPage() {
 
   function confirmViaWhatsapp(a: Appointment) {
     // Abre a janela antes de qualquer await, senão o navegador bloqueia o pop-up
-    window.open(whatsappLink(a.customerPhone, confirmationText(a, tenant.name)), "_blank", "noopener");
+    openExternal(whatsappLink(a.customerPhone, confirmationText(a, tenant.name)));
     changeStatus(a, "confirmed");
   }
 
@@ -105,7 +105,7 @@ export default function AgendaPage() {
     // Abre o WhatsApp antes do await (bloqueio de pop-up)
     if (notify) {
       const url = `${location.origin}/agendar/${tenant.id}`;
-      window.open(whatsappLink(a.customerPhone, cancellationText(a, tenant.name, url)), "_blank", "noopener");
+      openExternal(whatsappLink(a.customerPhone, cancellationText(a, tenant.name, url)));
     }
     setConfirming(null);
     return changeStatus(a, "cancelled");

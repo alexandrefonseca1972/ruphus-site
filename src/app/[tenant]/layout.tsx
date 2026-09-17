@@ -7,6 +7,7 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, use, useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { Tenant } from "@/lib/tenants";
+import { ShareLink } from "./share-link";
 import { cn } from "@/lib/utils";
 
 const TenantContext = createContext<Tenant | null>(null);
@@ -57,7 +58,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   const isActive = (href: string) => pathname === href || (href !== `/${slug}` && pathname.startsWith(`${href}/`));
   return (
     <TenantContext value={state}>
-      <header className="border-b">
+      <header className="relative border-b">
         <nav className="mx-auto flex max-w-4xl flex-wrap items-center gap-1 p-2 text-sm">
           <Link href="/" className="mr-2 px-2 font-semibold">{state.name}</Link>
           {links.map((l) => (
@@ -70,9 +71,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
               {l.label}
             </Link>
           ))}
-          <a href={`/agendar/${slug}`} target="_blank" rel="noreferrer" className="ml-auto rounded-md px-3 py-1.5 text-muted-foreground hover:bg-muted">
-            Página de agendamento ↗
-          </a>
+          <ShareLink tenantId={slug} name={state.name} />
         </nav>
       </header>
       <main className="mx-auto grid w-full max-w-4xl gap-6 p-4">{children}</main>
