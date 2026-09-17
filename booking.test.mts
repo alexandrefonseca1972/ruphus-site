@@ -5,7 +5,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { availableSlots, book, createPlan, endPlan, loadCatalog, requireMember, reschedule, rescheduleSlots } from "@/lib/booking.server";
-import { addDays, BookingInput, customerKey, freeSlots, planDates, todayIn, weekday, zonedTime } from "@/lib/scheduling";
+import { addDays, BookingInput, customerKey, formatPhone, phoneError, freeSlots, planDates, todayIn, weekday, zonedTime } from "@/lib/scheduling";
 
 // Funções puras
 assert.equal(zonedTime("2026-09-20", "09:00").toISOString(), "2026-09-20T12:00:00.000Z");
@@ -15,6 +15,21 @@ assert.equal(customerKey("(11) 91234-5678"), "5511912345678");
 assert.equal(customerKey("+55 11 91234-5678"), "5511912345678");
 assert.deepEqual(planDates("2026-09-17", 1, 3), ["2026-09-21", "2026-09-28", "2026-10-05"]); // quinta → segundas
 assert.deepEqual(planDates("2026-09-21", 1, 2), ["2026-09-21", "2026-09-28"]); // já é segunda
+assert.equal(formatPhone("11912345678"), "(11) 91234-5678");
+assert.equal(formatPhone("1133334444"), "(11) 3333-4444");
+assert.equal(formatPhone("5511912345678"), "(11) 91234-5678", "colado com DDI");
+assert.equal(formatPhone("(11) 9123"), "(11) 9123");
+assert.equal(formatPhone("1191234567890"), "(11) 91234-5678", "corta excesso");
+assert.equal(formatPhone("1"), "(1");
+assert.equal(formatPhone(""), "");
+assert.equal(phoneError("(11) 91234-5678"), "");
+assert.equal(phoneError("(11) 3333-4444"), "");
+assert.notEqual(phoneError("(11) 1234-56789"), "", "11 dígitos sem 9");
+assert.notEqual(phoneError("(01) 91234-5678"), "", "DDD 0");
+assert.notEqual(phoneError("(11) 9123"), "");
+const phoneOk = (p: string) => BookingInput.shape.customerPhone.safeParse(p).success;
+assert.ok(phoneOk("(11) 91234-5678") && phoneOk("+55 11 91234-5678") && phoneOk("1133334444"));
+assert.ok(!phoneOk("--------") && !phoneOk("(((())))") && !phoneOk("1234-5678"), "telefone sem dígitos suficientes");
 const day = "2030-01-07"; // segunda-feira
 const at = (t: string) => zonedTime(day, t);
 const w = { start: "09:00", end: "10:00" };
@@ -102,12 +117,20 @@ assert.equal(log.to.start.toMillis(), zonedTime(D, "09:15").getTime());
 assert.equal(moved.start.toMillis(), zonedTime(D, "09:15").getTime());
 assert.equal(moved.end.toMillis() - moved.start.toMillis(), 30 * 60_000);
 assert.equal(moved.status, "booked", "remarcado volta a aguardar confirmação");
+// Serviço mudou de duração/preço depois da reserva: remarcar deixa tudo coerente
+await t.collection("services").doc("corte").update({ durationMin: 45, priceCents: 6000 });
+assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D, time: "09:15" }, actor)).ok, true);
+moved = (await corte.ref.get()).data()!;
+assert.deepEqual([moved.durationMin, moved.priceCents, (moved.end.toMillis() - moved.start.toMillis()) / 60_000], [45, 6000, 45]);
+await t.collection("services").doc("corte").update({ durationMin: 30, priceCents: 5000 });
+assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D, time: "09:15" }, actor)).ok, true);
+moved = (await corte.ref.get()).data()!;
 assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "11:30" }, actor)).ok, true, "outro dia");
 moved = (await corte.ref.get()).data()!;
 assert.equal(moved.start.toMillis(), zonedTime(D1, "11:30").getTime());
 assert.ok((await availableSlots(db, { ...base, serviceIds: ["corte"] })).includes("09:00"), "horário antigo liberado");
 assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: "nao-existe", date: D1, time: "09:00" }, actor)).ok, false);
-assert.equal((await t.collection("history").where("appointmentId", "==", corte.id).get()).size, 3, "criado + 2 remarcações");
+assert.equal((await t.collection("history").where("appointmentId", "==", corte.id).get()).size, 5, "criado + 4 remarcações");
 await corte.ref.update({ status: "no_show" });
 assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "09:00" }, actor)).ok, false, "falta não remarca");
 await corte.ref.update({ status: "cancelled" });
@@ -133,9 +156,11 @@ await assert.rejects(requireMember(emulatorVerify, db, "token-falso", "salao"), 
 await assert.rejects(verifyFirebaseToken(await tokenFor("owner"), "demo-siteflow"));
 await assert.rejects(verifyFirebaseToken("a.b.c", "demo-siteflow"));
 
-// Cliente salvo a cada reserva
+// Cliente salvo a cada reserva; reserva anônima com o mesmo telefone não troca o nome
 const cliente = (await t.collection("customers").doc("5511912345678").get()).data()!;
 assert.deepEqual([cliente.name, cliente.phone], ["Cliente", "11 91234-5678"]);
+assert.equal((await book(db, { ...base, date: addDays(todayIn(), 9), serviceIds: ["corte"], time: "09:00", customerName: "Impostor" })).ok, true);
+assert.equal((await t.collection("customers").doc("5511912345678").get()).get("name"), "Cliente", "nome não sobrescrito");
 assert.ok((await t.collection("appointments").where("customerKey", "==", "5511912345678").get()).size > 0);
 
 // Plano recorrente: toda segunda 10:00 com a Bia, 4 semanas a partir de daqui a 14 dias

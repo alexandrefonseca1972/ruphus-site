@@ -1,11 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { addDays, formatBRL, formatDuration, formatLongDate, zonedTime } from "@/lib/scheduling";
+import {
+  addDays,
+  BookingInput,
+  formatBRL,
+  formatDuration,
+  formatLongDate,
+  formatPhone,
+  MAX_DAYS_AHEAD,
+  phoneError,
+  TIMEZONE,
+  weekday,
+  zonedTime,
+} from "@/lib/scheduling";
 import { cn } from "@/lib/utils";
 import { createBooking, getSlots } from "./actions";
 
@@ -14,10 +26,34 @@ type Props = {
   today: string;
   name: string;
   services: { id: string; name: string; durationMin: number; priceCents: number }[];
-  staff: { id: string; name: string; serviceIds: string[] }[];
+  staff: { id: string; name: string; serviceIds: string[]; workDays: number[] }[];
 };
 
+const QUICK_DAYS = 14;
+const CONTACT_KEY = "siteflow:contato"; // lembrado só neste navegador
+
 const longDate = (date: string) => formatLongDate(zonedTime(date, "12:00"));
+const dayChip = (date: string) => {
+  const d = zonedTime(date, "12:00");
+  return {
+    weekday: new Intl.DateTimeFormat("pt-BR", { weekday: "short", timeZone: TIMEZONE }).format(d).replace(".", ""),
+    day: new Intl.DateTimeFormat("pt-BR", { day: "numeric", timeZone: TIMEZONE }).format(d),
+    month: new Intl.DateTimeFormat("pt-BR", { month: "short", timeZone: TIMEZONE }).format(d).replace(".", ""),
+  };
+};
+const nameError = (v: string) => (!v.trim() ? "Informe seu nome" : v.trim().length < 2 ? "Nome muito curto" : "");
+const PERIODS = [
+  { label: "Manhã", test: (t: string) => t < "12:00" },
+  { label: "Tarde", test: (t: string) => t >= "12:00" && t < "18:00" },
+  { label: "Noite", test: (t: string) => t >= "18:00" },
+];
+
+function scrollToSection(el: HTMLElement | null) {
+  if (!el) return;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Espera o React desenhar a seção nova
+  requestAnimationFrame(() => el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" }));
+}
 
 function Choice({ selected, ...props }: React.ComponentProps<"button"> & { selected: boolean }) {
   return (
@@ -26,7 +62,7 @@ function Choice({ selected, ...props }: React.ComponentProps<"button"> & { selec
       aria-pressed={selected}
       {...props}
       className={cn(
-        "rounded-lg border p-3 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+        "rounded-lg border p-3 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
         selected && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
         props.className,
       )}
@@ -34,18 +70,48 @@ function Choice({ selected, ...props }: React.ComponentProps<"button"> & { selec
   );
 }
 
+function Field(props: {
+  id: string;
+  label: string;
+  error: string;
+  show: boolean;
+  children: (a11y: { "aria-invalid": boolean; "aria-describedby"?: string }) => React.ReactNode;
+}) {
+  const { id, label, error, show, children } = props;
+  const invalid = show && !!error;
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      {children({ "aria-invalid": invalid, "aria-describedby": invalid ? `${id}-error` : undefined })}
+      <p id={`${id}-error`} className={cn("min-h-5 text-sm", invalid ? "text-destructive" : "text-emerald-700 dark:text-emerald-400")} aria-live="polite">
+        {invalid ? error : show && !error ? "✓" : ""}
+      </p>
+    </div>
+  );
+}
+
 export function BookingForm({ tenantId, today, name, services, staff }: Props) {
   const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [staffId, setStaffId] = useState("");
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [slotsVersion, setSlotsVersion] = useState(0);
   const slotsKey = `${serviceIds.join(",")}|${staffId}|${date}|${slotsVersion}`;
   const [fetched, setFetched] = useState<{ for: string; slots: string[] } | null>(null);
   const slots = fetched?.for === slotsKey ? fetched.slots : null;
-  const [error, setError] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [touched, setTouched] = useState({ name: false, phone: false });
+  const [slotError, setSlotError] = useState("");
+  const [submitError, setSubmitError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+
+  const staffRef = useRef<HTMLElement>(null);
+  const dateRef = useRef<HTMLElement>(null);
+  const contactRef = useRef<HTMLElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
 
   const chosen = services.filter((s) => serviceIds.includes(s.id));
   const totalMin = chosen.reduce((sum, s) => sum + s.durationMin, 0);
@@ -53,11 +119,29 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
   const doesAll = (p: Props["staff"][number], ids: string[]) => ids.every((id) => p.serviceIds.includes(id));
   const professionals = staff.filter((p) => doesAll(p, serviceIds));
   const professional = professionals.find((p) => p.id === staffId);
+  const errors = { name: nameError(customerName), phone: phoneError(customerPhone) };
+  const quickDays = Array.from({ length: QUICK_DAYS }, (_, i) => addDays(today, i));
+  const worksOn = (d: string) => !!professional?.workDays.includes(weekday(d));
+  const firstWorkDay = (p: Props["staff"][number]) => quickDays.find((d) => p.workDays.includes(weekday(d))) ?? "";
+
+  // Contato lembrado da última reserva neste navegador
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CONTACT_KEY) ?? "null");
+      if (saved?.name) setCustomerName(saved.name); // eslint-disable-line react-hooks/set-state-in-effect -- leitura única do localStorage
+      if (saved?.phone) setCustomerPhone(formatPhone(saved.phone));
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (!serviceIds.length || !staffId || !date) return;
     let current = true;
-    getSlots({ tenantId, serviceIds, staffId, date }).then((s) => current && setFetched({ for: slotsKey, slots: s }));
+    getSlots({ tenantId, serviceIds, staffId, date })
+      .catch(() => {
+        if (current) setSlotError("Não foi possível carregar os horários. Tente de novo.");
+        return [];
+      })
+      .then((s) => current && setFetched({ for: slotsKey, slots: s }));
     return () => {
       current = false;
     };
@@ -69,45 +153,99 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
     const ids = services.map((s) => s.id).filter((s) => (s === id ? !serviceIds.includes(id) : serviceIds.includes(s)));
     setServiceIds(ids);
     const available = staff.filter((p) => doesAll(p, ids));
-    if (!available.some((p) => p.id === staffId)) setStaffId(available.length === 1 ? available[0].id : "");
+    if (!available.some((p) => p.id === staffId)) {
+      const only = available.length === 1 ? available[0] : undefined;
+      setStaffId(only?.id ?? "");
+      setDate(only ? firstWorkDay(only) : "");
+    }
     setTime("");
-    setError("");
+    setSlotError("");
+    if (ids.length === 1 && serviceIds.length === 0) scrollToSection(staffRef.current);
   }
 
-  async function submit(form: FormData) {
-    setError("");
+  function pickStaff(id: string) {
+    setStaffId(id);
+    setTime("");
+    setSlotError("");
+    const p = staff.find((s) => s.id === id)!;
+    // Mantém a data se ela ainda serve; senão sugere o primeiro dia em que atende
+    if (!date || !p.workDays.includes(weekday(date))) setDate(firstWorkDay(p));
+    scrollToSection(dateRef.current);
+  }
+
+  function pickDate(d: string) {
+    setDate(d);
+    setTime("");
+    setSlotError("");
+  }
+
+  function pickTime(t: string) {
+    setTime(t);
+    setSlotError("");
+    setSubmitError("");
+    scrollToSection(contactRef.current);
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitError("");
+    setTouched({ name: true, phone: true });
+    if (errors.name) return nameRef.current?.focus();
+    if (errors.phone) return phoneRef.current?.focus();
+    const input = BookingInput.safeParse({ tenantId, serviceIds, staffId, date, time, customerName, customerPhone });
+    if (!input.success) return setSubmitError(input.error.issues[0].message);
     setBusy(true);
-    const result = await createBooking({
-      tenantId,
-      serviceIds,
-      staffId,
-      date,
-      time,
-      customerName: form.get("customerName"),
-      customerPhone: form.get("customerPhone"),
-    });
-    setBusy(false);
-    if (result.ok) return setDone(true);
-    setError(result.error);
+    const result = await createBooking(input.data)
+      .catch(() => ({ ok: false as const, error: "Não foi possível confirmar agora. Verifique sua conexão e tente de novo." }))
+      .finally(() => setBusy(false));
+    if (result.ok) {
+      try {
+        localStorage.setItem(CONTACT_KEY, JSON.stringify({ name: customerName.trim(), phone: customerPhone }));
+      } catch {}
+      scrollTo({ top: 0 });
+      return setDone(true);
+    }
+    // Horário tomado por outra pessoa: mantém os dados e mostra os horários atualizados
+    setSlotError(result.error);
     setTime("");
     setSlotsVersion((v) => v + 1);
+    scrollToSection(dateRef.current);
   }
 
-  if (done && chosen.length && professional) {
+  if (done && professional) {
+    const start = zonedTime(date, time);
+    const end = new Date(start.getTime() + totalMin * 60_000);
+    const gcal = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+    const calendarUrl =
+      "https://calendar.google.com/calendar/render?" +
+      new URLSearchParams({
+        action: "TEMPLATE",
+        text: `${chosen.map((s) => s.name).join(" + ")} · ${name}`,
+        dates: `${gcal(start)}/${gcal(end)}`,
+        details: `Com ${professional.name}. ${formatBRL(totalCents)}.`,
+      });
     return (
       <main className="mx-auto w-full max-w-lg p-4 py-12">
         <Card>
           <CardHeader>
-            <CardTitle>Agendamento confirmado</CardTitle>
+            <p className="text-sm text-emerald-700 dark:text-emerald-400" role="status">✓ Agendamento confirmado</p>
+            <CardTitle className="text-xl">{chosen.map((s) => s.name).join(" + ")}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-1 text-sm">
-            <p className="text-base font-medium">{chosen.map((s) => s.name).join(" + ")} com {professional.name}</p>
-            <p>{formatDuration(totalMin)} · {formatBRL(totalCents)}</p>
-            <p className="first-letter:uppercase">{longDate(date)}, às {time}</p>
+            <p className="text-base first-letter:uppercase">{longDate(date)}, às {time}</p>
+            <p>com {professional.name} · {formatDuration(totalMin)} · {formatBRL(totalCents)}</p>
             <p className="text-muted-foreground">{name}</p>
-            <Button className="mt-4" variant="outline" onClick={() => location.reload()}>
-              Fazer outro agendamento
-            </Button>
+            <p className="mt-3 text-muted-foreground">
+              O estabelecimento pode entrar em contato pelo WhatsApp {customerPhone} para confirmar.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <a href={calendarUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/80">
+                Adicionar ao Google Agenda
+              </a>
+              <Button variant="outline" onClick={() => location.reload()}>
+                Fazer outro agendamento
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </main>
@@ -115,13 +253,13 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
   }
 
   return (
-    <main className="mx-auto grid w-full max-w-lg gap-6 p-4 py-10">
+    <main className="mx-auto grid w-full max-w-lg gap-8 p-4 py-10">
       <header>
         <p className="text-sm text-muted-foreground">Agendamento online</p>
         <h1 className="text-2xl font-semibold">{name}</h1>
       </header>
 
-      <section aria-labelledby="s-service" className="grid gap-2">
+      <section aria-labelledby="s-service" className="grid scroll-mt-4 gap-2">
         <h2 id="s-service" className="font-medium">
           1. Serviços <span className="text-sm font-normal text-muted-foreground">(escolha um ou mais)</span>
         </h2>
@@ -144,7 +282,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
       </section>
 
       {chosen.length > 0 && (
-        <section aria-labelledby="s-staff" className="grid gap-2">
+        <section ref={staffRef} aria-labelledby="s-staff" className="grid scroll-mt-4 gap-2">
           <h2 id="s-staff" className="font-medium">2. Profissional</h2>
           {professionals.length === 0 && (
             <p className="text-sm text-muted-foreground">
@@ -153,10 +291,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
           )}
           <div className="grid grid-cols-2 gap-2">
             {professionals.map((p) => (
-              <Choice key={p.id} selected={p.id === staffId} onClick={() => {
-                  setStaffId(p.id);
-                  setTime("");
-                }}>
+              <Choice key={p.id} selected={p.id === staffId} onClick={() => pickStaff(p.id)}>
                 {p.name}
               </Choice>
             ))}
@@ -165,51 +300,128 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
       )}
 
       {professional && (
-        <section aria-labelledby="s-date" className="grid gap-2">
+        <section ref={dateRef} aria-labelledby="s-date" className="grid scroll-mt-4 gap-3">
           <h2 id="s-date" className="font-medium">3. Data e horário</h2>
-          <Label htmlFor="date" className="sr-only">Data</Label>
-          <Input id="date" type="date" value={date} min={today} max={addDays(today, 90)} onChange={(e) => {
-              setDate(e.target.value);
-              setTime("");
-            }} />
-          {date && <p className="text-sm text-muted-foreground first-letter:uppercase">{longDate(date)}</p>}
-          {!date ? null : slots === null ? (
-            <p className="text-sm text-muted-foreground">Buscando horários…</p>
-          ) : slots.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum horário livre nesta data. Tente outro dia.</p>
-          ) : (
-            <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-              {slots.map((s) => (
-                <Choice key={s} selected={s === time} onClick={() => setTime(s)} className="text-center tabular-nums">
-                  {s}
+          <div className="-mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Próximos dias">
+            {quickDays.map((d, i) => {
+              const chip = dayChip(d);
+              return (
+                <Choice
+                  key={d}
+                  selected={d === date}
+                  disabled={!worksOn(d)}
+                  onClick={() => pickDate(d)}
+                  aria-label={`${longDate(d)}${worksOn(d) ? "" : " (não atende)"}`}
+                  className="grid w-16 shrink-0 snap-start justify-items-center gap-0 px-1 py-2 text-center"
+                >
+                  <span className="text-xs capitalize opacity-80">{i === 0 ? "hoje" : i === 1 ? "amanhã" : chip.weekday}</span>
+                  <span className="text-lg leading-6 font-semibold tabular-nums">{chip.day}</span>
+                  <span className="text-xs opacity-80">{chip.month}</span>
                 </Choice>
-              ))}
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Label htmlFor="date" className="font-normal text-muted-foreground">Outra data:</Label>
+            <Input
+              id="date"
+              type="date"
+              className="w-auto"
+              value={date}
+              min={today}
+              max={addDays(today, MAX_DAYS_AHEAD)}
+              onChange={(e) => pickDate(e.target.value)}
+            />
+          </div>
+
+          {date && (
+            <div className="grid gap-3" aria-live="polite">
+              <p className="text-sm text-muted-foreground first-letter:uppercase">{longDate(date)}</p>
+              {slotError && <p role="alert" className="rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{slotError}</p>}
+              {!worksOn(date) ? (
+                <p className="text-sm text-muted-foreground">{professional.name} não atende neste dia da semana. Escolha outra data.</p>
+              ) : slots === null ? (
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-5" aria-label="Buscando horários">
+                  {Array.from({ length: 8 }, (_, i) => (
+                    <div key={i} className="h-11 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
+                  ))}
+                  <span className="sr-only">Buscando horários…</span>
+                </div>
+              ) : slots.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum horário livre nesta data. Tente outro dia.</p>
+              ) : (
+                PERIODS.map((period) => {
+                  const list = slots.filter(period.test);
+                  if (!list.length) return null;
+                  return (
+                    <div key={period.label} className="grid gap-1.5">
+                      <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{period.label}</h3>
+                      <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+                        {list.map((s) => (
+                          <Choice key={s} selected={s === time} onClick={() => pickTime(s)} className="text-center tabular-nums">
+                            {s}
+                          </Choice>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
         </section>
       )}
 
-      {time && (
-        <section aria-labelledby="s-contact" className="grid gap-2">
+      {time && professional && (
+        <section ref={contactRef} aria-labelledby="s-contact" className="grid scroll-mt-4 gap-3">
           <h2 id="s-contact" className="font-medium">4. Seus dados</h2>
-          <form action={submit} className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="customerName">Nome</Label>
-              <Input id="customerName" name="customerName" autoComplete="name" required minLength={2} maxLength={80} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="customerPhone">WhatsApp</Label>
-              <Input id="customerPhone" name="customerPhone" type="tel" autoComplete="tel" inputMode="tel" placeholder="(11) 91234-5678" required />
-            </div>
-            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" disabled={busy}>
-              {busy ? "Confirmando…" : `Confirmar ${time}`}
+          <div className="rounded-lg bg-muted/60 p-3 text-sm">
+            <p className="font-medium">{chosen.map((s) => s.name).join(" + ")} com {professional.name}</p>
+            <p className="first-letter:uppercase">{longDate(date)}, às {time}</p>
+            <p className="text-muted-foreground">{formatDuration(totalMin)} · {formatBRL(totalCents)}</p>
+          </div>
+          <form onSubmit={submit} noValidate className="grid gap-2">
+            <Field id="customerName" label="Nome" error={errors.name} show={touched.name}>
+              {(a11y) => (
+                <Input
+                  ref={nameRef}
+                  id="customerName"
+                  autoComplete="name"
+                  maxLength={80}
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  onBlur={() => setTouched((t) => ({ ...t, name: true }))}
+                  {...a11y}
+                />
+              )}
+            </Field>
+            <Field id="customerPhone" label="WhatsApp" error={errors.phone} show={touched.phone}>
+              {(a11y) => (
+                <Input
+                  ref={phoneRef}
+                  id="customerPhone"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  placeholder="(11) 91234-5678"
+                  value={customerPhone}
+                  onChange={(e) => {
+                    setCustomerPhone(formatPhone(e.target.value));
+                    // Valida enquanto digita assim que o número fica completo
+                    if (e.target.value.replace(/\D/g, "").length >= 10) setTouched((t) => ({ ...t, phone: true }));
+                  }}
+                  onBlur={() => setTouched((t) => ({ ...t, phone: true }))}
+                  {...a11y}
+                />
+              )}
+            </Field>
+            {submitError && <p role="alert" className="text-sm text-destructive">{submitError}</p>}
+            <Button type="submit" size="lg" disabled={busy}>
+              {busy ? "Confirmando…" : `Confirmar agendamento às ${time}`}
             </Button>
           </form>
         </section>
       )}
-
-      {!time && error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     </main>
   );
 }

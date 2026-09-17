@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
 import { auth } from "@/lib/firebase";
+import { handleSubmit } from "@/lib/utils";
 
 const Credentials = z.object({
   email: z.email("Informe um e-mail válido."),
@@ -80,7 +81,7 @@ export default function LoginPage() {
             Continuar com Google
           </Button>
           <div className="text-center text-xs text-muted-foreground">ou</div>
-          <form action={submit} className="grid gap-4">
+          <form onSubmit={handleSubmit(submit)} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="email">E-mail</Label>
               <Input id="email" name="email" type="email" autoComplete="email" required />

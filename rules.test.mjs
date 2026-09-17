@@ -45,6 +45,16 @@ await assertFails(updateDoc(doc(bob, "tenants/acme"), { ownerId: "bob" }));
 await assertSucceeds(getDocs(query(collectionGroup(bob, "members"), where("uid", "==", "bob"))));
 await assertFails(getDocs(collectionGroup(mallory, "members")));
 
+// Tenant não pode ser apagado pelo app (slug seria recriado por outro com os dados antigos)
+await assertFails(deleteDoc(doc(alice, "tenants/acme")));
+// Subcoleções aninhadas: nem "members" falso nem nada abaixo de um nível
+await assertFails(setDoc(doc(bob, "tenants/acme/services/evil/members/carol"), { uid: "carol", role: "owner" }));
+await assertFails(setDoc(doc(bob, "tenants/acme/services/s1/qualquer/x"), { a: 1 }));
+await assertSucceeds(setDoc(doc(bob, "tenants/acme/services/s1"), { name: "Corte" }));
+// Registro de histórico sozinho, sem a mudança no agendamento
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/appointments/solo"), { status: "booked" }));
+await assertFails(setDoc(doc(bob, "tenants/acme/history/h-solo"), { appointmentId: "solo", type: "confirmed", at: serverTimestamp(), by: "bob", byName: "bob@teste.dev" }));
+
 // Agendamentos + histórico (criados pelo servidor; aqui simulados sem regras)
 await env.withSecurityRulesDisabled(async (ctx) => {
   const db = ctx.firestore();

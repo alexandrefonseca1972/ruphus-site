@@ -21,22 +21,29 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   const { tenant: slug } = useParams<{ tenant: string }>();
   const router = useRouter();
   const pathname = usePathname();
-  const [state, setState] = useState<Tenant | "loading" | "denied">("loading");
+  // Resultado guardado com o slug: ao trocar de espaço nunca mostra o anterior
+  const [loaded, setLoaded] = useState<{ slug: string; value: Tenant | "denied" } | null>(null);
+  const state = loaded?.slug === slug ? loaded.value : "loading";
 
-  useEffect(
-    () =>
-      onAuthStateChanged(auth, async (user) => {
-        if (!user) return router.replace("/login");
-        try {
-          // As regras negam a leitura para quem não é membro
-          const snap = await getDoc(doc(db, "tenants", slug));
-          setState(snap.exists() ? { id: snap.id, ...Tenant.parse(snap.data()) } : "denied");
-        } catch {
-          setState("denied");
-        }
-      }),
-    [slug, router],
-  );
+  useEffect(() => {
+    let current = true;
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) return router.replace("/login");
+      let value: Tenant | "denied";
+      try {
+        // As regras negam a leitura para quem não é membro
+        const snap = await getDoc(doc(db, "tenants", slug));
+        value = snap.exists() ? { id: snap.id, ...Tenant.parse(snap.data()) } : "denied";
+      } catch {
+        value = "denied";
+      }
+      if (current) setLoaded({ slug, value });
+    });
+    return () => {
+      current = false;
+      unsubscribe();
+    };
+  }, [slug, router]);
 
   if (state === "loading") return <p className="p-8">Carregando…</p>;
   if (state === "denied") return <p className="p-8">Tenant não encontrado ou sem acesso.</p>;

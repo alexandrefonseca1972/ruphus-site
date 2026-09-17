@@ -10,6 +10,7 @@ import { db, idToken } from "@/lib/firebase";
 import { dateIn, formatBRL, formatLongDate, formatTime, whatsappLink } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { endPlanAction } from "../../actions";
+import { ConfirmPanel } from "../../confirm-panel";
 import { History } from "../../history";
 import { useTenant } from "../../layout";
 import { PlanForm, planLabel } from "../../plan-form";
@@ -48,6 +49,7 @@ export default function CustomerPage() {
   const [plans] = useCollection(tenant.id, "plans", Plan, [where("customerKey", "==", key)], key);
   const [planning, setPlanning] = useState(false);
   const [openHistory, setOpenHistory] = useState<string | null>(null);
+  const [endingPlan, setEndingPlan] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [now] = useState(Date.now);
 
@@ -61,8 +63,8 @@ export default function CustomerPage() {
     [tenant.id, key],
   );
 
-  async function endPlan(planId: string, label: string) {
-    if (!confirm(`Encerrar o plano ${label}? Os agendamentos futuros dele serão cancelados.`)) return;
+  async function endPlan(planId: string) {
+    setEndingPlan(null);
     setError("");
     try {
       const res = await endPlanAction(await idToken(), { tenantId: tenant.id, planId });
@@ -127,7 +129,8 @@ export default function CustomerPage() {
             {sortedPlans.map((p) => {
               const label = planLabel(p.weekday, p.time);
               return (
-                <li key={p.id} className={`flex flex-wrap items-center gap-x-4 gap-y-1 p-3 ${p.status === "ended" ? "opacity-60" : ""}`}>
+                <li key={p.id} className="grid gap-2 p-3">
+                  <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 ${p.status === "ended" ? "opacity-60" : ""}`}>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium first-letter:uppercase">
                       {label}
@@ -139,7 +142,17 @@ export default function CustomerPage() {
                     <p className="text-xs text-muted-foreground">Criado por {p.createdBy}</p>
                   </div>
                   {p.status === "active" && p.lastDate >= dateIn(new Date(now)) && (
-                    <Button variant="outline" size="sm" onClick={() => endPlan(p.id, label)}>Encerrar plano</Button>
+                    <Button variant="outline" size="sm" onClick={() => setEndingPlan(p.id)}>Encerrar plano</Button>
+                  )}
+                  </div>
+                  {endingPlan === p.id && (
+                    <ConfirmPanel
+                      title={`Encerrar o plano ${label}?`}
+                      description="Os agendamentos futuros deste plano serão cancelados. Os passados continuam no histórico."
+                      confirmLabel="Sim, encerrar plano"
+                      onConfirm={() => endPlan(p.id)}
+                      onCancel={() => setEndingPlan(null)}
+                    />
                   )}
                 </li>
               );

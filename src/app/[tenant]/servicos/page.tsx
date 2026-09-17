@@ -11,6 +11,7 @@ import { db } from "@/lib/firebase";
 import { formatBRL, formatDuration, Service } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { useTenant } from "../layout";
+import { handleSubmit } from "@/lib/utils";
 
 const toCents = (v: string) => Math.round(Number(v.replace(/\./g, "").replace(",", ".")) * 100);
 const fromCents = (c: number) => (c / 100).toFixed(2).replace(".", ",");
@@ -22,7 +23,7 @@ export default function ServicesPage() {
   const [error, setError] = useState("");
   const col = collection(db, "tenants", tenant.id, "services");
 
-  async function save(form: FormData) {
+  async function save(form: FormData, el: HTMLFormElement) {
     setError("");
     try {
       const data = Service.parse({
@@ -32,6 +33,7 @@ export default function ServicesPage() {
         active: editing?.active ?? true,
       });
       await (editing ? setDoc(doc(col, editing.id), data) : addDoc(col, data));
+      el.reset();
       setEditing(null);
     } catch (err) {
       setError(errorMessage(err));
@@ -55,7 +57,7 @@ export default function ServicesPage() {
         </CardHeader>
         <CardContent>
           {/* key recria o formulário com os valores do item em edição */}
-          <form key={editing?.id ?? "new"} action={save} className="grid gap-4 sm:grid-cols-[1fr_8rem_8rem_auto] sm:items-end">
+          <form key={editing?.id ?? "new"} onSubmit={handleSubmit(save)} className="grid gap-4 sm:grid-cols-[1fr_8rem_8rem_auto] sm:items-end">
             <div className="grid gap-2">
               <Label htmlFor="name">Nome</Label>
               <Input id="name" name="name" defaultValue={editing?.name} placeholder="Corte masculino" required maxLength={80} />

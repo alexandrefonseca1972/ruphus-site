@@ -20,6 +20,7 @@ import {
   zonedTime,
 } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
+import { ConfirmPanel } from "./confirm-panel";
 import { History } from "./history";
 import { useTenant } from "./layout";
 import { Reschedule } from "./reschedule";
@@ -45,6 +46,11 @@ export function confirmationText(a: Appointment, business: string) {
   return `Olá, ${firstName(a.customerName)}! Seu horário na ${business} está confirmado: ${a.serviceName} com ${a.staffName}, ${formatLongDate(start)} às ${formatTime(start)}. Até lá!`;
 }
 
+export function cancellationText(a: Appointment, business: string, bookingUrl: string) {
+  const start = a.start.toDate();
+  return `Olá, ${firstName(a.customerName)}! Seu horário na ${business} de ${formatLongDate(start)} às ${formatTime(start)} (${a.serviceName} com ${a.staffName}) foi cancelado. Para marcar outro horário: ${bookingUrl}`;
+}
+
 export function rescheduleText(a: Appointment, business: string, start: Date) {
   return `Olá, ${firstName(a.customerName)}! Seu horário na ${business} foi remarcado para ${formatLongDate(start)} às ${formatTime(start)} (${a.serviceName} com ${a.staffName}). Se não puder, é só responder esta mensagem.`;
 }
@@ -56,6 +62,7 @@ export default function AgendaPage() {
   const [error, setError] = useState("");
   const [rescheduling, setRescheduling] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<{ id: string; kind: "cancel" | "no_show" } | null>(null);
   const [notice, setNotice] = useState<{ text: string; link: string } | null>(null);
   // ponytail: instante fixo ao abrir a página; "Faltou" de horários que passaram depois aparece ao recarregar
   const [now] = useState(Date.now);
@@ -89,14 +96,14 @@ export default function AgendaPage() {
     changeStatus(a, "confirmed");
   }
 
-  function cancel(a: Appointment) {
-    if (confirm(`Cancelar o agendamento de ${a.customerName}? O horário volta a ficar livre.`)) {
-      changeStatus(a, "cancelled");
+  function cancel(a: Appointment, notify: boolean) {
+    // Abre o WhatsApp antes do await (bloqueio de pop-up)
+    if (notify) {
+      const url = `${location.origin}/agendar/${tenant.id}`;
+      window.open(whatsappLink(a.customerPhone, cancellationText(a, tenant.name, url)), "_blank", "noopener");
     }
-  }
-
-  function noShow(a: Appointment) {
-    if (confirm(`Registrar que ${a.customerName} faltou?`)) changeStatus(a, "no_show");
+    setConfirming(null);
+    return changeStatus(a, "cancelled");
   }
 
   const active = items?.filter((a) => a.status === "booked" || a.status === "confirmed") ?? [];
@@ -179,11 +186,11 @@ export default function AgendaPage() {
                       Remarcar
                     </Button>
                     {a.start.toMillis() <= now && (
-                      <Button variant="outline" size="sm" onClick={() => noShow(a)}>
+                      <Button variant="outline" size="sm" onClick={() => setConfirming({ id: a.id, kind: "no_show" })}>
                         Faltou
                       </Button>
                     )}
-                    <Button variant="ghost" size="sm" onClick={() => cancel(a)}>
+                    <Button variant="ghost" size="sm" onClick={() => setConfirming({ id: a.id, kind: "cancel" })}>
                       Cancelar
                     </Button>
                     </>
@@ -193,6 +200,28 @@ export default function AgendaPage() {
                   </Button>
                 </div>
               </div>
+              {confirming?.id === a.id && confirming.kind === "cancel" && (
+                <ConfirmPanel
+                  title={`Cancelar o agendamento de ${a.customerName}?`}
+                  description={`${formatLongDate(a.start.toDate())} às ${formatTime(a.start.toDate())} · ${a.serviceName} com ${a.staffName}. O horário volta a ficar livre.`}
+                  notifyLabel="Avisar o cliente pelo WhatsApp"
+                  confirmLabel="Sim, cancelar"
+                  onConfirm={(notify) => cancel(a, notify)}
+                  onCancel={() => setConfirming(null)}
+                />
+              )}
+              {confirming?.id === a.id && confirming.kind === "no_show" && (
+                <ConfirmPanel
+                  title={`Registrar que ${a.customerName} faltou?`}
+                  description="Fica no histórico do cliente e não pode ser desfeito pelo painel."
+                  confirmLabel="Sim, registrar falta"
+                  onConfirm={() => {
+                    setConfirming(null);
+                    return changeStatus(a, "no_show");
+                  }}
+                  onCancel={() => setConfirming(null)}
+                />
+              )}
               {showHistory === a.id && <History tenantId={tenant.id} appointmentId={a.id} />}
               {rescheduling === a.id && (
                 <Reschedule

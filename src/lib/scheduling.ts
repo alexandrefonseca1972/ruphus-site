@@ -3,6 +3,8 @@ import { z } from "zod";
 // ponytail: fuso único para todos os tenants; vira campo do tenant quando houver clientes fora do horário de Brasília
 export const TIMEZONE = "America/Sao_Paulo";
 export const SLOT_STEP_MIN = 15;
+/** Até quantos dias à frente o cliente pode agendar pela página pública */
+export const MAX_DAYS_AHEAD = 90;
 export const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário inválido");
@@ -45,7 +47,11 @@ export type SlotQuery = z.infer<typeof SlotQuery>;
 export const BookingInput = SlotQuery.extend({
   time: hhmm,
   customerName: z.string().trim().min(2, "Informe seu nome").max(80),
-  customerPhone: z.string().trim().regex(/^[\d\s()+-]{8,20}$/, "Informe um telefone válido"),
+  customerPhone: z
+    .string()
+    .trim()
+    .regex(/^[\d\s()+-]{8,20}$/, "Informe um telefone válido")
+    .refine((p) => /^\d{10,13}$/.test(p.replace(/\D/g, "")), "Informe o telefone com DDD"),
 });
 export type BookingInput = z.infer<typeof BookingInput>;
 
@@ -99,6 +105,27 @@ export const RescheduleInput = z.object({
   time: hhmm,
 });
 export type RescheduleInput = z.infer<typeof RescheduleInput>;
+
+/** Máscara brasileira enquanto digita: (11) 91234-5678 ou (11) 3333-4444 */
+export function formatPhone(value: string) {
+  let d = value.replace(/\D/g, "");
+  if (d.length > 11 && d.startsWith("55")) d = d.slice(2); // colado com DDI
+  d = d.slice(0, 11);
+  if (d.length <= 2) return d && `(${d}`;
+  const [ddd, rest] = [d.slice(0, 2), d.slice(2)];
+  const split = rest.length === 9 ? 5 : 4;
+  return rest.length <= split ? `(${ddd}) ${rest}` : `(${ddd}) ${rest.slice(0, split)}-${rest.slice(split)}`;
+}
+
+/** Mensagem de erro do WhatsApp em tempo real ("" = válido) */
+export function phoneError(value: string) {
+  const d = value.replace(/\D/g, "");
+  if (!d) return "Informe seu WhatsApp";
+  if (d.length < 10) return "Informe o número com DDD";
+  if (d[0] === "0") return "DDD inválido";
+  if (d.length === 11 && d[2] !== "9") return "Celular com 11 dígitos começa com 9 depois do DDD";
+  return "";
+}
 
 /** Telefone só com dígitos e DDI (55 quando vier com 10-11 dígitos). Também é o id do cliente. */
 export function customerKey(phone: string) {

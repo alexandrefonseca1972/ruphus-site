@@ -11,6 +11,7 @@ import { db } from "@/lib/firebase";
 import { Service, Staff, WEEKDAYS } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { useTenant } from "../layout";
+import { handleSubmit } from "@/lib/utils";
 
 type Day = keyof Staff["hours"];
 const DAYS = ["1", "2", "3", "4", "5", "6", "0"] as Day[]; // segunda primeiro
@@ -32,7 +33,7 @@ export default function StaffPage() {
   const col = collection(db, "tenants", tenant.id, "staff");
   const serviceName = new Map(services?.map((s) => [s.id, s.name]));
 
-  async function save(form: FormData) {
+  async function save(form: FormData, el: HTMLFormElement) {
     setError("");
     try {
       const data = Staff.parse({
@@ -44,6 +45,7 @@ export default function StaffPage() {
         active: editing?.active ?? true,
       });
       await (editing ? setDoc(doc(col, editing.id), data) : addDoc(col, data));
+      el.reset();
       setEditing(null);
     } catch (err) {
       setError(errorMessage(err));
@@ -71,7 +73,7 @@ export default function StaffPage() {
           {services?.length === 0 ? (
             <p className="text-sm text-muted-foreground">Cadastre um serviço antes de adicionar profissionais.</p>
           ) : (
-            <form key={editing?.id ?? "new"} action={save} className="grid gap-6">
+            <form key={editing?.id ?? "new"} onSubmit={handleSubmit(save)} className="grid gap-6">
               <div className="grid gap-2 sm:max-w-sm">
                 <Label htmlFor="name">Nome</Label>
                 <Input id="name" name="name" defaultValue={editing?.name} required maxLength={80} />

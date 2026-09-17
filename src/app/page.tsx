@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
 import { auth } from "@/lib/firebase";
 import { createTenant, myTenantIds } from "@/lib/tenants";
+import { handleSubmit } from "@/lib/utils";
 
 const slugify = (s: string) =>
   s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
@@ -80,7 +81,7 @@ export default function Home() {
           <CardTitle>{tenants.length ? "Criar outro espaço" : "Crie seu primeiro espaço"}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={create} className="grid gap-4">
+          <form onSubmit={handleSubmit(create)} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="name">Nome</Label>
               <Input id="name" name="name" required maxLength={80} onChange={(e) => setSlug(slugify(e.target.value))} />

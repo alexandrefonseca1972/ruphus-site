@@ -46,7 +46,8 @@ export async function createTenant(input: z.input<typeof TenantInput>) {
 
 export async function myTenantIds() {
   const snap = await getDocs(query(collectionGroup(db, "members"), where("uid", "==", uid())));
-  return snap.docs.map((d) => d.ref.parent.parent!.id);
+  // Só membros em tenants/{id}/members (defesa extra contra coleções "members" aninhadas)
+  return snap.docs.flatMap((d) => (d.ref.parent.parent?.parent.id === "tenants" ? [d.ref.parent.parent.id] : []));
 }
 
 // Todo dado de negócio vive em tenants/{id}/<coleção>
