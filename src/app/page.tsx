@@ -1,69 +1,100 @@
-import Image from "next/image";
+"use client";
+
+import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { errorMessage } from "@/lib/auth-errors";
+import { auth } from "@/lib/firebase";
+import { createTenant, myTenantIds } from "@/lib/tenants";
+
+const slugify = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
 
 export default function Home() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [tenants, setTenants] = useState<string[] | null>(null);
+  const [slug, setSlug] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(
+    () =>
+      onAuthStateChanged(auth, async (u) => {
+        if (!u) return router.replace("/login");
+        setUser(u);
+        try {
+          setTenants(await myTenantIds());
+        } catch (err) {
+          setError(errorMessage(err));
+          setTenants([]);
+        }
+      }),
+    [router],
+  );
+
+  async function create(form: FormData) {
+    setError("");
+    setBusy(true);
+    try {
+      router.push(`/${await createTenant({ name: form.get("name") as string, slug })}`);
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  }
+
+  if (!user || !tenants) return <p className="p-8">Carregando…</p>;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main className="mx-auto grid w-full max-w-md gap-6 p-4 py-12">
+      <div className="flex items-center justify-between gap-4">
+        <p className="truncate text-sm text-muted-foreground">{user.email}</p>
+        <Button variant="ghost" size="sm" onClick={() => signOut(auth)}>
+          Sair
+        </Button>
+      </div>
+
+      {tenants.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Seus espaços</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            {tenants.map((id) => (
+              <Link key={id} href={`/${id}`} className={buttonVariants({ variant: "outline", className: "justify-start" })}>
+                /{id}
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{tenants.length ? "Criar outro espaço" : "Crie seu primeiro espaço"}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form action={create} className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Nome</Label>
+              <Input id="name" name="name" required maxLength={80} onChange={(e) => setSlug(slugify(e.target.value))} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="slug">Endereço</Label>
+              <Input id="slug" value={slug} onChange={(e) => setSlug(e.target.value)} required />
+              <p className="text-xs text-muted-foreground">siteflow/{slug || "seu-espaco"}</p>
+            </div>
+            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+            <Button type="submit" disabled={busy}>Criar</Button>
+          </form>
+        </CardContent>
+      </Card>
+    </main>
   );
 }

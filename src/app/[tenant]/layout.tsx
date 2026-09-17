@@ -2,7 +2,7 @@
 
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { createContext, use, useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { Tenant } from "@/lib/tenants";
@@ -17,12 +17,13 @@ export function useTenant() {
 
 export default function TenantLayout({ children }: { children: React.ReactNode }) {
   const { tenant: slug } = useParams<{ tenant: string }>();
+  const router = useRouter();
   const [state, setState] = useState<Tenant | "loading" | "denied">("loading");
 
   useEffect(
     () =>
       onAuthStateChanged(auth, async (user) => {
-        if (!user) return setState("denied");
+        if (!user) return router.replace("/login");
         try {
           // As regras negam a leitura para quem não é membro
           const snap = await getDoc(doc(db, "tenants", slug));
@@ -31,7 +32,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
           setState("denied");
         }
       }),
-    [slug],
+    [slug, router],
   );
 
   if (state === "loading") return <p className="p-8">Carregando…</p>;
