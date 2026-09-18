@@ -7,8 +7,8 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
 } from "firebase/auth";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,8 +23,11 @@ const Credentials = z.object({
   password: z.string().min(6, "A senha precisa de pelo menos 6 caracteres."),
 });
 
-export default function LoginPage() {
+function Login() {
   const router = useRouter();
+  // Quem chegou por um convite volta para ele depois de entrar
+  const proximo = useSearchParams().get("next");
+  const destino = proximo?.startsWith("/") ? proximo : "/";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -36,7 +39,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await action();
-      if (redirect) router.replace("/");
+      if (redirect) router.replace(destino);
     } catch (err) {
       if (!(err instanceof Error && "code" in err && err.code === "auth/popup-closed-by-user")) {
         setError(errorMessage(err));
@@ -131,5 +134,13 @@ export default function LoginPage() {
         </CardFooter>
       </Card>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <Login />
+    </Suspense>
   );
 }

@@ -13,7 +13,8 @@
     "test:scale": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server scale.test.mts'",
     "test:proxy": "tsx proxy.test.mts",
     "sync:sites": "sh scripts/sync-sites.sh",
-    "seed:agenda": "tsx --env-file=.env.local scripts/seed-agenda.mts"
+    "seed:agenda": "tsx --env-file=.env.local scripts/seed-agenda.mts",
+    "convite": "tsx --conditions=react-server --env-file=.env.local scripts/convite.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
