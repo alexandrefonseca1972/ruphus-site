@@ -6,7 +6,7 @@ const id = z.string().min(1).max(128).regex(/^[^/]+$/);
 
 export const Service = z.object({
   name: z.string().trim().min(1, "Informe o nome").max(80, "Nome muito longo"),
-  durationMin: z.number().int().min(5, "Duração mínima de 5 minutos").max(480, "Duração máxima de 8 horas"),
+  durationMin: z.number().int().min(5, "A duração mínima é de 5 minutos").max(480, "A duração máxima é de 8 horas"),
   priceCents: z.number().int().min(0, "Preço inválido"),
   active: z.boolean(),
 });
@@ -65,7 +65,7 @@ export const PlanInput = z.object({
   weekday: z.number().int().min(0).max(6),
   time: hhmm,
   startDate: z.iso.date(),
-  weeks: z.number().int().min(1, "Mínimo de 1 semana").max(52, "Máximo de 52 semanas"),
+  weeks: z.number().int().min(1, "O plano precisa de pelo menos 1 semana").max(52, "O plano vai até 52 semanas"),
 });
 export type PlanInput = z.infer<typeof PlanInput>;
 

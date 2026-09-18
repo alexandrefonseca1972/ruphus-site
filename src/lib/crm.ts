@@ -8,7 +8,7 @@ import { z } from "zod";
 const RAIZ = "crm";
 
 export { ESTAGIOS, ROTULO } from "@/lib/crm-tipos";
-import { ESTAGIOS as LISTA, type Crm, type Estagio, type Nota } from "@/lib/crm-tipos";
+import { ESTAGIOS as LISTA, type Crm, type Nota } from "@/lib/crm-tipos";
 export type { Crm, Nota };
 
 export const CrmInput = z.object({

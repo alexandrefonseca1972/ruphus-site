@@ -12,7 +12,7 @@ function Convite() {
   const router = useRouter();
   const token = useSearchParams().get("c") ?? "";
   // link sem token já nasce com erro: nada a sincronizar no efeito
-  const [erro, setErro] = useState(token ? "" : "Link de convite incompleto. Peça outro para quem te mandou.");
+  const [erro, setErro] = useState(token ? "" : "O link do convite está incompleto. Peça outro para quem enviou.");
 
   useEffect(() => {
     if (!token) return;

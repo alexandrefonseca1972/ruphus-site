@@ -14,7 +14,7 @@ export async function aceitarConvite(idToken: string, token: string) {
   if (!tenantId) return { ok: false as const, error: "Convite inválido ou vencido. Peça um link novo." };
 
   const tenant = await adminDb.collection("tenants").doc(tenantId).get();
-  if (!tenant.exists) return { ok: false as const, error: "Esse espaço não existe mais." };
+  if (!tenant.exists) return { ok: false as const, error: "Esse negócio não existe mais." };
 
   const membro = adminDb.doc(`tenants/${tenantId}/members/${user.uid}`);
   // Convite não rebaixa quem já é dono: só cria o acesso de quem ainda não tem

@@ -71,7 +71,7 @@ function Login() {
     <main className="flex flex-1 items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>{signin ? "Entrar no Siteflow" : "Criar conta"}</CardTitle>
+          <CardTitle>{signin ? "Entrar na Ruphus" : "Criar conta"}</CardTitle>
           <CardDescription>{signin ? "Use seu e-mail ou sua conta Google." : "Leva menos de um minuto."}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">

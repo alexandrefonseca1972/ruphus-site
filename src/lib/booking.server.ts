@@ -46,7 +46,7 @@ export async function requireMember(verify: VerifyToken, db: Firestore, idToken:
   ]);
   // quem administra a plataforma atende em qualquer espaço, como nas regras do Firestore
   const daPlataforma = (admin.get("uids") as unknown[] | undefined)?.includes(user.uid) ?? false;
-  if (!member.exists && !daPlataforma) throw new UserError("Sem acesso a este espaço.");
+  if (!member.exists && !daPlataforma) throw new UserError("Você não tem acesso a este negócio.");
   return user;
 }
 
@@ -120,10 +120,10 @@ async function limitError(
     return { error: `Você já tem ${LIMITS.activePerPhone} horários marcados. Cancele um deles com o salão para marcar outro.` };
   }
   if ((phoneDoc.get("count") ?? 0) >= LIMITS.dailyPerPhone) {
-    return { error: "Muitos agendamentos com este WhatsApp hoje. Tente amanhã ou fale com o salão." };
+    return { error: "Muitos agendamentos com este WhatsApp hoje. Tente amanhã ou fale direto com o negócio." };
   }
   if (deviceDoc && (deviceDoc.get("count") ?? 0) >= LIMITS.dailyPerDevice) {
-    return { error: "Muitos agendamentos deste dispositivo hoje. Tente amanhã ou fale com o salão." };
+    return { error: "Muitos agendamentos deste dispositivo hoje. Tente amanhã ou fale direto com o negócio." };
   }
   // ponytail: contadores por dia ficam guardados; se incomodar, ligue TTL no campo day
   return { bump: () => {

@@ -19,8 +19,8 @@ const siteUrl =
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "Siteflow",
-  description: "Agendamento online para salões, barbearias e clínicas de estética.",
+  title: "Ruphus",
+  description: "Site e agendamento online para pequenos negócios de bairro.",
 };
 
 // viewportFit cover: as áreas seguras do iPhone passam a valer (barra de gestos)

@@ -548,7 +548,7 @@ export default function AdminPage() {
                 </span>
               </div>
               <p className="text-[13px] leading-relaxed text-[#4A4639]">
-                Quem abrir o link entra com a conta dele e vira admin deste espaço. O link vale 30 dias.
+                Quem abrir o link entra com a conta dele e passa a administrar este negócio. O link vale 30 dias.
               </p>
               {convite?.slug === aberto.slug ? (
                 <div className="flex flex-col gap-2">
@@ -755,14 +755,14 @@ export default function AdminPage() {
                 {acessos?.map((a) => (
                   <li key={a.uid} className="flex items-center gap-3 rounded-xl border border-[#E2DDD3] p-3.5">
                     <div className="min-w-0 grow">
-                      <p className="text-sm font-medium">{a.papel === "owner" ? "Dono do espaço" : "Admin do negócio"}</p>
+                      <p className="text-sm font-medium">{a.papel === "owner" ? "Dono do negócio" : "Acesso do cliente"}</p>
                       <p className="truncate text-xs text-[#6F6A5E]">
                         {a.uid}
                         {a.desde ? ` · desde ${new Date(a.desde).toLocaleDateString("pt-BR")}` : ""}
                       </p>
                     </div>
                     {a.papel === "owner" ? (
-                      <span className="shrink-0 text-xs text-[#6F6A5E]">não removível</span>
+                      <span className="shrink-0 text-xs text-[#6F6A5E]">não pode ser removido</span>
                     ) : (
                       <button
                         type="button"

@@ -7,8 +7,8 @@ const messages: Record<string, string> = {
   "auth/weak-password": "Senha fraca: use pelo menos 6 caracteres.",
   "auth/too-many-requests": "Muitas tentativas. Tente de novo em alguns minutos.",
   "auth/popup-blocked": "O navegador bloqueou a janela do Google. Libere pop-ups e tente de novo.",
-  "auth/account-exists-with-different-credential": "Este e-mail já entra com outro método.",
-  "permission-denied": "Sem permissão (esse endereço já pode estar em uso).",
+  "auth/account-exists-with-different-credential": "Este e-mail já entra por outra forma de acesso.",
+  "permission-denied": "Sem permissão. Esse endereço pode já estar em uso.",
 };
 
 export function errorMessage(err: unknown) {

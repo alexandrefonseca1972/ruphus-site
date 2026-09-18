@@ -47,7 +47,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   }, [slug, router]);
 
   if (state === "loading") return <p className="p-8">Carregando…</p>;
-  if (state === "denied") return <p className="p-8">Tenant não encontrado ou sem acesso.</p>;
+  if (state === "denied") return <p className="p-8">Negócio não encontrado, ou você não tem acesso a ele.</p>;
 
   const links = [
     { href: `/${slug}`, label: "Agenda" },
