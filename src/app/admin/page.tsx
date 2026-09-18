@@ -93,6 +93,8 @@ export default function AdminPage() {
   const [acessos, setAcessos] = useState<Acesso[] | null>(null);
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null);
   const [convite, setConvite] = useState<{ slug: string; url: string; copiado: boolean } | null>(null);
+  const [idToken, setIdToken] = useState("");
+  const [copiado, setCopiado] = useState("");
   const [aviso, setAviso] = useState("");
 
   useEffect(
@@ -101,6 +103,7 @@ export default function AdminPage() {
         if (!user) return router.replace(`/login?next=${encodeURIComponent("/admin")}`);
         setEmail(user.email ?? "");
         const idToken = await user.getIdToken();
+        setIdToken(idToken);
         const [lista, dia] = await Promise.all([listarEspacos(idToken), resumoDoDia(idToken)]);
         if (!lista.ok) return setEstado("negado");
         setEspacos(lista.dados);
@@ -173,6 +176,12 @@ export default function AdminPage() {
     setAcessos((a) => a?.filter((x) => x.uid !== uid) ?? null);
     setEspacos((e) => e.map((x) => (x.slug === slug ? { ...x, acessos: x.acessos - 1 } : x)));
     setAberto((x) => (x && x.slug === slug ? { ...x, acessos: x.acessos - 1 } : x));
+  }
+
+  async function copiar(texto: string, marca: string) {
+    const ok = await navigator.clipboard.writeText(texto).then(() => true, () => false);
+    setCopiado(ok ? marca : "");
+    setAviso(ok ? "" : "O navegador não deixou copiar. Selecione o texto e copie à mão.");
   }
 
   function exportarCSV() {
@@ -513,6 +522,62 @@ export default function AdminPage() {
                 <button type="button" className={`${BOTAO_ESCURO} self-start`} onClick={() => convidar(aberto.slug)}>
                   Gerar link de convite
                 </button>
+              )}
+            </section>
+
+            <section aria-label="Divulgação" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">
+              <h3 className="text-[15px] font-semibold">Divulgar o site</h3>
+              <div className="flex gap-3">
+                <a
+                  href={`https://${aberto.slug}.ruphus.site/`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-1/2 overflow-hidden rounded-xl border border-[#E2DDD3] bg-[#F4F2EE]"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- miniatura já gerada do site */}
+                  <img src={`/s/_t/${aberto.slug}.webp`} alt={`Miniatura do site de ${aberto.nome}`} className="w-full" />
+                </a>
+                {/* eslint-disable-next-line @next/next/no-img-element -- QR em SVG gerado pela própria rota */}
+                <img
+                  src={`/admin/qr?url=${encodeURIComponent(`https://${aberto.slug}.ruphus.site/`)}&t=${encodeURIComponent(idToken)}`}
+                  alt={`QR code do site de ${aberto.nome}`}
+                  className="size-[132px] shrink-0 rounded-xl border border-[#E2DDD3] bg-white p-1.5"
+                />
+              </div>
+
+              {([
+                ["Site", `https://${aberto.slug}.ruphus.site/`],
+                ["Minisite do Instagram", `https://${aberto.slug}.ruphus.site/bio`],
+                ["Agendamento", `https://${aberto.slug}.ruphus.site/agendar`],
+              ] as const).map(([rotulo, url]) => (
+                <div key={rotulo} className="flex items-center gap-2">
+                  <div className="min-w-0 grow">
+                    <p className="text-xs text-[#6F6A5E]">{rotulo}</p>
+                    <p className="truncate text-[13px]">{url}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copiar(url, rotulo)}
+                    className="h-11 shrink-0 rounded-[10px] border border-[#D8D2C6] px-3.5 text-[13px] font-semibold hover:border-[#17150F]"
+                  >
+                    {copiado === rotulo ? "Copiado ✓" : "Copiar"}
+                  </button>
+                </div>
+              ))}
+
+              {detalhe?.telefone && (
+                <a
+                  className={`${BOTAO} border border-[#2C6A53] bg-white text-[#2C6A53] hover:bg-[#EEF2F0]`}
+                  href={`https://wa.me/${detalhe.telefone}?text=${encodeURIComponent(
+                    `Olá! Fizemos o site do ${aberto.nome}: https://${aberto.slug}.ruphus.site/\n\n` +
+                      `Para o link da bio no Instagram: https://${aberto.slug}.ruphus.site/bio\n` +
+                      `E os clientes já podem agendar online: https://${aberto.slug}.ruphus.site/agendar`,
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Enviar tudo pelo WhatsApp
+                </a>
               )}
             </section>
 
