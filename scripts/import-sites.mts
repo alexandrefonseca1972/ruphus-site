@@ -14,7 +14,7 @@ const RESERVED = ["login", "agendar", "api", "catalogo", "privacidade"];
 type Site = {
   slug: string; name: string; phone?: string; address?: string; category?: string;
   city?: string; uf?: string; rating?: number; reviews?: number;
-  color?: string; instagram?: string;
+  color?: string; instagram?: string; photo?: string;
 };
 
 function jsonLd(html: string) {
@@ -87,6 +87,11 @@ export function extract(html: string): Omit<Site, "slug"> {
     ?? /--(?:acc|ink|brand)\s*:\s*(#[0-9a-fA-F]{3,8})/i.exec(html)?.[1];
   // instagram.com/explore, /p/… e afins não são perfil de ninguém
   const RESERVADO = ["explore", "p", "reel", "reels", "stories", "accounts", "direct", "tv", "about", "developer"];
+  // a primeira foto de verdade da página, para o minisite não usar o card de compartilhamento
+  const foto = [...html.matchAll(/<img[^>]+src="([^"]+)"/g)]
+    .map((m) => m[1].split("?")[0])
+    .find((s) => /\.(jpe?g|png|webp|avif)$/i.test(s) && !/^(https?:|data:)/.test(s) && !/favicon|icone|logo/i.test(s));
+
   const perfil = [...html.matchAll(/instagram\.com\/([A-Za-z0-9._]{2,40})/g)]
     .map((m) => m[1].replace(/\.$/, ""))
     .find((u) => !RESERVADO.includes(u.toLowerCase()));
@@ -94,6 +99,8 @@ export function extract(html: string): Omit<Site, "slug"> {
   return {
     name: (name ?? "").slice(0, 80), phone: phone && digits(phone), address, category,
     city, uf, rating, reviews, color, instagram: perfil,
+    // "../assets/x" e "img/x" viram caminho absoluto no subdomínio do site
+    photo: foto && "/" + foto.replace(/^\.\.\//, "").replace(/^\//, ""),
   };
 }
 
@@ -208,6 +215,10 @@ function selfCheck() {
   );
   assert.equal(marca.color, "#171521");
   assert.equal(marca.instagram, "barbearia.soul");
+  // a foto do minisite é a da página, não o card nem o favicon
+  assert.equal(extract('<img src="favicon-32.png"><img src="../assets/pet/banho.jpg"><title>X</title>').photo, "/assets/pet/banho.jpg");
+  assert.equal(extract('<img src="img/hero.jpg"><title>X</title>').photo, "/img/hero.jpg");
+  assert.equal(extract('<img src="data:image/jpeg;base64,AAA"><title>X</title>').photo, undefined);
   // link genérico do Instagram não vira perfil do negócio
   const generico = extract('<a href="https://instagram.com/explore/tags/pet/">tags</a><a href="https://instagram.com/petshop.real/">perfil</a><title>X</title>');
   assert.equal(generico.instagram, "petshop.real");
@@ -262,7 +273,7 @@ async function main() {
 
   const writer = db.bulkWriter();
   let created = 0;
-  for (const { slug, name, phone, address, category, city, uf, rating, reviews, color, instagram } of sites) {
+  for (const { slug, name, phone, address, category, city, uf, rating, reviews, color, instagram, photo } of sites) {
     const isNew = !existing.has(slug);
     if (isNew) created++;
     const tenant = db.collection("tenants").doc(slug);
@@ -275,7 +286,7 @@ async function main() {
           url: `https://${slug}.ruphus.site`, phone: phone ?? null, address: address ?? null,
           category: category ?? null, city: city ?? null, uf: uf ?? null,
           rating: rating ?? null, reviews: reviews ?? null,
-          color: color ?? null, instagram: instagram ?? null,
+          color: color ?? null, instagram: instagram ?? null, photo: photo ?? null,
         },
         ...(isNew ? { createdAt: FieldValue.serverTimestamp() } : {}),
       },

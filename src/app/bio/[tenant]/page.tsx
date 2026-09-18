@@ -15,6 +15,7 @@ type Bio = {
   nota: number | null;
   avaliacoes: number | null;
   cor: string;
+  foto: string | null;
   servicos: string[];
 };
 
@@ -34,6 +35,7 @@ const carregar = cache(async (slug: string): Promise<Bio | null> => {
     nota: tenant.get("site.rating") ?? null,
     avaliacoes: tenant.get("site.reviews") ?? null,
     cor: tenant.get("site.color") ?? "#17150F",
+    foto: tenant.get("site.photo") ?? null,
     servicos: servicos.docs.map((d) => String(d.get("name"))).slice(0, 6),
   };
 });
@@ -118,17 +120,18 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-[520px] flex-col gap-5 px-5 pb-12 pt-0">
-      <div className="relative -mx-5">
-        {/* eslint-disable-next-line @next/next/no-img-element -- imagem do próprio site do cliente, fora do otimizador */}
-        <img
-          src={`https://${tenant}.ruphus.site/og.jpg`}
-          alt=""
-          className="h-44 w-full object-cover"
+      <div className="relative -mx-5 h-48" style={{ background: bio.cor }}>
+        {bio.foto && (
+          /* eslint-disable-next-line @next/next/no-img-element -- foto do próprio site do cliente, fora do otimizador */
+          <img src={`https://${tenant}.ruphus.site${bio.foto}`} alt="" className="size-full object-cover" />
+        )}
+        <div
+          className="absolute inset-x-0 bottom-0 h-24"
+          style={{ background: "linear-gradient(to top, #F7F5F1 12%, rgba(247,245,241,0))" }}
         />
-        <div className="absolute inset-x-0 bottom-0 h-20" style={{ background: "linear-gradient(to top, #F7F5F1, transparent)" }} />
       </div>
 
-      <header className="-mt-12 flex flex-col items-center gap-2 text-center">
+      <header className="-mt-14 flex flex-col items-center gap-2 text-center">
         <div
           className="flex size-20 items-center justify-center rounded-3xl border-4 border-[#F7F5F1] font-[family-name:var(--fonte-serifa)] text-3xl"
           style={{ background: bio.cor, color: claro(bio.cor) ? "#17150F" : "#FFFFFF" }}
