@@ -20,6 +20,8 @@ export function paginaEstatica(pathname: string) {
 export function sitePath(slug: string, pathname: string) {
   // agendamento do próprio negócio, servido pelo app sem sair do subdomínio
   if (pathname === "/agendar" || pathname === "/agendar/") return `/agendar/${slug}`;
+  // o navegador pede /favicon.ico sozinho e quase nenhum site tem o arquivo: usa o do app
+  if (pathname === "/favicon.ico") return pathname;
   // as páginas pedem "../assets/…", que na raiz do subdomínio vira /assets/…: é a pasta compartilhada
   if (pathname === "/assets" || pathname.startsWith("/assets/")) return `/s${pathname}`;
   // public/ não serve índice de diretório: a raiz do site aponta direto para o arquivo

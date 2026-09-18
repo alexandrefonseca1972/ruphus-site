@@ -41,3 +41,8 @@ assert.equal(sitePath("barbeariasoul", "/agendar"), "/agendar/barbeariasoul");
 assert.equal(sitePath("barbeariasoul", "/agendar/"), "/agendar/barbeariasoul");
 assert.equal(sitePath("barbeariasoul", "/agendar/outro"), "/s/barbeariasoul/agendar/outro");
 console.log("agendar ok");
+
+// /favicon.ico pedido pelo navegador cai no ícone do app, não num 404 por site
+assert.equal(sitePath("barbeariasoul", "/favicon.ico"), "/favicon.ico");
+assert.equal(sitePath("barbeariasoul", "/favicon-32.png"), "/s/barbeariasoul/favicon-32.png");
+console.log("favicon ok");
