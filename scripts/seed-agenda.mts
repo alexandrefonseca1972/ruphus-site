@@ -118,7 +118,7 @@ function lerSites(dir: string, slugs: string[]) {
         .filter((e) => e.isDirectory() && !e.name.startsWith(".") && !e.name.startsWith("_"))
         .map((e) => e.name);
   // mesmos critérios do import de tenants: só pasta de cliente vira catálogo
-  const SLUG = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
+  const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
   const RESERVADOS = ["login", "agendar", "api", "catalogo", "privacidade", "assets"];
   return nomes.flatMap((slug) => {
     const index = join(dir, slug, "index.html");

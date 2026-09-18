@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 import { applicationDefault, cert, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 
-const SLUG = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
+const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
 // Reservado no app + páginas do próprio ysis.app, que não são sites de cliente
 const RESERVED = ["login", "agendar", "api", "catalogo", "privacidade"];
 
