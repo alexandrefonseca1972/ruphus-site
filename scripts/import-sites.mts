@@ -165,6 +165,8 @@ function readSites(dir: string) {
       continue;
     }
     const meta = extract(readFileSync(index, "utf8"));
+    // sites que só têm imagem embutida ganharam img/bio.jpg (foto_do_minisite.py)
+    if (!meta.photo && existsSync(join(dir, entry.name, "img", "bio.jpg"))) meta.photo = "/img/bio.jpg";
     if (!meta.name) {
       skipped.push(entry.name);
       continue;

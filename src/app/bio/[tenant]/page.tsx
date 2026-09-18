@@ -49,6 +49,8 @@ export async function generateMetadata({ params }: PageProps<"/bio/[tenant]">): 
     title: `${bio.nome}${local}`,
     description: `Agende online, fale no WhatsApp e veja onde fica ${bio.nome}.`,
     robots: { index: false, follow: false },
+    // o ícone é gerado em /bio/<slug>/icon; no subdomínio do site o caminho precisa ser absoluto
+    icons: { icon: `https://www.ruphus.site/bio/${tenant}/icon` },
     openGraph: {
       title: bio.nome,
       description: `Agende online, fale no WhatsApp e veja onde fica ${bio.nome}.`,
@@ -120,7 +122,7 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-[520px] flex-col gap-5 px-5 pb-12 pt-0">
-      <div className="relative -mx-5 h-44 overflow-hidden" style={{ background: bio.cor }}>
+      <div className="relative -mx-5 h-52 overflow-hidden" style={{ background: bio.cor }}>
         {bio.foto && (
           /* eslint-disable-next-line @next/next/no-img-element -- foto do próprio site do cliente, fora do otimizador */
           <img src={`https://${tenant}.ruphus.site${bio.foto}`} alt="" className="size-full object-cover" />
@@ -131,15 +133,7 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
         />
       </div>
 
-      {/* o selo fica abaixo da foto: sobreposto, ele cobria justo o rosto do trabalho */}
       <header className="flex flex-col items-center gap-2 text-center">
-        <div
-          className="flex size-16 items-center justify-center rounded-2xl font-[family-name:var(--fonte-serifa)] text-2xl"
-          style={{ background: bio.cor, color: claro(bio.cor) ? "#17150F" : "#FFFFFF" }}
-          aria-hidden="true"
-        >
-          {bio.nome.slice(0, 1).toUpperCase()}
-        </div>
         <h1 className="text-balance text-2xl font-semibold leading-tight">{bio.nome}</h1>
         <p className="text-sm text-[#6F6A5E]">
           {local || "Atendimento local"}
