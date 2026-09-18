@@ -8,10 +8,32 @@ export type Espaco = {
   slug: string;
   nome: string;
   telefone: string | null;
-  categoria: string | null;
-  ownerId: string;
-  acessos: number; // quantas pessoas entram no painel deste espaço
+  nicho: string;          // rótulo em português, já agrupado
+  cidade: string | null;
+  uf: string | null;
+  nota: number | null;    // estrelas no Google
+  avaliacoes: number | null;
+  acessos: number;        // quantas pessoas entram no painel deste espaço
 };
+
+// os tipos do schema.org viram nichos que a gente reconhece (e junta variações)
+const NICHOS: Record<string, string> = {
+  petstore: "Pet shop",
+  veterinarycare: "Veterinária",
+  beautysalon: "Estética e beleza",
+  healthandbeautybusiness: "Estética e beleza",
+  hairsalon: "Cabeleireiro",
+  barbershop: "Barbearia",
+  nailsalon: "Unhas",
+  dayspa: "Spa e massagem",
+  tattooparlor: "Tatuagem",
+  medicalclinic: "Saúde",
+  dentist: "Odontologia",
+  physician: "Saúde",
+  healthclub: "Saúde",
+  podiatric: "Podologia",
+};
+const nicho = (tipo: unknown) => NICHOS[String(tipo ?? "").toLowerCase()] ?? "Outros";
 
 /** Lista os espaços com quantas pessoas têm acesso a cada um. */
 export const listarEspacos = adminAction(async () => {
@@ -29,8 +51,11 @@ export const listarEspacos = adminAction(async () => {
       slug: d.id,
       nome: String(d.get("name") ?? d.id),
       telefone: d.get("site.phone") ?? null,
-      categoria: d.get("site.category") ?? null,
-      ownerId: String(d.get("ownerId") ?? ""),
+      nicho: nicho(d.get("site.category")),
+      cidade: d.get("site.city") ?? null,
+      uf: d.get("site.uf") ?? null,
+      nota: d.get("site.rating") ?? null,
+      avaliacoes: d.get("site.reviews") ?? null,
       acessos: porEspaco.get(d.id) ?? 0,
     }))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));

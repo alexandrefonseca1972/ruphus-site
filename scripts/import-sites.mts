@@ -11,7 +11,10 @@ const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
 // Reservado no app + páginas do próprio ysis.app, que não são sites de cliente
 const RESERVED = ["login", "agendar", "api", "catalogo", "privacidade"];
 
-type Site = { slug: string; name: string; phone?: string; address?: string; category?: string };
+type Site = {
+  slug: string; name: string; phone?: string; address?: string; category?: string;
+  city?: string; uf?: string; rating?: number; reviews?: number;
+};
 
 function jsonLd(html: string) {
   const out: Record<string, unknown>[] = [];
@@ -35,6 +38,10 @@ export function extract(html: string): Omit<Site, "slug"> {
   let phone: string | undefined;
   let address: string | undefined;
   let category: string | undefined;
+  let city: string | undefined;
+  let uf: string | undefined;
+  let rating: number | undefined;
+  let reviews: number | undefined;
 
   for (const node of jsonLd(html)) {
     const type = String(node["@type"] ?? "");
@@ -45,7 +52,23 @@ export function extract(html: string): Omit<Site, "slug"> {
     const addr = node.address as Record<string, string> | undefined;
     if (!address && addr && typeof addr === "object") {
       address = [addr.streetAddress, addr.addressLocality, addr.addressRegion].filter(Boolean).join(", ") || undefined;
+      city ??= addr.addressLocality?.trim() || undefined;
+      uf ??= addr.addressRegion?.trim().toUpperCase() || undefined;
     }
+    // nota do Google: serve de relevância na hora de escolher quem procurar
+    const nota = node.aggregateRating as Record<string, unknown> | undefined;
+    if (nota && typeof nota === "object") {
+      rating ??= numero(nota.ratingValue);
+      reviews ??= numero(nota.reviewCount ?? nota.ratingCount);
+    }
+  }
+
+  // cidade/UF também aparecem no título e na descrição: "… em Cidade Nova, Ananindeua-PA"
+  if (!city || !uf) {
+    const texto = [/<title>([\s\S]*?)<\/title>/i, /name="description" content="([^"]*)"/i]
+      .map((re) => re.exec(html)?.[1] ?? "").join(" ");
+    const m = /([A-ZÁÂÃÉÊÍÓÔÕÚÇ][\wÀ-ÿ'.\- ]{2,30}?)\s*[-–—/]\s*([A-Z]{2})\b/.exec(texto);
+    if (m) { city ??= m[1].trim(); uf ??= m[2]; }
   }
 
   if (!name) {
@@ -54,8 +77,13 @@ export function extract(html: string): Omit<Site, "slug"> {
   }
   phone ??= /wa\.me\/(\d{10,15})/.exec(html)?.[1];
 
-  return { name: (name ?? "").slice(0, 80), phone: phone && digits(phone), address, category };
+  return { name: (name ?? "").slice(0, 80), phone: phone && digits(phone), address, category, city, uf, rating, reviews };
 }
+
+const numero = (v: unknown) => {
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", "."));
+  return Number.isFinite(n) ? n : undefined;
+};
 
 const ENTITIES: Record<string, string> = {
   amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", nbsp: " ", mdash: "—", ndash: "–",
@@ -97,6 +125,18 @@ function selfCheck() {
   assert.equal(withLd.phone, "5592984739695");
   assert.equal(withLd.category, "Barbershop");
   assert.equal(withLd.address, "Av. Mário Ypiranga, 1300, Manaus, AM");
+  assert.equal(withLd.city, "Manaus");
+  assert.equal(withLd.uf, "AM");
+
+  // nota do Google e cidade tirada do título quando não há endereço estruturado
+  const nota = extract(
+    `<title>Alê Ferreira — Esmalteria em Cidade Nova, Ananindeua-PA</title>` +
+      `<script type="application/ld+json">{"@type":"NailSalon","name":"Alê","aggregateRating":{"ratingValue":"5.0","reviewCount":89}}</script>`,
+  );
+  assert.equal(nota.rating, 5);
+  assert.equal(nota.reviews, 89);
+  assert.equal(nota.uf, "PA");
+  assert.equal(nota.city, "Ananindeua");
 
   const fallback = extract(
     `<title>Shop das Unhas &amp; Nail &mdash; São Luís | Ysis</title><a href="https://wa.me/5598991831425?text=Oi">zap</a>`,
@@ -147,7 +187,7 @@ async function main() {
 
   const writer = db.bulkWriter();
   let created = 0;
-  for (const { slug, name, phone, address, category } of sites) {
+  for (const { slug, name, phone, address, category, city, uf, rating, reviews } of sites) {
     const isNew = !existing.has(slug);
     if (isNew) created++;
     const tenant = db.collection("tenants").doc(slug);
@@ -156,7 +196,11 @@ async function main() {
       {
         name,
         ownerId,
-        site: { url: `https://${slug}.ruphus.site`, phone: phone ?? null, address: address ?? null, category: category ?? null },
+        site: {
+          url: `https://${slug}.ruphus.site`, phone: phone ?? null, address: address ?? null,
+          category: category ?? null, city: city ?? null, uf: uf ?? null,
+          rating: rating ?? null, reviews: reviews ?? null,
+        },
         ...(isNew ? { createdAt: FieldValue.serverTimestamp() } : {}),
       },
       { merge: true },
