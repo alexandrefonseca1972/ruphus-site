@@ -46,3 +46,9 @@ console.log("agendar ok");
 assert.equal(sitePath("barbeariasoul", "/favicon.ico"), "/favicon.ico");
 assert.equal(sitePath("barbeariasoul", "/favicon-32.png"), "/s/barbeariasoul/favicon-32.png");
 console.log("favicon ok");
+
+// minisite do Instagram, no mesmo subdomínio
+assert.equal(sitePath("barbeariasoul", "/bio"), "/bio/barbeariasoul");
+assert.equal(sitePath("barbeariasoul", "/bio/"), "/bio/barbeariasoul");
+assert.equal(sitePath("barbeariasoul", "/biografia"), "/s/barbeariasoul/biografia");
+console.log("bio ok");

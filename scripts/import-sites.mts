@@ -14,6 +14,7 @@ const RESERVED = ["login", "agendar", "api", "catalogo", "privacidade"];
 type Site = {
   slug: string; name: string; phone?: string; address?: string; category?: string;
   city?: string; uf?: string; rating?: number; reviews?: number;
+  color?: string; instagram?: string;
 };
 
 function jsonLd(html: string) {
@@ -81,7 +82,19 @@ export function extract(html: string): Omit<Site, "slug"> {
   }
   phone ??= /wa\.me\/(\d{10,15})/.exec(html)?.[1];
 
-  return { name: (name ?? "").slice(0, 80), phone: phone && digits(phone), address, category, city, uf, rating, reviews };
+  // cor do tema e Instagram: o que o minisite precisa para parecer do negócio
+  const color = /name="theme-color"[^>]*content="(#[0-9a-fA-F]{3,8})/i.exec(html)?.[1]
+    ?? /--(?:acc|ink|brand)\s*:\s*(#[0-9a-fA-F]{3,8})/i.exec(html)?.[1];
+  // instagram.com/explore, /p/… e afins não são perfil de ninguém
+  const RESERVADO = ["explore", "p", "reel", "reels", "stories", "accounts", "direct", "tv", "about", "developer"];
+  const perfil = [...html.matchAll(/instagram\.com\/([A-Za-z0-9._]{2,40})/g)]
+    .map((m) => m[1].replace(/\.$/, ""))
+    .find((u) => !RESERVADO.includes(u.toLowerCase()));
+
+  return {
+    name: (name ?? "").slice(0, 80), phone: phone && digits(phone), address, category,
+    city, uf, rating, reviews, color, instagram: perfil,
+  };
 }
 
 // As praças atendidas. Serve para reconhecer a cidade no texto e para dizer a UF
@@ -189,6 +202,17 @@ function selfCheck() {
   // distrito vira a cidade de que faz parte
   assert.equal(extract("<title>Pet Shop em Icoaraci</title>").city, "Belém");
 
+  // cor da marca e Instagram alimentam o minisite
+  const marca = extract(
+    '<meta name="theme-color" content="#171521"><a href="https://instagram.com/barbearia.soul/">insta</a><title>X</title>',
+  );
+  assert.equal(marca.color, "#171521");
+  assert.equal(marca.instagram, "barbearia.soul");
+  // link genérico do Instagram não vira perfil do negócio
+  const generico = extract('<a href="https://instagram.com/explore/tags/pet/">tags</a><a href="https://instagram.com/petshop.real/">perfil</a><title>X</title>');
+  assert.equal(generico.instagram, "petshop.real");
+  assert.equal(extract('<a href="https://instagram.com/explore/">x</a><title>X</title>').instagram, undefined);
+
   const fallback = extract(
     `<title>Shop das Unhas &amp; Nail &mdash; São Luís | Ysis</title><a href="https://wa.me/5598991831425?text=Oi">zap</a>`,
   );
@@ -238,7 +262,7 @@ async function main() {
 
   const writer = db.bulkWriter();
   let created = 0;
-  for (const { slug, name, phone, address, category, city, uf, rating, reviews } of sites) {
+  for (const { slug, name, phone, address, category, city, uf, rating, reviews, color, instagram } of sites) {
     const isNew = !existing.has(slug);
     if (isNew) created++;
     const tenant = db.collection("tenants").doc(slug);
@@ -251,6 +275,7 @@ async function main() {
           url: `https://${slug}.ruphus.site`, phone: phone ?? null, address: address ?? null,
           category: category ?? null, city: city ?? null, uf: uf ?? null,
           rating: rating ?? null, reviews: reviews ?? null,
+          color: color ?? null, instagram: instagram ?? null,
         },
         ...(isNew ? { createdAt: FieldValue.serverTimestamp() } : {}),
       },
