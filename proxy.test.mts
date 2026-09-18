@@ -31,7 +31,6 @@ import { paginaEstatica } from "@/proxy";
 assert.equal(paginaEstatica("/sobre"), "/sobre/index.html");
 assert.equal(paginaEstatica("/sobre/"), "/sobre/index.html");
 assert.equal(paginaEstatica("/privacidade/"), "/privacidade/index.html");
-assert.equal(paginaEstatica("/"), null);
 assert.equal(paginaEstatica("/login"), null);
 assert.equal(paginaEstatica("/sobre/x"), null);
 console.log("paginas ok");
@@ -52,3 +51,9 @@ assert.equal(sitePath("barbeariasoul", "/bio"), "/bio/barbeariasoul");
 assert.equal(sitePath("barbeariasoul", "/bio/"), "/bio/barbeariasoul");
 assert.equal(sitePath("barbeariasoul", "/biografia"), "/s/barbeariasoul/biografia");
 console.log("bio ok");
+
+// a raiz do domínio é a landing; o painel do dono tem endereço próprio
+assert.equal(paginaEstatica("/"), "/sobre/index.html");
+assert.equal(paginaEstatica("/sobre"), "/sobre/index.html");
+assert.equal(paginaEstatica("/painel"), null);
+console.log("landing ok");

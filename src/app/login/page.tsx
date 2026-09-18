@@ -27,7 +27,7 @@ function Login() {
   const router = useRouter();
   // Quem chegou por um convite volta para ele depois de entrar
   const proximo = useSearchParams().get("next");
-  const destino = proximo?.startsWith("/") ? proximo : "/";
+  const destino = proximo?.startsWith("/") ? proximo : "/painel";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");

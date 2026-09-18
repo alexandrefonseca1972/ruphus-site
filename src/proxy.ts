@@ -30,6 +30,8 @@ export function siteSlug(host: string) {
 const PAGINAS = ["sobre", "privacidade"];
 
 export function paginaEstatica(pathname: string) {
+  // a raiz do domínio é a landing; o painel de quem tem negócio fica em /painel
+  if (pathname === "/") return "/sobre/index.html";
   const nome = pathname.replace(/^\/|\/$/g, "");
   return PAGINAS.includes(nome) ? `/${nome}/index.html` : null;
 }

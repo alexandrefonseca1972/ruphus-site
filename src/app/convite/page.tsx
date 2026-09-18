@@ -34,7 +34,7 @@ function Convite() {
         </CardHeader>
         {erro && (
           <CardContent>
-            <Button onClick={() => router.replace("/")}>Ir para o início</Button>
+            <Button onClick={() => router.replace("/painel")}>Ir para o início</Button>
           </CardContent>
         )}
       </Card>
