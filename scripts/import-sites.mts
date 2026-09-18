@@ -63,13 +63,17 @@ export function extract(html: string): Omit<Site, "slug"> {
     }
   }
 
-  // cidade/UF também aparecem no título e na descrição: "… em Cidade Nova, Ananindeua-PA"
-  if (!city || !uf) {
+  // "Barbearia em Parintins" e "Aparecida em Santarém" guardam a cidade no fim
+  if (city) city = city.split(/\s+em\s+/i).pop()!.trim();
+
+  // a maioria só diz a cidade no título: "… — Barbearia em São Luís (Itaqui-Bacanga)"
+  if (!city || !CIDADES[semAcento(city)]) {
     const texto = [/<title>([\s\S]*?)<\/title>/i, /name="description" content="([^"]*)"/i]
       .map((re) => re.exec(html)?.[1] ?? "").join(" ");
-    const m = /([A-ZÁÂÃÉÊÍÓÔÕÚÇ][\wÀ-ÿ'.\- ]{2,30}?)\s*[-–—/]\s*([A-Z]{2})\b/.exec(texto);
-    if (m) { city ??= m[1].trim(); uf ??= m[2]; }
+    const achada = cidadeConhecida(texto);
+    if (achada) [city, uf] = achada;
   }
+  if (city && CIDADES[semAcento(city)]) uf ??= CIDADES[semAcento(city)];
 
   if (!name) {
     const title = /<title>([\s\S]*?)<\/title>/.exec(html)?.[1];
@@ -79,6 +83,39 @@ export function extract(html: string): Omit<Site, "slug"> {
 
   return { name: (name ?? "").slice(0, 80), phone: phone && digits(phone), address, category, city, uf, rating, reviews };
 }
+
+// As praças atendidas. Serve para reconhecer a cidade no texto e para dizer a UF
+// quando a página cita só o nome. Distrito conhecido vira a cidade de que faz parte.
+const CIDADES: Record<string, string> = {
+  manaus: "AM", parintins: "AM", itacoatiara: "AM", manacapuru: "AM", "presidente figueiredo": "AM",
+  belem: "PA", ananindeua: "PA", marituba: "PA", benevides: "PA", "santa izabel do para": "PA",
+  castanhal: "PA", santarem: "PA", parauapebas: "PA", barcarena: "PA", abaetetuba: "PA",
+  maraba: "PA", altamira: "PA", braganca: "PA", tucurui: "PA", icoaraci: "PA", outeiro: "PA",
+  "sao luis": "MA", "paco do lumiar": "MA", "sao jose de ribamar": "MA", raposa: "MA", imperatriz: "MA",
+};
+// Icoaraci e Outeiro são distritos de Belém: quem procura por cidade espera Belém
+const DISTRITOS: Record<string, string> = { icoaraci: "Belém", outeiro: "Belém" };
+
+const semAcento = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/** Acha no texto a primeira cidade conhecida; devolve [cidade, uf]. */
+function cidadeConhecida(texto: string): [string, string] | null {
+  const alvo = semAcento(texto);
+  // nomes maiores primeiro: "são josé de ribamar" antes de "são luís"
+  const nomes = Object.keys(CIDADES).sort((a, b) => b.length - a.length);
+  const achado = nomes.find((n) => new RegExp(`\\b${n}\\b`).test(alvo));
+  if (!achado) return null;
+  const nome = DISTRITOS[achado] ?? achado.replace(/\b\w/g, (c) => c.toUpperCase());
+  return [CAPITALIZADAS[achado] ?? nome, CIDADES[achado]];
+}
+
+// grafia correta (com acento) das cidades cujo nome não sai certo do capitalize
+const CAPITALIZADAS: Record<string, string> = {
+  belem: "Belém", santarem: "Santarém", maraba: "Marabá", tucurui: "Tucuruí", braganca: "Bragança",
+  "sao luis": "São Luís", "paco do lumiar": "Paço do Lumiar", "sao jose de ribamar": "São José de Ribamar",
+  "santa izabel do para": "Santa Izabel do Pará", "presidente figueiredo": "Presidente Figueiredo",
+  icoaraci: "Belém", outeiro: "Belém",
+};
 
 const numero = (v: unknown) => {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", "."));
@@ -137,6 +174,20 @@ function selfCheck() {
   assert.equal(nota.reviews, 89);
   assert.equal(nota.uf, "PA");
   assert.equal(nota.city, "Ananindeua");
+
+  // cidade citada só no título, sem UF
+  const slz = extract("<title>Barbearia Diniz — Barbearia em São Luís (Itaqui-Bacanga)</title>");
+  assert.deepEqual([slz.city, slz.uf], ["São Luís", "MA"]);
+  // o nome maior ganha do menor
+  const ribamar = extract("<title>Barbearia Do Irmão — Barbearia em São José de Ribamar</title>");
+  assert.equal(ribamar.city, "São José de Ribamar");
+  // "X em Cidade" no endereço estruturado não vira cidade
+  const suja = extract(
+    `<script type="application/ld+json">{"@type":"HairSalon","name":"X","address":{"addressLocality":"Salão de Beleza em Parintins","addressRegion":"AM"}}</script>`,
+  );
+  assert.deepEqual([suja.city, suja.uf], ["Parintins", "AM"]);
+  // distrito vira a cidade de que faz parte
+  assert.equal(extract("<title>Pet Shop em Icoaraci</title>").city, "Belém");
 
   const fallback = extract(
     `<title>Shop das Unhas &amp; Nail &mdash; São Luís | Ysis</title><a href="https://wa.me/5598991831425?text=Oi">zap</a>`,
