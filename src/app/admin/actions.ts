@@ -88,3 +88,46 @@ export const revogarAcesso = adminAction(async (_user, slug: string, uid: string
   await ref.delete();
   return "acesso removido";
 });
+
+export type Resumo = { agendamentosHoje: number; espacosComAgenda: number };
+
+/** Agendamentos de hoje em toda a plataforma, para o topo do painel. */
+export const resumoDoDia = adminAction(async (): Promise<Resumo> => {
+  const inicio = new Date();
+  inicio.setHours(0, 0, 0, 0);
+  const fim = new Date(inicio);
+  fim.setDate(fim.getDate() + 1);
+  const snap = await adminDb
+    .collectionGroup("appointments")
+    .where("start", ">=", inicio)
+    .where("start", "<", fim)
+    .get();
+  const espacos = new Set(snap.docs.map((d) => d.ref.parent.parent?.id).filter(Boolean));
+  return { agendamentosHoje: snap.size, espacosComAgenda: espacos.size };
+});
+
+export type Detalhe = {
+  servicos: number;
+  profissionais: number;
+  agendamentos30d: number;
+  telefone: string | null;
+};
+
+/** O que o painel lateral de um espaço mostra além dos acessos. */
+export const detalhesEspaco = adminAction(async (_user, slug: string): Promise<Detalhe> => {
+  const t = adminDb.collection("tenants").doc(slug);
+  const desde = new Date();
+  desde.setDate(desde.getDate() - 30);
+  const [tenant, servicos, staff, agendamentos] = await Promise.all([
+    t.get(),
+    t.collection("services").where("active", "==", true).count().get(),
+    t.collection("staff").where("active", "==", true).count().get(),
+    t.collection("appointments").where("start", ">=", desde).count().get(),
+  ]);
+  return {
+    servicos: servicos.data().count,
+    profissionais: staff.data().count,
+    agendamentos30d: agendamentos.data().count,
+    telefone: tenant.get("site.phone") ?? null,
+  };
+});
