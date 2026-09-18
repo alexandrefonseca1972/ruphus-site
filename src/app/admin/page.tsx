@@ -66,7 +66,7 @@ function Chip({ ativo, children, ...props }: React.ComponentProps<"button"> & { 
 function Indicador({ rotulo, valor, nota, cor }: { rotulo: string; valor: string; nota: string; cor?: string }) {
   return (
     <div className={`${CARTAO} p-5`}>
-      <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#6F6A5E]">{rotulo}</div>
+      <div className="text-xs font-semibold uppercase tracking-[0.04em] text-[#6F6A5E]">{rotulo}</div>
       <div className="mt-1.5 font-[family-name:var(--fonte-serifa)] text-[40px] leading-none" style={{ color: cor }}>
         {valor}
       </div>
@@ -277,7 +277,7 @@ export default function AdminPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-[0.08em] text-[#6F6A5E]">Cidade</span>
+            <span className="mr-1 text-xs font-semibold uppercase tracking-[0.04em] text-[#6F6A5E]">Cidade</span>
             <Chip ativo={!cidade} onClick={() => setCidade("")}>Todas</Chip>
             {(todasCidades ? cidades : cidades.slice(0, CIDADES_VISIVEIS)).map(([c, n]) => (
               <Chip key={c} ativo={cidade === c} onClick={() => setCidade(cidade === c ? "" : c)}>
@@ -296,7 +296,7 @@ export default function AdminPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-[0.08em] text-[#6F6A5E]">Nicho</span>
+            <span className="mr-1 text-xs font-semibold uppercase tracking-[0.04em] text-[#6F6A5E]">Nicho</span>
             <Chip ativo={!nicho} onClick={() => setNicho("")}>Todos</Chip>
             {nichos.map(([v, n]) => (
               <Chip key={v} ativo={nicho === v} onClick={() => setNicho(nicho === v ? "" : v)}>
@@ -306,7 +306,7 @@ export default function AdminPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-[0.08em] text-[#6F6A5E]">Situação</span>
+            <span className="mr-1 text-xs font-semibold uppercase tracking-[0.04em] text-[#6F6A5E]">Situação</span>
             <div className="flex overflow-hidden rounded-full border border-[#D8D2C6] bg-white">
               {([["", "Todas"], ["pendente", "Convite pendente"], ["ativo", "Cliente ativo"]] as const).map(([v, r]) => (
                 <button
@@ -364,7 +364,7 @@ export default function AdminPage() {
                   key={e.slug}
                   className="flex flex-col gap-3 border-b border-[#F1EDE6] px-4 py-3.5 last:border-0 sm:px-5 lg:flex-row lg:items-center lg:gap-4"
                 >
-                  <div className="flex min-w-0 items-start gap-3 lg:w-[340px]">
+                  <div className="flex min-w-0 items-start gap-3 lg:w-[330px]">
                     <div
                       aria-hidden="true"
                       className={`flex size-11 shrink-0 items-center justify-center rounded-[10px] font-[family-name:var(--fonte-serifa)] text-xl ${ativo ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#F0E6DE] text-[#8A4520]"}`}
@@ -372,13 +372,13 @@ export default function AdminPage() {
                       {e.nome.slice(0, 1).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-[15px] font-semibold">{e.nome}</p>
+                      <p className="truncate text-[14px] font-semibold">{e.nome}</p>
                       <p className="truncate text-[13px] text-[#6F6A5E]">{e.slug}</p>
                     </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 text-[13px] text-[#4A4639] lg:contents">
-                    <span className="lg:w-[150px]">{local(e) || "cidade não identificada"}</span>
+                    <span className="lg:w-[160px]">{local(e) || "cidade não identificada"}</span>
                     <span className="lg:w-[160px]">
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${CORES_NICHO[e.nicho] ?? "bg-[#F3EFE7] text-[#4A4639]"}`}>
                         {e.nicho}
@@ -488,7 +488,7 @@ export default function AdminPage() {
               </p>
               {convite?.slug === aberto.slug ? (
                 <div className="flex flex-col gap-2">
-                  <code className="truncate rounded-lg border border-[#E2DDD3] bg-white px-3 py-2.5 font-mono text-xs text-[#4A4639]">
+                  <code className="truncate rounded-lg border border-[#E2DDD3] bg-white px-3 py-2.5 text-xs text-[#4A4639]">
                     {convite.url}
                   </code>
                   <div className="flex gap-2">
@@ -526,7 +526,7 @@ export default function AdminPage() {
                   <li key={a.uid} className="flex items-center gap-3 rounded-xl border border-[#E2DDD3] p-3.5">
                     <div className="min-w-0 grow">
                       <p className="text-sm font-medium">{a.papel === "owner" ? "Dono do espaço" : "Admin do negócio"}</p>
-                      <p className="truncate font-mono text-xs text-[#6F6A5E]">
+                      <p className="truncate text-xs text-[#6F6A5E]">
                         {a.uid}
                         {a.desde ? ` · desde ${new Date(a.desde).toLocaleDateString("pt-BR")}` : ""}
                       </p>

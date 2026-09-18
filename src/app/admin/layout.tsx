@@ -1,12 +1,12 @@
-import { Instrument_Serif, Public_Sans } from "next/font/google";
+import { Instrument_Serif, JetBrains_Mono } from "next/font/google";
 
-// O painel tem tipografia própria: serifa nos títulos e números, sans na interface
+// O painel tem tipografia própria: serifa nos títulos e números, mono na interface
 const serifa = Instrument_Serif({ weight: "400", subsets: ["latin"], variable: "--fonte-serifa" });
-const sans = Public_Sans({ subsets: ["latin"], variable: "--fonte-sans" });
+const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--fonte-mono" });
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`${serifa.variable} ${sans.variable} min-h-dvh bg-[#F4F2EE] font-[family-name:var(--fonte-sans)] text-[#17150F]`}>
+    <div className={`${serifa.variable} ${mono.variable} min-h-dvh bg-[#F4F2EE] font-[family-name:var(--fonte-mono)] text-[#17150F]`}>
       {children}
     </div>
   );
