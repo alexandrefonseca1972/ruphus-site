@@ -4,17 +4,23 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { auth } from "@/lib/firebase";
+import { formatBRL } from "@/lib/datetime";
 import {
+  anotarNegocio,
   detalhesEspaco,
   gerarConvite,
   listarAcessos,
+  listarCrm,
   listarEspacos,
+  listarNotasDo,
   resumoDoDia,
+  salvarNegocio,
   revogarAcesso,
   type Acesso,
   type Detalhe,
   type Espaco,
 } from "./actions";
+import { COR, ESTAGIOS, ROTULO, type Crm, type Estagio, type Nota } from "@/lib/crm-tipos";
 
 const PAGINA = 40;
 const CIDADES_VISIVEIS = 5;
@@ -96,6 +102,9 @@ export default function AdminPage() {
   const [idToken, setIdToken] = useState("");
   const [copiado, setCopiado] = useState("");
   const [aviso, setAviso] = useState("");
+  const [crm, setCrm] = useState<Record<string, Crm>>({});
+  const [notas, setNotas] = useState<Nota[] | null>(null);
+  const [estagio, setEstagio] = useState("");
 
   useEffect(
     () =>
@@ -104,10 +113,15 @@ export default function AdminPage() {
         setEmail(user.email ?? "");
         const idToken = await user.getIdToken();
         setIdToken(idToken);
-        const [lista, dia] = await Promise.all([listarEspacos(idToken), resumoDoDia(idToken)]);
+        const [lista, dia, negocios] = await Promise.all([
+          listarEspacos(idToken),
+          resumoDoDia(idToken),
+          listarCrm(idToken),
+        ]);
         if (!lista.ok) return setEstado("negado");
         setEspacos(lista.dados);
         if (dia.ok) setHoje(dia.dados);
+        if (negocios.ok) setCrm(negocios.dados);
         setEstado("pronto");
       }),
     [router],
@@ -135,6 +149,8 @@ export default function AdminPage() {
       if (nicho && e.nicho !== nicho) return false;
       if (situacao === "ativo" && e.acessos <= 1) return false;
       if (situacao === "pendente" && e.acessos > 1) return false;
+      if (estagio && (crm[e.slug]?.estagio ?? "novo") !== estagio) return false;
+      if (estagio === "atrasado") return false;
       if (!termo) return true;
       return semAcento(`${e.nome} ${e.slug} ${e.cidade ?? ""} ${e.telefone ?? ""}`).includes(termo);
     });
@@ -145,7 +161,7 @@ export default function AdminPage() {
       nome: (a, b) => a.nome.localeCompare(b.nome, "pt-BR"),
     };
     return [...filtrada].sort(por[ordem]);
-  }, [espacos, busca, cidade, nicho, situacao, ordem]);
+  }, [espacos, busca, cidade, nicho, situacao, ordem, estagio, crm]);
 
   async function abrir(e: Espaco) {
     setAberto(e);
@@ -153,9 +169,11 @@ export default function AdminPage() {
     setDetalhe(null);
     setAviso("");
     const t = await token();
-    const [a, d] = await Promise.all([listarAcessos(t, e.slug), detalhesEspaco(t, e.slug)]);
+    setNotas(null);
+    const [a, d, n] = await Promise.all([listarAcessos(t, e.slug), detalhesEspaco(t, e.slug), listarNotasDo(t, e.slug)]);
     if (a.ok) setAcessos(a.dados);
     if (d.ok) setDetalhe(d.dados);
+    if (n.ok) setNotas(n.dados);
   }
 
   async function convidar(slug: string) {
@@ -176,6 +194,20 @@ export default function AdminPage() {
     setAcessos((a) => a?.filter((x) => x.uid !== uid) ?? null);
     setEspacos((e) => e.map((x) => (x.slug === slug ? { ...x, acessos: x.acessos - 1 } : x)));
     setAberto((x) => (x && x.slug === slug ? { ...x, acessos: x.acessos - 1 } : x));
+  }
+
+  async function mudarNegocio(slug: string, dados: Partial<Crm>) {
+    const atual = crm[slug] ?? { estagio: "novo", valorCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0 };
+    setCrm((c) => ({ ...c, [slug]: { ...atual, ...dados } as Crm }));   // resposta imediata na tela
+    const r = await salvarNegocio(await token(), slug, dados);
+    if (!r.ok) setAviso(r.error);
+  }
+
+  async function novaNota(slug: string, texto: string) {
+    const r = await anotarNegocio(await token(), slug, texto);
+    if (!r.ok) return setAviso(r.error);
+    setNotas(r.dados);
+    setCrm((c) => ({ ...c, [slug]: { ...c[slug], notas: (c[slug]?.notas ?? 0) + 1 } as Crm }));
   }
 
   async function copiar(texto: string, marca: string) {
@@ -221,6 +253,7 @@ export default function AdminPage() {
   const chave = [busca, cidade, nicho, situacao, ordem].join("|");
   const quantos = pagina.chave === chave ? pagina.n : PAGINA;
   const ativos = espacos.filter((e) => e.acessos > 1).length;
+  const fora = espacos.filter((e) => crm[e.slug]?.publicado === false).length;
   const filtrando = busca || cidade || nicho || situacao;
 
   return (
@@ -236,14 +269,20 @@ export default function AdminPage() {
       </header>
 
       <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 p-4 sm:p-8">
-        <section aria-label="Resumo" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Indicador rotulo="Espaços" valor={String(espacos.length)} nota="com site no ar" />
+        <section aria-label="Resumo" className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+          <Indicador rotulo="Espaços" valor={String(espacos.length)} nota={`${fora} fora do ar`} />
           <Indicador rotulo="Cliente ativo" valor={String(ativos)} nota="entrou no painel" cor="#2C6A53" />
           <Indicador
             rotulo="Convite pendente"
             valor={String(espacos.length - ativos)}
             nota="ninguém do negócio entrou"
             cor="#A8502B"
+          />
+          <Indicador
+            rotulo="Fechados"
+            valor={String(espacos.filter((e) => crm[e.slug]?.estagio === "fechado").length)}
+            nota={`${formatBRL(espacos.reduce((s, e) => s + (crm[e.slug]?.estagio === "fechado" ? crm[e.slug]?.valorCents ?? 0 : 0), 0))} contratados`}
+            cor="#2C6A53"
           />
           <Indicador
             rotulo="Agendamentos hoje"
@@ -312,6 +351,19 @@ export default function AdminPage() {
                 {v} <span className={nicho === v ? "text-white/70" : "text-[#6F6A5E]"}>{n}</span>
               </Chip>
             ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-xs font-semibold uppercase tracking-[0.04em] text-[#6F6A5E]">Funil</span>
+            <Chip ativo={!estagio} onClick={() => setEstagio("")}>Todos</Chip>
+            {ESTAGIOS.map((e) => {
+              const n = espacos.filter((x) => (crm[x.slug]?.estagio ?? "novo") === e).length;
+              return (
+                <Chip key={e} ativo={estagio === e} onClick={() => setEstagio(estagio === e ? "" : e)}>
+                  {ROTULO[e]} <span className={estagio === e ? "text-white/70" : "text-[#6F6A5E]"}>{n}</span>
+                </Chip>
+              );
+            })}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -399,9 +451,12 @@ export default function AdminPage() {
                         : "sem nota"}
                     </span>
                     <span className="lg:w-[150px]">
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${ativo ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#FBEDE6] text-[#A8502B]"}`}>
-                        {ativo ? `Cliente ativo · ${e.acessos - 1}` : "Convite pendente"}
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${COR[(crm[e.slug]?.estagio ?? "novo") as Estagio]}`}>
+                        {ROTULO[(crm[e.slug]?.estagio ?? "novo") as Estagio]}
                       </span>
+                      {crm[e.slug]?.publicado === false && (
+                        <span className="ml-1 rounded-full bg-[#F1E7E7] px-2 py-0.5 text-xs font-semibold text-[#8A2F2F]">fora do ar</span>
+                      )}
                     </span>
                   </div>
 
@@ -522,6 +577,112 @@ export default function AdminPage() {
                 <button type="button" className={`${BOTAO_ESCURO} self-start`} onClick={() => convidar(aberto.slug)}>
                   Gerar link de convite
                 </button>
+              )}
+            </section>
+
+            <section aria-label="Negócio" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-[15px] font-semibold">Negócio</h3>
+                <button
+                  type="button"
+                  onClick={() => mudarNegocio(aberto.slug, { publicado: !(crm[aberto.slug]?.publicado !== false) })}
+                  className={`h-11 rounded-[10px] border px-3.5 text-[13px] font-semibold ${
+                    crm[aberto.slug]?.publicado === false
+                      ? "border-[#2C6A53] text-[#2C6A53] hover:bg-[#EEF2F0]"
+                      : "border-[#D8D2C6] text-[#8A2F2F] hover:border-[#8A2F2F]"
+                  }`}
+                >
+                  {crm[aberto.slug]?.publicado === false ? "Colocar no ar" : "Tirar do ar"}
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {ESTAGIOS.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => mudarNegocio(aberto.slug, { estagio: e })}
+                    className={`${CHIP} ${
+                      (crm[aberto.slug]?.estagio ?? "novo") === e
+                        ? "border-[#17150F] bg-[#17150F] font-semibold text-white"
+                        : "border-[#D8D2C6] bg-white text-[#17150F] hover:border-[#17150F]"
+                    }`}
+                  >
+                    {ROTULO[e]}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
+                  Valor combinado (R$)
+                  <input
+                    type="number"
+                    min={0}
+                    step={10}
+                    defaultValue={crm[aberto.slug]?.valorCents ? (crm[aberto.slug]!.valorCents! / 100).toString() : ""}
+                    onBlur={(ev) =>
+                      mudarNegocio(aberto.slug, {
+                        valorCents: ev.target.value ? Math.round(Number(ev.target.value) * 100) : null,
+                      })
+                    }
+                    className="h-11 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F]"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
+                  Próxima ação em
+                  <input
+                    type="date"
+                    defaultValue={crm[aberto.slug]?.proximaData ?? ""}
+                    onChange={(ev) => mudarNegocio(aberto.slug, { proximaData: ev.target.value || null })}
+                    className="h-11 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F]"
+                  />
+                </label>
+              </div>
+              <label className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
+                O que fazer
+                <input
+                  type="text"
+                  maxLength={120}
+                  placeholder="ligar, mandar proposta, cobrar retorno…"
+                  defaultValue={crm[aberto.slug]?.proximaAcao ?? ""}
+                  onBlur={(ev) => mudarNegocio(aberto.slug, { proximaAcao: ev.target.value.trim() || null })}
+                  className="h-11 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F]"
+                />
+              </label>
+
+              <form
+                onSubmit={(ev) => {
+                  ev.preventDefault();
+                  const campo = ev.currentTarget.elements.namedItem("nota") as HTMLInputElement;
+                  if (!campo.value.trim()) return;
+                  novaNota(aberto.slug, campo.value.trim());
+                  campo.value = "";
+                }}
+                className="flex gap-2"
+              >
+                <label htmlFor="nota" className="sr-only">Anotação</label>
+                <input
+                  id="nota"
+                  name="nota"
+                  maxLength={600}
+                  placeholder="Anotar contato de hoje"
+                  className="h-11 grow rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm"
+                />
+                <button type="submit" className={BOTAO_ESCURO}>Anotar</button>
+              </form>
+
+              {notas && notas.length > 0 && (
+                <ul className="flex flex-col gap-2 border-t border-[#EDE9E1] pt-2">
+                  {notas.map((n) => (
+                    <li key={n.id} className="text-[13px]">
+                      <p className="whitespace-pre-line">{n.texto}</p>
+                      <p className="text-xs text-[#8B8578]">
+                        {n.quando ? new Date(n.quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "agora"} · {n.autor}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
               )}
             </section>
 

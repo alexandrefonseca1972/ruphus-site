@@ -1,5 +1,22 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+// Lista de sites fora do ar, guardada em memória por um minuto: o proxy roda em
+// toda visita e não pode consultar o banco a cada uma.
+let fechados: { slugs: Set<string>; ate: number } = { slugs: new Set(), ate: 0 };
+
+async function foraDoAr(slug: string, origem: string) {
+  if (Date.now() > fechados.ate) {
+    fechados = { slugs: fechados.slugs, ate: Date.now() + 60_000 };
+    try {
+      const r = await fetch(new URL("/api/desativados", origem), { cache: "no-store" });
+      if (r.ok) fechados = { slugs: new Set(await r.json()), ate: Date.now() + 60_000 };
+    } catch {
+      // sem resposta, vale a lista anterior: melhor servir o site do que derrubar todos
+    }
+  }
+  return fechados.slugs.has(slug);
+}
+
 // {slug}.ruphus.site serve o site estático em public/s/{slug}; www e apex são o app.
 const SITE_HOST = /^([a-z0-9][a-z0-9-]*)\.ruphus\.site$/;
 const APP_HOSTS = ["www", "app"];
@@ -29,7 +46,7 @@ export function sitePath(slug: string, pathname: string) {
   return `/s/${slug}${pathname === "/" ? "/index.html" : pathname}`;
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const slug = siteSlug(request.headers.get("host") ?? "");
   if (!slug) {
     const pagina = paginaEstatica(request.nextUrl.pathname);
@@ -39,6 +56,10 @@ export function proxy(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
   const url = request.nextUrl.clone();
+  if (await foraDoAr(slug, request.url)) {
+    url.pathname = "/indisponivel";
+    return NextResponse.rewrite(url, { status: 404 });
+  }
   url.pathname = sitePath(slug, url.pathname);
   return NextResponse.rewrite(url);
 }

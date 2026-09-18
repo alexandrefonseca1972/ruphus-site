@@ -3,6 +3,7 @@
 import { adminDb } from "@/lib/admin";
 import { adminAction } from "@/lib/admin-guard";
 import { criarConvite } from "@/lib/convite";
+import { anotar, CrmInput, lerCrm, listarNotas, salvarCrm } from "@/lib/crm";
 
 export type Espaco = {
   slug: string;
@@ -130,4 +131,21 @@ export const detalhesEspaco = adminAction(async (_user, slug: string): Promise<D
     agendamentos30d: agendamentos.data().count,
     telefone: tenant.get("site.phone") ?? null,
   };
+});
+
+// ————— CRM: oferta, venda e publicação —————
+
+/** Estágio, valor e próxima ação de cada espaço, em um mapa por slug. */
+export const listarCrm = adminAction(async () => lerCrm(adminDb));
+
+export const salvarNegocio = adminAction(async (_user, slug: string, dados: unknown) => {
+  await salvarCrm(adminDb, slug, CrmInput.parse(dados));
+  return "salvo";
+});
+
+export const listarNotasDo = adminAction(async (_user, slug: string) => listarNotas(adminDb, slug));
+
+export const anotarNegocio = adminAction(async (user, slug: string, texto: string) => {
+  await anotar(adminDb, slug, texto, user.email ?? user.uid);
+  return listarNotas(adminDb, slug);
 });

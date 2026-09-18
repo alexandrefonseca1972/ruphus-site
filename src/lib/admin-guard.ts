@@ -17,7 +17,7 @@ export async function requireAdmin(idToken: string) {
 }
 
 /** Envolve uma ação do painel: valida o admin e não deixa erro interno vazar. */
-export function adminAction<A extends unknown[], R>(run: (user: { uid: string }, ...args: A) => Promise<R>) {
+export function adminAction<A extends unknown[], R>(run: (user: { uid: string; email?: string }, ...args: A) => Promise<R>) {
   return async (idToken: string, ...args: A) => {
     try {
       return { ok: true as const, dados: await run(await requireAdmin(idToken), ...args) };
