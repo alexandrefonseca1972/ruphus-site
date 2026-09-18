@@ -28,6 +28,16 @@ await assertFails(setDoc(doc(mallory, "tenants/acme/members/mallory"), { uid: "m
 // Isolamento
 await assertSucceeds(setDoc(doc(alice, "tenants/acme/sites/s1"), { title: "a" }));
 await assertFails(getDoc(doc(mallory, "tenants/acme")));
+
+// Admin da plataforma: entra em qualquer espaço para dar suporte; quem não está na lista, não
+await env.withSecurityRulesDisabled((ctx) =>
+  setDoc(doc(ctx.firestore(), "config/admin"), { uids: ["suporte"] }),
+);
+const suporte = as("suporte");
+await assertSucceeds(getDoc(doc(suporte, "tenants/acme")));
+await assertSucceeds(setDoc(doc(suporte, "tenants/acme/services/corte"), { name: "Corte", durationMin: 30, priceCents: 4000, active: true }));
+await assertFails(getDoc(doc(mallory, "config/admin")));   // a lista não é pública
+await assertFails(setDoc(doc(suporte, "config/admin"), { uids: ["mallory"] })); // nem o admin escreve nela
 await assertFails(getDoc(doc(mallory, "tenants/acme/sites/s1")));
 await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), "tenants/acme")));
 

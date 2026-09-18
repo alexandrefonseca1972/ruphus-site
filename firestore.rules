@@ -4,8 +4,14 @@ service cloud.firestore {
     function memberPath(t) {
       return /databases/$(database)/documents/tenants/$(t)/members/$(request.auth.uid);
     }
+    // Quem administra a plataforma dá suporte em qualquer espaço. A lista fica em
+    // config/admin, que nenhuma regra expõe: só o Admin SDK escreve nela.
+    function ehAdminPlataforma() {
+      return request.auth != null
+        && request.auth.uid in get(/databases/$(database)/documents/config/admin).data.uids;
+    }
     function isMember(t) {
-      return request.auth != null && exists(memberPath(t));
+      return request.auth != null && (exists(memberPath(t)) || ehAdminPlataforma());
     }
     function hasRole(t, roles) {
       return isMember(t) && get(memberPath(t)).data.role in roles;

@@ -40,8 +40,13 @@ export async function requireMember(verify: VerifyToken, db: Firestore, idToken:
   const user = await verify(idToken).catch(() => {
     throw new UserError("Sessão expirada. Entre novamente.");
   });
-  const member = await db.doc(`tenants/${tenantId}/members/${user.uid}`).get();
-  if (!member.exists) throw new UserError("Sem acesso a este espaço.");
+  const [member, admin] = await Promise.all([
+    db.doc(`tenants/${tenantId}/members/${user.uid}`).get(),
+    db.doc("config/admin").get(),
+  ]);
+  // quem administra a plataforma atende em qualquer espaço, como nas regras do Firestore
+  const daPlataforma = (admin.get("uids") as unknown[] | undefined)?.includes(user.uid) ?? false;
+  if (!member.exists && !daPlataforma) throw new UserError("Sem acesso a este espaço.");
   return user;
 }
 
