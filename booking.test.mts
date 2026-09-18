@@ -156,7 +156,7 @@ async function tokenFor(uid: string) {
 await t.collection("members").doc("owner").set({ uid: "owner", role: "owner" });
 const emulatorVerify = (token: string) => auth.verifyIdToken(token);
 assert.equal((await requireMember(emulatorVerify, db, await tokenFor("owner"), "salao")).uid, "owner");
-await assert.rejects(requireMember(emulatorVerify, db, await tokenFor("intruso"), "salao"), /Sem acesso/);
+await assert.rejects(requireMember(emulatorVerify, db, await tokenFor("intruso"), "salao"), /não tem acesso/);
 await assert.rejects(requireMember(emulatorVerify, db, "token-falso", "salao"), /Sessão expirada/);
 // Verificador de produção: token do emulador (sem assinatura) e lixo são recusados
 await assert.rejects(verifyFirebaseToken(await tokenFor("owner"), "demo-siteflow"));

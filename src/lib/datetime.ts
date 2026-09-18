@@ -60,6 +60,20 @@ export function formatPhone(value: string) {
   return rest.length <= split ? `(${ddd}) ${rest}` : `(${ddd}) ${rest.slice(0, split)}-${rest.slice(split)}`;
 }
 
+/** Conversa no WhatsApp com a mensagem já escrita, ou null se o número não servir.
+ *
+ * O código do país entra pelo tamanho, não por "começa com 55": o DDD 55 é de
+ * Santa Maria, e um fixo de lá (55 3220-0000) seria lido como número já
+ * internacional e abriria conversa com ninguém. Dez ou onze dígitos são
+ * daqui e recebem o 55; doze ou treze já vieram com ele.
+ */
+export function linkWhatsApp(telefone: string | null | undefined, texto: string) {
+  const d = (telefone ?? "").replace(/\D/g, "");
+  const numero =
+    d.length === 10 || d.length === 11 ? `55${d}` : (d.length === 12 || d.length === 13) && d.startsWith("55") ? d : "";
+  return numero ? `https://wa.me/${numero}?text=${encodeURIComponent(texto)}` : null;
+}
+
 /** Mensagem de erro do WhatsApp em tempo real ("" = válido) */
 export function phoneError(value: string) {
   const d = value.replace(/\D/g, "");

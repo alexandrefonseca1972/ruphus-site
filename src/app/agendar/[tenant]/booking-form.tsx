@@ -11,6 +11,7 @@ import {
   formatDuration,
   formatLongDate,
   formatPhone,
+  linkWhatsApp,
   MAX_DAYS_AHEAD,
   phoneError,
   TIMEZONE,
@@ -24,6 +25,7 @@ type Props = {
   tenantId: string;
   today: string;
   name: string;
+  phone: string | null;
   services: { id: string; name: string; durationMin: number; priceCents: number }[];
   staff: { id: string; name: string; serviceIds: string[]; workDays: number[] }[];
 };
@@ -89,7 +91,7 @@ function Field(props: {
   );
 }
 
-export function BookingForm({ tenantId, today, name, services, staff }: Props) {
+export function BookingForm({ tenantId, today, name, phone, services, staff }: Props) {
   const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [staffId, setStaffId] = useState("");
   const [date, setDate] = useState("");
@@ -234,6 +236,20 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
         dates: `${gcal(start)}/${gcal(end)}`,
         details: `Com ${professional.name}. ${formatBRL(totalCents)}.`,
       });
+    // Nada avisa o estabelecimento quando alguém agenda — quem agenda leva o
+    // recado pelo canal que esses negócios já usam o dia inteiro.
+    const avisoUrl = linkWhatsApp(
+      phone,
+      [
+        `Olá! Acabei de agendar pelo site do ${name}.`,
+        "",
+        chosen.map((s) => s.name).join(" + "),
+        `${longDate(date)}, às ${time}`,
+        `com ${professional.name}`,
+        "",
+        `Meu nome é ${customerName.trim()} (${customerPhone}).`,
+      ].join("\n"),
+    );
     return (
       <main className="mx-auto w-full max-w-lg p-4 py-12 pb-[max(3rem,env(safe-area-inset-bottom))]">
         <Card>
@@ -246,10 +262,25 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
             <p>com {professional.name} · {formatDuration(totalMin)} · {formatBRL(totalCents)}</p>
             <p className="text-muted-foreground">{name}</p>
             <p className="mt-3 text-muted-foreground">
-              Se precisar confirmar algo, o estabelecimento fala com você no WhatsApp que você informou ({customerPhone}).
+              {avisoUrl
+                ? "Falta avisar o estabelecimento. Mande o resumo no WhatsApp para confirmarem o seu horário."
+                : `O estabelecimento fala com você no WhatsApp que você informou (${customerPhone}).`}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <a href={calendarUrl} rel="noreferrer" className="inline-flex h-11 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/80">
+              {avisoUrl && (
+                <a
+                  href={avisoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/80"
+                >
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.9-.9L3 20.5l1.6-4.9A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z" />
+                  </svg>
+                  Avisar no WhatsApp
+                </a>
+              )}
+              <a href={calendarUrl} rel="noreferrer" className={cn("inline-flex h-11 items-center rounded-lg border px-4 text-sm font-medium hover:bg-accent", !avisoUrl && "bg-primary text-primary-foreground hover:bg-primary/80")}>
                 Adicionar ao Google Agenda
               </a>
               <Button variant="outline" onClick={() => location.reload()}>

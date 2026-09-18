@@ -18,6 +18,8 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
   if (!tenant.exists) return null;
   return {
     name: String(tenant.get("name")),
+    // o WhatsApp do negócio: é por ele que o agendamento chega a quem atende
+    phone: (tenant.get("site.phone") as string | null) ?? null,
     services: services.docs.flatMap((d) => {
       const s = Service.safeParse(d.data());
       return s.success ? [{ id: d.id, name: s.data.name, durationMin: s.data.durationMin, priceCents: s.data.priceCents }] : [];
