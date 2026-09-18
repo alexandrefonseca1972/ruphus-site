@@ -30,6 +30,19 @@ const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLo
 const relevancia = (e: Espaco) => (e.nota ?? 0) * Math.log10((e.avaliacoes ?? 0) + 1);
 const local = (e: Espaco) => (e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ""}` : "");
 
+// As visões são combinações de filtro que se repetem todo dia. Viram aba para
+// ninguém ter de remontá-las de manhã — e cada uma é só um preset dos mesmos
+// filtros, não um caminho paralelo.
+type Visao = { id: string; rotulo: string; urgente?: boolean; separa?: boolean; prazo: "" | Prazo; situacao: string; estagio: string; fora: boolean };
+const VISOES: Visao[] = [
+  { id: "atrasados", rotulo: "Atrasados", urgente: true, prazo: "atrasada", situacao: "", estagio: "", fora: false },
+  { id: "hoje", rotulo: "Para hoje", prazo: "hoje", situacao: "", estagio: "", fora: false },
+  { id: "todos", rotulo: "Todos", separa: true, prazo: "", situacao: "", estagio: "", fora: false },
+  { id: "pendentes", rotulo: "Sem cliente dentro", prazo: "", situacao: "pendente", estagio: "", fora: false },
+  { id: "negociando", rotulo: "Em negociação", prazo: "", situacao: "", estagio: "negociando", fora: false },
+  { id: "foradoar", rotulo: "Fora do ar", prazo: "", situacao: "", estagio: "", fora: true },
+];
+
 function contar(espacos: Espaco[], campo: (e: Espaco) => string) {
   const m = new Map<string, number>();
   for (const e of espacos) {
@@ -48,6 +61,7 @@ async function token() {
 const CHIP = "h-9 rounded-full border px-3.5 text-[13px] transition-colors";
 const CHIP_ON = `${CHIP} border-[#17150F] bg-[#17150F] font-semibold text-white`;
 const CHIP_OFF = `${CHIP} border-[#D8D2C6] bg-white text-[#17150F] hover:border-[#17150F]`;
+const CHIP_MORTO = `${CHIP} cursor-not-allowed border-dashed border-[#E2DDD3] bg-transparent text-[#A8A294]`;
 const CARTAO = "rounded-2xl border border-[#E2DDD3] bg-white";
 const BOTAO = "inline-flex h-11 items-center justify-center rounded-[10px] px-4 text-sm font-semibold transition-colors";
 const BOTAO_ESCURO = `${BOTAO} bg-[#17150F] text-white hover:bg-[#2C2920]`;
@@ -63,21 +77,13 @@ const CORES_NICHO: Record<string, string> = {
 
 function Chip({ ativo, children, ...props }: React.ComponentProps<"button"> & { ativo: boolean }) {
   return (
-    <button type="button" className={ativo ? CHIP_ON : CHIP_OFF} {...props}>
+    <button
+      type="button"
+      className={ativo ? CHIP_ON : props.disabled ? CHIP_MORTO : CHIP_OFF}
+      {...props}
+    >
       {children}
     </button>
-  );
-}
-
-function Indicador({ rotulo, valor, nota, cor }: { rotulo: string; valor: string; nota: string; cor?: string }) {
-  return (
-    <div className={`${CARTAO} p-5`}>
-      <div className="text-xs font-semibold uppercase tracking-[0.04em] text-[#6F6A5E]">{rotulo}</div>
-      <div className="mt-1.5 font-[family-name:var(--fonte-serifa)] text-[40px] leading-none" style={{ color: cor }}>
-        {valor}
-      </div>
-      <div className="mt-1 text-[13px] text-[#6F6A5E]">{nota}</div>
-    </div>
   );
 }
 
@@ -106,6 +112,8 @@ export default function AdminPage() {
   const [notas, setNotas] = useState<Nota[] | null>(null);
   const [estagio, setEstagio] = useState("");
   const [prazo, setPrazo] = useState<"" | Prazo>("");
+  const [foraDoAr, setForaDoAr] = useState(false);
+  const [menuFiltros, setMenuFiltros] = useState(false);
   // fixo por render: se viesse de Date.now() a cada chamada, um espaço podia cair
   // em "hoje" na contagem e em "atrasada" na lista, na virada da meia-noite
   const dataDeHoje = hojeISO();
@@ -156,9 +164,11 @@ export default function AdminPage() {
       situacao: (e) => !situacao || (situacao === "ativo" ? e.acessos > 1 : e.acessos <= 1),
       estagio: (e) => !estagio || (crm[e.slug]?.estagio ?? "novo") === estagio,
       prazo: (e) => !prazo || prazoDe(crm[e.slug], dataDeHoje) === prazo,
+      fora: (e) => !foraDoAr || crm[e.slug]?.publicado === false,
     };
-    return (e: Espaco, exceto?: string) => Object.entries(testes).every(([nome, teste]) => nome === exceto || teste(e));
-  }, [busca, cidade, nicho, situacao, estagio, prazo, dataDeHoje, crm]);
+    return (e: Espaco, ...exceto: string[]) =>
+      Object.entries(testes).every(([nome, teste]) => exceto.includes(nome) || teste(e));
+  }, [busca, cidade, nicho, situacao, estagio, prazo, foraDoAr, dataDeHoje, crm]);
 
   const cidades = useMemo(() => contar(espacos.filter((e) => passa(e, "cidade")), local), [espacos, passa]);
   const nichos = useMemo(() => contar(espacos.filter((e) => passa(e, "nicho")), (e) => e.nicho), [espacos, passa]);
@@ -273,7 +283,7 @@ export default function AdminPage() {
       </main>
     );
 
-  const chave = [busca, cidade, nicho, situacao, ordem, estagio, prazo].join("|");
+  const chave = [busca, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr)].join("|");
   const contarPrazos = (base: Espaco[]) => {
     const n = { atrasada: 0, hoje: 0, futura: 0 };
     for (const e of base) {
@@ -282,9 +292,6 @@ export default function AdminPage() {
     }
     return n;
   };
-  // o indicador do topo resume a plataforma inteira; os chips contam o que
-  // cada um entregaria com os outros filtros como estão
-  const compromissos = contarPrazos(espacos);
   const compromissosNosChips = contarPrazos(espacos.filter((e) => passa(e, "prazo")));
   const noFunil = espacos.filter((e) => passa(e, "estagio"));
   // a cidade escolhida acompanha a lista recolhida: fora das cinco primeiras,
@@ -296,205 +303,305 @@ export default function AdminPage() {
       ? [...topoCidades, ...cidades.filter(([c]) => c === cidade)]
       : topoCidades;
   const quantos = pagina.chave === chave ? pagina.n : PAGINA;
-  const ativos = espacos.filter((e) => e.acessos > 1).length;
-  const fora = espacos.filter((e) => crm[e.slug]?.publicado === false).length;
-  const filtrando = busca || cidade || nicho || situacao || estagio || prazo;
+  const filtrando = busca || cidade || nicho || situacao || estagio || prazo || foraDoAr;
+  const nFiltros = [cidade, nicho, estagio, prazo, foraDoAr ? "x" : ""].filter(Boolean).length;
+
+  // a contagem de cada aba respeita busca, cidade e nicho, e ignora as
+  // dimensões que a própria aba controla — senão promete o que não entrega
+  const contaVisao = (v: Visao) =>
+    espacos.filter(
+      (e) =>
+        passa(e, "prazo", "situacao", "estagio", "fora") &&
+        (!v.prazo || prazoDe(crm[e.slug], dataDeHoje) === v.prazo) &&
+        (!v.situacao || (v.situacao === "ativo" ? e.acessos > 1 : e.acessos <= 1)) &&
+        (!v.estagio || (crm[e.slug]?.estagio ?? "novo") === v.estagio) &&
+        (!v.fora || crm[e.slug]?.publicado === false),
+    ).length;
+  const visaoAtiva = VISOES.find(
+    (v) => v.prazo === prazo && v.situacao === situacao && v.estagio === estagio && v.fora === foraDoAr,
+  );
+  function verVisao(v: Visao) {
+    setPrazo(v.prazo);
+    setSituacao(v.situacao);
+    setEstagio(v.estagio);
+    setForaDoAr(v.fora);
+  }
+  function limparTudo() {
+    setBusca("");
+    setCidade("");
+    setNicho("");
+    verVisao(VISOES[2]);
+  }
+
+  const ABA = "flex h-12 items-center gap-2 border-b-2 px-3 text-[13px] transition-colors";
+  const CONTA = "rounded-full px-2 py-0.5 text-[11px] font-semibold";
+  const ORDENAVEL = "flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] hover:text-[#17150F]";
+  const seta = (chaveOrdem: string) => (ordem === chaveOrdem ? " ↓" : "");
 
   return (
     <>
-      <header className="flex flex-wrap items-center gap-4 border-b border-[#E2DDD3] bg-white px-4 py-4 sm:px-10">
-        <h1 className="font-[family-name:var(--fonte-serifa)] text-2xl tracking-tight">Administração</h1>
-        <span className="text-[13px] text-[#6F6A5E]">ruphus.site</span>
+      {/* Barra de menu: os comandos do painel, sempre no mesmo lugar */}
+      <div role="menubar" aria-label="Painel" className="flex flex-wrap items-center gap-2 border-b border-[#E2DDD3] bg-white px-4 py-2.5 sm:px-5">
+        <span className="mr-1 flex items-baseline gap-2 sm:border-r sm:border-[#EDE9E1] sm:pr-4">
+          <h1 className="font-[family-name:var(--fonte-serifa)] text-[22px] leading-none tracking-tight">Administração</h1>
+          <span className="hidden text-[11px] text-[#8B8578] sm:inline">ruphus.site</span>
+        </span>
+
+        <div className="relative">
+          <button
+            type="button"
+            role="menuitem"
+            aria-haspopup="true"
+            aria-expanded={menuFiltros}
+            onClick={() => setMenuFiltros((v) => !v)}
+            className={`flex h-9 items-center gap-2 rounded-lg px-3 text-[13px] ${menuFiltros ? "bg-[#17150F] font-semibold text-white" : "hover:bg-[#F4F2EE]"}`}
+          >
+            Filtros
+            {nFiltros > 0 && (
+              <span className={`${CONTA} ${menuFiltros ? "bg-white text-[#17150F]" : "bg-[#17150F] text-white"}`}>{nFiltros}</span>
+            )}
+            <span aria-hidden="true" className="text-[10px]">{menuFiltros ? "▲" : "▼"}</span>
+          </button>
+
+          {menuFiltros && (
+            <>
+              <button
+                type="button"
+                aria-label="Fechar filtros"
+                onClick={() => setMenuFiltros(false)}
+                className="fixed inset-0 z-30 cursor-default"
+              />
+              <div
+                role="menu"
+                aria-label="Filtros"
+                className="absolute left-0 top-11 z-40 flex max-h-[70vh] w-[min(92vw,420px)] flex-col gap-3.5 overflow-y-auto rounded-xl border border-[#C8C1B3] bg-white p-4 shadow-[0_18px_48px_rgba(23,21,15,0.18)]"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Cidade</span>
+                  <Chip ativo={!cidade} onClick={() => setCidade("")}>Todas</Chip>
+                  {cidadesVisiveis.map(([c, n]) => (
+                    <Chip key={c} ativo={cidade === c} onClick={() => setCidade(cidade === c ? "" : c)}>
+                      {c.split("/")[0]} <span className={cidade === c ? "text-white/70" : "text-[#6F6A5E]"}>{n}</span>
+                    </Chip>
+                  ))}
+                  {cidades.length > CIDADES_VISIVEIS && (
+                    <button
+                      type="button"
+                      onClick={() => setTodasCidades((v) => !v)}
+                      className={`${CHIP} border-dashed border-[#C8C1B3] bg-transparent text-[#4A4639]`}
+                    >
+                      {todasCidades ? "menos cidades" : `mais ${cidades.length - cidadesVisiveis.length} cidades`}
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 border-t border-[#EDE9E1] pt-3.5">
+                  <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Nicho</span>
+                  <Chip ativo={!nicho} onClick={() => setNicho("")}>Todos</Chip>
+                  {nichos.map(([v, n]) => (
+                    <Chip key={v} ativo={nicho === v} onClick={() => setNicho(nicho === v ? "" : v)}>
+                      {v} <span className={nicho === v ? "text-white/70" : "text-[#6F6A5E]"}>{n}</span>
+                    </Chip>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 border-t border-[#EDE9E1] pt-3.5">
+                  <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Funil</span>
+                  <Chip ativo={!estagio} onClick={() => setEstagio("")}>Todos</Chip>
+                  {ESTAGIOS.map((e) => {
+                    const n = noFunil.filter((x) => (crm[x.slug]?.estagio ?? "novo") === e).length;
+                    // oferecer um chip que dá lista vazia é oferecer um beco sem saída
+                    return (
+                      <Chip key={e} ativo={estagio === e} disabled={!n && estagio !== e} onClick={() => setEstagio(estagio === e ? "" : e)}>
+                        {ROTULO[e]} <span className={estagio === e ? "text-white/70" : "text-[#6F6A5E]"}>{n}</span>
+                      </Chip>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 border-t border-[#EDE9E1] pt-3.5">
+                  <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Compromisso</span>
+                  <Chip ativo={!prazo} onClick={() => setPrazo("")}>Todos</Chip>
+                  {([["atrasada", "Atrasados"], ["hoje", "Para hoje"], ["futura", "Agendados"]] as const).map(([v, r]) => (
+                    <Chip
+                      key={v}
+                      ativo={prazo === v}
+                      disabled={!compromissosNosChips[v] && prazo !== v}
+                      onClick={() => setPrazo(prazo === v ? "" : v)}
+                    >
+                      {r} <span className={prazo === v ? "text-white/70" : "text-[#6F6A5E]"}>{compromissosNosChips[v]}</span>
+                    </Chip>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-3 border-t border-[#EDE9E1] pt-3.5">
+                  <button type="button" className={BOTAO_CLARO} onClick={limparTudo}>Limpar</button>
+                  <div className="grow" />
+                  <span className="text-[13px] text-[#6F6A5E]">{lista.length} resultado(s)</span>
+                  <button type="button" className={BOTAO_ESCURO} onClick={() => setMenuFiltros(false)}>Pronto</button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <label htmlFor="ordem" className="sr-only">Ordenar</label>
+        <select
+          id="ordem"
+          value={ordem}
+          onChange={(e) => setOrdem(e.target.value)}
+          className="h-9 rounded-lg border border-[#D8D2C6] bg-white px-2.5 text-[13px]"
+        >
+          <option value="relevancia">Mais relevantes</option>
+          <option value="compromisso">Compromisso mais próximo</option>
+          <option value="nota">Melhor nota</option>
+          <option value="avaliacoes">Mais avaliações</option>
+          <option value="nome">Nome (A–Z)</option>
+        </select>
+
+        <button type="button" onClick={exportarCSV} className="h-9 rounded-lg px-3 text-[13px] hover:bg-[#F4F2EE]">
+          Exportar
+        </button>
+
         <div className="grow" />
-        <span className="hidden text-sm text-[#6F6A5E] sm:inline">{email}</span>
-        <button className={BOTAO_CLARO} onClick={() => signOut(auth).then(() => router.replace("/login"))}>
+
+        <div className="flex h-9 w-full items-center gap-2 rounded-lg border border-[#D8D2C6] bg-[#FBFAF8] px-3 focus-within:border-[#17150F] sm:w-[320px]">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#6F6A5E" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.2-3.2" />
+          </svg>
+          <label htmlFor="busca" className="sr-only">Buscar espaço</label>
+          <input
+            id="busca"
+            ref={campoBusca}
+            type="search"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar negócio"
+            className="grow bg-transparent text-[13px] outline-none placeholder:text-[#8B8578]"
+          />
+          <kbd className="hidden rounded border border-[#D8D2C6] bg-white px-1.5 text-[11px] text-[#6F6A5E] sm:block">/</kbd>
+        </div>
+
+        <span className="hidden text-[12px] text-[#6F6A5E] lg:inline">{email}</span>
+        <button
+          className="h-9 rounded-lg border border-[#D8D2C6] px-3 text-[12px] hover:border-[#17150F]"
+          onClick={() => signOut(auth).then(() => router.replace("/login"))}
+        >
           Sair
         </button>
-      </header>
+      </div>
 
-      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 p-4 sm:p-8">
-        <section aria-label="Resumo" className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          <Indicador
-            rotulo="A cobrar hoje"
-            valor={String(compromissos.atrasada + compromissos.hoje)}
-            nota={
-              compromissos.atrasada
-                ? `${compromissos.atrasada} já passou da data`
-                : compromissos.hoje
-                  ? "combinados para hoje"
-                  : "nada combinado vencendo"
-            }
-            cor={compromissos.atrasada ? "#8A2F2F" : undefined}
-          />
-          <Indicador rotulo="Espaços" valor={String(espacos.length)} nota={`${fora} fora do ar`} />
-          <Indicador rotulo="Cliente ativo" valor={String(ativos)} nota="entrou no painel" cor="#2C6A53" />
-          <Indicador
-            rotulo="Convite pendente"
-            valor={String(espacos.length - ativos)}
-            nota="ninguém do negócio entrou"
-            cor="#A8502B"
-          />
-          <Indicador
-            rotulo="Fechados"
-            valor={String(espacos.filter((e) => crm[e.slug]?.estagio === "fechado").length)}
-            nota={`${formatBRL(espacos.reduce((s, e) => s + (crm[e.slug]?.estagio === "fechado" ? crm[e.slug]?.valorCents ?? 0 : 0), 0))} contratados`}
-            cor="#2C6A53"
-          />
-          <Indicador
-            rotulo="Agendamentos hoje"
-            valor={hoje ? String(hoje.agendamentosHoje) : "—"}
-            nota={hoje ? `em ${hoje.espacosComAgenda} espaço(s)` : "carregando"}
-          />
-        </section>
-
-        <section aria-label="Filtros" className={`${CARTAO} flex flex-col gap-3.5 p-4 sm:p-5`}>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex h-12 grow items-center gap-2.5 rounded-[10px] border border-[#D8D2C6] bg-[#FBFAF8] px-3.5 focus-within:border-[#17150F]">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#6F6A5E" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="7" />
-                <path d="M20 20l-3.2-3.2" />
-              </svg>
-              <label htmlFor="busca" className="sr-only">Buscar espaço</label>
-              <input
-                id="busca"
-                ref={campoBusca}
-                type="search"
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                placeholder="Nome, endereço, cidade ou telefone"
-                className="grow bg-transparent text-[15px] outline-none placeholder:text-[#8B8578]"
-              />
-              <kbd className="hidden rounded-md border border-[#D8D2C6] bg-white px-1.5 py-0.5 text-xs text-[#6F6A5E] sm:block">/</kbd>
-            </div>
-            <label htmlFor="ordem" className="text-[13px] text-[#6F6A5E]">Ordenar</label>
-            <select
-              id="ordem"
-              value={ordem}
-              onChange={(e) => setOrdem(e.target.value)}
-              className="h-12 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm"
-            >
-              <option value="relevancia">Mais relevantes</option>
-              <option value="compromisso">Compromisso mais próximo</option>
-              <option value="nota">Melhor nota</option>
-              <option value="avaliacoes">Mais avaliações</option>
-              <option value="nome">Nome (A–Z)</option>
-            </select>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-[0.04em] text-[#6F6A5E]">Cidade</span>
-            <Chip ativo={!cidade} onClick={() => setCidade("")}>Todas</Chip>
-            {cidadesVisiveis.map(([c, n]) => (
-              <Chip key={c} ativo={cidade === c} onClick={() => setCidade(cidade === c ? "" : c)}>
-                {c.split("/")[0]} <span className={cidade === c ? "text-white/70" : "text-[#6F6A5E]"}>{n}</span>
-              </Chip>
-            ))}
-            {cidades.length > CIDADES_VISIVEIS && (
+      {/* As visões viram abas: o que se repete todo dia vira lugar fixo */}
+      <div className="flex flex-wrap items-center gap-1 border-b border-[#E2DDD3] bg-white px-4 sm:px-5">
+        {VISOES.map((v) => {
+          const n = contaVisao(v);
+          const ativa = visaoAtiva?.id === v.id;
+          return (
+            <span key={v.id} className="flex items-center">
+              {v.separa && <span aria-hidden="true" className="mx-2 h-5 w-px bg-[#EDE9E1]" />}
               <button
                 type="button"
-                onClick={() => setTodasCidades((v) => !v)}
-                className={`${CHIP} border-dashed border-[#C8C1B3] bg-transparent text-[#4A4639]`}
+                aria-pressed={ativa}
+                onClick={() => verVisao(v)}
+                className={`${ABA} ${
+                  ativa
+                    ? "border-[#17150F] font-bold text-[#17150F]"
+                    : `border-transparent ${v.urgente && n ? "font-semibold text-[#8A2F2F]" : "text-[#17150F]"} hover:border-[#D8D2C6]`
+                }`}
               >
-                {todasCidades ? "menos cidades" : `mais ${cidades.length - cidadesVisiveis.length} cidades`}
-              </button>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-[0.04em] text-[#6F6A5E]">Nicho</span>
-            <Chip ativo={!nicho} onClick={() => setNicho("")}>Todos</Chip>
-            {nichos.map(([v, n]) => (
-              <Chip key={v} ativo={nicho === v} onClick={() => setNicho(nicho === v ? "" : v)}>
-                {v} <span className={nicho === v ? "text-white/70" : "text-[#6F6A5E]"}>{n}</span>
-              </Chip>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-[0.04em] text-[#6F6A5E]">Funil</span>
-            <Chip ativo={!estagio} onClick={() => setEstagio("")}>Todos</Chip>
-            {ESTAGIOS.map((e) => {
-              const n = noFunil.filter((x) => (crm[x.slug]?.estagio ?? "novo") === e).length;
-              return (
-                <Chip key={e} ativo={estagio === e} onClick={() => setEstagio(estagio === e ? "" : e)}>
-                  {ROTULO[e]} <span className={estagio === e ? "text-white/70" : "text-[#6F6A5E]"}>{n}</span>
-                </Chip>
-              );
-            })}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-[0.04em] text-[#6F6A5E]">Compromisso</span>
-            <Chip ativo={!prazo} onClick={() => setPrazo("")}>Todos</Chip>
-            {([["atrasada", "Atrasados"], ["hoje", "Para hoje"], ["futura", "Agendados"]] as const).map(([v, r]) => (
-              <Chip key={v} ativo={prazo === v} onClick={() => setPrazo(prazo === v ? "" : v)}>
-                {r} <span className={prazo === v ? "text-white/70" : "text-[#6F6A5E]"}>{compromissosNosChips[v]}</span>
-              </Chip>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-[0.04em] text-[#6F6A5E]">Situação</span>
-            <div className="flex overflow-hidden rounded-full border border-[#D8D2C6] bg-white">
-              {([["", "Todas"], ["pendente", "Convite pendente"], ["ativo", "Cliente ativo"]] as const).map(([v, r]) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setSituacao(v)}
-                  className={`h-9 px-3.5 text-[13px] ${situacao === v ? "bg-[#17150F] font-semibold text-white" : "text-[#17150F] hover:bg-[#F4F2EE]"}`}
+                {v.urgente && n > 0 && <span aria-hidden="true" className="size-1.5 rounded-full bg-[#8A2F2F]" />}
+                {v.rotulo}
+                <span
+                  className={`${CONTA} ${
+                    ativa ? "bg-[#17150F] text-white" : v.urgente && n ? "bg-[#FBF0EE] text-[#8A2F2F]" : "bg-[#F3EFE7] text-[#6F6A5E]"
+                  }`}
                 >
-                  {r}
-                </button>
-              ))}
-            </div>
-            {filtrando && (
-              <button
-                type="button"
-                onClick={() => {
-                  setBusca("");
-                  setCidade("");
-                  setNicho("");
-                  setSituacao("");
-                  setEstagio("");
-                  setPrazo("");
-                }}
-                className="h-9 px-2 text-[13px] text-[#6F6A5E] underline underline-offset-4 hover:text-[#17150F]"
-              >
-                Limpar filtros
+                  {n}
+                </span>
               </button>
-            )}
-          </div>
-        </section>
+            </span>
+          );
+        })}
 
+        <div className="grow" />
+
+        {cidade && (
+          <button
+            type="button"
+            onClick={() => setCidade("")}
+            className="my-2 flex h-8 items-center gap-2 rounded-full bg-[#17150F] pl-3 pr-2 text-[12px] font-semibold text-white"
+          >
+            {cidade} <span aria-hidden="true">✕</span>
+            <span className="sr-only">Tirar o filtro de cidade</span>
+          </button>
+        )}
+        {nicho && (
+          <button
+            type="button"
+            onClick={() => setNicho("")}
+            className="my-2 ml-1.5 flex h-8 items-center gap-2 rounded-full bg-[#17150F] pl-3 pr-2 text-[12px] font-semibold text-white"
+          >
+            {nicho} <span aria-hidden="true">✕</span>
+            <span className="sr-only">Tirar o filtro de nicho</span>
+          </button>
+        )}
+        {filtrando && (
+          <button
+            type="button"
+            onClick={limparTudo}
+            className="my-2 ml-2 h-8 px-2 text-[12px] text-[#6F6A5E] underline underline-offset-4 hover:text-[#17150F]"
+          >
+            Limpar filtros
+          </button>
+        )}
+      </div>
+
+      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 p-4 sm:p-5">
         {aviso && <p className="text-sm text-[#6F6A5E]">{aviso}</p>}
 
         <section aria-label="Espaços" className={`${CARTAO} overflow-hidden`}>
-          <div className="flex flex-wrap items-center gap-3 border-b border-[#EDE9E1] px-4 py-3.5 sm:px-5">
+          <div aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[#EDE9E1] px-4 py-3 sm:px-5">
             <span className="text-sm font-semibold">{lista.length} espaço(s)</span>
-            {ordem === "relevancia" && (
-              <span className="hidden text-sm text-[#6F6A5E] lg:inline">
-                ordenados por relevância — nota do Google ponderada pelas avaliações
-              </span>
-            )}
+            <span className="text-[13px] text-[#6F6A5E]">
+              {visaoAtiva ? visaoAtiva.rotulo.toLowerCase() : "recorte próprio"}
+              {cidade && ` · ${cidade}`}
+              {nicho && ` · ${nicho}`}
+            </span>
             <div className="grow" />
-            <button
-              type="button"
-              onClick={exportarCSV}
-              className="h-9 rounded-lg border border-[#D8D2C6] px-3.5 text-[13px] font-semibold hover:border-[#17150F]"
-            >
-              Exportar CSV
+            <span className="text-[13px] text-[#6F6A5E]">
+              {hoje ? `${hoje.agendamentosHoje} agendamento(s) hoje` : "carregando agenda"} ·{" "}
+              {formatBRL(espacos.reduce((t, e) => t + (crm[e.slug]?.estagio === "fechado" ? crm[e.slug]?.valorCents ?? 0 : 0), 0))} contratados
+            </span>
+          </div>
+
+          {/* Cabeçalho de coluna: sem ele, "★ 4,9 · 1.125" é um número a adivinhar */}
+          <div className="hidden items-center gap-4 border-b border-[#E2DDD3] bg-[#FBFAF8] px-5 py-2.5 text-[#6F6A5E] lg:flex">
+            <button type="button" onClick={() => setOrdem("nome")} className={`${ORDENAVEL} w-[320px]`}>
+              Negócio{seta("nome")}
             </button>
+            <span className="w-[150px] text-[11px] font-semibold uppercase tracking-[0.06em]">Cidade</span>
+            <span className="w-[170px] text-[11px] font-semibold uppercase tracking-[0.06em]">Nicho</span>
+            <button type="button" onClick={() => setOrdem("nota")} className={`${ORDENAVEL} w-[130px]`}>
+              Google{seta("nota")}
+            </button>
+            <span className="w-[140px] text-[11px] font-semibold uppercase tracking-[0.06em]">Funil</span>
+            <button type="button" onClick={() => setOrdem("compromisso")} className={`${ORDENAVEL} min-w-0 grow`}>
+              Próxima ação{seta("compromisso")}
+            </button>
+            <span className="w-[180px]" />
           </div>
 
           <ul>
             {lista.slice(0, quantos).map((e) => {
               const ativo = e.acessos > 1;
+              const p = prazoDe(crm[e.slug], dataDeHoje);
               return (
                 <li
                   key={e.slug}
                   className="flex flex-col gap-3 border-b border-[#F1EDE6] px-4 py-3.5 last:border-0 sm:px-5 lg:flex-row lg:items-center lg:gap-4"
                 >
-                  <div className="flex min-w-0 items-start gap-3 lg:w-[330px]">
+                  <div className="flex min-w-0 items-start gap-3 lg:w-[320px]">
                     <div
                       aria-hidden="true"
                       className={`flex size-11 shrink-0 items-center justify-center rounded-[10px] font-[family-name:var(--fonte-serifa)] text-xl ${ativo ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#F0E6DE] text-[#8A4520]"}`}
@@ -504,36 +611,22 @@ export default function AdminPage() {
                     <div className="min-w-0">
                       <p className="truncate text-[14px] font-semibold">{e.nome}</p>
                       <p className="truncate text-[13px] text-[#6F6A5E]">{e.slug}</p>
-                      {(() => {
-                        const p = prazoDe(crm[e.slug], dataDeHoje);
-                        if (!p || p === "futura") return null;
-                        const c = crm[e.slug]!;
-                        return (
-                          <p
-                            className={`mt-1 truncate text-[12px] font-semibold ${p === "atrasada" ? "text-[#8A2F2F]" : "text-[#7A5A2E]"}`}
-                            title={c.proximaAcao ?? undefined}
-                          >
-                            {p === "atrasada" ? `atrasado desde ${diaCurto(c.proximaData!)}` : "combinado para hoje"}
-                            {c.proximaAcao ? ` · ${c.proximaAcao}` : ""}
-                          </p>
-                        );
-                      })()}
                     </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 text-[13px] text-[#4A4639] lg:contents">
-                    <span className="lg:w-[160px]">{local(e) || "cidade não identificada"}</span>
-                    <span className="lg:w-[160px]">
+                    <span className="lg:w-[150px]">{local(e) || "cidade não identificada"}</span>
+                    <span className="lg:w-[170px]">
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${CORES_NICHO[e.nicho] ?? "bg-[#F3EFE7] text-[#4A4639]"}`}>
                         {e.nicho}
                       </span>
                     </span>
-                    <span className="lg:w-[140px]">
+                    <span className="lg:w-[130px]">
                       {e.nota
                         ? `★ ${e.nota.toFixed(1).replace(".", ",")}${e.avaliacoes ? ` · ${e.avaliacoes.toLocaleString("pt-BR")}` : ""}`
                         : "sem nota"}
                     </span>
-                    <span className="lg:w-[150px]">
+                    <span className="lg:w-[140px]">
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${COR[(crm[e.slug]?.estagio ?? "novo") as Estagio]}`}>
                         {ROTULO[(crm[e.slug]?.estagio ?? "novo") as Estagio]}
                       </span>
@@ -541,9 +634,27 @@ export default function AdminPage() {
                         <span className="ml-1 rounded-full bg-[#F1E7E7] px-2 py-0.5 text-xs font-semibold text-[#8A2F2F]">fora do ar</span>
                       )}
                     </span>
+                    <span className="min-w-0 lg:grow">
+                      {p && p !== "futura" ? (
+                        <span
+                          className={`block truncate text-[12px] font-semibold ${p === "atrasada" ? "text-[#8A2F2F]" : "text-[#7A5A2E]"}`}
+                          title={crm[e.slug]?.proximaAcao ?? undefined}
+                        >
+                          {p === "atrasada" ? `atrasado desde ${diaCurto(crm[e.slug]!.proximaData!)}` : "combinado para hoje"}
+                          {crm[e.slug]?.proximaAcao ? ` · ${crm[e.slug]!.proximaAcao}` : ""}
+                        </span>
+                      ) : crm[e.slug]?.proximaData ? (
+                        <span className="block truncate text-[12px] text-[#6F6A5E]" title={crm[e.slug]?.proximaAcao ?? undefined}>
+                          {diaCurto(crm[e.slug]!.proximaData!)}
+                          {crm[e.slug]?.proximaAcao ? ` · ${crm[e.slug]!.proximaAcao}` : ""}
+                        </span>
+                      ) : (
+                        <span className="text-[12px] text-[#A8A294]">—</span>
+                      )}
+                    </span>
                   </div>
 
-                  <div className="flex grow justify-end gap-2">
+                  <div className="flex grow justify-end gap-2 lg:w-[180px] lg:grow-0">
                     {!ativo && (
                       <button type="button" className={BOTAO_ESCURO} onClick={() => convidar(e.slug)}>
                         {convite?.slug === e.slug ? (convite.copiado ? "Copiado ✓" : "Link gerado") : "Convidar"}
@@ -556,8 +667,31 @@ export default function AdminPage() {
                 </li>
               );
             })}
+
+            {/* Vazio com saída: qual filtro matou o resultado, e o que cada saída devolve */}
             {!lista.length && (
-              <li className="px-5 py-10 text-center text-sm text-[#6F6A5E]">Nenhum espaço com esses filtros.</li>
+              <li className="flex flex-col items-center gap-4 px-5 py-12 text-center">
+                <p className="max-w-sm text-sm text-[#4A4639]">
+                  Nenhum espaço com esses filtros
+                  {cidade && ` em ${cidade}`}
+                  {nicho && `, do nicho ${nicho}`}.
+                </p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {cidade && (
+                    <button type="button" className={BOTAO_CLARO} onClick={() => setCidade("")}>
+                      Tirar {cidade} → {espacos.filter((x) => passa(x, "cidade")).length}
+                    </button>
+                  )}
+                  {nicho && (
+                    <button type="button" className={BOTAO_CLARO} onClick={() => setNicho("")}>
+                      Tirar {nicho} → {espacos.filter((x) => passa(x, "nicho")).length}
+                    </button>
+                  )}
+                  <button type="button" className={BOTAO_ESCURO} onClick={limparTudo}>
+                    Limpar tudo → {espacos.length}
+                  </button>
+                </div>
+              </li>
             )}
           </ul>
 
