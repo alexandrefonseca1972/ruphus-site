@@ -27,3 +27,19 @@ export type Crm = {
 };
 
 export type Nota = { id: string; texto: string; quando: string; autor: string };
+
+// Hoje no fuso de quem está olhando. toISOString() devolveria a data em UTC e,
+// em Manaus, a partir das 20h já apontaria o dia seguinte — todo compromisso de
+// hoje apareceria como atrasado no fim da tarde.
+export const hojeISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+/** Em que pé está a próxima ação combinada. As datas são "AAAA-MM-DD", que compara como texto. */
+export type Prazo = "atrasada" | "hoje" | "futura";
+export const prazoDe = (c: Pick<Crm, "proximaData"> | undefined, hoje: string): Prazo | null =>
+  !c?.proximaData ? null : c.proximaData < hoje ? "atrasada" : c.proximaData === hoje ? "hoje" : "futura";
+
+/** "2026-09-25" → "25/09" */
+export const diaCurto = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");

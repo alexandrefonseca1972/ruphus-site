@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { negocio } from "@/lib/crm";
+import { diaCurto, hojeISO, prazoDe } from "@/lib/crm-tipos";
 
 // Um Timestamp do Firestore é uma classe. Se ele escapar para a tela, o React
 // derruba o painel inteiro com "Only plain objects... can be passed to Client
@@ -56,5 +57,26 @@ assert.equal(negocio(doc({ estagio: "atrasado" })).estagio, "novo");
 // publicado só é falso quando dito explicitamente
 assert.equal(negocio(doc({ publicado: false })).publicado, false);
 assert.equal(negocio(doc({})).publicado, true);
+
+// ————— compromissos: a próxima ação combinada —————
+
+const hoje = hojeISO();
+assert.match(hoje, /^\d{4}-\d{2}-\d{2}$/);
+// a data é a de quem olha, não a de Londres: em Manaus (UTC-4) o UTC já virou
+// o dia seguinte depois das 20h, e tudo de hoje apareceria como atrasado
+assert.equal(hoje, new Date().toLocaleDateString("en-CA"));
+
+const em = (d: string) => ({ proximaData: d });
+assert.equal(prazoDe(em("2026-09-17"), "2026-09-18"), "atrasada");
+assert.equal(prazoDe(em("2026-09-18"), "2026-09-18"), "hoje");
+assert.equal(prazoDe(em("2026-09-19"), "2026-09-18"), "futura");
+// a comparação é textual: precisa atravessar virada de mês e de ano
+assert.equal(prazoDe(em("2026-08-31"), "2026-09-01"), "atrasada");
+assert.equal(prazoDe(em("2027-01-01"), "2026-12-31"), "futura");
+// sem data combinada não existe compromisso — não conta como atrasado
+assert.equal(prazoDe({ proximaData: null }, hoje), null);
+assert.equal(prazoDe(undefined, hoje), null);
+
+assert.equal(diaCurto("2026-09-25"), "25/09");
 
 console.log("crm: ok");

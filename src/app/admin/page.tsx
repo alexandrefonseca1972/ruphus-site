@@ -20,7 +20,7 @@ import {
   type Detalhe,
   type Espaco,
 } from "./actions";
-import { COR, ESTAGIOS, ROTULO, type Crm, type Estagio, type Nota } from "@/lib/crm-tipos";
+import { COR, diaCurto, ESTAGIOS, hojeISO, prazoDe, ROTULO, type Crm, type Estagio, type Nota, type Prazo } from "@/lib/crm-tipos";
 
 const PAGINA = 40;
 const CIDADES_VISIVEIS = 5;
@@ -105,6 +105,10 @@ export default function AdminPage() {
   const [crm, setCrm] = useState<Record<string, Crm>>({});
   const [notas, setNotas] = useState<Nota[] | null>(null);
   const [estagio, setEstagio] = useState("");
+  const [prazo, setPrazo] = useState<"" | Prazo>("");
+  // fixo por render: se viesse de Date.now() a cada chamada, um espaço podia cair
+  // em "hoje" na contagem e em "atrasada" na lista, na virada da meia-noite
+  const dataDeHoje = hojeISO();
 
   useEffect(
     () =>
@@ -150,6 +154,7 @@ export default function AdminPage() {
       if (situacao === "ativo" && e.acessos <= 1) return false;
       if (situacao === "pendente" && e.acessos > 1) return false;
       if (estagio && (crm[e.slug]?.estagio ?? "novo") !== estagio) return false;
+      if (prazo && prazoDe(crm[e.slug], dataDeHoje) !== prazo) return false;
       if (!termo) return true;
       return semAcento(`${e.nome} ${e.slug} ${e.cidade ?? ""} ${e.telefone ?? ""}`).includes(termo);
     });
@@ -158,9 +163,13 @@ export default function AdminPage() {
       nota: (a, b) => (b.nota ?? 0) - (a.nota ?? 0) || (b.avaliacoes ?? 0) - (a.avaliacoes ?? 0),
       avaliacoes: (a, b) => (b.avaliacoes ?? 0) - (a.avaliacoes ?? 0),
       nome: (a, b) => a.nome.localeCompare(b.nome, "pt-BR"),
+      // quem foi prometido primeiro aparece primeiro; sem data combinada, vai para o fim
+      compromisso: (a, b) =>
+        (crm[a.slug]?.proximaData ?? "9999").localeCompare(crm[b.slug]?.proximaData ?? "9999") ||
+        a.nome.localeCompare(b.nome, "pt-BR"),
     };
     return [...filtrada].sort(por[ordem]);
-  }, [espacos, busca, cidade, nicho, situacao, ordem, estagio, crm]);
+  }, [espacos, busca, cidade, nicho, situacao, ordem, estagio, prazo, dataDeHoje, crm]);
 
   async function abrir(e: Espaco) {
     setAberto(e);
@@ -254,7 +263,12 @@ export default function AdminPage() {
       </main>
     );
 
-  const chave = [busca, cidade, nicho, situacao, ordem].join("|");
+  const chave = [busca, cidade, nicho, situacao, ordem, estagio, prazo].join("|");
+  const compromissos = { atrasada: 0, hoje: 0, futura: 0 };
+  for (const e of espacos) {
+    const p = prazoDe(crm[e.slug], dataDeHoje);
+    if (p) compromissos[p] += 1;
+  }
   const quantos = pagina.chave === chave ? pagina.n : PAGINA;
   const ativos = espacos.filter((e) => e.acessos > 1).length;
   const fora = espacos.filter((e) => crm[e.slug]?.publicado === false).length;
@@ -273,7 +287,19 @@ export default function AdminPage() {
       </header>
 
       <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 p-4 sm:p-8">
-        <section aria-label="Resumo" className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <section aria-label="Resumo" className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          <Indicador
+            rotulo="A cobrar hoje"
+            valor={String(compromissos.atrasada + compromissos.hoje)}
+            nota={
+              compromissos.atrasada
+                ? `${compromissos.atrasada} já passou da data`
+                : compromissos.hoje
+                  ? "combinados para hoje"
+                  : "nada combinado vencendo"
+            }
+            cor={compromissos.atrasada ? "#8A2F2F" : undefined}
+          />
           <Indicador rotulo="Espaços" valor={String(espacos.length)} nota={`${fora} fora do ar`} />
           <Indicador rotulo="Cliente ativo" valor={String(ativos)} nota="entrou no painel" cor="#2C6A53" />
           <Indicador
@@ -322,6 +348,7 @@ export default function AdminPage() {
               className="h-12 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm"
             >
               <option value="relevancia">Mais relevantes</option>
+              <option value="compromisso">Compromisso mais próximo</option>
               <option value="nota">Melhor nota</option>
               <option value="avaliacoes">Mais avaliações</option>
               <option value="nome">Nome (A–Z)</option>
@@ -368,6 +395,16 @@ export default function AdminPage() {
                 </Chip>
               );
             })}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-xs font-semibold uppercase tracking-[0.04em] text-[#6F6A5E]">Compromisso</span>
+            <Chip ativo={!prazo} onClick={() => setPrazo("")}>Todos</Chip>
+            {([["atrasada", "Atrasados"], ["hoje", "Para hoje"], ["futura", "Agendados"]] as const).map(([v, r]) => (
+              <Chip key={v} ativo={prazo === v} onClick={() => setPrazo(prazo === v ? "" : v)}>
+                {r} <span className={prazo === v ? "text-white/70" : "text-[#6F6A5E]"}>{compromissos[v]}</span>
+              </Chip>
+            ))}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -439,6 +476,20 @@ export default function AdminPage() {
                     <div className="min-w-0">
                       <p className="truncate text-[14px] font-semibold">{e.nome}</p>
                       <p className="truncate text-[13px] text-[#6F6A5E]">{e.slug}</p>
+                      {(() => {
+                        const p = prazoDe(crm[e.slug], dataDeHoje);
+                        if (!p || p === "futura") return null;
+                        const c = crm[e.slug]!;
+                        return (
+                          <p
+                            className={`mt-1 truncate text-[12px] font-semibold ${p === "atrasada" ? "text-[#8A2F2F]" : "text-[#7A5A2E]"}`}
+                            title={c.proximaAcao ?? undefined}
+                          >
+                            {p === "atrasada" ? `atrasado desde ${diaCurto(c.proximaData!)}` : "combinado para hoje"}
+                            {c.proximaAcao ? ` · ${c.proximaAcao}` : ""}
+                          </p>
+                        );
+                      })()}
                     </div>
                   </div>
 
