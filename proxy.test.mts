@@ -25,3 +25,13 @@ assert.equal(sitePath("samurai-pet", "/assets/fx.js"), "/s/assets/fx.js");
 // nome parecido não é a pasta compartilhada
 assert.equal(sitePath("lindass", "/assetsfoo/x.png"), "/s/lindass/assetsfoo/x.png");
 console.log("sitePath ok");
+
+import { paginaEstatica } from "@/proxy";
+// páginas da marca no app (public/ não serve índice de diretório)
+assert.equal(paginaEstatica("/sobre"), "/sobre/index.html");
+assert.equal(paginaEstatica("/sobre/"), "/sobre/index.html");
+assert.equal(paginaEstatica("/privacidade/"), "/privacidade/index.html");
+assert.equal(paginaEstatica("/"), null);
+assert.equal(paginaEstatica("/login"), null);
+assert.equal(paginaEstatica("/sobre/x"), null);
+console.log("paginas ok");

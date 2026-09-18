@@ -9,6 +9,14 @@ export function siteSlug(host: string) {
   return slug && !APP_HOSTS.includes(slug) ? slug : null;
 }
 
+// páginas estáticas da marca em public/: public/ não serve índice de diretório
+const PAGINAS = ["sobre", "privacidade"];
+
+export function paginaEstatica(pathname: string) {
+  const nome = pathname.replace(/^\/|\/$/g, "");
+  return PAGINAS.includes(nome) ? `/${nome}/index.html` : null;
+}
+
 export function sitePath(slug: string, pathname: string) {
   // as páginas pedem "../assets/…", que na raiz do subdomínio vira /assets/…: é a pasta compartilhada
   if (pathname === "/assets" || pathname.startsWith("/assets/")) return `/s${pathname}`;
@@ -18,7 +26,13 @@ export function sitePath(slug: string, pathname: string) {
 
 export function proxy(request: NextRequest) {
   const slug = siteSlug(request.headers.get("host") ?? "");
-  if (!slug) return NextResponse.next();
+  if (!slug) {
+    const pagina = paginaEstatica(request.nextUrl.pathname);
+    if (!pagina) return NextResponse.next();
+    const url = request.nextUrl.clone();
+    url.pathname = pagina;
+    return NextResponse.rewrite(url);
+  }
   const url = request.nextUrl.clone();
   url.pathname = sitePath(slug, url.pathname);
   return NextResponse.rewrite(url);
