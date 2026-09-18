@@ -246,7 +246,7 @@ export function BookingForm({ tenantId, today, name, services, staff }: Props) {
             <p>com {professional.name} · {formatDuration(totalMin)} · {formatBRL(totalCents)}</p>
             <p className="text-muted-foreground">{name}</p>
             <p className="mt-3 text-muted-foreground">
-              O estabelecimento pode entrar em contato pelo WhatsApp {customerPhone} para confirmar.
+              Se precisar confirmar algo, o estabelecimento fala com você no WhatsApp que você informou ({customerPhone}).
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <a href={calendarUrl} rel="noreferrer" className="inline-flex h-11 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/80">
