@@ -147,7 +147,7 @@ export default function AdminPage() {
     <main className="mx-auto w-full max-w-4xl p-4 py-8">
       <h1 className="text-2xl font-semibold">Administração</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        {espacos.length} espaços · {comCliente} com o cliente dentro · {espacos.length - comCliente} a convidar
+        {espacos.length} espaços · {comCliente} com cliente ativo · {espacos.length - comCliente} com convite pendente
       </p>
 
       <div className="sticky top-0 z-10 -mx-4 mt-6 border-b bg-background/95 px-4 pb-3 pt-2 backdrop-blur">
@@ -161,14 +161,14 @@ export default function AdminPage() {
           <Filtro rotulo="Cidade" valor={cidade} onChange={setCidade} opcoes={cidades} />
           <Filtro rotulo="Nicho" valor={nicho} onChange={setNicho} opcoes={nichos} />
           <select
-            aria-label="Acesso do cliente"
+            aria-label="Situação do cliente"
             value={acesso}
             onChange={(e) => setAcesso(e.target.value)}
             className="h-9 rounded-md border bg-background px-2 text-sm"
           >
-            <option value="">Acesso: todos</option>
-            <option value="sem">Sem o cliente</option>
-            <option value="com">Com o cliente</option>
+            <option value="">Situação: todas</option>
+            <option value="sem">Convite pendente</option>
+            <option value="com">Cliente ativo</option>
           </select>
           <select
             aria-label="Ordenar"
@@ -206,7 +206,7 @@ export default function AdminPage() {
                     e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ""}` : "cidade não identificada",
                     e.nicho,
                     e.nota ? `★ ${e.nota.toFixed(1)}${e.avaliacoes ? ` · ${e.avaliacoes} avaliações` : ""}` : "sem nota",
-                    e.acessos > 1 ? `${e.acessos - 1} pessoa(s) do cliente` : "cliente ainda não entrou",
+                    e.acessos > 1 ? `cliente ativo · ${e.acessos - 1} pessoa(s)` : "convite pendente",
                   ].join(" · ")}
                 </p>
               </div>
