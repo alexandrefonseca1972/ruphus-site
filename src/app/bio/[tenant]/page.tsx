@@ -186,8 +186,11 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
     <main className="mx-auto flex min-h-dvh w-full max-w-[520px] flex-col gap-4 px-5 pb-32">
       <div className="relative -mx-5 h-52 overflow-hidden" style={{ background: bio.cor }}>
         {bio.foto ? (
-          /* eslint-disable-next-line @next/next/no-img-element -- foto do próprio site do cliente, fora do otimizador */
-          <img src={`https://${tenant}.ruphus.site${bio.foto}`} alt="" className="size-full object-cover" />
+          /* A foto sai da cópia local em public/s, servida pelo mesmo host: o subdomínio
+             {slug}.ruphus.site só existe depois do deploy, e até lá a capa de toda proposta
+             nova aparecia quebrada. Mesma imagem, sem depender de publicação.
+             eslint-disable-next-line @next/next/no-img-element -- foto do site do cliente, fora do otimizador */
+          <img src={`/s/${tenant}${bio.foto}`} alt="" className="size-full object-cover" />
         ) : (
           <span
             aria-hidden="true"
