@@ -6,7 +6,7 @@ set -e
 cd "$(dirname "$0")/.."
 ls ../sites | grep -Ev '^(_|\.|login|agendar|api|catalogo|privacidade|assets)$' \
   | while read -r d; do [ -f "../sites/$d/index.html" ] && echo "$d/"; done > /tmp/sync-sites.txt
-rsync -a -r --delete --exclude previa.jpg --files-from=/tmp/sync-sites.txt ../sites/ public/s/
+rsync -a -r --delete --exclude previa.jpg --exclude '*.py' --files-from=/tmp/sync-sites.txt ../sites/ public/s/
 # assets/ é compartilhada entre os sites (../assets/... nas páginas)
 rsync -a --delete ../sites/assets/ public/s/assets/
 # _p: captura da página de cada site, reduzida, que o painel de administração mostra
