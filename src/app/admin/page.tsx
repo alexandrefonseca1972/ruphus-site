@@ -143,21 +143,28 @@ export default function AdminPage() {
     return () => removeEventListener("keydown", atalho);
   }, []);
 
-  const cidades = useMemo(() => contar(espacos, local), [espacos]);
-  const nichos = useMemo(() => contar(espacos, (e) => e.nicho), [espacos]);
+  // Cada filtro isolado, para a contagem de um chip poder ignorar a própria
+  // dimensão: o número ao lado de "Barbearia" diz quantas barbearias sobram
+  // com os OUTROS filtros ligados. Somando tudo, um chip prometia 115 e
+  // entregava lista vazia, porque contava o banco inteiro.
+  const passa = useMemo(() => {
+    const termo = semAcento(busca.trim());
+    const testes: Record<string, (e: Espaco) => boolean> = {
+      busca: (e) => !termo || semAcento(`${e.nome} ${e.slug} ${e.cidade ?? ""} ${e.telefone ?? ""}`).includes(termo),
+      cidade: (e) => !cidade || local(e) === cidade,
+      nicho: (e) => !nicho || e.nicho === nicho,
+      situacao: (e) => !situacao || (situacao === "ativo" ? e.acessos > 1 : e.acessos <= 1),
+      estagio: (e) => !estagio || (crm[e.slug]?.estagio ?? "novo") === estagio,
+      prazo: (e) => !prazo || prazoDe(crm[e.slug], dataDeHoje) === prazo,
+    };
+    return (e: Espaco, exceto?: string) => Object.entries(testes).every(([nome, teste]) => nome === exceto || teste(e));
+  }, [busca, cidade, nicho, situacao, estagio, prazo, dataDeHoje, crm]);
+
+  const cidades = useMemo(() => contar(espacos.filter((e) => passa(e, "cidade")), local), [espacos, passa]);
+  const nichos = useMemo(() => contar(espacos.filter((e) => passa(e, "nicho")), (e) => e.nicho), [espacos, passa]);
 
   const lista = useMemo(() => {
-    const termo = semAcento(busca.trim());
-    const filtrada = espacos.filter((e) => {
-      if (cidade && local(e) !== cidade) return false;
-      if (nicho && e.nicho !== nicho) return false;
-      if (situacao === "ativo" && e.acessos <= 1) return false;
-      if (situacao === "pendente" && e.acessos > 1) return false;
-      if (estagio && (crm[e.slug]?.estagio ?? "novo") !== estagio) return false;
-      if (prazo && prazoDe(crm[e.slug], dataDeHoje) !== prazo) return false;
-      if (!termo) return true;
-      return semAcento(`${e.nome} ${e.slug} ${e.cidade ?? ""} ${e.telefone ?? ""}`).includes(termo);
-    });
+    const filtrada = espacos.filter((e) => passa(e));
     const por: Record<string, (a: Espaco, b: Espaco) => number> = {
       relevancia: (a, b) => relevancia(b) - relevancia(a) || a.nome.localeCompare(b.nome, "pt-BR"),
       nota: (a, b) => (b.nota ?? 0) - (a.nota ?? 0) || (b.avaliacoes ?? 0) - (a.avaliacoes ?? 0),
@@ -169,7 +176,7 @@ export default function AdminPage() {
         a.nome.localeCompare(b.nome, "pt-BR"),
     };
     return [...filtrada].sort(por[ordem]);
-  }, [espacos, busca, cidade, nicho, situacao, ordem, estagio, prazo, dataDeHoje, crm]);
+  }, [espacos, passa, ordem, crm]);
 
   async function abrir(e: Espaco) {
     setAberto(e);
@@ -231,11 +238,14 @@ export default function AdminPage() {
 
   function exportarCSV() {
     const linhas = [
-      ["nome", "endereco", "cidade", "uf", "nicho", "nota", "avaliacoes", "situacao", "telefone"],
+      ["nome", "site", "cidade", "uf", "nicho", "nota", "avaliacoes", "situacao", "telefone", "estagio", "valor", "proxima_acao", "proxima_data"],
       ...lista.map((e) => [
         e.nome, e.slug, e.cidade ?? "", e.uf ?? "", e.nicho,
         e.nota ?? "", e.avaliacoes ?? "",
         e.acessos > 1 ? "cliente ativo" : "convite pendente", e.telefone ?? "",
+        ROTULO[(crm[e.slug]?.estagio ?? "novo") as Estagio],
+        crm[e.slug]?.valorCents ? (crm[e.slug]!.valorCents! / 100).toFixed(2) : "",
+        crm[e.slug]?.proximaAcao ?? "", crm[e.slug]?.proximaData ?? "",
       ]),
     ];
     const csv = linhas.map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -264,15 +274,31 @@ export default function AdminPage() {
     );
 
   const chave = [busca, cidade, nicho, situacao, ordem, estagio, prazo].join("|");
-  const compromissos = { atrasada: 0, hoje: 0, futura: 0 };
-  for (const e of espacos) {
-    const p = prazoDe(crm[e.slug], dataDeHoje);
-    if (p) compromissos[p] += 1;
-  }
+  const contarPrazos = (base: Espaco[]) => {
+    const n = { atrasada: 0, hoje: 0, futura: 0 };
+    for (const e of base) {
+      const p = prazoDe(crm[e.slug], dataDeHoje);
+      if (p) n[p] += 1;
+    }
+    return n;
+  };
+  // o indicador do topo resume a plataforma inteira; os chips contam o que
+  // cada um entregaria com os outros filtros como estão
+  const compromissos = contarPrazos(espacos);
+  const compromissosNosChips = contarPrazos(espacos.filter((e) => passa(e, "prazo")));
+  const noFunil = espacos.filter((e) => passa(e, "estagio"));
+  // a cidade escolhida acompanha a lista recolhida: fora das cinco primeiras,
+  // ela sumia da tela com o filtro ainda ligado e sem chip para desligar
+  const topoCidades = cidades.slice(0, CIDADES_VISIVEIS);
+  const cidadesVisiveis = todasCidades
+    ? cidades
+    : cidade && !topoCidades.some(([c]) => c === cidade)
+      ? [...topoCidades, ...cidades.filter(([c]) => c === cidade)]
+      : topoCidades;
   const quantos = pagina.chave === chave ? pagina.n : PAGINA;
   const ativos = espacos.filter((e) => e.acessos > 1).length;
   const fora = espacos.filter((e) => crm[e.slug]?.publicado === false).length;
-  const filtrando = busca || cidade || nicho || situacao;
+  const filtrando = busca || cidade || nicho || situacao || estagio || prazo;
 
   return (
     <>
@@ -358,7 +384,7 @@ export default function AdminPage() {
           <div className="flex flex-wrap items-center gap-2">
             <span className="mr-1 text-xs font-semibold uppercase tracking-[0.04em] text-[#6F6A5E]">Cidade</span>
             <Chip ativo={!cidade} onClick={() => setCidade("")}>Todas</Chip>
-            {(todasCidades ? cidades : cidades.slice(0, CIDADES_VISIVEIS)).map(([c, n]) => (
+            {cidadesVisiveis.map(([c, n]) => (
               <Chip key={c} ativo={cidade === c} onClick={() => setCidade(cidade === c ? "" : c)}>
                 {c.split("/")[0]} <span className={cidade === c ? "text-white/70" : "text-[#6F6A5E]"}>{n}</span>
               </Chip>
@@ -369,7 +395,7 @@ export default function AdminPage() {
                 onClick={() => setTodasCidades((v) => !v)}
                 className={`${CHIP} border-dashed border-[#C8C1B3] bg-transparent text-[#4A4639]`}
               >
-                {todasCidades ? "menos cidades" : `mais ${cidades.length - CIDADES_VISIVEIS} cidades`}
+                {todasCidades ? "menos cidades" : `mais ${cidades.length - cidadesVisiveis.length} cidades`}
               </button>
             )}
           </div>
@@ -388,7 +414,7 @@ export default function AdminPage() {
             <span className="mr-1 text-xs font-semibold uppercase tracking-[0.04em] text-[#6F6A5E]">Funil</span>
             <Chip ativo={!estagio} onClick={() => setEstagio("")}>Todos</Chip>
             {ESTAGIOS.map((e) => {
-              const n = espacos.filter((x) => (crm[x.slug]?.estagio ?? "novo") === e).length;
+              const n = noFunil.filter((x) => (crm[x.slug]?.estagio ?? "novo") === e).length;
               return (
                 <Chip key={e} ativo={estagio === e} onClick={() => setEstagio(estagio === e ? "" : e)}>
                   {ROTULO[e]} <span className={estagio === e ? "text-white/70" : "text-[#6F6A5E]"}>{n}</span>
@@ -402,7 +428,7 @@ export default function AdminPage() {
             <Chip ativo={!prazo} onClick={() => setPrazo("")}>Todos</Chip>
             {([["atrasada", "Atrasados"], ["hoje", "Para hoje"], ["futura", "Agendados"]] as const).map(([v, r]) => (
               <Chip key={v} ativo={prazo === v} onClick={() => setPrazo(prazo === v ? "" : v)}>
-                {r} <span className={prazo === v ? "text-white/70" : "text-[#6F6A5E]"}>{compromissos[v]}</span>
+                {r} <span className={prazo === v ? "text-white/70" : "text-[#6F6A5E]"}>{compromissosNosChips[v]}</span>
               </Chip>
             ))}
           </div>
@@ -429,6 +455,8 @@ export default function AdminPage() {
                   setCidade("");
                   setNicho("");
                   setSituacao("");
+                  setEstagio("");
+                  setPrazo("");
                 }}
                 className="h-9 px-2 text-[13px] text-[#6F6A5E] underline underline-offset-4 hover:text-[#17150F]"
               >
