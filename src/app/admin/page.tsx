@@ -532,10 +532,14 @@ export default function AdminPage() {
                   href={`https://${aberto.slug}.ruphus.site/`}
                   target="_blank"
                   rel="noreferrer"
-                  className="w-1/2 overflow-hidden rounded-xl border border-[#E2DDD3] bg-[#F4F2EE]"
+                  className="h-[132px] w-1/2 overflow-hidden rounded-xl border border-[#E2DDD3] bg-[#F4F2EE]"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element -- miniatura já gerada do site */}
-                  <img src={`/s/_t/${aberto.slug}.webp`} alt={`Miniatura do site de ${aberto.nome}`} className="w-full" />
+                  {/* eslint-disable-next-line @next/next/no-img-element -- captura da página, já gerada */}
+                  <img
+                    src={`/s/_p/${aberto.slug}.webp`}
+                    alt={`Página inicial do site de ${aberto.nome}`}
+                    className="size-full object-cover object-top"
+                  />
                 </a>
                 {/* eslint-disable-next-line @next/next/no-img-element -- QR em SVG gerado pela própria rota */}
                 <img

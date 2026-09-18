@@ -9,6 +9,6 @@ ls ../sites | grep -Ev '^(_|\.|login|agendar|api|catalogo|privacidade|assets)$' 
 rsync -a -r --delete --exclude previa.jpg --files-from=/tmp/sync-sites.txt ../sites/ public/s/
 # assets/ é compartilhada entre os sites (../assets/... nas páginas)
 rsync -a --delete ../sites/assets/ public/s/assets/
-# _t: miniaturas dos sites, que o painel de administração mostra
-rsync -a --delete ../sites/_t/ public/s/_t/
+# _p: captura da página de cada site, reduzida, que o painel de administração mostra
+rsync -a --delete ../sites/_p/ public/s/_p/
 echo "$(ls public/s | wc -l) pastas em public/s, $(find public/s -type f | wc -l) arquivos"
