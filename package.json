@@ -12,7 +12,8 @@
     "test:booking": "firebase emulators:exec --only firestore,auth --project demo-siteflow 'tsx --conditions=react-server booking.test.mts'",
     "test:scale": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server scale.test.mts'",
     "test:proxy": "tsx proxy.test.mts",
-    "sync:sites": "sh scripts/sync-sites.sh"
+    "sync:sites": "sh scripts/sync-sites.sh",
+    "seed:agenda": "tsx --env-file=.env.local scripts/seed-agenda.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

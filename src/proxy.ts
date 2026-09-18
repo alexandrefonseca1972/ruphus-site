@@ -18,6 +18,8 @@ export function paginaEstatica(pathname: string) {
 }
 
 export function sitePath(slug: string, pathname: string) {
+  // agendamento do próprio negócio, servido pelo app sem sair do subdomínio
+  if (pathname === "/agendar" || pathname === "/agendar/") return `/agendar/${slug}`;
   // as páginas pedem "../assets/…", que na raiz do subdomínio vira /assets/…: é a pasta compartilhada
   if (pathname === "/assets" || pathname.startsWith("/assets/")) return `/s${pathname}`;
   // public/ não serve índice de diretório: a raiz do site aponta direto para o arquivo

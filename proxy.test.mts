@@ -35,3 +35,9 @@ assert.equal(paginaEstatica("/"), null);
 assert.equal(paginaEstatica("/login"), null);
 assert.equal(paginaEstatica("/sobre/x"), null);
 console.log("paginas ok");
+
+// agendamento no próprio subdomínio do site
+assert.equal(sitePath("barbeariasoul", "/agendar"), "/agendar/barbeariasoul");
+assert.equal(sitePath("barbeariasoul", "/agendar/"), "/agendar/barbeariasoul");
+assert.equal(sitePath("barbeariasoul", "/agendar/outro"), "/s/barbeariasoul/agendar/outro");
+console.log("agendar ok");
