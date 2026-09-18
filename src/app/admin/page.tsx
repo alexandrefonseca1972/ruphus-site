@@ -1,10 +1,10 @@
 "use client";
 
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { auth } from "@/lib/firebase";
 import { gerarConvite, listarAcessos, listarEspacos, revogarAcesso, type Acesso, type Espaco } from "./actions";
@@ -53,6 +53,7 @@ export default function AdminPage() {
   const router = useRouter();
   const [estado, setEstado] = useState<"carregando" | "negado" | "pronto">("carregando");
   const [espacos, setEspacos] = useState<Espaco[]>([]);
+  const [email, setEmail] = useState("");
   const [busca, setBusca] = useState("");
   const [cidade, setCidade] = useState("");
   const [nicho, setNicho] = useState("");
@@ -69,6 +70,7 @@ export default function AdminPage() {
     () =>
       onAuthStateChanged(auth, async (user) => {
         if (!user) return router.replace(`/login?next=${encodeURIComponent("/admin")}`);
+        setEmail(user.email ?? "");
         const r = await listarEspacos(await user.getIdToken());
         if (!r.ok) return setEstado("negado");
         setEspacos(r.dados);
@@ -132,8 +134,15 @@ export default function AdminPage() {
         <Card>
           <CardHeader>
             <CardTitle>Área restrita</CardTitle>
-            <CardDescription>Esta conta não administra a plataforma.</CardDescription>
+            <CardDescription>
+              {email ? `${email} não administra a plataforma.` : "Esta conta não administra a plataforma."}
+            </CardDescription>
           </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={() => signOut(auth).then(() => router.replace("/login"))}>
+              Entrar com outra conta
+            </Button>
+          </CardContent>
         </Card>
       </main>
     );
@@ -145,7 +154,15 @@ export default function AdminPage() {
 
   return (
     <main className="mx-auto w-full max-w-4xl p-4 py-8">
-      <h1 className="text-2xl font-semibold">Administração</h1>
+      <div className="flex items-start justify-between gap-4">
+        <h1 className="text-2xl font-semibold">Administração</h1>
+        <div className="flex items-center gap-2">
+          <span className="hidden truncate text-sm text-muted-foreground sm:inline">{email}</span>
+          <Button variant="ghost" size="sm" onClick={() => signOut(auth).then(() => router.replace("/login"))}>
+            Sair
+          </Button>
+        </div>
+      </div>
       <p className="mt-1 text-sm text-muted-foreground">
         {espacos.length} espaços · {comCliente} com cliente ativo · {espacos.length - comCliente} com convite pendente
       </p>
