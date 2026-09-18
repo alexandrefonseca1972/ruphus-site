@@ -64,7 +64,7 @@ export default function Home() {
       {tenants.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Seus negócios</CardTitle>
+            <CardTitle as="h1">Seus negócios</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-2">
             {tenants.map((id) => (
@@ -78,7 +78,7 @@ export default function Home() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{tenants.length ? "Cadastrar outro negócio" : "Cadastre o seu primeiro negócio"}</CardTitle>
+          <CardTitle as={tenants.length ? "h2" : "h1"}>{tenants.length ? "Cadastrar outro negócio" : "Cadastre o seu primeiro negócio"}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(create)} className="grid gap-4">

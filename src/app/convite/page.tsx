@@ -29,7 +29,7 @@ function Convite() {
     <main className="mx-auto w-full max-w-md p-4 py-16">
       <Card>
         <CardHeader>
-          <CardTitle>{erro ? "Convite não aceito" : "Liberando seu acesso…"}</CardTitle>
+          <CardTitle as="h1">{erro ? "Convite não aceito" : "Liberando seu acesso…"}</CardTitle>
           <CardDescription>{erro || "Só um instante enquanto abrimos o painel do seu negócio."}</CardDescription>
         </CardHeader>
         {erro && (
