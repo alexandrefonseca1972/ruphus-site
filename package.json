@@ -15,7 +15,8 @@
     "sync:sites": "sh scripts/sync-sites.sh",
     "seed:agenda": "tsx --env-file=.env.local scripts/seed-agenda.mts",
     "convite": "tsx --conditions=react-server --env-file=.env.local scripts/convite.mts",
-    "admin": "tsx --env-file=.env.local scripts/admin-plataforma.mts"
+    "admin": "tsx --env-file=.env.local scripts/admin-plataforma.mts",
+    "test:crm": "tsx --conditions=react-server crm.test.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

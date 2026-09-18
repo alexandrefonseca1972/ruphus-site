@@ -20,29 +20,29 @@ export const CrmInput = z.object({
 });
 export type CrmInput = z.infer<typeof CrmInput>;
 
-const vazio: Crm = {
-  estagio: "novo",
-  valorCents: null,
-  fechadoEm: null,
-  proximaAcao: null,
-  proximaData: null,
-  publicado: true,
-  notas: 0,
-};
+/** Um negócio como a tela precisa dele: só valores simples.
+ *
+ * Campo por campo de propósito. Espalhar o documento inteiro traz junto o
+ * `atualizadoEm`, que é um Timestamp do Firestore — uma classe. O React
+ * recusa classes na travessia servidor→cliente e derruba o painel inteiro,
+ * e como o erro só aparece quando existe algum negócio salvo, ele passa
+ * despercebido enquanto a coleção está vazia. */
+export function negocio(d: { get: (campo: string) => unknown }): Crm {
+  const estagio = d.get("estagio");
+  return {
+    estagio: (LISTA as readonly string[]).includes(String(estagio)) ? (estagio as Crm["estagio"]) : "novo",
+    valorCents: (d.get("valorCents") as number | null) ?? null,
+    fechadoEm: (d.get("fechadoEm") as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null,
+    proximaAcao: (d.get("proximaAcao") as string | null) ?? null,
+    proximaData: (d.get("proximaData") as string | null) ?? null,
+    publicado: d.get("publicado") !== false,
+    notas: (d.get("notas") as number | null) ?? 0,
+  };
+}
 
 export async function lerCrm(db: Firestore): Promise<Record<string, Crm>> {
   const snap = await db.collection(RAIZ).get();
-  return Object.fromEntries(
-    snap.docs.map((d) => [
-      d.id,
-      {
-        ...vazio,
-        ...d.data(),
-        estagio: (LISTA as readonly string[]).includes(d.get("estagio")) ? d.get("estagio") : "novo",
-        fechadoEm: d.get("fechadoEm")?.toDate?.().toISOString() ?? null,
-      } as Crm,
-    ]),
-  );
+  return Object.fromEntries(snap.docs.map((d) => [d.id, negocio(d)]));
 }
 
 export async function salvarCrm(db: Firestore, slug: string, entrada: CrmInput) {

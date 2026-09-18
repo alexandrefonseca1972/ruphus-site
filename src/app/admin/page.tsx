@@ -150,7 +150,6 @@ export default function AdminPage() {
       if (situacao === "ativo" && e.acessos <= 1) return false;
       if (situacao === "pendente" && e.acessos > 1) return false;
       if (estagio && (crm[e.slug]?.estagio ?? "novo") !== estagio) return false;
-      if (estagio === "atrasado") return false;
       if (!termo) return true;
       return semAcento(`${e.nome} ${e.slug} ${e.cidade ?? ""} ${e.telefone ?? ""}`).includes(termo);
     });
@@ -200,7 +199,12 @@ export default function AdminPage() {
     const atual = crm[slug] ?? { estagio: "novo", valorCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0 };
     setCrm((c) => ({ ...c, [slug]: { ...atual, ...dados } as Crm }));   // resposta imediata na tela
     const r = await salvarNegocio(await token(), slug, dados);
-    if (!r.ok) setAviso(r.error);
+    // sem isto a tela segue mostrando a venda fechada, ou o site fora do ar,
+    // que o servidor recusou — e o aviso some na primeira ação seguinte
+    if (!r.ok) {
+      setAviso(r.error);
+      setCrm((c) => ({ ...c, [slug]: atual }));
+    }
   }
 
   async function novaNota(slug: string, texto: string) {
