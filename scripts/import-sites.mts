@@ -48,7 +48,9 @@ export function extract(html: string): Omit<Site, "slug"> {
     const type = String(node["@type"] ?? "");
     if (type === "FAQPage" || type === "BreadcrumbList") continue;
     name ??= typeof node.name === "string" ? node.name : undefined;
-    phone ??= typeof node.telephone === "string" ? node.telephone : undefined;
+    // o JSON-LD destes sites assina com o telefone da proposta, que é o nosso
+    const tel = typeof node.telephone === "string" ? digits(node.telephone) : "";
+    if (tel && tel !== RUPHUS) phone ??= tel;
     category ??= type || undefined;
     const addr = node.address as Record<string, string> | undefined;
     if (!address && addr && typeof addr === "object") {
@@ -80,7 +82,11 @@ export function extract(html: string): Omit<Site, "slug"> {
     const title = /<title>([\s\S]*?)<\/title>/.exec(html)?.[1];
     if (title) name = decodeEntities(title).split(/[—–|]/)[0].replace(/[\s-]+$/, "").trim();
   }
-  phone ??= /wa\.me\/(\d{10,15})/.exec(html)?.[1];
+  // o número do negócio é o primeiro da página que não seja o nosso: a faixa
+  // de proposta põe o da Ruphus em todas elas
+  phone ??= [...html.matchAll(/(?:wa\.me\/|href="tel:)([+\d\s()-]{10,20})/g)]
+    .map((m) => digits(m[1]))
+    .find((n) => n && n !== RUPHUS);
 
   // cor do tema e Instagram: o que o minisite precisa para parecer do negócio
   const color = /name="theme-color"[^>]*content="(#[0-9a-fA-F]{3,8})/i.exec(html)?.[1]
@@ -97,7 +103,7 @@ export function extract(html: string): Omit<Site, "slug"> {
     .find((u) => !RESERVADO.includes(u.toLowerCase()));
 
   return {
-    name: (name ?? "").slice(0, 80), phone: phone && digits(phone), address, category,
+    name: (name ?? "").slice(0, 80), phone: phone || undefined, address, category,
     city, uf, rating, reviews, color, instagram: perfil,
     // "../assets/x" e "img/x" viram caminho absoluto no subdomínio do site
     photo: foto && "/" + foto.replace(/^\.\.\//, "").replace(/^\//, ""),
@@ -147,10 +153,19 @@ const ENTITIES: Record<string, string> = {
 };
 const decodeEntities = (s: string) => s.replace(/&(#?\w+);/g, (m, e) => ENTITIES[e] ?? m);
 
-// Mesmo formato dos clientes: só dígitos, com DDI (tenants/{t}/customers usa 5511912345678)
+// O WhatsApp da Ruphus, que assina a faixa de proposta em toda página. Ele
+// aparece no "telephone" do JSON-LD desses sites, então entrava no lugar do
+// telefone do negócio — e o botão de avisar o agendamento vinha para nós.
+const RUPHUS = "5511948680554";
+
+// Mesmo formato dos clientes: só dígitos, com DDI (tenants/{t}/customers usa 5511912345678).
+// O DDI entra pelo tamanho, nunca por "começa com 55": 55 é também o DDD de
+// Santa Maria, e um fixo de lá ficaria sem país.
 const digits = (phone: string) => {
   const d = phone.replace(/\D/g, "");
-  return d.startsWith("55") ? d : `55${d}`;
+  if (d.length === 10 || d.length === 11) return `55${d}`;
+  if ((d.length === 12 || d.length === 13) && d.startsWith("55")) return d;
+  return "";
 };
 
 function readSites(dir: string) {
@@ -186,6 +201,22 @@ function selfCheck() {
   assert.equal(withLd.address, "Av. Mário Ypiranga, 1300, Manaus, AM");
   assert.equal(withLd.city, "Manaus");
   assert.equal(withLd.uf, "AM");
+
+  // O JSON-LD destes sites assina com o telefone da proposta, que é o nosso: o
+  // do negócio está no tel: e num segundo wa.me. Trocar um pelo outro mandava
+  // o agendamento do cliente para a Ruphus em 201 dos 677 negócios.
+  const nosso = extract(
+    `<title>Alpha Barbearia — Parauapebas</title>` +
+      `<script type="application/ld+json">{"@type":"Barbershop","name":"Alpha","telephone":"+5511948680554"}</script>` +
+      `<a href="https://wa.me/5511948680554">Pedir remoção</a><a href="tel:+5594992790873">Ligar</a>`,
+  );
+  assert.equal(nosso.phone, "5594992790873");
+  // só o nosso na página: melhor sem telefone do que com o telefone errado
+  const soNosso = extract(`<title>X</title><a href="https://wa.me/5511948680554">Pedir remoção</a>`);
+  assert.equal(soNosso.phone, undefined);
+  // DDI pelo tamanho: 55 é DDI aqui, e DDD no fixo de Santa Maria
+  assert.equal(extract(`<title>Y</title><a href="tel:+5592984739695">`).phone, "5592984739695");
+  assert.equal(extract(`<title>Y</title><a href="tel:5532200000">`).phone, "555532200000");
 
   // nota do Google e cidade tirada do título quando não há endereço estruturado
   const nota = extract(
