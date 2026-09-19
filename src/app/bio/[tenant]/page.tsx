@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { adminDb } from "@/lib/admin";
 import { availableSlots } from "@/lib/booking.server";
-import { addDays, formatBRL, todayIn, weekday, WEEKDAYS } from "@/lib/datetime";
+import { addDays, formatBRL, linkWhatsApp, todayIn, weekday, WEEKDAYS } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
@@ -175,9 +175,7 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
   const mapa = bio.endereco
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${bio.nome} ${bio.endereco}`)}`
     : null;
-  const zap = bio.telefone
-    ? `https://wa.me/${bio.telefone}?text=${encodeURIComponent(`Olá! Vim pelo Instagram do ${bio.nome}.`)}`
-    : null;
+  const zap = linkWhatsApp(bio.telefone, `Olá! Vim pelo Instagram do ${bio.nome}.`);
   const telefone = bio.telefone?.replace(/^55(\d{2})(\d{4,5})(\d{4})$/, "($1) $2-$3") ?? "";
   const { aberto, ate } = situacao(bio.expediente);
   const dias = [...bio.expediente].sort((a, b) => ((a.dia + 6) % 7) - ((b.dia + 6) % 7));
@@ -350,23 +348,29 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
         </a>
       </p>
 
-      {/* a barra fica à vista o tempo todo: agendar é o motivo de a pessoa ter vindo do Instagram */}
-      <div className="fixed inset-x-0 bottom-0 border-t border-[#E7E2D8] bg-[#F7F5F1]/95 backdrop-blur">
-        <div className="mx-auto w-full max-w-[520px] px-5 pb-4 pt-3">
-          <a
-            href={agendar}
-            className="flex min-h-[52px] flex-col items-center justify-center rounded-2xl px-5 py-2.5 text-center"
-            style={{ background: bio.cor, color: claro(bio.cor) ? "#17150F" : "#FFFFFF" }}
-          >
-            <span className="text-[15px] font-bold">Agendar online</span>
-            {livres && (
-              <span className="text-xs opacity-85">
-                livre {livres.quando} às {livres.horarios.join(", ")}
+      {/* a barra fica à vista o tempo todo: agendar é o motivo de a pessoa ter vindo do Instagram.
+          Sem catálogo não há o que marcar, e prometer agendamento levaria a pessoa a uma página
+          vazia — nesse caso a barra leva ao WhatsApp, que é o que o negócio tem para oferecer. */}
+      {(bio.servicos.length > 0 ? agendar : zap) && (
+        <div className="fixed inset-x-0 bottom-0 border-t border-[#E7E2D8] bg-[#F7F5F1]/95 backdrop-blur">
+          <div className="mx-auto w-full max-w-[520px] px-5 pb-4 pt-3">
+            <a
+              href={bio.servicos.length > 0 ? agendar : zap!}
+              className="flex min-h-[52px] flex-col items-center justify-center rounded-2xl px-5 py-2.5 text-center"
+              style={{ background: bio.cor, color: claro(bio.cor) ? "#17150F" : "#FFFFFF" }}
+            >
+              <span className="text-[15px] font-bold">
+                {bio.servicos.length > 0 ? "Agendar online" : "Falar no WhatsApp"}
               </span>
-            )}
-          </a>
+              {bio.servicos.length > 0 && livres && (
+                <span className="text-xs opacity-85">
+                  livre {livres.quando} às {livres.horarios.join(", ")}
+                </span>
+              )}
+            </a>
+          </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }
