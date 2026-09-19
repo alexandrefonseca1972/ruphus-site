@@ -11,8 +11,10 @@ import {
   gerarConvite,
   listarAcessos,
   listarCrm,
+  gerarConvites,
   listarEspacos,
   listarNotasDo,
+  marcarEstagio,
   resumoDoDia,
   salvarNegocio,
   revogarAcesso,
@@ -23,6 +25,7 @@ import {
 import { COR, diaCurto, ESTAGIOS, hojeISO, prazoDe, ROTULO, type Crm, type Estagio, type Nota, type Prazo } from "@/lib/crm-tipos";
 
 const PAGINA = 40;
+const VAZIO: Crm = { estagio: "novo", valorCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0 };
 const CIDADES_VISIVEIS = 5;
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -114,6 +117,7 @@ export default function AdminPage() {
   const [prazo, setPrazo] = useState<"" | Prazo>("");
   const [foraDoAr, setForaDoAr] = useState(false);
   const [menuFiltros, setMenuFiltros] = useState(false);
+  const [marcados, setMarcados] = useState<Set<string>>(new Set());
   // fixo por render: se viesse de Date.now() a cada chamada, um espaço podia cair
   // em "hoje" na contagem e em "atrasada" na lista, na virada da meia-noite
   const dataDeHoje = hojeISO();
@@ -222,7 +226,7 @@ export default function AdminPage() {
   }
 
   async function mudarNegocio(slug: string, dados: Partial<Crm>) {
-    const atual = crm[slug] ?? { estagio: "novo", valorCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0 };
+    const atual = crm[slug] ?? VAZIO;
     setCrm((c) => ({ ...c, [slug]: { ...atual, ...dados } as Crm }));   // resposta imediata na tela
     const r = await salvarNegocio(await token(), slug, dados);
     // sem isto a tela segue mostrando a venda fechada, ou o site fora do ar,
@@ -246,8 +250,65 @@ export default function AdminPage() {
     setAviso(ok ? "" : "O navegador não deixou copiar. Selecione o texto e copie à mão.");
   }
 
+  function alternar(slug: string) {
+    setMarcados((m) => {
+      const novo = new Set(m);
+      if (!novo.delete(slug)) novo.add(slug);
+      return novo;
+    });
+  }
+
+  async function convidarEmLote() {
+    setAviso("");
+    const r = await gerarConvites(await token(), [...marcados]);
+    if (!r.ok) return setAviso(r.error);
+    if (!r.dados.length) return setAviso("Nenhum dos negócios marcados existe mais.");
+    // uma planilha com o link pronto de cada um: é assim que 300 convites viram trabalho possível
+    baixar(
+      `convites-${new Date().toISOString().slice(0, 10)}.csv`,
+      [
+        ["negocio", "site", "telefone", "link_do_convite", "abrir_whatsapp"],
+        ...r.dados.map((c) => [c.nome, `https://${c.slug}.ruphus.site`, c.telefone ?? "", c.url, c.whatsapp ?? ""]),
+      ],
+    );
+    const sem = r.dados.filter((c) => !c.whatsapp).length;
+    setAviso(
+      `${r.dados.length} convite(s) gerado(s), válidos por 30 dias.` +
+        (sem ? ` ${sem} sem telefone: o link está na planilha para enviar por outro caminho.` : ""),
+    );
+  }
+
+  async function marcarEmLote(estagio: Estagio) {
+    setAviso("");
+    const lista = [...marcados];
+    const antes = new Map(lista.map((s) => [s, crm[s]]));
+    setCrm((c) => {
+      const novo = { ...c };
+      for (const s of lista) novo[s] = { ...(novo[s] ?? VAZIO), estagio };
+      return novo;
+    });
+    const r = await marcarEstagio(await token(), lista, estagio);
+    if (!r.ok) {
+      setAviso(r.error);
+      setCrm((c) => ({ ...c, ...Object.fromEntries([...antes].filter(([, v]) => v).map(([k, v]) => [k, v!])) }));
+      return;
+    }
+    setAviso(`${r.dados} negócio(s) marcados como ${ROTULO[estagio].toLowerCase()}.`);
+    setMarcados(new Set());
+  }
+
+  function baixar(nome: string, linhas: (string | number)[][]) {
+    const csv = linhas.map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nome;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function exportarCSV() {
-    const linhas = [
+    baixar(`espacos-${new Date().toISOString().slice(0, 10)}.csv`, [
       ["nome", "site", "cidade", "uf", "nicho", "nota", "avaliacoes", "situacao", "telefone", "estagio", "valor", "proxima_acao", "proxima_data"],
       ...lista.map((e) => [
         e.nome, e.slug, e.cidade ?? "", e.uf ?? "", e.nicho,
@@ -257,14 +318,7 @@ export default function AdminPage() {
         crm[e.slug]?.valorCents ? (crm[e.slug]!.valorCents! / 100).toFixed(2) : "",
         crm[e.slug]?.proximaAcao ?? "", crm[e.slug]?.proximaData ?? "",
       ]),
-    ];
-    const csv = linhas.map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `espacos-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    ]);
   }
 
   if (estado === "carregando") return <main className="p-10 text-sm text-[#6F6A5E]">Carregando…</main>;
@@ -303,6 +357,7 @@ export default function AdminPage() {
       ? [...topoCidades, ...cidades.filter(([c]) => c === cidade)]
       : topoCidades;
   const quantos = pagina.chave === chave ? pagina.n : PAGINA;
+  const visiveis = lista.slice(0, quantos);
   const filtrando = busca || cidade || nicho || situacao || estagio || prazo || foraDoAr;
   const nFiltros = [cidade, nicho, estagio, prazo, foraDoAr ? "x" : ""].filter(Boolean).length;
 
@@ -561,6 +616,25 @@ export default function AdminPage() {
         {aviso && <p className="text-sm text-[#6F6A5E]">{aviso}</p>}
 
         <section aria-label="Espaços" className={`${CARTAO} overflow-hidden`}>
+          {marcados.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-b border-[#E2DDD3] bg-[#F2F5F3] px-4 py-2.5 sm:px-5">
+              <span className="mr-1 text-[13px] font-semibold text-[#2C6A53]">{marcados.size} marcado(s)</span>
+              <button type="button" onClick={convidarEmLote} className="h-8 rounded-lg border border-[#2C6A53] bg-white px-3 text-[12px] font-semibold text-[#2C6A53] hover:bg-[#EAF1EC]">
+                Gerar convites
+              </button>
+              <button type="button" onClick={() => marcarEmLote("oferta")} className="h-8 rounded-lg border border-[#D8D2C6] bg-white px-3 text-[12px] hover:border-[#17150F]">
+                Marcar oferta enviada
+              </button>
+              <button type="button" onClick={() => marcarEmLote("negociando")} className="h-8 rounded-lg border border-[#D8D2C6] bg-white px-3 text-[12px] hover:border-[#17150F]">
+                Marcar negociando
+              </button>
+              <div className="grow" />
+              <button type="button" onClick={() => setMarcados(new Set())} className="h-8 px-2 text-[12px] text-[#4A4639] underline underline-offset-4 hover:text-[#17150F]">
+                Limpar seleção
+              </button>
+            </div>
+          )}
+
           <div aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[#EDE9E1] px-4 py-3 sm:px-5">
             <span className="text-sm font-semibold">{lista.length} espaço(s)</span>
             <span className="text-[13px] text-[#6F6A5E]">
@@ -577,7 +651,23 @@ export default function AdminPage() {
 
           {/* Cabeçalho de coluna: sem ele, "★ 4,9 · 1.125" é um número a adivinhar */}
           <div className="hidden items-center gap-4 border-b border-[#E2DDD3] bg-[#FBFAF8] px-5 py-2.5 text-[#6F6A5E] lg:flex">
-            <button type="button" onClick={() => setOrdem("nome")} className={`${ORDENAVEL} w-[320px]`}>
+            <input
+              type="checkbox"
+              aria-label="Marcar os negócios desta tela"
+              className="size-4 accent-[#17150F]"
+              checked={visiveis.length > 0 && visiveis.every((e) => marcados.has(e.slug))}
+              onChange={(ev) =>
+                setMarcados((m) => {
+                  const novo = new Set(m);
+                  for (const e of visiveis) {
+                    if (ev.target.checked) novo.add(e.slug);
+                    else novo.delete(e.slug);
+                  }
+                  return novo;
+                })
+              }
+            />
+            <button type="button" onClick={() => setOrdem("nome")} className={`${ORDENAVEL} w-[296px]`}>
               Negócio{seta("nome")}
             </button>
             <span className="w-[150px] text-[11px] font-semibold uppercase tracking-[0.06em]">Cidade</span>
@@ -593,7 +683,7 @@ export default function AdminPage() {
           </div>
 
           <ul>
-            {lista.slice(0, quantos).map((e) => {
+            {visiveis.map((e) => {
               const ativo = e.acessos > 1;
               const p = prazoDe(crm[e.slug], dataDeHoje);
               return (
@@ -602,6 +692,13 @@ export default function AdminPage() {
                   className="flex flex-col gap-3 border-b border-[#F1EDE6] px-4 py-3.5 last:border-0 sm:px-5 lg:flex-row lg:items-center lg:gap-4"
                 >
                   <div className="flex min-w-0 items-start gap-3 lg:w-[320px]">
+                    <input
+                      type="checkbox"
+                      aria-label={`Marcar ${e.nome}`}
+                      className="mt-3.5 size-4 shrink-0 accent-[#17150F]"
+                      checked={marcados.has(e.slug)}
+                      onChange={() => alternar(e.slug)}
+                    />
                     <div
                       aria-hidden="true"
                       className={`flex size-11 shrink-0 items-center justify-center rounded-[10px] font-[family-name:var(--fonte-serifa)] text-xl ${ativo ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#F0E6DE] text-[#8A4520]"}`}

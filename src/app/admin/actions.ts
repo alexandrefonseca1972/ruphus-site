@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/admin";
 import { adminAction } from "@/lib/admin-guard";
 import { criarConvite } from "@/lib/convite";
 import { anotar, CrmInput, lerCrm, listarNotas, salvarCrm } from "@/lib/crm";
+import { linkWhatsApp } from "@/lib/datetime";
 
 export type Espaco = {
   slug: string;
@@ -68,6 +69,42 @@ export const listarEspacos = adminAction(async () => {
       acessos: porEspaco.get(d.id) ?? 0,
     }))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+});
+
+// O slug vem da tela e vira caminho de documento: sem conferir, um "a/b/c"
+// escreveria fora do lugar previsto.
+const SLUG = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
+// Teto do lote: acima disso a espera fica longa e a planilha, grande demais
+// para alguém trabalhar numa sentada.
+const TETO = 300;
+
+const limpar = (slugs: string[]) => [...new Set(slugs)].filter((s) => SLUG.test(s)).slice(0, TETO);
+
+export type ConviteEmLote = { slug: string; nome: string; telefone: string | null; url: string; whatsapp: string | null };
+
+/** Um convite para cada negócio marcado, com a mensagem pronta para enviar. */
+export const gerarConvites = adminAction(async (_user, slugs: string[]): Promise<ConviteEmLote[]> => {
+  const alvos = limpar(slugs);
+  if (!alvos.length) return [];
+  const base = process.env.SITE_URL ?? "https://www.ruphus.site";
+  const docs = await adminDb.getAll(...alvos.map((s) => adminDb.collection("tenants").doc(s)));
+  const fora: ConviteEmLote[] = [];
+  for (const d of docs) {
+    if (!d.exists) continue;
+    const url = `${base}/convite?c=${await criarConvite(adminDb, d.id)}`;
+    const nome = String(d.get("name") ?? d.id);
+    const telefone = (d.get("site.phone") as string | null) ?? null;
+    const texto = `Olá! Aqui é da Ruphus. O site do ${nome} já está no ar em https://${d.id}.ruphus.site — e a agenda online também.\n\nEste link dá acesso ao painel para você cadastrar serviços, equipe e horários: ${url}\n\nO link vale 30 dias.`;
+    fora.push({ slug: d.id, nome, telefone, url, whatsapp: linkWhatsApp(telefone, texto) });
+  }
+  return fora;
+});
+
+/** Move vários negócios de estágio de uma vez, sem abrir um a um. */
+export const marcarEstagio = adminAction(async (_user, slugs: string[], estagio: string) => {
+  const alvos = limpar(slugs);
+  for (const slug of alvos) await salvarCrm(adminDb, slug, { estagio: estagio as CrmInput["estagio"] });
+  return alvos.length;
 });
 
 /** Link de convite: quem abrir e entrar vira admin do espaço. */
