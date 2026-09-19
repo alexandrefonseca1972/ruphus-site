@@ -31,7 +31,11 @@ const TABELA: [RegExp, number, number][] = [
   [/alongamento|fibra|gel|postiç/i, 120, 150],
   [/manicure|esmalta|unha|nail/i, 45, 35],
   [/pedicure|spa dos pés|podolog/i, 60, 50],
-  [/sobrancelha|henna|micropigment|design/i, 30, 40],
+  // micropigmentação ANTES de sobrancelha: a regra de sobrancelha capturava "micropigmentação"
+  // e anunciava 30min/R$40 num procedimento de horas e centenas de reais — erro de 10x no
+  // preço que aparece na bio do cliente. Valores de mercado; confirme com cada profissional.
+  [/micropigment|microblading|nanoblading|fio a fio|dermopigment/i, 120, 450],
+  [/sobrancelha|henna|design/i, 30, 40],
   [/cíli|cili|lash|extens/i, 120, 150],
   [/depila|cera|laser/i, 45, 70],
   [/limpeza de pele|peeling|facial|skin/i, 60, 120],
@@ -189,6 +193,21 @@ function selfCheck() {
     ["0", "1", "6"]);
   // um dia só, e hora sem zero à esquerda
   assert.deepEqual(horariosDoSite('{"openingHours":"Fr 9:00-18:30"}'), { "5": { start: "09:00", end: "18:30" } });
+  // micropigmentação não pode cair na linha de sobrancelha (30min/R$40)
+  {
+    const micro = extrairServicos('<section id="servicos"><div><h3>Micropigmentação de sobrancelhas</h3></div>' +
+      '<div><h3>Design de sobrancelhas</h3></div></section>');
+    const porNome = Object.fromEntries(micro.map((s) => [s.name, s]));
+    assert.deepEqual(
+      [porNome["Micropigmentação de sobrancelhas"].durationMin, porNome["Micropigmentação de sobrancelhas"].priceCents],
+      [120, 45000],
+    );
+    assert.deepEqual(
+      [porNome["Design de sobrancelhas"].durationMin, porNome["Design de sobrancelhas"].priceCents],
+      [30, 4000],
+    );
+  }
+
   // página sem horário, formato estranho e JSON quebrado caem no padrão
   assert.equal(horariosDoSite("<p>nada aqui</p>"), null);
   assert.equal(horariosDoSite('{"openingHours":["sempre aberto"]}'), null);

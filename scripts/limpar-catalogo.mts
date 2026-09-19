@@ -13,6 +13,14 @@ import { cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { readFileSync } from "node:fs";
 
+// Seção da página: o seed leu o menu junto com os serviços, então "Tabela de
+// preços" e "Contato" viraram horários que o cliente podia marcar.
+const SECAO = /^(tabela de pre[çc]os?|pre[çc]os?|agendamento|contato|fale conosco|localiza[çc][ãa]o|endere[çc]o|como chegar|onde estamos|hor[áa]rios?( de atendimento)?|galeria|depoimentos|sobre( n[óo]s)?|redes sociais|formas de pagamento|parcelamento no cart[ãa]o)$/i;
+
+// Guarda-chuva: a descrição no site diz que é um grupo de serviços, não um
+// horário ("Serviços para o seu dia a dia").
+const GUARDA_CHUVA = /^(beleza|est[ée]tica|bem-?estar|sa[úu]de|servi[çc]os?|tratamentos)$/i;
+
 // Propaganda: fala do negócio, não do que se marca. "Avaliação" fica de fora
 // da lista de propósito — avaliação é consulta, e se agenda.
 const PROPAGANDA = /^(ambiente\b|experi[êe]ncia\b|higiene$|top \d|atendimento\s+(personalizado|especializado|pontual|pr[óo]ximo|r[áa]pido|atencioso|tradicional|unissex|vip|humanizado|individual( humanizado)?|aos domingos|por whatsapp|por empreendedoras))/i;
@@ -30,6 +38,12 @@ if (process.argv.includes("--self-check")) {
     "Avaliação estética", "Avaliação podológica", "Consulta de avaliação", "Atendimento infantil",
     "Higiene & Bem-Estar Íntimo", "Ambientação capilar", "Banho e tosa", "Depilação com Cera — Rosto",
   ]) assert.ok(!PROPAGANDA.test(n), `deveria ficar: ${n}`);
+  for (const n of ["Tabela de preços", "Contato", "Agendamento", "Horários de atendimento", "Sobre nós"])
+    assert.ok(SECAO.test(n), `deveria sair: ${n}`);
+  for (const n of ["Beleza", "Estética", "Bem-estar", "Tratamentos"]) assert.ok(GUARDA_CHUVA.test(n), `deveria sair: ${n}`);
+  // nomes que contêm as palavras mas dizem o que se faz
+  for (const n of ["Tratamento capilar", "Estética facial", "Agendamento de banho e tosa", "Preço fechado para noivas"])
+    assert.ok(!SECAO.test(n) && !GUARDA_CHUVA.test(n), `deveria ficar: ${n}`);
   console.log("limpar-catalogo: ok");
   process.exit(0);
 }
@@ -44,7 +58,9 @@ for (const d of svc.docs) {
   const t = d.ref.parent.parent?.id ?? "?";
   const nome = String(d.get("name") ?? "");
   const lista = porTenant.get(t) ?? porTenant.set(t, []).get(t)!;
-  lista.push({ id: d.id, nome, ativo: d.get("active") !== false, fora: PROPAGANDA.test(nome.trim()) });
+  const t2 = nome.trim();
+  const fora = PROPAGANDA.test(t2) || SECAO.test(t2) || GUARDA_CHUVA.test(t2);
+  lista.push({ id: d.id, nome, ativo: d.get("active") !== false, fora });
 }
 
 let tirados = 0, poupados = 0;
