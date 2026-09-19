@@ -36,6 +36,14 @@ const NICHOS: Record<string, string> = {
 };
 const nicho = (tipo: unknown) => NICHOS[String(tipo ?? "").toLowerCase()] ?? "Outros";
 
+/** Se quem entrou administra a plataforma.
+ *
+ * config/admin não é legível pelo cliente — nenhuma regra abre essa coleção —,
+ * então quem responde é o servidor. O login usa isto para mandar o admin ao
+ * painel da plataforma em vez da casa de um negócio.
+ */
+export const ehAdminDaPlataforma = adminAction(async () => true);
+
 /** Lista os espaços com quantas pessoas têm acesso a cada um. */
 export const listarEspacos = adminAction(async () => {
   const [tenants, membros] = await Promise.all([

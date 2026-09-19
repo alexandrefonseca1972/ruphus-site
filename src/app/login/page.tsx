@@ -8,6 +8,7 @@ import {
   signInWithPopup,
 } from "firebase/auth";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ehAdminDaPlataforma } from "@/app/admin/actions";
 import { Suspense, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,17 @@ function Login() {
   const router = useRouter();
   // Quem chegou por um convite volta para ele depois de entrar
   const proximo = useSearchParams().get("next");
-  const destino = proximo?.startsWith("/") ? proximo : "/painel";
+
+  // Quem administra a plataforma trabalha no /admin; quem é dono de um negócio,
+  // no /painel. O convite, quando existe, vence os dois.
+  async function paraOnde() {
+    if (proximo?.startsWith("/")) return proximo;
+    const user = auth.currentUser;
+    if (!user) return "/painel";
+    const r = await ehAdminDaPlataforma(await user.getIdToken()).catch(() => ({ ok: false as const }));
+    return r.ok ? "/admin" : "/painel";
+  }
+
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -39,7 +50,7 @@ function Login() {
     setBusy(true);
     try {
       await action();
-      if (redirect) router.replace(destino);
+      if (redirect) router.replace(await paraOnde());
     } catch (err) {
       if (!(err instanceof Error && "code" in err && err.code === "auth/popup-closed-by-user")) {
         setError(errorMessage(err));
