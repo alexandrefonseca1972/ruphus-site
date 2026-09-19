@@ -11,6 +11,7 @@
  */
 import { cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 // Seção da página: o seed leu o menu junto com os serviços, então "Tabela de
@@ -27,7 +28,6 @@ const PROPAGANDA = /^(ambiente\b|experi[êe]ncia\b|higiene$|top \d|atendimento\s
 
 // a regra decide o que sai de 675 catálogos, então roda sozinha e sem banco
 if (process.argv.includes("--self-check")) {
-  const { default: assert } = await import("node:assert/strict");
   for (const n of [
     "Ambiente climatizado", "Ambiente Acolhedor e Seguro", "Experiência VIP", "Higiene",
     "Top 3 no TripAdvisor", "Atendimento personalizado", "Atendimento por whatsapp",

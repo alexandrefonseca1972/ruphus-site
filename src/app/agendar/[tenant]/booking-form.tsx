@@ -293,6 +293,49 @@ export function BookingForm({ tenantId, today, name, phone, services, staff }: P
     );
   }
 
+  // Catálogo vazio é a agenda ainda não montada. Sem isso a página fica um
+  // beco sem saída: quem veio marcar horário lê "nenhum serviço" e não tem
+  // para onde ir — nem de volta ao site, nem para o WhatsApp da casa.
+  if (!services.length) {
+    const falar = linkWhatsApp(phone, `Olá! Quero marcar um horário no ${name}.`);
+    return (
+      <main className="mx-auto w-full max-w-lg p-4 py-12">
+        <Card>
+          <CardHeader>
+            <p className="text-sm text-muted-foreground">Agendamento online</p>
+            <CardTitle as="h1" className="text-2xl">{name}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 text-sm">
+            <p className="text-muted-foreground">
+              A agenda online ainda não está aberta aqui. Para marcar um horário, fale direto com {name}.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {falar && (
+                <a
+                  href={falar}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/80"
+                >
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.9-.9L3 20.5l1.6-4.9A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z" />
+                  </svg>
+                  Falar no WhatsApp
+                </a>
+              )}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages --
+                  "/" no subdomínio do cliente é o site estático que o proxy entrega,
+                  não uma rota do app: Link tentaria navegar por dentro do Next. */}
+              <a href="/" className="inline-flex h-11 items-center rounded-lg border px-4 text-sm font-medium hover:bg-accent">
+                Ver o site
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto grid w-full max-w-lg gap-8 p-4 py-10 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
       <header>
