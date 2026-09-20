@@ -34,6 +34,6 @@ jobs:
 
       # Com emulador do Firestore (e do Auth, no booking)
       - run: npm run test:rules
+      - run: npm run test:convite
       - run: npm run test:booking
       - run: npm run test:scale
-      # test:convite entra aqui quando o PR do uso único do convite for mergeado
