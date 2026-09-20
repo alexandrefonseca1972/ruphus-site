@@ -1030,11 +1030,11 @@ export default function AdminPage() {
                 <ul className="flex flex-col">
                   {notas.map((n) => (
                     <li key={n.id} className="flex gap-3 border-t border-[#F1EEE6] py-2.5 first:border-t-0 first:pt-0">
-                      <span className="w-[86px] shrink-0 pt-0.5 text-[11px] tabular-nums text-[#8B8578]">
+                      <span className="w-[86px] shrink-0 pt-0.5 text-[11px] tabular-nums text-[#6F6A5E]">
                         {n.quando ? new Date(n.quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "agora"}
                       </span>
                       <p className="min-w-0 grow whitespace-pre-line text-[13px] leading-relaxed text-[#2D2A22]">{n.texto}</p>
-                      <span className="shrink-0 pt-0.5 text-[11px] text-[#A8A294]">{n.autor}</span>
+                      <span className="shrink-0 pt-0.5 text-[11px] text-[#6F6A5E]">{n.autor}</span>
                     </li>
                   ))}
                 </ul>
@@ -1052,7 +1052,7 @@ export default function AdminPage() {
                 >
                   {crm[aberto.slug]?.publicado === false ? "Colocar o site no ar" : "Tirar o site do ar"}
                 </button>
-                <span className="text-xs text-[#8B8578]">
+                <span className="text-xs text-[#6F6A5E]">
                   {crm[aberto.slug]?.publicado === false
                     ? "O endereço está fora do ar para os clientes."
                     : "O endereço para de responder para os clientes. O negócio continua aqui."}
