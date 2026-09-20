@@ -4,7 +4,7 @@ import Link from "next/link";
 import { collection, doc, orderBy, serverTimestamp, Timestamp, where, writeBatch } from "firebase/firestore";
 import { useState } from "react";
 import { z } from "zod";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
@@ -170,6 +170,24 @@ export default function AgendaPage() {
 
       {!shown ? (
         <p className="text-sm text-muted-foreground">Carregando…</p>
+      ) : shown.length === 0 && staff && staff.length === 0 ? (
+        /* Primeiro acesso: sem ninguém cadastrado para atender, o link de
+           agendamento não tem o que oferecer — e "Nenhum agendamento neste dia"
+           faz parecer que é só um dia vazio. */
+        <div className="grid gap-3 rounded-lg border border-dashed p-8 text-center">
+          <p className="text-sm font-medium">Sua agenda ainda não abriu</p>
+          <p className="text-sm text-muted-foreground">
+            Cadastre o que você faz e quem atende. A partir daí o seu link começa a receber marcações.
+          </p>
+          <div className="flex flex-wrap justify-center gap-2 pt-1">
+            <Link href={`/${tenant.id}/servicos`} className={buttonVariants({ variant: "outline" })}>
+              Cadastrar serviços
+            </Link>
+            <Link href={`/${tenant.id}/profissionais`} className={buttonVariants()}>
+              Cadastrar quem atende
+            </Link>
+          </div>
+        </div>
       ) : shown.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
           {staffFilter ? "Nenhum agendamento para este profissional neste dia." : "Nenhum agendamento neste dia."}
