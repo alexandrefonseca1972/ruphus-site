@@ -2,9 +2,9 @@
 import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
-import { availableSlots, book, createPlan, endPlan, loadCatalog, requireMember, reschedule, rescheduleSlots } from "@/lib/booking.server";
+import { availableSlots, book, createPlan, endPlan, loadCatalog, renameCustomer, requireMember, reschedule, rescheduleSlots } from "@/lib/booking.server";
 import { addDays, customerKey, formatPhone, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 
@@ -232,6 +232,28 @@ assert.equal((await book(db, { ...spam, customerPhone: "11 98888-2222", date: ad
 const limits = await t.collection("limits").get();
 assert.ok(limits.size >= 2);
 assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP não aparece em claro");
+
+// Corrigir o nome do cliente: o futuro acompanha, o historico nao
+{
+  const chave = "5511966660000"; // exclusivo deste bloco: 97777 é do plano do Xavier
+  const cli = t.collection("customers").doc(chave);
+  await cli.set({ name: "Mrcia", phone: "(11) 96666-0000" });
+  const passado = t.collection("appointments").doc("ap-passado");
+  const futuro = t.collection("appointments").doc("ap-futuro");
+  await passado.set({ customerKey: chave, customerName: "Mrcia", start: Timestamp.fromDate(new Date(Date.now() - 864e5)), status: "confirmed" });
+  await futuro.set({ customerKey: chave, customerName: "Mrcia", start: Timestamp.fromDate(new Date(Date.now() + 864e5)), status: "booked" });
+
+  const r = await renameCustomer(db, { tenantId: "salao", customerId: chave, name: "Márcia" });
+  assert.deepEqual([r.ok, r.agendamentos], [true, 1]);
+  assert.equal((await cli.get()).get("name"), "Márcia");
+  assert.equal((await futuro.get()).get("customerName"), "Márcia", "o que o dono ainda vai atender é corrigido");
+  assert.equal((await passado.get()).get("customerName"), "Mrcia", "o histórico guarda o que foi dito na época");
+
+  await assert.rejects(
+    renameCustomer(db, { tenantId: "salao", customerId: "5500000000000", name: "Ninguém" }),
+    /Cliente nao encontrado/,
+  );
+}
 
 console.log("booking ok");
 process.exit(0);
