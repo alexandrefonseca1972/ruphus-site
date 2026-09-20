@@ -60,7 +60,10 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
     <TenantContext value={state}>
       <header className="relative border-b">
         <nav className="mx-auto flex max-w-4xl flex-wrap items-center gap-1 p-2 text-sm">
-          <Link href="/" className="mr-2 px-2 font-semibold">{state.name}</Link>
+          {/* O nome era o unico link que parecia subir um nivel, e levava para "/",
+              que e a landing page da Ruphus. Vai para /painel, que lista os
+              negocios de quem entrou — ate aqui nao havia caminho de volta. */}
+          <Link href="/painel" className="mr-2 px-2 font-semibold">{state.name}</Link>
           {links.map((l) => (
             <Link
               key={l.href}
