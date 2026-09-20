@@ -201,7 +201,10 @@ assert.equal((await t.collection("plans").doc(plan.planId).get()).get("status"),
 assert.equal((await endPlan(db, { tenantId: "salao", planId: plan.planId }, actor)).ok, false);
 
 // Limites contra reservas em massa (telefone e dispositivo)
-const limDate = addDays(todayIn(), 20);
+// Longe da janela do plano (hoje+14 a hoje+35): com hoje+20, o 3º dia deste bloco
+// caía em segundas[1] às 10:00 sempre que o teste rodava num domingo, e a recusa
+// vinha do horário ocupado na linha 176, não do limite.
+const limDate = addDays(todayIn(), 60);
 const spam = { tenantId: "salao", staffId: "bia", serviceIds: ["corte"], customerName: "Robô", customerPhone: "11 98888-1111" };
 const horarios = ["09:00", "09:30", "10:00", "10:30", "11:00"];
 const feitas = [];
