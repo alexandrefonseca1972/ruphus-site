@@ -643,9 +643,19 @@ export default function AdminPage() {
               {nicho && ` · ${nicho}`}
             </span>
             <div className="grow" />
+            {/* Dois números: o que já entrou e o que ainda está em jogo. Só
+                "contratados" conta a vitória e esconde o trabalho em aberto. */}
             <span className="text-[13px] text-[#6F6A5E]">
               {hoje ? `${hoje.agendamentosHoje} agendamento(s) hoje` : "carregando agenda"} ·{" "}
               {formatBRL(espacos.reduce((t, e) => t + (crm[e.slug]?.estagio === "fechado" ? crm[e.slug]?.valorCents ?? 0 : 0), 0))} contratados
+              {(() => {
+                const aberto = espacos.reduce(
+                  (t, e) =>
+                    t + ((ETAPAS as readonly string[]).includes(crm[e.slug]?.estagio ?? "novo") ? crm[e.slug]?.valorCents ?? 0 : 0),
+                  0,
+                );
+                return aberto > 0 ? ` · ${formatBRL(aberto)} em negociação` : "";
+              })()}
             </span>
           </div>
 
