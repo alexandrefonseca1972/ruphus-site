@@ -1,0 +1,39 @@
+# Roda a suite a cada push e a cada PR. Sem isso, um teste quebrado só aparece
+# quando alguém roda na mão — foi assim que test:booking ficou vermelho sem
+# ninguém notar.
+name: testes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Os emuladores do Firebase rodam em Java
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+
+      # Sem emulador
+      - run: npm run test:proxy
+      - run: npm run test:crm
+      - run: npm run test:whatsapp
+
+      # Com emulador do Firestore (e do Auth, no booking)
+      - run: npm run test:rules
+      - run: npm run test:booking
+      - run: npm run test:scale
+      # test:convite entra aqui quando o PR do uso único do convite for mergeado
