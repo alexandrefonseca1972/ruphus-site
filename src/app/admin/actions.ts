@@ -82,8 +82,10 @@ const limpar = (slugs: string[]) => [...new Set(slugs)].filter((s) => SLUG.test(
 
 export type ConviteEmLote = { slug: string; nome: string; telefone: string | null; url: string; whatsapp: string | null };
 
-/** Um convite para cada negócio marcado, com a mensagem pronta para enviar. */
-export const gerarConvites = adminAction(async (_user, slugs: string[]): Promise<ConviteEmLote[]> => {
+// Um só lugar monta o convite. O botão da linha e o lote são a mesma coisa com
+// cardinalidade diferente: antes cada um construía a URL e o fallback de SITE_URL
+// por conta, e dava para um mudar sem o outro.
+async function convitesPara(slugs: string[]): Promise<ConviteEmLote[]> {
   const alvos = limpar(slugs);
   if (!alvos.length) return [];
   const base = process.env.SITE_URL ?? "https://www.ruphus.site";
@@ -98,7 +100,10 @@ export const gerarConvites = adminAction(async (_user, slugs: string[]): Promise
     fora.push({ slug: d.id, nome, telefone, url, whatsapp: linkWhatsApp(telefone, texto) });
   }
   return fora;
-});
+}
+
+/** Um convite para cada negócio marcado, com a mensagem pronta para enviar. */
+export const gerarConvites = adminAction(async (_user, slugs: string[]) => convitesPara(slugs));
 
 /** Move vários negócios de estágio de uma vez, sem abrir um a um. */
 export const marcarEstagio = adminAction(async (_user, slugs: string[], estagio: string) => {
@@ -109,9 +114,9 @@ export const marcarEstagio = adminAction(async (_user, slugs: string[], estagio:
 
 /** Link de convite: quem abrir e entrar vira admin do espaço. */
 export const gerarConvite = adminAction(async (_user, slug: string) => {
-  const tenant = await adminDb.collection("tenants").doc(slug).get();
-  if (!tenant.exists) throw new Error(`espaço ${slug} não existe`);
-  return `${process.env.SITE_URL ?? "https://www.ruphus.site"}/convite?c=${await criarConvite(adminDb, slug)}`;
+  const [convite] = await convitesPara([slug]);
+  if (!convite) throw new Error(`espaço ${slug} não existe`);
+  return convite.url;
 });
 
 export type Acesso = { uid: string; papel: string; desde: string | null };
