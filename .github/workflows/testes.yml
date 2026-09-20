@@ -29,6 +29,7 @@ jobs:
 
       # Sem emulador
       - run: npm run test:proxy
+      - run: npm run test:clientes
       - run: npm run test:crm
       - run: npm run test:whatsapp
 
