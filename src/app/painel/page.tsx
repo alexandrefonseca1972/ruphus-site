@@ -87,9 +87,11 @@ export default function Home() {
               <Input id="name" name="name" required maxLength={80} onChange={(e) => setSlug(slugify(e.target.value))} />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="slug">Endereço</Label>
+              {/* Vem preenchido do nome. "Endereço" sozinho convidava a escrever a rua, e
+                  a validação recusava — trocar o valor certo por um errado era o caminho natural. */}
+              <Label htmlFor="slug">Endereço do link</Label>
               <Input id="slug" value={slug} onChange={(e) => setSlug(e.target.value)} required />
-              <p className="text-xs text-muted-foreground">siteflow/{slug || "seu-espaco"}</p>
+              <p className="text-xs text-muted-foreground">ruphus.site/agendar/{slug || "seu-negocio"}</p>
             </div>
             {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
             <Button type="submit" disabled={busy}>Criar</Button>

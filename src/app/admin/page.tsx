@@ -769,11 +769,18 @@ export default function AdminPage() {
             {!lista.length && (
               <li className="flex flex-col items-center gap-4 px-5 py-12 text-center">
                 <p className="max-w-sm text-sm text-[#4A4639]">
-                  Nenhum espaço com esses filtros
-                  {cidade && ` em ${cidade}`}
-                  {nicho && `, do nicho ${nicho}`}.
+                  {/* Sem nenhum espaço cadastrado, culpar os filtros manda procurar o que não existe */}
+                  {!espacos.length ? (
+                    "Nenhum negócio cadastrado ainda."
+                  ) : (
+                    <>
+                      Nenhum espaço com esses filtros
+                      {cidade && ` em ${cidade}`}
+                      {nicho && `, do nicho ${nicho}`}.
+                    </>
+                  )}
                 </p>
-                <div className="flex flex-wrap justify-center gap-2">
+                <div className={`flex-wrap justify-center gap-2 ${espacos.length ? "flex" : "hidden"}`}>
                   {cidade && (
                     <button type="button" className={BOTAO_CLARO} onClick={() => setCidade("")}>
                       Tirar {cidade} → {espacos.filter((x) => passa(x, "cidade")).length}
