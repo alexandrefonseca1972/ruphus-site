@@ -20,6 +20,11 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
     name: String(tenant.get("name")),
     // o WhatsApp do negócio: é por ele que o agendamento chega a quem atende
     phone: (tenant.get("site.phone") as string | null) ?? null,
+    // Nota e cidade saem do mesmo snapshot já lido: quem chega pelo link não
+    // conhece a marca e vai digitar o telefone nesta página.
+    rating: (tenant.get("site.rating") as number | null) ?? null,
+    reviews: (tenant.get("site.reviews") as number | null) ?? null,
+    city: (tenant.get("site.city") as string | null) ?? null,
     services: services.docs.flatMap((d) => {
       const s = Service.safeParse(d.data());
       return s.success ? [{ id: d.id, name: s.data.name, durationMin: s.data.durationMin, priceCents: s.data.priceCents }] : [];

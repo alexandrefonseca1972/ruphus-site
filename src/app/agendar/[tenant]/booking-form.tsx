@@ -26,6 +26,9 @@ type Props = {
   today: string;
   name: string;
   phone: string | null;
+  rating?: number | null;
+  reviews?: number | null;
+  city?: string | null;
   services: { id: string; name: string; durationMin: number; priceCents: number }[];
   staff: { id: string; name: string; serviceIds: string[]; workDays: number[] }[];
 };
@@ -91,7 +94,7 @@ function Field(props: {
   );
 }
 
-export function BookingForm({ tenantId, today, name, phone, services, staff }: Props) {
+export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, services, staff }: Props) {
   const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [staffId, setStaffId] = useState("");
   const [date, setDate] = useState("");
@@ -338,9 +341,26 @@ export function BookingForm({ tenantId, today, name, phone, services, staff }: P
 
   return (
     <main className="mx-auto grid w-full max-w-lg gap-8 p-4 py-10 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
-      <header>
+      <header className="grid gap-1">
         <p className="text-sm text-muted-foreground">Agendamento online</p>
         <h1 className="text-2xl font-semibold">{name}</h1>
+        {(rating || city) && (
+          <p className="flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
+            {rating ? (
+              <>
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="size-3.5 text-[#C9962F]">
+                  <path d="M12 2l2.9 6.3 6.6.7-4.9 4.5 1.3 6.5L12 16.8 6.1 20l1.3-6.5L2.5 9l6.6-.7z" />
+                </svg>
+                <span>
+                  {rating.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  {reviews ? ` · ${reviews.toLocaleString("pt-BR")} avaliações no Google` : " no Google"}
+                </span>
+              </>
+            ) : null}
+            {rating && city ? <span aria-hidden="true">·</span> : null}
+            {city ? <span>{city}</span> : null}
+          </p>
+        )}
       </header>
 
       <section aria-labelledby="s-service" className="grid scroll-mt-4 gap-2">
