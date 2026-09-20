@@ -205,6 +205,18 @@ export default function AdminPage() {
     if (n.ok) setNotas(n.dados);
   }
 
+  /* Copiar é copiar. Antes, "Copiar de novo" chamava convidar() e assinava um
+     token novo a cada clique — com o convite de uso único, isso deixa vários
+     links válidos do mesmo negócio circulando. */
+  async function copiarConvite() {
+    if (!convite) return;
+    const copiado = await navigator.clipboard.writeText(convite.url).then(
+      () => true,
+      () => false,
+    );
+    setConvite({ ...convite, copiado });
+  }
+
   async function convidar(slug: string) {
     setAviso("");
     const r = await gerarConvite(await token(), slug);
@@ -886,9 +898,9 @@ export default function AdminPage() {
                   <code className="truncate rounded-lg border border-[#E2DDD3] bg-white px-3 py-2.5 text-xs text-[#4A4639]">
                     {convite.url}
                   </code>
-                  <div className="flex gap-2">
-                    <button type="button" className={BOTAO_ESCURO} onClick={() => convidar(aberto.slug)}>
-                      {convite.copiado ? "Copiado ✓" : "Copiar de novo"}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" className={BOTAO_ESCURO} onClick={copiarConvite}>
+                      {convite.copiado ? "Copiado ✓" : "Copiar link"}
                     </button>
                     {detalhe?.telefone && (
                       <a
@@ -902,11 +914,18 @@ export default function AdminPage() {
                         Enviar no WhatsApp
                       </a>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => convidar(aberto.slug)}
+                      className="h-9 rounded-full px-2 text-[13px] text-[#6F6A5E] underline underline-offset-4 hover:text-[#17150F]"
+                    >
+                      Gerar outro
+                    </button>
                   </div>
                 </div>
               ) : (
                 <button type="button" className={`${BOTAO_ESCURO} self-start`} onClick={() => convidar(aberto.slug)}>
-                  Gerar link de convite
+                  Convidar
                 </button>
               )}
             </section>
