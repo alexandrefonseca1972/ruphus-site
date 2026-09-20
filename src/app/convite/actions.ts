@@ -2,7 +2,7 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
-import { lerConvite } from "@/lib/convite";
+import { consumirConvite, lerConvite } from "@/lib/convite";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 
 /** Aceita o convite: quem está logado vira admin do espaço do link. */
@@ -10,16 +10,20 @@ export async function aceitarConvite(idToken: string, token: string) {
   const user = await verifyFirebaseToken(idToken).catch(() => null);
   if (!user) return { ok: false as const, error: "Sessão expirada. Entre novamente." };
 
-  const tenantId = await lerConvite(adminDb, token);
-  if (!tenantId) return { ok: false as const, error: "Convite inválido ou vencido. Peça um link novo." };
+  const convite = await lerConvite(adminDb, token);
+  if (!convite) return { ok: false as const, error: "Convite inválido ou vencido. Peça um link novo." };
 
-  const tenant = await adminDb.collection("tenants").doc(tenantId).get();
+  const tenant = await adminDb.collection("tenants").doc(convite.tenantId).get();
   if (!tenant.exists) return { ok: false as const, error: "Esse negócio não existe mais." };
 
-  const membro = adminDb.doc(`tenants/${tenantId}/members/${user.uid}`);
+  const membro = adminDb.doc(`tenants/${convite.tenantId}/members/${user.uid}`);
   // Convite não rebaixa quem já é dono: só cria o acesso de quem ainda não tem
   if (!(await membro.get()).exists) {
+    // Uso único: quem recebeu entra; o mesmo link repassado depois não abre nada
+    if (!(await consumirConvite(adminDb, convite.jti, user.uid))) {
+      return { ok: false as const, error: "Este convite já foi usado. Peça um link novo." };
+    }
     await membro.set({ uid: user.uid, role: "admin", createdAt: FieldValue.serverTimestamp() });
   }
-  return { ok: true as const, tenantId, nome: String(tenant.get("name")) };
+  return { ok: true as const, tenantId: convite.tenantId, nome: String(tenant.get("name")) };
 }

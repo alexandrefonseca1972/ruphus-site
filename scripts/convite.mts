@@ -22,7 +22,7 @@ function db() {
 async function selfCheck() {
   const d = db();
   const token = await criarConvite(d, "espaco-de-teste");
-  assert.equal(await lerConvite(d, token), "espaco-de-teste");
+  assert.equal((await lerConvite(d, token))?.tenantId, "espaco-de-teste");
   assert.equal(await lerConvite(d, token + "x"), null); // assinatura adulterada não passa
   assert.equal(await lerConvite(d, "nada"), null);
   console.log("self-check ok");
