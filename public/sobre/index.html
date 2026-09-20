@@ -600,7 +600,7 @@ function cartao(o, i){
   const a = document.createElement('a');
   a.className = 'site revela';
   a.style.setProperty('--atraso', Math.min(i, 8) * 50 + 'ms');
-  a.href = '/' + o.s + '/';
+  a.href = '/s/' + o.s;
   if (o.t){
     const m = document.createElement('div'); m.className = 'site-moldura';
     const img = document.createElement('img');
@@ -662,13 +662,13 @@ function mostrar(i){
   if (i === atual) return;
   atual = i;
   const o = PALCO[i], destino = telas[1 - frente];
-  destino.src = '/' + o.s + '/';
+  destino.src = '/s/' + o.s;
   destino.addEventListener('load', () => {
     destino.classList.add('ativa');
     telas[frente].classList.remove('ativa');
     frente = 1 - frente;
   }, {once: true});
-  abrir.href = '/' + o.s + '/';
+  abrir.href = '/s/' + o.s;
   abrir.setAttribute('aria-label', 'Abrir o site de ' + o.n + ' em uma nova aba');
   [...lista.querySelectorAll('button')].forEach((b, j) =>
     b.setAttribute('aria-current', j === i ? 'true' : 'false'));
