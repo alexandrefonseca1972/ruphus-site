@@ -22,7 +22,7 @@ import {
   type Detalhe,
   type Espaco,
 } from "./actions";
-import { COR, diaCurto, ESTAGIOS, hojeISO, prazoDe, ROTULO, type Crm, type Estagio, type Nota, type Prazo } from "@/lib/crm-tipos";
+import { COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, prazoDe, ROTULO, type Crm, type Estagio, type Nota, type Prazo } from "@/lib/crm-tipos";
 
 const PAGINA = 40;
 const VAZIO: Crm = { estagio: "novo", valorCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0 };
@@ -901,76 +901,112 @@ export default function AdminPage() {
               )}
             </section>
 
-            <section aria-label="Negócio" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">
+            <section aria-label="Negócio" className="flex flex-col gap-4 rounded-2xl border border-[#E2DDD3] p-4">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-[15px] font-semibold">Negócio</h3>
-                <button
-                  type="button"
-                  onClick={() => mudarNegocio(aberto.slug, { publicado: !(crm[aberto.slug]?.publicado !== false) })}
-                  className={`h-11 rounded-[10px] border px-3.5 text-[13px] font-semibold ${
-                    crm[aberto.slug]?.publicado === false
-                      ? "border-[#2C6A53] text-[#2C6A53] hover:bg-[#EEF2F0]"
-                      : "border-[#D8D2C6] text-[#8A2F2F] hover:border-[#8A2F2F]"
-                  }`}
-                >
-                  {crm[aberto.slug]?.publicado === false ? "Colocar no ar" : "Tirar do ar"}
-                </button>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${COR[crm[aberto.slug]?.estagio ?? "novo"]}`}>
+                  {ROTULO[crm[aberto.slug]?.estagio ?? "novo"]}
+                </span>
               </div>
 
-              <div className="flex flex-wrap gap-1.5">
-                {ESTAGIOS.map((e) => (
-                  <button
-                    key={e}
-                    type="button"
-                    onClick={() => mudarNegocio(aberto.slug, { estagio: e })}
-                    className={`${CHIP} ${
-                      (crm[aberto.slug]?.estagio ?? "novo") === e
-                        ? "border-[#17150F] bg-[#17150F] font-semibold text-white"
-                        : "border-[#D8D2C6] bg-white text-[#17150F] hover:border-[#17150F]"
-                    }`}
-                  >
-                    {ROTULO[e]}
-                  </button>
-                ))}
+              <div className="flex flex-col gap-2">
+                <span className="text-xs text-[#6F6A5E]">Em que pé está</span>
+                <div className="flex overflow-hidden rounded-xl border border-[#D8D2C6]">
+                  {ETAPAS.map((e, i) => {
+                    const ativa = (crm[aberto.slug]?.estagio ?? "novo") === e;
+                    return (
+                      <button
+                        key={e}
+                        type="button"
+                        aria-pressed={ativa}
+                        onClick={() => mudarNegocio(aberto.slug, { estagio: e })}
+                        className={`flex grow flex-col items-start gap-0.5 px-3 py-2.5 text-left transition-colors ${
+                          i ? "border-l border-[#D8D2C6]" : ""
+                        } ${ativa ? "bg-[#17150F] text-white" : "bg-white text-[#6F6A5E] hover:text-[#17150F]"}`}
+                      >
+                        <span className="text-[10px] tabular-nums opacity-75">{`0${i + 1}`}</span>
+                        <span className="text-[13px] font-semibold">{ROTULO[e]}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-[#6F6A5E]">Fecha aqui:</span>
+                  {DESFECHOS.map((e) => {
+                    const ativa = (crm[aberto.slug]?.estagio ?? "novo") === e;
+                    return (
+                      <button
+                        key={e}
+                        type="button"
+                        aria-pressed={ativa}
+                        onClick={() => mudarNegocio(aberto.slug, { estagio: e })}
+                        className={`${CHIP} ${ativa ? `border-transparent font-semibold ${COR[e]}` : "border-[#D8D2C6] bg-white text-[#6F6A5E] hover:border-[#17150F] hover:text-[#17150F]"}`}
+                      >
+                        {ROTULO[e]}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <label className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
-                  Valor combinado (R$)
-                  <input
-                    type="number"
-                    min={0}
-                    step={10}
-                    defaultValue={crm[aberto.slug]?.valorCents ? (crm[aberto.slug]!.valorCents! / 100).toString() : ""}
-                    onBlur={(ev) =>
-                      mudarNegocio(aberto.slug, {
-                        valorCents: ev.target.value ? Math.round(Number(ev.target.value) * 100) : null,
-                      })
-                    }
-                    className="h-11 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F]"
-                  />
+              {/* Uma coluna: isto vive numa gaveta estreita, e os breakpoints do
+                  Tailwind leem a janela, não o contêiner — em duas colunas o
+                  campo "o que fazer" fica com 40px e some atrás do date picker. */}
+              <div className="flex flex-col gap-3">
+                <label htmlFor="valor" className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
+                  Valor combinado
+                  <span className="flex h-11 items-center rounded-[10px] border border-[#D8D2C6] bg-white focus-within:border-[#17150F]">
+                    <span className="pl-3 pr-1.5 text-sm text-[#8B8578]">R$</span>
+                    <input
+                      id="valor"
+                      type="number"
+                      min={0}
+                      step={10}
+                      defaultValue={crm[aberto.slug]?.valorCents ? (crm[aberto.slug]!.valorCents! / 100).toString() : ""}
+                      onBlur={(ev) =>
+                        mudarNegocio(aberto.slug, {
+                          valorCents: ev.target.value ? Math.round(Number(ev.target.value) * 100) : null,
+                        })
+                      }
+                      className="h-full min-w-0 grow bg-transparent pr-3 text-sm tabular-nums text-[#17150F] outline-none"
+                    />
+                  </span>
                 </label>
-                <label className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
-                  Próxima ação em
-                  <input
-                    type="date"
-                    defaultValue={crm[aberto.slug]?.proximaData ?? ""}
-                    onChange={(ev) => mudarNegocio(aberto.slug, { proximaData: ev.target.value || null })}
-                    className="h-11 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F]"
-                  />
-                </label>
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-[#6F6A5E]">Próxima ação</span>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      maxLength={120}
+                      aria-label="O que fazer"
+                      placeholder="ligar, mandar proposta, cobrar retorno…"
+                      defaultValue={crm[aberto.slug]?.proximaAcao ?? ""}
+                      onBlur={(ev) => mudarNegocio(aberto.slug, { proximaAcao: ev.target.value.trim() || null })}
+                      className="h-11 min-w-0 grow rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F]"
+                    />
+                    <input
+                      type="date"
+                      aria-label="Quando"
+                      defaultValue={crm[aberto.slug]?.proximaData ?? ""}
+                      onChange={(ev) => mudarNegocio(aberto.slug, { proximaData: ev.target.value || null })}
+                      className="h-11 w-[150px] shrink-0 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F]"
+                    />
+                  </div>
+                  {(() => {
+                    const p = prazoDe(crm[aberto.slug], dataDeHoje);
+                    const dia = crm[aberto.slug]?.proximaData;
+                    if (!p || !dia) return null;
+                    const estilo =
+                      p === "atrasada" ? "bg-[#F1E7E7] text-[#8A2F2F]" : p === "hoje" ? "bg-[#FBF3DC] text-[#7A5A2E]" : "bg-[#F3EFE7] text-[#4A4639]";
+                    return (
+                      <span className={`mt-0.5 self-start rounded-full px-2.5 py-1 text-[11px] font-semibold ${estilo}`}>
+                        {p === "atrasada" ? `atrasada desde ${diaCurto(dia)}` : p === "hoje" ? "combinada para hoje" : `combinada para ${diaCurto(dia)}`}
+                      </span>
+                    );
+                  })()}
+                </div>
               </div>
-              <label className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
-                O que fazer
-                <input
-                  type="text"
-                  maxLength={120}
-                  placeholder="ligar, mandar proposta, cobrar retorno…"
-                  defaultValue={crm[aberto.slug]?.proximaAcao ?? ""}
-                  onBlur={(ev) => mudarNegocio(aberto.slug, { proximaAcao: ev.target.value.trim() || null })}
-                  className="h-11 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F]"
-                />
-              </label>
 
               <form
                 onSubmit={(ev) => {
@@ -980,31 +1016,55 @@ export default function AdminPage() {
                   novaNota(aberto.slug, campo.value.trim());
                   campo.value = "";
                 }}
-                className="flex gap-2"
+                className="flex flex-col gap-2 border-t border-[#EDE9E1] pt-4"
               >
-                <label htmlFor="nota" className="sr-only">Anotação</label>
-                <input
-                  id="nota"
-                  name="nota"
-                  maxLength={600}
-                  placeholder="Anotar contato de hoje"
-                  className="h-11 grow rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm"
-                />
-                <button type="submit" className={BOTAO_ESCURO}>Anotar</button>
+                <label htmlFor="nota" className="text-xs text-[#6F6A5E]">
+                  Conversas{notas && notas.length > 0 ? ` · ${notas.length}` : ""}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="nota"
+                    name="nota"
+                    maxLength={600}
+                    placeholder="O que foi dito hoje"
+                    className="h-11 min-w-0 grow rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm"
+                  />
+                  <button type="submit" className={BOTAO_ESCURO}>Anotar</button>
+                </div>
               </form>
 
               {notas && notas.length > 0 && (
-                <ul className="flex flex-col gap-2 border-t border-[#EDE9E1] pt-2">
+                <ul className="flex flex-col">
                   {notas.map((n) => (
-                    <li key={n.id} className="text-[13px]">
-                      <p className="whitespace-pre-line">{n.texto}</p>
-                      <p className="text-xs text-[#8B8578]">
-                        {n.quando ? new Date(n.quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "agora"} · {n.autor}
-                      </p>
+                    <li key={n.id} className="flex gap-3 border-t border-[#F1EEE6] py-2.5 first:border-t-0 first:pt-0">
+                      <span className="w-[86px] shrink-0 pt-0.5 text-[11px] tabular-nums text-[#8B8578]">
+                        {n.quando ? new Date(n.quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "agora"}
+                      </span>
+                      <p className="min-w-0 grow whitespace-pre-line text-[13px] leading-relaxed text-[#2D2A22]">{n.texto}</p>
+                      <span className="shrink-0 pt-0.5 text-[11px] text-[#A8A294]">{n.autor}</span>
                     </li>
                   ))}
                 </ul>
               )}
+
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[#EDE9E1] pt-4">
+                <button
+                  type="button"
+                  onClick={() => mudarNegocio(aberto.slug, { publicado: !(crm[aberto.slug]?.publicado !== false) })}
+                  className={`h-9 rounded-full border px-3.5 text-[13px] font-semibold ${
+                    crm[aberto.slug]?.publicado === false
+                      ? "border-[#2C6A53] text-[#2C6A53] hover:bg-[#EEF2F0]"
+                      : "border-[#E0D6D6] text-[#8A2F2F] hover:border-[#8A2F2F]"
+                  }`}
+                >
+                  {crm[aberto.slug]?.publicado === false ? "Colocar o site no ar" : "Tirar o site do ar"}
+                </button>
+                <span className="text-xs text-[#8B8578]">
+                  {crm[aberto.slug]?.publicado === false
+                    ? "O endereço está fora do ar para os clientes."
+                    : "O endereço para de responder para os clientes. O negócio continua aqui."}
+                </span>
+              </div>
             </section>
 
             <section aria-label="Divulgação" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">

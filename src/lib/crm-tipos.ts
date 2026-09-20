@@ -1,6 +1,13 @@
 // Os mesmos estágios do servidor, importáveis pelo componente de tela
 export const ESTAGIOS = ["novo", "oferta", "negociando", "fechado", "perdido"] as const;
 export type Estagio = (typeof ESTAGIOS)[number];
+
+// O funil tem três etapas e dois desfechos. A tela desenha os dois grupos
+// diferente porque "fechado" e "perdido" não são o passo seguinte de
+// "negociando": são a saída. Desenhados como iguais, a fila de cinco quebra a
+// linha e o estágio vira uma escolha entre cinco botões soltos.
+export const ETAPAS = ["novo", "oferta", "negociando"] as const satisfies readonly Estagio[];
+export const DESFECHOS = ["fechado", "perdido"] as const satisfies readonly Estagio[];
 export const ROTULO: Record<Estagio, string> = {
   novo: "Novo",
   oferta: "Oferta enviada",
