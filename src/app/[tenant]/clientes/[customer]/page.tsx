@@ -6,10 +6,11 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { db, idToken } from "@/lib/firebase";
 import { dateIn, formatBRL, formatLongDate, formatTime, whatsappLink } from "@/lib/datetime";
 import { useCollection } from "@/lib/use-collection";
-import { endPlanAction } from "../../actions";
+import { endPlanAction, renameCustomerAction } from "../../actions";
 import { ConfirmPanel } from "../../confirm-panel";
 import { History } from "../../history";
 import { useTenant } from "../../layout";
@@ -49,6 +50,8 @@ export default function CustomerPage() {
   const [appointments] = useCollection(tenant.id, "appointments", Appointment, [where("customerKey", "==", key), orderBy("start", "desc")], key);
   const [plans] = useCollection(tenant.id, "plans", Plan, [where("customerKey", "==", key)], key);
   const [planning, setPlanning] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState("");
   const [openHistory, setOpenHistory] = useState<string | null>(null);
   const [endingPlan, setEndingPlan] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -102,7 +105,43 @@ export default function CustomerPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <Link href={`/${tenant.id}/clientes`} className="text-sm text-muted-foreground underline-offset-4 hover:underline">← Clientes</Link>
-          <h1 className="text-2xl font-semibold">{customer.name}</h1>
+          {renaming ? (
+            <form
+              onSubmit={async (ev) => {
+                ev.preventDefault();
+                const campo = ev.currentTarget.elements.namedItem("nome") as HTMLInputElement;
+                setRenameError("");
+                const r = await renameCustomerAction(await idToken(), {
+                  tenantId: tenant.id,
+                  customerId: key,
+                  name: campo.value,
+                });
+                if (!r.ok) return setRenameError(r.error);
+                setRenaming(false);
+              }}
+              className="flex flex-wrap items-center gap-2 py-1"
+            >
+              <label htmlFor="nome" className="sr-only">Nome do cliente</label>
+              <Input id="nome" name="nome" defaultValue={customer.name} maxLength={80} required className="h-10 w-56" />
+              <Button type="submit" size="sm">Salvar</Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => { setRenaming(false); setRenameError(""); }}>
+                Cancelar
+              </Button>
+            </form>
+          ) : (
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold">{customer.name}</h1>
+              {/* O nome vem do que a pessoa digitou ao agendar e ficava assim para sempre */}
+              <button
+                type="button"
+                onClick={() => setRenaming(true)}
+                className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+              >
+                corrigir
+              </button>
+            </div>
+          )}
+          {renameError && <p role="alert" className="text-sm text-destructive">{renameError}</p>}
           <a href={whatsappLink(customer.phone)} target="_blank" rel="noreferrer" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
             {customer.phone} · WhatsApp
           </a>

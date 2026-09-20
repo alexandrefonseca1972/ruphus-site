@@ -43,6 +43,37 @@ export type VerifyToken = (idToken: string) => Promise<{ uid: string; email?: st
 /** Erro cuja mensagem pode ser mostrada para a pessoa */
 export class UserError extends Error {}
 
+/** Corrige o nome do cliente.
+ *
+ * O nome vem do que a propria pessoa digitou no celular ao agendar, e fica
+ * copiado dentro de cada agendamento. Corrigir so o documento do cliente
+ * deixaria a agenda — que e o que o dono le todo dia — mostrando o erro para
+ * sempre, entao os agendamentos futuros vao junto. Os passados ficam como
+ * estao: historico guarda o que foi dito na epoca.
+ *
+ * ponytail: um batch so; um cliente com mais de 499 horarios futuros estoura o
+ * limite do Firestore. Paginar quando alguem chegar perto disso. */
+export async function renameCustomer(
+  db: Firestore,
+  { tenantId, customerId, name }: { tenantId: string; customerId: string; name: string },
+) {
+  const t = db.collection("tenants").doc(tenantId);
+  const cliente = t.collection("customers").doc(customerId);
+  if (!(await cliente.get()).exists) throw new UserError("Cliente nao encontrado.");
+
+  const futuros = await t
+    .collection("appointments")
+    .where("customerKey", "==", customerId)
+    .where("start", ">", new Date())
+    .get();
+
+  const batch = db.batch();
+  batch.update(cliente, { name, updatedAt: FieldValue.serverTimestamp() });
+  for (const d of futuros.docs) batch.update(d.ref, { customerName: name });
+  await batch.commit();
+  return { ok: true as const, name, agendamentos: futuros.size };
+}
+
 export async function requireMember(verify: VerifyToken, db: Firestore, idToken: string, tenantId: string) {
   const user = await verify(idToken).catch(() => {
     throw new UserError("Sessão expirada. Entre novamente.");
