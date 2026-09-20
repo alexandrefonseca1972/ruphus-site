@@ -7,7 +7,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ativosNaJanela } from "@/lib/clientes";
+import { ativosDesde, DIA_EM_MS, JANELAS, MAIOR_JANELA } from "@/lib/clientes";
 import { whatsappLink } from "@/lib/datetime";
 import { useCollection } from "@/lib/use-collection";
 import { useTenant } from "../layout";
@@ -24,7 +24,7 @@ const Visita = z.object({
   start: z.instanceof(Timestamp),
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
 });
-const DIAS_SEM_VIR = 60;
+
 
 const normalize = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -33,20 +33,28 @@ export default function CustomersPage() {
   const [customers, error] = useCollection(tenant.id, "customers", Customer, [orderBy("name")]);
   const [search, setSearch] = useState("");
   const [planning, setPlanning] = useState(false);
-  const [soSumidos, setSoSumidos] = useState(false);
+  const [janela, setJanela] = useState<number | null>(null);
   const [copiado, setCopiado] = useState(false);
 
   // Instante fixo ao abrir a página, como na agenda: Date.now() durante o render
   // daria uma janela que anda sozinha a cada re-render.
   const [agora] = useState(Date.now);
-  const desde = useMemo(() => Timestamp.fromMillis(agora - DIAS_SEM_VIR * 86_400_000), [agora]);
+  // Uma consulta só, na maior faixa: trocar de faixa depois é recorte em memória
+  const desde = useMemo(() => Timestamp.fromMillis(agora - MAIOR_JANELA * DIA_EM_MS), [agora]);
   const [visitas] = useCollection(tenant.id, "appointments", Visita, [where("start", ">=", desde)], "visitas");
-  const ativos = useMemo(() => ativosNaJanela(visitas ?? []), [visitas]);
-  const sumidos = customers?.filter((c) => !ativos.has(c.id)) ?? [];
+  const ativos = useMemo(
+    () =>
+      ativosDesde(
+        (visitas ?? []).map((v) => ({ customerKey: v.customerKey, status: v.status, startMs: v.start.toMillis() })),
+        agora - (janela ?? 0) * DIA_EM_MS,
+      ),
+    [visitas, janela, agora],
+  );
+  const sumidos = janela === null ? null : (customers?.filter((c) => !ativos.has(c.id)) ?? []);
 
   const term = normalize(search.trim());
   const digits = search.replace(/\D/g, "");
-  const base = soSumidos ? sumidos : customers;
+  const base = sumidos ?? customers;
   const shown = base?.filter((c) => !term || normalize(c.name).includes(term) || (digits && c.id.includes(digits)));
 
   return (
@@ -67,15 +75,31 @@ export default function CustomersPage() {
           <Input id="search" type="search" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant={soSumidos ? "default" : "outline"}
-            aria-pressed={soSumidos}
-            onClick={() => { setSoSumidos((v) => !v); setCopiado(false); }}
-          >
-            Sem vir há {DIAS_SEM_VIR} dias{visitas && customers ? ` (${sumidos.length})` : ""}
-          </Button>
-          {soSumidos && shown && shown.length > 0 && (
+          <span className="text-sm text-muted-foreground">Sem vir há</span>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por tempo sem vir">
+            <Button
+              type="button"
+              size="sm"
+              variant={janela === null ? "default" : "outline"}
+              aria-pressed={janela === null}
+              onClick={() => { setJanela(null); setCopiado(false); }}
+            >
+              Todos
+            </Button>
+            {JANELAS.map((j) => (
+              <Button
+                key={j.dias}
+                type="button"
+                size="sm"
+                variant={janela === j.dias ? "default" : "outline"}
+                aria-pressed={janela === j.dias}
+                onClick={() => { setJanela(j.dias); setCopiado(false); }}
+              >
+                {j.rotulo}
+              </Button>
+            ))}
+          </div>
+          {sumidos && shown && shown.length > 0 && (
             <Button
               type="button"
               variant="outline"
@@ -92,10 +116,11 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {soSumidos && (
+      {janela !== null && visitas && (
         <p className="text-sm text-muted-foreground">
-          Quem não passou por aqui nos últimos {DIAS_SEM_VIR} dias e também não tem horário marcado. Copie os telefones
-          para montar uma lista de transmissão, ou abra a ficha para falar com um de cada vez.
+          {shown?.length ?? 0} de {customers?.length ?? 0} não passam por aqui há {JANELAS.find((j) => j.dias === janela)?.rotulo}
+          {" "}e também não têm horário marcado. Copie os telefones para montar uma lista de transmissão, ou fale com um
+          de cada vez pelo WhatsApp da linha.
         </p>
       )}
 
@@ -104,8 +129,8 @@ export default function CustomersPage() {
         <p className="text-sm text-muted-foreground">Carregando…</p>
       ) : shown.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          {soSumidos && !term
-            ? `Todo mundo passou por aqui nos últimos ${DIAS_SEM_VIR} dias.`
+          {janela !== null && !term
+            ? `Todo mundo passou por aqui nos últimos ${JANELAS.find((j) => j.dias === janela)?.rotulo}.`
             : customers?.length
               ? "Nenhum cliente encontrado."
               : "Os clientes aparecem aqui a partir do primeiro agendamento."}

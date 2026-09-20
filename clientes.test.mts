@@ -1,40 +1,77 @@
 // Rode: npm run test:clientes  (regra de quem conta como cliente ativo)
 import assert from "node:assert/strict";
-import { ativosNaJanela } from "@/lib/clientes";
+import { ativosDesde, DIA_EM_MS, JANELAS, MAIOR_JANELA } from "@/lib/clientes";
 
 const chaves = (s: Set<string>) => [...s].sort();
+const agora = Date.UTC(2026, 8, 20);
+const diasAtras = (n: number) => agora - n * DIA_EM_MS;
+const desde = (n: number) => agora - n * DIA_EM_MS;
 
-// Quem tem horário marcado ou confirmado dentro da janela está ativo
+// Marcado ou confirmado dentro da janela: ativo
 assert.deepEqual(
-  chaves(ativosNaJanela([
-    { customerKey: "ana", status: "confirmed" },
-    { customerKey: "bia", status: "booked" },
-  ])),
+  chaves(ativosDesde(
+    [
+      { customerKey: "ana", status: "confirmed", startMs: diasAtras(10) },
+      { customerKey: "bia", status: "booked", startMs: diasAtras(50) },
+    ],
+    desde(60),
+  )),
   ["ana", "bia"],
 );
 
-// Cancelado e falta não são visita: quem só tem isso continua sumido
+// A mesma base recortada mais curto deixa a bia de fora
 assert.deepEqual(
-  chaves(ativosNaJanela([
-    { customerKey: "carla", status: "cancelled" },
-    { customerKey: "dani", status: "no_show" },
-  ])),
+  chaves(ativosDesde(
+    [
+      { customerKey: "ana", status: "confirmed", startMs: diasAtras(10) },
+      { customerKey: "bia", status: "booked", startMs: diasAtras(50) },
+    ],
+    desde(30),
+  )),
+  ["ana"],
+  "trocar de faixa recorta o que já está na memória",
+);
+
+// Cancelado e falta não são visita
+assert.deepEqual(
+  chaves(ativosDesde(
+    [
+      { customerKey: "carla", status: "cancelled", startMs: diasAtras(5) },
+      { customerKey: "dani", status: "no_show", startMs: diasAtras(5) },
+    ],
+    desde(60),
+  )),
   [],
   "cancelar não é vir",
 );
 
 // Um cancelado não apaga uma visita de verdade da mesma pessoa
 assert.deepEqual(
-  chaves(ativosNaJanela([
-    { customerKey: "ana", status: "cancelled" },
-    { customerKey: "ana", status: "confirmed" },
-  ])),
+  chaves(ativosDesde(
+    [
+      { customerKey: "ana", status: "cancelled", startMs: diasAtras(3) },
+      { customerKey: "ana", status: "confirmed", startMs: diasAtras(4) },
+    ],
+    desde(60),
+  )),
   ["ana"],
 );
 
-// A consulta entrega futuros junto; eles contam, porque a pessoa está voltando
-assert.deepEqual(chaves(ativosNaJanela([{ customerKey: "eva", status: "booked" }])), ["eva"]);
+// Horário futuro conta: essa pessoa está voltando
+assert.deepEqual(
+  chaves(ativosDesde([{ customerKey: "eva", status: "booked", startMs: agora + 7 * DIA_EM_MS }], desde(60))),
+  ["eva"],
+);
 
-assert.deepEqual(chaves(ativosNaJanela([])), []);
+// Visita mais velha que a janela não salva ninguém
+assert.deepEqual(
+  chaves(ativosDesde([{ customerKey: "fabi", status: "confirmed", startMs: diasAtras(400) }], desde(365))),
+  [],
+);
+
+assert.deepEqual(chaves(ativosDesde([], desde(60))), []);
+
+// A consulta precisa cobrir a maior faixa oferecida, senão a última mente
+assert.equal(MAIOR_JANELA, Math.max(...JANELAS.map((j) => j.dias)));
 
 console.log("clientes: ok");
