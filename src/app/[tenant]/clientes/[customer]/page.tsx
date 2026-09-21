@@ -1,13 +1,13 @@
 "use client";
 
-import { doc, onSnapshot, orderBy, Timestamp, where } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, serverTimestamp, Timestamp, updateDoc, where } from "firebase/firestore";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { db, idToken } from "@/lib/firebase";
+import { auth, db, idToken } from "@/lib/firebase";
 import { dateIn, formatBRL, formatLongDate, formatTime, whatsappLink } from "@/lib/datetime";
 import { useCollection } from "@/lib/use-collection";
 import { endPlanAction, renameCustomerAction } from "../../actions";
@@ -42,13 +42,22 @@ const Plan = z.object({
 const shortDate = (date: string) =>
   new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
 
+const Nota = z.object({
+  texto: z.string(),
+  quando: z.instanceof(Timestamp).optional(),
+  porNome: z.string().optional(),
+});
+
 export default function CustomerPage() {
   const tenant = useTenant();
   const { customer: rawKey } = useParams<{ customer: string }>();
   const key = /^\d{10,15}$/.test(rawKey) ? rawKey : ""; // id do cliente = telefone só com dígitos
-  const [customer, setCustomer] = useState<{ name: string; phone: string } | null | undefined>(undefined);
+  const [customer, setCustomer] = useState<
+    { name: string; phone: string; etiquetas: string[]; semCampanha: boolean } | null | undefined
+  >(undefined);
   const [appointments] = useCollection(tenant.id, "appointments", Appointment, [where("customerKey", "==", key), orderBy("start", "desc")], key);
   const [plans] = useCollection(tenant.id, "plans", Plan, [where("customerKey", "==", key)], key);
+  const [notas] = useCollection(tenant.id, `customers/${key}/notas`, Nota, [orderBy("quando", "desc")], key);
   const [planning, setPlanning] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameError, setRenameError] = useState("");
@@ -61,7 +70,17 @@ export default function CustomerPage() {
     if (!key) return setCustomer(null); // eslint-disable-line react-hooks/set-state-in-effect -- chave inválida na URL
     return onSnapshot(
         doc(db, "tenants", tenant.id, "customers", key),
-        (snap) => setCustomer(snap.exists() ? { name: snap.get("name"), phone: snap.get("phone") } : null),
+        (snap) =>
+          setCustomer(
+            snap.exists()
+              ? {
+                  name: snap.get("name"),
+                  phone: snap.get("phone"),
+                  etiquetas: (snap.get("etiquetas") as string[] | undefined) ?? [],
+                  semCampanha: snap.get("semCampanha") === true,
+                }
+              : null,
+          ),
       () => setCustomer(null),
     );
   }, [tenant.id, key]);
@@ -157,6 +176,95 @@ export default function CustomerPage() {
           </div>
         ))}
       </dl>
+
+      <section aria-labelledby="sobre" className="grid gap-3 rounded-lg border p-4">
+        <h2 id="sobre" className="font-medium">O que você sabe sobre {customer.name.split(" ")[0]}</h2>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {customer.etiquetas.map((e) => (
+            <span key={e} className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+              {e}
+              <button
+                type="button"
+                aria-label={`Tirar a etiqueta ${e}`}
+                onClick={() => updateDoc(doc(db, "tenants", tenant.id, "customers", key), { etiquetas: customer.etiquetas.filter((x) => x !== e) })}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          <form
+            onSubmit={(ev) => {
+              ev.preventDefault();
+              const campo = ev.currentTarget.elements.namedItem("etiqueta") as HTMLInputElement;
+              const nova = campo.value.trim().slice(0, 24);
+              // Oito e o teto das regras; repetida nao entra duas vezes
+              if (!nova || customer.etiquetas.includes(nova) || customer.etiquetas.length >= 8) return;
+              updateDoc(doc(db, "tenants", tenant.id, "customers", key), { etiquetas: [...customer.etiquetas, nova] });
+              campo.value = "";
+            }}
+          >
+            <label htmlFor="etiqueta" className="sr-only">Nova etiqueta</label>
+            <Input id="etiqueta" name="etiqueta" placeholder="+ etiqueta" maxLength={24} className="h-8 w-36 text-xs" />
+          </form>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={customer.semCampanha}
+            onChange={(ev) => updateDoc(doc(db, "tenants", tenant.id, "customers", key), { semCampanha: ev.target.checked })}
+            className="size-4"
+          />
+          Não receber campanhas
+        </label>
+
+        <form
+          onSubmit={async (ev) => {
+            ev.preventDefault();
+            const campo = ev.currentTarget.elements.namedItem("nota") as HTMLInputElement;
+            const texto = campo.value.trim();
+            if (!texto) return;
+            const user = auth.currentUser;
+            if (!user) return;
+            await addDoc(collection(db, "tenants", tenant.id, "customers", key, "notas"), {
+              texto,
+              quando: serverTimestamp(),
+              por: user.uid,
+              porNome: user.email,
+            });
+            campo.value = "";
+          }}
+          className="flex gap-2"
+        >
+          <label htmlFor="nota" className="sr-only">Anotação</label>
+          <Input id="nota" name="nota" maxLength={600} placeholder="Alergias, preferências, o que combinaram…" />
+          <Button type="submit">Anotar</Button>
+        </form>
+
+        {!!notas?.length && (
+          <ul className="grid gap-2">
+            {notas.map((n) => (
+              <li key={n.id} className="flex items-start gap-3 border-t pt-2 text-sm first:border-t-0 first:pt-0">
+                <span className="w-24 shrink-0 text-xs text-muted-foreground tabular-nums">
+                  {n.quando ? n.quando.toDate().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "agora"}
+                </span>
+                <p className="grow whitespace-pre-line">{n.texto}</p>
+                <span className="shrink-0 text-xs text-muted-foreground">{n.porNome?.split("@")[0]}</span>
+                <button
+                  type="button"
+                  aria-label="Apagar anotação"
+                  onClick={() => deleteDoc(doc(db, "tenants", tenant.id, "customers", key, "notas", n.id))}
+                  className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
+                >
+                  apagar
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {planning && <PlanForm tenantId={tenant.id} customer={customer} onClose={() => setPlanning(false)} />}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

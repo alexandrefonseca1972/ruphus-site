@@ -82,6 +82,34 @@ service cloud.firestore {
       // Clientes e planos recorrentes: gravados só pelo servidor
       match /customers/{c} {
         allow read: if isMember(t);
+        // Nome e telefone continuam so do servidor: o cliente os digitou ao
+        // agendar, e qualquer um que saiba o telefone consegue agendar. O que o
+        // dono escreve *sobre* o cliente — etiquetas e o opt-out de campanha —
+        // e dele, e ele edita direto.
+        allow update: if isMember(t)
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(["etiquetas", "semCampanha"])
+          && (!("semCampanha" in request.resource.data) || request.resource.data.semCampanha is bool)
+          && (
+            !("etiquetas" in request.resource.data)
+            || (request.resource.data.etiquetas is list && request.resource.data.etiquetas.size() <= 8)
+          );
+
+        // Anotacoes seguem o molde de history: o membro escreve, as regras
+        // cravam quem escreveu e quando, e ninguem edita depois.
+        match /notas/{n} {
+          allow read: if isMember(t);
+          allow create: if isMember(t)
+            && request.resource.data.keys().hasOnly(["texto", "quando", "por", "porNome"])
+            && request.resource.data.por == request.auth.uid
+            && request.resource.data.porNome == request.auth.token.email
+            && request.resource.data.quando == request.time
+            && request.resource.data.texto is string
+            && request.resource.data.texto.size() > 0
+            && request.resource.data.texto.size() <= 600;
+          allow update: if false;
+          allow delete: if isMember(t);
+        }
       }
       match /plans/{p} {
         allow read: if isMember(t);
