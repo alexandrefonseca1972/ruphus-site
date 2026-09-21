@@ -3,8 +3,20 @@
 import { adminDb } from "@/lib/admin";
 import { adminAction } from "@/lib/admin-guard";
 import { criarConvite } from "@/lib/convite";
+import {
+  atrasadas,
+  baixar,
+  cancelar,
+  type Cobranca,
+  gerarCobranca,
+  listarCobrancas,
+  pixCadastrado,
+  salvarPix,
+} from "@/lib/cobranca";
 import { anotar, CrmInput, lerCrm, listarNotas, salvarCrm } from "@/lib/crm";
-import { linkWhatsApp } from "@/lib/datetime";
+import { diaCurto, hojeISO } from "@/lib/crm-tipos";
+import { formatBRL, linkWhatsApp } from "@/lib/datetime";
+import { competenciaAtual } from "@/lib/pix";
 
 export type Espaco = {
   slug: string;
@@ -199,3 +211,86 @@ export const anotarNegocio = adminAction(async (user, slug: string, texto: strin
   await anotar(adminDb, slug, texto, user.email ?? user.uid);
   return listarNotas(adminDb, slug);
 });
+
+export type CobrancaEnviavel = {
+  id: string;
+  slug: string;
+  nome: string;
+  telefone: string | null;
+  tipo: "entrada" | "mensal";
+  competencia: string | null;
+  valorCents: number;
+  vencimento: string;
+  status: "aberta" | "paga" | "cancelada";
+  pagoEm: string | null;
+  recebidoCents: number | null;
+  url: string;
+  whatsapp: string | null;
+};
+
+// Mesmo motivo de convitesPara: um só lugar monta o link e a mensagem, senão o
+// botão da linha e o lote do mês divergem no fallback de SITE_URL.
+async function enviaveis(cobrancas: Cobranca[]): Promise<CobrancaEnviavel[]> {
+  if (!cobrancas.length) return [];
+  const base = process.env.SITE_URL ?? "https://www.ruphus.site";
+  const slugs = [...new Set(cobrancas.map((c) => c.slug))];
+  const docs = await adminDb.getAll(...slugs.map((s) => adminDb.collection("tenants").doc(s)));
+  const nomes = new Map(docs.map((d) => [d.id, { nome: String(d.get("name") ?? d.id), telefone: (d.get("site.phone") as string | null) ?? null }]));
+  return cobrancas.map((c) => {
+    const { nome, telefone } = nomes.get(c.slug) ?? { nome: c.slug, telefone: null };
+    const url = `${base}/pagar/${c.id}?t=${c.token}`;
+    const oque = c.tipo === "entrada" ? "a entrada" : `a mensalidade de ${mesLongo(c.competencia)}`;
+    const texto = `Olá! Aqui é da Ruphus. Segue o Pix ${oque} do ${nome}: ${formatBRL(c.valorCents)}, com vencimento em ${diaCurto(c.vencimento)}.\n\nO QR e o copia e cola estão aqui: ${url}\n\nDepois de pagar, me manda o comprovante por aqui que eu confirmo.`;
+    return { ...c, nome, telefone, url, whatsapp: linkWhatsApp(telefone, texto) };
+  });
+}
+
+const mesLongo = (competencia: string | null) =>
+  competencia
+    ? new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${competencia}-01T00:00:00Z`))
+    : "";
+
+export const lerPixConfig = adminAction(async () => pixCadastrado(adminDb));
+
+export const salvarPixConfig = adminAction(async (_user, dados: unknown) => {
+  await salvarPix(adminDb, dados);
+});
+
+export const listarCobrancasDo = adminAction(async (_user, slug: string) =>
+  enviaveis(await listarCobrancas(adminDb, slug)),
+);
+
+/** Uma cobrança avulsa: entrada ou mensalidade de uma competência. */
+export const cobrar = adminAction(async (_user, slug: string, tipo: "entrada" | "mensal", competencia: string | null) => {
+  if (!SLUG.test(slug)) throw new Error("negócio inválido");
+  const negocios = await lerCrm(adminDb);
+  const valorCents = tipo === "entrada" ? negocios[slug]?.entradaCents : negocios[slug]?.mensalCents;
+  if (!valorCents) throw new Error("cadastre o valor no bloco Negócio antes de cobrar");
+  const mes = tipo === "entrada" ? null : (competencia ?? competenciaAtual());
+  await gerarCobranca(adminDb, { slug, tipo, competencia: mes, valorCents });
+  return enviaveis(await listarCobrancas(adminDb, slug));
+});
+
+/** A mensalidade do mês para todos os negócios fechados, de uma vez. */
+export const cobrarMes = adminAction(async (_user, competencia?: string) => {
+  const mes = competencia ?? competenciaAtual();
+  const negocios = await lerCrm(adminDb);
+  const alvos = Object.entries(negocios).filter(([, n]) => n.estagio === "fechado" && (n.mensalCents ?? 0) > 0);
+  const ids: string[] = [];
+  for (const [slug, n] of alvos) {
+    const { id } = await gerarCobranca(adminDb, { slug, tipo: "mensal", competencia: mes, valorCents: n.mensalCents! });
+    ids.push(id);
+  }
+  return { mes, geradas: ids.length, negocios: alvos.length };
+});
+
+export const marcarPaga = adminAction(async (user, id: string, recebidoCents: number, pagoEm: string) => {
+  await baixar(adminDb, id, { recebidoCents, pagoEm, por: user.email ?? user.uid });
+});
+
+export const cancelarCobranca = adminAction(async (user, id: string) => {
+  await cancelar(adminDb, id, user.email ?? user.uid);
+});
+
+/** Abertas com vencimento no passado. Cortar o site continua sendo clique humano. */
+export const listarAtrasadas = adminAction(async () => enviaveis(await atrasadas(adminDb, hojeISO())));

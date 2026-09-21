@@ -22,6 +22,7 @@ import {
   type Detalhe,
   type Espaco,
 } from "./actions";
+import { Atrasadas, Cobrancas } from "./cobranca";
 import { COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, prazoDe, PRECO_PADRAO, ROTULO, type Crm, type Estagio, type Nota, type Prazo } from "@/lib/crm-tipos";
 
 const PAGINA = 40;
@@ -628,6 +629,9 @@ export default function AdminPage() {
       <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 p-4 sm:p-5">
         {aviso && <p className="text-sm text-[#6F6A5E]">{aviso}</p>}
 
+        {/* Quem já devia aparece antes da lista: é o que se olha de manhã */}
+        <Atrasadas idToken={idToken} aviso={setAviso} cortar={(slug) => mudarNegocio(slug, { publicado: false })} />
+
         <section aria-label="Espaços" className={`${CARTAO} overflow-hidden`}>
           {marcados.size > 0 && (
             <div className="flex flex-wrap items-center gap-2 border-b border-[#E2DDD3] bg-[#F2F5F3] px-4 py-2.5 sm:px-5">
@@ -1108,6 +1112,8 @@ export default function AdminPage() {
                 </span>
               </div>
             </section>
+
+            <Cobrancas slug={aberto.slug} idToken={idToken} aviso={setAviso} />
 
             <section aria-label="Divulgação" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">
               <h3 className="text-[15px] font-semibold">Divulgar o site</h3>
