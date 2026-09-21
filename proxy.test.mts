@@ -33,6 +33,12 @@ assert.equal(paginaEstatica("/sobre/"), "/sobre/index.html");
 assert.equal(paginaEstatica("/privacidade/"), "/privacidade/index.html");
 assert.equal(paginaEstatica("/login"), null);
 assert.equal(paginaEstatica("/sobre/x"), null);
+// A prévia da landing pede /s/{slug}; só o next dev precisa desta ajuda
+assert.equal(paginaEstatica("/s/barbaros-barbearia"), "/s/barbaros-barbearia/index.html");
+assert.equal(paginaEstatica("/s/barbaros-barbearia/"), "/s/barbaros-barbearia/index.html");
+assert.equal(paginaEstatica("/s/barbaros-barbearia/agendar"), null, "outros caminhos do site seguem diretos");
+assert.equal(paginaEstatica("/s/_p/foto.webp"), null);
+assert.equal(paginaEstatica("/s/../etc/passwd"), null);
 console.log("paginas ok");
 
 // agendamento no próprio subdomínio do site
