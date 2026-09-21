@@ -22,10 +22,10 @@ import {
   type Detalhe,
   type Espaco,
 } from "./actions";
-import { COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, prazoDe, ROTULO, type Crm, type Estagio, type Nota, type Prazo } from "@/lib/crm-tipos";
+import { COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, prazoDe, PRECO_PADRAO, ROTULO, type Crm, type Estagio, type Nota, type Prazo } from "@/lib/crm-tipos";
 
 const PAGINA = 40;
-const VAZIO: Crm = { estagio: "novo", valorCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0 };
+const VAZIO: Crm = { estagio: "novo", entradaCents: null, mensalCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0 };
 const CIDADES_VISIVEIS = 5;
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -321,13 +321,14 @@ export default function AdminPage() {
 
   function exportarCSV() {
     baixar(`espacos-${new Date().toISOString().slice(0, 10)}.csv`, [
-      ["nome", "site", "cidade", "uf", "nicho", "nota", "avaliacoes", "situacao", "telefone", "estagio", "valor", "proxima_acao", "proxima_data"],
+      ["nome", "site", "cidade", "uf", "nicho", "nota", "avaliacoes", "situacao", "telefone", "estagio", "entrada", "mensalidade", "proxima_acao", "proxima_data"],
       ...lista.map((e) => [
         e.nome, e.slug, e.cidade ?? "", e.uf ?? "", e.nicho,
         e.nota ?? "", e.avaliacoes ?? "",
         e.acessos > 1 ? "cliente ativo" : "convite pendente", e.telefone ?? "",
         ROTULO[(crm[e.slug]?.estagio ?? "novo") as Estagio],
-        crm[e.slug]?.valorCents ? (crm[e.slug]!.valorCents! / 100).toFixed(2) : "",
+        crm[e.slug]?.entradaCents ? (crm[e.slug]!.entradaCents! / 100).toFixed(2) : "",
+        crm[e.slug]?.mensalCents ? (crm[e.slug]!.mensalCents! / 100).toFixed(2) : "",
         crm[e.slug]?.proximaAcao ?? "", crm[e.slug]?.proximaData ?? "",
       ]),
     ]);
@@ -659,14 +660,14 @@ export default function AdminPage() {
                 "contratados" conta a vitória e esconde o trabalho em aberto. */}
             <span className="text-[13px] text-[#6F6A5E]">
               {hoje ? `${hoje.agendamentosHoje} agendamento(s) hoje` : "carregando agenda"} ·{" "}
-              {formatBRL(espacos.reduce((t, e) => t + (crm[e.slug]?.estagio === "fechado" ? crm[e.slug]?.valorCents ?? 0 : 0), 0))} contratados
+              {formatBRL(espacos.reduce((t, e) => t + (crm[e.slug]?.estagio === "fechado" ? crm[e.slug]?.mensalCents ?? 0 : 0), 0))}/mês contratados
               {(() => {
                 const aberto = espacos.reduce(
                   (t, e) =>
-                    t + ((ETAPAS as readonly string[]).includes(crm[e.slug]?.estagio ?? "novo") ? crm[e.slug]?.valorCents ?? 0 : 0),
+                    t + ((ETAPAS as readonly string[]).includes(crm[e.slug]?.estagio ?? "novo") ? crm[e.slug]?.mensalCents ?? 0 : 0),
                   0,
                 );
-                return aberto > 0 ? ` · ${formatBRL(aberto)} em negociação` : "";
+                return aberto > 0 ? ` · ${formatBRL(aberto)}/mês em negociação` : "";
               })()}
             </span>
           </div>
@@ -982,25 +983,37 @@ export default function AdminPage() {
                   Tailwind leem a janela, não o contêiner — em duas colunas o
                   campo "o que fazer" fica com 40px e some atrás do date picker. */}
               <div className="flex flex-col gap-3">
-                <label htmlFor="valor" className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
-                  Valor combinado
-                  <span className="flex h-11 items-center rounded-[10px] border border-[#D8D2C6] bg-white focus-within:border-[#17150F]">
-                    <span className="pl-3 pr-1.5 text-sm text-[#8B8578]">R$</span>
-                    <input
-                      id="valor"
-                      type="number"
-                      min={0}
-                      step={10}
-                      defaultValue={crm[aberto.slug]?.valorCents ? (crm[aberto.slug]!.valorCents! / 100).toString() : ""}
-                      onBlur={(ev) =>
-                        mudarNegocio(aberto.slug, {
-                          valorCents: ev.target.value ? Math.round(Number(ev.target.value) * 100) : null,
-                        })
-                      }
-                      className="h-full min-w-0 grow bg-transparent pr-3 text-sm tabular-nums text-[#17150F] outline-none"
-                    />
-                  </span>
-                </label>
+                {/* Nasce no preco padrao: com 675 negocios, digitar o mesmo
+                    numero 675 vezes e o que faz alguem parar de preencher. */}
+                <div className="grid grid-cols-2 gap-3">
+                  {(
+                    [
+                      { id: "entrada", rotulo: "Entrada", campo: "entradaCents", padrao: PRECO_PADRAO.entradaCents, sufixo: "" },
+                      { id: "mensal", rotulo: "Mensalidade", campo: "mensalCents", padrao: PRECO_PADRAO.mensalCents, sufixo: "/mês" },
+                    ] as const
+                  ).map((c) => (
+                    <label key={c.id} htmlFor={c.id} className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
+                      {c.rotulo}
+                      <span className="flex h-11 items-center rounded-[10px] border border-[#D8D2C6] bg-white focus-within:border-[#17150F]">
+                        <span className="pl-3 pr-1.5 text-sm text-[#8B8578]">R$</span>
+                        <input
+                          id={c.id}
+                          type="number"
+                          min={0}
+                          step={10}
+                          defaultValue={((crm[aberto.slug]?.[c.campo] ?? c.padrao) / 100).toString()}
+                          onBlur={(ev) =>
+                            mudarNegocio(aberto.slug, {
+                              [c.campo]: ev.target.value ? Math.round(Number(ev.target.value) * 100) : null,
+                            })
+                          }
+                          className="h-full min-w-0 grow bg-transparent text-sm tabular-nums text-[#17150F] outline-none"
+                        />
+                        {c.sufixo && <span className="pr-3 text-xs text-[#8B8578]">{c.sufixo}</span>}
+                      </span>
+                    </label>
+                  ))}
+                </div>
 
                 <div className="flex flex-col gap-1">
                   <span className="text-xs text-[#6F6A5E]">Próxima ação</span>
