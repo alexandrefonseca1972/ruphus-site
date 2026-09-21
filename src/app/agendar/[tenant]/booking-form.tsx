@@ -228,17 +228,6 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   }
 
   if (done && professional) {
-    const start = zonedTime(date, time);
-    const end = new Date(start.getTime() + totalMin * 60_000);
-    const gcal = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-    const calendarUrl =
-      "https://calendar.google.com/calendar/render?" +
-      new URLSearchParams({
-        action: "TEMPLATE",
-        text: `${chosen.map((s) => s.name).join(" + ")} · ${name}`,
-        dates: `${gcal(start)}/${gcal(end)}`,
-        details: `Com ${professional.name}. ${formatBRL(totalCents)}.`,
-      });
     // Nada avisa o estabelecimento quando alguém agenda — quem agenda leva o
     // recado pelo canal que esses negócios já usam o dia inteiro.
     const avisoUrl = linkWhatsApp(
@@ -283,9 +272,6 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                   Avisar no WhatsApp
                 </a>
               )}
-              <a href={calendarUrl} rel="noreferrer" className={cn("inline-flex h-11 items-center rounded-lg border px-4 text-sm font-medium hover:bg-accent", !avisoUrl && "bg-primary text-primary-foreground hover:bg-primary/80")}>
-                Adicionar ao Google Agenda
-              </a>
               <Button variant="outline" onClick={() => location.reload()}>
                 Fazer outro agendamento
               </Button>
