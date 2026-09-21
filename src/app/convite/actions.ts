@@ -27,3 +27,16 @@ export async function aceitarConvite(idToken: string, token: string) {
   }
   return { ok: true as const, tenantId: convite.tenantId, nome: String(tenant.get("name")) };
 }
+
+/** De quem é o convite, para a tela de entrada dizer o nome do negócio.
+ *
+ * O token é a própria credencial: quem o tem já podia aceitar o convite. E o
+ * nome do negócio é público — está no site que já está no ar — então isto não
+ * expõe nada novo. */
+export async function negocioDoConvite(token: string) {
+  const convite = await lerConvite(adminDb, token);
+  if (!convite) return { ok: false as const };
+  const tenant = await adminDb.collection("tenants").doc(convite.tenantId).get();
+  if (!tenant.exists) return { ok: false as const };
+  return { ok: true as const, slug: tenant.id, nome: String(tenant.get("name") ?? tenant.id) };
+}
