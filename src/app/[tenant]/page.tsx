@@ -29,6 +29,9 @@ const Appointment = z.object({
   customerName: z.string(),
   customerPhone: z.string(),
   planId: z.string().optional(),
+  // false = quem agendou pelo site não abriu o WhatsApp com o resumo, então
+  // este horário pode ser novidade para quem atende
+  avisou: z.boolean().optional(),
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
 });
 export type Appointment = z.infer<typeof Appointment> & { id: string };
@@ -206,6 +209,11 @@ export default function AgendaPage() {
                       {a.customerName}
                     </Link>
                     {a.planId && <span className="rounded-full border px-2 py-0.5 text-xs font-normal">Recorrente</span>}
+                    {a.avisou === false && !a.planId && (
+                      <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-normal text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                        não avisou
+                      </span>
+                    )}
                     <span className={`rounded-full px-2 py-0.5 text-xs font-normal ${STATUS[a.status].className}`}>
                       {STATUS[a.status].label}
                     </span>
