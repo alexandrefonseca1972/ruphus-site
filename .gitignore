@@ -45,3 +45,7 @@ next-env.d.ts
 importantes/
 *-firebase-adminsdk-*.json
 *-debug.log
+
+# scripts de QA descartáveis
+*-qa.mts
+teste-*.mts
