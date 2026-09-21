@@ -4,7 +4,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
-import { availableSlots, book, createPlan, endPlan, loadCatalog, renameCustomer, requireMember, reschedule, rescheduleSlots } from "@/lib/booking.server";
+import { agendaDias, availableSlots, book, createPlan, endPlan, loadCatalog, renameCustomer, requireMember, reschedule, rescheduleSlots } from "@/lib/booking.server";
 import { addDays, customerKey, formatPhone, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 
@@ -253,6 +253,35 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
     renameCustomer(db, { tenantId: "salao", customerId: "5500000000000", name: "Ninguém" }),
     /Cliente nao encontrado/,
   );
+}
+
+// A semana que a página pública desenha: contagem por dia e união da equipe
+{
+  const semana = addDays(todayIn(), 20); // longe dos agendamentos criados acima
+  const dias = [semana, addDays(semana, 1)];
+  const corte = { tenantId: "salao", serviceIds: ["corte"] };
+
+  const soAna = await agendaDias(db, { ...corte, staffId: "ana", from: semana }, dias);
+  assert.deepEqual(soAna.map((d) => d.date), dias);
+  assert.equal(soAna[0].horarios.length, 11, "09:00..11:30 de 15 em 15");
+  assert.ok(soAna[0].horarios.every((h) => h.staffId === "ana"));
+
+  const qualquer = await agendaDias(db, { ...corte, staffId: "", from: semana }, dias);
+  assert.equal(qualquer[0].horarios.length, 11, "união não duplica horário que as duas atendem");
+  assert.ok(qualquer[0].horarios.every((h) => h.staffId === "ana"), "ordem do catálogo decide o empate");
+
+  // Ana ocupada às 09:00: quem sobra é Bia, e o horário continua na lista
+  assert.equal((await book(db, { ...corte, ...outro(), staffId: "ana", date: semana, time: "09:00", customerName: "Cliente" })).ok, true);
+  const depois = await agendaDias(db, { ...corte, staffId: "", from: semana }, dias);
+  assert.equal(depois[0].horarios.find((h) => h.hora === "09:00")?.staffId, "bia", "o horário passa para quem está livre");
+  const soAnaDepois = await agendaDias(db, { ...corte, staffId: "ana", from: semana }, dias);
+  assert.ok(!soAnaDepois[0].horarios.some((h) => h.hora === "09:00"), "para quem pediu Ana, 09:00 sumiu");
+
+  // Luzes só a Ana faz: escolher os dois serviços tira a Bia da conta
+  const combo2 = await agendaDias(db, { tenantId: "salao", serviceIds: ["corte", "luzes"], staffId: "", from: semana }, [semana]);
+  assert.ok(combo2[0].horarios.every((h) => h.staffId === "ana"));
+  assert.deepEqual(await agendaDias(db, { ...corte, staffId: "", from: semana }, []), [], "sem dias, sem consulta");
+  assert.deepEqual(await agendaDias(db, { ...corte, staffId: "", from: semana, tenantId: "nao-existe" }, dias), []);
 }
 
 console.log("booking ok");
