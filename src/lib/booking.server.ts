@@ -25,10 +25,17 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
     rating: (tenant.get("site.rating") as number | null) ?? null,
     reviews: (tenant.get("site.reviews") as number | null) ?? null,
     city: (tenant.get("site.city") as string | null) ?? null,
-    services: services.docs.flatMap((d) => {
-      const s = Service.safeParse(d.data());
-      return s.success ? [{ id: d.id, name: s.data.name, durationMin: s.data.durationMin, priceCents: s.data.priceCents }] : [];
-    }),
+    // Ordem: o que mais se agenda primeiro. Enquanto ninguém agendou, vale a
+    // ordem em que o site lista os serviços (ordem), que é a do próprio negócio.
+    services: services.docs
+      .flatMap((d) => {
+        const s = Service.safeParse(d.data());
+        const usos = typeof d.get("usos") === "number" ? (d.get("usos") as number) : 0;
+        const ordem = typeof d.get("ordem") === "number" ? (d.get("ordem") as number) : 99;
+        return s.success ? [{ id: d.id, name: s.data.name, durationMin: s.data.durationMin, priceCents: s.data.priceCents, usos, ordem }] : [];
+      })
+      .sort((a, b) => b.usos - a.usos || a.ordem - b.ordem || a.name.localeCompare(b.name, "pt-BR"))
+      .map(({ usos, ordem, ...s }) => s),
     staff: staff.docs.flatMap((d) => {
       const s = Staff.safeParse(d.data());
       // workDays: dias da semana em que atende (para desabilitar datas na página pública)
@@ -243,6 +250,8 @@ function writeAppointment(
   const history = ctx.t.collection("history").doc();
   const key = customerKey(a.customerPhone);
   tx.create(history, { appointmentId: ref.id, type: "created", at: FieldValue.serverTimestamp(), ...by, ...(planId && { planId }) });
+  // Popularidade: é ela que ordena os serviços na página pública
+  for (const id of a.serviceIds) tx.set(ctx.t.collection("services").doc(id), { usos: FieldValue.increment(1) }, { merge: true });
   tx.create(ref, {
     lastHistoryId: history.id,
     serviceIds: a.serviceIds,

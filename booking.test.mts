@@ -284,5 +284,23 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   assert.deepEqual(await agendaDias(db, { ...corte, staffId: "", from: semana, tenantId: "nao-existe" }, dias), []);
 }
 
+// Ordem dos serviços na página pública: o que mais se agenda vem primeiro
+{
+  const c0 = await loadCatalog(db, "salao");
+  // "usos" já subiu nos agendamentos deste teste; sem nada agendado valeria "ordem"
+  const usos = async (id: string) => (await t.collection("services").doc(id).get()).get("usos") ?? 0;
+  assert.ok((await usos("corte")) > 0, "cada agendamento conta como uso do serviço");
+  const ordenado = [...(c0?.services ?? [])].map((s) => s.id);
+  const contagens = await Promise.all(ordenado.map(usos));
+  assert.deepEqual(contagens, [...contagens].sort((a, b) => b - a), "mais agendados primeiro");
+
+  // Empate em usos: decide a ordem em que o site lista (campo ordem)
+  await t.collection("services").doc("corte").set({ usos: 0 }, { merge: true });
+  await t.collection("services").doc("luzes").set({ usos: 0 }, { merge: true });
+  await t.collection("services").doc("corte").set({ ordem: 1 }, { merge: true });
+  await t.collection("services").doc("luzes").set({ ordem: 0 }, { merge: true });
+  assert.deepEqual((await loadCatalog(db, "salao"))?.services.map((s) => s.id), ["luzes", "corte"]);
+}
+
 console.log("booking ok");
 process.exit(0);
