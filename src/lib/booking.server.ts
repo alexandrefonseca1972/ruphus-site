@@ -240,7 +240,7 @@ type WriteContext = Pick<SlotContext, "t" | "svc" | "durationMin" | "staff">;
 function writeAppointment(
   tx: Transaction,
   ctx: WriteContext,
-  a: { serviceIds: string[]; staffId: string; date: string; time: string; customerName: string; customerPhone: string },
+  a: { serviceIds: string[]; staffId: string; date: string; time: string; customerName: string; customerPhone: string; avisou?: boolean },
   by: { by: string; byName: string },
   opts: { planId?: string; renameCustomer: boolean },
 ) {
@@ -254,6 +254,9 @@ function writeAppointment(
   for (const id of a.serviceIds) tx.set(ctx.t.collection("services").doc(id), { usos: FieldValue.increment(1) }, { merge: true });
   tx.create(ref, {
     lastHistoryId: history.id,
+    // quem agenda pelo site leva o recado no WhatsApp; sem isso o negócio só
+    // descobre o horário quando abre o painel
+    avisou: a.avisou === true,
     serviceIds: a.serviceIds,
     serviceName: ctx.svc.map((s) => s.name).join(" + "),
     durationMin: ctx.durationMin,

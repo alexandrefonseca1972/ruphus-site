@@ -48,6 +48,9 @@ export type AgendaQuery = z.infer<typeof AgendaQuery>;
 
 export const BookingInput = SlotQuery.extend({
   time: hhmm,
+  // O cliente abriu o WhatsApp do negócio com o resumo? É o que avisa quem
+  // atende — não há outro canal — então fica no agendamento.
+  avisou: z.boolean().optional(),
   customerName: z.string().trim().min(2, "Informe seu nome").max(80, "Nome muito longo"),
   customerPhone: z
     .string()

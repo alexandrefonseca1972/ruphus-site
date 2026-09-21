@@ -144,6 +144,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const [submitError, setSubmitError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [avisado, setAvisado] = useState(false);
 
   const escolhidos = services.filter((s) => serviceIds.includes(s.id));
   const totalMin = escolhidos.reduce((sum, s) => sum + s.durationMin, 0);
@@ -200,11 +201,12 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     setSlotError("");
   }
 
-  async function confirmar() {
+  async function confirmar(avisou = false) {
     if (!escolha) return;
     setSubmitError("");
     setTouched({ name: true, phone: true });
     if (!contatoOk) return;
+    setAvisado(avisou);
     setBusy(true);
     const result = await createBooking({
       tenantId,
@@ -214,6 +216,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       time: escolha.hora,
       customerName,
       customerPhone,
+      avisou,
     })
       .catch(() => ({ ok: false as const, error: "Não foi possível confirmar agora. Verifique sua conexão e tente de novo." }))
       .finally(() => setBusy(false));
@@ -233,20 +236,25 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     scrollTo({ top: 0 });
   }
 
-  // ---------- confirmado ----------
-  if (done && escolha && atendente) {
-    const avisoUrl = linkWhatsApp(
+  // O recado que o cliente leva no WhatsApp: é ele que avisa quem atende, então
+  // sai pronto, com tudo que a casa precisa para achar o horário na agenda.
+  const recado = (hora: string, quem?: string) =>
+    linkWhatsApp(
       phone,
       [
         `Olá! Acabei de agendar pelo site do ${name}.`,
         "",
         escolhidos.map((s) => s.name).join(" + "),
-        `${longDate(date)}, às ${escolha.hora}`,
-        `com ${atendente.name}`,
+        `${longDate(date)}, às ${hora}`,
+        ...(quem ? [`com ${quem}`] : []),
         "",
         `Meu nome é ${customerName.trim()} (${customerPhone}).`,
       ].join("\n"),
     );
+
+  // ---------- confirmado ----------
+  if (done && escolha && atendente) {
+    const avisoUrl = recado(escolha.hora, atendente.name);
     return (
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col gap-4 bg-[#F2F0E7] p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-[#17150F]">
         <div className={cn(PAINEL, "overflow-hidden shadow-[0_28px_50px_-34px_rgba(22,21,15,0.28)]")}>
@@ -285,19 +293,26 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           <div className="h-px bg-[repeating-linear-gradient(to_right,#D5D0C1_0_6px,transparent_6px_12px)]" />
           <div className="flex flex-col gap-3.5 p-5">
             <p className="text-[13px] leading-relaxed text-[#5C5747]">
-              {avisoUrl
-                ? `Falta avisar ${name}. Mande o resumo no WhatsApp para confirmarem o seu horário.`
-                : `${name} fala com você no WhatsApp que você informou (${customerPhone}).`}
+              {!avisoUrl
+                ? `${name} fala com você no WhatsApp que você informou (${customerPhone}).`
+                : avisado
+                  ? `O resumo abriu no WhatsApp de ${name}. Se a mensagem não foi enviada, mande de novo aqui.`
+                  : `Falta avisar ${name}. Mande o resumo no WhatsApp para confirmarem o seu horário.`}
             </p>
             {avisoUrl && (
               <a
                 href={avisoUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="flex h-[50px] items-center justify-center gap-2.5 rounded-[10px] bg-[#2C6A53] text-[15px] font-semibold text-[#FAF9F5] hover:bg-[#245743]"
+                className={cn(
+                  "flex h-[50px] items-center justify-center gap-2.5 rounded-[10px] text-[15px] font-semibold",
+                  avisado
+                    ? "border border-[#D5D0C1] bg-white text-[#17150F]"
+                    : "bg-[#2C6A53] text-[#FAF9F5] hover:bg-[#245743]",
+                )}
               >
                 <Zap />
-                Avisar no WhatsApp
+                {avisado ? "Mandar o resumo de novo" : "Avisar no WhatsApp"}
               </a>
             )}
           </div>
@@ -377,6 +392,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
 
   // ---------- confirmar ----------
   if (etapa === "confirmar" && escolha) {
+    const avisoUrl = recado(escolha.hora, atendente?.name);
     return (
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col gap-4 bg-[#F2F0E7] p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-[#17150F]">
         <button
@@ -496,11 +512,39 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           </p>
         )}
 
-        <button type="button" onClick={confirmar} disabled={busy || !contatoOk} className={PRIMARIO}>
-          {busy ? "Confirmando…" : `Confirmar às ${escolha.hora}`}
-          <span className={cn("flex size-5 items-center justify-center rounded-md bg-[#FAF9F5]/16 text-[11px]", MONO)}>&#8629;</span>
-        </button>
-        <p className="text-center text-xs text-[#5C5747]">Sem cadastro e sem pagar nada agora.</p>
+        {/* Confirmar e avisar no mesmo toque. A abertura do WhatsApp sai do próprio
+            clique: se eu gravasse primeiro e abrisse depois do await, o navegador
+            bloquearia a aba por não ser mais um gesto do usuário. */}
+        {avisoUrl ? (
+          <a
+            href={avisoUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-disabled={busy || !contatoOk}
+            onClick={(e) => {
+              if (busy || !contatoOk) {
+                e.preventDefault();
+                setTouched({ name: true, phone: true });
+                return;
+              }
+              confirmar(true);
+            }}
+            className={cn(PRIMARIO, (busy || !contatoOk) && "cursor-not-allowed bg-[#B8B3A4]")}
+          >
+            <Zap />
+            {busy ? "Confirmando…" : `Confirmar às ${escolha.hora}`}
+          </a>
+        ) : (
+          <button type="button" onClick={() => confirmar()} disabled={busy || !contatoOk} className={PRIMARIO}>
+            {busy ? "Confirmando…" : `Confirmar às ${escolha.hora}`}
+            <span className={cn("flex size-5 items-center justify-center rounded-md bg-[#FAF9F5]/16 text-[11px]", MONO)}>&#8629;</span>
+          </button>
+        )}
+        <p className="text-center text-xs text-[#5C5747]">
+          {avisoUrl
+            ? "Abre o WhatsApp com o resumo para a casa confirmar. Sem cadastro e sem pagar nada agora."
+            : "Sem cadastro e sem pagar nada agora."}
+        </p>
         <div className="flex-1" />
         <Rodape />
       </main>
