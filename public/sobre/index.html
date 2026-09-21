@@ -148,7 +148,7 @@
 :root{
   --preto:#000000; --branco:#ffffff; --tela:#e5e5e5; --nevoa:#f3f3f3;
   --cinza:#c6c6c6; --fumo:#979797; --ardosia:#444444; --grafite:#2f2f2f;
-  --menta:#d1ffca; --volt:#fff100;
+  --volt:#fff100;   /* a fita da fábrica: o único acento da página */
   --disp:'Bebas Neue','Bebas fallback',Impact,'Arial Narrow',sans-serif;
   --corpo:'Inter','Inter fallback',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
   --mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;
@@ -181,14 +181,17 @@ button{font:inherit;color:inherit}
 .t-xl{font-size:var(--xl)}
 .t-md{font-size:var(--disp-md)}
 .t-sm{font-size:var(--disp-sm)}
-.sec-t{font-family:var(--corpo);font-weight:450;font-size:clamp(1.6rem,3.4vw,2.5rem);text-transform:uppercase;line-height:1.1;letter-spacing:-.02em}
+.sec-t{font-family:var(--disp);font-weight:400;font-size:clamp(2.2rem,5vw,3.5rem);text-transform:uppercase;line-height:.92;letter-spacing:.005em}
 .mono{font-family:var(--mono);font-size:12px;line-height:1.6;letter-spacing:-.03em;text-transform:uppercase}
-.tag{display:inline-flex;align-items:center;gap:8px;background:var(--menta);color:var(--preto);border-radius:64px;padding:8px 16px;
+.tag{display:inline-flex;align-items:center;gap:8px;background:transparent;color:var(--preto);border:1px solid var(--preto);border-radius:64px;padding:7px 15px;
      font-family:var(--mono);font-size:12px;line-height:1.3;letter-spacing:-.03em;text-transform:uppercase;white-space:nowrap;max-width:100%}
 @media (max-width:400px){.tag{white-space:normal;text-align:left}}
 .tag i{width:8px;height:8px;border-radius:50%;background:var(--volt);flex:none}
-.tag.escura{background:var(--preto);color:var(--branco)}
-.tag.clara{background:var(--nevoa)}
+.tag.escura{background:var(--preto);color:var(--branco);border-color:var(--preto)}
+.tag.clara{border-color:var(--cinza);color:var(--ardosia)}
+/* rótulo de seção é legenda, não botão: sem cápsula, a condensada é que fala */
+.sec-cab>.tag,.cartao>.tag,.grade-cab>.tag{border:0;padding-inline:0;background:transparent;color:var(--ardosia)}
+.cartao.escuro>.tag{color:var(--cinza)}
 
 /* botões: cheio preto, contorno, texto */
 .bt{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:16px 24px;border-radius:8px;
@@ -199,7 +202,7 @@ button{font:inherit;color:inherit}
 .bt-contorno{background:transparent;border-color:var(--ardosia);color:var(--ardosia);border-radius:4px}
 .bt-contorno:hover{background:var(--preto);border-color:var(--preto);color:var(--branco)}
 .bt-branco{background:var(--branco);color:var(--preto)}
-.bt-branco:hover{background:var(--menta)}
+.bt-branco:hover{background:var(--volt)}
 .bt-texto{background:none;padding:12px 0;min-height:44px;border-radius:0;color:var(--preto);border-bottom:1.5px solid transparent}
 .bt-texto:hover{border-color:var(--preto)}
 .bt:active{transform:translateY(1px)}
@@ -223,7 +226,7 @@ button{font:inherit;color:inherit}
 /* ——— topo: pílula flutuante ——— */
 .topo{height:8rem;display:flex;align-items:center;gap:16px}
 .marca{font-family:var(--disp);font-size:2rem;line-height:1;letter-spacing:.01em;text-decoration:none;display:flex;align-items:baseline;gap:6px;min-height:44px;padding-block:6px}
-.marca i{font-style:normal;display:inline-block;width:.32em;height:.32em;background:var(--menta);border-radius:50%;transform:translateY(-.05em)}
+.marca i{font-style:normal;display:inline-block;width:.32em;height:.32em;background:var(--volt);border-radius:50%;transform:translateY(-.05em)}
 .marca small{font-family:var(--mono);font-size:12px;letter-spacing:-.03em;color:var(--fumo);text-transform:uppercase;margin-left:6px}
 .pilula{margin:0 auto;background:var(--branco);border-radius:48px;padding:8px;display:flex;gap:4px;list-style:none}
 .pilula a{display:block;padding:12px 18px;min-height:44px;border-radius:40px;white-space:nowrap;font-size:16px;font-weight:500;color:var(--ardosia);text-decoration:none;transition:background .2s,color .2s}
@@ -240,7 +243,7 @@ button{font:inherit;color:inherit}
 }
 
 /* ——— hero: manchete + objeto ——— */
-.hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:clamp(24px,4vw,56px);align-items:end;padding-block:clamp(16px,3vw,40px) 0}
+.hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:clamp(24px,4vw,56px);align-items:end;padding-block:clamp(16px,3vw,40px) 92px}
 .h1{margin-top:16px;color:var(--preto)}
 .h1 mark{background:none;color:inherit;box-decoration-break:clone;-webkit-box-decoration-break:clone;
          background-image:linear-gradient(var(--volt),var(--volt));background-repeat:no-repeat;background-size:100% .38em;background-position:0 78%}
@@ -262,27 +265,28 @@ button{font:inherit;color:inherit}
 .busca-n b{font-weight:500;color:var(--preto)}
 
 /* o objeto do hero: cartão preto de topo arqueado com o telefone dentro */
-.hero-flutua{align-self:end;min-width:0}
-.hero-obj{background:var(--preto);color:var(--branco);border-radius:64px 64px 0 0;padding:clamp(24px,3.5vw,44px) clamp(20px,3vw,40px) 0;
+.hero-flutua{align-self:end;min-width:0;position:relative;z-index:2}
+.hero-obj{background:transparent;color:var(--preto);border-radius:0;padding:0;
           display:grid;grid-template-columns:minmax(0,1fr);gap:20px;position:relative;min-width:0}
-.hero-obj .mono{color:var(--fumo)}
+.hero-obj .mono{color:var(--ardosia)}
 .hero-obj-cab{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .fone{position:relative;width:min(264px,100%);margin:0 auto;aspect-ratio:300/620;border:8px solid var(--grafite);border-radius:44px;background:var(--grafite);overflow:hidden}
 .fone::before{content:"";position:absolute;top:8px;left:50%;transform:translateX(-50%);width:76px;height:5px;border-radius:99px;background:var(--preto);z-index:3}
 .fone-tela{position:absolute;inset:0;border-radius:36px;overflow:hidden;background:var(--nevoa)}
 .fone-i{position:absolute;top:0;left:0;width:390px;height:920px;border:0;transform:scale(var(--escala,.7282));transform-origin:top left;pointer-events:none;opacity:0;transition:opacity .55s ease}
 .fone-i.ativa{opacity:1}
-.escolha{list-style:none;display:flex;flex-wrap:wrap;gap:8px;padding-bottom:clamp(24px,3vw,40px)}
-.escolha button{background:var(--grafite);color:var(--branco);border:0;border-radius:64px;padding:12px 16px;min-height:44px;font-size:14px;font-weight:500;line-height:1.3;cursor:pointer;
+.escolha{list-style:none;display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+.escolha button{background:var(--branco);color:var(--preto);border:1px solid var(--cinza);border-radius:64px;padding:12px 16px;min-height:44px;font-size:14px;font-weight:500;line-height:1.3;cursor:pointer;
                 transition:background .2s,color .2s}
-.escolha button:hover{background:var(--ardosia)}
-.escolha button[aria-current="true"]{background:var(--menta);color:var(--preto)}
-.vitrine-abrir{color:var(--branco);border-bottom-color:transparent}
-.vitrine-abrir:hover{border-color:var(--menta)}
+.escolha button:hover{border-color:var(--preto)}
+.escolha button[aria-current="true"]{background:var(--volt);color:var(--preto)}
+.vitrine-abrir{color:var(--preto);border-bottom-color:var(--cinza)}
+.vitrine-abrir:hover{border-color:var(--preto)}
 @media (max-width:960px){
-  .hero{grid-template-columns:minmax(0,1fr);align-items:start}
-  .hero-obj{border-radius:48px 48px 0 0}
+  .hero{grid-template-columns:minmax(0,1fr);align-items:start;padding-bottom:0}
+  .hero-obj{border-radius:0}
   .fone{width:min(320px,100%)}
+  .esteira{margin-top:0;padding-top:18px}
 }
 @media (max-width:560px){
   .hero{gap:32px}
@@ -295,12 +299,13 @@ button{font:inherit;color:inherit}
 }
 
 /* ——— esteira: os nomes de verdade passam como numa linha de produção ——— */
-.esteira{background:var(--preto);color:var(--branco);overflow:hidden;padding-block:18px;border-top:1px solid var(--grafite)}
+.esteira{background:var(--preto);color:var(--branco);overflow:hidden;padding-block:18px;border-top:1px solid var(--grafite);
+  margin-top:-76px;padding-top:94px;position:relative;z-index:1}
 .esteira-faixa{display:flex;gap:0;width:max-content;animation:desliza 90s linear infinite}
 .esteira:hover .esteira-faixa{animation-play-state:paused}
 .esteira-faixa span{font-family:var(--mono);font-size:12px;letter-spacing:-.03em;text-transform:uppercase;white-space:nowrap;padding-inline:20px;color:var(--cinza)}
 .esteira-faixa span b{font-weight:400;color:var(--branco)}
-.esteira-faixa span::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--menta);margin-right:14px;vertical-align:middle}
+.esteira-faixa span::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--volt);margin-right:14px;vertical-align:middle}
 @keyframes desliza{to{transform:translateX(-50%)}}
 
 /* ——— seções ——— */
@@ -316,7 +321,7 @@ button{font:inherit;color:inherit}
 .faz{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .cartao{background:var(--branco);border-radius:32px;padding:24px;display:flex;flex-direction:column;gap:16px;min-height:300px}
 .cartao.principal{grid-column:span 2;background:var(--branco);padding:clamp(24px,3vw,40px)}
-.cartao h3{font-family:var(--corpo);font-weight:450;font-size:clamp(1.4rem,2.6vw,2.5rem);text-transform:uppercase;line-height:1.1;letter-spacing:-.02em;margin-top:auto}
+.cartao h3{font-family:var(--disp);font-weight:400;font-size:clamp(1.75rem,3vw,2.5rem);text-transform:uppercase;line-height:.94;letter-spacing:.005em;margin-top:0}
 .cartao p{font-size:16px;line-height:1.4;color:var(--ardosia);max-width:48ch}
 .cartao ul{list-style:none;display:flex;flex-wrap:wrap;gap:8px}
 .cartao ul li{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:-.03em;background:var(--nevoa);border-radius:64px;padding:8px 14px}
@@ -330,7 +335,7 @@ button{font:inherit;color:inherit}
 .como .sec-cab p{color:var(--fumo)}
 .passos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;list-style:none;counter-reset:passo}
 .passo{border-top:1px solid var(--grafite);padding-top:24px;display:flex;flex-direction:column;gap:12px}
-.passo::before{counter-increment:passo;content:counter(passo,decimal-leading-zero);font-family:var(--disp);font-size:var(--disp-md);line-height:.9;color:var(--menta)}
+.passo::before{counter-increment:passo;content:counter(passo,decimal-leading-zero);font-family:var(--disp);font-size:var(--disp-md);line-height:.9;color:var(--volt)}
 .passo h3{font-size:20px;font-weight:500;line-height:1.2;letter-spacing:-.01em}
 .passo p{font-size:16px;line-height:1.4;color:var(--fumo);max-width:32ch}
 .passo em{font-style:normal;background:var(--volt);color:var(--preto);padding:0 .25em;border-radius:4px}
@@ -341,7 +346,7 @@ button{font:inherit;color:inherit}
 .grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr));gap:16px;list-style:none}
 .site{background:var(--branco);border-radius:24px;overflow:hidden;display:flex;flex-direction:column;height:100%;text-decoration:none;
       transition:background .25s}
-.site:hover,.site:focus-visible{background:var(--menta)}
+.site:hover,.site:focus-visible{background:var(--volt)}
 .site-moldura{overflow:hidden;aspect-ratio:4/3;margin:8px 8px 0;border-radius:18px;background:var(--nevoa)}
 .site-img{width:100%;height:100%;object-fit:cover;transition:transform .6s var(--mola)}
 .site:hover .site-img{transform:scale(1.04)}
@@ -372,7 +377,7 @@ button{font:inherit;color:inherit}
 .rodape{margin-top:40px;padding-top:24px;border-top:1px solid var(--grafite);display:flex;flex-wrap:wrap;gap:16px 32px;font-size:14px;color:var(--fumo)}
 .rodape a{color:var(--branco);text-decoration:none;border-bottom:1px solid var(--grafite);display:inline-block;padding-block:12px}
 .rodape span{padding-block:12px}
-.rodape a:hover{border-color:var(--menta)}
+.rodape a:hover{border-color:var(--volt)}
 .rodape .volt{color:var(--volt)}
 @media (max-width:860px){.cta{border-radius:40px 40px 0 0}}
 
@@ -433,13 +438,13 @@ button{font:inherit;color:inherit}
         <span class="mono">Saindo da linha agora</span>
         <a class="bt bt-texto vitrine-abrir" id="abrir" href="/sobre" target="_blank" rel="noopener">Abrir o site inteiro ↗</a>
       </div>
+      <ul class="escolha" id="escolha" aria-label="Escolha um site para ver na tela"></ul>
       <div class="fone">
         <div class="fone-tela">
           <iframe class="fone-i" id="tela-a" title="Prévia do site" scrolling="no" tabindex="-1"></iframe>
           <iframe class="fone-i" id="tela-b" title="Prévia do site" scrolling="no" tabindex="-1" aria-hidden="true"></iframe>
         </div>
       </div>
-      <ul class="escolha" id="escolha" aria-label="Escolha um site para ver na tela"></ul>
     </div></div>
   </section>
 
