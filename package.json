@@ -18,8 +18,10 @@
     "convite": "tsx --conditions=react-server --env-file=.env.local scripts/convite.mts",
     "admin": "tsx --env-file=.env.local scripts/admin-plataforma.mts",
     "test:convite": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server convite.test.mts'",
+    "test:cobranca": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server cobranca.test.mts'",
     "test:clientes": "tsx --conditions=react-server clientes.test.mts",
     "test:crm": "tsx --conditions=react-server crm.test.mts",
+    "test:pix": "tsx pix.test.mts",
     "test:whatsapp": "tsx whatsapp.test.mts"
   },
   "dependencies": {
