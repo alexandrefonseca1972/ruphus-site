@@ -12,6 +12,7 @@
     "test:booking": "firebase emulators:exec --only firestore,auth --project demo-siteflow 'tsx --conditions=react-server booking.test.mts'",
     "test:scale": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server scale.test.mts'",
     "test:proxy": "tsx proxy.test.mts",
+    "vitrine": "tsx scripts/vitrine.mts",
     "sync:sites": "sh scripts/sync-sites.sh",
     "seed:agenda": "tsx --env-file=.env.local scripts/seed-agenda.mts",
     "convite": "tsx --conditions=react-server --env-file=.env.local scripts/convite.mts",
