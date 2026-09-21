@@ -13,7 +13,13 @@ import { useCollection } from "@/lib/use-collection";
 import { useTenant } from "../layout";
 import { PlanForm } from "../plan-form";
 
-const Customer = z.object({ name: z.string(), phone: z.string(), updatedAt: z.instanceof(Timestamp).optional() });
+const Customer = z.object({
+  name: z.string(),
+  phone: z.string(),
+  updatedAt: z.instanceof(Timestamp).optional(),
+  etiquetas: z.array(z.string()).optional(),
+  semCampanha: z.boolean().optional(),
+});
 
 // Quem esteve aqui, e nao quem marcou: customers.updatedAt e a data do ultimo
 // agendamento feito, e quem marcou ha 70 dias para ontem esteve aqui ontem.
@@ -50,7 +56,9 @@ export default function CustomersPage() {
       ),
     [visitas, janela, agora],
   );
-  const sumidos = janela === null ? null : (customers?.filter((c) => !ativos.has(c.id)) ?? []);
+  // Quem pediu para nao receber campanha fica fora do recorte: e o recorte que
+  // existe justamente para mandar mensagem.
+  const sumidos = janela === null ? null : (customers?.filter((c) => !ativos.has(c.id) && !c.semCampanha) ?? []);
 
   const term = normalize(search.trim());
   const digits = search.replace(/\D/g, "");
@@ -142,7 +150,15 @@ export default function CustomersPage() {
               {/* O <a> do WhatsApp e irmao do <Link>, nunca filho: link dentro de
                   link nao e clicavel e o teclado passa direto por um deles. */}
               <Link href={`/${tenant.id}/clientes/${c.id}`} className="flex grow flex-wrap items-center justify-between gap-2 p-3">
-                <span className="font-medium">{c.name}</span>
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-medium">{c.name}</span>
+                  {c.etiquetas?.map((e) => (
+                    <span key={e} className="rounded-full bg-muted px-2 py-0.5 text-xs">{e}</span>
+                  ))}
+                  {c.semCampanha && (
+                    <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">sem campanha</span>
+                  )}
+                </span>
                 <span className="text-sm text-muted-foreground">{c.phone}</span>
               </Link>
               <a
