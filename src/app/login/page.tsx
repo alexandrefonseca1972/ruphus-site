@@ -7,6 +7,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
 } from "firebase/auth";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ehAdminDaPlataforma } from "@/app/admin/actions";
 import { negocioDoConvite } from "@/app/convite/actions";
@@ -151,10 +152,15 @@ function Login() {
 
       <section className="relative flex w-full max-w-[408px] flex-col gap-6 rounded-[18px] p-1 lg:border lg:border-[#E0DCCE] lg:bg-[#FAF9F5] lg:p-9 lg:shadow-[0_48px_80px_-40px_rgba(22,21,15,0.3)]">
 
-        <span className="flex items-center gap-1.5">
+        {/* A marca também é a saída: sem isto a tela de entrada é um beco sem
+            saída para quem só queria voltar ao site. */}
+        <Link href="/" className="flex w-fit items-center gap-2 text-[#17150F] hover:text-[#2C6A53]" aria-label="Voltar para o site da Ruphus">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-[#6B6555]">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
           <span className="font-[family-name:var(--fonte-titulo)] text-[25px] leading-none tracking-[0.03em]">ruphus</span>
           <span className="mb-1 size-1.5 rounded-full bg-[#2C6A53]" />
-        </span>
+        </Link>
 
         {convidado && (
           <div className="flex items-center gap-3 rounded-xl border border-[#DFE9E2] bg-[#F2F7F4] p-3">
