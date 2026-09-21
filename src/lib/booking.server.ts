@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
 import { addDays, customerKey, freeSlots, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
-import { Service, Staff, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
+import { Service, Staff, type AgendaQuery, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
 
@@ -129,6 +129,45 @@ async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery, exclude
 
 export async function availableSlots(db: Firestore, q: SlotQuery) {
   return db.runTransaction(async (tx) => (await slotContext(tx, db, q))?.slots ?? [], { readOnly: true });
+}
+
+/** Os dias e horários que a página pública mostra de uma vez.
+ *
+ * Com staffId vazio a agenda é a união da equipe que faz todos os serviços
+ * escolhidos, e cada horário já sai com o profissional que vai atender — assim
+ * escolher profissional deixa de ser um passo para quem não tem preferência.
+ *
+ * ponytail: uma transação por dia e por profissional (dias × equipe). Na escala
+ * de hoje, com equipes pequenas, é barato; se uma equipe crescer, vale ler os
+ * agendamentos da semana inteira de uma vez e montar os dias em memória.
+ */
+export async function agendaDias(db: Firestore, q: AgendaQuery, dias: string[]) {
+  const catalog = await loadCatalog(db, q.tenantId);
+  if (!catalog) return [];
+  const equipe = catalog.staff.filter(
+    (p) => (!q.staffId || p.id === q.staffId) && q.serviceIds.every((id) => p.serviceIds.includes(id)),
+  );
+  const grade = await Promise.all(
+    dias.map(async (date) => {
+      // Só quem atende neste dia da semana entra na conta
+      const doDia = equipe.filter((p) => p.workDays.includes(weekday(date)));
+      const porProfissional = await Promise.all(
+        doDia.map(async (p) => [p.id, await availableSlots(db, { ...q, staffId: p.id, date })] as const),
+      );
+      // Ordem do catálogo decide quem fica com o horário que dois podem atender
+      const horarios = new Map<string, string>();
+      for (const [staffId, horas] of porProfissional) {
+        for (const hora of horas) if (!horarios.has(hora)) horarios.set(hora, staffId);
+      }
+      return {
+        date,
+        horarios: [...horarios]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([hora, staffId]) => ({ hora, staffId })),
+      };
+    }),
+  );
+  return grade;
 }
 
 type Actor = { uid: string; email?: string };

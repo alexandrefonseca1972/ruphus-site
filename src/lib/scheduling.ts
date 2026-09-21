@@ -37,6 +37,15 @@ export const SlotQuery = z.object({
 });
 export type SlotQuery = z.infer<typeof SlotQuery>;
 
+/** A semana que a página pública desenha de uma vez. staffId vazio = qualquer profissional. */
+export const AgendaQuery = z.object({
+  tenantId: id,
+  serviceIds: SlotQuery.shape.serviceIds,
+  staffId: z.union([id, z.literal("")]),
+  from: z.iso.date(),
+});
+export type AgendaQuery = z.infer<typeof AgendaQuery>;
+
 export const BookingInput = SlotQuery.extend({
   time: hhmm,
   customerName: z.string().trim().min(2, "Informe seu nome").max(80, "Nome muito longo"),
