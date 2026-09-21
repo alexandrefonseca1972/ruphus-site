@@ -13,7 +13,8 @@ export type { Crm, Nota };
 
 export const CrmInput = z.object({
   estagio: z.enum(LISTA).optional(),
-  valorCents: z.number().int().min(0).max(100_000_00).nullable().optional(),
+  entradaCents: z.number().int().min(0).max(100_000_00).nullable().optional(),
+  mensalCents: z.number().int().min(0).max(100_000_00).nullable().optional(),
   proximaAcao: z.string().trim().max(120).nullable().optional(),
   proximaData: z.iso.date().nullable().optional(),
   publicado: z.boolean().optional(),
@@ -31,7 +32,8 @@ export function negocio(d: { get: (campo: string) => unknown }): Crm {
   const estagio = d.get("estagio");
   return {
     estagio: (LISTA as readonly string[]).includes(String(estagio)) ? (estagio as Crm["estagio"]) : "novo",
-    valorCents: (d.get("valorCents") as number | null) ?? null,
+    entradaCents: (d.get("entradaCents") as number | null) ?? null,
+    mensalCents: (d.get("mensalCents") as number | null) ?? null,
     fechadoEm: (d.get("fechadoEm") as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null,
     proximaAcao: (d.get("proximaAcao") as string | null) ?? null,
     proximaData: (d.get("proximaData") as string | null) ?? null,

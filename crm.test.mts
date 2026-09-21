@@ -17,7 +17,8 @@ const doc = (campos: Record<string, unknown>) => ({ get: (c: string) => campos[c
 const cheio = negocio(
   doc({
     estagio: "negociando",
-    valorCents: 39000,
+    entradaCents: 25000,
+    mensalCents: 5990,
     proximaAcao: "Cobrar retorno da proposta",
     proximaData: "2026-09-25",
     notas: 1,
@@ -37,14 +38,15 @@ for (const [campo, valor] of Object.entries(cheio)) {
 }
 assert.equal(Object.hasOwn(cheio, "atualizadoEm"), false, "atualizadoEm não pode chegar na tela");
 assert.equal(cheio.estagio, "negociando");
-assert.equal(cheio.valorCents, 39000);
+assert.deepEqual([cheio.entradaCents, cheio.mensalCents], [25000, 5990]);
 assert.equal(cheio.fechadoEm, "2026-09-25T00:00:00.000Z");
 
 // documento recém-criado por uma anotação: só tem contador, e ainda assim abre
 const magro = negocio(doc({ notas: 1, atualizadoEm: new Timestamp(Date.now()) }));
 assert.deepEqual(magro, {
   estagio: "novo",
-  valorCents: null,
+  entradaCents: null,
+  mensalCents: null,
   fechadoEm: null,
   proximaAcao: null,
   proximaData: null,
