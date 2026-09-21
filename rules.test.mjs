@@ -116,5 +116,38 @@ await assertFails(getBytes(ref(env.unauthenticatedContext().storage(), "tenants/
 await assertFails(uploadBytes(file("alice", "tenants/acme/big.bin"), bytes(10 * 1024 * 1024)));
 await assertFails(uploadBytes(file("alice", "outro/lugar.png"), bytes(10)));
 
+// Clientes: o que o dono escreve sobre o cliente e dele; nome e telefone nao
+await env.withSecurityRulesDisabled((ctx) =>
+  setDoc(doc(ctx.firestore(), "tenants/acme/customers/5511999990000"), { name: "Ana", phone: "(11) 99999-0000" }),
+);
+const cliente = (db) => doc(db, "tenants/acme/customers/5511999990000");
+
+await assertSucceeds(updateDoc(cliente(alice), { semCampanha: true, etiquetas: ["vip", "manha"] }));
+await assertFails(updateDoc(cliente(alice), { name: "Outro Nome" }));
+await assertFails(updateDoc(cliente(alice), { phone: "(11) 90000-0000" }));
+await assertFails(updateDoc(cliente(alice), { semCampanha: "sim" }));
+await assertFails(updateDoc(cliente(alice), { etiquetas: ["a", "b", "c", "d", "e", "f", "g", "h", "i"] }));
+await assertFails(updateDoc(cliente(mallory), { etiquetas: ["invadido"] }));
+await assertFails(getDoc(cliente(mallory)));
+
+const notas = (db) => collection(db, "tenants/acme/customers/5511999990000/notas");
+const nota = (extra = {}) => ({
+  texto: "Alergica a acetona. Prefere manha.",
+  quando: serverTimestamp(),
+  por: "alice",
+  porNome: "alice@teste.dev",
+  ...extra,
+});
+await assertSucceeds(setDoc(doc(notas(alice), "n1"), nota()));
+await assertFails(setDoc(doc(notas(alice), "n2"), nota({ por: "bob" })), "nao da para assinar no lugar de outro");
+await assertFails(setDoc(doc(notas(alice), "n3"), nota({ porNome: "outro@teste.dev" })));
+await assertFails(setDoc(doc(notas(alice), "n4"), nota({ quando: new Date(0) })), "a data e a do servidor");
+await assertFails(setDoc(doc(notas(alice), "n5"), nota({ texto: "" })));
+await assertFails(setDoc(doc(notas(alice), "n6"), nota({ texto: "x".repeat(601) })));
+await assertFails(setDoc(doc(notas(alice), "n7"), nota({ extra: "campo a mais" })));
+await assertFails(updateDoc(doc(notas(alice), "n1"), { texto: "reescrito" }), "anotacao nao se reescreve");
+await assertSucceeds(deleteDoc(doc(notas(alice), "n1")));
+await assertFails(getDocs(notas(mallory)));
+
 await env.cleanup();
 console.log("rules ok");
