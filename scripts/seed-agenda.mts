@@ -47,7 +47,7 @@ const TABELA: [RegExp, number, number][] = [
 
 // o que a página lista mas não se agenda: produto, loja, entrega
 const NAO_AGENDA =
-  /raç|racao|acessóri|acessori|petisc|farmác|farmac|produto|loja|pet shop|petshop|aquari|roedor|aves|delivery|entrega|leva-e-traz|estacionamento|wi-?fi|brinquedo|coleira|medicament|vestuári|banho self|autosservi/i;
+  /raç|racao|acessóri|acessori|petisc|farmác|farmac|produto|loja|pet shop|petshop|aquari|roedor|aves|delivery|entrega|leva-e-traz|estacionamento|wi-?fi|brinquedo|coleira|medicament|vestuári|banho self|autosservi|tabela de pre|tabela de prec/i;
 
 const TETO = 8; // catálogo curto escolhe melhor que catálogo longo
 
