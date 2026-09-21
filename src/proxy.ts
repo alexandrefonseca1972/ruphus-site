@@ -33,7 +33,12 @@ export function paginaEstatica(pathname: string) {
   // a raiz do domínio é a landing; o painel de quem tem negócio fica em /painel
   if (pathname === "/") return "/sobre/index.html";
   const nome = pathname.replace(/^\/|\/$/g, "");
-  return PAGINAS.includes(nome) ? `/${nome}/index.html` : null;
+  if (PAGINAS.includes(nome)) return `/${nome}/index.html`;
+  // A prévia da landing aponta para /s/{slug}: em produção o servidor estático
+  // acha o index sozinho, o next dev não — e a vitrine aparecia 404 na máquina
+  // de quem desenvolve. Apontar para o arquivo resolve nos dois.
+  const site = /^\/s\/([a-z0-9][a-z0-9-]*)\/?$/.exec(pathname);
+  return site ? `/s/${site[1]}/index.html` : null;
 }
 
 export function sitePath(slug: string, pathname: string) {
