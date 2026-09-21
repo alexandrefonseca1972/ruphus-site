@@ -124,10 +124,9 @@ function Rodape() {
 }
 
 export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, services, staff }: Props) {
-  // O primeiro do catálogo já vem marcado para a página abrir com horários de
-  // verdade na tela. Trocar é um toque, e o resumo antes de confirmar repete o
-  // que foi escolhido — ninguém agenda sem ver o serviço.
-  const [serviceIds, setServiceIds] = useState<string[]>(services.length ? [services[0].id] : []);
+  // Nada vem marcado: quem agenda diz o que quer, e só então a agenda aparece.
+  // Os serviços chegam do servidor na ordem do que mais se agenda.
+  const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [staffId, setStaffId] = useState("");
   const [from, setFrom] = useState(today);
   const [versao, setVersao] = useState(0);
@@ -554,114 +553,121 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
             )}
           </section>
 
-          <section aria-labelledby="quando" className="flex flex-col gap-3">
-            <div className="flex items-baseline gap-2.5">
-              <h2 id="quando" className="text-[17px] font-semibold tracking-[-0.02em]">
-                Quando?
-              </h2>
-              <span className={cn(MONO, "text-[10px] tracking-[0.08em] text-[#6B6555] uppercase")}>
-                {escolha ? `${escolha.hora} escolhido` : "horários livres"}
-              </span>
+          {!escolhidos.length ? (
+            <div className={cn(PAINEL, "flex flex-col gap-1.5 p-5")}>
+              <h2 className="text-[17px] font-semibold tracking-[-0.02em]">Quando?</h2>
+              <p className="text-[13px] leading-relaxed text-[#5C5747]">Escolha um serviço acima e os horários livres aparecem aqui.</p>
             </div>
+          ) : (
+            <section aria-labelledby="quando" className="flex flex-col gap-3">
+              <div className="flex items-baseline gap-2.5">
+                <h2 id="quando" className="text-[17px] font-semibold tracking-[-0.02em]">
+                  Quando?
+                </h2>
+                <span className={cn(MONO, "text-[10px] tracking-[0.08em] text-[#6B6555] uppercase")}>
+                  {escolha ? `${escolha.hora} escolhido` : "horários livres"}
+                </span>
+              </div>
 
-            <div className="-mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-7 lg:px-0">
-              {(agenda ?? Array.from({ length: 7 }, (_, i) => ({ date: addDays(from, i), horarios: [] }))).map((d) => {
-                const sel = d.date === date;
-                const vazio = !d.horarios.length;
-                const rotulo = d.date === today ? "hoje" : d.date === addDays(today, 1) ? "amanhã" : parte(d.date, { weekday: "short" });
-                return (
-                  <button
-                    key={d.date}
-                    type="button"
-                    aria-pressed={sel}
-                    disabled={!agenda || vazio}
-                    onClick={() => {
-                      setDate(d.date);
-                      setEscolha(null);
-                    }}
-                    aria-label={`${longDate(d.date)}, ${agenda ? (vazio ? "sem horário" : `${d.horarios.length} horários livres`) : "carregando"}`}
-                    className={cn(
-                      "flex min-h-[72px] w-[62px] shrink-0 snap-start flex-col items-center justify-center gap-0.5 rounded-xl border lg:w-auto",
-                      sel ? "border-[#17150F] bg-[#17150F] text-[#FAF9F5]" : vazio ? "border-dashed border-[#D5D0C1] text-[#9A9484]" : "border-[#D5D0C1] bg-white",
-                    )}
-                  >
-                    <span className={cn(MONO, "text-[9px] tracking-[0.06em] uppercase opacity-75")}>{rotulo}</span>
-                    <span className={cn(MONO, "text-lg leading-none")}>{parte(d.date, { day: "numeric" })}</span>
-                    <span className={cn(MONO, "text-[9px]", sel ? "text-[#FAF9F5]/80" : vazio ? "text-[#9A9484]" : "text-[#2C6A53]")}>
-                      {agenda ? (vazio ? "fechado" : `${d.horarios.length} livres`) : "—"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+              <div className="-mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-7 lg:px-0">
+                {(agenda ?? Array.from({ length: 7 }, (_, i) => ({ date: addDays(from, i), horarios: [] }))).map((d) => {
+                  const sel = d.date === date;
+                  const vazio = !d.horarios.length;
+                  const rotulo = d.date === today ? "hoje" : d.date === addDays(today, 1) ? "amanhã" : parte(d.date, { weekday: "short" });
+                  return (
+                    <button
+                      key={d.date}
+                      type="button"
+                      aria-pressed={sel}
+                      disabled={!agenda || vazio}
+                      onClick={() => {
+                        setDate(d.date);
+                        setEscolha(null);
+                      }}
+                      aria-label={`${longDate(d.date)}, ${agenda ? (vazio ? "sem horário" : `${d.horarios.length} horários livres`) : "carregando"}`}
+                      className={cn(
+                        "flex min-h-[72px] w-[62px] shrink-0 snap-start flex-col items-center justify-center gap-0.5 rounded-xl border lg:w-auto",
+                        sel ? "border-[#17150F] bg-[#17150F] text-[#FAF9F5]" : vazio ? "border-dashed border-[#D5D0C1] text-[#9A9484]" : "border-[#D5D0C1] bg-white",
+                      )}
+                    >
+                      <span className={cn(MONO, "text-[9px] tracking-[0.06em] uppercase opacity-75")}>{rotulo}</span>
+                      <span className={cn(MONO, "text-lg leading-none")}>{parte(d.date, { day: "numeric" })}</span>
+                      <span className={cn(MONO, "text-[9px]", sel ? "text-[#FAF9F5]/80" : vazio ? "text-[#9A9484]" : "text-[#2C6A53]")}>
+                        {agenda ? (vazio ? "fechado" : `${d.horarios.length} livres`) : "—"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
 
-            <div className="flex items-center gap-2.5">
-              <label htmlFor="outra-data" className={cn(MONO, "text-[10px] tracking-[0.08em] text-[#6B6555] uppercase")}>
-                outra data
-              </label>
-              <Input
-                id="outra-data"
-                type="date"
-                value={from}
-                min={today}
-                max={addDays(today, MAX_DAYS_AHEAD)}
-                onChange={(e) => {
-                  if (!e.target.value) return;
-                  setFrom(e.target.value);
-                  setDate(e.target.value);
-                  setEscolha(null);
-                }}
-                className={cn(CAMPO, MONO, "h-11 w-auto text-[13px]")}
-              />
-            </div>
+              <div className="flex items-center gap-2.5">
+                <label htmlFor="outra-data" className={cn(MONO, "text-[10px] tracking-[0.08em] text-[#6B6555] uppercase")}>
+                  outra data
+                </label>
+                <Input
+                  id="outra-data"
+                  type="date"
+                  value={from}
+                  min={today}
+                  max={addDays(today, MAX_DAYS_AHEAD)}
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    setFrom(e.target.value);
+                    setDate(e.target.value);
+                    setEscolha(null);
+                  }}
+                  className={cn(CAMPO, MONO, "h-11 w-auto text-[13px]")}
+                />
+              </div>
 
-            <div className={cn(PAINEL, "flex flex-col gap-3.5 p-4")}>
-              <p className="sr-only" aria-live="polite">
-                {!agenda ? "Buscando horários" : !dia?.horarios.length ? "Nenhum horário livre nesta data" : `${dia.horarios.length} horários disponíveis`}
-              </p>
-              <p className="text-[13px] text-[#5C5747] first-letter:uppercase">
-                {date ? longDate(date) : "—"}
-                {agenda && dia?.horarios.length ? (
-                  <>
-                    {" — "}
-                    <span className={cn(MONO, "text-xs text-[#17150F]")}>{dia.horarios.length}</span> livres
-                  </>
-                ) : null}
-              </p>
-              {!agenda ? (
-                <div className="grid grid-cols-4 gap-2 sm:grid-cols-5" aria-hidden="true">
-                  {Array.from({ length: 12 }, (_, i) => (
-                    <div key={i} className="h-12 animate-pulse rounded-[10px] bg-[#EDEAE0] motion-reduce:animate-none" />
-                  ))}
-                </div>
-              ) : !dia?.horarios.length ? (
-                <p className="text-[13px] text-[#5C5747]">
-                  Nenhum horário livre nesta data. Os dias com vaga estão marcados na faixa acima.
+              <div className={cn(PAINEL, "flex flex-col gap-3.5 p-4")}>
+                <p className="sr-only" aria-live="polite">
+                  {!agenda ? "Buscando horários" : !dia?.horarios.length ? "Nenhum horário livre nesta data" : `${dia.horarios.length} horários disponíveis`}
                 </p>
-              ) : (
-                <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 lg:grid-cols-6">
-                  {dia.horarios.map((h) => {
-                    const sel = escolha?.hora === h.hora;
-                    return (
-                      <button
-                        key={h.hora}
-                        type="button"
-                        aria-pressed={sel}
-                        onClick={() => setEscolha(h)}
-                        className={cn(
-                          MONO,
-                          "min-h-12 rounded-[10px] border text-[15px]",
-                          sel ? "border-[#17150F] bg-[#17150F] text-[#FAF9F5]" : "border-[#D5D0C1] bg-white",
-                        )}
-                      >
-                        {h.hora}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </section>
+                <p className="text-[13px] text-[#5C5747] first-letter:uppercase">
+                  {date ? longDate(date) : "—"}
+                  {agenda && dia?.horarios.length ? (
+                    <>
+                      {" — "}
+                      <span className={cn(MONO, "text-xs text-[#17150F]")}>{dia.horarios.length}</span> livres
+                    </>
+                  ) : null}
+                </p>
+                {!agenda ? (
+                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-5" aria-hidden="true">
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <div key={i} className="h-12 animate-pulse rounded-[10px] bg-[#EDEAE0] motion-reduce:animate-none" />
+                    ))}
+                  </div>
+                ) : !dia?.horarios.length ? (
+                  <p className="text-[13px] text-[#5C5747]">
+                    Nenhum horário livre nesta data. Os dias com vaga estão marcados na faixa acima.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 lg:grid-cols-6">
+                    {dia.horarios.map((h) => {
+                      const sel = escolha?.hora === h.hora;
+                      return (
+                        <button
+                          key={h.hora}
+                          type="button"
+                          aria-pressed={sel}
+                          onClick={() => setEscolha(h)}
+                          className={cn(
+                            MONO,
+                            "min-h-12 rounded-[10px] border text-[15px]",
+                            sel ? "border-[#17150F] bg-[#17150F] text-[#FAF9F5]" : "border-[#D5D0C1] bg-white",
+                          )}
+                        >
+                          {h.hora}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
 
           {/* Escolher profissional só importa para quem tem preferência: fica
               numa linha, com o padrão já resolvido. */}

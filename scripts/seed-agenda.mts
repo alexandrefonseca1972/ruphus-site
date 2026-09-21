@@ -267,7 +267,9 @@ async function main() {
     if (!services.length) continue;
     comCatalogo++;
     const t = db.collection("tenants").doc(slug);
-    for (const { id, ...s } of services) void writer.set(t.collection("services").doc(id), s, { merge: true });
+    // ordem: a posição em que o site do negócio lista o serviço, usada como
+    // desempate enquanto ninguém agendou nada
+    services.forEach(({ id, ...s }, ordem) => void writer.set(t.collection("services").doc(id), { ...s, ordem }, { merge: true }));
     void writer.set(
       t.collection("staff").doc("equipe"),
       { ...EQUIPE, hours: hours ?? EQUIPE.hours, serviceIds: services.map((s) => s.id), createdAt: FieldValue.serverTimestamp() },
