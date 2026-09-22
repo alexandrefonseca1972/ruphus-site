@@ -465,6 +465,7 @@ export default function AdminPage() {
     setMarcados(new Set());
   }
 
+  /** A planilha dos convites em lote: é o único download que sobrou no painel. */
   function baixar(nome: string, linhas: (string | number)[][]) {
     const csv = linhas.map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -473,23 +474,6 @@ export default function AdminPage() {
     a.download = nome;
     a.click();
     URL.revokeObjectURL(url);
-  }
-
-  function exportarCSV() {
-    baixar(`espacos-${new Date().toISOString().slice(0, 10)}.csv`, [
-      ["nome", "site", "cidade", "uf", "nicho", "nota", "avaliacoes", "situacao", "telefone", "estagio", "entrada", "mensalidade", "proxima_acao", "proxima_data", "ultimo_contato", "em_destaque_ate"],
-      ...lista.map((e) => [
-        e.nome, e.slug, e.cidade ?? "", e.uf ?? "", e.nicho,
-        e.nota ?? "", e.avaliacoes ?? "",
-        e.acessos > 1 ? "cliente ativo" : "convite pendente", e.telefone ?? "",
-        ROTULO[(crm[e.slug]?.estagio ?? "novo") as Estagio],
-        crm[e.slug]?.entradaCents ? (crm[e.slug]!.entradaCents! / 100).toFixed(2) : "",
-        crm[e.slug]?.mensalCents ? (crm[e.slug]!.mensalCents! / 100).toFixed(2) : "",
-        crm[e.slug]?.proximaAcao ?? "", crm[e.slug]?.proximaData ?? "",
-        crm[e.slug]?.ultimoContatoEm ? new Date(crm[e.slug]!.ultimoContatoEm!).toLocaleString("pt-BR") : "",
-        crm[e.slug]?.fixadoAte ?? "",
-      ]),
-    ]);
   }
 
   if (estado === "carregando") return <main className="p-10 text-sm text-[#6F6A5E]">Carregando…</main>;
@@ -709,10 +693,6 @@ export default function AdminPage() {
           <option value="avaliacoes">Mais avaliações</option>
           <option value="nome">Nome (A–Z)</option>
         </select>
-
-        <button type="button" onClick={exportarCSV} className="h-9 rounded-lg px-3 text-[13px] hover:bg-[#F4F2EE]">
-          Exportar
-        </button>
 
         <div className="grow" />
 
