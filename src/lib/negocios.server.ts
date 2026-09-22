@@ -6,9 +6,12 @@ import { TenantInput } from "@/lib/tenant-input";
 /** Negócios que cada conta pode ter, até o admin da plataforma liberar mais. */
 export const LIMITE_PADRAO = 1;
 
-// Conta quem manda no negócio: dono (criou) ou admin (entrou pelo convite do
-// site importado). Funcionário ("member") de outro negócio não conta.
-const PAPEIS_QUE_CONTAM = ["owner", "admin"];
+// Conta quem manda no negócio: dono (criou) ou admin que entrou pelo convite do
+// site importado. Admin sem "viaConvite" não conta: as regras deixam o dono de um
+// negócio adicionar qualquer uid como admin, e isso não pode gastar a cota alheia.
+// Funcionário ("member") também não conta.
+const conta = (d: FirebaseFirestore.QueryDocumentSnapshot) =>
+  d.ref.parent.parent?.parent.id === "tenants" && (d.get("role") === "owner" || (d.get("role") === "admin" && d.get("viaConvite") === true));
 
 async function ehAdminDaPlataforma(db: Firestore, uid: string) {
   const uids = (await db.doc("config/admin").get()).get("uids");
@@ -22,7 +25,7 @@ export async function cotaDe(db: Firestore, uid: string) {
     db.doc(`limites/${uid}`).get(),
     ehAdminDaPlataforma(db, uid),
   ]);
-  const usados = membros.docs.filter((d) => d.ref.parent.parent?.parent.id === "tenants" && PAPEIS_QUE_CONTAM.includes(d.get("role"))).length;
+  const usados = membros.docs.filter(conta).length;
   return { usados, limite: admin ? null : ((limite.get("negocios") as number | undefined) ?? LIMITE_PADRAO) };
 }
 
@@ -43,7 +46,7 @@ export async function criarNegocio(db: Firestore, user: { uid: string; email?: s
       tx.get(db.doc(`tenants/${slug}`)),
     ]);
     if (existente.exists) throw new UserError("Esse endereço já está em uso. Escolha outro.");
-    const usados = membros.docs.filter((d) => d.ref.parent.parent?.parent.id === "tenants" && PAPEIS_QUE_CONTAM.includes(d.get("role"))).length;
+    const usados = membros.docs.filter(conta).length;
     const max = (limite.get("negocios") as number | undefined) ?? LIMITE_PADRAO;
     if (!admin && usados >= max) {
       throw new UserError(

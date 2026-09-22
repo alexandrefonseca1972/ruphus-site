@@ -62,7 +62,8 @@ export function Funil({
     const de = (e: Estagio) => espacos.filter((x) => (crm[x.slug]?.estagio ?? "novo") === e);
     const fechados = de("fechado");
     const perdidos = de("perdido");
-    const vendas = fechados.filter((x) => no(crm[x.slug]?.fechadoEm ?? null));
+    // "desde o início" conta todo fechado, até os de antes de a data ser gravada
+    const vendas = periodo === "tudo" ? fechados : fechados.filter((x) => no(crm[x.slug]?.fechadoEm ?? null));
     const perdas = perdidos.filter((x) => (periodo === "tudo" ? true : no(crm[x.slug]?.perdidoEm ?? null)));
     const dias = vendas.flatMap((x) => {
       const c = crm[x.slug];

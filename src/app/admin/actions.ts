@@ -1,8 +1,10 @@
 "use server";
 
+import { z } from "zod";
 import { adminDb } from "@/lib/admin";
-import { adminAction } from "@/lib/admin-guard";
+import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite } from "@/lib/negocios.server";
+import { saudeDe } from "@/lib/saude.server";
 import { criarConvite } from "@/lib/convite";
 import {
   atrasadas,
@@ -87,6 +89,12 @@ export const listarEspacos = adminAction(async () => {
 // O slug vem da tela e vira caminho de documento: sem conferir, um "a/b/c"
 // escreveria fora do lugar previsto.
 const SLUG = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
+// uid do Firebase Auth: vira caminho de documento, então nada de "/" nem ".."
+const UID = /^[A-Za-z0-9_-]{1,128}$/;
+/** O slug vem do navegador e vira caminho no banco: "a/b/c" escreveria em outra coleção */
+function slugValido(slug: string) {
+  if (!SLUG.test(slug)) throw new ErroPrevisto("Negócio inválido.");
+}
 // Teto do lote: acima disso a espera fica longa e a planilha, grande demais
 // para alguém trabalhar numa sentada.
 const TETO = 300;
@@ -135,6 +143,7 @@ export const gerarConvite = adminAction(async (_user, slug: string) => {
 export type Acesso = { uid: string; papel: string; desde: string | null; nome: string | null; email: string | null; limite: number | null; usados: number };
 
 export const listarAcessos = adminAction(async (_user, slug: string) => {
+  slugValido(slug);
   const snap = await adminDb.collection(`tenants/${slug}/members`).get();
   // A cota de cada pessoa: é por aqui que o admin libera mais negócios para um cliente
   const cotas = await Promise.all(snap.docs.map((d) => cotaDe(adminDb, d.id)));
@@ -149,14 +158,19 @@ export const listarAcessos = adminAction(async (_user, slug: string) => {
 });
 
 /** Libera (ou reduz) quantos negócios a conta pode ter. */
-export const liberarNegocios = adminAction(async (_user, uid: string, negocios: number) => definirLimite(adminDb, uid, negocios));
+export const liberarNegocios = adminAction(async (_user, uid: string, negocios: number) => {
+  if (!UID.test(uid)) throw new ErroPrevisto("Conta inválida.");
+  return definirLimite(adminDb, uid, negocios);
+});
 
 /** Tira o acesso de alguém. O dono do espaço não pode ser removido. */
 export const revogarAcesso = adminAction(async (_user, slug: string, uid: string) => {
+  slugValido(slug);
+  if (!UID.test(uid)) throw new ErroPrevisto("Conta inválida.");
   const ref = adminDb.doc(`tenants/${slug}/members/${uid}`);
   const membro = await ref.get();
   if (!membro.exists) return "já não tinha acesso";
-  if (membro.get("role") === "owner") throw new Error("dono não pode ser removido");
+  if (membro.get("role") === "owner") throw new ErroPrevisto("O dono não pode ser removido.");
   await ref.delete();
   return "acesso removido";
 });
@@ -187,6 +201,7 @@ export type Detalhe = {
 
 /** O que o painel lateral de um espaço mostra além dos acessos. */
 export const detalhesEspaco = adminAction(async (_user, slug: string): Promise<Detalhe> => {
+  slugValido(slug);
   const t = adminDb.collection("tenants").doc(slug);
   const desde = new Date();
   desde.setDate(desde.getDate() - 30);
@@ -209,12 +224,30 @@ export const detalhesEspaco = adminAction(async (_user, slug: string): Promise<D
 /** Estágio, valor e próxima ação de cada espaço, em um mapa por slug. */
 export const listarCrm = adminAction(async () => lerCrm(adminDb));
 
+/** Implantação, uso e cobrança de um cliente. */
+export const saudeDoNegocio = adminAction(async (_user, slug: string, hoje: string) => {
+  if (!SLUG.test(slug)) throw new Error("negócio inválido");
+  return saudeDe(adminDb, slug, z.iso.date().parse(hoje));
+});
+
+/** A carteira: todos os negócios fechados, do mais em risco ao mais saudável. */
+export const carteira = adminAction(async (_user, hoje: string) => {
+  const dia = z.iso.date().parse(hoje);
+  const fechados = Object.entries(await lerCrm(adminDb)).filter(([, c]) => c.estagio === "fechado").map(([slug]) => slug);
+  const peso = { risco: 0, atencao: 1, ok: 2 } as const;
+  return (await Promise.all(fechados.map((slug) => saudeDe(adminDb, slug, dia)))).sort((a, b) => peso[a.saude] - peso[b.saude]);
+});
+
 export const salvarNegocio = adminAction(async (user, slug: string, dados: unknown) => {
+  slugValido(slug);
   await salvarCrm(adminDb, slug, dados as CrmInput, user.email ?? user.uid);
   return "salvo";
 });
 
-export const listarNotasDo = adminAction(async (_user, slug: string) => listarNotas(adminDb, slug));
+export const listarNotasDo = adminAction(async (_user, slug: string) => {
+  slugValido(slug);
+  return listarNotas(adminDb, slug);
+});
 
 /** Notas, estágio, mensagens, convite, agendamento e cobranças, numa lista só. */
 export const linhaDoTempoDo = adminAction(async (_user, slug: string) => {
@@ -230,6 +263,7 @@ export const registrarEnvio = adminAction(async (user, slug: string, modelo: str
 });
 
 export const anotarNegocio = adminAction(async (user, slug: string, texto: string) => {
+  slugValido(slug);
   await anotar(adminDb, slug, texto, user.email ?? user.uid);
   return linhaDoTempo(adminDb, slug);
 });
@@ -256,13 +290,21 @@ async function enviaveis(cobrancas: Cobranca[]): Promise<CobrancaEnviavel[]> {
   if (!cobrancas.length) return [];
   const base = process.env.SITE_URL ?? "https://www.ruphus.site";
   const slugs = [...new Set(cobrancas.map((c) => c.slug))];
-  const docs = await adminDb.getAll(...slugs.map((s) => adminDb.collection("tenants").doc(s)));
-  const nomes = new Map(docs.map((d) => [d.id, { nome: String(d.get("name") ?? d.id), telefone: (d.get("site.phone") as string | null) ?? null }]));
+  const [docs, crms] = await Promise.all([
+    adminDb.getAll(...slugs.map((s) => adminDb.collection("tenants").doc(s))),
+    adminDb.getAll(...slugs.map((s) => adminDb.collection("crm").doc(s))),
+  ]);
+  const dono = new Map(crms.map((d) => [d.id, { whatsapp: (d.get("donoWhatsapp") as string | null) ?? null, nome: (d.get("donoNome") as string | null) ?? null }]));
+  // Cobrança vai para quem paga: o WhatsApp do dono, quando cadastrado; senão o do site
+  const nomes = new Map(
+    docs.map((d) => [d.id, { nome: String(d.get("name") ?? d.id), telefone: dono.get(d.id)?.whatsapp ?? (d.get("site.phone") as string | null) ?? null }]),
+  );
   return cobrancas.map((c) => {
     const { nome, telefone } = nomes.get(c.slug) ?? { nome: c.slug, telefone: null };
+    const primeiro = dono.get(c.slug)?.nome?.split(" ")[0];
     const url = `${base}/pagar/${c.id}?t=${c.token}`;
     const oque = c.tipo === "entrada" ? "a entrada" : `a mensalidade de ${mesLongo(c.competencia)}`;
-    const texto = `Olá! Aqui é da Ruphus. Segue o Pix ${oque} do ${nome}: ${formatBRL(c.valorCents)}, com vencimento em ${diaCurto(c.vencimento)}.\n\nO QR e o copia e cola estão aqui: ${url}\n\nDepois de pagar, me manda o comprovante por aqui que eu confirmo.`;
+    const texto = `Olá${primeiro ? `, ${primeiro}` : ""}! Aqui é da Ruphus. Segue o Pix ${oque} do ${nome}: ${formatBRL(c.valorCents)}, com vencimento em ${diaCurto(c.vencimento)}.\n\nO QR e o copia e cola estão aqui: ${url}\n\nDepois de pagar, me manda o comprovante por aqui que eu confirmo.`;
     return { ...c, nome, telefone, url, whatsapp: linkWhatsApp(telefone, texto) };
   });
 }
@@ -298,12 +340,15 @@ export const cobrarMes = adminAction(async (_user, competencia?: string) => {
   const mes = competencia ?? competenciaAtual();
   const negocios = await lerCrm(adminDb);
   const alvos = Object.entries(negocios).filter(([, n]) => n.estagio === "fechado" && (n.mensalCents ?? 0) > 0);
-  const ids: string[] = [];
+  const geradas: Cobranca[] = [];
   for (const [slug, n] of alvos) {
     const { id } = await gerarCobranca(adminDb, { slug, tipo: "mensal", competencia: mes, valorCents: n.mensalCents! });
-    ids.push(id);
+    const c = (await listarCobrancas(adminDb, slug)).find((x) => x.id === id);
+    // a do mês que já existia e foi paga não volta para a lista de envio
+    if (c?.status === "aberta") geradas.push(c);
   }
-  return { mes, geradas: ids.length, negocios: alvos.length };
+  // Volta a lista pronta para enviar: gerar sem enviar era o que fazia o botão ficar desligado
+  return { mes: mesLongo(mes), geradas: geradas.length, negocios: alvos.length, lista: await enviaveis(geradas) };
 });
 
 export const marcarPaga = adminAction(async (user, id: string, recebidoCents: number, pagoEm: string) => {

@@ -1,4 +1,6 @@
-// Preenche e-mail e nome nos acessos antigos, para o /admin mostrar quem é quem.
+// Preenche e-mail e nome nos acessos antigos, para o /admin mostrar quem é quem,
+// e marca "viaConvite" nos admins antigos: todo admin até aqui entrou por convite,
+// e só com a marca ele conta na cota de negócios da conta.
 // Os novos já nascem com eles (criar negócio e aceitar convite); estes vieram antes.
 // O Admin Auth não roda na Vercel, por isso a cópia é feita daqui, uma vez.
 //
@@ -43,3 +45,16 @@ if (escritor) {
   await escritor.close();
   console.log(`${gravados} gravado(s).`);
 } else if (gravados) console.log("nada gravado: rode com --aplicar.");
+
+// Admins antigos: todos vieram do convite (é o único lugar do app que cria admin)
+// (lê todos e filtra aqui: filtrar por papel no grupo pediria um índice só para isto)
+const semMarca = (await db.collectionGroup("members").get()).docs.filter(
+  (d) => d.ref.parent.parent?.parent.id === "tenants" && d.get("role") === "admin" && d.get("viaConvite") !== true,
+);
+console.log(`${semMarca.length} admin(s) sem viaConvite.`);
+if (aplicar && semMarca.length) {
+  const w = db.bulkWriter();
+  for (const d of semMarca) w.update(d.ref, { viaConvite: true });
+  await w.close();
+  console.log("viaConvite gravado.");
+}

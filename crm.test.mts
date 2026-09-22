@@ -92,3 +92,30 @@ assert.equal(prazoDe(undefined, hoje), null);
 assert.equal(diaCurto("2026-09-25"), "25/09");
 
 console.log("crm: ok");
+
+// Saúde do cliente: a regra que a carteira e a gaveta usam
+{
+  const { classificar } = await import("@/lib/saude");
+  const agora = Date.UTC(2026, 8, 30);
+  const dias = (n: number) => agora - n * 86_400_000;
+  const tudo = { convite: true, servicos: true, profissionais: true, agendamento: true };
+  const base = { passos: tudo, ultimoAgendamentoMs: dias(2), clienteDesdeMs: dias(60), cobranca: "em_dia" as const, diasParaVencer: 20, agora };
+  assert.equal(classificar(base).saude, "ok");
+  assert.equal(classificar({ ...base, cobranca: "atrasada", diasParaVencer: -3 }).saude, "risco", "cobrança atrasada é risco");
+  assert.match(classificar({ ...base, ultimoAgendamentoMs: dias(25) }).motivo, /Sem agendamento há 25 dias/);
+  assert.equal(classificar({ ...base, ultimoAgendamentoMs: null, clienteDesdeMs: dias(5), passos: { ...tudo, agendamento: false } }).saude, "atencao", "cliente novo sem agendar ainda não é risco");
+  assert.equal(classificar({ ...base, ultimoAgendamentoMs: null, clienteDesdeMs: dias(30) }).saude, "risco", "30 dias sem nenhum agendamento é risco");
+  assert.match(classificar({ ...base, passos: { ...tudo, profissionais: false } }).motivo, /falta cadastrar quem atende/);
+  assert.equal(classificar({ ...base, cobranca: "vence", diasParaVencer: 2 }).saude, "atencao");
+}
+console.log("saude: ok");
+{
+  const { classificar } = await import("@/lib/saude");
+  const agora = Date.UTC(2026, 8, 30);
+  const tudo = { convite: true, servicos: true, profissionais: true, agendamento: true };
+  assert.equal(
+    classificar({ passos: tudo, ultimoAgendamentoMs: null, clienteDesdeMs: null, cobranca: "sem", diasParaVencer: null, agora }).saude,
+    "ok",
+    "sem data de fechamento, não acusa inatividade",
+  );
+}

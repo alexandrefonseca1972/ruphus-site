@@ -9,6 +9,7 @@ import { addDays, customerKey, formatPhone, maskBRL, freeSlots, phoneError, plan
 import { BookingInput } from "@/lib/scheduling";
 import { cotaDe, criarNegocio, definirLimite } from "@/lib/negocios.server";
 import { anotar, linhaDoTempo, registrarMensagem, salvarCrm } from "@/lib/crm";
+import { saudeDe } from "@/lib/saude.server";
 
 // Funções puras
 assert.equal(zonedTime("2026-09-20", "09:00").toISOString(), "2026-09-20T12:00:00.000Z");
@@ -342,6 +343,12 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   await db.doc("tenants/primeiro-limite/members/outra-limite").set({ uid: "outra-limite", role: "member" });
   assert.equal(await criarNegocio(db, outra, { name: "Dela", slug: "dela-limite" }), "dela-limite");
   await assert.rejects(definirLimite(db, dona.uid, 0), /de 1 a 50/);
+  // Admin adicionado por outro dono não gasta a cota; admin que entrou por convite gasta
+  const alvo = { uid: "alvo-limite" };
+  await db.doc("tenants/primeiro-limite/members/alvo-limite").set({ uid: "alvo-limite", role: "admin" });
+  assert.equal((await cotaDe(db, alvo.uid)).usados, 0, "admin sem convite não conta");
+  await db.doc("tenants/primeiro-limite/members/alvo-limite").set({ uid: "alvo-limite", role: "admin", viaConvite: true });
+  assert.equal((await cotaDe(db, alvo.uid)).usados, 1, "admin do convite conta");
 }
 
 // CRM: perda pede motivo; estágio e mensagem viram eventos; a linha do tempo junta tudo
@@ -379,6 +386,23 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   await salvarCrm(db, slug, { origem: "indicacao", indicadoPor: "Jéssica" });
   await assert.rejects(salvarCrm(db, slug, { origem: "tv" as never }));
   assert.equal((await crmDoc()).get("origem"), "indicacao");
+}
+
+// Saúde: implantação lida do tenant, cobrança aberta vencida vira risco
+{
+  const slug = "dela-limite";
+  const hoje = todayIn();
+  let x = await saudeDe(db, slug, hoje);
+  // criado pelo próprio dono no /painel: o dono já está dentro
+  assert.deepEqual(x.passos, { convite: true, servicos: false, profissionais: false, agendamento: false });
+  assert.equal(x.saude, "atencao");
+  await db.doc(`tenants/${slug}/members/dono-saude`).set({ uid: "dono-saude", role: "admin", email: "dono@teste.dev", createdAt: Timestamp.now() });
+  await db.doc(`tenants/${slug}/services/corte`).set({ name: "Corte", durationMin: 30, priceCents: 4000, active: true });
+  await db.collection("cobrancas").doc(`${slug}-mensal`).set({ slug, tipo: "mensal", competencia: "2026-01", valorCents: 5990, vencimento: addDays(hoje, -2), status: "aberta" });
+  x = await saudeDe(db, slug, hoje);
+  assert.deepEqual([x.passos.convite, x.passos.servicos, x.passos.profissionais], [true, true, false]);
+  assert.equal(x.detalhes.convite, "dono@teste.dev");
+  assert.deepEqual([x.cobranca, x.diasParaVencer, x.saude], ["atrasada", -2, "risco"]);
 }
 
 console.log("booking ok");

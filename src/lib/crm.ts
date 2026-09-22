@@ -138,8 +138,8 @@ async function evento(db: Firestore, slug: string, e: { tipo: "estagio" | "mensa
 
 /** Mensagem pronta aberta no WhatsApp: fica na linha do tempo como contato feito. */
 export async function registrarMensagem(db: Firestore, slug: string, modelo: string, para: string, autor: string) {
-  const m = z.string().trim().min(1).max(40).parse(modelo);
-  await evento(db, slug, { tipo: "mensagem", titulo: `Mensagem enviada: ${m}`, detalhe: para ? `para ${z.string().max(40).parse(para)}` : null, autor });
+  const m = z.string().trim().min(1).max(80).parse(modelo.slice(0, 80));
+  await evento(db, slug, { tipo: "mensagem", titulo: `Mensagem enviada: ${m}`, detalhe: para ? `para ${String(para).slice(0, 80)}` : null, autor });
 }
 
 const iso = (v: unknown) => (v as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null;
@@ -151,13 +151,16 @@ const iso = (v: unknown) => (v as { toDate?: () => Date } | null)?.toDate?.().to
  * nasce com o histórico, sem esperar que alguém volte a fazer as coisas. */
 export async function linhaDoTempo(db: Firestore, slug: string): Promise<Evento[]> {
   const t = db.collection("tenants").doc(slug);
-  const [notas, eventos, membros, primeiro, cobrancas] = await Promise.all([
+  const [notas, eventos, membros, primeiro, cobrancas, admins] = await Promise.all([
     db.collection(`${RAIZ}/${slug}/notas`).orderBy("quando", "desc").limit(100).get(),
     db.collection(`${RAIZ}/${slug}/eventos`).orderBy("quando", "desc").limit(100).get(),
-    t.collection("members").where("role", "==", "admin").get(),
+    t.collection("members").where("role", "in", ["admin", "owner"]).get(),
     t.collection("appointments").orderBy("createdAt").limit(1).get(),
     db.collection("cobrancas").where("slug", "==", slug).get(),
+    db.doc("config/admin").get(),
   ]);
+  // o admin da plataforma é dono dos sites importados: a entrada dele não é do cliente
+  const daPlataforma = new Set((admins.get("uids") as string[] | undefined) ?? []);
   const brl = (c: number) => (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   const lista: Evento[] = [
     ...notas.docs.map((d) => ({ id: d.id, tipo: "nota" as const, titulo: "Nota", detalhe: String(d.get("texto") ?? ""), autor: String(d.get("autor") ?? ""), quando: iso(d.get("quando")) ?? "" })),
@@ -171,8 +174,10 @@ export async function linhaDoTempo(db: Firestore, slug: string): Promise<Evento[
     })),
     ...membros.docs.flatMap((d) => {
       const quando = iso(d.get("createdAt"));
+      if (daPlataforma.has(d.id)) return [];
       const quem = (d.get("nome") as string | undefined) ?? (d.get("email") as string | undefined) ?? "o dono";
-      return quando ? [{ id: `convite-${d.id}`, tipo: "convite" as const, titulo: "Convite aceito", detalhe: `${quem} entrou no painel`, autor: (d.get("email") as string | undefined) ?? "", quando }] : [];
+      const criou = d.get("role") === "owner";
+      return quando ? [{ id: `convite-${d.id}`, tipo: "convite" as const, titulo: criou ? "Negócio criado" : "Convite aceito", detalhe: criou ? `${quem} criou o negócio pelo painel` : `${quem} entrou no painel`, autor: (d.get("email") as string | undefined) ?? "", quando }] : [];
     }),
     ...primeiro.docs.flatMap((d) => {
       const quando = iso(d.get("createdAt"));

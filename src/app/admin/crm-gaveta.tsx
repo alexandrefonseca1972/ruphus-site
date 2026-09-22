@@ -3,6 +3,8 @@
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { useState } from "react";
 import { formatBRL, formatPhone, linkWhatsApp } from "@/lib/datetime";
+import type { ClienteSaude } from "@/lib/saude.server";
+import { ROTULO_SAUDE } from "@/lib/saude";
 import { MOTIVOS_PERDA, ORIGENS, PRECO_PADRAO, type Crm, type Evento, type MotivoPerda, type Origem } from "@/lib/crm-tipos";
 
 // Partes da gaveta do negócio que formam o CRM: quem decide, o que dizer a ele,
@@ -135,7 +137,7 @@ export function OrigemDoContato({ crm, salvar }: { crm: Crm; salvar: (dados: Par
 const MODELOS = ["Primeiro contato", "Proposta", "Lembrete", "Boas-vindas"] as const;
 type Modelo = (typeof MODELOS)[number];
 
-function mensagem(modelo: Modelo, negocio: Negocio, crm: Crm) {
+export function mensagem(modelo: Modelo, negocio: Negocio, crm: Crm) {
   const oi = `Oi${crm.donoNome ? `, ${crm.donoNome.split(" ")[0]}` : ""}! Aqui é da Ruphus.`;
   const site = `${negocio.slug}.ruphus.site`;
   const entrada = formatBRL(crm.entradaCents ?? PRECO_PADRAO.entradaCents);
@@ -411,6 +413,218 @@ export function MotivoDaPerda({
               className={`${BOTAO} bg-[#8A2F2F] text-white hover:bg-[#742626] disabled:opacity-60`}
             >
               {busy ? "Salvando…" : "Marcar como perdido"}
+            </button>
+          </div>
+        </AlertDialog.Popup>
+      </AlertDialog.Portal>
+    </AlertDialog.Root>
+  );
+}
+
+const PASSOS = [
+  { id: "convite", titulo: "Convite aceito" },
+  { id: "servicos", titulo: "Serviços cadastrados" },
+  { id: "profissionais", titulo: "Profissionais cadastrados" },
+  { id: "agendamento", titulo: "Primeiro agendamento" },
+] as const;
+export type Passo = (typeof PASSOS)[number]["id"];
+
+const COR_SAUDE = { ok: "bg-[#E7EEE9] text-[#2C6A53]", atencao: "bg-[#FBF3DC] text-[#7A5A2E]", risco: "bg-[#F1E7E7] text-[#8A2F2F]" } as const;
+export const SeloSaude = ({ saude }: { saude: ClienteSaude["saude"] }) => (
+  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap ${COR_SAUDE[saude]}`}>{ROTULO_SAUDE[saude]}</span>
+);
+const dataCurta = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : null);
+const haQuanto = (iso: string | null) => {
+  if (!iso) return "nunca";
+  const d = Math.floor((Date.now() - Date.parse(iso)) / 86_400_000);
+  return d <= 0 ? "hoje" : d === 1 ? "ontem" : `há ${d} dias`;
+};
+
+/** O cliente depois da venda: se terminou de implantar e se está usando. */
+export function ImplantacaoESaude({ saude, lembrar }: { saude: ClienteSaude | null; lembrar: (passo: Passo) => void }) {
+  if (!saude) return <p className="rounded-2xl border border-[#E2DDD3] p-4 text-[13px] text-[#6F6A5E]">Carregando implantação e saúde…</p>;
+  const feitos = PASSOS.filter((p) => saude.passos[p.id]).length;
+  const detalhe: Record<Passo, string> = {
+    convite: saude.detalhes.convite ? `${saude.detalhes.convite} entrou no painel` : "o dono ainda não entrou",
+    servicos: saude.detalhes.servicos ? `${saude.detalhes.servicos} serviço(s)` : "nenhum ainda",
+    profissionais: saude.detalhes.profissionais ? `${saude.detalhes.profissionais} profissional(is)` : "nenhum ainda",
+    agendamento: saude.detalhes.primeiro ? `em ${dataCurta(saude.detalhes.primeiro)}` : "ainda não recebeu",
+  };
+  const maior = Math.max(1, ...saude.semanas);
+  const cobranca = { sem: "sem cobrança aberta", em_dia: "em dia", vence: `vence em ${saude.diasParaVencer} dia(s)`, atrasada: "atrasada" }[saude.cobranca];
+  return (
+    <>
+      <section aria-labelledby="impl-t" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 id="impl-t" className="text-[15px] font-semibold">Implantação</h3>
+          <span className="text-xs text-[#6F6A5E]">{feitos} de 4</span>
+        </div>
+        <div role="progressbar" aria-label="Implantação" aria-valuenow={feitos} aria-valuemin={0} aria-valuemax={4} className="h-1.5 rounded-full bg-[#EFEBE2]">
+          <div className="h-full rounded-full bg-[#2C6A53]" style={{ width: `${(feitos / 4) * 100}%` }} />
+        </div>
+        <ol className="flex flex-col">
+          {PASSOS.map((p, i) => {
+            const ok = saude.passos[p.id];
+            return (
+              <li key={p.id} className={`grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-3 py-2.5 ${i ? "border-t border-[#EFEBE3]" : ""}`}>
+                <span className={`grid size-7 place-items-center rounded-full ${ok ? "bg-[#E7EEE9] text-[#2C6A53]" : "border-[1.5px] border-dashed border-[#D8D2C6]"}`}>
+                  {ok && (
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="m5 12 5 5 9-10" />
+                    </svg>
+                  )}
+                </span>
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-[13px] font-semibold">
+                    {p.titulo}
+                    <span className="sr-only">{ok ? ": feito" : ": falta"}</span>
+                  </span>
+                  <span className="truncate text-[11px] text-[#6F6A5E]">{detalhe[p.id]}</span>
+                </span>
+                {!ok && (
+                  <button type="button" onClick={() => lembrar(p.id)} className={`${BOTAO_VERDE} h-9 px-3 text-xs`}>
+                    <Zap /> Lembrar
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+
+      <section aria-labelledby="saude-t" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 id="saude-t" className="text-[15px] font-semibold">Saúde</h3>
+          <SeloSaude saude={saude.saude} />
+        </div>
+        <p className="text-[12.5px] leading-relaxed">{saude.motivo}</p>
+        <div aria-label={`Agendamentos por semana: ${saude.semanas.join(", ")}`} role="img" className="flex h-16 items-end gap-2">
+          {saude.semanas.map((q, i) => (
+            <span key={i} className="flex flex-1 flex-col items-center gap-1">
+              <span className="text-[10px] tabular-nums text-[#6F6A5E]">{q}</span>
+              <span className={`w-full rounded-md ${q ? "bg-[#2C6A53]" : "bg-[#E2DDD3]"}`} style={{ height: `${Math.max(4, (q / maior) * 40)}px` }} />
+            </span>
+          ))}
+        </div>
+        <p className="text-center text-[10px] text-[#6F6A5E]">agendamentos por semana · últimas 4</p>
+        <dl className="grid grid-cols-3 gap-2">
+          {[
+            ["Último agendamento", haQuanto(saude.ultimoAgendamento)],
+            ["Cliente desde", dataCurta(saude.clienteDesde) ?? "—"],
+            ["Cobrança", cobranca],
+          ].map(([a, b]) => (
+            <div key={a} className="rounded-[10px] bg-[#FBFAF8] p-2.5">
+              <dt className="text-[10px] tracking-[0.04em] text-[#6F6A5E] uppercase">{a}</dt>
+              <dd className="mt-1 text-[13px] font-semibold">{b}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+    </>
+  );
+}
+
+/** Marcar "fechado" confirma os valores e já faz o que vem depois da venda. */
+export function VendaFechada({
+  nome,
+  crm,
+  precisaConvite,
+  onConfirmar,
+  onCancelar,
+}: {
+  nome: string;
+  crm: Crm;
+  precisaConvite: boolean;
+  onConfirmar: (dados: { entradaCents: number; mensalCents: number; cobrarEntrada: boolean; boasVindas: boolean; convite: boolean }) => Promise<unknown> | void;
+  onCancelar: () => void;
+}) {
+  const [entrada, setEntrada] = useState(((crm.entradaCents ?? PRECO_PADRAO.entradaCents) / 100).toFixed(2).replace(".", ","));
+  const [mensal, setMensal] = useState(((crm.mensalCents ?? PRECO_PADRAO.mensalCents) / 100).toFixed(2).replace(".", ","));
+  const [cobrarEntrada, setCobrarEntrada] = useState(true);
+  const [boasVindas, setBoasVindas] = useState(true);
+  const [convite, setConvite] = useState(precisaConvite);
+  const [busy, setBusy] = useState(false);
+  // "59,90", "59.90" e "1.250,00" querem dizer o que parecem: com vírgula, o ponto é milhar;
+  // sem vírgula, um ponto seguido de 1 ou 2 dígitos no fim é a casa decimal
+  const cents = (v: string) => {
+    const n = v.includes(",") ? v.replace(/\./g, "").replace(",", ".") : /\.\d{1,2}$/.test(v) ? v.replace(/\.(?=\d{3})/g, "") : v.replace(/\./g, "");
+    return Math.round(Number(n) * 100);
+  };
+  const invalido = !(cents(mensal) > 0) || !(cents(entrada) >= 0) || Number.isNaN(cents(entrada));
+
+  const opcoes = [
+    { id: "cobrar", rotulo: "Gerar a cobrança da entrada", detalhe: "Pix com link", on: cobrarEntrada, set: setCobrarEntrada, mostrar: cents(entrada) > 0 },
+    { id: "boas", rotulo: "Enviar boas-vindas no WhatsApp", detalhe: crm.donoNome ? `para ${crm.donoNome.split(" ")[0]}` : "para o dono", on: boasVindas, set: setBoasVindas, mostrar: true },
+    { id: "convite", rotulo: "Incluir o convite do painel", detalhe: "o dono ainda não entrou", on: convite, set: setConvite, mostrar: precisaConvite },
+  ];
+
+  return (
+    <AlertDialog.Root open onOpenChange={(open) => !open && !busy && onCancelar()}>
+      <AlertDialog.Portal container={typeof document === "undefined" ? undefined : document.getElementById("admin-raiz")}>
+        <AlertDialog.Backdrop className="fixed inset-0 z-[60] bg-[#17150F]/35" />
+        <AlertDialog.Popup className="fixed top-1/2 left-1/2 z-[70] flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-2xl bg-white p-6 font-[family-name:var(--fonte-mono)] text-[#17150F] shadow-2xl outline-none">
+          <div className="flex flex-col gap-1">
+            <AlertDialog.Title className="font-[family-name:var(--fonte-serifa)] text-[28px] leading-tight">Venda fechada</AlertDialog.Title>
+            <AlertDialog.Description className="text-[12.5px] leading-relaxed text-[#6F6A5E]">{nome} vira cliente. Confirme o que já sai daqui:</AlertDialog.Description>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {(
+              [
+                ["Entrada", entrada, setEntrada],
+                ["Mensalidade", mensal, setMensal],
+              ] as const
+            ).map(([rotulo, valor, set]) => (
+              <label key={rotulo} className={ROTULO_CAMPO}>
+                {rotulo}
+                <span className="flex h-11 items-center rounded-[10px] border border-[#D8D2C6] focus-within:border-[#17150F]">
+                  <span className="pl-3 text-sm text-[#8B8578]">R$</span>
+                  <input
+                    inputMode="decimal"
+                    value={valor}
+                    onChange={(e) => set(e.target.value.replace(/[^\d,.]/g, ""))}
+                    className="h-full min-w-0 grow bg-transparent px-2 text-sm tabular-nums text-[#17150F] outline-none"
+                  />
+                </span>
+              </label>
+            ))}
+          </div>
+          {invalido && <p role="alert" className="text-xs text-[#8A2F2F]">Informe a mensalidade (e a entrada, se houver).</p>}
+          <fieldset className="grid gap-2">
+            <legend className="mb-2 text-xs text-[#6F6A5E]">Já fazer agora</legend>
+            {opcoes
+              .filter((o) => o.mostrar)
+              .map((o) => (
+                <label key={o.id} className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-[10px] border border-[#D8D2C6] px-3 text-[13px]">
+                  <input type="checkbox" checked={o.on} onChange={(e) => o.set(e.target.checked)} className="size-4 accent-[#17150F]" />
+                  <span className="grow">{o.rotulo}</span>
+                  <span className="text-[11px] text-[#6F6A5E]">{o.detalhe}</span>
+                </label>
+              ))}
+          </fieldset>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" disabled={busy} onClick={onCancelar} className={BOTAO_CLARO}>
+              Voltar
+            </button>
+            <button
+              type="button"
+              disabled={busy || invalido}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await onConfirmar({
+                    entradaCents: cents(entrada) || 0,
+                    mensalCents: cents(mensal),
+                    cobrarEntrada: cobrarEntrada && cents(entrada) > 0,
+                    boasVindas,
+                    convite: convite && precisaConvite,
+                  });
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              className={`${BOTAO_VERDE} disabled:opacity-60`}
+            >
+              {busy ? "Salvando…" : "Confirmar venda"}
             </button>
           </div>
         </AlertDialog.Popup>

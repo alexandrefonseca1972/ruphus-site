@@ -1,4 +1,5 @@
 import "server-only";
+import { ErroPrevisto } from "@/lib/erro-previsto";
 import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
 import { addDays, customerKey, freeSlots, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
@@ -48,7 +49,7 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
 export type VerifyToken = (idToken: string) => Promise<{ uid: string; email?: string }>;
 
 /** Erro cuja mensagem pode ser mostrada para a pessoa */
-export class UserError extends Error {}
+export class UserError extends ErroPrevisto {}
 
 /** Corrige o nome do cliente.
  *
