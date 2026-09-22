@@ -1,7 +1,6 @@
 "use client";
 
 import { onAuthStateChanged } from "firebase/auth";
-import { Instrument_Serif } from "next/font/google";
 import { doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
@@ -9,6 +8,7 @@ import { createContext, use, useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { Tenant } from "@/lib/tenants";
 import { ehAdminDaPlataforma } from "@/app/admin/actions";
+import { serifa, useSerifaNoBody } from "@/app/fonte-serifa";
 import { AccountMenu } from "./account-menu";
 import { ShareLink } from "./share-link";
 import { cn } from "@/lib/utils";
@@ -16,9 +16,6 @@ import { cn } from "@/lib/utils";
 // podeGerir: dono ou admin do negócio, ou admin da plataforma. Só esconde botões —
 // quem decide de verdade é o servidor/as regras.
 type TenantCtx = Tenant & { podeGerir: boolean };
-// Serifa só nos títulos e números grandes, como no /admin
-const serifa = Instrument_Serif({ weight: "400", subsets: ["latin"], variable: "--fonte-serifa" });
-
 const TenantContext = createContext<TenantCtx | null>(null);
 
 export function useTenant() {
@@ -35,11 +32,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   const [loaded, setLoaded] = useState<{ slug: string; value: TenantCtx | "denied" } | null>(null);
   const state = loaded?.slug === slug ? loaded.value : "loading";
 
-  // A fonte também no body: diálogos e menus abrem em portal, fora do wrapper .painel
-  useEffect(() => {
-    document.body.classList.add(serifa.variable);
-    return () => document.body.classList.remove(serifa.variable);
-  }, []);
+  useSerifaNoBody();
 
   useEffect(() => {
     let current = true;
