@@ -27,8 +27,10 @@ service cloud.firestore {
       // Negócio novo só pelo servidor (criarNegocio): é lá que vale o limite de
       // negócios por conta, e regra não sabe contar quantos a pessoa já tem
       allow create: if false;
+      // limiteStaff é do admin da plataforma (pelo servidor): ninguém aumenta o próprio
       allow update: if hasRole(t, ['owner', 'admin'])
-        && request.resource.data.ownerId == resource.data.ownerId;
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.get('limiteStaff', 0) == resource.data.get('limiteStaff', 0);
       // Sem delete pelo app: as subcoleções ficariam órfãs e o slug poderia ser recriado por outra pessoa
       allow delete: if false;
 

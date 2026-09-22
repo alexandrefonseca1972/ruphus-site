@@ -1,0 +1,9 @@
+/** Quantos profissionais um negócio pode cadastrar, até o admin da plataforma mudar.
+ *
+ * Fica num arquivo só, sem import: o número é lido no painel (cliente), no /admin
+ * e no servidor. O limite de negócios por conta mora em negocios.server.ts. */
+export const LIMITE_STAFF_PADRAO = 5;
+export const LIMITE_STAFF_MAX = 50;
+
+/** O limite deste negócio: o que o admin definiu, ou o padrão. */
+export const limiteStaffDe = (limiteStaff?: number | null) => limiteStaff ?? LIMITE_STAFF_PADRAO;

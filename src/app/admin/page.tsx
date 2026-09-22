@@ -19,6 +19,9 @@ import {
   resumoDoDia,
   salvarNegocio,
   revogarAcesso,
+  definirAssinatura,
+  definirLimiteStaff,
+  lerAssinatura,
   liberarNegocios,
   saudeDoNegocio,
   cobrar,
@@ -27,7 +30,8 @@ import {
   type Espaco,
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
-import { ContatoDono, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, vendedorSalvo, type Passo } from "./crm-gaveta";
+import { LIMITE_STAFF_MAX } from "@/lib/limites";
+import { ContatoDono, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
 import { Carteira } from "./carteira";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
@@ -109,6 +113,7 @@ export default function AdminPage() {
   const [estado, setEstado] = useState<"carregando" | "negado" | "pronto">("carregando");
   const [email, setEmail] = useState("");
   const [espacos, setEspacos] = useState<Espaco[]>([]);
+  const [assinatura, setAssinatura] = useState("");   // quem assina as mensagens do CRM
   const [hoje, setHoje] = useState<{ agendamentosHoje: number; espacosComAgenda: number } | null>(null);
   const [busca, setBusca] = useState("");
   const [cidade, setCidade] = useState("");
@@ -150,11 +155,13 @@ export default function AdminPage() {
         setEmail(user.email ?? "");
         const idToken = await user.getIdToken();
         setIdToken(idToken);
-        const [lista, dia, negocios] = await Promise.all([
+        const [lista, dia, negocios, quemAssina] = await Promise.all([
           listarEspacos(idToken),
           resumoDoDia(idToken),
           listarCrm(idToken),
+          lerAssinatura(idToken),
         ]);
+        if (quemAssina.ok) setAssinatura(quemAssina.dados);
         if (!lista.ok) return setEstado("negado");
         setEspacos(lista.dados);
         if (dia.ok) setHoje(dia.dados);
@@ -268,6 +275,14 @@ export default function AdminPage() {
     if (r.ok) setAcessos((a) => a?.map((x) => (x.uid === uid ? { ...x, limite: r.dados } : x)) ?? null);
   }
 
+  async function mudarLimiteStaff(slug: string, profissionais: number) {
+    const r = await definirLimiteStaff(await token(), slug, profissionais);
+    if (!r.ok) return setAviso(r.error);
+    setAviso(`agora pode cadastrar ${r.dados} profissional(is)`);
+    setEspacos((e) => e.map((x) => (x.slug === slug ? { ...x, limiteStaff: r.dados } : x)));
+    setAberto((x) => (x && x.slug === slug ? { ...x, limiteStaff: r.dados } : x));
+  }
+
   async function mudarNegocio(slug: string, dados: Partial<Crm>) {
     const atual = crm[slug] ?? VAZIO;
     setCrm((c) => ({ ...c, [slug]: { ...atual, ...dados } as Crm }));   // resposta imediata na tela
@@ -354,7 +369,7 @@ export default function AdminPage() {
       const c = { ...(crm[slug] ?? VAZIO), entradaCents: d.entradaCents, mensalCents: d.mensalCents, estagio: "fechado" as const };
       const e = espacos.find((x) => x.slug === slug);
       const numero = c.donoWhatsapp ?? e?.telefone ?? null;
-      const texto = mensagem("Boas-vindas", { slug, nome: e?.nome ?? slug, telefone: e?.telefone ?? null }, c, vendedorSalvo()) + (urlConvite ? `\n\nSeu acesso ao painel: ${urlConvite}` : "");
+      const texto = mensagem("Boas-vindas", { slug, nome: e?.nome ?? slug, telefone: e?.telefone ?? null }, c, assinatura) + (urlConvite ? `\n\nSeu acesso ao painel: ${urlConvite}` : "");
       const link = numero && linkWhatsApp(numero, texto);
       if (link) {
         janela.location.href = link;
@@ -766,6 +781,35 @@ export default function AdminPage() {
 
       <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-5">
         {aviso && <p className="text-sm text-[#6F6A5E]">{aviso}</p>}
+
+        {/* Uma vez só: o nome entra em toda mensagem pronta, sem o vendedor redigitar */}
+        <details className="rounded-2xl border border-[#E2DDD3] bg-white px-4 py-3">
+          <summary className="cursor-pointer text-sm text-[#6F6A5E]">
+            Quem assina as mensagens{assinatura ? ` · ${assinatura}` : " · ninguém ainda"}
+          </summary>
+          <form
+            className="mt-3 flex flex-wrap items-end gap-2"
+            onSubmit={async (ev) => {
+              ev.preventDefault();
+              const nome = new FormData(ev.currentTarget).get("assinatura");
+              const r = await definirAssinatura(await token(), nome);
+              setAviso(r.ok ? "" : r.error);
+              if (r.ok) setAssinatura(r.dados);
+            }}
+          >
+            <label className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
+              Nome de quem fala com o cliente
+              <input
+                name="assinatura"
+                defaultValue={assinatura}
+                maxLength={40}
+                placeholder="Alexandre"
+                className="h-11 w-56 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F] outline-none focus:border-[#17150F]"
+              />
+            </label>
+            <button type="submit" className={BOTAO_ESCURO}>Salvar</button>
+          </form>
+        </details>
 
         {/* Quem já devia aparece antes da lista: é o que se olha de manhã */}
         <Atrasadas idToken={idToken} aviso={setAviso} cortar={(slug) => mudarNegocio(slug, { publicado: false })} />
@@ -1227,6 +1271,7 @@ export default function AdminPage() {
               key={`msg-${aberto.slug}`}
               negocio={aberto}
               crm={crm[aberto.slug] ?? VAZIO}
+              assinatura={assinatura}
               onEnviar={(modelo, para) => enviouMensagem(aberto.slug, modelo, para)}
               onCopiar={(texto) => copiar(texto, "mensagem")}
             />
@@ -1313,6 +1358,33 @@ export default function AdminPage() {
                   Convidar
                 </button>
               )}
+            </section>
+
+            {/* O plano inclui 5 profissionais; daqui o admin libera mais para este negócio */}
+            <section aria-label="Limite de profissionais" className="flex items-center justify-between gap-3 rounded-2xl border border-[#E2DDD3] p-4">
+              <span className="text-xs text-[#6F6A5E]">
+                Profissionais no plano: <b className="font-semibold text-[#17150F]">{aberto.limiteStaff}</b>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-label="Diminuir o limite de profissionais"
+                  disabled={aberto.limiteStaff <= 1}
+                  onClick={() => mudarLimiteStaff(aberto.slug, aberto.limiteStaff - 1)}
+                  className="size-11 rounded-[10px] border border-[#D8D2C6] text-base font-semibold hover:border-[#17150F] disabled:opacity-40"
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  aria-label="Liberar mais um profissional"
+                  disabled={aberto.limiteStaff >= LIMITE_STAFF_MAX}
+                  onClick={() => mudarLimiteStaff(aberto.slug, aberto.limiteStaff + 1)}
+                  className="size-11 rounded-[10px] border border-[#D8D2C6] text-base font-semibold hover:border-[#17150F] disabled:opacity-40"
+                >
+                  +
+                </button>
+              </span>
             </section>
 
             <section aria-label="Quem tem acesso" className="flex flex-col gap-2.5">

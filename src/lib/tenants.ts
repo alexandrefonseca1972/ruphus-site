@@ -13,7 +13,7 @@ import { auth, db } from "@/lib/firebase";
 export * from "./tenant-input";
 import { Role } from "./tenant-input";
 
-export const Tenant = z.object({ name: z.string(), ownerId: z.string() });
+export const Tenant = z.object({ name: z.string(), ownerId: z.string(), limiteStaff: z.number().int().positive().optional() });
 export type Tenant = z.infer<typeof Tenant> & { id: string };
 
 function uid() {

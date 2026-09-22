@@ -137,12 +137,8 @@ export function OrigemDoContato({ crm, salvar }: { crm: Crm; salvar: (dados: Par
 const MODELOS = ["Primeiro contato", "Lembrete", "Última tentativa", "Proposta", "Boas-vindas"] as const;
 type Modelo = (typeof MODELOS)[number];
 
-/** O nome de quem assina fica no aparelho do vendedor: cada um manda com o seu. */
-const CHAVE_VENDEDOR = "ruphus.vendedor";
+/** Quem assina as mensagens: definido uma vez pelo admin da plataforma (config/crm). */
 export const MARCA_NOME = "[SEU NOME]";
-
-/** O nome guardado, para quem monta mensagem fora desta gaveta (a venda fechada). */
-export const vendedorSalvo = () => (typeof window === "undefined" ? "" : localStorage.getItem(CHAVE_VENDEDOR) ?? "");
 
 /** Quando enviar cada toque, do jeito que o playbook manda: poucos, e com saída. */
 const QUANDO: Record<Modelo, string> = {
@@ -225,19 +221,19 @@ export function Objecoes({ onCopiar }: { onCopiar: (texto: string) => void }) {
 export function MensagensProntas({
   negocio,
   crm,
+  assinatura,
   onEnviar,
   onCopiar,
 }: {
   negocio: Negocio;
   crm: Crm;
+  assinatura: string;
   onEnviar: (modelo: Modelo, para: string) => void;
   onCopiar: (texto: string) => void;
 }) {
   const [modelo, setModelo] = useState<Modelo>(crm.estagio === "fechado" ? "Boas-vindas" : crm.estagio === "novo" ? "Primeiro contato" : "Proposta");
   const [texto, setTexto] = useState<{ para: Modelo; valor: string } | null>(null);
-  // Só no navegador: no servidor não existe localStorage e a gaveta é client-side
-  const [vendedor, setVendedor] = useState(() => (typeof window === "undefined" ? "" : localStorage.getItem(CHAVE_VENDEDOR) ?? ""));
-  const atual = texto?.para === modelo ? texto.valor : mensagem(modelo, negocio, crm, vendedor);
+  const atual = texto?.para === modelo ? texto.valor : mensagem(modelo, negocio, crm, assinatura);
   const numero = crm.donoWhatsapp ?? negocio.telefone;
   // Mandar "[SEU NOME]" para o cliente é pior do que não mandar nada
   const faltaNome = atual.includes(MARCA_NOME);
@@ -265,21 +261,11 @@ export function MensagensProntas({
         ))}
       </div>
       <p className="text-xs text-[#6F6A5E]">Quando mandar: {QUANDO[modelo]}.</p>
-      <label className={ROTULO_CAMPO}>
-        Você assina como
-        <input
-          value={vendedor}
-          maxLength={40}
-          placeholder="seu primeiro nome"
-          onChange={(e) => {
-            setVendedor(e.target.value);
-            setTexto(null);
-            localStorage.setItem(CHAVE_VENDEDOR, e.target.value.trim());
-          }}
-          className={`${CAMPO} ${faltaNome ? "border-[#8A2F2F]" : ""}`}
-        />
-        {faltaNome && <span className="text-[#8A2F2F]">Preencha seu nome: a mensagem sairia com {MARCA_NOME}.</span>}
-      </label>
+      {faltaNome && (
+        <p className="rounded-[10px] bg-[#F7EFEF] px-3 py-2.5 text-xs text-[#8A2F2F]">
+          Ninguém assina as mensagens ainda: defina o nome em &quot;Quem assina&quot;, no topo do painel.
+        </p>
+      )}
       <label className="sr-only" htmlFor="msg-texto">Texto da mensagem</label>
       <textarea
         id="msg-texto"
@@ -295,7 +281,7 @@ export function MensagensProntas({
           </a>
         ) : (
           <span className={`${BOTAO} grow border border-dashed border-[#D8D2C6] text-[#8B8578]`}>
-            {faltaNome ? "Preencha seu nome acima" : "Cadastre o WhatsApp do dono"}
+            {faltaNome ? "Defina quem assina, no topo" : "Cadastre o WhatsApp do dono"}
           </span>
         )}
         <button type="button" disabled={faltaNome} onClick={() => onCopiar(atual)} className={`${BOTAO_CLARO} disabled:cursor-not-allowed disabled:opacity-50`}>
