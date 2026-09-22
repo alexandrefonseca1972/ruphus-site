@@ -31,7 +31,7 @@ import {
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
 import { LIMITE_STAFF_MAX } from "@/lib/limites";
-import { ContatoDono, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
+import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
 import { Carteira } from "./carteira";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
@@ -41,9 +41,13 @@ const PAGINA = 40;
 const VAZIO: Crm = {
   estagio: "novo", entradaCents: null, mensalCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
   donoNome: null, donoPapel: null, donoWhatsapp: null, donoEmail: null, motivoPerda: null, detalhePerda: null,
-  origem: null, indicadoPor: null, entrouEm: null, perdidoEm: null,
+  origem: null, indicadoPor: null, entrouEm: null, perdidoEm: null, ultimoContatoEm: null, fixadoAte: null,
 };
 const CIDADES_VISIVEIS = 5;
+
+// "sv-SE" formata como AAAA-MM-DD, e no fuso de quem está olhando
+const diaLocal = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("sv-SE") : "");
+const emDestaque = (c: Crm | undefined, hoje: string) => !!c?.fixadoAte && c.fixadoAte >= hoje;
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 // relevância: a nota pesa, mas um 5,0 de três pessoas não passa na frente de um 4,7 de quinhentas
@@ -53,10 +57,12 @@ const local = (e: Espaco) => (e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ""}` 
 // As visões são combinações de filtro que se repetem todo dia. Viram aba para
 // ninguém ter de remontá-las de manhã — e cada uma é só um preset dos mesmos
 // filtros, não um caminho paralelo.
-type Visao = { id: string; rotulo: string; urgente?: boolean; separa?: boolean; prazo: "" | Prazo; situacao: string; estagio: string; fora: boolean };
+type Visao = { id: string; rotulo: string; urgente?: boolean; separa?: boolean; prazo: "" | Prazo; situacao: string; estagio: string; fora: boolean; contato?: "" | "hoje"; fixados?: boolean };
 const VISOES: Visao[] = [
   { id: "atrasados", rotulo: "Atrasados", urgente: true, prazo: "atrasada", situacao: "", estagio: "", fora: false },
   { id: "hoje", rotulo: "Para hoje", prazo: "hoje", situacao: "", estagio: "", fora: false },
+  { id: "falei", rotulo: "Falei hoje", prazo: "", situacao: "", estagio: "", fora: false, contato: "hoje" },
+  { id: "fixados", rotulo: "Em destaque", prazo: "", situacao: "", estagio: "", fora: false, fixados: true },
   { id: "todos", rotulo: "Todos", separa: true, prazo: "", situacao: "", estagio: "", fora: false },
   { id: "pendentes", rotulo: "Sem cliente dentro", prazo: "", situacao: "pendente", estagio: "", fora: false },
   { id: "negociando", rotulo: "Em negociação", prazo: "", situacao: "", estagio: "negociando", fora: false },
@@ -141,6 +147,8 @@ export default function AdminPage() {
   const [aba, setAba] = useState<"venda" | "historico" | "cliente" | "cobranca">("venda");
   const [estagio, setEstagio] = useState("");
   const [prazo, setPrazo] = useState<"" | Prazo>("");
+  const [contato, setContato] = useState<"" | "hoje">("");   // "falei hoje"
+  const [fixados, setFixados] = useState(false);
   const [foraDoAr, setForaDoAr] = useState(false);
   const [menuFiltros, setMenuFiltros] = useState(false);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
@@ -197,10 +205,12 @@ export default function AdminPage() {
       estagio: (e) => !estagio || (crm[e.slug]?.estagio ?? "novo") === estagio,
       prazo: (e) => !prazo || prazoDe(crm[e.slug], dataDeHoje) === prazo,
       fora: (e) => !foraDoAr || crm[e.slug]?.publicado === false,
+      contato: (e) => !contato || diaLocal(crm[e.slug]?.ultimoContatoEm ?? null) === dataDeHoje,
+      fixados: (e) => !fixados || emDestaque(crm[e.slug], dataDeHoje),
     };
     return (e: Espaco, ...exceto: string[]) =>
       Object.entries(testes).every(([nome, teste]) => exceto.includes(nome) || teste(e));
-  }, [busca, cidade, nicho, situacao, estagio, prazo, foraDoAr, dataDeHoje, crm]);
+  }, [busca, cidade, nicho, situacao, estagio, prazo, foraDoAr, contato, fixados, dataDeHoje, crm]);
 
   const cidades = useMemo(() => contar(espacos.filter((e) => passa(e, "cidade")), local), [espacos, passa]);
   const nichos = useMemo(() => contar(espacos.filter((e) => passa(e, "nicho")), (e) => e.nicho), [espacos, passa]);
@@ -216,9 +226,15 @@ export default function AdminPage() {
       compromisso: (a, b) =>
         (crm[a.slug]?.proximaData ?? "9999").localeCompare(crm[b.slug]?.proximaData ?? "9999") ||
         a.nome.localeCompare(b.nome, "pt-BR"),
+      // a ordem em que se falou: o mais recente primeiro; quem nunca foi contatado fica no fim
+      contato: (a, b) =>
+        (crm[b.slug]?.ultimoContatoEm ?? "").localeCompare(crm[a.slug]?.ultimoContatoEm ?? "") ||
+        a.nome.localeCompare(b.nome, "pt-BR"),
     };
-    return [...filtrada].sort(por[ordem]);
-  }, [espacos, passa, ordem, crm]);
+    // Fixado fica no topo de qualquer ordenação: é para isso que serve o destaque
+    const destaque = (e: Espaco) => (emDestaque(crm[e.slug], dataDeHoje) ? 0 : 1);
+    return [...filtrada].sort((a, b) => destaque(a) - destaque(b) || por[ordem](a, b));
+  }, [espacos, passa, ordem, crm, dataDeHoje]);
 
   // o último negócio aberto: resposta lenta de um anterior não pode pintar a gaveta do atual
   const abertoRef = useRef("");
@@ -461,7 +477,7 @@ export default function AdminPage() {
 
   function exportarCSV() {
     baixar(`espacos-${new Date().toISOString().slice(0, 10)}.csv`, [
-      ["nome", "site", "cidade", "uf", "nicho", "nota", "avaliacoes", "situacao", "telefone", "estagio", "entrada", "mensalidade", "proxima_acao", "proxima_data"],
+      ["nome", "site", "cidade", "uf", "nicho", "nota", "avaliacoes", "situacao", "telefone", "estagio", "entrada", "mensalidade", "proxima_acao", "proxima_data", "ultimo_contato", "em_destaque_ate"],
       ...lista.map((e) => [
         e.nome, e.slug, e.cidade ?? "", e.uf ?? "", e.nicho,
         e.nota ?? "", e.avaliacoes ?? "",
@@ -470,6 +486,8 @@ export default function AdminPage() {
         crm[e.slug]?.entradaCents ? (crm[e.slug]!.entradaCents! / 100).toFixed(2) : "",
         crm[e.slug]?.mensalCents ? (crm[e.slug]!.mensalCents! / 100).toFixed(2) : "",
         crm[e.slug]?.proximaAcao ?? "", crm[e.slug]?.proximaData ?? "",
+        crm[e.slug]?.ultimoContatoEm ? new Date(crm[e.slug]!.ultimoContatoEm!).toLocaleString("pt-BR") : "",
+        crm[e.slug]?.fixadoAte ?? "",
       ]),
     ]);
   }
@@ -490,7 +508,7 @@ export default function AdminPage() {
       </main>
     );
 
-  const chave = [busca, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr)].join("|");
+  const chave = [busca, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), contato, String(fixados)].join("|");
   const contarPrazos = (base: Espaco[]) => {
     const n = { atrasada: 0, hoje: 0, futura: 0 };
     for (const e of base) {
@@ -523,16 +541,26 @@ export default function AdminPage() {
         (!v.prazo || prazoDe(crm[e.slug], dataDeHoje) === v.prazo) &&
         (!v.situacao || (v.situacao === "ativo" ? e.acessos > 1 : e.acessos <= 1)) &&
         (!v.estagio || (crm[e.slug]?.estagio ?? "novo") === v.estagio) &&
-        (!v.fora || crm[e.slug]?.publicado === false),
+        (!v.fora || crm[e.slug]?.publicado === false) &&
+        (!v.contato || diaLocal(crm[e.slug]?.ultimoContatoEm ?? null) === dataDeHoje) &&
+        (!v.fixados || emDestaque(crm[e.slug], dataDeHoje)),
     ).length;
   const visaoAtiva = VISOES.find(
-    (v) => v.prazo === prazo && v.situacao === situacao && v.estagio === estagio && v.fora === foraDoAr,
+    (v) =>
+      v.prazo === prazo &&
+      v.situacao === situacao &&
+      v.estagio === estagio &&
+      v.fora === foraDoAr &&
+      (v.contato ?? "") === contato &&
+      (v.fixados ?? false) === fixados,
   );
   function verVisao(v: Visao) {
     setPrazo(v.prazo);
     setSituacao(v.situacao);
     setEstagio(v.estagio);
     setForaDoAr(v.fora);
+    setContato(v.contato ?? "");
+    setFixados(v.fixados ?? false);
   }
   function limparTudo() {
     setBusca("");
@@ -676,6 +704,7 @@ export default function AdminPage() {
         >
           <option value="relevancia">Mais relevantes</option>
           <option value="compromisso">Compromisso mais próximo</option>
+          <option value="contato">Último contato</option>
           <option value="nota">Melhor nota</option>
           <option value="avaliacoes">Mais avaliações</option>
           <option value="nome">Nome (A–Z)</option>
@@ -935,7 +964,16 @@ export default function AdminPage() {
                       {e.nome.slice(0, 1).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-[14px] font-semibold">{e.nome}</p>
+                      <p className="flex items-center gap-1.5 truncate text-[14px] font-semibold">
+                        {emDestaque(crm[e.slug], dataDeHoje) && (
+                          <span title="Em destaque" aria-label="Em destaque" className="shrink-0 text-[#7A5A2E]">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
+                              <path d="M12 3l2.6 5.6 6.1.8-4.5 4.2 1.2 6L12 16.8 6.6 19.6l1.2-6L3.3 9.4l6.1-.8z" />
+                            </svg>
+                          </span>
+                        )}
+                        <span className="truncate">{e.nome}</span>
+                      </p>
                       <p className="truncate text-[13px] text-[#6F6A5E]">{e.slug}</p>
                     </div>
                   </div>
@@ -1265,6 +1303,8 @@ export default function AdminPage() {
               crm={crm[aberto.slug] ?? VAZIO}
               salvar={(dados) => mudarNegocio(aberto.slug, dados)}
             />
+            <Destaque key={`destaque-${aberto.slug}`} crm={crm[aberto.slug] ?? VAZIO} hoje={dataDeHoje} salvar={(dados) => mudarNegocio(aberto.slug, dados)} />
+
             <OrigemDoContato key={`origem-${aberto.slug}`} crm={crm[aberto.slug] ?? VAZIO} salvar={(dados) => mudarNegocio(aberto.slug, dados)} />
 
             <MensagensProntas

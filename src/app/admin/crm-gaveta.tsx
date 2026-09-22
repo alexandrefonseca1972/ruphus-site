@@ -5,7 +5,7 @@ import { useState } from "react";
 import { formatBRL, formatPhone, linkWhatsApp } from "@/lib/datetime";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { ROTULO_SAUDE } from "@/lib/saude";
-import { MOTIVOS_PERDA, ORIGENS, PRECO_PADRAO, type Crm, type Evento, type MotivoPerda, type Origem } from "@/lib/crm-tipos";
+import { diaCurto, MOTIVOS_PERDA, ORIGENS, PRECO_PADRAO, type Crm, type Evento, type MotivoPerda, type Origem } from "@/lib/crm-tipos";
 
 // Partes da gaveta do negócio que formam o CRM: quem decide, o que dizer a ele,
 // o que já aconteceu e por que se perdeu. Fora de page.tsx, que já passa de mil linhas.
@@ -130,6 +130,57 @@ export function OrigemDoContato({ crm, salvar }: { crm: Crm; salvar: (dados: Par
           />
         </label>
       )}
+    </section>
+  );
+}
+
+/** Manter no topo da lista por alguns dias: o que foi prometido para esta semana. */
+const PRAZOS = [
+  { rotulo: "Hoje", dias: 0 },
+  { rotulo: "3 dias", dias: 3 },
+  { rotulo: "7 dias", dias: 7 },
+] as const;
+
+// meio-dia para o fuso não empurrar a data um dia para trás
+const maisDias = (hoje: string, dias: number) => {
+  const d = new Date(`${hoje}T12:00:00`);
+  d.setDate(d.getDate() + dias);
+  return d.toLocaleDateString("sv-SE");
+};
+
+export function Destaque({ crm, hoje, salvar }: { crm: Crm; hoje: string; salvar: (dados: Partial<Crm>) => void }) {
+  const ate = crm.fixadoAte && crm.fixadoAte >= hoje ? crm.fixadoAte : null;
+  return (
+    <section aria-labelledby="destaque-t" className="flex flex-col gap-2.5 rounded-2xl border border-[#E2DDD3] p-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 id="destaque-t" className="text-[15px] font-semibold">Manter em destaque</h3>
+        <span className="truncate text-xs text-[#6F6A5E]">
+          {ate ? (ate === hoje ? "até o fim do dia" : `até ${diaCurto(ate)}`) : "fora do destaque"}
+        </span>
+      </div>
+      <div role="group" aria-labelledby="destaque-t" className="flex flex-wrap gap-2">
+        {PRAZOS.map((p) => {
+          const data = maisDias(hoje, p.dias);
+          const ativo = ate === data;
+          return (
+            <button
+              key={p.rotulo}
+              type="button"
+              aria-pressed={ativo}
+              onClick={() => salvar({ fixadoAte: ativo ? null : data })}
+              className={`h-11 rounded-full border px-3.5 text-xs font-semibold ${ativo ? "border-[#17150F] bg-[#17150F] text-white" : "border-[#D8D2C6] bg-white hover:border-[#17150F]"}`}
+            >
+              {p.rotulo}
+            </button>
+          );
+        })}
+        {ate && (
+          <button type="button" onClick={() => salvar({ fixadoAte: null })} className="h-11 rounded-full border border-[#D8D2C6] bg-white px-3.5 text-xs text-[#6F6A5E] hover:border-[#17150F] hover:text-[#17150F]">
+            Tirar
+          </button>
+        )}
+      </div>
+      <p className="text-xs text-[#6F6A5E]">Enquanto durar, o negócio fica no topo da lista e aparece na visão &quot;Em destaque&quot;.</p>
     </section>
   );
 }
