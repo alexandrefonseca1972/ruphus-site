@@ -52,6 +52,16 @@ assert.deepEqual(magro, {
   proximaData: null,
   publicado: true,
   notas: 1,
+  donoNome: null,
+  donoPapel: null,
+  donoWhatsapp: null,
+  donoEmail: null,
+  motivoPerda: null,
+  detalhePerda: null,
+  origem: null,
+  indicadoPor: null,
+  entrouEm: null,
+  perdidoEm: null,
 });
 
 // estágio desconhecido não quebra a tela nem pinta chip inexistente

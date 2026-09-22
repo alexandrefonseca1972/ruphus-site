@@ -16,5 +16,10 @@ export async function verifyFirebaseToken(token: string, projectId = process.env
   if (!payload.sub || typeof payload.auth_time !== "number" || payload.auth_time * 1000 > Date.now()) {
     throw new Error("Token inválido");
   }
-  return { uid: payload.sub, email: typeof payload.email === "string" ? payload.email : undefined };
+  return {
+    uid: payload.sub,
+    email: typeof payload.email === "string" ? payload.email : undefined,
+    // só vem de quem entra com Google; e-mail e senha não têm nome
+    name: typeof payload.name === "string" && payload.name.trim() ? payload.name.trim() : undefined,
+  };
 }

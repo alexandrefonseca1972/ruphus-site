@@ -8,6 +8,7 @@ import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, 
 import { addDays, customerKey, formatPhone, maskBRL, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 import { cotaDe, criarNegocio, definirLimite } from "@/lib/negocios.server";
+import { anotar, linhaDoTempo, registrarMensagem, salvarCrm } from "@/lib/crm";
 
 // Funções puras
 assert.equal(zonedTime("2026-09-20", "09:00").toISOString(), "2026-09-20T12:00:00.000Z");
@@ -341,6 +342,43 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   await db.doc("tenants/primeiro-limite/members/outra-limite").set({ uid: "outra-limite", role: "member" });
   assert.equal(await criarNegocio(db, outra, { name: "Dela", slug: "dela-limite" }), "dela-limite");
   await assert.rejects(definirLimite(db, dona.uid, 0), /de 1 a 50/);
+}
+
+// CRM: perda pede motivo; estágio e mensagem viram eventos; a linha do tempo junta tudo
+{
+  const slug = "primeiro-limite";
+  await salvarCrm(db, slug, { estagio: "oferta" }, "vendedor@teste.dev");
+  await assert.rejects(salvarCrm(db, slug, { estagio: "perdido" }, "vendedor@teste.dev"), /motivo da perda/);
+  await salvarCrm(db, slug, { estagio: "perdido", motivoPerda: "preco", detalhePerda: "achou alto" }, "vendedor@teste.dev");
+  await assert.rejects(salvarCrm(db, slug, { donoEmail: "sem-arroba" }), /E-mail inválido/);
+  await salvarCrm(db, slug, { donoNome: "Dona Teste", donoWhatsapp: "92991234567", donoEmail: "dona@teste.dev" });
+  await registrarMensagem(db, slug, "Proposta", "Dona Teste", "vendedor@teste.dev");
+  await anotar(db, slug, "pediu para voltar em janeiro", "vendedor@teste.dev");
+  await db.doc(`tenants/${slug}/members/cliente-crm`).set({ uid: "cliente-crm", role: "admin", email: "cliente@teste.dev", createdAt: Timestamp.now() });
+  await db.collection("cobrancas").doc(`${slug}-entrada`).set({ slug, tipo: "entrada", competencia: null, valorCents: 25000, criadaEm: Timestamp.now(), pagoEm: null });
+
+  const linha = await linhaDoTempo(db, slug);
+  const tipos = new Set(linha.map((e) => e.tipo));
+  for (const t of ["estagio", "mensagem", "nota", "convite", "cobranca"]) assert.ok(tipos.has(t as never), `falta ${t} na linha do tempo`);
+  const perda = linha.find((e) => e.titulo === "Oferta enviada → Perdido");
+  assert.equal(perda?.detalhe, "Preço · achou alto");
+  assert.equal(perda?.autor, "vendedor@teste.dev");
+  assert.ok(linha.every((e, i) => i === 0 || linha[i - 1].quando >= e.quando), "do mais novo ao mais antigo");
+
+  const crmDoc = async () => (await db.doc(`crm/${slug}`).get());
+  const entrou = (await crmDoc()).get("entrouEm");
+  assert.ok(entrou, "sair de novo marca o começo da negociação");
+  assert.ok((await crmDoc()).get("perdidoEm"), "perda tem data");
+
+  // Voltar ao funil apaga o motivo e a data da perda; o começo da negociação fica
+  await salvarCrm(db, slug, { estagio: "negociando" });
+  assert.equal((await crmDoc()).get("motivoPerda"), undefined);
+  assert.equal((await crmDoc()).get("perdidoEm"), undefined);
+  assert.ok((await crmDoc()).get("entrouEm").isEqual(entrou), "entrouEm não é reescrito");
+
+  await salvarCrm(db, slug, { origem: "indicacao", indicadoPor: "Jéssica" });
+  await assert.rejects(salvarCrm(db, slug, { origem: "tv" as never }));
+  assert.equal((await crmDoc()).get("origem"), "indicacao");
 }
 
 console.log("booking ok");
