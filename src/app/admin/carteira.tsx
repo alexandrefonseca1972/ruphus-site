@@ -66,8 +66,48 @@ export function Carteira({ idToken, hoje, espacos, abrir }: { idToken: string; h
       )}
       {!lista && !erro && <p className="text-sm text-[#6F6A5E]">Carregando a carteira…</p>}
 
+      {/* No celular a tabela de 860px vira cartão: ler a carteira não pode pedir
+          rolagem lateral. Da largura de laptop para cima, a tabela volta. */}
       {lista && lista.length > 0 && (
-        <section aria-label="Carteira" className="overflow-x-auto rounded-2xl border border-[#E2DDD3] bg-white">
+        <ul className="flex flex-col gap-2.5 lg:hidden">
+          {lista.map((c) => {
+            const e = porSlug.get(c.slug);
+            const feitos = Object.values(c.passos).filter(Boolean).length;
+            return (
+              <li key={c.slug} className="flex flex-col gap-2.5 rounded-2xl border border-[#E2DDD3] bg-white p-3.5">
+                <div className="flex items-start gap-2.5">
+                  <span className="min-w-0 grow text-[15px] font-semibold break-words">{e?.nome ?? c.slug}</span>
+                  <SeloSaude saude={c.saude} />
+                </div>
+                <p className="text-[12.5px] text-[#6F6A5E]">{c.motivo}</p>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11.5px] text-[#6F6A5E]">
+                  <span className="flex items-center gap-1.5" aria-label={`Implantação ${feitos} de 4 passos`}>
+                    <span className="flex gap-[3px]" aria-hidden="true">
+                      {[0, 1, 2, 3].map((i) => (
+                        <span key={i} className={`h-1.5 w-[16px] rounded-full ${i < feitos ? "bg-[#2C6A53]" : "bg-[#E2DDD3]"}`} />
+                      ))}
+                    </span>
+                    {feitos}/4
+                  </span>
+                  <span>{c.agendamentos30} agend. em 30 dias</span>
+                  <span>último {haQuanto(c.ultimoAgendamento)}</span>
+                  <span className={`rounded-full px-2 py-0.5 font-semibold ${COBRANCA[c.cobranca].cor}`}>
+                    {c.cobranca === "vence" ? `vence em ${c.diasParaVencer} dia(s)` : c.cobranca === "atrasada" ? `atrasada ${Math.abs(c.diasParaVencer ?? 0)} dia(s)` : COBRANCA[c.cobranca].rotulo}
+                  </span>
+                </div>
+                {e && (
+                  <button type="button" onClick={() => abrir(e)} className="h-11 rounded-[10px] border border-[#D8D2C6] bg-white text-sm font-semibold hover:border-[#17150F]">
+                    Abrir
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {lista && lista.length > 0 && (
+        <section aria-label="Carteira" className="hidden overflow-x-auto rounded-2xl border border-[#E2DDD3] bg-white lg:block">
           <table className="w-full min-w-[860px] border-collapse text-[12.5px]">
             <thead>
               <tr className="bg-[#FBFAF8] text-[11px] tracking-[0.06em] text-[#6F6A5E] uppercase">

@@ -134,24 +134,91 @@ export function OrigemDoContato({ crm, salvar }: { crm: Crm; salvar: (dados: Par
   );
 }
 
-const MODELOS = ["Primeiro contato", "Proposta", "Lembrete", "Boas-vindas"] as const;
+const MODELOS = ["Primeiro contato", "Lembrete", "Última tentativa", "Proposta", "Boas-vindas"] as const;
 type Modelo = (typeof MODELOS)[number];
 
-export function mensagem(modelo: Modelo, negocio: Negocio, crm: Crm) {
-  const oi = `Oi${crm.donoNome ? `, ${crm.donoNome.split(" ")[0]}` : ""}! Aqui é da Ruphus.`;
+/** O nome de quem assina fica no aparelho do vendedor: cada um manda com o seu. */
+const CHAVE_VENDEDOR = "ruphus.vendedor";
+export const MARCA_NOME = "[SEU NOME]";
+
+/** O nome guardado, para quem monta mensagem fora desta gaveta (a venda fechada). */
+export const vendedorSalvo = () => (typeof window === "undefined" ? "" : localStorage.getItem(CHAVE_VENDEDOR) ?? "");
+
+/** Quando enviar cada toque, do jeito que o playbook manda: poucos, e com saída. */
+const QUANDO: Record<Modelo, string> = {
+  "Primeiro contato": "dia 0 · em horário comercial",
+  Lembrete: "2 a 3 dias depois, com ângulo novo",
+  "Última tentativa": "10 dias depois; sem resposta, pare por aqui",
+  Proposta: "só depois do sim",
+  "Boas-vindas": "ao fechar",
+};
+
+export function mensagem(modelo: Modelo, negocio: Negocio, crm: Crm, vendedor?: string) {
+  const quem = vendedor?.trim() || MARCA_NOME;
+  const oi = `Oi${crm.donoNome ? `, ${crm.donoNome.split(" ")[0]}` : ""}! Aqui é o ${quem}, da Ruphus.`;
   const site = `${negocio.slug}.ruphus.site`;
   const entrada = formatBRL(crm.entradaCents ?? PRECO_PADRAO.entradaCents);
   const mensal = formatBRL(crm.mensalCents ?? PRECO_PADRAO.mensalCents);
+  const comoChegou = crm.origem === "indicacao" && crm.indicadoPor ? `${crm.indicadoPor} me passou seu contato.` : "Achei o seu perfil procurando negócios da região.";
   switch (modelo) {
+    // Curta, sem link e sem preço, com saída no fim: é o que responde e é o que a
+    // Meta exige de quem manda mensagem não pedida. O link vai depois do sim.
     case "Primeiro contato":
-      return `${oi}\n\nMontamos um site para o ${negocio.nome}, com agenda online para os clientes marcarem sozinhos: ${site}\n\nPosso te mostrar como funciona?`;
-    case "Proposta":
-      return `${oi}\n\nO site do ${negocio.nome} já está no ar: ${site} — com a agenda online funcionando.\n\nA proposta: ${entrada} de entrada e ${mensal} por mês, com site, agenda, painel e manutenção. Posso te mandar o acesso para você testar hoje?`;
+      return `${oi} ${comoChegou}\n\nMontei a agenda online do ${negocio.nome} e queria te mostrar: o cliente escolhe um horário livre e marca sozinho, sem tirar você do atendimento.\n\nPosso te mandar a prévia? Se não fizer sentido, me avisa que eu tiro.`;
     case "Lembrete":
-      return `${oi}\n\nPassando para saber se deu para olhar o site do ${negocio.nome}: ${site}\n\nSe tiver qualquer dúvida, é só responder por aqui.`;
+      return `${oi}\n\nUma coisa que costuma pesar: cliente que manda mensagem de noite e fica sem resposta até o dia seguinte. Com a agenda no ar ele marca na hora, sozinho.\n\nQuer ver como ficaria com os seus serviços?`;
+    case "Última tentativa":
+      return `${oi}\n\nImagino que a correria esteja grande, então não vou insistir.\n\nDeixo a agenda do ${negocio.nome} guardada aqui por enquanto. Se quiser ver depois, é só me chamar que eu abro para você.`;
+    case "Proposta":
+      return `${oi}\n\nComo combinamos, a agenda do ${negocio.nome} está no ar: ${site}\n\nCada profissional com o horário dele, os serviços com preço e duração, a ficha de cada cliente e o link para a bio do Instagram.\n\n${entrada} para publicar e ${mensal} por mês, com implantação e manutenção. Sem instalar nada e sem taxa por agendamento.\n\nLibero seu acesso hoje para você testar com um cliente de verdade?`;
     case "Boas-vindas":
-      return `${oi}\n\nQue bom ter você com a gente! O ${negocio.nome} está no ar em ${site}, e a agenda online já recebe marcações.\n\nPara começar: cadastre os serviços e quem atende no painel, e coloque o link na bio do Instagram. Qualquer coisa, estou por aqui.`;
+      return `${oi}\n\nQue bom ter você com a gente! A agenda do ${negocio.nome} já está recebendo marcação em ${site}.\n\nEm 10 minutos deixamos tudo pronto:\n1) seus serviços, com preço e duração\n2) quem atende e o horário de cada um\n3) o link na bio do Instagram e no WhatsApp\n\nMe chama aqui que eu faço junto com você.`;
   }
+}
+
+/** As objeções que mais aparecem, com a resposta que não promete o que o produto não faz. */
+const OBJECOES = [
+  {
+    q: "Já tenho Instagram.",
+    a: "A agenda não substitui o Instagram. O Instagram faz o cliente te descobrir; a agenda transforma isso em horário marcado, sem você parar para responder cada mensagem.",
+  },
+  {
+    q: "Está caro.",
+    a: "Faz sentido olhar o retorno. Qual é o seu ticket médio? Com poucos atendimentos no mês a mensalidade já se paga — e o horário que deixa de ser perdido no WhatsApp entra nessa conta.",
+  },
+  {
+    q: "Vou pensar.",
+    a: "Claro. Só para eu te ajudar melhor: o que você quer avaliar — o valor, como fica na prática ou se a sua equipe vai usar?",
+  },
+  {
+    q: "Manda os valores.",
+    a: "Mando agora. Só me diz antes quantos profissionais atendem aí, para eu te passar já do jeito certo.",
+  },
+  {
+    q: "Quem fez essa página?",
+    a: "Fui eu. Montei com o que está público no seu perfil, justamente para você ver funcionando antes de decidir. Nada vai ao ar no seu nome sem a sua autorização.",
+  },
+] as const;
+
+/** Respostas prontas para o que o dono pergunta de volta. */
+export function Objecoes({ onCopiar }: { onCopiar: (texto: string) => void }) {
+  return (
+    <section aria-labelledby="obj-t" className="flex flex-col gap-2 rounded-2xl border border-[#E2DDD3] p-4">
+      <h3 id="obj-t" className="text-[15px] font-semibold">Se ele responder isso</h3>
+      {OBJECOES.map((o) => (
+        <details key={o.q} className="group border-t border-[#EDEAE0] pt-2 first:border-0 first:pt-0">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-[13px] font-semibold">
+            {o.q}
+            <span aria-hidden="true" className="text-[#6F6A5E] group-open:rotate-180">⌄</span>
+          </summary>
+          <p className="pt-1 text-[12.5px] leading-relaxed text-[#4A4639]">{o.a}</p>
+          <button type="button" onClick={() => onCopiar(o.a)} className="mt-2 h-9 rounded-[8px] border border-[#D8D2C6] bg-white px-2.5 text-xs hover:border-[#17150F]">
+            Copiar resposta
+          </button>
+        </details>
+      ))}
+    </section>
+  );
 }
 
 /** Mensagens prontas por etapa, com nome, site e valores do cadastro. */
@@ -168,9 +235,13 @@ export function MensagensProntas({
 }) {
   const [modelo, setModelo] = useState<Modelo>(crm.estagio === "fechado" ? "Boas-vindas" : crm.estagio === "novo" ? "Primeiro contato" : "Proposta");
   const [texto, setTexto] = useState<{ para: Modelo; valor: string } | null>(null);
-  const atual = texto?.para === modelo ? texto.valor : mensagem(modelo, negocio, crm);
+  // Só no navegador: no servidor não existe localStorage e a gaveta é client-side
+  const [vendedor, setVendedor] = useState(() => (typeof window === "undefined" ? "" : localStorage.getItem(CHAVE_VENDEDOR) ?? ""));
+  const atual = texto?.para === modelo ? texto.valor : mensagem(modelo, negocio, crm, vendedor);
   const numero = crm.donoWhatsapp ?? negocio.telefone;
-  const link = numero ? linkWhatsApp(numero, atual) : null;
+  // Mandar "[SEU NOME]" para o cliente é pior do que não mandar nada
+  const faltaNome = atual.includes(MARCA_NOME);
+  const link = numero && !faltaNome ? linkWhatsApp(numero, atual) : null;
 
   return (
     <section aria-labelledby="msg-t" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">
@@ -193,6 +264,22 @@ export function MensagensProntas({
           </button>
         ))}
       </div>
+      <p className="text-xs text-[#6F6A5E]">Quando mandar: {QUANDO[modelo]}.</p>
+      <label className={ROTULO_CAMPO}>
+        Você assina como
+        <input
+          value={vendedor}
+          maxLength={40}
+          placeholder="seu primeiro nome"
+          onChange={(e) => {
+            setVendedor(e.target.value);
+            setTexto(null);
+            localStorage.setItem(CHAVE_VENDEDOR, e.target.value.trim());
+          }}
+          className={`${CAMPO} ${faltaNome ? "border-[#8A2F2F]" : ""}`}
+        />
+        {faltaNome && <span className="text-[#8A2F2F]">Preencha seu nome: a mensagem sairia com {MARCA_NOME}.</span>}
+      </label>
       <label className="sr-only" htmlFor="msg-texto">Texto da mensagem</label>
       <textarea
         id="msg-texto"
@@ -207,9 +294,11 @@ export function MensagensProntas({
             <Zap /> Abrir no WhatsApp
           </a>
         ) : (
-          <span className={`${BOTAO} grow border border-dashed border-[#D8D2C6] text-[#8B8578]`}>Cadastre o WhatsApp do dono</span>
+          <span className={`${BOTAO} grow border border-dashed border-[#D8D2C6] text-[#8B8578]`}>
+            {faltaNome ? "Preencha seu nome acima" : "Cadastre o WhatsApp do dono"}
+          </span>
         )}
-        <button type="button" onClick={() => onCopiar(atual)} className={BOTAO_CLARO}>
+        <button type="button" disabled={faltaNome} onClick={() => onCopiar(atual)} className={`${BOTAO_CLARO} disabled:cursor-not-allowed disabled:opacity-50`}>
           Copiar
         </button>
       </div>

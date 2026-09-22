@@ -170,3 +170,15 @@ body:has(.painel) {
   --input: #3a342a;
   --ring: #f3f0e8;
 }
+
+/* No iPhone, campo com menos de 16px faz o Safari dar zoom ao focar e a tela
+   sai do lugar. Uma regra só, em vez de acertar cada campo do app; o
+   !important é para vencer as classes de tamanho do Tailwind (nenhum campo do
+   app pede fonte maior que 16px, por isso não há o que preservar aqui). */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

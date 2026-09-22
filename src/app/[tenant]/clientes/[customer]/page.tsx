@@ -153,7 +153,7 @@ export default function CustomerPage() {
               className="flex flex-wrap items-center gap-2 py-1"
             >
               <label htmlFor="nome" className="sr-only">Nome do cliente</label>
-              <Input id="nome" name="nome" defaultValue={customer.name} maxLength={80} required className="h-10 w-56" />
+              <Input id="nome" name="nome" defaultValue={customer.name} maxLength={80} required className="h-10 w-full max-sm:h-11 sm:w-56" />
               <Button type="submit" size="sm">Salvar</Button>
               <Button type="button" size="sm" variant="ghost" onClick={() => { setRenaming(false); setRenameError(""); }}>
                 Cancelar
@@ -230,7 +230,7 @@ export default function CustomerPage() {
             }}
           >
             <label htmlFor="etiqueta" className="sr-only">Nova etiqueta</label>
-            <Input id="etiqueta" name="etiqueta" placeholder="+ etiqueta" maxLength={24} className="h-8 w-36 text-xs" />
+            <Input id="etiqueta" name="etiqueta" placeholder="+ etiqueta" maxLength={24} className="h-8 w-36 text-xs max-sm:h-11 max-sm:w-full" />
           </form>
         </div>
 

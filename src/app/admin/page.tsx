@@ -27,7 +27,7 @@ import {
   type Espaco,
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
-import { ContatoDono, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
+import { ContatoDono, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, vendedorSalvo, type Passo } from "./crm-gaveta";
 import { Carteira } from "./carteira";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
@@ -354,7 +354,7 @@ export default function AdminPage() {
       const c = { ...(crm[slug] ?? VAZIO), entradaCents: d.entradaCents, mensalCents: d.mensalCents, estagio: "fechado" as const };
       const e = espacos.find((x) => x.slug === slug);
       const numero = c.donoWhatsapp ?? e?.telefone ?? null;
-      const texto = mensagem("Boas-vindas", { slug, nome: e?.nome ?? slug, telefone: e?.telefone ?? null }, c) + (urlConvite ? `\n\nSeu acesso ao painel: ${urlConvite}` : "");
+      const texto = mensagem("Boas-vindas", { slug, nome: e?.nome ?? slug, telefone: e?.telefone ?? null }, c, vendedorSalvo()) + (urlConvite ? `\n\nSeu acesso ao painel: ${urlConvite}` : "");
       const link = numero && linkWhatsApp(numero, texto);
       if (link) {
         janela.location.href = link;
@@ -764,7 +764,7 @@ export default function AdminPage() {
         )}
       </div>
 
-      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 p-4 sm:p-5">
+      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-5">
         {aviso && <p className="text-sm text-[#6F6A5E]">{aviso}</p>}
 
         {/* Quem já devia aparece antes da lista: é o que se olha de manhã */}
@@ -1003,7 +1003,7 @@ export default function AdminPage() {
           <button type="button" aria-label="Fechar painel" onClick={() => setAberto(null)} className="fixed inset-0 z-40 bg-[#17150F]/25" />
           <aside
             aria-label={aberto.nome}
-            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[520px] flex-col gap-5 overflow-y-auto border-l border-[#E2DDD3] bg-white p-6 sm:p-8"
+            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[520px] flex-col gap-5 overflow-y-auto border-l border-[#E2DDD3] bg-white p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:p-8"
           >
             <div className="flex items-start gap-3.5">
               <div
@@ -1085,7 +1085,7 @@ export default function AdminPage() {
 
               <div className="flex flex-col gap-2">
                 <span className="text-xs text-[#6F6A5E]">Em que pé está</span>
-                <div className="flex overflow-hidden rounded-xl border border-[#D8D2C6]">
+                <div className="flex flex-col overflow-hidden rounded-xl border border-[#D8D2C6] sm:flex-row">
                   {ETAPAS.map((e, i) => {
                     const ativa = (crm[aberto.slug]?.estagio ?? "novo") === e;
                     return (
@@ -1095,7 +1095,7 @@ export default function AdminPage() {
                         aria-pressed={ativa}
                         onClick={() => mudarNegocio(aberto.slug, { estagio: e })}
                         className={`flex grow flex-col items-start gap-0.5 px-3 py-2.5 text-left transition-colors ${
-                          i ? "border-l border-[#D8D2C6]" : ""
+                          i ? "border-t border-[#D8D2C6] sm:border-t-0 sm:border-l" : ""
                         } ${ativa ? "bg-[#17150F] text-white" : "bg-white text-[#6F6A5E] hover:text-[#17150F]"}`}
                       >
                         <span className="text-[10px] tabular-nums opacity-75">{`0${i + 1}`}</span>
@@ -1129,7 +1129,7 @@ export default function AdminPage() {
               <div className="flex flex-col gap-3">
                 {/* Nasce no preco padrao: com 675 negocios, digitar o mesmo
                     numero 675 vezes e o que faz alguem parar de preencher. */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {(
                     [
                       { id: "entrada", rotulo: "Entrada", campo: "entradaCents", padrao: PRECO_PADRAO.entradaCents, sufixo: "" },
@@ -1161,7 +1161,8 @@ export default function AdminPage() {
 
                 <div className="flex flex-col gap-1">
                   <span className="text-xs text-[#6F6A5E]">Próxima ação</span>
-                  <div className="flex gap-2">
+                  {/* No celular a data desce: lado a lado sobram 140px para "o que fazer" */}
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <input
                       type="text"
                       maxLength={120}
@@ -1176,7 +1177,7 @@ export default function AdminPage() {
                       aria-label="Quando"
                       defaultValue={crm[aberto.slug]?.proximaData ?? ""}
                       onChange={(ev) => mudarNegocio(aberto.slug, { proximaData: ev.target.value || null })}
-                      className="h-11 w-[150px] shrink-0 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F]"
+                      className="h-11 w-full shrink-0 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F] sm:w-[150px]"
                     />
                   </div>
                   {(() => {
@@ -1230,6 +1231,8 @@ export default function AdminPage() {
               onCopiar={(texto) => copiar(texto, "mensagem")}
             />
 
+            <Objecoes key={`obj-${aberto.slug}`} onCopiar={(texto) => copiar(texto, "resposta")} />
+
             <LinhaDoTempo key={`resumo-${aberto.slug}`} eventos={eventos} limite={3} onVerTudo={() => setAba("historico")} anotar={(texto) => novaNota(aberto.slug, texto)} />
 
               </>
@@ -1243,7 +1246,7 @@ export default function AdminPage() {
             {aba === "cliente" && (
               <>
             {clienteAberto && <ImplantacaoESaude saude={saude} lembrar={(p) => lembrar(aberto.slug, p)} />}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-[#E2DDD3] p-3.5">
                 <div className="text-xs text-[#6F6A5E]">Nota</div>
                 <div className="mt-0.5 text-xl font-semibold">
@@ -1451,7 +1454,7 @@ export default function AdminPage() {
 
             <section aria-label="Atalhos" className="flex flex-col gap-2.5">
               <h3 className="text-[15px] font-semibold">Atalhos</h3>
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 <a className={`${BOTAO_CLARO} justify-start`} href={`/${aberto.slug}`}>
                   Painel do negócio
                 </a>

@@ -147,12 +147,12 @@ export default function AgendaPage() {
   return (
     <>
       <PageTitle title="Agenda" sub={capitaliza(formatLongDate(zonedTime(date, "12:00")))}>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon-lg" className="size-10" onClick={() => setDate(addDays(date, -7))} aria-label="Semana anterior">‹</Button>
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <Button variant="outline" size="icon-lg" className="size-10 max-sm:size-11" onClick={() => setDate(addDays(date, -7))} aria-label="Semana anterior">‹</Button>
           <Label htmlFor="agenda-date" className="sr-only">Data</Label>
-          <Input id="agenda-date" type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="h-10 w-auto bg-card" />
-          <Button variant="outline" size="icon-lg" className="size-10" onClick={() => setDate(addDays(date, 7))} aria-label="Próxima semana">›</Button>
-          <Button variant="ghost" className="h-10 px-3" disabled={date === hoje} onClick={() => setDate(hoje)}>Hoje</Button>
+          <Input id="agenda-date" type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="h-10 w-auto grow bg-card max-sm:h-11 sm:grow-0" />
+          <Button variant="outline" size="icon-lg" className="size-10 max-sm:size-11" onClick={() => setDate(addDays(date, 7))} aria-label="Próxima semana">›</Button>
+          <Button variant="ghost" className="h-10 px-3 max-sm:h-11" disabled={date === hoje} onClick={() => setDate(hoje)}>Hoje</Button>
         </div>
       </PageTitle>
 
