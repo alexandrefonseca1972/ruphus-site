@@ -207,17 +207,20 @@ function ServiceChecks({ services, initial }: { services: (Service & { id: strin
     });
 
   return (
-    <fieldset className="relative grid gap-2">
-      <legend className="mb-2.5 text-sm font-medium">Serviços que realiza</legend>
-      {services.length > 1 && (
-        <button
-          type="button"
-          onClick={() => setMarcados(todos ? new Set() : new Set(services.map((sv) => sv.id)))}
-          className="absolute -top-2 right-0 min-h-9 text-[13px] underline underline-offset-4 hover:text-muted-foreground"
-        >
-          {todos ? "Desmarcar todos" : "Marcar todos"}
-        </button>
-      )}
+    <fieldset className="grid gap-2" aria-labelledby="servicos-prof">
+      {/* O botão mora na legend para ficar na mesma linha do título; o nome do grupo vem só do span */}
+      <legend className="mb-2.5 flex w-full items-center justify-between gap-3 text-sm font-medium">
+        <span id="servicos-prof">Serviços que realiza</span>
+        {services.length > 1 && (
+          <button
+            type="button"
+            onClick={() => setMarcados(todos ? new Set() : new Set(services.map((sv) => sv.id)))}
+            className="min-h-9 text-[13px] font-normal underline underline-offset-4 hover:text-muted-foreground"
+          >
+            {todos ? "Desmarcar todos" : "Marcar todos"}
+          </button>
+        )}
+      </legend>
       <div className="grid gap-2 sm:grid-cols-2">
         {services.map((sv) => (
           <label key={sv.id} className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg border px-3.5 py-2 text-sm has-checked:border-primary has-checked:bg-muted has-focus-visible:ring-3 has-focus-visible:ring-ring/50">

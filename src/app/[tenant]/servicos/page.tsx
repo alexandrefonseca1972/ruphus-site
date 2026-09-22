@@ -26,7 +26,10 @@ const erroDe = (campo: "name" | "durationMin" | "priceCents", valor: unknown) =>
 
 type Editando = (Service & { id: string }) | null;
 
-function ServiceForm({ editing, onSave, onCancel }: { editing: Editando; onSave: (data: Service) => Promise<void>; onCancel: () => void }) {
+// "Limpeza de pele " e "limpeza de Pele" são o mesmo serviço para quem agenda
+const chaveNome = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+function ServiceForm({ editing, emUso, onSave, onCancel }: { editing: Editando; emUso: Set<string>; onSave: (data: Service) => Promise<void>; onCancel: () => void }) {
   const [name, setName] = useState(editing?.name ?? "");
   const [duration, setDuration] = useState(String(editing?.durationMin ?? 30));
   const [price, setPrice] = useState(editing ? formatBRL(editing.priceCents) : "");
@@ -35,7 +38,7 @@ function ServiceForm({ editing, onSave, onCancel }: { editing: Editando; onSave:
   const [busy, setBusy] = useState(false);
 
   const errors = {
-    name: erroDe("name", name),
+    name: erroDe("name", name) || (emUso.has(chaveNome(name)) ? "Já existe um serviço com este nome" : ""),
     durationMin: duration ? erroDe("durationMin", Number(duration)) : "Informe a duração",
     price: price ? erroDe("priceCents", toCents(price)) : "Informe o preço",
   };
@@ -155,6 +158,9 @@ export default function ServicesPage() {
   }
 
   const ativos = items?.filter((s) => s.active).length ?? 0;
+  // Os que já foram criados em dobro, de antes da validação: ficam marcados para excluir um
+  const repetidos = new Map<string, number>();
+  for (const s of items ?? []) repetidos.set(chaveNome(s.name), (repetidos.get(chaveNome(s.name)) ?? 0) + 1);
   const fazem = (id: string) => staff?.filter((p) => p.active && p.serviceIds.includes(id)).map((p) => p.name) ?? [];
 
   return (
@@ -166,7 +172,14 @@ export default function ServicesPage() {
       <section aria-labelledby="form-servico" className="grid gap-5 rounded-2xl border bg-card p-5 sm:px-7 sm:py-6">
         <h2 id="form-servico" className="font-semibold">{editing ? `Editar “${editing.name}”` : "Novo serviço"}</h2>
         {/* key recria o formulário com os valores do item em edição */}
-        <ServiceForm key={editing?.id ?? "new"} editing={editing} onSave={save} onCancel={() => setEditing(null)} />
+        <ServiceForm
+          key={editing?.id ?? "new"}
+          editing={editing}
+          // o próprio serviço em edição pode manter o nome
+          emUso={new Set(items?.filter((s) => s.id !== editing?.id).map((s) => chaveNome(s.name)))}
+          onSave={save}
+          onCancel={() => setEditing(null)}
+        />
       </section>
 
       {(error || loadError) && <p role="alert" className="text-sm text-destructive">{error || loadError}</p>}
@@ -190,7 +203,12 @@ export default function ServicesPage() {
               return (
                 <li key={s.id} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-t px-4 py-4 sm:grid-cols-[minmax(0,1fr)_7rem_8rem_11rem_7rem] sm:px-6", !s.active && "text-muted-foreground")}>
                   <div className="grid min-w-0 gap-0.5">
-                    <span className="text-[15px] font-semibold">{s.name}</span>
+                    <span className="flex flex-wrap items-center gap-2 text-[15px] font-semibold">
+                      {s.name}
+                      {(repetidos.get(chaveNome(s.name)) ?? 0) > 1 && (
+                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">Nome repetido</span>
+                      )}
+                    </span>
                     <span className="text-[13px] text-muted-foreground">
                       {quem.length ? quem.join(", ") : "Ninguém faz ainda"}
                       <span className="sm:hidden"> · {formatDuration(s.durationMin)} · {formatBRL(s.priceCents)}</span>

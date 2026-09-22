@@ -144,7 +144,6 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const [submitError, setSubmitError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
-  const [avisado, setAvisado] = useState(false);
 
   const escolhidos = services.filter((s) => serviceIds.includes(s.id));
   const totalMin = escolhidos.reduce((sum, s) => sum + s.durationMin, 0);
@@ -201,12 +200,11 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     setSlotError("");
   }
 
-  async function confirmar(avisou = false) {
+  async function confirmar() {
     if (!escolha) return;
     setSubmitError("");
     setTouched({ name: true, phone: true });
     if (!contatoOk) return;
-    setAvisado(avisou);
     setBusy(true);
     const result = await createBooking({
       tenantId,
@@ -216,7 +214,6 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       time: escolha.hora,
       customerName,
       customerPhone,
-      avisou,
     })
       .catch(() => ({ ok: false as const, error: "Não foi possível confirmar agora. Verifique sua conexão e tente de novo." }))
       .finally(() => setBusy(false));
@@ -265,7 +262,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                   <path d="M5 13l4 4L19 7" />
                 </svg>
               </span>
-              horário confirmado
+              horário reservado
             </p>
             <div className="flex flex-col gap-1">
               <h1 className="text-[28px] leading-[1.06] font-semibold tracking-[-0.03em] first-letter:uppercase">{longDate(date)}</h1>
@@ -292,28 +289,25 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           </div>
           <div className="h-px bg-[repeating-linear-gradient(to_right,#D5D0C1_0_6px,transparent_6px_12px)]" />
           <div className="flex flex-col gap-3.5 p-5">
-            <p className="text-[13px] leading-relaxed text-[#5C5747]">
-              {!avisoUrl
-                ? `${name} fala com você no WhatsApp que você informou (${customerPhone}).`
-                : avisado
-                  ? `O resumo abriu no WhatsApp de ${name}. Se a mensagem não foi enviada, mande de novo aqui.`
-                  : `Falta avisar ${name}. Mande o resumo no WhatsApp para confirmarem o seu horário.`}
+            {/* Quem confirma é a casa: o cliente sai daqui sabendo disso, sem ser
+                levado ao WhatsApp. Mandar o resumo fica como opção. */}
+            <p className="text-[15px] leading-relaxed">
+              <strong className="font-semibold">{name}</strong> vai confirmar o seu horário pelo WhatsApp{" "}
+              <span className={cn(MONO, "text-[13px] whitespace-nowrap")}>{customerPhone}</span>.
             </p>
             {avisoUrl && (
-              <a
-                href={avisoUrl}
-                target="_blank"
-                rel="noreferrer"
-                className={cn(
-                  "flex h-[50px] items-center justify-center gap-2.5 rounded-[10px] text-[15px] font-semibold",
-                  avisado
-                    ? "border border-[#D5D0C1] bg-white text-[#17150F]"
-                    : "bg-[#2C6A53] text-[#FAF9F5] hover:bg-[#245743]",
-                )}
-              >
-                <Zap />
-                {avisado ? "Mandar o resumo de novo" : "Avisar no WhatsApp"}
-              </a>
+              <div className="flex flex-col gap-2">
+                <a
+                  href={avisoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex h-[50px] items-center justify-center gap-2.5 rounded-[10px] border border-[#D5D0C1] bg-white text-[15px] font-semibold text-[#17150F] hover:border-[#17150F]"
+                >
+                  <Zap />
+                  Mandar o resumo no WhatsApp
+                </a>
+                <p className="text-center text-xs text-[#5C5747]">Opcional. O horário já está reservado.</p>
+              </div>
             )}
           </div>
         </div>
@@ -392,7 +386,6 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
 
   // ---------- confirmar ----------
   if (etapa === "confirmar" && escolha) {
-    const avisoUrl = recado(escolha.hora, atendente?.name);
     return (
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col gap-4 bg-[#F2F0E7] p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-[#17150F]">
         <button
@@ -512,38 +505,12 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           </p>
         )}
 
-        {/* Confirmar e avisar no mesmo toque. A abertura do WhatsApp sai do próprio
-            clique: se eu gravasse primeiro e abrisse depois do await, o navegador
-            bloquearia a aba por não ser mais um gesto do usuário. */}
-        {avisoUrl ? (
-          <a
-            href={avisoUrl}
-            target="_blank"
-            rel="noreferrer"
-            aria-disabled={busy || !contatoOk}
-            onClick={(e) => {
-              if (busy || !contatoOk) {
-                e.preventDefault();
-                setTouched({ name: true, phone: true });
-                return;
-              }
-              confirmar(true);
-            }}
-            className={cn(PRIMARIO, (busy || !contatoOk) && "cursor-not-allowed bg-[#B8B3A4]")}
-          >
-            <Zap />
-            {busy ? "Confirmando…" : `Confirmar às ${escolha.hora}`}
-          </a>
-        ) : (
-          <button type="button" onClick={() => confirmar()} disabled={busy || !contatoOk} className={PRIMARIO}>
-            {busy ? "Confirmando…" : `Confirmar às ${escolha.hora}`}
-            <span className={cn("flex size-5 items-center justify-center rounded-md bg-[#FAF9F5]/16 text-[11px]", MONO)}>&#8629;</span>
-          </button>
-        )}
+        <button type="button" onClick={() => confirmar()} disabled={busy || !contatoOk} className={PRIMARIO}>
+          {busy ? "Reservando…" : `Confirmar às ${escolha.hora}`}
+          <span className={cn("flex size-5 items-center justify-center rounded-md bg-[#FAF9F5]/16 text-[11px]", MONO)}>&#8629;</span>
+        </button>
         <p className="text-center text-xs text-[#5C5747]">
-          {avisoUrl
-            ? "Abre o WhatsApp com o resumo para a casa confirmar. Sem cadastro e sem pagar nada agora."
-            : "Sem cadastro e sem pagar nada agora."}
+          {name} confirma o horário com você pelo WhatsApp. Sem cadastro e sem pagar nada agora.
         </p>
         <div className="flex-1" />
         <Rodape />
