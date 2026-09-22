@@ -11,6 +11,7 @@ import { WEEKDAYS } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { useTenant } from "../layout";
+import { limiteStaffDe } from "@/lib/limites";
 import { PageTitle } from "../page-title";
 import { ConfirmDialog } from "../confirm-dialog";
 import { RowMenu } from "../row-menu";
@@ -50,6 +51,7 @@ export default function StaffPage() {
         ),
         active: editing?.active ?? true,
       });
+      if (!editing && (staff?.length ?? 0) >= limite) throw new Error(`Seu plano inclui ${limite} profissionais. Fale com a Ruphus para liberar mais.`);
       await (editing ? setDoc(doc(col, editing.id), data) : addDoc(col, data));
       el.reset();
       setEditing(null);
@@ -69,6 +71,9 @@ export default function StaffPage() {
 
   const hours = editing?.hours ?? DEFAULT_HOURS;
   const ativos = staff?.filter((p) => p.active).length ?? 0;
+  // O limite é do plano: vale para cadastrar gente nova, editar quem já existe segue livre
+  const limite = limiteStaffDe(tenant.limiteStaff);
+  const lotado = !editing && (staff?.length ?? 0) >= limite;
 
   // Quase todo salão tem o mesmo horário de segunda a sexta: preenche uma vez, repete nos dias marcados
   function repetirSegunda(ev: React.MouseEvent<HTMLButtonElement>) {
@@ -141,7 +146,11 @@ export default function StaffPage() {
 
         <section aria-labelledby="form-prof" className="grid gap-5 rounded-2xl border bg-card p-5 sm:p-6 lg:sticky lg:top-6">
           <h2 id="form-prof" className="font-semibold">{editing ? `Editar ${editing.name}` : "Novo profissional"}</h2>
-          {services?.length === 0 ? (
+          {lotado ? (
+            <p className="text-sm text-muted-foreground">
+              Seu plano inclui {limite} profissionais, e todos já estão cadastrados. Para abrir mais uma vaga, fale com a Ruphus — ou exclua alguém que não atende mais.
+            </p>
+          ) : services?.length === 0 ? (
             <p className="text-sm text-muted-foreground">Cadastre um serviço antes de adicionar profissionais.</p>
           ) : (
             <form key={editing?.id ?? `new-${salvos}`} onSubmit={handleSubmit(save)} className="grid gap-6">

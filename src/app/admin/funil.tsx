@@ -146,6 +146,9 @@ export function Funil({
         </label>
       </div>
 
+      {/* Arrastar é de mouse: no celular a etapa muda dentro da gaveta */}
+      <p className="text-xs text-[#6F6A5E] sm:hidden">Toque no negócio para abrir e mudar a etapa.</p>
+
       <dl className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {numeros.map((x) => {
           const corpo = (
@@ -224,7 +227,7 @@ export function Funil({
                     arrastando={arrastando === x.slug}
                   />
                 ))}
-                {!todos.length && <p className="rounded-xl border border-dashed border-[#D8D2C6] p-3 text-center text-[11px] text-[#6F6A5E]">Arraste um negócio para cá</p>}
+                {!todos.length && <p className="rounded-xl border border-dashed border-[#D8D2C6] p-3 text-center text-[11px] text-[#6F6A5E]"><span className="hidden sm:inline">Arraste um negócio para cá</span><span className="sm:hidden">Nenhum negócio nesta etapa</span></p>}
                 {e === "novo" && todos.length > novos && (
                   <button
                     type="button"

@@ -19,6 +19,9 @@ import {
   resumoDoDia,
   salvarNegocio,
   revogarAcesso,
+  definirAssinatura,
+  definirLimiteStaff,
+  lerAssinatura,
   liberarNegocios,
   saudeDoNegocio,
   cobrar,
@@ -27,7 +30,8 @@ import {
   type Espaco,
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
-import { ContatoDono, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
+import { LIMITE_STAFF_MAX } from "@/lib/limites";
+import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
 import { Carteira } from "./carteira";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
@@ -37,9 +41,13 @@ const PAGINA = 40;
 const VAZIO: Crm = {
   estagio: "novo", entradaCents: null, mensalCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
   donoNome: null, donoPapel: null, donoWhatsapp: null, donoEmail: null, motivoPerda: null, detalhePerda: null,
-  origem: null, indicadoPor: null, entrouEm: null, perdidoEm: null,
+  origem: null, indicadoPor: null, entrouEm: null, perdidoEm: null, ultimoContatoEm: null, fixadoAte: null,
 };
 const CIDADES_VISIVEIS = 5;
+
+// "sv-SE" formata como AAAA-MM-DD, e no fuso de quem está olhando
+const diaLocal = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("sv-SE") : "");
+const emDestaque = (c: Crm | undefined, hoje: string) => !!c?.fixadoAte && c.fixadoAte >= hoje;
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 // relevância: a nota pesa, mas um 5,0 de três pessoas não passa na frente de um 4,7 de quinhentas
@@ -49,10 +57,12 @@ const local = (e: Espaco) => (e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ""}` 
 // As visões são combinações de filtro que se repetem todo dia. Viram aba para
 // ninguém ter de remontá-las de manhã — e cada uma é só um preset dos mesmos
 // filtros, não um caminho paralelo.
-type Visao = { id: string; rotulo: string; urgente?: boolean; separa?: boolean; prazo: "" | Prazo; situacao: string; estagio: string; fora: boolean };
+type Visao = { id: string; rotulo: string; urgente?: boolean; separa?: boolean; prazo: "" | Prazo; situacao: string; estagio: string; fora: boolean; contato?: "" | "hoje"; fixados?: boolean };
 const VISOES: Visao[] = [
   { id: "atrasados", rotulo: "Atrasados", urgente: true, prazo: "atrasada", situacao: "", estagio: "", fora: false },
   { id: "hoje", rotulo: "Para hoje", prazo: "hoje", situacao: "", estagio: "", fora: false },
+  { id: "falei", rotulo: "Falei hoje", prazo: "", situacao: "", estagio: "", fora: false, contato: "hoje" },
+  { id: "fixados", rotulo: "Em destaque", prazo: "", situacao: "", estagio: "", fora: false, fixados: true },
   { id: "todos", rotulo: "Todos", separa: true, prazo: "", situacao: "", estagio: "", fora: false },
   { id: "pendentes", rotulo: "Sem cliente dentro", prazo: "", situacao: "pendente", estagio: "", fora: false },
   { id: "negociando", rotulo: "Em negociação", prazo: "", situacao: "", estagio: "negociando", fora: false },
@@ -109,6 +119,7 @@ export default function AdminPage() {
   const [estado, setEstado] = useState<"carregando" | "negado" | "pronto">("carregando");
   const [email, setEmail] = useState("");
   const [espacos, setEspacos] = useState<Espaco[]>([]);
+  const [assinatura, setAssinatura] = useState("");   // quem assina as mensagens do CRM
   const [hoje, setHoje] = useState<{ agendamentosHoje: number; espacosComAgenda: number } | null>(null);
   const [busca, setBusca] = useState("");
   const [cidade, setCidade] = useState("");
@@ -136,6 +147,8 @@ export default function AdminPage() {
   const [aba, setAba] = useState<"venda" | "historico" | "cliente" | "cobranca">("venda");
   const [estagio, setEstagio] = useState("");
   const [prazo, setPrazo] = useState<"" | Prazo>("");
+  const [contato, setContato] = useState<"" | "hoje">("");   // "falei hoje"
+  const [fixados, setFixados] = useState(false);
   const [foraDoAr, setForaDoAr] = useState(false);
   const [menuFiltros, setMenuFiltros] = useState(false);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
@@ -150,11 +163,13 @@ export default function AdminPage() {
         setEmail(user.email ?? "");
         const idToken = await user.getIdToken();
         setIdToken(idToken);
-        const [lista, dia, negocios] = await Promise.all([
+        const [lista, dia, negocios, quemAssina] = await Promise.all([
           listarEspacos(idToken),
           resumoDoDia(idToken),
           listarCrm(idToken),
+          lerAssinatura(idToken),
         ]);
+        if (quemAssina.ok) setAssinatura(quemAssina.dados);
         if (!lista.ok) return setEstado("negado");
         setEspacos(lista.dados);
         if (dia.ok) setHoje(dia.dados);
@@ -190,10 +205,12 @@ export default function AdminPage() {
       estagio: (e) => !estagio || (crm[e.slug]?.estagio ?? "novo") === estagio,
       prazo: (e) => !prazo || prazoDe(crm[e.slug], dataDeHoje) === prazo,
       fora: (e) => !foraDoAr || crm[e.slug]?.publicado === false,
+      contato: (e) => !contato || diaLocal(crm[e.slug]?.ultimoContatoEm ?? null) === dataDeHoje,
+      fixados: (e) => !fixados || emDestaque(crm[e.slug], dataDeHoje),
     };
     return (e: Espaco, ...exceto: string[]) =>
       Object.entries(testes).every(([nome, teste]) => exceto.includes(nome) || teste(e));
-  }, [busca, cidade, nicho, situacao, estagio, prazo, foraDoAr, dataDeHoje, crm]);
+  }, [busca, cidade, nicho, situacao, estagio, prazo, foraDoAr, contato, fixados, dataDeHoje, crm]);
 
   const cidades = useMemo(() => contar(espacos.filter((e) => passa(e, "cidade")), local), [espacos, passa]);
   const nichos = useMemo(() => contar(espacos.filter((e) => passa(e, "nicho")), (e) => e.nicho), [espacos, passa]);
@@ -209,9 +226,15 @@ export default function AdminPage() {
       compromisso: (a, b) =>
         (crm[a.slug]?.proximaData ?? "9999").localeCompare(crm[b.slug]?.proximaData ?? "9999") ||
         a.nome.localeCompare(b.nome, "pt-BR"),
+      // a ordem em que se falou: o mais recente primeiro; quem nunca foi contatado fica no fim
+      contato: (a, b) =>
+        (crm[b.slug]?.ultimoContatoEm ?? "").localeCompare(crm[a.slug]?.ultimoContatoEm ?? "") ||
+        a.nome.localeCompare(b.nome, "pt-BR"),
     };
-    return [...filtrada].sort(por[ordem]);
-  }, [espacos, passa, ordem, crm]);
+    // Fixado fica no topo de qualquer ordenação: é para isso que serve o destaque
+    const destaque = (e: Espaco) => (emDestaque(crm[e.slug], dataDeHoje) ? 0 : 1);
+    return [...filtrada].sort((a, b) => destaque(a) - destaque(b) || por[ordem](a, b));
+  }, [espacos, passa, ordem, crm, dataDeHoje]);
 
   // o último negócio aberto: resposta lenta de um anterior não pode pintar a gaveta do atual
   const abertoRef = useRef("");
@@ -266,6 +289,14 @@ export default function AdminPage() {
     const r = await liberarNegocios(await token(), uid, negocios);
     setAviso(r.ok ? `agora pode ter ${r.dados} negócio(s)` : r.error);
     if (r.ok) setAcessos((a) => a?.map((x) => (x.uid === uid ? { ...x, limite: r.dados } : x)) ?? null);
+  }
+
+  async function mudarLimiteStaff(slug: string, profissionais: number) {
+    const r = await definirLimiteStaff(await token(), slug, profissionais);
+    if (!r.ok) return setAviso(r.error);
+    setAviso(`agora pode cadastrar ${r.dados} profissional(is)`);
+    setEspacos((e) => e.map((x) => (x.slug === slug ? { ...x, limiteStaff: r.dados } : x)));
+    setAberto((x) => (x && x.slug === slug ? { ...x, limiteStaff: r.dados } : x));
   }
 
   async function mudarNegocio(slug: string, dados: Partial<Crm>) {
@@ -354,7 +385,7 @@ export default function AdminPage() {
       const c = { ...(crm[slug] ?? VAZIO), entradaCents: d.entradaCents, mensalCents: d.mensalCents, estagio: "fechado" as const };
       const e = espacos.find((x) => x.slug === slug);
       const numero = c.donoWhatsapp ?? e?.telefone ?? null;
-      const texto = mensagem("Boas-vindas", { slug, nome: e?.nome ?? slug, telefone: e?.telefone ?? null }, c) + (urlConvite ? `\n\nSeu acesso ao painel: ${urlConvite}` : "");
+      const texto = mensagem("Boas-vindas", { slug, nome: e?.nome ?? slug, telefone: e?.telefone ?? null }, c, assinatura) + (urlConvite ? `\n\nSeu acesso ao painel: ${urlConvite}` : "");
       const link = numero && linkWhatsApp(numero, texto);
       if (link) {
         janela.location.href = link;
@@ -446,7 +477,7 @@ export default function AdminPage() {
 
   function exportarCSV() {
     baixar(`espacos-${new Date().toISOString().slice(0, 10)}.csv`, [
-      ["nome", "site", "cidade", "uf", "nicho", "nota", "avaliacoes", "situacao", "telefone", "estagio", "entrada", "mensalidade", "proxima_acao", "proxima_data"],
+      ["nome", "site", "cidade", "uf", "nicho", "nota", "avaliacoes", "situacao", "telefone", "estagio", "entrada", "mensalidade", "proxima_acao", "proxima_data", "ultimo_contato", "em_destaque_ate"],
       ...lista.map((e) => [
         e.nome, e.slug, e.cidade ?? "", e.uf ?? "", e.nicho,
         e.nota ?? "", e.avaliacoes ?? "",
@@ -455,6 +486,8 @@ export default function AdminPage() {
         crm[e.slug]?.entradaCents ? (crm[e.slug]!.entradaCents! / 100).toFixed(2) : "",
         crm[e.slug]?.mensalCents ? (crm[e.slug]!.mensalCents! / 100).toFixed(2) : "",
         crm[e.slug]?.proximaAcao ?? "", crm[e.slug]?.proximaData ?? "",
+        crm[e.slug]?.ultimoContatoEm ? new Date(crm[e.slug]!.ultimoContatoEm!).toLocaleString("pt-BR") : "",
+        crm[e.slug]?.fixadoAte ?? "",
       ]),
     ]);
   }
@@ -475,7 +508,7 @@ export default function AdminPage() {
       </main>
     );
 
-  const chave = [busca, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr)].join("|");
+  const chave = [busca, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), contato, String(fixados)].join("|");
   const contarPrazos = (base: Espaco[]) => {
     const n = { atrasada: 0, hoje: 0, futura: 0 };
     for (const e of base) {
@@ -508,16 +541,26 @@ export default function AdminPage() {
         (!v.prazo || prazoDe(crm[e.slug], dataDeHoje) === v.prazo) &&
         (!v.situacao || (v.situacao === "ativo" ? e.acessos > 1 : e.acessos <= 1)) &&
         (!v.estagio || (crm[e.slug]?.estagio ?? "novo") === v.estagio) &&
-        (!v.fora || crm[e.slug]?.publicado === false),
+        (!v.fora || crm[e.slug]?.publicado === false) &&
+        (!v.contato || diaLocal(crm[e.slug]?.ultimoContatoEm ?? null) === dataDeHoje) &&
+        (!v.fixados || emDestaque(crm[e.slug], dataDeHoje)),
     ).length;
   const visaoAtiva = VISOES.find(
-    (v) => v.prazo === prazo && v.situacao === situacao && v.estagio === estagio && v.fora === foraDoAr,
+    (v) =>
+      v.prazo === prazo &&
+      v.situacao === situacao &&
+      v.estagio === estagio &&
+      v.fora === foraDoAr &&
+      (v.contato ?? "") === contato &&
+      (v.fixados ?? false) === fixados,
   );
   function verVisao(v: Visao) {
     setPrazo(v.prazo);
     setSituacao(v.situacao);
     setEstagio(v.estagio);
     setForaDoAr(v.fora);
+    setContato(v.contato ?? "");
+    setFixados(v.fixados ?? false);
   }
   function limparTudo() {
     setBusca("");
@@ -661,6 +704,7 @@ export default function AdminPage() {
         >
           <option value="relevancia">Mais relevantes</option>
           <option value="compromisso">Compromisso mais próximo</option>
+          <option value="contato">Último contato</option>
           <option value="nota">Melhor nota</option>
           <option value="avaliacoes">Mais avaliações</option>
           <option value="nome">Nome (A–Z)</option>
@@ -764,8 +808,37 @@ export default function AdminPage() {
         )}
       </div>
 
-      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 p-4 sm:p-5">
+      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-5">
         {aviso && <p className="text-sm text-[#6F6A5E]">{aviso}</p>}
+
+        {/* Uma vez só: o nome entra em toda mensagem pronta, sem o vendedor redigitar */}
+        <details className="rounded-2xl border border-[#E2DDD3] bg-white px-4 py-3">
+          <summary className="cursor-pointer text-sm text-[#6F6A5E]">
+            Quem assina as mensagens{assinatura ? ` · ${assinatura}` : " · ninguém ainda"}
+          </summary>
+          <form
+            className="mt-3 flex flex-wrap items-end gap-2"
+            onSubmit={async (ev) => {
+              ev.preventDefault();
+              const nome = new FormData(ev.currentTarget).get("assinatura");
+              const r = await definirAssinatura(await token(), nome);
+              setAviso(r.ok ? "" : r.error);
+              if (r.ok) setAssinatura(r.dados);
+            }}
+          >
+            <label className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
+              Nome de quem fala com o cliente
+              <input
+                name="assinatura"
+                defaultValue={assinatura}
+                maxLength={40}
+                placeholder="Alexandre"
+                className="h-11 w-56 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F] outline-none focus:border-[#17150F]"
+              />
+            </label>
+            <button type="submit" className={BOTAO_ESCURO}>Salvar</button>
+          </form>
+        </details>
 
         {/* Quem já devia aparece antes da lista: é o que se olha de manhã */}
         <Atrasadas idToken={idToken} aviso={setAviso} cortar={(slug) => mudarNegocio(slug, { publicado: false })} />
@@ -891,7 +964,16 @@ export default function AdminPage() {
                       {e.nome.slice(0, 1).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-[14px] font-semibold">{e.nome}</p>
+                      <p className="flex items-center gap-1.5 truncate text-[14px] font-semibold">
+                        {emDestaque(crm[e.slug], dataDeHoje) && (
+                          <span title="Em destaque" aria-label="Em destaque" className="shrink-0 text-[#7A5A2E]">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
+                              <path d="M12 3l2.6 5.6 6.1.8-4.5 4.2 1.2 6L12 16.8 6.6 19.6l1.2-6L3.3 9.4l6.1-.8z" />
+                            </svg>
+                          </span>
+                        )}
+                        <span className="truncate">{e.nome}</span>
+                      </p>
                       <p className="truncate text-[13px] text-[#6F6A5E]">{e.slug}</p>
                     </div>
                   </div>
@@ -1003,7 +1085,7 @@ export default function AdminPage() {
           <button type="button" aria-label="Fechar painel" onClick={() => setAberto(null)} className="fixed inset-0 z-40 bg-[#17150F]/25" />
           <aside
             aria-label={aberto.nome}
-            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[520px] flex-col gap-5 overflow-y-auto border-l border-[#E2DDD3] bg-white p-6 sm:p-8"
+            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[520px] flex-col gap-5 overflow-y-auto border-l border-[#E2DDD3] bg-white p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:p-8"
           >
             <div className="flex items-start gap-3.5">
               <div
@@ -1085,7 +1167,7 @@ export default function AdminPage() {
 
               <div className="flex flex-col gap-2">
                 <span className="text-xs text-[#6F6A5E]">Em que pé está</span>
-                <div className="flex overflow-hidden rounded-xl border border-[#D8D2C6]">
+                <div className="flex flex-col overflow-hidden rounded-xl border border-[#D8D2C6] sm:flex-row">
                   {ETAPAS.map((e, i) => {
                     const ativa = (crm[aberto.slug]?.estagio ?? "novo") === e;
                     return (
@@ -1095,7 +1177,7 @@ export default function AdminPage() {
                         aria-pressed={ativa}
                         onClick={() => mudarNegocio(aberto.slug, { estagio: e })}
                         className={`flex grow flex-col items-start gap-0.5 px-3 py-2.5 text-left transition-colors ${
-                          i ? "border-l border-[#D8D2C6]" : ""
+                          i ? "border-t border-[#D8D2C6] sm:border-t-0 sm:border-l" : ""
                         } ${ativa ? "bg-[#17150F] text-white" : "bg-white text-[#6F6A5E] hover:text-[#17150F]"}`}
                       >
                         <span className="text-[10px] tabular-nums opacity-75">{`0${i + 1}`}</span>
@@ -1129,7 +1211,7 @@ export default function AdminPage() {
               <div className="flex flex-col gap-3">
                 {/* Nasce no preco padrao: com 675 negocios, digitar o mesmo
                     numero 675 vezes e o que faz alguem parar de preencher. */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {(
                     [
                       { id: "entrada", rotulo: "Entrada", campo: "entradaCents", padrao: PRECO_PADRAO.entradaCents, sufixo: "" },
@@ -1161,7 +1243,8 @@ export default function AdminPage() {
 
                 <div className="flex flex-col gap-1">
                   <span className="text-xs text-[#6F6A5E]">Próxima ação</span>
-                  <div className="flex gap-2">
+                  {/* No celular a data desce: lado a lado sobram 140px para "o que fazer" */}
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <input
                       type="text"
                       maxLength={120}
@@ -1176,7 +1259,7 @@ export default function AdminPage() {
                       aria-label="Quando"
                       defaultValue={crm[aberto.slug]?.proximaData ?? ""}
                       onChange={(ev) => mudarNegocio(aberto.slug, { proximaData: ev.target.value || null })}
-                      className="h-11 w-[150px] shrink-0 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F]"
+                      className="h-11 w-full shrink-0 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F] sm:w-[150px]"
                     />
                   </div>
                   {(() => {
@@ -1220,15 +1303,20 @@ export default function AdminPage() {
               crm={crm[aberto.slug] ?? VAZIO}
               salvar={(dados) => mudarNegocio(aberto.slug, dados)}
             />
+            <Destaque key={`destaque-${aberto.slug}`} crm={crm[aberto.slug] ?? VAZIO} hoje={dataDeHoje} salvar={(dados) => mudarNegocio(aberto.slug, dados)} />
+
             <OrigemDoContato key={`origem-${aberto.slug}`} crm={crm[aberto.slug] ?? VAZIO} salvar={(dados) => mudarNegocio(aberto.slug, dados)} />
 
             <MensagensProntas
               key={`msg-${aberto.slug}`}
               negocio={aberto}
               crm={crm[aberto.slug] ?? VAZIO}
+              assinatura={assinatura}
               onEnviar={(modelo, para) => enviouMensagem(aberto.slug, modelo, para)}
               onCopiar={(texto) => copiar(texto, "mensagem")}
             />
+
+            <Objecoes key={`obj-${aberto.slug}`} onCopiar={(texto) => copiar(texto, "resposta")} />
 
             <LinhaDoTempo key={`resumo-${aberto.slug}`} eventos={eventos} limite={3} onVerTudo={() => setAba("historico")} anotar={(texto) => novaNota(aberto.slug, texto)} />
 
@@ -1243,7 +1331,7 @@ export default function AdminPage() {
             {aba === "cliente" && (
               <>
             {clienteAberto && <ImplantacaoESaude saude={saude} lembrar={(p) => lembrar(aberto.slug, p)} />}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-[#E2DDD3] p-3.5">
                 <div className="text-xs text-[#6F6A5E]">Nota</div>
                 <div className="mt-0.5 text-xl font-semibold">
@@ -1310,6 +1398,33 @@ export default function AdminPage() {
                   Convidar
                 </button>
               )}
+            </section>
+
+            {/* O plano inclui 5 profissionais; daqui o admin libera mais para este negócio */}
+            <section aria-label="Limite de profissionais" className="flex items-center justify-between gap-3 rounded-2xl border border-[#E2DDD3] p-4">
+              <span className="text-xs text-[#6F6A5E]">
+                Profissionais no plano: <b className="font-semibold text-[#17150F]">{aberto.limiteStaff}</b>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-label="Diminuir o limite de profissionais"
+                  disabled={aberto.limiteStaff <= 1}
+                  onClick={() => mudarLimiteStaff(aberto.slug, aberto.limiteStaff - 1)}
+                  className="size-11 rounded-[10px] border border-[#D8D2C6] text-base font-semibold hover:border-[#17150F] disabled:opacity-40"
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  aria-label="Liberar mais um profissional"
+                  disabled={aberto.limiteStaff >= LIMITE_STAFF_MAX}
+                  onClick={() => mudarLimiteStaff(aberto.slug, aberto.limiteStaff + 1)}
+                  className="size-11 rounded-[10px] border border-[#D8D2C6] text-base font-semibold hover:border-[#17150F] disabled:opacity-40"
+                >
+                  +
+                </button>
+              </span>
             </section>
 
             <section aria-label="Quem tem acesso" className="flex flex-col gap-2.5">
@@ -1451,7 +1566,7 @@ export default function AdminPage() {
 
             <section aria-label="Atalhos" className="flex flex-col gap-2.5">
               <h3 className="text-[15px] font-semibold">Atalhos</h3>
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 <a className={`${BOTAO_CLARO} justify-start`} href={`/${aberto.slug}`}>
                   Painel do negócio
                 </a>

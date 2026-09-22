@@ -82,7 +82,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
             </span>
             <span className="truncate font-semibold">{state.name}</span>
           </Link>
-          <div className="order-last -mx-4 flex w-[calc(100%+2rem)] items-center gap-2 overflow-x-auto border-t px-4 text-sm sm:order-none sm:mx-0 sm:w-auto sm:border-0 sm:px-0">
+          <div className="order-last -mx-4 flex w-[calc(100%+2rem)] items-center gap-2 overflow-x-auto border-t px-4 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:order-none sm:mx-0 sm:w-auto sm:border-0 sm:px-0">
             <nav aria-label="Seções" className="flex">
               {links.map((l) => (
                 <Link

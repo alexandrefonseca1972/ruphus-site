@@ -4,6 +4,7 @@ import { z } from "zod";
 import { adminDb } from "@/lib/admin";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite } from "@/lib/negocios.server";
+import { LIMITE_STAFF_MAX, limiteStaffDe } from "@/lib/limites";
 import { saudeDe } from "@/lib/saude.server";
 import { criarConvite } from "@/lib/convite";
 import {
@@ -31,6 +32,7 @@ export type Espaco = {
   nota: number | null;    // estrelas no Google
   avaliacoes: number | null;
   acessos: number;        // quantas pessoas entram no painel deste espaço
+  limiteStaff: number;    // profissionais que o negócio pode cadastrar
 };
 
 // os tipos do schema.org viram nichos que a gente reconhece (e junta variações)
@@ -82,6 +84,7 @@ export const listarEspacos = adminAction(async () => {
       nota: d.get("site.rating") ?? null,
       avaliacoes: d.get("site.reviews") ?? null,
       acessos: porEspaco.get(d.id) ?? 0,
+      limiteStaff: limiteStaffDe(d.get("limiteStaff") as number | undefined),
     }))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 });
@@ -161,6 +164,16 @@ export const listarAcessos = adminAction(async (_user, slug: string) => {
 export const liberarNegocios = adminAction(async (_user, uid: string, negocios: number) => {
   if (!UID.test(uid)) throw new ErroPrevisto("Conta inválida.");
   return definirLimite(adminDb, uid, negocios);
+});
+
+/** Quantos profissionais este negócio pode cadastrar. Só o admin da plataforma muda. */
+export const definirLimiteStaff = adminAction(async (_user, slug: string, profissionais: number) => {
+  slugValido(slug);
+  if (!Number.isInteger(profissionais) || profissionais < 1 || profissionais > LIMITE_STAFF_MAX) {
+    throw new ErroPrevisto(`O limite vai de 1 a ${LIMITE_STAFF_MAX} profissionais.`);
+  }
+  await adminDb.doc(`tenants/${slug}`).set({ limiteStaff: profissionais }, { merge: true });
+  return profissionais;
 });
 
 /** Tira o acesso de alguém. O dono do espaço não pode ser removido. */
@@ -313,6 +326,16 @@ const mesLongo = (competencia: string | null) =>
   competencia
     ? new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${competencia}-01T00:00:00Z`))
     : "";
+
+/** Quem assina as mensagens do CRM. Definido uma vez pelo admin da plataforma. */
+export const lerAssinatura = adminAction(async () => String((await adminDb.doc("config/crm").get()).get("assinatura") ?? ""));
+
+export const definirAssinatura = adminAction(async (_user, nome: unknown) => {
+  const limpo = String(nome ?? "").trim().slice(0, 40);
+  if (!limpo) throw new ErroPrevisto("Informe o nome que assina as mensagens.");
+  await adminDb.doc("config/crm").set({ assinatura: limpo }, { merge: true });
+  return limpo;
+});
 
 export const lerPixConfig = adminAction(async () => pixCadastrado(adminDb));
 

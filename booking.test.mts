@@ -373,6 +373,13 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   assert.ok(linha.every((e, i) => i === 0 || linha[i - 1].quando >= e.quando), "do mais novo ao mais antigo");
 
   const crmDoc = async () => (await db.doc(`crm/${slug}`).get());
+  // A mensagem enviada marca o dia no próprio negócio: é o que alimenta "Falei hoje"
+  assert.ok((await crmDoc()).get("ultimoContatoEm"), "mensagem registra o último contato");
+  // Destaque por alguns dias, e sair dele
+  await salvarCrm(db, slug, { fixadoAte: "2030-01-31" });
+  assert.equal((await crmDoc()).get("fixadoAte"), "2030-01-31");
+  await salvarCrm(db, slug, { fixadoAte: null });
+  assert.equal((await crmDoc()).get("fixadoAte"), null);
   const entrou = (await crmDoc()).get("entrouEm");
   assert.ok(entrou, "sair de novo marca o começo da negociação");
   assert.ok((await crmDoc()).get("perdidoEm"), "perda tem data");

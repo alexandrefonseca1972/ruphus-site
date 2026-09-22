@@ -32,6 +32,7 @@ export const CrmInput = z.object({
   detalhePerda: texto(300),
   origem: z.enum(Object.keys(ORIGENS) as [Origem, ...Origem[]]).nullable().optional(),
   indicadoPor: texto(80),
+  fixadoAte: z.iso.date().nullable().optional(),
 });
 export type CrmInput = z.infer<typeof CrmInput>;
 
@@ -63,6 +64,8 @@ export function negocio(d: { get: (campo: string) => unknown }): Crm {
     indicadoPor: (d.get("indicadoPor") as string | null) ?? null,
     entrouEm: (d.get("entrouEm") as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null,
     perdidoEm: (d.get("perdidoEm") as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null,
+    ultimoContatoEm: (d.get("ultimoContatoEm") as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null,
+    fixadoAte: (d.get("fixadoAte") as string | null) ?? null,
   };
 }
 
@@ -140,6 +143,8 @@ async function evento(db: Firestore, slug: string, e: { tipo: "estagio" | "mensa
 export async function registrarMensagem(db: Firestore, slug: string, modelo: string, para: string, autor: string) {
   const m = z.string().trim().min(1).max(80).parse(modelo.slice(0, 80));
   await evento(db, slug, { tipo: "mensagem", titulo: `Mensagem enviada: ${m}`, detalhe: para ? `para ${String(para).slice(0, 80)}` : null, autor });
+  // No doc do negócio também: a lista do /admin não carrega os eventos de 600 negócios
+  await db.doc(`${RAIZ}/${slug}`).set({ ultimoContatoEm: FieldValue.serverTimestamp() }, { merge: true });
 }
 
 const iso = (v: unknown) => (v as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null;

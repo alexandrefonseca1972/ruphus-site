@@ -97,7 +97,7 @@ export function Reschedule(props: {
               aria-pressed={s === time}
               onClick={() => setTime(s)}
               className={cn(
-                "rounded-md border bg-background px-2.5 py-1 text-sm tabular-nums hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                "min-h-11 rounded-md border bg-background px-3.5 text-sm tabular-nums hover:bg-muted sm:min-h-0 sm:px-2.5 sm:py-1 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
                 s === time && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
               )}
             >

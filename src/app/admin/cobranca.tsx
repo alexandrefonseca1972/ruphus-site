@@ -19,8 +19,8 @@ import {
 // Cobrança fica fora de page.tsx, que já passa de mil linhas. Duas telas: o
 // histórico de um negócio na gaveta e o painel de atrasados no topo.
 
-// Religado: agora o lote volta com a lista para enviar, uma a uma, pelo WhatsApp
-const COBRAR_MES_LIGADO = true;
+// Desligado a pedido: o lote e a lista de envio estão prontos, é só voltar para true
+const COBRAR_MES_LIGADO = false;
 
 const BOTAO = "inline-flex h-11 items-center justify-center rounded-[10px] px-4 text-sm font-semibold transition-colors";
 const ESCURO = `${BOTAO} bg-[#17150F] text-white hover:bg-[#2C2920]`;
@@ -234,8 +234,7 @@ export function Atrasadas({
         <button
           type="button"
           className={`${CLARO} disabled:cursor-not-allowed disabled:opacity-50`}
-          // Desligado por enquanto: gera as cobranças de todos sem uma lista para enviar
-          // em seguida. Religar quando essa lista existir (COBRAR_MES_LIGADO = true).
+          // Desligado por enquanto (COBRAR_MES_LIGADO): o lote de envio já funciona
           disabled={!COBRAR_MES_LIGADO || ocupado === "mes" || semPix}
           title={COBRAR_MES_LIGADO ? undefined : "Desativado por enquanto"}
           onClick={async () => {
@@ -302,13 +301,13 @@ export function Atrasadas({
         <div className="mt-3 flex flex-wrap items-end gap-2">
           {(
             [
-              { campo: "chave", rotulo: "Chave Pix", largura: "w-56" },
-              { campo: "nome", rotulo: "Recebedor", largura: "w-48" },
-              { campo: "cidade", rotulo: "Cidade", largura: "w-36" },
-              { campo: "whatsapp", rotulo: "WhatsApp da Ruphus", largura: "w-40" },
+              { campo: "chave", rotulo: "Chave Pix", largura: "sm:w-56" },
+              { campo: "nome", rotulo: "Recebedor", largura: "sm:w-48" },
+              { campo: "cidade", rotulo: "Cidade", largura: "sm:w-36" },
+              { campo: "whatsapp", rotulo: "WhatsApp da Ruphus", largura: "sm:w-40" },
             ] as const
           ).map((c) => (
-            <label key={c.campo} className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
+            <label key={c.campo} className="flex w-full flex-col gap-1 text-xs text-[#6F6A5E] sm:w-auto">
               {c.rotulo}
               <input
                 className={`${CAMPO} ${c.largura}`}
@@ -377,20 +376,20 @@ function LoteDoMes({
       </div>
       <ol className="divide-y divide-[#EDEAE0]">
         {lote.lista.map((c) => (
-          <li key={c.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-3.5 py-2.5">
+          <li key={c.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3.5 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
             <span className="min-w-0">
               <span className="block text-sm font-semibold">{c.nome}</span>
               <span className="block truncate text-[11px] text-[#6F6A5E]">{c.telefone ? c.telefone : "sem telefone: copie o link"}</span>
             </span>
             <span className="font-[family-name:var(--font-geist-mono)] text-[13px] font-medium">{formatBRL(c.valorCents)}</span>
             {enviadas.has(c.id) ? (
-              <span className="rounded-full bg-[#E7EEE9] px-2.5 py-1 text-[11px] font-semibold text-[#2C6A53]">Enviada</span>
+              <span className="col-span-2 justify-self-start rounded-full bg-[#E7EEE9] px-2.5 py-1 text-[11px] font-semibold text-[#2C6A53] sm:col-span-1 sm:justify-self-auto">Enviada</span>
             ) : c.whatsapp ? (
-              <a href={c.whatsapp} target="_blank" rel="noreferrer" onClick={() => enviou(c)} className={`${BOTAO} h-9 bg-[#2C6A53] px-3 text-xs text-white hover:bg-[#245743]`}>
+              <a href={c.whatsapp} target="_blank" rel="noreferrer" onClick={() => enviou(c)} className={`${BOTAO} col-span-2 h-11 bg-[#2C6A53] px-3 text-xs text-white hover:bg-[#245743] sm:col-span-1 sm:h-9`}>
                 Enviar
               </a>
             ) : (
-              <button type="button" onClick={() => navigator.clipboard.writeText(c.url).then(() => enviou(c), () => {})} className={`${CLARO} h-9 px-3 text-xs`}>
+              <button type="button" onClick={() => navigator.clipboard.writeText(c.url).then(() => enviou(c), () => {})} className={`${CLARO} col-span-2 h-11 px-3 text-xs sm:col-span-1 sm:h-9`}>
                 Copiar link
               </button>
             )}

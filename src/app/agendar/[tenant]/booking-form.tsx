@@ -582,7 +582,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                           </svg>
                         )}
                       </span>
-                      <span className="flex-1 text-[15px] font-semibold tracking-[-0.01em]">{s.name}</span>
+                      <span className="min-w-0 flex-1 break-words text-[15px] font-semibold tracking-[-0.01em]">{s.name}</span>
                       <span className={cn(MONO, "shrink-0 text-xs", sel ? "text-[#FAF9F5]/75" : "text-[#5C5747]")}>
                         {formatDuration(s.durationMin)} · {formatBRL(s.priceCents)}
                       </span>

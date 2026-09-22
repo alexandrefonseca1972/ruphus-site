@@ -74,6 +74,10 @@ export type Crm = {
   /** Quando saiu de "novo" pela primeira vez: é daqui que se conta o tempo até fechar */
   entrouEm: string | null;
   perdidoEm: string | null;
+  /** Último contato enviado pelo painel: alimenta "Falei hoje" e a ordem do dia */
+  ultimoContatoEm: string | null;
+  /** Em destaque no topo da lista até esta data (inclusive) */
+  fixadoAte: string | null;
 };
 
 /** Um acontecimento na linha do tempo do negócio. Parte é gravada (notas, estágio,
