@@ -18,6 +18,8 @@ import {
 // Cobrança fica fora de page.tsx, que já passa de mil linhas. Duas telas: o
 // histórico de um negócio na gaveta e o painel de atrasados no topo.
 
+const COBRAR_MES_LIGADO = false;
+
 const BOTAO = "inline-flex h-11 items-center justify-center rounded-[10px] px-4 text-sm font-semibold transition-colors";
 const ESCURO = `${BOTAO} bg-[#17150F] text-white hover:bg-[#2C2920]`;
 const CLARO = `${BOTAO} border border-[#D8D2C6] bg-white text-[#17150F] hover:border-[#17150F]`;
@@ -227,8 +229,11 @@ export function Atrasadas({
         <span className="flex-1" />
         <button
           type="button"
-          className={CLARO}
-          disabled={ocupado === "mes" || semPix}
+          className={`${CLARO} disabled:cursor-not-allowed disabled:opacity-50`}
+          // Desligado por enquanto: gera as cobranças de todos sem uma lista para enviar
+          // em seguida. Religar quando essa lista existir (COBRAR_MES_LIGADO = true).
+          disabled={!COBRAR_MES_LIGADO || ocupado === "mes" || semPix}
+          title={COBRAR_MES_LIGADO ? undefined : "Desativado por enquanto"}
           onClick={async () => {
             setOcupado("mes");
             const r = await cobrarMes(idToken).finally(() => setOcupado(""));

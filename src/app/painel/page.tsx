@@ -11,14 +11,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
-import { auth } from "@/lib/firebase";
-import { createTenant, mascaraSlug, myTenants, slugify, TenantInput, type Role } from "@/lib/tenants";
+import { auth, idToken } from "@/lib/firebase";
+import { mascaraSlug, myTenants, slugify, TenantInput, type Role } from "@/lib/tenants";
 import { cn } from "@/lib/utils";
-import { slugLivre } from "./actions";
+import { criarNegocioAction, minhaCota, slugLivre } from "./actions";
 
 type Negocio = Awaited<ReturnType<typeof myTenants>>[number];
 
 const PAPEL: Record<Role, string> = { owner: "Dono", admin: "Admin", member: "Equipe" };
+
+// Cada conta começa com 1 negócio; o admin da plataforma libera mais pelo /admin
+const FALAR_COM_RUPHUS = "https://wa.me/5511948680554?text=" + encodeURIComponent("Olá! Quero cadastrar mais um negócio na Ruphus.");
 
 const PASSOS = [
   { titulo: "Crie o negócio", texto: "Nome e endereço do link." },
@@ -39,6 +42,8 @@ export default function MeusNegocios() {
   const [negocios, setNegocios] = useState<Negocio[] | null>(null);
   const [erro, setErro] = useState("");
   const [cadastrando, setCadastrando] = useState(false);
+  // null = sem limite (admin da plataforma) ou ainda sem resposta
+  const [cota, setCota] = useState<{ usados: number; limite: number | null } | null>(null);
   const form = useRef<HTMLElement>(null);
   useSerifaNoBody();
 
@@ -51,6 +56,7 @@ export default function MeusNegocios() {
         const admin = await ehAdminDaPlataforma(await u.getIdToken()).catch(() => ({ ok: false as const }));
         if (admin.ok) return router.replace("/admin");
         setUser(u);
+        minhaCota(await u.getIdToken()).then((c) => c.ok && setCota({ usados: c.usados, limite: c.limite }));
         try {
           setNegocios(await myTenants());
         } catch (err) {
@@ -67,6 +73,7 @@ export default function MeusNegocios() {
   }
 
   const primeiro = negocios?.length === 0;
+  const noLimite = !!cota && cota.limite !== null && cota.usados >= cota.limite;
 
   return (
     <div className={`painel ${serifa.variable} flex min-h-dvh flex-col bg-background`}>
@@ -117,7 +124,7 @@ export default function MeusNegocios() {
         ) : (
           <>
             <Titulo titulo="Meus negócios" sub={`${negocios.length} negócio${negocios.length > 1 ? "s" : ""} nesta conta`}>
-              {!cadastrando && (
+              {!cadastrando && !noLimite && (
                 <Button variant="outline" className="hidden h-11 gap-2 px-4 sm:inline-flex" onClick={abrirCadastro}>
                   <Mais /> Cadastrar outro
                 </Button>
@@ -154,7 +161,22 @@ export default function MeusNegocios() {
                 </li>
               ))}
             </ul>
-            {!cadastrando && (
+            {noLimite && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed p-4 sm:px-5.5">
+                <p className="text-sm text-muted-foreground">
+                  Sua conta inclui {cota!.limite === 1 ? "1 negócio" : `${cota!.limite} negócios`}. Para cadastrar outro, fale com a Ruphus.
+                </p>
+                <a
+                  href={FALAR_COM_RUPHUS}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-11 items-center rounded-lg border bg-card px-4 text-sm font-medium hover:border-foreground/40"
+                >
+                  Falar no WhatsApp
+                </a>
+              </div>
+            )}
+            {!cadastrando && !noLimite && (
               <Button variant="outline" className="h-12 w-full gap-2 text-[15px] sm:hidden" onClick={abrirCadastro}>
                 <Mais /> Cadastrar outro negócio
               </Button>
@@ -244,12 +266,14 @@ function NegocioForm({
     if (erroNome || erroSlug || estado !== "livre") return;
     setErro("");
     setBusy(true);
-    try {
-      onCriado(await createTenant({ name, slug: final }));
-    } catch (err) {
-      setErro(errorMessage(err));
-      setBusy(false);
-    }
+    // No servidor: é lá que o limite de negócios por conta é conferido
+    const r = await criarNegocioAction(await idToken(), { name, slug: final }).catch(() => ({
+      ok: false as const,
+      error: "Não foi possível criar agora. Verifique a conexão e tente de novo.",
+    }));
+    if (r.ok) return onCriado(r.slug);
+    setErro(r.error);
+    setBusy(false);
   }
 
   return (

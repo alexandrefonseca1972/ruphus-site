@@ -7,6 +7,7 @@ import { verifyFirebaseToken } from "@/lib/verify-token";
 import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, loadCatalog, renameCustomer, requireMember, reschedule, rescheduleSlots } from "@/lib/booking.server";
 import { addDays, customerKey, formatPhone, maskBRL, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
+import { cotaDe, criarNegocio, definirLimite } from "@/lib/negocios.server";
 
 // Funções puras
 assert.equal(zonedTime("2026-09-20", "09:00").toISOString(), "2026-09-20T12:00:00.000Z");
@@ -317,6 +318,29 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   await t.collection("services").doc("corte").set({ ordem: 1 }, { merge: true });
   await t.collection("services").doc("luzes").set({ ordem: 0 }, { merge: true });
   assert.deepEqual((await loadCatalog(db, "salao"))?.services.map((s) => s.id), ["luzes", "corte"]);
+}
+
+// Um negócio por conta, até o admin da plataforma liberar mais
+{
+  const dona = { uid: "dona-limite", email: "dona@teste.dev" };
+  assert.equal(await criarNegocio(db, dona, { name: "Primeiro", slug: "primeiro-limite" }), "primeiro-limite");
+  const membro = await db.doc("tenants/primeiro-limite/members/dona-limite").get();
+  assert.deepEqual([membro.get("role"), membro.get("email")], ["owner", "dona@teste.dev"]);
+  assert.deepEqual(await cotaDe(db, dona.uid), { usados: 1, limite: 1 });
+  await assert.rejects(criarNegocio(db, dona, { name: "Segundo", slug: "segundo-limite" }), /Sua conta inclui 1 negócio/);
+  assert.equal((await db.doc("tenants/segundo-limite").get()).exists, false, "recusado não deixa nada gravado");
+
+  await definirLimite(db, dona.uid, 2);
+  assert.equal(await criarNegocio(db, dona, { name: "Segundo", slug: "segundo-limite" }), "segundo-limite");
+  await assert.rejects(criarNegocio(db, dona, { name: "Terceiro", slug: "terceiro-limite" }), /Sua conta inclui 2 negócios/);
+
+  const outra = { uid: "outra-limite" };
+  await assert.rejects(criarNegocio(db, outra, { name: "Tomado", slug: "primeiro-limite" }), /já está em uso/);
+  await assert.rejects(criarNegocio(db, outra, { name: "Reservado", slug: "painel" }), /reservado/);
+  // Funcionário de outro negócio não gasta a cota
+  await db.doc("tenants/primeiro-limite/members/outra-limite").set({ uid: "outra-limite", role: "member" });
+  assert.equal(await criarNegocio(db, outra, { name: "Dela", slug: "dela-limite" }), "dela-limite");
+  await assert.rejects(definirLimite(db, dona.uid, 0), /de 1 a 50/);
 }
 
 console.log("booking ok");

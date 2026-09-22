@@ -20,7 +20,9 @@ function create(db, slug, uid) {
 
 const alice = as("alice"), bob = as("bob"), mallory = as("mallory");
 
-await assertSucceeds(create(alice, "acme", "alice"));
+// Criar negócio é só pelo servidor (limite por conta): nem o próprio dono cria pelo app
+await assertFails(create(alice, "acme", "alice"));
+await env.withSecurityRulesDisabled((ctx) => create(ctx.firestore(), "acme", "alice"));
 await assertFails(create(mallory, "acme", "mallory")); // slug já existe
 await assertFails(setDoc(doc(mallory, "tenants/x"), { name: "x", ownerId: "alice" })); // sem membro owner
 await assertFails(setDoc(doc(mallory, "tenants/acme/members/mallory"), { uid: "mallory", role: "admin" }));

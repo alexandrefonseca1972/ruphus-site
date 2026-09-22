@@ -23,7 +23,8 @@ export async function aceitarConvite(idToken: string, token: string) {
     if (!(await consumirConvite(adminDb, convite.jti, user.uid))) {
       return { ok: false as const, error: "Este convite já foi usado. Peça um link novo." };
     }
-    await membro.set({ uid: user.uid, role: "admin", createdAt: FieldValue.serverTimestamp() });
+    // o e-mail fica no membro para o /admin saber quem é (o Admin Auth não roda na Vercel)
+    await membro.set({ uid: user.uid, role: "admin", ...(user.email && { email: user.email }), createdAt: FieldValue.serverTimestamp() });
   }
   return { ok: true as const, tenantId: convite.tenantId, nome: String(tenant.get("name")) };
 }

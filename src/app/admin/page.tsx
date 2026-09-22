@@ -18,6 +18,7 @@ import {
   resumoDoDia,
   salvarNegocio,
   revogarAcesso,
+  liberarNegocios,
   type Acesso,
   type Detalhe,
   type Espaco,
@@ -236,6 +237,12 @@ export default function AdminPage() {
     setAcessos((a) => a?.filter((x) => x.uid !== uid) ?? null);
     setEspacos((e) => e.map((x) => (x.slug === slug ? { ...x, acessos: x.acessos - 1 } : x)));
     setAberto((x) => (x && x.slug === slug ? { ...x, acessos: x.acessos - 1 } : x));
+  }
+
+  async function mudarLimite(uid: string, negocios: number) {
+    const r = await liberarNegocios(await token(), uid, negocios);
+    setAviso(r.ok ? `agora pode ter ${r.dados} negócio(s)` : r.error);
+    if (r.ok) setAcessos((a) => a?.map((x) => (x.uid === uid ? { ...x, limite: r.dados } : x)) ?? null);
   }
 
   async function mudarNegocio(slug: string, dados: Partial<Crm>) {
@@ -1186,9 +1193,34 @@ export default function AdminPage() {
                     <div className="min-w-0 grow">
                       <p className="text-sm font-medium">{a.papel === "owner" ? "Dono do negócio" : "Acesso do cliente"}</p>
                       <p className="truncate text-xs text-[#6F6A5E]">
-                        {a.uid}
+                        {a.email ?? a.uid}
                         {a.desde ? ` · desde ${new Date(a.desde).toLocaleDateString("pt-BR")}` : ""}
                       </p>
+                      {/* Cada conta começa com 1 negócio; daqui o admin libera mais para este cliente */}
+                      {a.limite !== null && (
+                        <div className="mt-2 flex items-center gap-2 text-xs">
+                          <span className="text-[#6F6A5E]">
+                            Negócios: <b className="font-semibold text-[#17150F]">{a.usados}</b> de {a.limite}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`Diminuir limite de negócios de ${a.email ?? a.uid}`}
+                            disabled={a.limite <= 1}
+                            onClick={() => mudarLimite(a.uid, a.limite! - 1)}
+                            className="size-11 rounded-[10px] border border-[#D8D2C6] text-base font-semibold hover:border-[#17150F] disabled:opacity-40"
+                          >
+                            −
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Liberar mais um negócio para ${a.email ?? a.uid}`}
+                            onClick={() => mudarLimite(a.uid, a.limite! + 1)}
+                            className="size-11 rounded-[10px] border border-[#D8D2C6] text-base font-semibold hover:border-[#17150F]"
+                          >
+                            +
+                          </button>
+                        </div>
+                      )}
                     </div>
                     {a.papel === "owner" ? (
                       <span className="shrink-0 text-xs text-[#6F6A5E]">não pode ser removido</span>
