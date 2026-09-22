@@ -24,6 +24,8 @@ assert.equal(sitePath("samurai-pet", "/assets/pet/loja-racao-800.jpg"), "/s/asse
 assert.equal(sitePath("samurai-pet", "/assets/fx.js"), "/s/assets/fx.js");
 // nome parecido não é a pasta compartilhada
 assert.equal(sitePath("lindass", "/assetsfoo/x.png"), "/s/lindass/assetsfoo/x.png");
+assert.equal(sitePath("lindass", "/s/lindass/img/hero.jpg"), "/s/lindass/img/hero.jpg", "caminho completo não dobra");
+assert.equal(sitePath("lindass", "/s/outro/img/x.jpg"), "/s/lindass/s/outro/img/x.jpg", "só o próprio site passa direto");
 console.log("sitePath ok");
 
 import { paginaEstatica } from "@/proxy";

@@ -47,6 +47,9 @@ export function sitePath(slug: string, pathname: string) {
   if (pathname === "/bio" || pathname === "/bio/") return `/bio/${slug}`;
   // o navegador pede /favicon.ico sozinho e quase nenhum site tem o arquivo: usa o do app
   if (pathname === "/favicon.ico") return pathname;
+  // já endereçado ao próprio site (a /bio pede /s/{slug}/img/… para funcionar em www e no
+  // subdomínio com o mesmo HTML em cache): não prefixa de novo, senão vira /s/{slug}/s/{slug}/…
+  if (pathname.startsWith(`/s/${slug}/`)) return pathname;
   // as páginas pedem "../assets/…", que na raiz do subdomínio vira /assets/…: é a pasta compartilhada
   if (pathname === "/assets" || pathname.startsWith("/assets/")) return `/s${pathname}`;
   // public/ não serve índice de diretório: a raiz do site aponta direto para o arquivo
