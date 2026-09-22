@@ -2,7 +2,7 @@
 
 import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, serverTimestamp, Timestamp, updateDoc, where } from "firebase/firestore";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { auth, db, idToken } from "@/lib/firebase";
 import { dateIn, formatBRL, formatLongDate, formatTime, whatsappLink } from "@/lib/datetime";
 import { useCollection } from "@/lib/use-collection";
-import { endPlanAction, renameCustomerAction } from "../../actions";
+import { deleteCustomerAction, endPlanAction, renameCustomerAction } from "../../actions";
 import { ConfirmPanel } from "../../confirm-panel";
 import { History } from "../../history";
 import { useTenant } from "../../layout";
@@ -63,6 +63,8 @@ export default function CustomerPage() {
   const [renameError, setRenameError] = useState("");
   const [openHistory, setOpenHistory] = useState<string | null>(null);
   const [endingPlan, setEndingPlan] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const router = useRouter();
   const [error, setError] = useState("");
   const [now] = useState(Date.now);
 
@@ -94,6 +96,16 @@ export default function CustomerPage() {
     } catch (err) {
       setError((err as Error).message);
     }
+  }
+
+  async function remove() {
+    setError("");
+    const res = await deleteCustomerAction(await idToken(), { tenantId: tenant.id, customerId: key }).catch((err: Error) => ({ ok: false as const, error: err.message }));
+    if (!res.ok) {
+      setDeleting(false);
+      return setError(res.error);
+    }
+    router.replace(`/${tenant.id}/clientes`);
   }
 
   if (customer === undefined) return <p className="text-sm text-muted-foreground">Carregando…</p>;
@@ -165,8 +177,20 @@ export default function CustomerPage() {
             {customer.phone} · WhatsApp
           </a>
         </div>
-        {!planning && <Button onClick={() => setPlanning(true)}>Novo plano recorrente</Button>}
+        <div className="flex flex-wrap gap-2">
+          {tenant.podeGerir && !deleting && <Button variant="ghost" onClick={() => setDeleting(true)}>Excluir cliente</Button>}
+          {!planning && <Button onClick={() => setPlanning(true)}>Novo plano recorrente</Button>}
+        </div>
       </div>
+      {deleting && (
+        <ConfirmPanel
+          title={`Excluir ${customer.name}?`}
+          description="Some da lista de clientes junto com as anotações. Os atendimentos passados continuam na agenda e no histórico."
+          confirmLabel="Excluir cliente"
+          onConfirm={remove}
+          onCancel={() => setDeleting(false)}
+        />
+      )}
 
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-6">
         {stats.map((s) => (

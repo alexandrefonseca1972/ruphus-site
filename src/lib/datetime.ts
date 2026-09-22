@@ -49,6 +49,15 @@ export const formatBRL = (cents: number) =>
 export const formatDuration = (min: number) =>
   min < 60 ? `${min} min` : `${Math.floor(min / 60)}h${min % 60 ? String(min % 60).padStart(2, "0") : ""}`;
 
+/** Máscara de preço enquanto digita: os dígitos entram pela direita, como em caixa
+ * eletrônico ("4" → R$ 0,04, "4500" → R$ 45,00). Até R$ 99.999,99. */
+export function maskBRL(value: string) {
+  const d = value.replace(/\D/g, "").slice(0, 7);
+  // "R$ 0,00" apagando um dígito vira "00": aí quem apaga quer esvaziar, não zerar de novo
+  if (!d || (Number(d) === 0 && d.length === 2)) return "";
+  return formatBRL(Number(d));
+}
+
 /** Máscara brasileira enquanto digita: (11) 91234-5678 ou (11) 3333-4444 */
 export function formatPhone(value: string) {
   let d = value.replace(/\D/g, "");

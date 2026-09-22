@@ -32,3 +32,21 @@ export function ativosDesde(visitas: readonly Visita[], desdeMs: number) {
       .map((v) => v.customerKey),
   );
 }
+
+export type Resumo = { ultimaMs: number | null; visitas: number; gastoCents: number };
+
+/** Por cliente: a última vez que esteve aqui, quantas vezes veio e quanto gastou.
+ * Só o que já aconteceu e não foi cancelado nem falta — um horário futuro é
+ * promessa, não visita (em `ativosDesde` ele conta por outro motivo). */
+export function resumoPorCliente(visitas: readonly (Visita & { priceCents?: number })[], agoraMs: number) {
+  const m = new Map<string, Resumo>();
+  for (const v of visitas) {
+    if (v.startMs > agoraMs || (v.status !== "booked" && v.status !== "confirmed")) continue;
+    const r = m.get(v.customerKey) ?? { ultimaMs: null, visitas: 0, gastoCents: 0 };
+    r.visitas++;
+    r.gastoCents += v.priceCents ?? 0;
+    r.ultimaMs = Math.max(r.ultimaMs ?? 0, v.startMs);
+    m.set(v.customerKey, r);
+  }
+  return m;
+}

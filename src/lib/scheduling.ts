@@ -7,7 +7,7 @@ const id = z.string().min(1).max(128).regex(/^[^/]+$/);
 export const Service = z.object({
   name: z.string().trim().min(1, "Informe o nome").max(80, "Nome muito longo"),
   durationMin: z.number().int().min(5, "A duração mínima é de 5 minutos").max(480, "A duração máxima é de 8 horas"),
-  priceCents: z.number().int().min(0, "Preço inválido"),
+  priceCents: z.number().int().min(0, "Preço inválido").max(9_999_999, "O preço máximo é R$ 99.999,99"),
   active: z.boolean(),
 });
 export type Service = z.infer<typeof Service>;

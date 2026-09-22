@@ -24,9 +24,13 @@ export function ShareLink({ tenantId, name }: { tenantId: string; name: string }
   }
 
   return (
-    <div className="ml-auto">
-      <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>
-        Divulgar link ↗
+    <div>
+      <Button variant="outline" aria-expanded={open} onClick={() => setOpen(!open)} className="h-10 gap-2 px-4">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M7 17 17 7" />
+          <path d="M8 7h9v9" />
+        </svg>
+        Divulgar link
       </Button>
       {open && (
         <div className="absolute inset-x-2 z-10 mt-2 grid gap-3 rounded-lg border bg-background p-3 shadow-lg sm:inset-x-auto sm:right-4 sm:w-96">

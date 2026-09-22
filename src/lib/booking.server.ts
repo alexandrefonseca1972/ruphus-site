@@ -81,6 +81,39 @@ export async function renameCustomer(
   return { ok: true as const, name, agendamentos: futuros.size };
 }
 
+/** Exclui o cliente e as anotações dele. Só dono ou admin do negócio (ou da plataforma).
+ *
+ * Os agendamentos passados ficam: guardam uma cópia do nome e do telefone, e a
+ * agenda e o faturamento de meses atrás não podem mudar porque alguém saiu da
+ * lista. Com horário marcado ou plano ativo não exclui — cancelar primeiro, para
+ * ninguém chegar ao salão sem estar na agenda de ninguém. */
+export async function deleteCustomer(
+  db: Firestore,
+  { tenantId, customerId }: { tenantId: string; customerId: string },
+  user: { uid: string },
+) {
+  const t = db.collection("tenants").doc(tenantId);
+  const [member, admin] = await Promise.all([t.collection("members").doc(user.uid).get(), db.doc("config/admin").get()]);
+  const daPlataforma = (admin.get("uids") as unknown[] | undefined)?.includes(user.uid) ?? false;
+  if (!daPlataforma && !["owner", "admin"].includes(member.get("role"))) {
+    throw new UserError("Só o dono ou um administrador do negócio pode excluir clientes.");
+  }
+
+  const cliente = t.collection("customers").doc(customerId);
+  const [snap, futuros, planos] = await Promise.all([
+    cliente.get(),
+    t.collection("appointments").where("customerKey", "==", customerId).where("start", ">", new Date()).get(),
+    t.collection("plans").where("customerKey", "==", customerId).where("status", "==", "active").limit(1).get(),
+  ]);
+  if (!snap.exists) throw new UserError("Cliente não encontrado.");
+  if (!planos.empty) throw new UserError("Encerre o plano recorrente antes de excluir.");
+  if (futuros.docs.some((d) => ["booked", "confirmed"].includes(d.get("status")))) {
+    throw new UserError("Este cliente tem horário marcado. Cancele antes de excluir.");
+  }
+  await db.recursiveDelete(cliente); // leva junto customers/{id}/notas
+  return { ok: true as const };
+}
+
 export async function requireMember(verify: VerifyToken, db: Firestore, idToken: string, tenantId: string) {
   const user = await verify(idToken).catch(() => {
     throw new UserError("Sessão expirada. Entre novamente.");
