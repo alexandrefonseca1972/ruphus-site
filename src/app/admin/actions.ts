@@ -2,6 +2,7 @@
 
 import { adminDb } from "@/lib/admin";
 import { adminAction } from "@/lib/admin-guard";
+import { cotaDe, definirLimite } from "@/lib/negocios.server";
 import { criarConvite } from "@/lib/convite";
 import {
   atrasadas,
@@ -131,16 +132,23 @@ export const gerarConvite = adminAction(async (_user, slug: string) => {
   return convite.url;
 });
 
-export type Acesso = { uid: string; papel: string; desde: string | null };
+export type Acesso = { uid: string; papel: string; desde: string | null; email: string | null; limite: number | null; usados: number };
 
 export const listarAcessos = adminAction(async (_user, slug: string) => {
   const snap = await adminDb.collection(`tenants/${slug}/members`).get();
-  return snap.docs.map((d): Acesso => ({
+  // A cota de cada pessoa: é por aqui que o admin libera mais negócios para um cliente
+  const cotas = await Promise.all(snap.docs.map((d) => cotaDe(adminDb, d.id)));
+  return snap.docs.map((d, i): Acesso => ({
     uid: d.id,
     papel: String(d.get("role") ?? "member"),
     desde: d.get("createdAt")?.toDate?.().toISOString() ?? null,
+    email: (d.get("email") as string | undefined) ?? null,
+    ...cotas[i],
   }));
 });
+
+/** Libera (ou reduz) quantos negócios a conta pode ter. */
+export const liberarNegocios = adminAction(async (_user, uid: string, negocios: number) => definirLimite(adminDb, uid, negocios));
 
 /** Tira o acesso de alguém. O dono do espaço não pode ser removido. */
 export const revogarAcesso = adminAction(async (_user, slug: string, uid: string) => {

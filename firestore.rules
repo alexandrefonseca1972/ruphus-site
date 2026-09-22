@@ -24,10 +24,9 @@ service cloud.firestore {
 
     match /tenants/{t} {
       allow read: if isMember(t);
-      // Criado junto com o membro owner, no mesmo batch
-      allow create: if request.auth != null
-        && request.resource.data.ownerId == request.auth.uid
-        && getAfter(memberPath(t)).data.role == 'owner';
+      // Negócio novo só pelo servidor (criarNegocio): é lá que vale o limite de
+      // negócios por conta, e regra não sabe contar quantos a pessoa já tem
+      allow create: if false;
       allow update: if hasRole(t, ['owner', 'admin'])
         && request.resource.data.ownerId == resource.data.ownerId;
       // Sem delete pelo app: as subcoleções ficariam órfãs e o slug poderia ser recriado por outra pessoa
@@ -35,12 +34,6 @@ service cloud.firestore {
 
       match /members/{uid} {
         allow read: if isMember(t);
-        // Bootstrap do owner na criação do tenant
-        allow create: if request.auth != null && uid == request.auth.uid
-          && request.resource.data.uid == uid
-          && request.resource.data.role == 'owner'
-          && !exists(/databases/$(database)/documents/tenants/$(t))
-          && getAfter(/databases/$(database)/documents/tenants/$(t)).data.ownerId == uid;
         allow create: if hasRole(t, ['owner', 'admin'])
           && request.resource.data.uid == uid
           && request.resource.data.role in ['admin', 'member'];
