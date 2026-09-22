@@ -13,7 +13,7 @@ import { addDays, customerKey, dateIn, formatBRL, formatLongDate, formatTime, to
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { cn, openExternal } from "@/lib/utils";
-import { ConfirmPanel } from "./confirm-panel";
+import { ConfirmDialog } from "./confirm-dialog";
 import { History } from "./history";
 import { useTenant } from "./layout";
 import { PageTitle } from "./page-title";
@@ -294,7 +294,7 @@ export default function AgendaPage() {
                 </div>
               </div>
               {confirming?.id === a.id && confirming.kind === "cancel" && (
-                <ConfirmPanel
+                <ConfirmDialog
                   title={`Cancelar o agendamento de ${a.customerName}?`}
                   description={`${formatLongDate(a.start.toDate())} às ${formatTime(a.start.toDate())} · ${a.serviceName} com ${a.staffName}. O horário volta a ficar livre.`}
                   notifyLabel="Avisar o cliente pelo WhatsApp"
@@ -304,7 +304,7 @@ export default function AgendaPage() {
                 />
               )}
               {confirming?.id === a.id && confirming.kind === "no_show" && (
-                <ConfirmPanel
+                <ConfirmDialog
                   title={`Registrar que ${a.customerName} faltou?`}
                   description="Fica no histórico do cliente e não pode ser desfeito pelo painel."
                   confirmLabel="Sim, registrar falta"

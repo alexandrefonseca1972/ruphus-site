@@ -12,6 +12,7 @@ import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { useTenant } from "../layout";
 import { PageTitle } from "../page-title";
+import { ConfirmDialog } from "../confirm-dialog";
 import { RowMenu } from "../row-menu";
 import { cn, handleSubmit } from "@/lib/utils";
 
@@ -32,6 +33,8 @@ export default function StaffPage() {
   const [staff, staffError] = useCollection(tenant.id, "staff", Staff, [orderBy("name")]);
   const [services] = useCollection(tenant.id, "services", Service, [orderBy("name")]);
   const [editing, setEditing] = useState<(Staff & { id: string }) | null>(null);
+  const [salvos, setSalvos] = useState(0);
+  const [excluindo, setExcluindo] = useState<(Staff & { id: string }) | null>(null);
   const [error, setError] = useState("");
   const col = collection(db, "tenants", tenant.id, "staff");
   const serviceName = new Map(services?.map((s) => [s.id, s.name]));
@@ -50,6 +53,7 @@ export default function StaffPage() {
       await (editing ? setDoc(doc(col, editing.id), data) : addDoc(col, data));
       el.reset();
       setEditing(null);
+      setSalvos((n) => n + 1); // formulário novo, zerado (os serviços são controlados e o reset não os alcança)
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -107,7 +111,7 @@ export default function StaffPage() {
                   label={`Mais ações: ${p.name}`}
                   actions={[
                     { label: p.active ? "Tirar do link" : "Voltar para o link", onClick: () => run(updateDoc(doc(col, p.id), { active: !p.active })) },
-                    { label: "Excluir", danger: true, onClick: () => confirm(`Excluir ${p.name}?`) && run(deleteDoc(doc(col, p.id))) },
+                    { label: "Excluir", danger: true, onClick: () => setExcluindo(p) },
                   ]}
                 />
               </div>
@@ -140,23 +144,13 @@ export default function StaffPage() {
           {services?.length === 0 ? (
             <p className="text-sm text-muted-foreground">Cadastre um serviço antes de adicionar profissionais.</p>
           ) : (
-            <form key={editing?.id ?? "new"} onSubmit={handleSubmit(save)} className="grid gap-6">
+            <form key={editing?.id ?? `new-${salvos}`} onSubmit={handleSubmit(save)} className="grid gap-6">
               <div className="grid gap-1.5">
                 <Label htmlFor="name">Nome</Label>
                 <Input id="name" name="name" defaultValue={editing?.name} placeholder="Ex.: Bruna Oliveira" required maxLength={80} className="h-11 bg-card px-3.5 text-[15px]" />
               </div>
 
-              <fieldset className="grid gap-2">
-                <legend className="mb-2.5 text-sm font-medium">Serviços que realiza</legend>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {services?.map((sv) => (
-                    <label key={sv.id} className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg border px-3.5 text-sm has-checked:border-primary has-checked:bg-muted has-focus-visible:ring-3 has-focus-visible:ring-ring/50">
-                      <input type="checkbox" name="serviceIds" value={sv.id} defaultChecked={editing?.serviceIds.includes(sv.id)} className="size-4 accent-primary" />
-                      {sv.name}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
+              <ServiceChecks services={services ?? []} initial={editing?.serviceIds ?? []} />
 
               <fieldset className="grid gap-1">
                 <legend className="mb-2 text-sm font-medium">Horário de atendimento</legend>
@@ -184,6 +178,54 @@ export default function StaffPage() {
           )}
         </section>
       </div>
+      {excluindo && (
+        <ConfirmDialog
+          title={`Excluir ${excluindo.name}?`}
+          description="Sai do link de agendamento. Os agendamentos já feitos continuam na agenda. Para só pausar, use “Tirar do link”."
+          confirmLabel="Excluir profissional"
+          onConfirm={async () => {
+            await run(deleteDoc(doc(col, excluindo.id)));
+            setExcluindo(null);
+          }}
+          onCancel={() => setExcluindo(null)}
+        />
+      )}
     </>
+  );
+}
+
+/** Serviços do profissional. Controlado só para o "marcar todos" saber o que dizer;
+ * o formulário continua lendo os checkboxes pelo name. */
+function ServiceChecks({ services, initial }: { services: (Service & { id: string })[]; initial: string[] }) {
+  const [marcados, setMarcados] = useState(() => new Set(initial));
+  const todos = services.length > 0 && services.every((sv) => marcados.has(sv.id));
+  const alterna = (id: string) =>
+    setMarcados((m) => {
+      const n = new Set(m);
+      if (!n.delete(id)) n.add(id);
+      return n;
+    });
+
+  return (
+    <fieldset className="relative grid gap-2">
+      <legend className="mb-2.5 text-sm font-medium">Serviços que realiza</legend>
+      {services.length > 1 && (
+        <button
+          type="button"
+          onClick={() => setMarcados(todos ? new Set() : new Set(services.map((sv) => sv.id)))}
+          className="absolute -top-2 right-0 min-h-9 text-[13px] underline underline-offset-4 hover:text-muted-foreground"
+        >
+          {todos ? "Desmarcar todos" : "Marcar todos"}
+        </button>
+      )}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {services.map((sv) => (
+          <label key={sv.id} className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg border px-3.5 py-2 text-sm has-checked:border-primary has-checked:bg-muted has-focus-visible:ring-3 has-focus-visible:ring-ring/50">
+            <input type="checkbox" name="serviceIds" value={sv.id} checked={marcados.has(sv.id)} onChange={() => alterna(sv.id)} className="size-4 shrink-0 accent-primary" />
+            {sv.name}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }

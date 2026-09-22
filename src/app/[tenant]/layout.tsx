@@ -35,6 +35,12 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   const [loaded, setLoaded] = useState<{ slug: string; value: TenantCtx | "denied" } | null>(null);
   const state = loaded?.slug === slug ? loaded.value : "loading";
 
+  // A fonte também no body: diálogos e menus abrem em portal, fora do wrapper .painel
+  useEffect(() => {
+    document.body.classList.add(serifa.variable);
+    return () => document.body.classList.remove(serifa.variable);
+  }, []);
+
   useEffect(() => {
     let current = true;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
