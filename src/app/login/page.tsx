@@ -34,7 +34,10 @@ const CAMPO =
 function Login() {
   const router = useRouter();
   // Quem chegou por um convite volta para ele depois de entrar
-  const proximo = useSearchParams().get("next");
+  const params = useSearchParams();
+  const proximo = params.get("next");
+  // Voltou porque a sessão expirou: diga isso, senão parece que o login caiu sozinho
+  const expirou = Number(params.get("expirou")) || 0;
 
   // Quem administra a plataforma trabalha no /admin; quem é dono de um negócio,
   // no /painel. O convite, quando existe, vence os dois.
@@ -175,6 +178,11 @@ function Login() {
         )}
 
         <div className="grid gap-1.5">
+          {expirou > 0 && (
+            <p role="status" className="mb-1 rounded-xl border border-[#E2DDD3] bg-[#F7F5EF] p-3 text-[13px] leading-snug text-[#5C5747]">
+              Sua sessão foi encerrada depois de {expirou} minutos sem uso. Entre de novo para continuar.
+            </p>
+          )}
           <h1 className="text-[36px] leading-[1.04] font-semibold tracking-[-0.032em]">
             {convidado ? "Entre para abrir sua agenda" : signin ? "Entrar na Ruphus" : "Criar conta"}
           </h1>

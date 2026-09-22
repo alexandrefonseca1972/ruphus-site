@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { diaCurto, hojeISO } from "@/lib/crm-tipos";
 import { formatBRL } from "@/lib/datetime";
 import {
@@ -193,10 +193,13 @@ export function Atrasadas({
   idToken,
   aviso,
   cortar,
+  aoContar,
 }: {
   idToken: string;
   aviso: (m: string) => void;
   cortar: (slug: string) => void;
+  /** Quantas estão em atraso, para a aba avisar sem abrir */
+  aoContar?: (n: number) => void;
 }) {
   const [lista, setLista] = useState<CobrancaEnviavel[]>([]);
   const [pix, setPix] = useState<{ chave: string; nome: string; cidade: string; whatsapp: string } | null>(null);
@@ -205,10 +208,20 @@ export function Atrasadas({
   const [ocupado, setOcupado] = useState("");
   const [lote, setLote] = useState<{ mes: string; lista: CobrancaEnviavel[] } | null>(null);
   const [enviadas, setEnviadas] = useState<Set<string>>(new Set());
+  // em ref: o efeito não pode depender da identidade do callback, senão um
+  // callback inline no pai recarregaria a lista a cada render
+  const contar = useRef(aoContar);
+  useEffect(() => {
+    contar.current = aoContar;
+  });
 
   useEffect(() => {
     if (!idToken) return;
-    listarAtrasadas(idToken).then((r) => r.ok && setLista(r.dados), () => {});
+    listarAtrasadas(idToken).then((r) => {
+      if (!r.ok) return;
+      setLista(r.dados);
+      contar.current?.(r.dados.length);
+    }, () => {});
     lerPixConfig(idToken).then((r) => {
       if (!r.ok) return;
       setSemPix(!r.dados);

@@ -7,3 +7,6 @@ export const LIMITE_STAFF_MAX = 50;
 
 /** O limite deste negócio: o que o admin definiu, ou o padrão. */
 export const limiteStaffDe = (limiteStaff?: number | null) => limiteStaff ?? LIMITE_STAFF_PADRAO;
+
+/** Teto do logout automático por inatividade (12 horas). 0 desliga. */
+export const MINUTOS_MAX = 720;

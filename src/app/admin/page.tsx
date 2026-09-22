@@ -20,6 +20,7 @@ import {
   salvarNegocio,
   revogarAcesso,
   definirAssinatura,
+  definirMinutosInativo,
   definirLimiteStaff,
   lerAssinatura,
   liberarNegocios,
@@ -30,6 +31,10 @@ import {
   type Espaco,
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
+import { alertas as calcularAlertas } from "@/lib/alertas";
+import { cents, emReais } from "@/lib/dinheiro";
+import { loginComMotivo, MINUTOS_MAX, useAutoLogout } from "@/lib/sessao";
+import { COMMIT, VERSAO } from "@/lib/versao";
 import { LIMITE_STAFF_MAX } from "@/lib/limites";
 import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
 import { Carteira } from "./carteira";
@@ -116,10 +121,12 @@ function Chip({ ativo, children, ...props }: React.ComponentProps<"button"> & { 
 export default function AdminPage() {
   const router = useRouter();
   const campoBusca = useRef<HTMLInputElement>(null);
+  const minutosInativo = useAutoLogout();   // e o próprio admin também sai sozinho
   const [estado, setEstado] = useState<"carregando" | "negado" | "pronto">("carregando");
   const [email, setEmail] = useState("");
   const [espacos, setEspacos] = useState<Espaco[]>([]);
   const [assinatura, setAssinatura] = useState("");   // quem assina as mensagens do CRM
+  const [atrasadas, setAtrasadas] = useState(0);      // cobranças vencidas, no rótulo da aba
   const [hoje, setHoje] = useState<{ agendamentosHoje: number; espacosComAgenda: number } | null>(null);
   const [busca, setBusca] = useState("");
   const [cidade, setCidade] = useState("");
@@ -139,7 +146,7 @@ export default function AdminPage() {
   const [eventos, setEventos] = useState<Evento[] | null>(null);
   // qual negócio está sendo marcado como perdido (pela gaveta ou soltando no funil)
   const [perdendo, setPerdendo] = useState<string | null>(null);
-  const [tela, setTela] = useState<"lista" | "funil" | "clientes">("lista");
+  const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca">("lista");
   // qual negócio está sendo marcado como fechado (confirma valores e já faz o pós-venda)
   const [fechando, setFechando] = useState<string | null>(null);
   const [saude, setSaude] = useState<ClienteSaude | null>(null);
@@ -148,6 +155,7 @@ export default function AdminPage() {
   const [estagio, setEstagio] = useState("");
   const [prazo, setPrazo] = useState<"" | Prazo>("");
   const [contato, setContato] = useState<"" | "hoje">("");   // "falei hoje"
+  const [alerta, setAlerta] = useState("");                  // id do alerta em foco
   const [fixados, setFixados] = useState(false);
   const [foraDoAr, setForaDoAr] = useState(false);
   const [menuFiltros, setMenuFiltros] = useState(false);
@@ -159,7 +167,7 @@ export default function AdminPage() {
   useEffect(
     () =>
       onAuthStateChanged(auth, async (user) => {
-        if (!user) return router.replace(`/login?next=${encodeURIComponent("/admin")}`);
+        if (!user) return router.replace(loginComMotivo(`/login?next=${encodeURIComponent("/admin")}`));
         setEmail(user.email ?? "");
         const idToken = await user.getIdToken();
         setIdToken(idToken);
@@ -191,6 +199,12 @@ export default function AdminPage() {
     return () => removeEventListener("keydown", atalho);
   }, []);
 
+  const avisos = useMemo(() => calcularAlertas(espacos, crm, dataDeHoje), [espacos, crm, dataDeHoje]);
+  const emFoco = useMemo(() => {
+    const a = avisos.find((x) => x.id === alerta);
+    return a ? new Set(a.slugs) : null;
+  }, [avisos, alerta]);
+
   // Cada filtro isolado, para a contagem de um chip poder ignorar a própria
   // dimensão: o número ao lado de "Barbearia" diz quantas barbearias sobram
   // com os OUTROS filtros ligados. Somando tudo, um chip prometia 115 e
@@ -207,10 +221,11 @@ export default function AdminPage() {
       fora: (e) => !foraDoAr || crm[e.slug]?.publicado === false,
       contato: (e) => !contato || diaLocal(crm[e.slug]?.ultimoContatoEm ?? null) === dataDeHoje,
       fixados: (e) => !fixados || emDestaque(crm[e.slug], dataDeHoje),
+      alerta: (e) => !emFoco || emFoco.has(e.slug),
     };
     return (e: Espaco, ...exceto: string[]) =>
       Object.entries(testes).every(([nome, teste]) => exceto.includes(nome) || teste(e));
-  }, [busca, cidade, nicho, situacao, estagio, prazo, foraDoAr, contato, fixados, dataDeHoje, crm]);
+  }, [busca, cidade, nicho, situacao, estagio, prazo, foraDoAr, contato, fixados, emFoco, dataDeHoje, crm]);
 
   const cidades = useMemo(() => contar(espacos.filter((e) => passa(e, "cidade")), local), [espacos, passa]);
   const nichos = useMemo(() => contar(espacos.filter((e) => passa(e, "nicho")), (e) => e.nicho), [espacos, passa]);
@@ -465,6 +480,7 @@ export default function AdminPage() {
     setMarcados(new Set());
   }
 
+  /** A planilha dos convites em lote: é o único download que sobrou no painel. */
   function baixar(nome: string, linhas: (string | number)[][]) {
     const csv = linhas.map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -473,23 +489,6 @@ export default function AdminPage() {
     a.download = nome;
     a.click();
     URL.revokeObjectURL(url);
-  }
-
-  function exportarCSV() {
-    baixar(`espacos-${new Date().toISOString().slice(0, 10)}.csv`, [
-      ["nome", "site", "cidade", "uf", "nicho", "nota", "avaliacoes", "situacao", "telefone", "estagio", "entrada", "mensalidade", "proxima_acao", "proxima_data", "ultimo_contato", "em_destaque_ate"],
-      ...lista.map((e) => [
-        e.nome, e.slug, e.cidade ?? "", e.uf ?? "", e.nicho,
-        e.nota ?? "", e.avaliacoes ?? "",
-        e.acessos > 1 ? "cliente ativo" : "convite pendente", e.telefone ?? "",
-        ROTULO[(crm[e.slug]?.estagio ?? "novo") as Estagio],
-        crm[e.slug]?.entradaCents ? (crm[e.slug]!.entradaCents! / 100).toFixed(2) : "",
-        crm[e.slug]?.mensalCents ? (crm[e.slug]!.mensalCents! / 100).toFixed(2) : "",
-        crm[e.slug]?.proximaAcao ?? "", crm[e.slug]?.proximaData ?? "",
-        crm[e.slug]?.ultimoContatoEm ? new Date(crm[e.slug]!.ultimoContatoEm!).toLocaleString("pt-BR") : "",
-        crm[e.slug]?.fixadoAte ?? "",
-      ]),
-    ]);
   }
 
   if (estado === "carregando") return <main className="p-10 text-sm text-[#6F6A5E]">Carregando…</main>;
@@ -508,7 +507,7 @@ export default function AdminPage() {
       </main>
     );
 
-  const chave = [busca, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), contato, String(fixados)].join("|");
+  const chave = [busca, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), contato, String(fixados), alerta].join("|");
   const contarPrazos = (base: Espaco[]) => {
     const n = { atrasada: 0, hoje: 0, futura: 0 };
     for (const e of base) {
@@ -561,6 +560,7 @@ export default function AdminPage() {
     setForaDoAr(v.fora);
     setContato(v.contato ?? "");
     setFixados(v.fixados ?? false);
+    setAlerta("");
   }
   function limparTudo() {
     setBusca("");
@@ -584,7 +584,7 @@ export default function AdminPage() {
         </span>
 
         <div role="group" aria-label="Visão" className="flex rounded-[10px] bg-[#EFEBE2] p-[3px]">
-          {(["lista", "funil", "clientes"] as const).map((v) => (
+          {(["lista", "funil", "clientes", "cobranca"] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -592,7 +592,12 @@ export default function AdminPage() {
               onClick={() => setTela(v)}
               className={`h-8 rounded-lg px-3 text-[12px] ${tela === v ? "bg-white font-semibold shadow-[0_1px_2px_rgba(23,21,15,.12)]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
             >
-              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : "Clientes"}
+              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : v === "clientes" ? "Clientes" : "Cobrança"}
+              {v === "cobranca" && atrasadas > 0 && (
+                <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${tela === v ? "bg-[#FBF0EE] text-[#8A2F2F]" : "bg-[#F1E7E7] text-[#8A2F2F]"}`}>
+                  {atrasadas}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -710,10 +715,6 @@ export default function AdminPage() {
           <option value="nome">Nome (A–Z)</option>
         </select>
 
-        <button type="button" onClick={exportarCSV} className="h-9 rounded-lg px-3 text-[13px] hover:bg-[#F4F2EE]">
-          Exportar
-        </button>
-
         <div className="grow" />
 
         <div className="flex h-9 w-full items-center gap-2 rounded-lg border border-[#D8D2C6] bg-[#FBFAF8] px-3 focus-within:border-[#17150F] sm:w-[320px]">
@@ -811,6 +812,47 @@ export default function AdminPage() {
       <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-5">
         {aviso && <p className="text-sm text-[#6F6A5E]">{aviso}</p>}
 
+        {/* O que passou do ponto e ninguém viu: some da tela quando não há nada */}
+        {!!avisos.length && (
+          <section aria-label="Alertas" className="flex flex-col gap-2 rounded-2xl border border-[#E2DDD3] bg-white p-3.5">
+            <div className="flex flex-wrap gap-2">
+              {avisos.map((a) => {
+                const ativo = alerta === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    aria-pressed={ativo}
+                    onClick={() => {
+                      setAlerta(ativo ? "" : a.id);
+                      if (!ativo) {
+                        const todos = VISOES.find((v) => v.id === "todos")!;
+                        setPrazo(todos.prazo);
+                        setSituacao(todos.situacao);
+                        setEstagio(todos.estagio);
+                        setForaDoAr(todos.fora);
+                        setContato("");
+                        setFixados(false);
+                      }
+                    }}
+                    className={`flex h-11 items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold ${
+                      ativo
+                        ? "border-[#17150F] bg-[#17150F] text-white"
+                        : `border-[#D8D2C6] bg-white hover:border-[#17150F] ${a.urgente ? "text-[#8A2F2F]" : "text-[#17150F]"}`
+                    }`}
+                  >
+                    {a.rotulo}
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] ${ativo ? "bg-white/20" : a.urgente ? "bg-[#FBF0EE]" : "bg-[#F3EFE7] text-[#6F6A5E]"}`}>
+                      {a.slugs.length}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {alerta && <p className="text-xs text-[#6F6A5E]">{avisos.find((a) => a.id === alerta)?.detalhe}</p>}
+          </section>
+        )}
+
         {/* Uma vez só: o nome entra em toda mensagem pronta, sem o vendedor redigitar */}
         <details className="rounded-2xl border border-[#E2DDD3] bg-white px-4 py-3">
           <summary className="cursor-pointer text-sm text-[#6F6A5E]">
@@ -840,10 +882,44 @@ export default function AdminPage() {
           </form>
         </details>
 
-        {/* Quem já devia aparece antes da lista: é o que se olha de manhã */}
-        <Atrasadas idToken={idToken} aviso={setAviso} cortar={(slug) => mudarNegocio(slug, { publicado: false })} />
+        {/* Sai sozinho no computador do balcão, que fica aberto o dia todo */}
+        <details className="rounded-2xl border border-[#E2DDD3] bg-white px-4 py-3">
+          <summary className="cursor-pointer text-sm text-[#6F6A5E]">
+            Sair sozinho depois de parado{minutosInativo ? ` · ${minutosInativo} min` : " · desligado"}
+          </summary>
+          <form
+            className="mt-3 flex flex-wrap items-end gap-2"
+            onSubmit={async (ev) => {
+              ev.preventDefault();
+              const r = await definirMinutosInativo(await token(), new FormData(ev.currentTarget).get("minutos"));
+              setAviso(r.ok ? (r.dados ? `Sai sozinho depois de ${r.dados} minutos parado.` : "Logout automático desligado.") : r.error);
+            }}
+          >
+            <label className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
+              Minutos parado (0 desliga)
+              <input
+                // renasce quando a configuração chega do banco: sem isto o campo
+                // ficava em 0 e um "Salvar" sem querer desligava o logout de todos
+                key={minutosInativo}
+                name="minutos"
+                type="number"
+                min={0}
+                max={MINUTOS_MAX}
+                defaultValue={minutosInativo}
+                className="h-11 w-32 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm tabular-nums text-[#17150F] outline-none focus:border-[#17150F]"
+              />
+            </label>
+            <button type="submit" className={BOTAO_ESCURO}>Salvar</button>
+            <span className="text-xs text-[#6F6A5E]">Vale para este painel e para o painel dos clientes.</span>
+          </form>
+        </details>
 
-        {tela === "clientes" ? (
+        {/* Montado sempre, visível só na aba: é assim que a aba sabe quantas estão em atraso */}
+        <div className={tela === "cobranca" ? "" : "hidden"}>
+          <Atrasadas idToken={idToken} aviso={setAviso} cortar={(slug) => mudarNegocio(slug, { publicado: false })} aoContar={setAtrasadas} />
+        </div>
+
+        {tela === "cobranca" ? null : tela === "clientes" ? (
           <Carteira idToken={idToken} hoje={dataDeHoje} espacos={espacos} abrir={abrir} />
         ) : tela === "funil" ? (
           <Funil
@@ -1078,6 +1154,13 @@ export default function AdminPage() {
           )}
         </section>
         )}
+
+        <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E2DDD3] pt-4 text-[11px] text-[#6F6A5E]">
+          <span>© {new Date().getFullYear()} Ruphus. Todos os direitos reservados.</span>
+          <span className="font-[family-name:var(--font-geist-mono)] tabular-nums">
+            {VERSAO} · {COMMIT}
+          </span>
+        </footer>
       </main>
 
       {aberto && (
@@ -1126,7 +1209,7 @@ export default function AdminPage() {
             </div>
 
             {/* A gaveta tem o que o vendedor usa todo dia em "Venda"; o resto fica a um toque */}
-            <div role="tablist" aria-label="Seções do negócio" className="sticky -top-6 z-10 -mx-6 -mt-2 flex gap-1 overflow-x-auto border-b border-[#E2DDD3] bg-white px-6 sm:-top-8 sm:-mx-8 sm:px-8">
+            <div role="tablist" aria-label="Seções do negócio" className="sticky top-0 z-10 -mx-6 -mt-2 flex gap-1 overflow-x-auto border-b border-[#E2DDD3] bg-white px-6 [scrollbar-width:none] sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden">
               {(
                 [
                   // ícones em traço, do mesmo peso dos outros da gaveta
@@ -1224,15 +1307,20 @@ export default function AdminPage() {
                         <span className="pl-3 pr-1.5 text-sm text-[#8B8578]">R$</span>
                         <input
                           id={c.id}
-                          type="number"
-                          min={0}
-                          step={10}
-                          defaultValue={((crm[aberto.slug]?.[c.campo] ?? c.padrao) / 100).toString()}
-                          onBlur={(ev) =>
-                            mudarNegocio(aberto.slug, {
-                              [c.campo]: ev.target.value ? Math.round(Number(ev.target.value) * 100) : null,
-                            })
-                          }
+                          type="text"
+                          inputMode="decimal"
+                          defaultValue={emReais(crm[aberto.slug]?.[c.campo] ?? c.padrao)}
+                          onBlur={(ev) => {
+                            const valor = cents(ev.target.value);
+                            // texto que não é número não apaga o preço: volta o que estava
+                            if (ev.target.value.trim() && (Number.isNaN(valor) || valor < 0)) {
+                              ev.target.value = emReais(crm[aberto.slug]?.[c.campo] ?? c.padrao);
+                              return setAviso("Valor inválido. Use 59,90.");
+                            }
+                            const novo = ev.target.value.trim() ? valor : null;
+                            ev.target.value = novo === null ? "" : emReais(novo);
+                            mudarNegocio(aberto.slug, { [c.campo]: novo });
+                          }}
                           className="h-full min-w-0 grow bg-transparent text-sm tabular-nums text-[#17150F] outline-none"
                         />
                         {c.sufixo && <span className="pr-3 text-xs text-[#8B8578]">{c.sufixo}</span>}

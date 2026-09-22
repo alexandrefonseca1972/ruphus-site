@@ -4,7 +4,7 @@ import { z } from "zod";
 import { adminDb } from "@/lib/admin";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite } from "@/lib/negocios.server";
-import { LIMITE_STAFF_MAX, limiteStaffDe } from "@/lib/limites";
+import { LIMITE_STAFF_MAX, limiteStaffDe, MINUTOS_MAX } from "@/lib/limites";
 import { saudeDe } from "@/lib/saude.server";
 import { criarConvite } from "@/lib/convite";
 import {
@@ -335,6 +335,14 @@ export const definirAssinatura = adminAction(async (_user, nome: unknown) => {
   if (!limpo) throw new ErroPrevisto("Informe o nome que assina as mensagens.");
   await adminDb.doc("config/crm").set({ assinatura: limpo }, { merge: true });
   return limpo;
+});
+
+/** Minutos parado até o logout automático. 0 desliga. */
+export const definirMinutosInativo = adminAction(async (_user, minutos: unknown) => {
+  const n = Number(minutos);
+  if (!Number.isInteger(n) || n < 0 || n > MINUTOS_MAX) throw new ErroPrevisto(`Use de 0 (desligado) a ${MINUTOS_MAX} minutos.`);
+  await adminDb.doc("config/sessao").set({ minutos: n }, { merge: true });
+  return n;
 });
 
 export const lerPixConfig = adminAction(async () => pixCadastrado(adminDb));
