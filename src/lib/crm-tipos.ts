@@ -28,6 +28,28 @@ export const COR: Record<Estagio, string> = {
  *  no cartao, e so se digita quando o acerto sai do padrao. */
 export const PRECO_PADRAO = { entradaCents: 250_00, mensalCents: 59_90 } as const;
 
+/** Por que um negócio saiu do funil sem fechar. Obrigatório ao marcar "perdido". */
+export const MOTIVOS_PERDA = {
+  preco: "Preço",
+  ja_tem: "Já tem site ou agenda",
+  sem_interesse: "Sem interesse agora",
+  nao_respondeu: "Não respondeu",
+  fechou: "Fechou o negócio",
+  outro: "Outro",
+} as const;
+export type MotivoPerda = keyof typeof MOTIVOS_PERDA;
+
+/** Como o contato chegou. Os sites importados em lote entram como "importado". */
+export const ORIGENS = {
+  porta: "Porta a porta",
+  instagram: "Instagram",
+  indicacao: "Indicação",
+  anuncio: "Anúncio",
+  importado: "Importado",
+  outro: "Outro",
+} as const;
+export type Origem = keyof typeof ORIGENS;
+
 export type Crm = {
   estagio: Estagio;
   /** Entrada, cobrada uma vez */
@@ -39,6 +61,30 @@ export type Crm = {
   proximaData: string | null;
   publicado: boolean;
   notas: number;
+  /** Quem decide: o telefone do site é o da recepção, e cobrança e proposta vão para o dono */
+  donoNome: string | null;
+  donoPapel: string | null;
+  donoWhatsapp: string | null;
+  donoEmail: string | null;
+  motivoPerda: MotivoPerda | null;
+  detalhePerda: string | null;
+  /** null = ainda não informado; a tela e os números tratam como "importado" */
+  origem: Origem | null;
+  indicadoPor: string | null;
+  /** Quando saiu de "novo" pela primeira vez: é daqui que se conta o tempo até fechar */
+  entrouEm: string | null;
+  perdidoEm: string | null;
+};
+
+/** Um acontecimento na linha do tempo do negócio. Parte é gravada (notas, estágio,
+ *  mensagens); parte é lida do que já existe (convite aceito, agendamento, cobrança). */
+export type Evento = {
+  id: string;
+  tipo: "nota" | "estagio" | "mensagem" | "convite" | "agendamento" | "cobranca" | "pagamento";
+  titulo: string;
+  detalhe: string | null;
+  autor: string;
+  quando: string;
 };
 
 export type Nota = { id: string; texto: string; quando: string; autor: string };

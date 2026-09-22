@@ -30,7 +30,7 @@ export async function cotaDe(db: Firestore, uid: string) {
  *
  * Numa transação: dois cliques (ou duas abas) ao mesmo tempo não passam juntos
  * pela contagem, e o endereço já tomado falha no create em vez de sobrescrever. */
-export async function criarNegocio(db: Firestore, user: { uid: string; email?: string }, input: unknown) {
+export async function criarNegocio(db: Firestore, user: { uid: string; email?: string; name?: string }, input: unknown) {
   const parsed = TenantInput.safeParse(input);
   if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
   const { slug, name } = parsed.data;
@@ -58,6 +58,7 @@ export async function criarNegocio(db: Firestore, user: { uid: string; email?: s
       uid: user.uid,
       role: "owner",
       ...(user.email && { email: user.email }),
+      ...(user.name && { nome: user.name }),
       createdAt: FieldValue.serverTimestamp(),
     });
   });

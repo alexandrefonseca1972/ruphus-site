@@ -14,7 +14,7 @@ import {
   pixCadastrado,
   salvarPix,
 } from "@/lib/cobranca";
-import { anotar, CrmInput, lerCrm, listarNotas, salvarCrm } from "@/lib/crm";
+import { anotar, CrmInput, lerCrm, linhaDoTempo, listarNotas, registrarMensagem, salvarCrm } from "@/lib/crm";
 import { diaCurto, hojeISO } from "@/lib/crm-tipos";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import { competenciaAtual } from "@/lib/pix";
@@ -119,9 +119,9 @@ async function convitesPara(slugs: string[]): Promise<ConviteEmLote[]> {
 export const gerarConvites = adminAction(async (_user, slugs: string[]) => convitesPara(slugs));
 
 /** Move vários negócios de estágio de uma vez, sem abrir um a um. */
-export const marcarEstagio = adminAction(async (_user, slugs: string[], estagio: string) => {
+export const marcarEstagio = adminAction(async (user, slugs: string[], estagio: string) => {
   const alvos = limpar(slugs);
-  for (const slug of alvos) await salvarCrm(adminDb, slug, { estagio: estagio as CrmInput["estagio"] });
+  for (const slug of alvos) await salvarCrm(adminDb, slug, { estagio: estagio as CrmInput["estagio"] }, user.email ?? user.uid);
   return alvos.length;
 });
 
@@ -132,7 +132,7 @@ export const gerarConvite = adminAction(async (_user, slug: string) => {
   return convite.url;
 });
 
-export type Acesso = { uid: string; papel: string; desde: string | null; email: string | null; limite: number | null; usados: number };
+export type Acesso = { uid: string; papel: string; desde: string | null; nome: string | null; email: string | null; limite: number | null; usados: number };
 
 export const listarAcessos = adminAction(async (_user, slug: string) => {
   const snap = await adminDb.collection(`tenants/${slug}/members`).get();
@@ -142,6 +142,7 @@ export const listarAcessos = adminAction(async (_user, slug: string) => {
     uid: d.id,
     papel: String(d.get("role") ?? "member"),
     desde: d.get("createdAt")?.toDate?.().toISOString() ?? null,
+    nome: (d.get("nome") as string | undefined) ?? null,
     email: (d.get("email") as string | undefined) ?? null,
     ...cotas[i],
   }));
@@ -208,16 +209,29 @@ export const detalhesEspaco = adminAction(async (_user, slug: string): Promise<D
 /** Estágio, valor e próxima ação de cada espaço, em um mapa por slug. */
 export const listarCrm = adminAction(async () => lerCrm(adminDb));
 
-export const salvarNegocio = adminAction(async (_user, slug: string, dados: unknown) => {
-  await salvarCrm(adminDb, slug, CrmInput.parse(dados));
+export const salvarNegocio = adminAction(async (user, slug: string, dados: unknown) => {
+  await salvarCrm(adminDb, slug, dados as CrmInput, user.email ?? user.uid);
   return "salvo";
 });
 
 export const listarNotasDo = adminAction(async (_user, slug: string) => listarNotas(adminDb, slug));
 
+/** Notas, estágio, mensagens, convite, agendamento e cobranças, numa lista só. */
+export const linhaDoTempoDo = adminAction(async (_user, slug: string) => {
+  if (!SLUG.test(slug)) throw new Error("negócio inválido");
+  return linhaDoTempo(adminDb, slug);
+});
+
+/** A mensagem pronta foi aberta no WhatsApp: vira contato feito na linha do tempo. */
+export const registrarEnvio = adminAction(async (user, slug: string, modelo: string, para: string) => {
+  if (!SLUG.test(slug)) throw new Error("negócio inválido");
+  await registrarMensagem(adminDb, slug, modelo, para, user.email ?? user.uid);
+  return linhaDoTempo(adminDb, slug);
+});
+
 export const anotarNegocio = adminAction(async (user, slug: string, texto: string) => {
   await anotar(adminDb, slug, texto, user.email ?? user.uid);
-  return listarNotas(adminDb, slug);
+  return linhaDoTempo(adminDb, slug);
 });
 
 export type CobrancaEnviavel = {

@@ -13,7 +13,8 @@ import {
   listarCrm,
   gerarConvites,
   listarEspacos,
-  listarNotasDo,
+  linhaDoTempoDo,
+  registrarEnvio,
   marcarEstagio,
   resumoDoDia,
   salvarNegocio,
@@ -24,10 +25,16 @@ import {
   type Espaco,
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
-import { COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, prazoDe, PRECO_PADRAO, ROTULO, type Crm, type Estagio, type Nota, type Prazo } from "@/lib/crm-tipos";
+import { ContatoDono, LinhaDoTempo, MensagensProntas, MotivoDaPerda, OrigemDoContato } from "./crm-gaveta";
+import { Funil } from "./funil";
+import { COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, prazoDe, PRECO_PADRAO, ROTULO, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
 
 const PAGINA = 40;
-const VAZIO: Crm = { estagio: "novo", entradaCents: null, mensalCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0 };
+const VAZIO: Crm = {
+  estagio: "novo", entradaCents: null, mensalCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
+  donoNome: null, donoPapel: null, donoWhatsapp: null, donoEmail: null, motivoPerda: null, detalhePerda: null,
+  origem: null, indicadoPor: null, entrouEm: null, perdidoEm: null,
+};
 const CIDADES_VISIVEIS = 5;
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -114,7 +121,12 @@ export default function AdminPage() {
   const [copiado, setCopiado] = useState("");
   const [aviso, setAviso] = useState("");
   const [crm, setCrm] = useState<Record<string, Crm>>({});
-  const [notas, setNotas] = useState<Nota[] | null>(null);
+  const [eventos, setEventos] = useState<Evento[] | null>(null);
+  // qual negócio está sendo marcado como perdido (pela gaveta ou soltando no funil)
+  const [perdendo, setPerdendo] = useState<string | null>(null);
+  const [tela, setTela] = useState<"lista" | "funil">("lista");
+  // A aba escolhida vale para o próximo negócio aberto: quem está cobrando segue cobrando
+  const [aba, setAba] = useState<"venda" | "historico" | "cliente" | "cobranca">("venda");
   const [estagio, setEstagio] = useState("");
   const [prazo, setPrazo] = useState<"" | Prazo>("");
   const [foraDoAr, setForaDoAr] = useState(false);
@@ -200,11 +212,11 @@ export default function AdminPage() {
     setDetalhe(null);
     setAviso("");
     const t = await token();
-    setNotas(null);
-    const [a, d, n] = await Promise.all([listarAcessos(t, e.slug), detalhesEspaco(t, e.slug), listarNotasDo(t, e.slug)]);
+    setEventos(null);
+    const [a, d, n] = await Promise.all([listarAcessos(t, e.slug), detalhesEspaco(t, e.slug), linhaDoTempoDo(t, e.slug)]);
     if (a.ok) setAcessos(a.dados);
     if (d.ok) setDetalhe(d.dados);
-    if (n.ok) setNotas(n.dados);
+    if (n.ok) setEventos(n.dados);
   }
 
   /* Copiar é copiar. Antes, "Copiar de novo" chamava convidar() e assinava um
@@ -254,14 +266,26 @@ export default function AdminPage() {
     if (!r.ok) {
       setAviso(r.error);
       setCrm((c) => ({ ...c, [slug]: atual }));
+      return false;
     }
+    // mudança de estágio vira evento: a linha do tempo aberta acompanha
+    if (dados.estagio && dados.estagio !== atual.estagio && aberto?.slug === slug) {
+      const n = await linhaDoTempoDo(await token(), slug);
+      if (n.ok) setEventos(n.dados);
+    }
+    return true;
+  }
+
+  async function enviouMensagem(slug: string, modelo: string, para: string) {
+    const r = await registrarEnvio(await token(), slug, modelo, para);
+    if (r.ok) setEventos(r.dados);
   }
 
   async function novaNota(slug: string, texto: string) {
     const r = await anotarNegocio(await token(), slug, texto);
     if (!r.ok) return setAviso(r.error);
-    setNotas(r.dados);
-    setCrm((c) => ({ ...c, [slug]: { ...c[slug], notas: (c[slug]?.notas ?? 0) + 1 } as Crm }));
+    setEventos(r.dados);
+    setCrm((c) => ({ ...c, [slug]: { ...(c[slug] ?? VAZIO), notas: (c[slug]?.notas ?? 0) + 1 } as Crm }));
   }
 
   async function copiar(texto: string, marca: string) {
@@ -422,6 +446,20 @@ export default function AdminPage() {
           <h1 className="font-[family-name:var(--fonte-serifa)] text-[22px] leading-none tracking-tight">Administração</h1>
           <span className="hidden text-[11px] text-[#8B8578] sm:inline">ruphus.site</span>
         </span>
+
+        <div role="group" aria-label="Visão" className="flex rounded-[10px] bg-[#EFEBE2] p-[3px]">
+          {(["lista", "funil"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={tela === v}
+              onClick={() => setTela(v)}
+              className={`h-8 rounded-lg px-3 text-[12px] ${tela === v ? "bg-white font-semibold shadow-[0_1px_2px_rgba(23,21,15,.12)]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
+            >
+              {v === "lista" ? "Lista" : "Funil"}
+            </button>
+          ))}
+        </div>
 
         <div className="relative">
           <button
@@ -639,6 +677,24 @@ export default function AdminPage() {
         {/* Quem já devia aparece antes da lista: é o que se olha de manhã */}
         <Atrasadas idToken={idToken} aviso={setAviso} cortar={(slug) => mudarNegocio(slug, { publicado: false })} />
 
+        {tela === "funil" ? (
+          <Funil
+            espacos={lista}
+            crm={crm}
+            hoje={dataDeHoje}
+            abrir={abrir}
+            mover={(slug, e) => (e === "perdido" ? setPerdendo(slug) : mudarNegocio(slug, { estagio: e }))}
+            verAtrasadas={() => {
+              verVisao(VISOES[0]);
+              setTela("lista");
+            }}
+            verPerdidos={() => {
+              setEstagio("perdido");
+              setPrazo("");
+              setTela("lista");
+            }}
+          />
+        ) : (
         <section aria-label="Espaços" className={`${CARTAO} overflow-hidden`}>
           {marcados.size > 0 && (
             <div className="flex flex-wrap items-center gap-2 border-b border-[#E2DDD3] bg-[#F2F5F3] px-4 py-2.5 sm:px-5">
@@ -844,6 +900,7 @@ export default function AdminPage() {
             </div>
           )}
         </section>
+        )}
       </main>
 
       {aberto && (
@@ -865,6 +922,24 @@ export default function AdminPage() {
                 <p className="mt-1 truncate text-[13px] text-[#6F6A5E]">
                   {aberto.slug}.ruphus.site{local(aberto) ? ` · ${local(aberto)}` : ""} · {aberto.nicho}
                 </p>
+                {/* O que o vendedor precisa saber antes de rolar: em que pé está e o que ficou combinado */}
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR[crm[aberto.slug]?.estagio ?? "novo"]}`}>
+                    {ROTULO[crm[aberto.slug]?.estagio ?? "novo"]}
+                  </span>
+                  {(() => {
+                    const c = crm[aberto.slug];
+                    const p = prazoDe(c, dataDeHoje);
+                    if (!c?.proximaData || !p) return null;
+                    const estilo = p === "atrasada" ? "bg-[#F1E7E7] text-[#8A2F2F]" : p === "hoje" ? "bg-[#FBF3DC] text-[#7A5A2E]" : "bg-[#F3EFE7] text-[#4A4639]";
+                    const quando = p === "atrasada" ? `atrasada desde ${diaCurto(c.proximaData)}` : p === "hoje" ? "hoje" : diaCurto(c.proximaData);
+                    return (
+                      <span className={`max-w-full truncate rounded-full px-2.5 py-1 text-[11px] font-semibold ${estilo}`}>
+                        {c.proximaAcao ? `${c.proximaAcao} · ${quando}` : quando}
+                      </span>
+                    );
+                  })()}
+                </div>
               </div>
               <button type="button" aria-label="Fechar" onClick={() => setAberto(null)} className={`${BOTAO_CLARO} size-11 shrink-0 px-0`}>
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
@@ -873,75 +948,38 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl border border-[#E2DDD3] p-3.5">
-                <div className="text-xs text-[#6F6A5E]">Nota</div>
-                <div className="mt-0.5 text-xl font-semibold">
-                  {aberto.nota ? `★ ${aberto.nota.toFixed(1).replace(".", ",")}` : "—"}
-                </div>
-                <div className="text-xs text-[#6F6A5E]">
-                  {aberto.avaliacoes ? `${aberto.avaliacoes.toLocaleString("pt-BR")} avaliações` : "sem avaliações"}
-                </div>
-              </div>
-              <div className="rounded-xl border border-[#E2DDD3] p-3.5">
-                <div className="text-xs text-[#6F6A5E]">Serviços</div>
-                <div className="mt-0.5 text-xl font-semibold">{detalhe ? detalhe.servicos : "…"}</div>
-                <div className="text-xs text-[#6F6A5E]">{detalhe ? `${detalhe.profissionais} profissional(is)` : ""}</div>
-              </div>
-              <div className="rounded-xl border border-[#E2DDD3] p-3.5">
-                <div className="text-xs text-[#6F6A5E]">Agendamentos</div>
-                <div className="mt-0.5 text-xl font-semibold">{detalhe ? detalhe.agendamentos30d : "…"}</div>
-                <div className="text-xs text-[#6F6A5E]">nos últimos 30 dias</div>
-              </div>
+            {/* A gaveta tem o que o vendedor usa todo dia em "Venda"; o resto fica a um toque */}
+            <div role="tablist" aria-label="Seções do negócio" className="sticky -top-6 z-10 -mx-6 -mt-2 flex gap-1 overflow-x-auto border-b border-[#E2DDD3] bg-white px-6 sm:-top-8 sm:-mx-8 sm:px-8">
+              {(
+                [
+                  // ícones em traço, do mesmo peso dos outros da gaveta
+                  ["venda", "Venda", <path key="v" d="M3 17l6-6 4 4 8-8M15 7h6v6" />],
+                  ["historico", `Histórico${eventos ? ` · ${eventos.length}` : ""}`, <><circle key="c" cx="12" cy="12" r="8.5" /><path key="p" d="M12 7.5V12l3 2" /></>],
+                  ["cliente", "Cliente", <><circle key="c" cx="12" cy="8" r="3.5" /><path key="p" d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" /></>],
+                  ["cobranca", "Cobrança", <><rect key="r" x="3" y="6" width="18" height="12" rx="2" /><path key="p" d="M3 10h18M7 15h3" /></>],
+                ] as const
+              ).map(([id, rotulo, icone]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  id={`aba-${id}`}
+                  aria-selected={aba === id}
+                  aria-controls="aba-painel"
+                  onClick={() => setAba(id)}
+                  className={`flex h-12 items-center gap-1.5 px-3 text-[13px] whitespace-nowrap ${aba === id ? "font-semibold text-[#17150F] shadow-[inset_0_-2px_0_#17150F]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+                    {icone}
+                  </svg>
+                  {rotulo}
+                </button>
+              ))}
             </div>
 
-            <section aria-label="Convite" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] bg-[#FBFAF8] p-5">
-              <div className="flex items-center gap-2.5">
-                <h3 className="text-[15px] font-semibold">Convite do dono</h3>
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${aberto.acessos > 1 ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#FBEDE6] text-[#A8502B]"}`}>
-                  {aberto.acessos > 1 ? "aceito" : "pendente"}
-                </span>
-              </div>
-              <p className="text-[13px] leading-relaxed text-[#4A4639]">
-                Quem abrir o link entra com a conta dele e passa a administrar este negócio. O link vale 30 dias.
-              </p>
-              {convite?.slug === aberto.slug ? (
-                <div className="flex flex-col gap-2">
-                  <code className="truncate rounded-lg border border-[#E2DDD3] bg-white px-3 py-2.5 text-xs text-[#4A4639]">
-                    {convite.url}
-                  </code>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" className={BOTAO_ESCURO} onClick={copiarConvite}>
-                      {convite.copiado ? "Copiado ✓" : "Copiar link"}
-                    </button>
-                    {detalhe?.telefone && (
-                      <a
-                        className={`${BOTAO} border border-[#2C6A53] bg-white text-[#2C6A53] hover:bg-[#EEF2F0]`}
-                        href={`https://wa.me/${detalhe.telefone}?text=${encodeURIComponent(
-                          `Olá! Este é o acesso ao painel do ${aberto.nome}: ${convite.url}`,
-                        )}`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Enviar no WhatsApp
-                      </a>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => convidar(aberto.slug)}
-                      className="h-9 rounded-full px-2 text-[13px] text-[#6F6A5E] underline underline-offset-4 hover:text-[#17150F]"
-                    >
-                      Gerar outro
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button type="button" className={`${BOTAO_ESCURO} self-start`} onClick={() => convidar(aberto.slug)}>
-                  Convidar
-                </button>
-              )}
-            </section>
-
+            <div role="tabpanel" id="aba-painel" aria-labelledby={`aba-${aba}`} className="flex flex-col gap-5">
+            {aba === "venda" && (
+              <>
             <section aria-label="Negócio" className="flex flex-col gap-4 rounded-2xl border border-[#E2DDD3] p-4">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-[15px] font-semibold">Negócio</h3>
@@ -980,7 +1018,7 @@ export default function AdminPage() {
                         key={e}
                         type="button"
                         aria-pressed={ativa}
-                        onClick={() => mudarNegocio(aberto.slug, { estagio: e })}
+                        onClick={() => (e === "perdido" && !ativa ? setPerdendo(aberto.slug) : mudarNegocio(aberto.slug, { estagio: e }))}
                         className={`${CHIP} ${ativa ? `border-transparent font-semibold ${COR[e]}` : "border-[#D8D2C6] bg-white text-[#6F6A5E] hover:border-[#17150F] hover:text-[#17150F]"}`}
                       >
                         {ROTULO[e]}
@@ -1061,45 +1099,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <form
-                onSubmit={(ev) => {
-                  ev.preventDefault();
-                  const campo = ev.currentTarget.elements.namedItem("nota") as HTMLInputElement;
-                  if (!campo.value.trim()) return;
-                  novaNota(aberto.slug, campo.value.trim());
-                  campo.value = "";
-                }}
-                className="flex flex-col gap-2 border-t border-[#EDE9E1] pt-4"
-              >
-                <label htmlFor="nota" className="text-xs text-[#6F6A5E]">
-                  Conversas{notas && notas.length > 0 ? ` · ${notas.length}` : ""}
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    id="nota"
-                    name="nota"
-                    maxLength={600}
-                    placeholder="O que foi dito hoje"
-                    className="h-11 min-w-0 grow rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm"
-                  />
-                  <button type="submit" className={BOTAO_ESCURO}>Anotar</button>
-                </div>
-              </form>
-
-              {notas && notas.length > 0 && (
-                <ul className="flex flex-col">
-                  {notas.map((n) => (
-                    <li key={n.id} className="flex gap-3 border-t border-[#F1EEE6] py-2.5 first:border-t-0 first:pt-0">
-                      <span className="w-[86px] shrink-0 pt-0.5 text-[11px] tabular-nums text-[#6F6A5E]">
-                        {n.quando ? new Date(n.quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "agora"}
-                      </span>
-                      <p className="min-w-0 grow whitespace-pre-line text-[13px] leading-relaxed text-[#2D2A22]">{n.texto}</p>
-                      <span className="shrink-0 pt-0.5 text-[11px] text-[#6F6A5E]">{n.autor}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[#EDE9E1] pt-4">
                 <button
                   type="button"
@@ -1120,7 +1119,178 @@ export default function AdminPage() {
               </div>
             </section>
 
-            <Cobrancas slug={aberto.slug} idToken={idToken} aviso={setAviso} />
+            <ContatoDono
+              key={`contato-${aberto.slug}`}
+              negocio={aberto}
+              crm={crm[aberto.slug] ?? VAZIO}
+              salvar={(dados) => mudarNegocio(aberto.slug, dados)}
+            />
+            <OrigemDoContato key={`origem-${aberto.slug}`} crm={crm[aberto.slug] ?? VAZIO} salvar={(dados) => mudarNegocio(aberto.slug, dados)} />
+
+            <MensagensProntas
+              key={`msg-${aberto.slug}`}
+              negocio={aberto}
+              crm={crm[aberto.slug] ?? VAZIO}
+              onEnviar={(modelo, para) => enviouMensagem(aberto.slug, modelo, para)}
+              onCopiar={(texto) => copiar(texto, "mensagem")}
+            />
+
+            <LinhaDoTempo key={`resumo-${aberto.slug}`} eventos={eventos} limite={3} onVerTudo={() => setAba("historico")} anotar={(texto) => novaNota(aberto.slug, texto)} />
+
+              </>
+            )}
+            {aba === "historico" && (
+              <>
+            <LinhaDoTempo key={`linha-${aberto.slug}`} eventos={eventos} anotar={(texto) => novaNota(aberto.slug, texto)} />
+
+              </>
+            )}
+            {aba === "cliente" && (
+              <>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-xl border border-[#E2DDD3] p-3.5">
+                <div className="text-xs text-[#6F6A5E]">Nota</div>
+                <div className="mt-0.5 text-xl font-semibold">
+                  {aberto.nota ? `★ ${aberto.nota.toFixed(1).replace(".", ",")}` : "—"}
+                </div>
+                <div className="text-xs text-[#6F6A5E]">
+                  {aberto.avaliacoes ? `${aberto.avaliacoes.toLocaleString("pt-BR")} avaliações` : "sem avaliações"}
+                </div>
+              </div>
+              <div className="rounded-xl border border-[#E2DDD3] p-3.5">
+                <div className="text-xs text-[#6F6A5E]">Serviços</div>
+                <div className="mt-0.5 text-xl font-semibold">{detalhe ? detalhe.servicos : "…"}</div>
+                <div className="text-xs text-[#6F6A5E]">{detalhe ? `${detalhe.profissionais} profissional(is)` : ""}</div>
+              </div>
+              <div className="rounded-xl border border-[#E2DDD3] p-3.5">
+                <div className="text-xs text-[#6F6A5E]">Agendamentos</div>
+                <div className="mt-0.5 text-xl font-semibold">{detalhe ? detalhe.agendamentos30d : "…"}</div>
+                <div className="text-xs text-[#6F6A5E]">nos últimos 30 dias</div>
+              </div>
+            </div>
+
+            <section aria-label="Convite" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] bg-[#FBFAF8] p-5">
+              <div className="flex items-center gap-2.5">
+                <h3 className="text-[15px] font-semibold">Convite do dono</h3>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${aberto.acessos > 1 ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#FBEDE6] text-[#A8502B]"}`}>
+                  {aberto.acessos > 1 ? "aceito" : "pendente"}
+                </span>
+              </div>
+              <p className="text-[13px] leading-relaxed text-[#4A4639]">
+                Quem abrir o link entra com a conta dele e passa a administrar este negócio. O link vale 30 dias.
+              </p>
+              {convite?.slug === aberto.slug ? (
+                <div className="flex flex-col gap-2">
+                  <code className="truncate rounded-lg border border-[#E2DDD3] bg-white px-3 py-2.5 text-xs text-[#4A4639]">
+                    {convite.url}
+                  </code>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" className={BOTAO_ESCURO} onClick={copiarConvite}>
+                      {convite.copiado ? "Copiado ✓" : "Copiar link"}
+                    </button>
+                    {detalhe?.telefone && (
+                      <a
+                        className={`${BOTAO} border border-[#2C6A53] bg-white text-[#2C6A53] hover:bg-[#EEF2F0]`}
+                        href={`https://wa.me/${detalhe.telefone}?text=${encodeURIComponent(
+                          `Olá! Este é o acesso ao painel do ${aberto.nome}: ${convite.url}`,
+                        )}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Enviar no WhatsApp
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => convidar(aberto.slug)}
+                      className="h-9 rounded-full px-2 text-[13px] text-[#6F6A5E] underline underline-offset-4 hover:text-[#17150F]"
+                    >
+                      Gerar outro
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" className={`${BOTAO_ESCURO} self-start`} onClick={() => convidar(aberto.slug)}>
+                  Convidar
+                </button>
+              )}
+            </section>
+
+            <section aria-label="Quem tem acesso" className="flex flex-col gap-2.5">
+              <div className="flex items-baseline gap-2">
+                <h3 className="text-[15px] font-semibold">Quem tem acesso</h3>
+                <span className="text-[13px] text-[#6F6A5E]">{acessos ? `${acessos.length} pessoa(s)` : "carregando…"}</span>
+              </div>
+              <ul className="flex flex-col gap-2">
+                {acessos?.map((a) => (
+                  <li key={a.uid} className="flex flex-col gap-3 rounded-xl border border-[#E2DDD3] p-3.5">
+                    <div className="flex items-center gap-3">
+                      <span
+                        aria-hidden="true"
+                        className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#EFEBE2] text-sm font-semibold uppercase"
+                      >
+                        {(a.nome ?? a.email ?? "?").charAt(0)}
+                      </span>
+                      <div className="min-w-0 grow">
+                        {/* Nome quando o login traz (Google); senão o e-mail; o uid só se nada mais houver */}
+                        <p className="truncate text-sm font-semibold">{a.nome ?? a.email ?? "Sem e-mail registrado"}</p>
+                        <p className="truncate text-xs text-[#6F6A5E]">
+                          {a.nome && a.email ? `${a.email} · ` : ""}
+                          {!a.nome && !a.email ? `${a.uid} · ` : ""}
+                          {a.desde ? `desde ${new Date(a.desde).toLocaleDateString("pt-BR")}` : "acesso antigo"}
+                        </p>
+                      </div>
+                      {a.papel === "owner" ? (
+                        <span className="shrink-0 rounded-full bg-[#EFEBE2] px-2.5 py-1 text-xs font-semibold" title="O dono não pode ser removido">
+                          Dono
+                        </span>
+                      ) : (
+                        <>
+                          <span className="shrink-0 rounded-full bg-[#E7EEE9] px-2.5 py-1 text-xs font-semibold text-[#2C6A53]">
+                            {a.papel === "admin" ? "Cliente" : "Equipe"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => revogar(aberto.slug, a.uid)}
+                            aria-label={`Remover o acesso de ${a.nome ?? a.email ?? a.uid}`}
+                            className="h-11 shrink-0 rounded-[10px] border border-[#D8D2C6] px-3.5 text-[13px] font-semibold text-[#8A2F2F] hover:border-[#8A2F2F]"
+                          >
+                            Remover
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {/* Cada conta começa com 1 negócio; daqui o admin libera mais para este cliente */}
+                    {a.limite !== null && (
+                      <div className="flex items-center justify-between gap-3 border-t border-[#EFEBE3] pt-3 text-xs">
+                        <span className="text-[#6F6A5E]">
+                          Negócios nesta conta: <b className="font-semibold text-[#17150F]">{a.usados}</b> de {a.limite}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            aria-label={`Diminuir limite de negócios de ${a.nome ?? a.email ?? a.uid}`}
+                            disabled={a.limite <= 1}
+                            onClick={() => mudarLimite(a.uid, a.limite! - 1)}
+                            className="size-11 rounded-[10px] border border-[#D8D2C6] text-base font-semibold hover:border-[#17150F] disabled:opacity-40"
+                          >
+                            −
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Liberar mais um negócio para ${a.nome ?? a.email ?? a.uid}`}
+                            onClick={() => mudarLimite(a.uid, a.limite! + 1)}
+                            className="size-11 rounded-[10px] border border-[#D8D2C6] text-base font-semibold hover:border-[#17150F]"
+                          >
+                            +
+                          </button>
+                        </span>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
 
             <section aria-label="Divulgação" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">
               <h3 className="text-[15px] font-semibold">Divulgar o site</h3>
@@ -1182,62 +1352,6 @@ export default function AdminPage() {
               )}
             </section>
 
-            <section aria-label="Quem tem acesso" className="flex flex-col gap-2.5">
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-[15px] font-semibold">Quem tem acesso</h3>
-                <span className="text-[13px] text-[#6F6A5E]">{acessos ? `${acessos.length} pessoa(s)` : "carregando…"}</span>
-              </div>
-              <ul className="flex flex-col gap-2">
-                {acessos?.map((a) => (
-                  <li key={a.uid} className="flex items-center gap-3 rounded-xl border border-[#E2DDD3] p-3.5">
-                    <div className="min-w-0 grow">
-                      <p className="text-sm font-medium">{a.papel === "owner" ? "Dono do negócio" : "Acesso do cliente"}</p>
-                      <p className="truncate text-xs text-[#6F6A5E]">
-                        {a.email ?? a.uid}
-                        {a.desde ? ` · desde ${new Date(a.desde).toLocaleDateString("pt-BR")}` : ""}
-                      </p>
-                      {/* Cada conta começa com 1 negócio; daqui o admin libera mais para este cliente */}
-                      {a.limite !== null && (
-                        <div className="mt-2 flex items-center gap-2 text-xs">
-                          <span className="text-[#6F6A5E]">
-                            Negócios: <b className="font-semibold text-[#17150F]">{a.usados}</b> de {a.limite}
-                          </span>
-                          <button
-                            type="button"
-                            aria-label={`Diminuir limite de negócios de ${a.email ?? a.uid}`}
-                            disabled={a.limite <= 1}
-                            onClick={() => mudarLimite(a.uid, a.limite! - 1)}
-                            className="size-11 rounded-[10px] border border-[#D8D2C6] text-base font-semibold hover:border-[#17150F] disabled:opacity-40"
-                          >
-                            −
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Liberar mais um negócio para ${a.email ?? a.uid}`}
-                            onClick={() => mudarLimite(a.uid, a.limite! + 1)}
-                            className="size-11 rounded-[10px] border border-[#D8D2C6] text-base font-semibold hover:border-[#17150F]"
-                          >
-                            +
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {a.papel === "owner" ? (
-                      <span className="shrink-0 text-xs text-[#6F6A5E]">não pode ser removido</span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => revogar(aberto.slug, a.uid)}
-                        className="h-11 shrink-0 rounded-[10px] border border-[#D8D2C6] px-3.5 text-[13px] font-semibold text-[#8A2F2F] hover:border-[#8A2F2F]"
-                      >
-                        Remover
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </section>
-
             <section aria-label="Atalhos" className="flex flex-col gap-2.5">
               <h3 className="text-[15px] font-semibold">Atalhos</h3>
               <div className="grid grid-cols-2 gap-2.5">
@@ -1257,8 +1371,27 @@ export default function AdminPage() {
                 )}
               </div>
             </section>
+              </>
+            )}
+            {aba === "cobranca" && (
+              <>
+            <Cobrancas slug={aberto.slug} idToken={idToken} aviso={setAviso} />
+
+              </>
+            )}
+            </div>
           </aside>
         </>
+      )}
+
+      {perdendo && (
+        <MotivoDaPerda
+          nome={espacos.find((e) => e.slug === perdendo)?.nome ?? perdendo}
+          onCancelar={() => setPerdendo(null)}
+          onConfirmar={async (dados) => {
+            if (await mudarNegocio(perdendo, { estagio: "perdido", ...dados })) setPerdendo(null);
+          }}
+        />
       )}
     </>
   );

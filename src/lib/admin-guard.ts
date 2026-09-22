@@ -6,7 +6,10 @@ import { verifyFirebaseToken } from "@/lib/verify-token";
 // Fora do Firestore comum: nenhuma regra libera essa coleção, só o Admin SDK lê.
 const DOC = "config/admin";
 
-export class SemAcesso extends Error {}
+import { ErroPrevisto } from "@/lib/erro-previsto";
+
+export { ErroPrevisto };
+export class SemAcesso extends ErroPrevisto {}
 
 export async function requireAdmin(idToken: string) {
   const user = await verifyFirebaseToken(idToken).catch(() => null);
@@ -22,7 +25,7 @@ export function adminAction<A extends unknown[], R>(run: (user: { uid: string; e
     try {
       return { ok: true as const, dados: await run(await requireAdmin(idToken), ...args) };
     } catch (err) {
-      if (err instanceof SemAcesso) return { ok: false as const, error: err.message };
+      if (err instanceof ErroPrevisto) return { ok: false as const, error: err.message };
       console.error("[admin] falha na ação", err);
       return { ok: false as const, error: "Não foi possível concluir agora." };
     }
