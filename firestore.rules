@@ -17,6 +17,13 @@ service cloud.firestore {
       return isMember(t) && get(memberPath(t)).data.role in roles;
     }
 
+    // Minutos de inatividade até o logout automático: qualquer pessoa logada
+    // precisa ler (o painel aplica a regra), e só o servidor escreve.
+    match /config/sessao {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     // "Meus tenants": collectionGroup("members") where uid == me
     match /{path=**}/members/{uid} {
       allow read: if request.auth != null && resource.data.uid == request.auth.uid;

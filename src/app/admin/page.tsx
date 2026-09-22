@@ -20,6 +20,7 @@ import {
   salvarNegocio,
   revogarAcesso,
   definirAssinatura,
+  definirMinutosInativo,
   definirLimiteStaff,
   lerAssinatura,
   liberarNegocios,
@@ -32,6 +33,7 @@ import {
 import { Atrasadas, Cobrancas } from "./cobranca";
 import { alertas as calcularAlertas } from "@/lib/alertas";
 import { cents, emReais } from "@/lib/dinheiro";
+import { useAutoLogout } from "@/lib/sessao";
 import { COMMIT, VERSAO } from "@/lib/versao";
 import { LIMITE_STAFF_MAX } from "@/lib/limites";
 import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
@@ -119,6 +121,7 @@ function Chip({ ativo, children, ...props }: React.ComponentProps<"button"> & { 
 export default function AdminPage() {
   const router = useRouter();
   const campoBusca = useRef<HTMLInputElement>(null);
+  const minutosInativo = useAutoLogout();   // e o próprio admin também sai sozinho
   const [estado, setEstado] = useState<"carregando" | "negado" | "pronto">("carregando");
   const [email, setEmail] = useState("");
   const [espacos, setEspacos] = useState<Espaco[]>([]);
@@ -876,6 +879,35 @@ export default function AdminPage() {
               />
             </label>
             <button type="submit" className={BOTAO_ESCURO}>Salvar</button>
+          </form>
+        </details>
+
+        {/* Sai sozinho no computador do balcão, que fica aberto o dia todo */}
+        <details className="rounded-2xl border border-[#E2DDD3] bg-white px-4 py-3">
+          <summary className="cursor-pointer text-sm text-[#6F6A5E]">
+            Sair sozinho depois de parado{minutosInativo ? ` · ${minutosInativo} min` : " · desligado"}
+          </summary>
+          <form
+            className="mt-3 flex flex-wrap items-end gap-2"
+            onSubmit={async (ev) => {
+              ev.preventDefault();
+              const r = await definirMinutosInativo(await token(), new FormData(ev.currentTarget).get("minutos"));
+              setAviso(r.ok ? (r.dados ? `Sai sozinho depois de ${r.dados} minutos parado.` : "Logout automático desligado.") : r.error);
+            }}
+          >
+            <label className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
+              Minutos parado (0 desliga)
+              <input
+                name="minutos"
+                type="number"
+                min={0}
+                max={720}
+                defaultValue={minutosInativo}
+                className="h-11 w-32 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm tabular-nums text-[#17150F] outline-none focus:border-[#17150F]"
+              />
+            </label>
+            <button type="submit" className={BOTAO_ESCURO}>Salvar</button>
+            <span className="text-xs text-[#6F6A5E]">Vale para este painel e para o painel dos clientes.</span>
           </form>
         </details>
 

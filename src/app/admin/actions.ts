@@ -337,6 +337,14 @@ export const definirAssinatura = adminAction(async (_user, nome: unknown) => {
   return limpo;
 });
 
+/** Minutos parado até o logout automático. 0 desliga. */
+export const definirMinutosInativo = adminAction(async (_user, minutos: unknown) => {
+  const n = Number(minutos);
+  if (!Number.isInteger(n) || n < 0 || n > 720) throw new ErroPrevisto("Use de 0 (desligado) a 720 minutos.");
+  await adminDb.doc("config/sessao").set({ minutos: n }, { merge: true });
+  return n;
+});
+
 export const lerPixConfig = adminAction(async () => pixCadastrado(adminDb));
 
 export const salvarPixConfig = adminAction(async (_user, dados: unknown) => {
