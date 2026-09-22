@@ -5,6 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --font-serifa: var(--fonte-serifa), Georgia, serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
@@ -128,4 +129,44 @@
   html {
     @apply font-sans;
   }
+}
+/* Painel do negócio: papel quente e tinta, como o login e o /admin.
+   Por :has() no body, e não só no wrapper, para os menus em portal herdarem. */
+body:has(.painel) {
+  --background: #f7f5f0;
+  --foreground: #17150f;
+  --card: #ffffff;
+  --card-foreground: #17150f;
+  --popover: #ffffff;
+  --popover-foreground: #17150f;
+  --primary: #17150f;
+  --primary-foreground: #faf9f5;
+  --secondary: #efebe2;
+  --secondary-foreground: #17150f;
+  --muted: #efebe2;
+  --muted-foreground: #6b6555;
+  --accent: #efebe2;
+  --accent-foreground: #17150f;
+  --border: #e4dfd3;
+  --input: #d5d0c1;
+  --ring: #17150f;
+}
+.dark body:has(.painel) {
+  --background: #15130f;
+  --foreground: #f3f0e8;
+  --card: #1d1a15;
+  --card-foreground: #f3f0e8;
+  --popover: #1d1a15;
+  --popover-foreground: #f3f0e8;
+  --primary: #f3f0e8;
+  --primary-foreground: #17150f;
+  --secondary: #2a261f;
+  --secondary-foreground: #f3f0e8;
+  --muted: #2a261f;
+  --muted-foreground: #a89f8c;
+  --accent: #2a261f;
+  --accent-foreground: #f3f0e8;
+  --border: #2f2a22;
+  --input: #3a342a;
+  --ring: #f3f0e8;
 }

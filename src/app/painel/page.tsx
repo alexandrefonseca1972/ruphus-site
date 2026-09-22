@@ -8,6 +8,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ehAdminDaPlataforma } from "@/app/admin/actions";
 import { errorMessage } from "@/lib/auth-errors";
 import { auth } from "@/lib/firebase";
 import { createTenant, myTenantIds } from "@/lib/tenants";
@@ -28,6 +29,10 @@ export default function Home() {
     () =>
       onAuthStateChanged(auth, async (u) => {
         if (!u) return router.replace("/login");
+        // O admin da plataforma é membro de todos os negócios importados: aqui viraria
+        // uma lista de centenas de slugs. O lugar dele é o /admin, como no login.
+        const admin = await ehAdminDaPlataforma(await u.getIdToken()).catch(() => ({ ok: false as const }));
+        if (admin.ok) return router.replace("/admin");
         setUser(u);
         try {
           setTenants(await myTenantIds());

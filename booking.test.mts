@@ -4,8 +4,8 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
-import { agendaDias, availableSlots, book, createPlan, endPlan, loadCatalog, renameCustomer, requireMember, reschedule, rescheduleSlots } from "@/lib/booking.server";
-import { addDays, customerKey, formatPhone, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, loadCatalog, renameCustomer, requireMember, reschedule, rescheduleSlots } from "@/lib/booking.server";
+import { addDays, customerKey, formatPhone, maskBRL, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 
 // Funções puras
@@ -23,6 +23,10 @@ assert.equal(formatPhone("(11) 9123"), "(11) 9123");
 assert.equal(formatPhone("1191234567890"), "(11) 91234-5678", "corta excesso");
 assert.equal(formatPhone("1"), "(1");
 assert.equal(formatPhone(""), "");
+assert.equal(maskBRL("4500"), "R$\u00a045,00");
+assert.equal(maskBRL("999999999"), "R$\u00a099.999,99", "corta excesso");
+assert.equal(maskBRL("R$ 0,0"), "", "apagar o R$ 0,00 esvazia");
+assert.equal(maskBRL("abc"), "");
 assert.equal(phoneError("(11) 91234-5678"), "");
 assert.equal(phoneError("(11) 3333-4444"), "");
 assert.notEqual(phoneError("(11) 1234-56789"), "", "11 dígitos sem 9");
@@ -253,6 +257,19 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
     renameCustomer(db, { tenantId: "salao", customerId: "5500000000000", name: "Ninguém" }),
     /Cliente nao encontrado/,
   );
+
+  // Excluir: só dono/admin, e nunca com horário marcado
+  await t.collection("members").doc("func").set({ uid: "func", role: "member" });
+  await t.collection("members").doc("gerente").set({ uid: "gerente", role: "admin" });
+  await cli.collection("notas").add({ texto: "prefere manhã" });
+  const del = (uid: string) => deleteCustomer(db, { tenantId: "salao", customerId: chave }, { uid });
+  await assert.rejects(del("func"), /Só o dono ou um administrador/);
+  await assert.rejects(del("gerente"), /tem horário marcado/);
+  await futuro.update({ status: "cancelled" });
+  assert.equal((await del("gerente")).ok, true);
+  assert.equal((await cli.get()).exists, false);
+  assert.equal((await cli.collection("notas").get()).size, 0, "anotações vão junto");
+  assert.equal((await passado.get()).exists, true, "o histórico fica");
 }
 
 // A semana que a página pública desenha: contagem por dia e união da equipe

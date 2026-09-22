@@ -3,7 +3,6 @@
 import { addDoc, collection, deleteDoc, doc, orderBy, setDoc, updateDoc } from "firebase/firestore";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
@@ -12,7 +11,9 @@ import { WEEKDAYS } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { useTenant } from "../layout";
-import { handleSubmit } from "@/lib/utils";
+import { PageTitle } from "../page-title";
+import { RowMenu } from "../row-menu";
+import { cn, handleSubmit } from "@/lib/utils";
 
 type Day = keyof Staff["hours"];
 const DAYS = ["1", "2", "3", "4", "5", "6", "0"] as Day[]; // segunda primeiro
@@ -20,10 +21,11 @@ const DEFAULT_HOURS: Staff["hours"] = Object.fromEntries(
   ["1", "2", "3", "4", "5", "6"].map((d) => [d, { start: "09:00", end: "18:00" }]),
 );
 
-const summary = (hours: Staff["hours"]) =>
-  DAYS.filter((d) => hours[d])
-    .map((d) => `${WEEKDAYS[Number(d)].slice(0, 3)} ${hours[d]!.start}–${hours[d]!.end}`)
-    .join(" · ") || "Sem horários";
+// "09:00" → "9", "18:30" → "18h30": sete dias cabem numa linha
+const curta = (t: string) => {
+  const [h, m] = t.split(":");
+  return m === "00" ? String(Number(h)) : `${Number(h)}h${m}`;
+};
 
 export default function StaffPage() {
   const tenant = useTenant();
@@ -62,80 +64,126 @@ export default function StaffPage() {
   }
 
   const hours = editing?.hours ?? DEFAULT_HOURS;
+  const ativos = staff?.filter((p) => p.active).length ?? 0;
+
+  // Quase todo salão tem o mesmo horário de segunda a sexta: preenche uma vez, repete nos dias marcados
+  function repetirSegunda(ev: React.MouseEvent<HTMLButtonElement>) {
+    const f = ev.currentTarget.form!;
+    const campo = (n: string) => f.elements.namedItem(n) as HTMLInputElement;
+    for (const d of DAYS.slice(1)) {
+      if (!campo(`on-${d}`).checked) continue;
+      campo(`start-${d}`).value = campo("start-1").value;
+      campo(`end-${d}`).value = campo("end-1").value;
+    }
+  }
 
   return (
     <>
-      <h1 className="text-2xl font-semibold">Profissionais</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle>{editing ? `Editar ${editing.name}` : "Novo profissional"}</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <PageTitle title="Profissionais" sub={staff && (staff.length ? `${ativos} atendendo pelo link` : "Quem atende, o que faz e quando")} />
+      {(error || staffError) && <p role="alert" className="text-sm text-destructive">{error || staffError}</p>}
+
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_26rem]">
+        <div className="grid gap-4">
+          {staff?.length === 0 && (
+            <p className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+              Ninguém cadastrado ainda. Quem você adicionar aparece no link de agendamento.
+            </p>
+          )}
+          {staff?.map((p) => (
+            <article key={p.id} className={cn("grid gap-4 rounded-2xl border bg-card p-5 sm:p-6", !p.active && "opacity-70")}>
+              <div className="flex items-center gap-3.5">
+                <span aria-hidden="true" className="grid size-12 shrink-0 place-items-center rounded-full bg-muted font-serifa text-2xl">{p.name.charAt(0)}</span>
+                <div className="grid min-w-0 flex-1 gap-0.5">
+                  <h2 className="flex flex-wrap items-center gap-2 text-[17px] font-semibold">
+                    {p.name}
+                    {!p.active && <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">Fora do link</span>}
+                  </h2>
+                  <span className="text-[13px] text-muted-foreground">
+                    {p.serviceIds.length} serviço(s) · {DAYS.filter((d) => p.hours[d]).length} dia(s) na semana
+                  </span>
+                </div>
+                <Button variant="outline" className="h-10 px-4" onClick={() => { setEditing(p); document.getElementById("form-prof")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Editar</Button>
+                <RowMenu
+                  label={`Mais ações: ${p.name}`}
+                  actions={[
+                    { label: p.active ? "Tirar do link" : "Voltar para o link", onClick: () => run(updateDoc(doc(col, p.id), { active: !p.active })) },
+                    { label: "Excluir", danger: true, onClick: () => confirm(`Excluir ${p.name}?`) && run(deleteDoc(doc(col, p.id))) },
+                  ]}
+                />
+              </div>
+              {!!p.serviceIds.length && (
+                <ul className="flex flex-wrap gap-2" aria-label="Serviços">
+                  {p.serviceIds.map((id) => serviceName.get(id)).filter(Boolean).map((n) => (
+                    <li key={n} className="rounded-full border px-3 py-1 text-[13px]">{n}</li>
+                  ))}
+                </ul>
+              )}
+              <dl className="grid grid-cols-7 gap-1.5">
+                {DAYS.map((d) => {
+                  const h = p.hours[d];
+                  return (
+                    <div key={d} className={cn("grid justify-items-center gap-1 rounded-xl border px-0.5 py-2.5 text-center", h ? "bg-muted" : "border-dashed")}>
+                      <dt className="text-[11px] tracking-wider text-muted-foreground uppercase">{WEEKDAYS[Number(d)].slice(0, 3)}</dt>
+                      <dd className={cn("text-xs font-medium tabular-nums sm:text-[13px]", !h && "text-muted-foreground")}>
+                        {h ? `${curta(h.start)}–${curta(h.end)}` : "folga"}
+                      </dd>
+                    </div>
+                  );
+                })}
+              </dl>
+            </article>
+          ))}
+        </div>
+
+        <section aria-labelledby="form-prof" className="grid gap-5 rounded-2xl border bg-card p-5 sm:p-6 lg:sticky lg:top-6">
+          <h2 id="form-prof" className="font-semibold">{editing ? `Editar ${editing.name}` : "Novo profissional"}</h2>
           {services?.length === 0 ? (
             <p className="text-sm text-muted-foreground">Cadastre um serviço antes de adicionar profissionais.</p>
           ) : (
             <form key={editing?.id ?? "new"} onSubmit={handleSubmit(save)} className="grid gap-6">
-              <div className="grid gap-2 sm:max-w-sm">
+              <div className="grid gap-1.5">
                 <Label htmlFor="name">Nome</Label>
-                <Input id="name" name="name" defaultValue={editing?.name} required maxLength={80} />
+                <Input id="name" name="name" defaultValue={editing?.name} placeholder="Ex.: Bruna Oliveira" required maxLength={80} className="h-11 bg-card px-3.5 text-[15px]" />
               </div>
 
               <fieldset className="grid gap-2">
-                <legend className="mb-2 text-sm font-medium">Serviços que realiza</legend>
+                <legend className="mb-2.5 text-sm font-medium">Serviços que realiza</legend>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {services?.map((s) => (
-                    <label key={s.id} className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" name="serviceIds" value={s.id} defaultChecked={editing?.serviceIds.includes(s.id)} className="size-4 accent-primary" />
-                      {s.name}
+                  {services?.map((sv) => (
+                    <label key={sv.id} className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg border px-3.5 text-sm has-checked:border-primary has-checked:bg-muted has-focus-visible:ring-3 has-focus-visible:ring-ring/50">
+                      <input type="checkbox" name="serviceIds" value={sv.id} defaultChecked={editing?.serviceIds.includes(sv.id)} className="size-4 accent-primary" />
+                      {sv.name}
                     </label>
                   ))}
                 </div>
               </fieldset>
 
-              <fieldset className="grid gap-2">
+              <fieldset className="grid gap-1">
                 <legend className="mb-2 text-sm font-medium">Horário de atendimento</legend>
                 {DAYS.map((d) => (
-                  <div key={d} className="grid grid-cols-[7rem_1fr_1fr] items-center gap-2 text-sm sm:max-w-md">
-                    <label className="flex items-center gap-2">
+                  <div key={d} className="group grid grid-cols-[5.5rem_1fr_1fr] items-center gap-2 text-sm">
+                    <label className="flex min-h-11 items-center gap-2">
                       <input type="checkbox" name={`on-${d}`} defaultChecked={!!hours[d]} className="size-4 accent-primary" />
-                      {WEEKDAYS[Number(d)]}
+                      {WEEKDAYS[Number(d)].slice(0, 3)}
                     </label>
-                    <Input type="time" name={`start-${d}`} aria-label={`Início ${WEEKDAYS[Number(d)]}`} defaultValue={hours[d]?.start ?? "09:00"} step={900} />
-                    <Input type="time" name={`end-${d}`} aria-label={`Fim ${WEEKDAYS[Number(d)]}`} defaultValue={hours[d]?.end ?? "18:00"} step={900} />
+                    {/* desmarcado = folga: os campos ficam, apagados, para voltar com o mesmo horário */}
+                    <Input type="time" name={`start-${d}`} aria-label={`Início ${WEEKDAYS[Number(d)]}`} defaultValue={hours[d]?.start ?? "09:00"} step={900} className="h-10 bg-card group-has-[input[type=checkbox]:not(:checked)]:opacity-40" />
+                    <Input type="time" name={`end-${d}`} aria-label={`Fim ${WEEKDAYS[Number(d)]}`} defaultValue={hours[d]?.end ?? "18:00"} step={900} className="h-10 bg-card group-has-[input[type=checkbox]:not(:checked)]:opacity-40" />
                   </div>
                 ))}
+                <button type="button" onClick={repetirSegunda} className="mt-1 min-h-9 justify-self-start text-[13px] underline underline-offset-4 hover:text-muted-foreground">
+                  Repetir o horário de segunda nos outros dias marcados
+                </button>
               </fieldset>
 
               <div className="flex gap-2">
-                <Button type="submit">{editing ? "Salvar" : "Adicionar"}</Button>
-                {editing && <Button type="button" variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>}
+                <Button type="submit" className="h-11 flex-1 px-4">{editing ? "Salvar alterações" : "Adicionar profissional"}</Button>
+                {editing && <Button type="button" variant="ghost" className="h-11 px-4" onClick={() => setEditing(null)}>Cancelar</Button>}
               </div>
             </form>
           )}
-        </CardContent>
-      </Card>
-
-      {(error || staffError) && <p role="alert" className="text-sm text-destructive">{error || staffError}</p>}
-      {!!staff?.length && (
-        <ul className="divide-y rounded-lg border">
-          {staff.map((p) => (
-            <li key={p.id} className={`flex flex-wrap items-center gap-x-4 gap-y-1 p-3 ${p.active ? "" : "opacity-60"}`}>
-              <div className="min-w-0 flex-1">
-                <p className="font-medium">{p.name}{!p.active && <span className="ml-2 text-xs font-normal">(inativo)</span>}</p>
-                <p className="text-sm text-muted-foreground">{p.serviceIds.map((id) => serviceName.get(id)).filter(Boolean).join(", ")}</p>
-                <p className="text-xs text-muted-foreground">{summary(p.hours)}</p>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setEditing(p)}>Editar</Button>
-              <Button variant="ghost" size="sm" onClick={() => run(updateDoc(doc(col, p.id), { active: !p.active }))}>
-                {p.active ? "Desativar" : "Ativar"}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => confirm(`Excluir ${p.name}?`) && run(deleteDoc(doc(col, p.id)))}>
-                Excluir
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
+        </section>
+      </div>
     </>
   );
 }

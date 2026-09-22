@@ -1,7 +1,7 @@
 "use server";
 
 import { adminDb } from "@/lib/admin";
-import { createPlan, endPlan, renameCustomer, requireMember, reschedule, rescheduleSlots, UserError } from "@/lib/booking.server";
+import { createPlan, deleteCustomer, endPlan, renameCustomer, requireMember, reschedule, rescheduleSlots, UserError } from "@/lib/booking.server";
 import { z } from "zod";
 import { PlanInput, RescheduleInput } from "@/lib/scheduling";
 import { verifyFirebaseToken } from "@/lib/verify-token";
@@ -52,4 +52,9 @@ export const endPlanAction = memberAction(
 export const renameCustomerAction = memberAction(
   z.object({ tenantId: docId, customerId: docId, name: z.string().trim().min(1, "Escreva o nome.").max(80) }),
   (data) => renameCustomer(adminDb, data),
+);
+
+export const deleteCustomerAction = memberAction(
+  z.object({ tenantId: docId, customerId: docId }),
+  (data, user) => deleteCustomer(adminDb, data, user),
 );
