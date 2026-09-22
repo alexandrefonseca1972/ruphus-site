@@ -11,7 +11,7 @@ import { auth, db, idToken } from "@/lib/firebase";
 import { dateIn, formatBRL, formatLongDate, formatTime, whatsappLink } from "@/lib/datetime";
 import { useCollection } from "@/lib/use-collection";
 import { deleteCustomerAction, endPlanAction, renameCustomerAction } from "../../actions";
-import { ConfirmPanel } from "../../confirm-panel";
+import { ConfirmDialog } from "../../confirm-dialog";
 import { History } from "../../history";
 import { useTenant } from "../../layout";
 import { PlanForm, planLabel } from "../../plan-form";
@@ -183,7 +183,7 @@ export default function CustomerPage() {
         </div>
       </div>
       {deleting && (
-        <ConfirmPanel
+        <ConfirmDialog
           title={`Excluir ${customer.name}?`}
           description="Some da lista de clientes junto com as anotações. Os atendimentos passados continuam na agenda e no histórico."
           confirmLabel="Excluir cliente"
@@ -317,7 +317,7 @@ export default function CustomerPage() {
                   )}
                   </div>
                   {endingPlan === p.id && (
-                    <ConfirmPanel
+                    <ConfirmDialog
                       title={`Encerrar o plano ${label}?`}
                       description="Os agendamentos futuros deste plano serão cancelados. Os passados continuam no histórico."
                       confirmLabel="Sim, encerrar plano"

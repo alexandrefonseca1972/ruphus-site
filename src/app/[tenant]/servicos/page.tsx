@@ -12,6 +12,7 @@ import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { useTenant } from "../layout";
 import { PageTitle } from "../page-title";
+import { ConfirmDialog } from "../confirm-dialog";
 import { RowMenu } from "../row-menu";
 import { cn, handleSubmit } from "@/lib/utils";
 
@@ -129,6 +130,7 @@ export default function ServicesPage() {
   const tenant = useTenant();
   const [items, loadError] = useCollection(tenant.id, "services", Service, [orderBy("name")]);
   const [staff] = useCollection(tenant.id, "staff", Staff, []);
+  const [excluindo, setExcluindo] = useState<Editando>(null);
   const [editing, setEditing] = useState<Editando>(null);
   const [error, setError] = useState("");
   const col = collection(db, "tenants", tenant.id, "services");
@@ -216,7 +218,7 @@ export default function ServicesPage() {
                         {
                           label: "Excluir",
                           danger: true,
-                          onClick: () => confirm(`Excluir “${s.name}”? Agendamentos já feitos continuam na agenda.`) && run(deleteDoc(doc(col, s.id))),
+                          onClick: () => setExcluindo(s),
                         },
                       ]}
                     />
@@ -226,6 +228,18 @@ export default function ServicesPage() {
             })}
           </ul>
         </section>
+      )}
+      {excluindo && (
+        <ConfirmDialog
+          title={`Excluir “${excluindo.name}”?`}
+          description="Some do link de agendamento. Os agendamentos já feitos continuam na agenda."
+          confirmLabel="Excluir serviço"
+          onConfirm={async () => {
+            await run(deleteDoc(doc(col, excluindo.id)));
+            setExcluindo(null);
+          }}
+          onCancel={() => setExcluindo(null)}
+        />
       )}
     </>
   );
