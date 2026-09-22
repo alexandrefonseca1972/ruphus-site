@@ -31,6 +31,7 @@ import {
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
 import { alertas as calcularAlertas } from "@/lib/alertas";
+import { cents, emReais } from "@/lib/dinheiro";
 import { COMMIT, VERSAO } from "@/lib/versao";
 import { LIMITE_STAFF_MAX } from "@/lib/limites";
 import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
@@ -122,6 +123,7 @@ export default function AdminPage() {
   const [email, setEmail] = useState("");
   const [espacos, setEspacos] = useState<Espaco[]>([]);
   const [assinatura, setAssinatura] = useState("");   // quem assina as mensagens do CRM
+  const [atrasadas, setAtrasadas] = useState(0);      // cobranças vencidas, no rótulo da aba
   const [hoje, setHoje] = useState<{ agendamentosHoje: number; espacosComAgenda: number } | null>(null);
   const [busca, setBusca] = useState("");
   const [cidade, setCidade] = useState("");
@@ -141,7 +143,7 @@ export default function AdminPage() {
   const [eventos, setEventos] = useState<Evento[] | null>(null);
   // qual negócio está sendo marcado como perdido (pela gaveta ou soltando no funil)
   const [perdendo, setPerdendo] = useState<string | null>(null);
-  const [tela, setTela] = useState<"lista" | "funil" | "clientes">("lista");
+  const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca">("lista");
   // qual negócio está sendo marcado como fechado (confirma valores e já faz o pós-venda)
   const [fechando, setFechando] = useState<string | null>(null);
   const [saude, setSaude] = useState<ClienteSaude | null>(null);
@@ -579,7 +581,7 @@ export default function AdminPage() {
         </span>
 
         <div role="group" aria-label="Visão" className="flex rounded-[10px] bg-[#EFEBE2] p-[3px]">
-          {(["lista", "funil", "clientes"] as const).map((v) => (
+          {(["lista", "funil", "clientes", "cobranca"] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -587,7 +589,12 @@ export default function AdminPage() {
               onClick={() => setTela(v)}
               className={`h-8 rounded-lg px-3 text-[12px] ${tela === v ? "bg-white font-semibold shadow-[0_1px_2px_rgba(23,21,15,.12)]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
             >
-              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : "Clientes"}
+              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : v === "clientes" ? "Clientes" : "Cobrança"}
+              {v === "cobranca" && atrasadas > 0 && (
+                <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${tela === v ? "bg-[#FBF0EE] text-[#8A2F2F]" : "bg-[#F1E7E7] text-[#8A2F2F]"}`}>
+                  {atrasadas}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -872,10 +879,12 @@ export default function AdminPage() {
           </form>
         </details>
 
-        {/* Quem já devia aparece antes da lista: é o que se olha de manhã */}
-        <Atrasadas idToken={idToken} aviso={setAviso} cortar={(slug) => mudarNegocio(slug, { publicado: false })} />
+        {/* Montado sempre, visível só na aba: é assim que a aba sabe quantas estão em atraso */}
+        <div className={tela === "cobranca" ? "" : "hidden"}>
+          <Atrasadas idToken={idToken} aviso={setAviso} cortar={(slug) => mudarNegocio(slug, { publicado: false })} aoContar={setAtrasadas} />
+        </div>
 
-        {tela === "clientes" ? (
+        {tela === "cobranca" ? null : tela === "clientes" ? (
           <Carteira idToken={idToken} hoje={dataDeHoje} espacos={espacos} abrir={abrir} />
         ) : tela === "funil" ? (
           <Funil
@@ -1263,15 +1272,20 @@ export default function AdminPage() {
                         <span className="pl-3 pr-1.5 text-sm text-[#8B8578]">R$</span>
                         <input
                           id={c.id}
-                          type="number"
-                          min={0}
-                          step={10}
-                          defaultValue={((crm[aberto.slug]?.[c.campo] ?? c.padrao) / 100).toString()}
-                          onBlur={(ev) =>
-                            mudarNegocio(aberto.slug, {
-                              [c.campo]: ev.target.value ? Math.round(Number(ev.target.value) * 100) : null,
-                            })
-                          }
+                          type="text"
+                          inputMode="decimal"
+                          defaultValue={emReais(crm[aberto.slug]?.[c.campo] ?? c.padrao)}
+                          onBlur={(ev) => {
+                            const valor = cents(ev.target.value);
+                            // texto que não é número não apaga o preço: volta o que estava
+                            if (ev.target.value.trim() && (Number.isNaN(valor) || valor < 0)) {
+                              ev.target.value = emReais(crm[aberto.slug]?.[c.campo] ?? c.padrao);
+                              return setAviso("Valor inválido. Use 59,90.");
+                            }
+                            const novo = ev.target.value.trim() ? valor : null;
+                            ev.target.value = novo === null ? "" : emReais(novo);
+                            mudarNegocio(aberto.slug, { [c.campo]: novo });
+                          }}
                           className="h-full min-w-0 grow bg-transparent text-sm tabular-nums text-[#17150F] outline-none"
                         />
                         {c.sufixo && <span className="pr-3 text-xs text-[#8B8578]">{c.sufixo}</span>}

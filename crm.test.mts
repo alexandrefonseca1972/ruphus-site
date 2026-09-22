@@ -153,3 +153,18 @@ console.log("saude: ok");
   assert.equal(alertas([], {}, hoje).length, 0, "sem negócio, sem alerta");
 }
 console.log("alertas: ok");
+
+// Dinheiro digitado à mão: o campo de preço não pode apagar valor por causa de vírgula
+{
+  const { cents, emReais } = await import("@/lib/dinheiro");
+  assert.equal(cents("59,90"), 5990, "vírgula é decimal");
+  assert.equal(cents("59.90"), 5990, "ponto no fim também é decimal");
+  assert.equal(cents("1.250,00"), 125000, "ponto é milhar quando há vírgula");
+  assert.equal(cents("1.250"), 125000, "ponto sozinho com 3 dígitos é milhar");
+  assert.equal(cents("250"), 25000);
+  assert.ok(Number.isNaN(cents("")), "vazio não é zero");
+  assert.ok(Number.isNaN(cents("abc")), "texto não vira preço");
+  assert.equal(emReais(5990), "59,90", "mostra as duas casas");
+  assert.equal(emReais(25000), "250,00");
+}
+console.log("dinheiro: ok");

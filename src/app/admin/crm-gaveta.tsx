@@ -2,6 +2,7 @@
 
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { useState } from "react";
+import { cents } from "@/lib/dinheiro";
 import { formatBRL, formatPhone, linkWhatsApp } from "@/lib/datetime";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { ROTULO_SAUDE } from "@/lib/saude";
@@ -670,12 +671,6 @@ export function VendaFechada({
   const [boasVindas, setBoasVindas] = useState(true);
   const [convite, setConvite] = useState(precisaConvite);
   const [busy, setBusy] = useState(false);
-  // "59,90", "59.90" e "1.250,00" querem dizer o que parecem: com vírgula, o ponto é milhar;
-  // sem vírgula, um ponto seguido de 1 ou 2 dígitos no fim é a casa decimal
-  const cents = (v: string) => {
-    const n = v.includes(",") ? v.replace(/\./g, "").replace(",", ".") : /\.\d{1,2}$/.test(v) ? v.replace(/\.(?=\d{3})/g, "") : v.replace(/\./g, "");
-    return Math.round(Number(n) * 100);
-  };
   const invalido = !(cents(mensal) > 0) || !(cents(entrada) >= 0) || Number.isNaN(cents(entrada));
 
   const opcoes = [

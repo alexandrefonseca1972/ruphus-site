@@ -193,10 +193,13 @@ export function Atrasadas({
   idToken,
   aviso,
   cortar,
+  aoContar,
 }: {
   idToken: string;
   aviso: (m: string) => void;
   cortar: (slug: string) => void;
+  /** Quantas estão em atraso, para a aba avisar sem abrir */
+  aoContar?: (n: number) => void;
 }) {
   const [lista, setLista] = useState<CobrancaEnviavel[]>([]);
   const [pix, setPix] = useState<{ chave: string; nome: string; cidade: string; whatsapp: string } | null>(null);
@@ -208,7 +211,11 @@ export function Atrasadas({
 
   useEffect(() => {
     if (!idToken) return;
-    listarAtrasadas(idToken).then((r) => r.ok && setLista(r.dados), () => {});
+    listarAtrasadas(idToken).then((r) => {
+      if (!r.ok) return;
+      setLista(r.dados);
+      aoContar?.(r.dados.length);
+    }, () => {});
     lerPixConfig(idToken).then((r) => {
       if (!r.ok) return;
       setSemPix(!r.dados);
@@ -217,7 +224,7 @@ export function Atrasadas({
         setRascunho(r.dados);
       }
     }, () => {});
-  }, [idToken]);
+  }, [idToken, aoContar]);
 
   const total = lista.reduce((s, c) => s + c.valorCents, 0);
 
