@@ -319,18 +319,5 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   assert.deepEqual((await loadCatalog(db, "salao"))?.services.map((s) => s.id), ["luzes", "corte"]);
 }
 
-// O recado no WhatsApp é o que avisa quem atende: fica gravado no agendamento
-{
-  const dia = addDays(todayIn(), 25);
-  const base2 = { tenantId: "salao", staffId: "ana", serviceIds: ["corte"], date: dia, customerName: "Cliente" };
-  const comAviso = await book(db, { ...base2, ...outro(), time: "09:00", avisou: true });
-  const semAviso = await book(db, { ...base2, ...outro(), time: "10:00" });
-  assert.ok(comAviso.ok && semAviso.ok);
-  const lido = async (id: string) => (await t.collection("appointments").doc(id).get()).get("avisou");
-  assert.equal(await lido(comAviso.ok ? comAviso.id : ""), true);
-  assert.equal(await lido(semAviso.ok ? semAviso.id : ""), false, "sem o clique, o negócio pode não saber do horário");
-  assert.equal(BookingInput.safeParse({ ...base2, time: "11:00", customerPhone: "11 91234-5678", avisou: "sim" }).success, false);
-}
-
 console.log("booking ok");
 process.exit(0);
