@@ -4,7 +4,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { auth } from "@/lib/firebase";
-import { formatBRL } from "@/lib/datetime";
+import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import {
   anotarNegocio,
   detalhesEspaco,
@@ -20,12 +20,16 @@ import {
   salvarNegocio,
   revogarAcesso,
   liberarNegocios,
+  saudeDoNegocio,
+  cobrar,
   type Acesso,
   type Detalhe,
   type Espaco,
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
-import { ContatoDono, LinhaDoTempo, MensagensProntas, MotivoDaPerda, OrigemDoContato } from "./crm-gaveta";
+import { ContatoDono, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
+import { Carteira } from "./carteira";
+import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
 import { COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, prazoDe, PRECO_PADRAO, ROTULO, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
 
@@ -124,7 +128,10 @@ export default function AdminPage() {
   const [eventos, setEventos] = useState<Evento[] | null>(null);
   // qual negócio está sendo marcado como perdido (pela gaveta ou soltando no funil)
   const [perdendo, setPerdendo] = useState<string | null>(null);
-  const [tela, setTela] = useState<"lista" | "funil">("lista");
+  const [tela, setTela] = useState<"lista" | "funil" | "clientes">("lista");
+  // qual negócio está sendo marcado como fechado (confirma valores e já faz o pós-venda)
+  const [fechando, setFechando] = useState<string | null>(null);
+  const [saude, setSaude] = useState<ClienteSaude | null>(null);
   // A aba escolhida vale para o próximo negócio aberto: quem está cobrando segue cobrando
   const [aba, setAba] = useState<"venda" | "historico" | "cliente" | "cobranca">("venda");
   const [estagio, setEstagio] = useState("");
@@ -206,7 +213,10 @@ export default function AdminPage() {
     return [...filtrada].sort(por[ordem]);
   }, [espacos, passa, ordem, crm]);
 
+  // o último negócio aberto: resposta lenta de um anterior não pode pintar a gaveta do atual
+  const abertoRef = useRef("");
   async function abrir(e: Espaco) {
+    abertoRef.current = e.slug;
     setAberto(e);
     setAcessos(null);
     setDetalhe(null);
@@ -214,6 +224,7 @@ export default function AdminPage() {
     const t = await token();
     setEventos(null);
     const [a, d, n] = await Promise.all([listarAcessos(t, e.slug), detalhesEspaco(t, e.slug), linhaDoTempoDo(t, e.slug)]);
+    if (abertoRef.current !== e.slug) return;
     if (a.ok) setAcessos(a.dados);
     if (d.ok) setDetalhe(d.dados);
     if (n.ok) setEventos(n.dados);
@@ -273,6 +284,88 @@ export default function AdminPage() {
       const n = await linhaDoTempoDo(await token(), slug);
       if (n.ok) setEventos(n.dados);
     }
+    return true;
+  }
+
+  const slugAberto = aberto?.slug;
+  const clienteAberto = !!slugAberto && crm[slugAberto]?.estagio === "fechado";
+  useEffect(() => {
+    if (aba !== "cliente" || !slugAberto || !clienteAberto || !idToken) return;
+    let atual = true;
+    setSaude(null); // eslint-disable-line react-hooks/set-state-in-effect -- troca de negócio
+    saudeDoNegocio(idToken, slugAberto, dataDeHoje).then((r) => atual && r.ok && setSaude(r.dados), () => {});
+    return () => {
+      atual = false;
+    };
+  }, [aba, slugAberto, clienteAberto, idToken, dataDeHoje]);
+
+  /** WhatsApp aberto antes de qualquer espera: depois de um await o navegador bloqueia a aba nova. */
+  function abrirAba() {
+    return window.open("", "_blank");
+  }
+
+  async function lembrar(slug: string, passo: Passo) {
+    const janela = abrirAba();
+    const c = crm[slug] ?? VAZIO;
+    const e = espacos.find((x) => x.slug === slug);
+    const numero = c.donoWhatsapp ?? e?.telefone ?? null;
+    const oi = `Oi${c.donoNome ? `, ${c.donoNome.split(" ")[0]}` : ""}! Aqui é da Ruphus.`;
+    const painel = `https://www.ruphus.site/${slug}`;
+    let texto = "";
+    if (passo === "convite") {
+      const r = await gerarConvite(await token(), slug);
+      texto = `${oi}\n\nO acesso ao painel do ${e?.nome ?? slug} está pronto — é por ele que você cadastra serviços, quem atende e acompanha a agenda:\n${r.ok ? r.dados : painel}`;
+    } else if (passo === "servicos") {
+      texto = `${oi}\n\nFalta um passo para a agenda do ${e?.nome ?? slug} abrir: cadastrar os serviços, com duração e preço.\n${painel}/servicos`;
+    } else if (passo === "profissionais") {
+      texto = `${oi}\n\nFalta cadastrar quem atende no ${e?.nome ?? slug}, com os horários de cada um. Aí a agenda abre de verdade:\n${painel}/profissionais`;
+    } else {
+      texto = `${oi}\n\nA agenda do ${e?.nome ?? slug} está pronta. Coloca o link na bio do Instagram e no status do WhatsApp para os clientes marcarem:\nhttps://${slug}.ruphus.site/agendar`;
+    }
+    const link = numero && linkWhatsApp(numero, texto);
+    if (!link) {
+      janela?.close();
+      return setAviso("Sem WhatsApp do dono nem telefone do site: cadastre o contato na aba Venda.");
+    }
+    if (janela) janela.location.href = link;
+    else location.assign(link);
+    enviouMensagem(slug, `Lembrete: ${passo === "convite" ? "convite" : passo === "servicos" ? "serviços" : passo === "profissionais" ? "profissionais" : "divulgar o link"}`, c.donoNome ?? "o dono");
+  }
+
+  async function fecharVenda(slug: string, d: { entradaCents: number; mensalCents: number; cobrarEntrada: boolean; boasVindas: boolean; convite: boolean }) {
+    const janela = d.boasVindas ? abrirAba() : null;
+    const ok = await mudarNegocio(slug, { estagio: "fechado", entradaCents: d.entradaCents, mensalCents: d.mensalCents });
+    if (!ok) {
+      janela?.close();
+      return false;
+    }
+    const t = await token();
+    const feito: string[] = ["venda registrada"];
+    let urlConvite: string | null = null;
+    if (d.convite) {
+      const r = await gerarConvite(t, slug);
+      if (r.ok) urlConvite = r.dados;
+    }
+    if (d.cobrarEntrada) {
+      const r = await cobrar(t, slug, "entrada", null);
+      feito.push(r.ok ? "cobrança da entrada gerada (aba Cobrança)" : `entrada não gerada: ${r.error}`);
+    }
+    if (janela) {
+      const c = { ...(crm[slug] ?? VAZIO), entradaCents: d.entradaCents, mensalCents: d.mensalCents, estagio: "fechado" as const };
+      const e = espacos.find((x) => x.slug === slug);
+      const numero = c.donoWhatsapp ?? e?.telefone ?? null;
+      const texto = mensagem("Boas-vindas", { slug, nome: e?.nome ?? slug, telefone: e?.telefone ?? null }, c) + (urlConvite ? `\n\nSeu acesso ao painel: ${urlConvite}` : "");
+      const link = numero && linkWhatsApp(numero, texto);
+      if (link) {
+        janela.location.href = link;
+        feito.push("boas-vindas aberta no WhatsApp");
+        enviouMensagem(slug, "Boas-vindas", c.donoNome ?? "o dono");
+      } else {
+        janela.close();
+        feito.push("sem telefone para as boas-vindas");
+      }
+    }
+    setAviso(`Venda fechada: ${feito.join(" · ")}.`);
     return true;
   }
 
@@ -448,7 +541,7 @@ export default function AdminPage() {
         </span>
 
         <div role="group" aria-label="Visão" className="flex rounded-[10px] bg-[#EFEBE2] p-[3px]">
-          {(["lista", "funil"] as const).map((v) => (
+          {(["lista", "funil", "clientes"] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -456,7 +549,7 @@ export default function AdminPage() {
               onClick={() => setTela(v)}
               className={`h-8 rounded-lg px-3 text-[12px] ${tela === v ? "bg-white font-semibold shadow-[0_1px_2px_rgba(23,21,15,.12)]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
             >
-              {v === "lista" ? "Lista" : "Funil"}
+              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : "Clientes"}
             </button>
           ))}
         </div>
@@ -677,13 +770,15 @@ export default function AdminPage() {
         {/* Quem já devia aparece antes da lista: é o que se olha de manhã */}
         <Atrasadas idToken={idToken} aviso={setAviso} cortar={(slug) => mudarNegocio(slug, { publicado: false })} />
 
-        {tela === "funil" ? (
+        {tela === "clientes" ? (
+          <Carteira idToken={idToken} hoje={dataDeHoje} espacos={espacos} abrir={abrir} />
+        ) : tela === "funil" ? (
           <Funil
             espacos={lista}
             crm={crm}
             hoje={dataDeHoje}
             abrir={abrir}
-            mover={(slug, e) => (e === "perdido" ? setPerdendo(slug) : mudarNegocio(slug, { estagio: e }))}
+            mover={(slug, e) => (e === "perdido" ? setPerdendo(slug) : e === "fechado" ? setFechando(slug) : mudarNegocio(slug, { estagio: e }))}
             verAtrasadas={() => {
               verVisao(VISOES[0]);
               setTela("lista");
@@ -1018,7 +1113,7 @@ export default function AdminPage() {
                         key={e}
                         type="button"
                         aria-pressed={ativa}
-                        onClick={() => (e === "perdido" && !ativa ? setPerdendo(aberto.slug) : mudarNegocio(aberto.slug, { estagio: e }))}
+                        onClick={() => (ativa ? undefined : e === "perdido" ? setPerdendo(aberto.slug) : e === "fechado" ? setFechando(aberto.slug) : mudarNegocio(aberto.slug, { estagio: e }))}
                         className={`${CHIP} ${ativa ? `border-transparent font-semibold ${COR[e]}` : "border-[#D8D2C6] bg-white text-[#6F6A5E] hover:border-[#17150F] hover:text-[#17150F]"}`}
                       >
                         {ROTULO[e]}
@@ -1147,6 +1242,7 @@ export default function AdminPage() {
             )}
             {aba === "cliente" && (
               <>
+            {clienteAberto && <ImplantacaoESaude saude={saude} lembrar={(p) => lembrar(aberto.slug, p)} />}
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-xl border border-[#E2DDD3] p-3.5">
                 <div className="text-xs text-[#6F6A5E]">Nota</div>
@@ -1279,8 +1375,9 @@ export default function AdminPage() {
                           <button
                             type="button"
                             aria-label={`Liberar mais um negócio para ${a.nome ?? a.email ?? a.uid}`}
+                            disabled={a.limite >= 50}
                             onClick={() => mudarLimite(a.uid, a.limite! + 1)}
-                            className="size-11 rounded-[10px] border border-[#D8D2C6] text-base font-semibold hover:border-[#17150F]"
+                            className="size-11 rounded-[10px] border border-[#D8D2C6] text-base font-semibold hover:border-[#17150F] disabled:opacity-40"
                           >
                             +
                           </button>
@@ -1382,6 +1479,18 @@ export default function AdminPage() {
             </div>
           </aside>
         </>
+      )}
+
+      {fechando && (
+        <VendaFechada
+          nome={espacos.find((e) => e.slug === fechando)?.nome ?? fechando}
+          crm={crm[fechando] ?? VAZIO}
+          precisaConvite={(espacos.find((e) => e.slug === fechando)?.acessos ?? 0) <= 1}
+          onCancelar={() => setFechando(null)}
+          onConfirmar={async (d) => {
+            if (await fecharVenda(fechando, d)) setFechando(null);
+          }}
+        />
       )}
 
       {perdendo && (

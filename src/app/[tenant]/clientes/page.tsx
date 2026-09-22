@@ -83,7 +83,13 @@ export default function CustomersPage() {
   const base = sumidos ?? customers;
   const shown = base?.filter((c) => !term || normalize(c.name).includes(term) || (digits && c.id.includes(digits)));
 
+  // Quem tem horário marcado pela frente não sumiu, mesmo sem visita passada (cliente novo)
+  const comHorario = useMemo(
+    () => new Set((visitas ?? []).filter((v) => v.start.toMillis() > agora && (v.status === "booked" || v.status === "confirmed")).map((v) => v.customerKey)),
+    [visitas, agora],
+  );
   const sumidos60 = customers?.filter((c) => {
+    if (comHorario.has(c.id)) return false;
     const u = resumo.get(c.id)?.ultimaMs;
     return !u || agora - u > 60 * DIA_EM_MS;
   }).length;
@@ -183,7 +189,7 @@ export default function CustomersPage() {
           <ul>
             {shown.slice(0, limite).map((c) => {
               const r = resumo.get(c.id);
-              const sumido = !r?.ultimaMs || agora - r.ultimaMs > 60 * DIA_EM_MS;
+              const sumido = !comHorario.has(c.id) && (!r?.ultimaMs || agora - r.ultimaMs > 60 * DIA_EM_MS);
               return (
                 <li key={c.id} className="group relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 border-t px-4 py-3 hover:bg-background md:grid-cols-[minmax(0,1fr)_11rem_9rem_6rem_8rem_2.75rem] md:px-6">
                   <div className="flex min-w-0 items-center gap-3">
@@ -219,7 +225,7 @@ export default function CustomersPage() {
                         haQuanto(r.ultimaMs, agora)
                       )
                     ) : (
-                      <span className="text-muted-foreground">há mais de 1 ano</span>
+                      <span className="text-muted-foreground">{comHorario.has(c.id) ? "1ª visita marcada" : "sem visita no último ano"}</span>
                     )}
                     <span className="text-muted-foreground md:hidden"> · {r?.visitas ?? 0} visita(s) · {formatBRL(r?.gastoCents ?? 0)}</span>
                   </span>

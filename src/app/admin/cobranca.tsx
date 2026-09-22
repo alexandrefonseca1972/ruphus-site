@@ -7,6 +7,7 @@ import {
   cancelarCobranca,
   cobrar,
   cobrarMes,
+  registrarEnvio,
   lerPixConfig,
   listarAtrasadas,
   listarCobrancasDo,
@@ -18,7 +19,8 @@ import {
 // Cobrança fica fora de page.tsx, que já passa de mil linhas. Duas telas: o
 // histórico de um negócio na gaveta e o painel de atrasados no topo.
 
-const COBRAR_MES_LIGADO = false;
+// Religado: agora o lote volta com a lista para enviar, uma a uma, pelo WhatsApp
+const COBRAR_MES_LIGADO = true;
 
 const BOTAO = "inline-flex h-11 items-center justify-center rounded-[10px] px-4 text-sm font-semibold transition-colors";
 const ESCURO = `${BOTAO} bg-[#17150F] text-white hover:bg-[#2C2920]`;
@@ -201,6 +203,8 @@ export function Atrasadas({
   const [semPix, setSemPix] = useState(false);
   const [rascunho, setRascunho] = useState({ chave: "", nome: "", cidade: "", whatsapp: "" });
   const [ocupado, setOcupado] = useState("");
+  const [lote, setLote] = useState<{ mes: string; lista: CobrancaEnviavel[] } | null>(null);
+  const [enviadas, setEnviadas] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!idToken) return;
@@ -237,12 +241,27 @@ export function Atrasadas({
           onClick={async () => {
             setOcupado("mes");
             const r = await cobrarMes(idToken).finally(() => setOcupado(""));
-            aviso(r.ok ? `${r.dados.geradas} cobranças de ${r.dados.mes} prontas (${r.dados.negocios} fechados).` : r.error);
+            if (!r.ok) return aviso(r.error);
+            setEnviadas(new Set());
+            setLote({ mes: r.dados.mes, lista: r.dados.lista });
+            aviso(r.dados.geradas ? "" : "Nenhum negócio fechado com mensalidade cadastrada.");
           }}
         >
           {ocupado === "mes" ? "Gerando…" : "Cobrar o mês de todos"}
         </button>
       </div>
+
+      {lote && lote.lista.length > 0 && (
+        <LoteDoMes
+          lote={lote}
+          enviadas={enviadas}
+          enviou={(c) => {
+            setEnviadas((e) => new Set(e).add(c.id));
+            registrarEnvio(idToken, c.slug, `Cobrança de ${lote.mes}`, c.nome).catch(() => {});
+          }}
+          fechar={() => setLote(null)}
+        />
+      )}
 
       {semPix && (
         <p role="alert" className="rounded-[10px] border border-[#E7C9BF] bg-[#FBF1EE] p-2.5 text-sm text-[#B4472F]">
@@ -318,6 +337,66 @@ export function Atrasadas({
           É a chave que aparece no QR de todas as cobranças abertas. Nome e cidade vão no código sem acento e em maiúsculas.
         </p>
       </details>
+    </section>
+  );
+}
+
+/** O lote do mês: cada cobrança com o seu WhatsApp, e "enviar a próxima" para passar a lista em sequência. */
+function LoteDoMes({
+  lote,
+  enviadas,
+  enviou,
+  fechar,
+}: {
+  lote: { mes: string; lista: CobrancaEnviavel[] };
+  enviadas: Set<string>;
+  enviou: (c: CobrancaEnviavel) => void;
+  fechar: () => void;
+}) {
+  const total = lote.lista.reduce((s, c) => s + c.valorCents, 0);
+  const proxima = lote.lista.find((c) => c.whatsapp && !enviadas.has(c.id));
+  return (
+    <section aria-labelledby="lote-t" className="overflow-hidden rounded-xl border border-[#E2DDD3]">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#FBFAF8] p-3.5">
+        <div>
+          <h3 id="lote-t" className="font-[family-name:var(--fonte-serifa)] text-[22px] leading-none first-letter:uppercase">Mensalidade de {lote.mes}</h3>
+          <p className="mt-1 text-xs text-[#6F6A5E]">
+            {lote.lista.length} cobrança(s) · {enviadas.size} enviada(s) · {formatBRL(total)}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {proxima && (
+            <a href={proxima.whatsapp!} target="_blank" rel="noreferrer" onClick={() => enviou(proxima)} className={`${BOTAO} bg-[#17150F] text-white hover:bg-[#2C2920]`}>
+              Enviar a próxima
+            </a>
+          )}
+          <button type="button" onClick={fechar} className={CLARO}>
+            Fechar
+          </button>
+        </div>
+      </div>
+      <ol className="divide-y divide-[#EDEAE0]">
+        {lote.lista.map((c) => (
+          <li key={c.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-3.5 py-2.5">
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">{c.nome}</span>
+              <span className="block truncate text-[11px] text-[#6F6A5E]">{c.telefone ? c.telefone : "sem telefone: copie o link"}</span>
+            </span>
+            <span className="font-[family-name:var(--font-geist-mono)] text-[13px] font-medium">{formatBRL(c.valorCents)}</span>
+            {enviadas.has(c.id) ? (
+              <span className="rounded-full bg-[#E7EEE9] px-2.5 py-1 text-[11px] font-semibold text-[#2C6A53]">Enviada</span>
+            ) : c.whatsapp ? (
+              <a href={c.whatsapp} target="_blank" rel="noreferrer" onClick={() => enviou(c)} className={`${BOTAO} h-9 bg-[#2C6A53] px-3 text-xs text-white hover:bg-[#245743]`}>
+                Enviar
+              </a>
+            ) : (
+              <button type="button" onClick={() => navigator.clipboard.writeText(c.url).then(() => enviou(c), () => {})} className={`${CLARO} h-9 px-3 text-xs`}>
+                Copiar link
+              </button>
+            )}
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }
