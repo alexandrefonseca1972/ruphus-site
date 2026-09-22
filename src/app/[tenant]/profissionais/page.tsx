@@ -1,12 +1,13 @@
 "use client";
 
-import { addDoc, collection, deleteDoc, doc, orderBy, setDoc, updateDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, orderBy, setDoc, updateDoc } from "firebase/firestore";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
-import { db } from "@/lib/firebase";
+import { db, idToken } from "@/lib/firebase";
+import { criarProfissionalAction } from "../actions";
 import { WEEKDAYS } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
@@ -51,8 +52,14 @@ export default function StaffPage() {
         ),
         active: editing?.active ?? true,
       });
-      if (!editing && (staff?.length ?? 0) >= limite) throw new Error(`Seu plano inclui ${limite} profissionais. Fale com a Ruphus para liberar mais.`);
-      await (editing ? setDoc(doc(col, editing.id), data) : addDoc(col, data));
+      // Criar passa pelo servidor, que conta a equipe numa transação; as regras
+      // não deixam o cliente criar profissional. Editar segue direto.
+      if (editing) {
+        await setDoc(doc(col, editing.id), data);
+      } else {
+        const r = await criarProfissionalAction(await idToken(), { tenantId: tenant.id, dados: data });
+        if (!r.ok) throw new Error(r.error);
+      }
       el.reset();
       setEditing(null);
       setSalvos((n) => n + 1); // formulário novo, zerado (os serviços são controlados e o reset não os alcança)

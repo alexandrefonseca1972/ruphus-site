@@ -9,8 +9,11 @@ service firebase.storage {
 
     match /tenants/{t}/{path=**} {
       allow read, delete: if isMember(t);
-      // ponytail: limite único de 10 MB; por tipo de arquivo quando houver uploads grandes (vídeo etc.)
-      allow create, update: if isMember(t) && request.resource.size < 10 * 1024 * 1024;
+      // Só imagem, e até 10 MB: o que o painel envia é foto. Sem o filtro de tipo,
+      // um membro guardaria HTML no bucket e teria uma página no domínio do Storage.
+      allow create, update: if isMember(t)
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
     }
     // Qualquer outro caminho: negado
   }

@@ -42,7 +42,8 @@ function Login() {
   // Quem administra a plataforma trabalha no /admin; quem é dono de um negócio,
   // no /painel. O convite, quando existe, vence os dois.
   async function paraOnde() {
-    if (proximo?.startsWith("/")) return proximo;
+    // "//evil.com" e "/\\evil.com" também começam com "/" e levam para fora do site
+    if (proximo && /^\/(?![/\\])/.test(proximo)) return proximo;
     const user = auth.currentUser;
     if (!user) return "/painel";
     const r = await ehAdminDaPlataforma(await user.getIdToken()).catch(() => ({ ok: false as const }));

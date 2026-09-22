@@ -2,11 +2,14 @@ import "server-only";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
+import { ErroPrevisto } from "@/lib/erro-previsto";
 import { brCode, competenciaAtual, txidDe, vencimentoDe } from "@/lib/pix";
 
-// A cobrança mora fora do tenant, como o CRM: dentro de tenants/{t} existe uma
-// regra pega-tudo que libera coleção nova para qualquer membro, e dinheiro do
-// negócio não é assunto de quem usa a agenda. Aqui só o Admin SDK entra.
+/** Erro que a tela mostra como está: valor inválido, cobrança já cancelada. */
+export class CobrancaErro extends ErroPrevisto {}
+
+// A cobrança mora fora do tenant, como o CRM: dinheiro do negócio não é assunto
+// de quem usa a agenda, e aqui só o Admin SDK entra — nenhuma regra alcança.
 const RAIZ = "cobrancas";
 const PIX = "config/pix";
 
@@ -159,8 +162,13 @@ export async function abrirCobranca(db: Firestore, id: string, token: string): P
 }
 
 export async function baixar(db: Firestore, id: string, b: { recebidoCents: number; pagoEm: string; por: string }) {
+  if (!Number.isInteger(b.recebidoCents) || b.recebidoCents <= 0) throw new CobrancaErro("Valor recebido inválido.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.pagoEm)) throw new CobrancaErro("Data de pagamento inválida.");
   const ref = db.collection(RAIZ).doc(id);
-  if (!(await ref.get()).exists) throw new Error("Cobrança não encontrada");
+  const atual = await ref.get();
+  if (!atual.exists) throw new CobrancaErro("Cobrança não encontrada.");
+  // dar baixa no que foi cancelado esconde o cancelamento e bagunça a conciliação
+  if (atual.get("status") === "cancelada") throw new CobrancaErro("Cobrança cancelada não recebe baixa.");
   await ref.update({
     status: "paga",
     recebidoCents: b.recebidoCents,

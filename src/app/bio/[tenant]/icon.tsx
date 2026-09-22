@@ -1,5 +1,8 @@
 import { ImageResponse } from "next/og";
+import { notFound } from "next/navigation";
 import { adminDb } from "@/lib/admin";
+
+const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
 
 // Ícone da aba: a inicial do negócio na cor da marca dele, não o ícone do app
 export const size = { width: 64, height: 64 };
@@ -7,7 +10,10 @@ export const contentType = "image/png";
 export const revalidate = 86400;
 
 export default async function Icone({ params }: { params: Promise<{ tenant: string }> }) {
-  const tenant = await adminDb.collection("tenants").doc((await params).tenant).get();
+  const slug = (await params).tenant;
+  // o único ponto que montava caminho de documento sem validar o parâmetro
+  if (!SLUG.test(slug)) notFound();
+  const tenant = await adminDb.collection("tenants").doc(slug).get();
   const nome = String(tenant.get("name") ?? "?");
   const cor = String(tenant.get("site.color") ?? "#17150F");
   // contraste: sobre cor clara a letra é escura
