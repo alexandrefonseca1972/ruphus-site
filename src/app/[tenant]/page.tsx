@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { collection, doc, orderBy, serverTimestamp, Timestamp, where, writeBatch } from "firebase/firestore";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { z } from "zod";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,8 +69,13 @@ export default function AgendaPage() {
   const [staffFilter, setStaffFilter] = useState("");
   const [staff] = useCollection(tenant.id, "staff", Staff, [orderBy("name")]);
   const [notice, setNotice] = useState<{ text: string; link: string } | null>(null);
-  // ponytail: instante fixo ao abrir a página; "Faltou" de horários que passaram depois aparece ao recarregar
-  const [now] = useState(Date.now);
+  // O relógio anda a cada minuto: com a agenda aberta o dia todo, o horário que passa perde
+  // o "Confirmar" e ganha o "Faltou", e a linha do "agora" desce, sem recarregar a página
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
   const [services] = useCollection(tenant.id, "services", Service, []);
   // A semana inteira numa consulta só: a faixa de dias conta, a lista mostra um dia
   const semana = segundaDe(date);
@@ -267,7 +272,8 @@ export default function AgendaPage() {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {a.status === "booked" && (
+                  {/* Confirmar só antes do horário: depois dele já não há o que combinar com o cliente */}
+                  {a.status === "booked" && a.start.toMillis() > now && (
                     <Button className="h-10 px-4" disabled={pending === a.id} onClick={() => notifyAndChange(a, "confirmed", confirmationText(a, tenant.name))}>
                       {pending === a.id ? "Confirmando…" : "Confirmar pelo WhatsApp"}
                     </Button>
