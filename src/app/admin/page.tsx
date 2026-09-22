@@ -30,6 +30,8 @@ import {
   type Espaco,
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
+import { alertas as calcularAlertas } from "@/lib/alertas";
+import { COMMIT, VERSAO } from "@/lib/versao";
 import { LIMITE_STAFF_MAX } from "@/lib/limites";
 import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
 import { Carteira } from "./carteira";
@@ -148,6 +150,7 @@ export default function AdminPage() {
   const [estagio, setEstagio] = useState("");
   const [prazo, setPrazo] = useState<"" | Prazo>("");
   const [contato, setContato] = useState<"" | "hoje">("");   // "falei hoje"
+  const [alerta, setAlerta] = useState("");                  // id do alerta em foco
   const [fixados, setFixados] = useState(false);
   const [foraDoAr, setForaDoAr] = useState(false);
   const [menuFiltros, setMenuFiltros] = useState(false);
@@ -191,6 +194,12 @@ export default function AdminPage() {
     return () => removeEventListener("keydown", atalho);
   }, []);
 
+  const avisos = useMemo(() => calcularAlertas(espacos, crm, dataDeHoje), [espacos, crm, dataDeHoje]);
+  const emFoco = useMemo(() => {
+    const a = avisos.find((x) => x.id === alerta);
+    return a ? new Set(a.slugs) : null;
+  }, [avisos, alerta]);
+
   // Cada filtro isolado, para a contagem de um chip poder ignorar a própria
   // dimensão: o número ao lado de "Barbearia" diz quantas barbearias sobram
   // com os OUTROS filtros ligados. Somando tudo, um chip prometia 115 e
@@ -207,10 +216,11 @@ export default function AdminPage() {
       fora: (e) => !foraDoAr || crm[e.slug]?.publicado === false,
       contato: (e) => !contato || diaLocal(crm[e.slug]?.ultimoContatoEm ?? null) === dataDeHoje,
       fixados: (e) => !fixados || emDestaque(crm[e.slug], dataDeHoje),
+      alerta: (e) => !emFoco || emFoco.has(e.slug),
     };
     return (e: Espaco, ...exceto: string[]) =>
       Object.entries(testes).every(([nome, teste]) => exceto.includes(nome) || teste(e));
-  }, [busca, cidade, nicho, situacao, estagio, prazo, foraDoAr, contato, fixados, dataDeHoje, crm]);
+  }, [busca, cidade, nicho, situacao, estagio, prazo, foraDoAr, contato, fixados, emFoco, dataDeHoje, crm]);
 
   const cidades = useMemo(() => contar(espacos.filter((e) => passa(e, "cidade")), local), [espacos, passa]);
   const nichos = useMemo(() => contar(espacos.filter((e) => passa(e, "nicho")), (e) => e.nicho), [espacos, passa]);
@@ -492,7 +502,7 @@ export default function AdminPage() {
       </main>
     );
 
-  const chave = [busca, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), contato, String(fixados)].join("|");
+  const chave = [busca, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), contato, String(fixados), alerta].join("|");
   const contarPrazos = (base: Espaco[]) => {
     const n = { atrasada: 0, hoje: 0, futura: 0 };
     for (const e of base) {
@@ -545,6 +555,7 @@ export default function AdminPage() {
     setForaDoAr(v.fora);
     setContato(v.contato ?? "");
     setFixados(v.fixados ?? false);
+    setAlerta("");
   }
   function limparTudo() {
     setBusca("");
@@ -790,6 +801,47 @@ export default function AdminPage() {
 
       <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-5">
         {aviso && <p className="text-sm text-[#6F6A5E]">{aviso}</p>}
+
+        {/* O que passou do ponto e ninguém viu: some da tela quando não há nada */}
+        {!!avisos.length && (
+          <section aria-label="Alertas" className="flex flex-col gap-2 rounded-2xl border border-[#E2DDD3] bg-white p-3.5">
+            <div className="flex flex-wrap gap-2">
+              {avisos.map((a) => {
+                const ativo = alerta === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    aria-pressed={ativo}
+                    onClick={() => {
+                      setAlerta(ativo ? "" : a.id);
+                      if (!ativo) {
+                        const todos = VISOES.find((v) => v.id === "todos")!;
+                        setPrazo(todos.prazo);
+                        setSituacao(todos.situacao);
+                        setEstagio(todos.estagio);
+                        setForaDoAr(todos.fora);
+                        setContato("");
+                        setFixados(false);
+                      }
+                    }}
+                    className={`flex h-11 items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold ${
+                      ativo
+                        ? "border-[#17150F] bg-[#17150F] text-white"
+                        : `border-[#D8D2C6] bg-white hover:border-[#17150F] ${a.urgente ? "text-[#8A2F2F]" : "text-[#17150F]"}`
+                    }`}
+                  >
+                    {a.rotulo}
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] ${ativo ? "bg-white/20" : a.urgente ? "bg-[#FBF0EE]" : "bg-[#F3EFE7] text-[#6F6A5E]"}`}>
+                      {a.slugs.length}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {alerta && <p className="text-xs text-[#6F6A5E]">{avisos.find((a) => a.id === alerta)?.detalhe}</p>}
+          </section>
+        )}
 
         {/* Uma vez só: o nome entra em toda mensagem pronta, sem o vendedor redigitar */}
         <details className="rounded-2xl border border-[#E2DDD3] bg-white px-4 py-3">
@@ -1058,6 +1110,13 @@ export default function AdminPage() {
           )}
         </section>
         )}
+
+        <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E2DDD3] pt-4 text-[11px] text-[#6F6A5E]">
+          <span>© {new Date().getFullYear()} Ruphus. Todos os direitos reservados.</span>
+          <span className="font-[family-name:var(--font-geist-mono)] tabular-nums">
+            {VERSAO} · {COMMIT}
+          </span>
+        </footer>
       </main>
 
       {aberto && (
@@ -1106,7 +1165,7 @@ export default function AdminPage() {
             </div>
 
             {/* A gaveta tem o que o vendedor usa todo dia em "Venda"; o resto fica a um toque */}
-            <div role="tablist" aria-label="Seções do negócio" className="sticky -top-6 z-10 -mx-6 -mt-2 flex gap-1 overflow-x-auto border-b border-[#E2DDD3] bg-white px-6 sm:-top-8 sm:-mx-8 sm:px-8">
+            <div role="tablist" aria-label="Seções do negócio" className="sticky top-0 z-10 -mx-6 -mt-2 flex gap-1 overflow-x-auto border-b border-[#E2DDD3] bg-white px-6 [scrollbar-width:none] sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden">
               {(
                 [
                   // ícones em traço, do mesmo peso dos outros da gaveta

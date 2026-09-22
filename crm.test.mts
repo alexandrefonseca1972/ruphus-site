@@ -121,3 +121,35 @@ console.log("saude: ok");
     "sem data de fechamento, não acusa inatividade",
   );
 }
+
+// Alertas: o que passou do ponto e ninguém viu
+{
+  const { alertas } = await import("@/lib/alertas");
+  const hoje = "2026-09-22";
+  const dias = (n: number) => new Date(Date.parse(`${hoje}T12:00:00`) - n * 86_400_000).toISOString();
+  const base = negocio(doc({}));
+  const crm = {
+    "sem-passo": { ...base, estagio: "negociando" as const, ultimoContatoEm: dias(1) },
+    "parado": { ...base, estagio: "oferta" as const, proximaData: "2026-10-01", ultimoContatoEm: dias(9) },
+    "novo-em-folha": { ...base, estagio: "oferta" as const, proximaData: "2026-09-25", ultimoContatoEm: dias(2) },
+    "nunca-entrou": { ...base, estagio: "fechado" as const, fechadoEm: dias(20) },
+    "fechou-ontem": { ...base, estagio: "fechado" as const, fechadoEm: dias(1) },
+    "no-topo": { ...base, estagio: "novo" as const, fixadoAte: hoje },
+  };
+  const lista = [
+    { slug: "sem-passo", acessos: 1 },
+    { slug: "parado", acessos: 1 },
+    { slug: "novo-em-folha", acessos: 1 },
+    { slug: "nunca-entrou", acessos: 1 },
+    { slug: "fechou-ontem", acessos: 1 },
+    { slug: "no-topo", acessos: 1 },
+    { slug: "cliente-ativo", acessos: 3 },
+  ];
+  const por = Object.fromEntries(alertas(lista, crm, hoje).map((a) => [a.id, a.slugs]));
+  assert.deepEqual(por.sem_proxima, ["sem-passo"], "só negociação sem data combinada");
+  assert.deepEqual(por.parado, ["parado"], "9 dias sem contato entra, 2 dias não");
+  assert.deepEqual(por.implantacao, ["nunca-entrou"], "fechado há 20 dias sem o dono entrar");
+  assert.deepEqual(por.destaque, ["no-topo"], "destaque que vence hoje");
+  assert.equal(alertas([], {}, hoje).length, 0, "sem negócio, sem alerta");
+}
+console.log("alertas: ok");
