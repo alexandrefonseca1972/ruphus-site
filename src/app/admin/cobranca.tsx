@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { diaCurto, hojeISO } from "@/lib/crm-tipos";
 import { formatBRL } from "@/lib/datetime";
 import {
@@ -208,13 +208,19 @@ export function Atrasadas({
   const [ocupado, setOcupado] = useState("");
   const [lote, setLote] = useState<{ mes: string; lista: CobrancaEnviavel[] } | null>(null);
   const [enviadas, setEnviadas] = useState<Set<string>>(new Set());
+  // em ref: o efeito não pode depender da identidade do callback, senão um
+  // callback inline no pai recarregaria a lista a cada render
+  const contar = useRef(aoContar);
+  useEffect(() => {
+    contar.current = aoContar;
+  });
 
   useEffect(() => {
     if (!idToken) return;
     listarAtrasadas(idToken).then((r) => {
       if (!r.ok) return;
       setLista(r.dados);
-      aoContar?.(r.dados.length);
+      contar.current?.(r.dados.length);
     }, () => {});
     lerPixConfig(idToken).then((r) => {
       if (!r.ok) return;
@@ -224,7 +230,7 @@ export function Atrasadas({
         setRascunho(r.dados);
       }
     }, () => {});
-  }, [idToken, aoContar]);
+  }, [idToken]);
 
   const total = lista.reduce((s, c) => s + c.valorCents, 0);
 

@@ -9,7 +9,7 @@ import { auth, db } from "@/lib/firebase";
 import { Tenant } from "@/lib/tenants";
 import { ehAdminDaPlataforma } from "@/app/admin/actions";
 import { serifa, useSerifaNoBody } from "@/app/fonte-serifa";
-import { useAutoLogout } from "@/lib/sessao";
+import { loginComMotivo, useAutoLogout } from "@/lib/sessao";
 import { AccountMenu } from "./account-menu";
 import { ShareLink } from "./share-link";
 import { cn } from "@/lib/utils";
@@ -39,7 +39,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   useEffect(() => {
     let current = true;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) return router.replace("/login");
+      if (!user) return router.replace(loginComMotivo());
       let value: TenantCtx | "denied";
       try {
         // As regras negam a leitura para quem não é membro

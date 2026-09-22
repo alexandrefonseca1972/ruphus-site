@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
 import { auth, idToken } from "@/lib/firebase";
+import { loginComMotivo } from "@/lib/sessao";
 import { mascaraSlug, myTenants, slugify, TenantInput, type Role } from "@/lib/tenants";
 import { cn } from "@/lib/utils";
 import { criarNegocioAction, minhaCota, slugLivre } from "./actions";
@@ -50,7 +51,7 @@ export default function MeusNegocios() {
   useEffect(
     () =>
       onAuthStateChanged(auth, async (u) => {
-        if (!u) return router.replace("/login");
+        if (!u) return router.replace(loginComMotivo());
         // O admin da plataforma é membro de todos os negócios importados: aqui viraria
         // uma lista de centenas de slugs. O lugar dele é o /admin, como no login.
         const admin = await ehAdminDaPlataforma(await u.getIdToken()).catch(() => ({ ok: false as const }));

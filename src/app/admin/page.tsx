@@ -33,7 +33,7 @@ import {
 import { Atrasadas, Cobrancas } from "./cobranca";
 import { alertas as calcularAlertas } from "@/lib/alertas";
 import { cents, emReais } from "@/lib/dinheiro";
-import { useAutoLogout } from "@/lib/sessao";
+import { loginComMotivo, MINUTOS_MAX, useAutoLogout } from "@/lib/sessao";
 import { COMMIT, VERSAO } from "@/lib/versao";
 import { LIMITE_STAFF_MAX } from "@/lib/limites";
 import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
@@ -167,7 +167,7 @@ export default function AdminPage() {
   useEffect(
     () =>
       onAuthStateChanged(auth, async (user) => {
-        if (!user) return router.replace(`/login?next=${encodeURIComponent("/admin")}`);
+        if (!user) return router.replace(loginComMotivo(`/login?next=${encodeURIComponent("/admin")}`));
         setEmail(user.email ?? "");
         const idToken = await user.getIdToken();
         setIdToken(idToken);
@@ -898,10 +898,13 @@ export default function AdminPage() {
             <label className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
               Minutos parado (0 desliga)
               <input
+                // renasce quando a configuração chega do banco: sem isto o campo
+                // ficava em 0 e um "Salvar" sem querer desligava o logout de todos
+                key={minutosInativo}
                 name="minutos"
                 type="number"
                 min={0}
-                max={720}
+                max={MINUTOS_MAX}
                 defaultValue={minutosInativo}
                 className="h-11 w-32 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm tabular-nums text-[#17150F] outline-none focus:border-[#17150F]"
               />

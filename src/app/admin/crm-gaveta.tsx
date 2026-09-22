@@ -671,10 +671,12 @@ export function VendaFechada({
   const [boasVindas, setBoasVindas] = useState(true);
   const [convite, setConvite] = useState(precisaConvite);
   const [busy, setBusy] = useState(false);
-  const invalido = !(cents(mensal) > 0) || !(cents(entrada) >= 0) || Number.isNaN(cents(entrada));
+  // Entrada em branco é venda sem entrada, não erro: só texto inválido barra
+  const entradaCents = entrada.trim() ? cents(entrada) : 0;
+  const invalido = !(cents(mensal) > 0) || Number.isNaN(entradaCents) || entradaCents < 0;
 
   const opcoes = [
-    { id: "cobrar", rotulo: "Gerar a cobrança da entrada", detalhe: "Pix com link", on: cobrarEntrada, set: setCobrarEntrada, mostrar: cents(entrada) > 0 },
+    { id: "cobrar", rotulo: "Gerar a cobrança da entrada", detalhe: "Pix com link", on: cobrarEntrada, set: setCobrarEntrada, mostrar: entradaCents > 0 },
     { id: "boas", rotulo: "Enviar boas-vindas no WhatsApp", detalhe: crm.donoNome ? `para ${crm.donoNome.split(" ")[0]}` : "para o dono", on: boasVindas, set: setBoasVindas, mostrar: true },
     { id: "convite", rotulo: "Incluir o convite do painel", detalhe: "o dono ainda não entrou", on: convite, set: setConvite, mostrar: precisaConvite },
   ];
@@ -733,9 +735,9 @@ export function VendaFechada({
                 setBusy(true);
                 try {
                   await onConfirmar({
-                    entradaCents: cents(entrada) || 0,
+                    entradaCents: entradaCents || 0,
                     mensalCents: cents(mensal),
-                    cobrarEntrada: cobrarEntrada && cents(entrada) > 0,
+                    cobrarEntrada: cobrarEntrada && entradaCents > 0,
                     boasVindas,
                     convite: convite && precisaConvite,
                   });
