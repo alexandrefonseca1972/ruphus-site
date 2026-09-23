@@ -109,7 +109,15 @@ const TETO = 300;
 
 const limpar = (slugs: string[]) => [...new Set(slugs)].filter((s) => SLUG.test(s)).slice(0, TETO);
 
-export type ConviteEmLote = { slug: string; nome: string; telefone: string | null; url: string; whatsapp: string | null };
+export type ConviteEmLote = {
+  slug: string;
+  nome: string;
+  telefone: string | null;
+  url: string;
+  whatsapp: string | null;
+  /** a conta a que este link está preso; null = vale para a primeira que chegar */
+  email: string | null;
+};
 
 // Um só lugar monta o convite. O botão da linha e o lote são a mesma coisa com
 // cardinalidade diferente: antes cada um construía a URL e o fallback de SITE_URL
@@ -118,15 +126,23 @@ async function convitesPara(slugs: string[]): Promise<ConviteEmLote[]> {
   const alvos = limpar(slugs);
   if (!alvos.length) return [];
   const base = process.env.SITE_URL ?? "https://www.ruphus.site";
-  const docs = await adminDb.getAll(...alvos.map((s) => adminDb.collection("tenants").doc(s)));
+  // O e-mail do dono mora no CRM, não no tenant: é ele que prende o convite a
+  // uma conta. Sem ele o link continua valendo para quem chegar primeiro.
+  const [docs, crms] = await Promise.all([
+    adminDb.getAll(...alvos.map((s) => adminDb.collection("tenants").doc(s))),
+    adminDb.getAll(...alvos.map((s) => adminDb.collection("crm").doc(s))),
+  ]);
+  const donoEmail = new Map(crms.map((d) => [d.id, ((d.get("donoEmail") as string | null) || null)]));
   const fora: ConviteEmLote[] = [];
   for (const d of docs) {
     if (!d.exists) continue;
-    const url = `${base}/convite?c=${await criarConvite(adminDb, d.id)}`;
+    const email = donoEmail.get(d.id) ?? null;
+    const url = `${base}/convite?c=${await criarConvite(adminDb, d.id, email)}`;
     const nome = String(d.get("name") ?? d.id);
     const telefone = (d.get("site.phone") as string | null) ?? null;
-    const texto = `Olá! Aqui é da Ruphus. O site do ${nome} já está no ar em https://${d.id}.ruphus.site — e a agenda online também.\n\nEste link dá acesso ao painel para você cadastrar serviços, equipe e horários: ${url}\n\nO link vale ${DIAS_CONVITE} dias.`;
-    fora.push({ slug: d.id, nome, telefone, url, whatsapp: linkWhatsApp(telefone, texto) });
+    const preso = email ? `\n\nO acesso abre com o e-mail ${email} — é só entrar ou criar a conta com ele.` : "";
+    const texto = `Olá! Aqui é da Ruphus. O site do ${nome} já está no ar em https://${d.id}.ruphus.site — e a agenda online também.\n\nEste link dá acesso ao painel para você cadastrar serviços, equipe e horários: ${url}${preso}\n\nO link vale ${DIAS_CONVITE} dias.`;
+    fora.push({ slug: d.id, nome, telefone, url, whatsapp: linkWhatsApp(telefone, texto), email });
   }
   return fora;
 }
@@ -141,11 +157,12 @@ export const marcarEstagio = adminAction(async (user, slugs: string[], estagio: 
   return alvos.length;
 });
 
-/** Link de convite: quem abrir e entrar vira admin do espaço. */
+/** Link de convite: quem abrir e entrar vira admin do espaço. Com e-mail do dono
+ *  cadastrado, só aquela conta abre — e a tela precisa dizer isso a quem envia. */
 export const gerarConvite = adminAction(async (_user, slug: string) => {
   const [convite] = await convitesPara([slug]);
   if (!convite) throw new Error(`espaço ${slug} não existe`);
-  return convite.url;
+  return { url: convite.url, email: convite.email };
 });
 
 export type Acesso = { uid: string; papel: string; desde: string | null; nome: string | null; email: string | null; limite: number | null; usados: number };

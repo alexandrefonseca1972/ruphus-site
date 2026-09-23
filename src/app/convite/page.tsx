@@ -19,7 +19,9 @@ function Convite() {
     return onAuthStateChanged(auth, async (user) => {
       // Sem conta ainda: entra ou cria, e volta para cá para concluir
       if (!user) return router.replace(`/login?next=${encodeURIComponent(`/convite?c=${token}`)}`);
-      const r = await aceitarConvite(await user.getIdToken(), token);
+      // token renovado à força: quem acabou de confirmar o e-mail ainda carrega
+      // um token dizendo que não confirmou, e o convite preso recusaria de novo
+      const r = await aceitarConvite(await user.getIdToken(true), token);
       if (!r.ok) return setErro(r.error);
       router.replace(`/${r.tenantId}`);
     });

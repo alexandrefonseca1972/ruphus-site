@@ -3,6 +3,20 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.4.1 — 23/09/2026
+
+### Convite preso a quem foi convidado
+- **O link do convite passa a valer só para o e-mail do dono** (#52): antes o
+  uso único garantia que o link abrisse uma vez, mas não *para quem* — repassado
+  antes do dono usar, virava acesso de admin do negócio para um estranho. Agora,
+  quando o e-mail está cadastrado na aba Venda, ele viaja assinado dentro do
+  token e só aquela conta entra, com o endereço confirmado.
+- A gaveta diz em que estado cada link saiu — preso a uma conta, ou aberto para
+  a primeira que usar —, a mensagem de WhatsApp avisa com qual e-mail entrar, e
+  a planilha do lote ganhou a coluna `abre_com_o_email` (#52).
+- Negócio sem e-mail do dono continua gerando link aberto: é o que o canal
+  permite garantir. Preencher o e-mail antes de convidar fecha caso a caso (#52).
+
 ## 0.4.0 — 23/09/2026
 
 A proposta agora também vai como anexo, e o painel abre bem mais rápido.

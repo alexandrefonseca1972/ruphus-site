@@ -2,7 +2,7 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
-import { consumirConvite, lerConvite } from "@/lib/convite";
+import { consumirConvite, conviteAbrePara, lerConvite } from "@/lib/convite";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 
 /** Aceita o convite: quem está logado vira admin do espaço do link. */
@@ -15,6 +15,10 @@ export async function aceitarConvite(idToken: string, token: string) {
 
   const tenant = await adminDb.collection("tenants").doc(convite.tenantId).get();
   if (!tenant.exists) return { ok: false as const, error: "Esse negócio não existe mais." };
+
+  // Convite preso a um e-mail só abre para aquela conta, com o endereço confirmado
+  const permissao = conviteAbrePara(convite, user);
+  if (!permissao.ok) return { ok: false as const, error: permissao.error };
 
   const membro = adminDb.doc(`tenants/${convite.tenantId}/members/${user.uid}`);
   // Convite não rebaixa quem já é dono: só cria o acesso de quem ainda não tem
