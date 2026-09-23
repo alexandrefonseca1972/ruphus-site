@@ -258,6 +258,15 @@ baixa.
 A baixa é manual, só admin da plataforma, e valida valor inteiro positivo, data
 e situação (cobrança cancelada não recebe baixa).
 
+### Proposta
+
+`src/lib/proposta.server.ts` guarda um token por negócio em `crm/{slug}` e a
+página `/proposta/{slug}?t=…` é pública, sem login — o token é a credencial,
+comparado com `timingSafeEqual`, e token errado responde igual a negócio
+inexistente. Os valores vêm do CRM, então a proposta é sempre a que foi
+combinada. Vale 7 dias; gerar de novo reaproveita o link, "refazer" invalida o
+anterior.
+
 ---
 
 ## 9. CRM: funil, saúde e alertas

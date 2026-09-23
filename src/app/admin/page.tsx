@@ -25,6 +25,7 @@ import {
   definirMinutosInativo,
   definirLimiteStaff,
   lerAssinatura,
+  linkDaProposta,
   liberarNegocios,
   saudeDoNegocio,
   cobrar,
@@ -100,6 +101,7 @@ const CARTAO = "rounded-2xl border border-[#E2DDD3] bg-white";
 const BOTAO = "inline-flex h-11 items-center justify-center rounded-[10px] px-4 text-sm font-semibold transition-colors";
 const BOTAO_ESCURO = `${BOTAO} bg-[#17150F] text-white hover:bg-[#2C2920]`;
 const BOTAO_VERDE = `${BOTAO} bg-[#2C6A53] text-white hover:bg-[#245743]`;
+const MENOR = "inline-flex h-9 items-center rounded-[8px] border border-[#D8D2C6] bg-white px-2.5 text-xs text-[#17150F] hover:border-[#17150F]";
 const BOTAO_CLARO = `${BOTAO} border border-[#D8D2C6] bg-white text-[#17150F] hover:border-[#17150F]`;
 
 const CORES_NICHO: Record<string, string> = {
@@ -164,6 +166,8 @@ export default function AdminPage() {
   const [menuNegocio, setMenuNegocio] = useState(false);     // "…" da gaveta: atalhos e tirar do ar
   // a mensagem escolhida no bloco, para a barra fixa do rodapé da gaveta
   const [pronto, setPronto] = useState<{ modelo: string; texto: string; link: string | null; para: string } | null>(null);
+  // o link da proposta do negócio aberto: o mesmo vai por WhatsApp e por e-mail
+  const [proposta, setProposta] = useState<{ slug: string; url: string; valeAte: string } | null>(null);
   const [fixados, setFixados] = useState(false);
   const [foraDoAr, setForaDoAr] = useState(false);
   const [menuFiltros, setMenuFiltros] = useState(false);
@@ -265,6 +269,7 @@ export default function AdminPage() {
     abertoRef.current = e.slug;
     setAberto(e);
     setMenuNegocio(false);
+    setProposta(null);
     setAcessos(null);
     setDetalhe(null);
     setAviso("");
@@ -313,6 +318,13 @@ export default function AdminPage() {
     const r = await liberarNegocios(await token(), uid, negocios);
     setAviso(r.ok ? `agora pode ter ${r.dados} negócio(s)` : r.error);
     if (r.ok) setAcessos((a) => a?.map((x) => (x.uid === uid ? { ...x, limite: r.dados } : x)) ?? null);
+  }
+
+  async function gerarLinkProposta(slug: string, refazer = false) {
+    const r = await linkDaProposta(await token(), slug, refazer);
+    if (!r.ok) return setAviso(r.error);
+    setProposta({ slug, url: r.dados.url, valeAte: r.dados.valeAte });
+    setAviso(r.dados.nova ? `Proposta válida até ${diaCurto(r.dados.valeAte)}.` : "");
   }
 
   async function mudarLimiteStaff(slug: string, profissionais: number) {
@@ -1480,6 +1492,76 @@ export default function AdminPage() {
                 Proposta · {formatBRL(crm[aberto.slug]?.entradaCents ?? PRECO_PADRAO.entradaCents)} de entrada + {formatBRL(crm[aberto.slug]?.mensalCents ?? PRECO_PADRAO.mensalCents)}/mês
               </summary>
               <div className="mt-3 flex flex-col gap-3">
+                {/* O link é a proposta: o dono abre no celular, lê e fecha pelo
+                    botão. Vale 7 dias, e o mesmo link serve para os dois canais. */}
+                <div className="flex flex-col gap-2 rounded-xl border border-[#E2DDD3] bg-[#FBFAF8] p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-[#4A4639]">Proposta para mandar</span>
+                    <div className="grow" />
+                    {proposta?.slug === aberto.slug && (
+                      <span className="text-[11px] text-[#6F6A5E]">vale até {diaCurto(proposta.valeAte)}</span>
+                    )}
+                  </div>
+
+                  {proposta?.slug === aberto.slug ? (
+                    <>
+                      <p className="truncate rounded-[10px] border border-[#E2DDD3] bg-white px-3 py-2 font-[family-name:var(--font-geist-mono)] text-[11.5px] text-[#4A4639]">
+                        {proposta.url}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" className={MENOR} onClick={() => copiar(proposta.url, "proposta")}>
+                          {copiado === "proposta" ? "Copiado ✓" : "Copiar link"}
+                        </button>
+                        {(() => {
+                          const c = crm[aberto.slug];
+                          const numero = c?.donoWhatsapp ?? aberto.telefone;
+                          const texto =
+                            `Oi${c?.donoNome ? `, ${c.donoNome.split(" ")[0]}` : ""}! Aqui é o ${assinatura || "pessoal"}, da Ruphus.\n\n` +
+                            `Montei a proposta do ${aberto.nome} numa página só, dá para ler no celular em um minuto: ${proposta.url}\n\n` +
+                            `Qualquer dúvida me chama por aqui.`;
+                          const zap = numero ? linkWhatsApp(numero, texto) : null;
+                          return zap ? (
+                            <a className={MENOR} href={zap} target="_blank" rel="noreferrer" onClick={() => enviouMensagem(aberto.slug, "Proposta", c?.donoNome ?? "o dono")}>
+                              Enviar no WhatsApp
+                            </a>
+                          ) : (
+                            <span className={`${MENOR} border-dashed text-[#8B8578]`}>Sem WhatsApp do dono</span>
+                          );
+                        })()}
+                        {(() => {
+                          const c = crm[aberto.slug];
+                          const assunto = `Proposta da Ruphus para ${aberto.nome}`;
+                          const corpo =
+                            `Oi${c?.donoNome ? `, ${c.donoNome.split(" ")[0]}` : ""}!\n\n` +
+                            `Montei a proposta do ${aberto.nome} numa página só, com o que está incluído e os valores:\n${proposta.url}\n\n` +
+                            `Ela vale até ${diaCurto(proposta.valeAte)}. Qualquer dúvida, é só responder este e-mail.\n\n` +
+                            `${assinatura || ""}\nRuphus`;
+                          return (
+                            <a
+                              className={MENOR}
+                              href={`mailto:${c?.donoEmail ?? ""}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`}
+                              onClick={() => enviouMensagem(aberto.slug, "Proposta por e-mail", c?.donoEmail ?? "o dono")}
+                            >
+                              {crm[aberto.slug]?.donoEmail ? "Enviar por e-mail" : "Abrir e-mail"}
+                            </a>
+                          );
+                        })()}
+                        <a className={MENOR} href={proposta.url} target="_blank" rel="noreferrer">Ver como o dono vê</a>
+                        <button type="button" className={MENOR} onClick={() => gerarLinkProposta(aberto.slug, true)}>
+                          Refazer
+                        </button>
+                      </div>
+                      <span className="text-[11px] leading-relaxed text-[#6F6A5E]">
+                        Refazer invalida o link anterior. Os valores vêm daqui de cima: mude antes de mandar.
+                      </span>
+                    </>
+                  ) : (
+                    <button type="button" className={`${BOTAO_ESCURO} self-start`} onClick={() => gerarLinkProposta(aberto.slug)}>
+                      Gerar link da proposta
+                    </button>
+                  )}
+                </div>
+
               {/* Nasce no preco padrao: com 675 negocios, digitar o mesmo
                   numero 675 vezes e o que faz alguem parar de preencher. */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
