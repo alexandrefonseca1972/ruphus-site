@@ -3,6 +3,30 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.4.0 — 23/09/2026
+
+A proposta agora também vai como anexo, e o painel abre bem mais rápido.
+
+### Proposta em PDF
+- **"Baixar PDF" na gaveta do negócio** (#51): quem prefere anexo a link salva a
+  proposta pelo próprio navegador e manda por e-mail ou WhatsApp. É a mesma
+  página do link impressa — não existe uma segunda arte para sair do lugar —,
+  com os blocos inteiros, sem os botões da tela e com o WhatsApp da Ruphus no
+  rodapé, porque o PDF circula sozinho e precisa dizer para onde responder.
+
+### Abertura do /admin
+- **Uma viagem ao servidor em vez de quatro** (#51): o painel pedia lista,
+  resumo do dia, CRM e assinatura em paralelo, mas o Next despacha uma ação por
+  vez — eram quatro esperas em fila, cada uma conferindo o login de novo. Agora
+  é uma chamada só, com o paralelo do lado do servidor.
+- **A lista pede só os campos que mostra** (#51): eram 271 KB de documentos
+  completos a cada abertura, com endereço, foto e cor que a tela não usa; caiu
+  para 97 KB. A contagem de acessos deixou de trazer o conteúdo dos membros
+  (1188 ms → 659 ms).
+- **Um canal a menos abrindo junto** (#51): o tempo de logout automático chega
+  com o resto do painel, em vez de abrir uma conexão do Firestore só para ler um
+  campo enquanto a tela ainda carrega.
+
 ## 0.3.0 — 23/09/2026
 
 O CRM virou ferramenta de trabalho diário, o painel passou a caber no celular e

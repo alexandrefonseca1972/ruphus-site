@@ -63,11 +63,15 @@ const nicho = (tipo: unknown) => NICHOS[String(tipo ?? "").toLowerCase()] ?? "Ou
  */
 export const ehAdminDaPlataforma = adminAction(async () => true);
 
+// Só o que a lista mostra. O documento inteiro do tenant traz endereço, foto,
+// cor e url: 271 KB para 677 negócios, quando o painel usa dez campos curtos.
+const CAMPOS_DA_LISTA = ["name", "site.phone", "site.category", "site.city", "site.uf", "site.rating", "site.reviews", "limiteStaff"] as const;
+
 /** Lista os espaços com quantas pessoas têm acesso a cada um. */
-export const listarEspacos = adminAction(async () => {
+async function espacosComAcessos() {
   const [tenants, membros] = await Promise.all([
-    adminDb.collection("tenants").get(),
-    adminDb.collectionGroup("members").get(),
+    adminDb.collection("tenants").select(...CAMPOS_DA_LISTA).get(),
+    adminDb.collectionGroup("members").select().get(),   // só os caminhos: a contagem é por documento
   ]);
   const porEspaco = new Map<string, number>();
   for (const m of membros.docs) {
@@ -88,7 +92,7 @@ export const listarEspacos = adminAction(async () => {
       limiteStaff: limiteStaffDe(d.get("limiteStaff") as number | undefined),
     }))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-});
+}
 
 // O slug vem da tela e vira caminho de documento: sem conferir, um "a/b/c"
 // escreveria fora do lugar previsto.
@@ -199,7 +203,7 @@ export const revogarAcesso = adminAction(async (_user, slug: string, uid: string
 export type Resumo = { agendamentosHoje: number; espacosComAgenda: number };
 
 /** Agendamentos de hoje em toda a plataforma, para o topo do painel. */
-export const resumoDoDia = adminAction(async (): Promise<Resumo> => {
+async function resumoDoDia(): Promise<Resumo> {
   const inicio = new Date();
   inicio.setHours(0, 0, 0, 0);
   const fim = new Date(inicio);
@@ -211,6 +215,40 @@ export const resumoDoDia = adminAction(async (): Promise<Resumo> => {
     .get();
   const espacos = new Set(snap.docs.map((d) => d.ref.parent.parent?.id).filter(Boolean));
   return { agendamentosHoje: snap.size, espacosComAgenda: espacos.size };
+}
+
+export type Painel = {
+  espacos: Espaco[];
+  hoje: Resumo;
+  crm: Awaited<ReturnType<typeof lerCrm>>;
+  /** quem assina as mensagens do CRM */
+  assinatura: string;
+  /** minutos parado até o logout automático; 0 desliga */
+  minutosInativo: number;
+};
+
+/** Tudo o que o painel precisa para abrir, numa viagem só.
+ *
+ * O cliente despacha Server Actions uma de cada vez — é o Next que enfileira —,
+ * então quatro chamadas dentro de um Promise.all viravam quatro idas ao
+ * servidor em fila, cada uma pagando o requireAdmin (JWT + config/admin) de
+ * novo antes de consultar qualquer coisa. Aqui o paralelo é de verdade: ele
+ * acontece deste lado, depois de uma conferência só. */
+export const abrirPainel = adminAction(async (): Promise<Painel> => {
+  const [espacos, hoje, crm, assina, sessao] = await Promise.all([
+    espacosComAcessos(),
+    resumoDoDia(),
+    lerCrm(adminDb),
+    adminDb.doc("config/crm").get(),
+    adminDb.doc("config/sessao").get(),
+  ]);
+  return {
+    espacos,
+    hoje,
+    crm,
+    assinatura: String(assina.get("assinatura") ?? ""),
+    minutosInativo: Number(sessao.get("minutos")) || 0,
+  };
 });
 
 export type Detalhe = {
@@ -241,9 +279,6 @@ export const detalhesEspaco = adminAction(async (_user, slug: string): Promise<D
 });
 
 // ————— CRM: oferta, venda e publicação —————
-
-/** Estágio, valor e próxima ação de cada espaço, em um mapa por slug. */
-export const listarCrm = adminAction(async () => lerCrm(adminDb));
 
 /** Implantação, uso e cobrança de um cliente. */
 export const saudeDoNegocio = adminAction(async (_user, slug: string, hoje: string) => {
@@ -343,9 +378,6 @@ export const linkDaProposta = adminAction(async (_user, slug: string, refazer?: 
   const base = process.env.SITE_URL ?? "https://www.ruphus.site";
   return { url: `${base}/proposta/${slug}?t=${token}`, valeAte, nova };
 });
-
-/** Quem assina as mensagens do CRM. Definido uma vez pelo admin da plataforma. */
-export const lerAssinatura = adminAction(async () => String((await adminDb.doc("config/crm").get()).get("assinatura") ?? ""));
 
 export const definirAssinatura = adminAction(async (_user, nome: unknown) => {
   const limpo = String(nome ?? "").trim().slice(0, 40);

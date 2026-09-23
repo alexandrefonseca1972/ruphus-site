@@ -3,8 +3,9 @@ import { Instrument_Serif } from "next/font/google";
 import { notFound } from "next/navigation";
 import { adminDb } from "@/lib/admin";
 import { diaCurto } from "@/lib/crm-tipos";
-import { formatBRL, linkWhatsApp } from "@/lib/datetime";
+import { formatBRL, formatPhone, linkWhatsApp } from "@/lib/datetime";
 import { abrirProposta } from "@/lib/proposta.server";
+import { Imprimir } from "./imprimir";
 
 // A proposta que o dono abre pelo link recebido no WhatsApp ou no e-mail. Sem
 // login: o token do link é a credencial, como na cobrança e no convite. Link
@@ -33,9 +34,9 @@ export default async function Proposta({
   searchParams,
 }: {
   params: Promise<{ tenant: string }>;
-  searchParams: Promise<{ t?: string }>;
+  searchParams: Promise<{ t?: string; pdf?: string }>;
 }) {
-  const [{ tenant }, { t }] = await Promise.all([params, searchParams]);
+  const [{ tenant }, { t, pdf }] = await Promise.all([params, searchParams]);
   const p = await abrirProposta(adminDb, tenant, t ?? "");
   if (!p) notFound();
 
@@ -45,8 +46,11 @@ export default async function Proposta({
   );
 
   return (
-    <div className={`${serifa.variable} min-h-dvh bg-[#F4F2EE] text-[#17150F]`}>
-      <main className="mx-auto flex max-w-[680px] flex-col gap-5 px-5 pt-8 pb-[calc(5rem+env(safe-area-inset-bottom))]">
+    <div className={`${serifa.variable} min-h-dvh bg-[#F4F2EE] text-[#17150F] print:bg-white`}>
+      {/* A impressão é o PDF do anexo: margem de carta, sem cabeçalho do
+          navegador dentro do conteúdo e sem bloco partido no meio. */}
+      <style>{"@page { margin: 14mm; } @media print { html, body { background: #fff; } }"}</style>
+      <main className="mx-auto flex max-w-[680px] flex-col gap-5 px-5 pt-8 pb-[calc(5rem+env(safe-area-inset-bottom))] print:max-w-none print:gap-4 print:px-0 print:pt-0 print:pb-0">
 
         <header className="flex flex-col gap-2">
           <span className="font-[family-name:var(--font-geist-mono)] text-[10px] tracking-[0.14em] text-[#6B6555] uppercase">
@@ -59,9 +63,10 @@ export default async function Proposta({
             {p.donoNome ? `${p.donoNome.split(" ")[0]}, ` : ""}o que está aqui é o que a gente combinou: o seu negócio
             recebendo marcação sozinho, todo dia, sem depender de alguém responder mensagem.
           </p>
+          <Imprimir auto={pdf === "1"} />
         </header>
 
-        <section aria-labelledby="inclui" className="flex flex-col gap-4 rounded-2xl border border-[#E2DDD3] bg-white p-5 sm:p-6">
+        <section aria-labelledby="inclui" className="flex flex-col gap-4 rounded-2xl border border-[#E2DDD3] bg-white p-5 sm:p-6 break-inside-avoid">
           <h2 id="inclui" className="font-[family-name:var(--fonte-serifa)] text-[24px] leading-none">O que está incluído</h2>
           <ul className="flex flex-col gap-3.5">
             {INCLUI.map(([titulo, detalhe]) => (
@@ -78,7 +83,7 @@ export default async function Proposta({
           </ul>
         </section>
 
-        <section aria-labelledby="preco" className="flex flex-col gap-4 rounded-2xl border border-[#17150F] bg-white p-5 sm:p-6">
+        <section aria-labelledby="preco" className="flex flex-col gap-4 rounded-2xl border border-[#17150F] bg-white p-5 sm:p-6 break-inside-avoid">
           <h2 id="preco" className="font-[family-name:var(--fonte-serifa)] text-[24px] leading-none">Quanto custa</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1 rounded-xl bg-[#F7F5EF] p-4">
@@ -97,7 +102,7 @@ export default async function Proposta({
           </p>
         </section>
 
-        <section aria-labelledby="comeca" className="flex flex-col gap-4 rounded-2xl border border-[#E2DDD3] bg-white p-5 sm:p-6">
+        <section aria-labelledby="comeca" className="flex flex-col gap-4 rounded-2xl border border-[#E2DDD3] bg-white p-5 sm:p-6 break-inside-avoid">
           <h2 id="comeca" className="font-[family-name:var(--fonte-serifa)] text-[24px] leading-none">Como começa</h2>
           <ol className="flex flex-col gap-3">
             {COMECA.map((passo, i) => (
@@ -118,6 +123,14 @@ export default async function Proposta({
             : `Proposta válida até ${diaCurto(p.valeAte)}.`}
         </p>
 
+        {/* No papel o botão "Quero começar" não existe: o PDF circula sozinho no
+            e-mail e precisa dizer para onde responder. */}
+        {p.whatsapp && (
+          <p className="hidden text-[13.5px] text-[#2E2B22] print:block">
+            Para fechar, é só chamar no WhatsApp {formatPhone(p.whatsapp)}.
+          </p>
+        )}
+
         <p className="text-[12px] leading-relaxed text-[#8B8578]">
           Ruphus · Fonseca Gestão e Tecnologia Ltda · CNPJ 59.500.429/0001-90 · Manaus/AM
           {p.cidade ? ` · proposta para ${p.nome}, ${p.cidade}` : ""}
@@ -125,7 +138,7 @@ export default async function Proposta({
       </main>
 
       {fechar && (
-        <div className="sticky bottom-0 border-t border-[#E2DDD3] bg-white/95 px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
+        <div className="sticky bottom-0 border-t border-[#E2DDD3] bg-white/95 px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur print:hidden">
           <div className="mx-auto flex max-w-[680px] items-center gap-3">
             <a
               href={fechar}

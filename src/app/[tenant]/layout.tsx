@@ -9,7 +9,7 @@ import { auth, db } from "@/lib/firebase";
 import { Tenant } from "@/lib/tenants";
 import { ehAdminDaPlataforma } from "@/app/admin/actions";
 import { serifa, useSerifaNoBody } from "@/app/fonte-serifa";
-import { loginComMotivo, useAutoLogout } from "@/lib/sessao";
+import { loginComMotivo, useAutoLogout, useMinutosInativo } from "@/lib/sessao";
 import { AccountMenu } from "./account-menu";
 import { ShareLink } from "./share-link";
 import { cn } from "@/lib/utils";
@@ -34,7 +34,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   const state = loaded?.slug === slug ? loaded.value : "loading";
 
   useSerifaNoBody();
-  useAutoLogout();   // sai sozinho depois de X minutos parado, se o admin ligou
+  useAutoLogout(useMinutosInativo());   // sai sozinho depois de X minutos parado, se o admin ligou
 
   useEffect(() => {
     let current = true;
