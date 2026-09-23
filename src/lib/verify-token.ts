@@ -23,7 +23,7 @@ export async function verifyFirebaseToken(token: string, projectId = process.env
     // e-mail só conta quando o Firebase o verificou: qualquer pessoa cria conta
     // com o e-mail alheio, e ele vira o autor nas trilhas de auditoria
     email: typeof payload.email === "string" && payload.email_verified === true ? payload.email : undefined,
-    // só vem de quem entra com Google; e-mail e senha não têm nome
+    // do Google, ou do nome pedido no cadastro por e-mail (updateProfile)
     name: typeof payload.name === "string" && payload.name.trim() ? payload.name.trim() : undefined,
   };
 }
