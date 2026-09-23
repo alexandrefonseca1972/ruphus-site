@@ -1,6 +1,6 @@
 {
   "name": "siteflow",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -23,7 +23,8 @@
     "test:clientes": "tsx --conditions=react-server clientes.test.mts",
     "test:crm": "tsx --conditions=react-server crm.test.mts",
     "test:pix": "tsx pix.test.mts",
-    "test:whatsapp": "tsx whatsapp.test.mts"
+    "test:whatsapp": "tsx whatsapp.test.mts",
+    "test:admin": "tsx admin.test.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

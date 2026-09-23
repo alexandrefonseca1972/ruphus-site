@@ -5,12 +5,13 @@ import { ErroPrevisto } from "@/lib/erro-previsto";
 import { PRECO_PADRAO } from "@/lib/crm-tipos";
 import { pixCadastrado } from "@/lib/cobranca";
 
-/** A proposta é uma página com link, não um PDF nem um bloco de texto.
+/** A proposta é uma página com link, e o PDF é essa mesma página impressa.
  *
- * O vendedor manda o mesmo link pelo WhatsApp e pelo e-mail; o dono abre no
- * celular, lê, e fecha pelo botão — sem anexo para baixar e sem PDF que
- * ninguém lê no ônibus. O preço vem do CRM, então a proposta é sempre a que
- * foi combinada com aquele negócio. */
+ * O vendedor manda o link pelo WhatsApp e pelo e-mail; o dono abre no celular,
+ * lê, e fecha pelo botão. Quem prefere anexo abre a proposta com `?pdf=1` e
+ * salva o arquivo pelo próprio navegador — um documento só, sem segunda arte
+ * para manter em sincronia. O preço vem do CRM, então a proposta é sempre a
+ * que foi combinada com aquele negócio. */
 
 export class PropostaErro extends ErroPrevisto {}
 

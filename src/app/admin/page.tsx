@@ -7,24 +7,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { auth } from "@/lib/firebase";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import {
+  abrirPainel,
   anotarNegocio,
   detalhesEspaco,
   gerarConvite,
   listarAcessos,
-  listarCrm,
   gerarConvites,
-  listarEspacos,
   linhaDoTempoDo,
   registrarEnvio,
   marcarEstagio,
-  resumoDoDia,
   salvarNegocio,
   revogarAcesso,
   definirAssinatura,
   encerrarSessoes,
   definirMinutosInativo,
   definirLimiteStaff,
-  lerAssinatura,
   linkDaProposta,
   liberarNegocios,
   saudeDoNegocio,
@@ -127,7 +124,9 @@ function Chip({ ativo, children, ...props }: React.ComponentProps<"button"> & { 
 export default function AdminPage() {
   const router = useRouter();
   const campoBusca = useRef<HTMLInputElement>(null);
-  const minutosInativo = useAutoLogout();   // e o próprio admin também sai sozinho
+  // vem junto do painel, na mesma viagem; o próprio admin também sai sozinho
+  const [minutosInativo, setMinutosInativo] = useState(0);
+  useAutoLogout(minutosInativo);
   const [estado, setEstado] = useState<"carregando" | "negado" | "pronto">("carregando");
   const [email, setEmail] = useState("");
   const [espacos, setEspacos] = useState<Espaco[]>([]);
@@ -183,17 +182,15 @@ export default function AdminPage() {
         setEmail(user.email ?? "");
         const idToken = await user.getIdToken();
         setIdToken(idToken);
-        const [lista, dia, negocios, quemAssina] = await Promise.all([
-          listarEspacos(idToken),
-          resumoDoDia(idToken),
-          listarCrm(idToken),
-          lerAssinatura(idToken),
-        ]);
-        if (quemAssina.ok) setAssinatura(quemAssina.dados);
-        if (!lista.ok) return setEstado("negado");
-        setEspacos(lista.dados);
-        if (dia.ok) setHoje(dia.dados);
-        if (negocios.ok) setCrm(negocios.dados);
+        // Uma viagem só: o Next despacha Server Action por vez, então pedir as
+        // partes em paralelo daqui era pedir em fila. O paralelo mora no servidor.
+        const r = await abrirPainel(idToken);
+        if (!r.ok) return setEstado("negado");
+        setEspacos(r.dados.espacos);
+        setHoje(r.dados.hoje);
+        setCrm(r.dados.crm);
+        setAssinatura(r.dados.assinatura);
+        setMinutosInativo(r.dados.minutosInativo);
         setEstado("pronto");
       }),
     [router],
@@ -710,6 +707,8 @@ export default function AdminPage() {
                     ev.preventDefault();
                     const r = await definirMinutosInativo(await token(), new FormData(ev.currentTarget).get("minutos"));
                     setAviso(r.ok ? (r.dados ? `Sai sozinho depois de ${r.dados} minutos parado.` : "Logout automático desligado.") : r.error);
+                    // o valor não chega mais por listener: quem salvou passa a contar pelo novo
+                    if (r.ok) setMinutosInativo(r.dados);
                   }}
                 >
                   <span className="text-xs font-semibold text-[#4A4639]">Sair sozinho depois de parado</span>
@@ -1547,6 +1546,10 @@ export default function AdminPage() {
                           );
                         })()}
                         <a className={MENOR} href={proposta.url} target="_blank" rel="noreferrer">Ver como o dono vê</a>
+                        {/* O PDF é a mesma proposta impressa: abre a caixa de
+                            impressão para salvar o arquivo e anexar no e-mail
+                            ou no WhatsApp de quem prefere anexo a link. */}
+                        <a className={MENOR} href={`${proposta.url}&pdf=1`} target="_blank" rel="noreferrer">Baixar PDF</a>
                         <button type="button" className={MENOR} onClick={() => gerarLinkProposta(aberto.slug, true)}>
                           Refazer
                         </button>

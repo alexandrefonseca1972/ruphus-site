@@ -33,6 +33,7 @@ jobs:
       - run: npm run test:crm
       - run: npm run test:whatsapp
       - run: npm run test:pix
+      - run: npm run test:admin
 
       # Com emulador do Firestore (e do Auth, no booking)
       - run: npm run test:rules
