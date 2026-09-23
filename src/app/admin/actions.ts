@@ -4,7 +4,7 @@ import { z } from "zod";
 import { adminDb } from "@/lib/admin";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite } from "@/lib/negocios.server";
-import { LIMITE_STAFF_MAX, limiteStaffDe, MINUTOS_MAX } from "@/lib/limites";
+import { DIAS_CONVITE, LIMITE_STAFF_MAX, limiteStaffDe, MINUTOS_MAX } from "@/lib/limites";
 import { saudeDe } from "@/lib/saude.server";
 import { criarConvite } from "@/lib/convite";
 import {
@@ -120,7 +120,7 @@ async function convitesPara(slugs: string[]): Promise<ConviteEmLote[]> {
     const url = `${base}/convite?c=${await criarConvite(adminDb, d.id)}`;
     const nome = String(d.get("name") ?? d.id);
     const telefone = (d.get("site.phone") as string | null) ?? null;
-    const texto = `Olá! Aqui é da Ruphus. O site do ${nome} já está no ar em https://${d.id}.ruphus.site — e a agenda online também.\n\nEste link dá acesso ao painel para você cadastrar serviços, equipe e horários: ${url}\n\nO link vale 30 dias.`;
+    const texto = `Olá! Aqui é da Ruphus. O site do ${nome} já está no ar em https://${d.id}.ruphus.site — e a agenda online também.\n\nEste link dá acesso ao painel para você cadastrar serviços, equipe e horários: ${url}\n\nO link vale ${DIAS_CONVITE} dias.`;
     fora.push({ slug: d.id, nome, telefone, url, whatsapp: linkWhatsApp(telefone, texto) });
   }
   return fora;

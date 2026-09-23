@@ -41,7 +41,7 @@ import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, Mensa
 import { Carteira } from "./carteira";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
-import { COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, prazoDe, PRECO_PADRAO, ROTULO, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
+import { COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
 
 const PAGINA = 40;
 const VAZIO: Crm = {
@@ -50,6 +50,7 @@ const VAZIO: Crm = {
   origem: null, indicadoPor: null, entrouEm: null, perdidoEm: null, ultimoContatoEm: null, fixadoAte: null,
 };
 const CIDADES_VISIVEIS = 5;
+const ITEM_MENU = "flex h-11 items-center rounded-lg px-2.5 text-left text-[13px] text-[#17150F] hover:bg-[#F4F2EE]";
 
 // "sv-SE" formata como AAAA-MM-DD, e no fuso de quem está olhando
 const diaLocal = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("sv-SE") : "");
@@ -97,6 +98,7 @@ const CHIP_MORTO = `${CHIP} cursor-not-allowed border-dashed border-[#E2DDD3] bg
 const CARTAO = "rounded-2xl border border-[#E2DDD3] bg-white";
 const BOTAO = "inline-flex h-11 items-center justify-center rounded-[10px] px-4 text-sm font-semibold transition-colors";
 const BOTAO_ESCURO = `${BOTAO} bg-[#17150F] text-white hover:bg-[#2C2920]`;
+const BOTAO_VERDE = `${BOTAO} bg-[#2C6A53] text-white hover:bg-[#245743]`;
 const BOTAO_CLARO = `${BOTAO} border border-[#D8D2C6] bg-white text-[#17150F] hover:border-[#17150F]`;
 
 const CORES_NICHO: Record<string, string> = {
@@ -158,6 +160,9 @@ export default function AdminPage() {
   const [contato, setContato] = useState<"" | "hoje">("");   // "falei hoje"
   const [alerta, setAlerta] = useState("");                  // id do alerta em foco
   const [menuAjustes, setMenuAjustes] = useState(false);     // engrenagem: o que é da plataforma
+  const [menuNegocio, setMenuNegocio] = useState(false);     // "…" da gaveta: atalhos e tirar do ar
+  // a mensagem escolhida no bloco, para a barra fixa do rodapé da gaveta
+  const [pronto, setPronto] = useState<{ modelo: string; texto: string; link: string | null; para: string } | null>(null);
   const [fixados, setFixados] = useState(false);
   const [foraDoAr, setForaDoAr] = useState(false);
   const [menuFiltros, setMenuFiltros] = useState(false);
@@ -258,6 +263,7 @@ export default function AdminPage() {
   async function abrir(e: Espaco) {
     abertoRef.current = e.slug;
     setAberto(e);
+    setMenuNegocio(false);
     setAcessos(null);
     setDetalhe(null);
     setAviso("");
@@ -568,7 +574,7 @@ export default function AdminPage() {
     setBusca("");
     setCidade("");
     setNicho("");
-    verVisao(VISOES[2]);
+    verVisao(VISOES.find((v) => v.id === "todos")!);   // por id: a ordem das visões muda
   }
 
   const ABA = "flex h-12 items-center gap-2 border-b-2 px-3 text-[13px] transition-colors";
@@ -1258,6 +1264,48 @@ export default function AdminPage() {
                   })()}
                 </div>
               </div>
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-haspopup="true"
+                  aria-expanded={menuNegocio}
+                  aria-label="Mais ações deste negócio"
+                  onClick={() => setMenuNegocio((v) => !v)}
+                  className={`${BOTAO_CLARO} size-11 px-0`}
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+                    <circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" />
+                  </svg>
+                </button>
+                {menuNegocio && (
+                  <>
+                    <button type="button" aria-label="Fechar o menu" onClick={() => setMenuNegocio(false)} className="fixed inset-0 z-30 cursor-default" />
+                    <div role="menu" aria-label="Ações do negócio" className="absolute right-0 top-12 z-40 flex w-[min(88vw,300px)] flex-col gap-1 rounded-xl border border-[#C8C1B3] bg-white p-2 shadow-[0_18px_48px_rgba(23,21,15,0.18)]">
+                      <a role="menuitem" className={ITEM_MENU} href={`/${aberto.slug}`}>Painel do negócio</a>
+                      <a role="menuitem" className={ITEM_MENU} href={`https://${aberto.slug}.ruphus.site/`} target="_blank" rel="noreferrer">Ver o site ↗</a>
+                      <a role="menuitem" className={ITEM_MENU} href={`https://${aberto.slug}.ruphus.site/agendar`} target="_blank" rel="noreferrer">Agendamento ↗</a>
+                      <span className="my-1 h-px bg-[#EDE9E1]" />
+                      {/* Ação rara e perigosa: longe dos campos do dia */}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          mudarNegocio(aberto.slug, { publicado: !(crm[aberto.slug]?.publicado !== false) });
+                          setMenuNegocio(false);
+                        }}
+                        className={`${ITEM_MENU} ${crm[aberto.slug]?.publicado === false ? "text-[#2C6A53]" : "text-[#8A2F2F]"}`}
+                      >
+                        {crm[aberto.slug]?.publicado === false ? "Colocar o site no ar" : "Tirar o site do ar"}
+                      </button>
+                      <span className="px-2 pb-1 text-[11px] leading-snug text-[#6F6A5E]">
+                        {crm[aberto.slug]?.publicado === false
+                          ? "O endereço está fora do ar para os clientes."
+                          : "Tirar do ar faz o endereço parar de responder. O negócio continua aqui."}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
               <button type="button" aria-label="Fechar" onClick={() => setAberto(null)} className={`${BOTAO_CLARO} size-11 shrink-0 px-0`}>
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                   <path d="M6 6l12 12M18 6L6 18" />
@@ -1297,17 +1345,62 @@ export default function AdminPage() {
             <div role="tabpanel" id="aba-painel" aria-labelledby={`aba-${aba}`} className="flex flex-col gap-5">
             {aba === "venda" && (
               <>
-            <section aria-label="Negócio" className="flex flex-col gap-4 rounded-2xl border border-[#E2DDD3] p-4">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-[15px] font-semibold">Negócio</h3>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${COR[crm[aberto.slug]?.estagio ?? "novo"]}`}>
+            {/* Primeiro o combinado: é ele que governa "Atrasados", "Para hoje"
+                e o alerta de negócio sem próximo passo. Era o último campo de
+                um formulário longo. */}
+            <section aria-label="O combinado" className="flex flex-col gap-2.5 rounded-2xl border border-[#C9DACF] bg-[#F4F8F6] p-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-[11px] font-semibold tracking-[0.07em] text-[#2C6A53] uppercase">O combinado</h3>
+                <div className="grow" />
+                {(() => {
+                  const p = prazoDe(crm[aberto.slug], dataDeHoje);
+                  const dia = crm[aberto.slug]?.proximaData;
+                  if (!p || !dia) return <span className="text-[11.5px] text-[#6F6A5E]">nada combinado ainda</span>;
+                  const estilo =
+                    p === "atrasada" ? "bg-[#F1E7E7] text-[#8A2F2F]" : p === "hoje" ? "bg-[#FBF3DC] text-[#7A5A2E]" : "bg-[#E3EFE8] text-[#1F4C3B]";
+                  return (
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${estilo}`}>
+                      {p === "atrasada" ? `atrasada desde ${diaCurto(dia)}` : p === "hoje" ? "para hoje" : `para ${diaCurto(dia)}`}
+                    </span>
+                  );
+                })()}
+              </div>
+              {/* No celular a data desce: lado a lado sobram 140px para "o que fazer" */}
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  key={`acao-${aberto.slug}`}
+                  type="text"
+                  maxLength={120}
+                  aria-label="O que fazer"
+                  placeholder="ligar, mandar proposta, cobrar retorno…"
+                  defaultValue={crm[aberto.slug]?.proximaAcao ?? ""}
+                  onBlur={(ev) => mudarNegocio(aberto.slug, { proximaAcao: ev.target.value.trim() || null })}
+                  className="h-11 min-w-0 grow rounded-[10px] border border-[#C9DACF] bg-white px-3 text-sm text-[#17150F] outline-none focus:border-[#2C6A53]"
+                />
+                <input
+                  key={`quando-${aberto.slug}`}
+                  type="date"
+                  aria-label="Quando"
+                  defaultValue={crm[aberto.slug]?.proximaData ?? ""}
+                  onChange={(ev) => mudarNegocio(aberto.slug, { proximaData: ev.target.value || null })}
+                  className="h-11 w-full shrink-0 rounded-[10px] border border-[#C9DACF] bg-white px-3 text-sm text-[#17150F] outline-none focus:border-[#2C6A53] sm:w-[150px]"
+                />
+              </div>
+            </section>
+
+            {/* Etapa numa linha: progresso à esquerda, desfecho à direita. São
+                coisas diferentes — fechar e perder perguntam antes de gravar. */}
+            <section aria-label="Etapa" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-[11px] font-semibold tracking-[0.07em] text-[#6F6A5E] uppercase">Etapa</h3>
+                <div className="grow" />
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR[crm[aberto.slug]?.estagio ?? "novo"]}`}>
                   {ROTULO[crm[aberto.slug]?.estagio ?? "novo"]}
                 </span>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <span className="text-xs text-[#6F6A5E]">Em que pé está</span>
-                <div className="flex flex-col overflow-hidden rounded-xl border border-[#D8D2C6] sm:flex-row">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+                <div className="flex grow overflow-hidden rounded-full border border-[#D8D2C6]">
                   {ETAPAS.map((e, i) => {
                     const ativa = (crm[aberto.slug]?.estagio ?? "novo") === e;
                     return (
@@ -1316,130 +1409,35 @@ export default function AdminPage() {
                         type="button"
                         aria-pressed={ativa}
                         onClick={() => mudarNegocio(aberto.slug, { estagio: e })}
-                        className={`flex grow flex-col items-start gap-0.5 px-3 py-2.5 text-left transition-colors ${
-                          i ? "border-t border-[#D8D2C6] sm:border-t-0 sm:border-l" : ""
-                        } ${ativa ? "bg-[#17150F] text-white" : "bg-white text-[#6F6A5E] hover:text-[#17150F]"}`}
-                      >
-                        <span className="text-[10px] tabular-nums opacity-75">{`0${i + 1}`}</span>
-                        <span className="text-[13px] font-semibold">{ROTULO[e]}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-[#6F6A5E]">Fecha aqui:</span>
-                  {DESFECHOS.map((e) => {
-                    const ativa = (crm[aberto.slug]?.estagio ?? "novo") === e;
-                    return (
-                      <button
-                        key={e}
-                        type="button"
-                        aria-pressed={ativa}
-                        onClick={() => (ativa ? undefined : e === "perdido" ? setPerdendo(aberto.slug) : e === "fechado" ? setFechando(aberto.slug) : mudarNegocio(aberto.slug, { estagio: e }))}
-                        className={`${CHIP} ${ativa ? `border-transparent font-semibold ${COR[e]}` : "border-[#D8D2C6] bg-white text-[#6F6A5E] hover:border-[#17150F] hover:text-[#17150F]"}`}
+                        className={`h-11 grow px-3 text-[12.5px] transition-colors ${i ? "border-l border-[#D8D2C6]" : ""} ${
+                          ativa ? "bg-[#17150F] font-semibold text-white" : "bg-white text-[#4A4639] hover:text-[#17150F]"
+                        }`}
                       >
                         {ROTULO[e]}
                       </button>
                     );
                   })}
                 </div>
-              </div>
-
-              {/* Uma coluna: isto vive numa gaveta estreita, e os breakpoints do
-                  Tailwind leem a janela, não o contêiner — em duas colunas o
-                  campo "o que fazer" fica com 40px e some atrás do date picker. */}
-              <div className="flex flex-col gap-3">
-                {/* Nasce no preco padrao: com 675 negocios, digitar o mesmo
-                    numero 675 vezes e o que faz alguem parar de preencher. */}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {(
-                    [
-                      { id: "entrada", rotulo: "Entrada", campo: "entradaCents", padrao: PRECO_PADRAO.entradaCents, sufixo: "" },
-                      { id: "mensal", rotulo: "Mensalidade", campo: "mensalCents", padrao: PRECO_PADRAO.mensalCents, sufixo: "/mês" },
-                    ] as const
-                  ).map((c) => (
-                    <label key={c.id} htmlFor={c.id} className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
-                      {c.rotulo}
-                      <span className="flex h-11 items-center rounded-[10px] border border-[#D8D2C6] bg-white focus-within:border-[#17150F]">
-                        <span className="pl-3 pr-1.5 text-sm text-[#8B8578]">R$</span>
-                        <input
-                          id={c.id}
-                          type="text"
-                          inputMode="decimal"
-                          defaultValue={emReais(crm[aberto.slug]?.[c.campo] ?? c.padrao)}
-                          onBlur={(ev) => {
-                            const valor = cents(ev.target.value);
-                            // texto que não é número não apaga o preço: volta o que estava
-                            if (ev.target.value.trim() && (Number.isNaN(valor) || valor < 0)) {
-                              ev.target.value = emReais(crm[aberto.slug]?.[c.campo] ?? c.padrao);
-                              return setAviso("Valor inválido. Use 59,90.");
-                            }
-                            const novo = ev.target.value.trim() ? valor : null;
-                            ev.target.value = novo === null ? "" : emReais(novo);
-                            mudarNegocio(aberto.slug, { [c.campo]: novo });
-                          }}
-                          className="h-full min-w-0 grow bg-transparent text-sm tabular-nums text-[#17150F] outline-none"
-                        />
-                        {c.sufixo && <span className="pr-3 text-xs text-[#8B8578]">{c.sufixo}</span>}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs text-[#6F6A5E]">Próxima ação</span>
-                  {/* No celular a data desce: lado a lado sobram 140px para "o que fazer" */}
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <input
-                      type="text"
-                      maxLength={120}
-                      aria-label="O que fazer"
-                      placeholder="ligar, mandar proposta, cobrar retorno…"
-                      defaultValue={crm[aberto.slug]?.proximaAcao ?? ""}
-                      onBlur={(ev) => mudarNegocio(aberto.slug, { proximaAcao: ev.target.value.trim() || null })}
-                      className="h-11 min-w-0 grow rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F]"
-                    />
-                    <input
-                      type="date"
-                      aria-label="Quando"
-                      defaultValue={crm[aberto.slug]?.proximaData ?? ""}
-                      onChange={(ev) => mudarNegocio(aberto.slug, { proximaData: ev.target.value || null })}
-                      className="h-11 w-full shrink-0 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F] sm:w-[150px]"
-                    />
-                  </div>
-                  {(() => {
-                    const p = prazoDe(crm[aberto.slug], dataDeHoje);
-                    const dia = crm[aberto.slug]?.proximaData;
-                    if (!p || !dia) return null;
-                    const estilo =
-                      p === "atrasada" ? "bg-[#F1E7E7] text-[#8A2F2F]" : p === "hoje" ? "bg-[#FBF3DC] text-[#7A5A2E]" : "bg-[#F3EFE7] text-[#4A4639]";
+                <span aria-hidden="true" className="hidden h-6 w-px bg-[#E2DDD3] sm:block" />
+                <div className="flex gap-2">
+                  {DESFECHOS.map((e) => {
+                    const ativa = (crm[aberto.slug]?.estagio ?? "novo") === e;
+                    const cor = e === "fechado" ? "border-[#2C6A53] text-[#2C6A53] hover:bg-[#EEF2F0]" : "border-[#D8D2C6] text-[#8A2F2F] hover:border-[#8A2F2F]";
                     return (
-                      <span className={`mt-0.5 self-start rounded-full px-2.5 py-1 text-[11px] font-semibold ${estilo}`}>
-                        {p === "atrasada" ? `atrasada desde ${diaCurto(dia)}` : p === "hoje" ? "combinada para hoje" : `combinada para ${diaCurto(dia)}`}
-                      </span>
+                      <button
+                        key={e}
+                        type="button"
+                        aria-pressed={ativa}
+                        onClick={() => (ativa ? undefined : e === "perdido" ? setPerdendo(aberto.slug) : setFechando(aberto.slug))}
+                        className={`h-11 grow rounded-full border px-4 text-[12.5px] font-semibold sm:grow-0 ${ativa ? `border-transparent ${COR[e]}` : `bg-white ${cor}`}`}
+                      >
+                        {e === "fechado" ? "Fechou" : "Perdeu"}
+                      </button>
                     );
-                  })()}
+                  })}
                 </div>
               </div>
-
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[#EDE9E1] pt-4">
-                <button
-                  type="button"
-                  onClick={() => mudarNegocio(aberto.slug, { publicado: !(crm[aberto.slug]?.publicado !== false) })}
-                  className={`h-9 rounded-full border px-3.5 text-[13px] font-semibold ${
-                    crm[aberto.slug]?.publicado === false
-                      ? "border-[#2C6A53] text-[#2C6A53] hover:bg-[#EEF2F0]"
-                      : "border-[#E0D6D6] text-[#8A2F2F] hover:border-[#8A2F2F]"
-                  }`}
-                >
-                  {crm[aberto.slug]?.publicado === false ? "Colocar o site no ar" : "Tirar o site do ar"}
-                </button>
-                <span className="text-xs text-[#6F6A5E]">
-                  {crm[aberto.slug]?.publicado === false
-                    ? "O endereço está fora do ar para os clientes."
-                    : "O endereço para de responder para os clientes. O negócio continua aqui."}
-                </span>
-              </div>
+              <span className="text-[11.5px] text-[#6F6A5E]">Fechar ou perder abre uma pergunta antes de gravar.</span>
             </section>
 
             <ContatoDono
@@ -1448,9 +1446,18 @@ export default function AdminPage() {
               crm={crm[aberto.slug] ?? VAZIO}
               salvar={(dados) => mudarNegocio(aberto.slug, dados)}
             />
-            <Destaque key={`destaque-${aberto.slug}`} crm={crm[aberto.slug] ?? VAZIO} hoje={dataDeHoje} salvar={(dados) => mudarNegocio(aberto.slug, dados)} />
-
-            <OrigemDoContato key={`origem-${aberto.slug}`} crm={crm[aberto.slug] ?? VAZIO} salvar={(dados) => mudarNegocio(aberto.slug, dados)} />
+            {/* Consulta, não trabalho do dia: ficam a um clique */}
+            <details key={`atributos-${aberto.slug}`} className="rounded-2xl border border-[#E2DDD3] px-4 py-3">
+              <summary className="cursor-pointer text-[12.5px] text-[#4A4639]">
+                Como chegou · {ORIGENS[crm[aberto.slug]?.origem ?? "importado"]}
+                {" · "}
+                Destaque · {emDestaque(crm[aberto.slug], dataDeHoje) ? `até ${diaCurto(crm[aberto.slug]!.fixadoAte!)}` : "fora"}
+              </summary>
+              <div className="mt-3 flex flex-col gap-3">
+                <OrigemDoContato key={`origem-${aberto.slug}`} crm={crm[aberto.slug] ?? VAZIO} salvar={(dados) => mudarNegocio(aberto.slug, dados)} />
+                <Destaque key={`destaque-${aberto.slug}`} crm={crm[aberto.slug] ?? VAZIO} hoje={dataDeHoje} salvar={(dados) => mudarNegocio(aberto.slug, dados)} />
+              </div>
+            </details>
 
             <MensagensProntas
               key={`msg-${aberto.slug}`}
@@ -1459,9 +1466,60 @@ export default function AdminPage() {
               assinatura={assinatura}
               onEnviar={(modelo, para) => enviouMensagem(aberto.slug, modelo, para)}
               onCopiar={(texto) => copiar(texto, "mensagem")}
+              onPronto={setPronto}
             />
 
-            <Objecoes key={`obj-${aberto.slug}`} onCopiar={(texto) => copiar(texto, "resposta")} />
+            {/* Preço só importa ao propor e ao fechar: fica a um clique */}
+            <details key={`precos-${aberto.slug}`} className="rounded-2xl border border-[#E2DDD3] px-4 py-3">
+              <summary className="cursor-pointer text-[12.5px] text-[#4A4639]">
+                Proposta · {formatBRL(crm[aberto.slug]?.entradaCents ?? PRECO_PADRAO.entradaCents)} de entrada + {formatBRL(crm[aberto.slug]?.mensalCents ?? PRECO_PADRAO.mensalCents)}/mês
+              </summary>
+              <div className="mt-3 flex flex-col gap-3">
+              {/* Nasce no preco padrao: com 675 negocios, digitar o mesmo
+                  numero 675 vezes e o que faz alguem parar de preencher. */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {(
+                  [
+                    { id: "entrada", rotulo: "Entrada", campo: "entradaCents", padrao: PRECO_PADRAO.entradaCents, sufixo: "" },
+                    { id: "mensal", rotulo: "Mensalidade", campo: "mensalCents", padrao: PRECO_PADRAO.mensalCents, sufixo: "/mês" },
+                  ] as const
+                ).map((c) => (
+                  <label key={c.id} htmlFor={c.id} className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
+                    {c.rotulo}
+                    <span className="flex h-11 items-center rounded-[10px] border border-[#D8D2C6] bg-white focus-within:border-[#17150F]">
+                      <span className="pl-3 pr-1.5 text-sm text-[#8B8578]">R$</span>
+                      <input
+                        id={c.id}
+                        type="text"
+                        inputMode="decimal"
+                        defaultValue={emReais(crm[aberto.slug]?.[c.campo] ?? c.padrao)}
+                        onBlur={(ev) => {
+                          const valor = cents(ev.target.value);
+                          // texto que não é número não apaga o preço: volta o que estava
+                          if (ev.target.value.trim() && (Number.isNaN(valor) || valor < 0)) {
+                            ev.target.value = emReais(crm[aberto.slug]?.[c.campo] ?? c.padrao);
+                            return setAviso("Valor inválido. Use 59,90.");
+                          }
+                          const novo = ev.target.value.trim() ? valor : null;
+                          ev.target.value = novo === null ? "" : emReais(novo);
+                          mudarNegocio(aberto.slug, { [c.campo]: novo });
+                        }}
+                        className="h-full min-w-0 grow bg-transparent text-sm tabular-nums text-[#17150F] outline-none"
+                      />
+                      {c.sufixo && <span className="pr-3 text-xs text-[#8B8578]">{c.sufixo}</span>}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              </div>
+            </details>
+
+            <details key={`obj-${aberto.slug}`} className="rounded-2xl border border-[#E2DDD3] px-4 py-3">
+              <summary className="cursor-pointer text-[12.5px] text-[#4A4639]">Se ele responder isso · 5 respostas prontas</summary>
+              <div className="mt-3">
+                <Objecoes onCopiar={(texto) => copiar(texto, "resposta")} />
+              </div>
+            </details>
 
             <LinhaDoTempo key={`resumo-${aberto.slug}`} eventos={eventos} limite={3} onVerTudo={() => setAba("historico")} anotar={(texto) => novaNota(aberto.slug, texto)} />
 
@@ -1749,6 +1807,29 @@ export default function AdminPage() {
 
               </>
             )}
+            </div>
+
+            {/* Fixa no rodapé: mandar e anotar são o dia inteiro, e estavam
+                a uma rolagem de distância dentro de blocos diferentes. */}
+            <div className="sticky bottom-0 -mx-6 -mb-6 flex gap-2 border-t border-[#E2DDD3] bg-white px-6 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:-mx-8 sm:-mb-8 sm:px-8">
+              {pronto?.link ? (
+                <a
+                  href={pronto.link}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => enviouMensagem(aberto.slug, pronto.modelo, pronto.para)}
+                  className={`${BOTAO_VERDE} grow`}
+                >
+                  Abrir no WhatsApp · {pronto.modelo}
+                </a>
+              ) : (
+                <span className={`${BOTAO} grow border border-dashed border-[#D8D2C6] text-[#8B8578]`}>
+                  {assinatura ? "Cadastre o WhatsApp do dono" : "Defina quem assina, nos ajustes"}
+                </span>
+              )}
+              <button type="button" onClick={() => setAba("historico")} className={BOTAO_CLARO}>
+                Anotar
+              </button>
             </div>
           </aside>
         </>

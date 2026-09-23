@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertDialog } from "@base-ui/react/alert-dialog";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cents } from "@/lib/dinheiro";
 import { formatBRL, formatPhone, linkWhatsApp } from "@/lib/datetime";
 import type { ClienteSaude } from "@/lib/saude.server";
@@ -276,12 +276,15 @@ export function MensagensProntas({
   assinatura,
   onEnviar,
   onCopiar,
+  onPronto,
 }: {
   negocio: Negocio;
   crm: Crm;
   assinatura: string;
   onEnviar: (modelo: Modelo, para: string) => void;
   onCopiar: (texto: string) => void;
+  /** Avisa a gaveta do que está pronto para enviar: é o que alimenta a barra fixa */
+  onPronto?: (m: { modelo: Modelo; texto: string; link: string | null; para: string }) => void;
 }) {
   const [modelo, setModelo] = useState<Modelo>(crm.estagio === "fechado" ? "Boas-vindas" : crm.estagio === "novo" ? "Primeiro contato" : "Proposta");
   const [texto, setTexto] = useState<{ para: Modelo; valor: string } | null>(null);
@@ -290,6 +293,11 @@ export function MensagensProntas({
   // Mandar "[SEU NOME]" para o cliente é pior do que não mandar nada
   const faltaNome = atual.includes(MARCA_NOME);
   const link = numero && !faltaNome ? linkWhatsApp(numero, atual) : null;
+  const para = crm.donoNome ?? (crm.donoWhatsapp ? "o dono" : "a recepção");
+  // em efeito, não no render: avisar o pai durante o render derruba o React
+  useEffect(() => {
+    onPronto?.({ modelo, texto: atual, link, para });
+  }, [onPronto, modelo, atual, link, para]);
 
   return (
     <section aria-labelledby="msg-t" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">
