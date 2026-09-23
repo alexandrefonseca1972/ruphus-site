@@ -273,6 +273,7 @@ A versão no ar aparece no rodapé do `/admin` (`v0.3.0 · <commit>`), e vem do 
 - **Comentário explica o porquê**, nunca o quê. Se descreve o que a linha faz, ele sobra.
 - **Erro esperado é classe** (`ErroPrevisto`): a tela mostra a mensagem; o resto vira erro genérico.
 - **Uma responsabilidade por arquivo em `src/lib`**, com o servidor isolado em `*.server.ts` e `server-only`.
+- **Manual dentro do produto**: `/ajuda` (dono do negócio) e `/ajuda/vendas` (vendedor). O que é para quem mantém fica em `docs/`: [manual técnico](docs/manual-tecnico.md) e [operação](docs/operacao.md).
 - **Regra do Firestore é lista fechada**: coleção nova sob `tenants/{t}` nasce negada, e entra na regra só quando alguém decide que o funcionário pode mesmo ler e escrever nela.
 - **Acessibilidade não é opcional**: `<button>` de verdade, rótulo em todo campo, alvo de toque de 44px no celular e campo com 16px (senão o iOS dá zoom).
 - Mudanças relevantes entram no `CHANGELOG.md`, do ponto de vista de quem usa.

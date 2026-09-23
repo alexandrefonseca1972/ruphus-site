@@ -26,6 +26,9 @@ export function AccountMenu() {
             <Menu.LinkItem render={<Link href="/painel" />} className={ITEM}>
               Meus negócios
             </Menu.LinkItem>
+            <Menu.LinkItem render={<Link href="/ajuda" />} className={ITEM}>
+              Ajuda
+            </Menu.LinkItem>
             <Menu.Item onClick={() => signOut(auth)} className={`${ITEM} text-destructive`}>
               Sair
             </Menu.Item>
