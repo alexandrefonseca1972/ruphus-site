@@ -143,7 +143,7 @@ export default function AdminPage() {
   const [aberto, setAberto] = useState<Espaco | null>(null);
   const [acessos, setAcessos] = useState<Acesso[] | null>(null);
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null);
-  const [convite, setConvite] = useState<{ slug: string; url: string; copiado: boolean } | null>(null);
+  const [convite, setConvite] = useState<{ slug: string; url: string; email: string | null; copiado: boolean } | null>(null);
   const [idToken, setIdToken] = useState("");
   const [copiado, setCopiado] = useState("");
   const [aviso, setAviso] = useState("");
@@ -295,11 +295,11 @@ export default function AdminPage() {
     setAviso("");
     const r = await gerarConvite(await token(), slug);
     if (!r.ok) return setAviso(r.error);
-    const copiado = await navigator.clipboard.writeText(r.dados).then(
+    const copiado = await navigator.clipboard.writeText(r.dados.url).then(
       () => true,
       () => false,
     );
-    setConvite({ slug, url: r.dados, copiado });
+    setConvite({ slug, url: r.dados.url, email: r.dados.email, copiado });
   }
 
   async function revogar(slug: string, uid: string) {
@@ -378,7 +378,7 @@ export default function AdminPage() {
     let texto = "";
     if (passo === "convite") {
       const r = await gerarConvite(await token(), slug);
-      texto = `${oi}\n\nO acesso ao painel do ${e?.nome ?? slug} está pronto — é por ele que você cadastra serviços, quem atende e acompanha a agenda:\n${r.ok ? r.dados : painel}`;
+      texto = `${oi}\n\nO acesso ao painel do ${e?.nome ?? slug} está pronto — é por ele que você cadastra serviços, quem atende e acompanha a agenda:\n${r.ok ? r.dados.url : painel}${r.ok && r.dados.email ? `\n\nO acesso abre com o e-mail ${r.dados.email}.` : ""}`;
     } else if (passo === "servicos") {
       texto = `${oi}\n\nFalta um passo para a agenda do ${e?.nome ?? slug} abrir: cadastrar os serviços, com duração e preço.\n${painel}/servicos`;
     } else if (passo === "profissionais") {
@@ -408,7 +408,7 @@ export default function AdminPage() {
     let urlConvite: string | null = null;
     if (d.convite) {
       const r = await gerarConvite(t, slug);
-      if (r.ok) urlConvite = r.dados;
+      if (r.ok) urlConvite = r.dados.url;
     }
     if (d.cobrarEntrada) {
       const r = await cobrar(t, slug, "entrada", null);
@@ -468,14 +468,17 @@ export default function AdminPage() {
     baixar(
       `convites-${new Date().toISOString().slice(0, 10)}.csv`,
       [
-        ["negocio", "site", "telefone", "link_do_convite", "abrir_whatsapp"],
-        ...r.dados.map((c) => [c.nome, `https://${c.slug}.ruphus.site`, c.telefone ?? "", c.url, c.whatsapp ?? ""]),
+        ["negocio", "site", "telefone", "abre_com_o_email", "link_do_convite", "abrir_whatsapp"],
+        ...r.dados.map((c) => [c.nome, `https://${c.slug}.ruphus.site`, c.telefone ?? "", c.email ?? "", c.url, c.whatsapp ?? ""]),
       ],
     );
     const sem = r.dados.filter((c) => !c.whatsapp).length;
+    const abertos = r.dados.filter((c) => !c.email).length;
     setAviso(
       `${r.dados.length} convite(s) gerado(s), válidos por ${DIAS_CONVITE} dias.` +
-        (sem ? ` ${sem} sem telefone: o link está na planilha para enviar por outro caminho.` : ""),
+        (sem ? ` ${sem} sem telefone: o link está na planilha para enviar por outro caminho.` : "") +
+        // sem e-mail do dono o link abre para quem chegar primeiro: quem envia precisa saber
+        (abertos ? ` ${abertos} sem e-mail do dono: esses abrem para a primeira conta que usar o link.` : ""),
     );
   }
 
@@ -1655,12 +1658,19 @@ export default function AdminPage() {
               </div>
               <p className="text-[13px] leading-relaxed text-[#4A4639]">
                 Quem abrir o link entra com a conta dele e passa a administrar este negócio. O link vale {DIAS_CONVITE} dias.
+                {!crm[aberto.slug]?.donoEmail && " Sem o e-mail do dono na aba Venda, ele abre para a primeira conta que usar."}
               </p>
               {convite?.slug === aberto.slug ? (
                 <div className="flex flex-col gap-2">
                   <code className="truncate rounded-lg border border-[#E2DDD3] bg-white px-3 py-2.5 text-xs text-[#4A4639]">
                     {convite.url}
                   </code>
+                  {/* preso a uma conta ou aberto: quem envia decide o cuidado pelo canal */}
+                  <span className={`text-[12px] ${convite.email ? "text-[#2C6A53]" : "text-[#B8791F]"}`}>
+                    {convite.email
+                      ? `Só abre com o e-mail ${convite.email}.`
+                      : "Abre para a primeira conta que usar. Cadastre o e-mail do dono na aba Venda e gere outro para prender o link."}
+                  </span>
                   <div className="flex flex-wrap items-center gap-2">
                     <button type="button" className={BOTAO_ESCURO} onClick={copiarConvite}>
                       {convite.copiado ? "Copiado ✓" : "Copiar link"}

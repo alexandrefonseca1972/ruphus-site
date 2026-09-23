@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { SignJWT } from "jose";
-import { consumirConvite, criarConvite, lerConvite } from "@/lib/convite";
+import { consumirConvite, conviteAbrePara, criarConvite, lerConvite } from "@/lib/convite";
 
 const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
 
@@ -37,5 +37,49 @@ const antigo = await new SignJWT({ t: "acme" })
   .setExpirationTime("30d")
   .sign(new TextEncoder().encode(secret));
 assert.equal(await lerConvite(db, antigo), null, "convite sem uso único não vale mais");
+
+// ————— Convite preso a um e-mail —————
+
+// O e-mail entra normalizado: quem cadastrou "Dona@Salao.com" e quem entra com
+// "dona@salao.com" são a mesma pessoa
+const presoToken = await criarConvite(db, "salao", "Dona@Salao.com");
+const preso = await lerConvite(db, presoToken);
+assert.equal(preso?.email, "dona@salao.com", "o e-mail viaja normalizado no token");
+assert.equal(preso?.tenantId, "salao");
+
+// Sem e-mail o convite segue aberto: é o comportamento de quem não cadastrou o dono
+assert.equal((await lerConvite(db, await criarConvite(db, "salao")))?.email, null);
+assert.equal((await lerConvite(db, await criarConvite(db, "salao", "")))?.email, null, "e-mail vazio não prende nada");
+
+// Trocar o destinatário exige assinar de novo: ele não está na URL
+const [cab2, corpo2, ass2] = presoToken.split(".");
+const outroCorpo = Buffer.from(
+  JSON.stringify({ ...JSON.parse(Buffer.from(corpo2, "base64url").toString()), e: "ladrao@x.com" }),
+).toString("base64url");
+assert.equal(await lerConvite(db, `${cab2}.${outroCorpo}.${ass2}`), null, "trocar o e-mail quebra a assinatura");
+
+// ————— Quem o convite preso deixa entrar —————
+
+const dona = { email: "dona@salao.com" };
+const ok = (c: string | null, u: { email?: string; emailPendente?: string }) => conviteAbrePara({ email: c }, u).ok;
+
+// o link aberto não olha conta nenhuma
+assert.equal(ok(null, {}), true);
+assert.equal(ok(null, { emailPendente: "qualquer@x.com" }), true);
+
+// preso: só a dona, e só confirmada
+assert.equal(ok("dona@salao.com", dona), true);
+assert.equal(ok("dona@salao.com", { email: "DONA@Salao.com" }), true, "confirmação de e-mail não diferencia maiúscula");
+assert.equal(ok("dona@salao.com", { email: "ladrao@x.com" }), false, "outra conta confirmada não entra");
+assert.equal(ok("dona@salao.com", {}), false, "conta sem e-mail confirmado não entra");
+
+// o buraco que o e-mail não confirmado abriria: criar conta com o endereço da
+// dona e aceitar o convite dela sem nunca provar que o endereço é seu
+assert.equal(ok("dona@salao.com", { emailPendente: "dona@salao.com" }), false, "e-mail não confirmado não vale como prova");
+
+// a mensagem precisa dizer o que fazer, não só que não deu
+const recusa = conviteAbrePara({ email: "dona@salao.com" }, { emailPendente: "dona@salao.com" });
+assert.equal(recusa.ok, false);
+assert.ok(recusa.ok === false && recusa.error.includes("dona@salao.com"), "a recusa diz qual e-mail confirmar");
 
 console.log("convite: ok");

@@ -42,6 +42,10 @@ if (args.includes("--self-check")) {
       console.error(`${slug}: espaço não encontrado`);
       continue;
     }
-    console.log(`${tenant.get("name")}\n  ${BASE}/convite?c=${await criarConvite(d, slug)}\n`);
+    // mesmo critério do painel: com e-mail do dono no CRM, o link só abre para
+    // aquela conta. Sem isso o script seria a porta de trás da própria regra.
+    const email = ((await d.collection("crm").doc(slug).get()).get("donoEmail") as string | null) || null;
+    const url = `${BASE}/convite?c=${await criarConvite(d, slug, email)}`;
+    console.log(`${tenant.get("name")}\n  ${url}\n  ${email ? `abre só com ${email}` : "ABERTO: vale para a primeira conta que usar"}\n`);
   }
 }
