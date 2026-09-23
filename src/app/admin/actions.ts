@@ -5,6 +5,7 @@ import { adminDb } from "@/lib/admin";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite } from "@/lib/negocios.server";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX, limiteStaffDe, MINUTOS_MAX } from "@/lib/limites";
+import { gerarProposta } from "@/lib/proposta.server";
 import { saudeDe } from "@/lib/saude.server";
 import { criarConvite } from "@/lib/convite";
 import {
@@ -333,6 +334,15 @@ const mesLongo = (competencia: string | null) =>
   competencia
     ? new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${competencia}-01T00:00:00Z`))
     : "";
+
+/** O link da proposta daquele negócio. O mesmo link vai por WhatsApp e por
+ *  e-mail; "refazer" gera outro e invalida o anterior. */
+export const linkDaProposta = adminAction(async (_user, slug: string, refazer?: boolean) => {
+  slugValido(slug);
+  const { token, valeAte, nova } = await gerarProposta(adminDb, slug, refazer === true);
+  const base = process.env.SITE_URL ?? "https://www.ruphus.site";
+  return { url: `${base}/proposta/${slug}?t=${token}`, valeAte, nova };
+});
 
 /** Quem assina as mensagens do CRM. Definido uma vez pelo admin da plataforma. */
 export const lerAssinatura = adminAction(async () => String((await adminDb.doc("config/crm").get()).get("assinatura") ?? ""));

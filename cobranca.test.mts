@@ -71,5 +71,33 @@ const entrada = await gerarCobranca(db, { slug: "acme", tipo: "entrada", compete
 assert.deepEqual([entrada.id, entrada.nova], ["acme-entrada", true]);
 assert.equal((await abrirCobranca(db, entrada.id, entrada.token))?.competencia, null);
 
+// Proposta: o link é a credencial, e link errado responde como negócio inexistente
+{
+  const { gerarProposta, abrirProposta } = await import("@/lib/proposta.server");
+  const slug = "salao-proposta";
+  await db.doc(`tenants/${slug}`).set({ name: "Salão Proposta", ownerId: "dono" });
+  await db.doc(`crm/${slug}`).set({ estagio: "oferta", entradaCents: 30000, mensalCents: 7990 });
+
+  const { token, valeAte } = await gerarProposta(db, slug);
+  assert.match(valeAte, /^\d{4}-\d{2}-\d{2}$/);
+
+  const p = await abrirProposta(db, slug, token);
+  assert.equal(p?.nome, "Salão Proposta");
+  assert.deepEqual([p?.entradaCents, p?.mensalCents], [30000, 7990], "os valores são os do negócio");
+  assert.equal(p?.vencida, false);
+
+  assert.equal(await abrirProposta(db, slug, "errado"), null, "token errado não abre");
+  assert.equal(await abrirProposta(db, slug, ""), null, "sem token não abre");
+  assert.equal(await abrirProposta(db, "nao-existe", token), null, "negócio inexistente responde igual");
+
+  // o mesmo link serve para os dois canais; refazer invalida o anterior
+  const denovo = await gerarProposta(db, slug);
+  assert.equal(denovo.token, token, "gerar de novo reaproveita o link");
+  const outro = await gerarProposta(db, slug, true);
+  assert.notEqual(outro.token, token, "refazer gera outro");
+  assert.equal(await abrirProposta(db, slug, token), null, "o link antigo para de valer");
+}
+console.log("proposta ok");
+
 console.log("cobranca ok");
 process.exit(0);

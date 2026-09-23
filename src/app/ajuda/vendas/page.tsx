@@ -129,6 +129,11 @@ export default function ManualDoVendedor() {
           ]}
         />
         <P>
+          <Termo>A proposta tem página própria.</Termo> No bloco de preço da gaveta, "Gerar link da proposta" cria um
+          endereço que mostra o que está incluído, os valores combinados e o botão "Quero começar". O mesmo link vai
+          pelo WhatsApp e pelo e-mail — sem anexo, e o dono lê no celular. Vale 7 dias; "Refazer" invalida o anterior.
+        </P>
+        <P>
           O texto é editável antes de enviar. Abrir no WhatsApp registra o envio na linha do tempo e marca o negócio em
           “Falei hoje”. Em <Termo>Se ele responder isso</Termo> estão as respostas para as objeções mais comuns.
         </P>
