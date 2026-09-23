@@ -1,4 +1,5 @@
 import "server-only";
+import { sessaoRevogada } from "@/lib/revogacao";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
@@ -46,7 +47,7 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
 }
 
 /** Garante que o token é válido e o usuário é membro do tenant. */
-export type VerifyToken = (idToken: string) => Promise<{ uid: string; email?: string }>;
+export type VerifyToken = (idToken: string) => Promise<{ uid: string; email?: string; authTimeMs: number }>;
 
 /** Erro cuja mensagem pode ser mostrada para a pessoa */
 export class UserError extends ErroPrevisto {}
@@ -64,7 +65,10 @@ export class UserError extends ErroPrevisto {}
 export async function renameCustomer(
   db: Firestore,
   { tenantId, customerId, name }: { tenantId: string; customerId: string; name: string },
+  user: { uid: string },
 ) {
+  // renomear reescreve o nome em todos os horários futuros: mesma régua do excluir
+  await exigeDono(db, tenantId, user.uid, "renomear clientes");
   const t = db.collection("tenants").doc(tenantId);
   const cliente = t.collection("customers").doc(customerId);
   if (!(await cliente.get()).exists) throw new UserError("Cliente nao encontrado.");
@@ -94,11 +98,7 @@ export async function deleteCustomer(
   user: { uid: string },
 ) {
   const t = db.collection("tenants").doc(tenantId);
-  const [member, admin] = await Promise.all([t.collection("members").doc(user.uid).get(), db.doc("config/admin").get()]);
-  const daPlataforma = (admin.get("uids") as unknown[] | undefined)?.includes(user.uid) ?? false;
-  if (!daPlataforma && !["owner", "admin"].includes(member.get("role"))) {
-    throw new UserError("Só o dono ou um administrador do negócio pode excluir clientes.");
-  }
+  await exigeDono(db, tenantId, user.uid, "excluir clientes");
 
   const cliente = t.collection("customers").doc(customerId);
   const [snap, futuros, planos] = await Promise.all([
@@ -115,6 +115,19 @@ export async function deleteCustomer(
   return { ok: true as const };
 }
 
+/** Papel de dono ou admin do negócio: as ações que reescrevem a base do cliente
+ *  não são de recepção. O admin da plataforma passa, como nas regras. */
+async function exigeDono(db: Firestore, tenantId: string, uid: string, oque: string) {
+  const [member, admin] = await Promise.all([
+    db.doc(`tenants/${tenantId}/members/${uid}`).get(),
+    db.doc("config/admin").get(),
+  ]);
+  const daPlataforma = (admin.get("uids") as unknown[] | undefined)?.includes(uid) ?? false;
+  if (!daPlataforma && !["owner", "admin"].includes(member.get("role"))) {
+    throw new UserError(`Só o dono ou um administrador do negócio pode ${oque}.`);
+  }
+}
+
 export async function requireMember(verify: VerifyToken, db: Firestore, idToken: string, tenantId: string) {
   const user = await verify(idToken).catch(() => {
     throw new UserError("Sessão expirada. Entre novamente.");
@@ -126,6 +139,10 @@ export async function requireMember(verify: VerifyToken, db: Firestore, idToken:
   // quem administra a plataforma atende em qualquer espaço, como nas regras do Firestore
   const daPlataforma = (admin.get("uids") as unknown[] | undefined)?.includes(user.uid) ?? false;
   if (!member.exists && !daPlataforma) throw new UserError("Você não tem acesso a este negócio.");
+  // Token de quem teve a sessão encerrada não vale mais, mesmo sem ter expirado
+  if (sessaoRevogada(admin.get("revogados"), user.uid, user.authTimeMs)) {
+    throw new UserError("Sua sessão foi encerrada. Entre novamente.");
+  }
   return user;
 }
 

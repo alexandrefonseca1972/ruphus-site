@@ -161,10 +161,18 @@ async function tokenFor(uid: string) {
   return ((await r.json()) as { idToken: string }).idToken;
 }
 await t.collection("members").doc("owner").set({ uid: "owner", role: "owner" });
-const emulatorVerify = (token: string) => auth.verifyIdToken(token);
+const emulatorVerify = async (token: string) => {
+  const d = await auth.verifyIdToken(token);
+  return { uid: d.uid, email: d.email, authTimeMs: (d.auth_time ?? 0) * 1000 };
+};
 assert.equal((await requireMember(emulatorVerify, db, await tokenFor("owner"), "salao")).uid, "owner");
 await assert.rejects(requireMember(emulatorVerify, db, await tokenFor("intruso"), "salao"), /não tem acesso/);
 await assert.rejects(requireMember(emulatorVerify, db, "token-falso", "salao"), /Sessão expirada/);
+// Sessão encerrada pelo admin: o token continua válido, o acesso não
+await db.doc("config/admin").set({ uids: [], revogados: { owner: Date.now() + 60_000 } }, { merge: true });
+await assert.rejects(requireMember(emulatorVerify, db, await tokenFor("owner"), "salao"), /sessão foi encerrada/i);
+await db.doc("config/admin").set({ revogados: {} }, { merge: true });
+assert.equal((await requireMember(emulatorVerify, db, await tokenFor("owner"), "salao")).uid, "owner");
 // Verificador de produção: token do emulador (sem assinatura) e lixo são recusados
 await assert.rejects(verifyFirebaseToken(await tokenFor("owner"), "demo-siteflow"));
 await assert.rejects(verifyFirebaseToken("a.b.c", "demo-siteflow"));
@@ -250,14 +258,20 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   await passado.set({ customerKey: chave, customerName: "Mrcia", start: Timestamp.fromDate(new Date(Date.now() - 864e5)), status: "confirmed" });
   await futuro.set({ customerKey: chave, customerName: "Mrcia", start: Timestamp.fromDate(new Date(Date.now() + 864e5)), status: "booked" });
 
-  const r = await renameCustomer(db, { tenantId: "salao", customerId: chave, name: "Márcia" });
+  const r = await renameCustomer(db, { tenantId: "salao", customerId: chave, name: "Márcia" }, { uid: "owner" });
+  // recepção (papel "member") não renomeia: o nome vai para todos os horários futuros
+  await t.collection("members").doc("recepcao").set({ uid: "recepcao", role: "member" });
+  await assert.rejects(
+    renameCustomer(db, { tenantId: "salao", customerId: chave, name: "Outra" }, { uid: "recepcao" }),
+    /dono ou um administrador/,
+  );
   assert.deepEqual([r.ok, r.agendamentos], [true, 1]);
   assert.equal((await cli.get()).get("name"), "Márcia");
   assert.equal((await futuro.get()).get("customerName"), "Márcia", "o que o dono ainda vai atender é corrigido");
   assert.equal((await passado.get()).get("customerName"), "Mrcia", "o histórico guarda o que foi dito na época");
 
   await assert.rejects(
-    renameCustomer(db, { tenantId: "salao", customerId: "5500000000000", name: "Ninguém" }),
+    renameCustomer(db, { tenantId: "salao", customerId: "5500000000000", name: "Ninguém" }, { uid: "owner" }),
     /Cliente nao encontrado/,
   );
 

@@ -176,6 +176,13 @@ export const definirLimiteStaff = adminAction(async (_user, slug: string, profis
   return profissionais;
 });
 
+/** Encerra as sessões abertas de uma conta: o token continua válido até expirar,
+ *  mas para de ser aceito aqui. Use quando um acesso vazar. */
+export const encerrarSessoes = adminAction(async (_user, uid: string) => {
+  if (!UID.test(uid)) throw new ErroPrevisto("Conta inválida.");
+  await adminDb.doc("config/admin").set({ revogados: { [uid]: Date.now() } }, { merge: true });
+});
+
 /** Tira o acesso de alguém. O dono do espaço não pode ser removido. */
 export const revogarAcesso = adminAction(async (_user, slug: string, uid: string) => {
   slugValido(slug);

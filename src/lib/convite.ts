@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { DIAS_CONVITE } from "@/lib/limites";
 
 // O convite é um link: quem abrir e entrar com a conta dele vira admin do espaço.
 // O segredo mora no Firestore (só o Admin SDK lê), então não precisa de variável
@@ -13,7 +14,7 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 // dono entra.
 const DOC = "config/convite";
 const USADOS = "convitesUsados";
-const VALIDADE = "30d";
+const VALIDADE = `${DIAS_CONVITE}d`;
 
 async function segredo(db: Firestore) {
   const ref = db.doc(DOC);

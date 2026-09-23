@@ -18,6 +18,8 @@ export async function verifyFirebaseToken(token: string, projectId = process.env
   }
   return {
     uid: payload.sub,
+    /** Quando a pessoa entrou, em ms: é o que a revogação de sessão compara */
+    authTimeMs: payload.auth_time * 1000,
     // e-mail só conta quando o Firebase o verificou: qualquer pessoa cria conta
     // com o e-mail alheio, e ele vira o autor nas trilhas de auditoria
     email: typeof payload.email === "string" && payload.email_verified === true ? payload.email : undefined,
