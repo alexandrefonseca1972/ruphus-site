@@ -1,5 +1,6 @@
 import "server-only";
 import { adminDb } from "@/lib/admin";
+import { sessaoRevogada } from "@/lib/revogacao";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 
 // Quem administra a plataforma (não o negócio) está listado em config/admin.
@@ -14,8 +15,12 @@ export class SemAcesso extends ErroPrevisto {}
 export async function requireAdmin(idToken: string) {
   const user = await verifyFirebaseToken(idToken).catch(() => null);
   if (!user) throw new SemAcesso("Sessão expirada. Entre novamente.");
-  const uids = (await adminDb.doc(DOC).get()).get("uids");
+  const doc = await adminDb.doc(DOC).get();
+  const uids = doc.get("uids");
   if (!Array.isArray(uids) || !uids.includes(user.uid)) throw new SemAcesso("Área restrita.");
+  if (sessaoRevogada(doc.get("revogados"), user.uid, user.authTimeMs)) {
+    throw new SemAcesso("Sua sessão foi encerrada. Entre novamente.");
+  }
   return user;
 }
 

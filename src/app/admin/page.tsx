@@ -20,6 +20,7 @@ import {
   salvarNegocio,
   revogarAcesso,
   definirAssinatura,
+  encerrarSessoes,
   definirMinutosInativo,
   definirLimiteStaff,
   lerAssinatura,
@@ -35,7 +36,7 @@ import { alertas as calcularAlertas } from "@/lib/alertas";
 import { cents, emReais } from "@/lib/dinheiro";
 import { loginComMotivo, MINUTOS_MAX, useAutoLogout } from "@/lib/sessao";
 import { COMMIT, VERSAO } from "@/lib/versao";
-import { LIMITE_STAFF_MAX } from "@/lib/limites";
+import { DIAS_CONVITE, LIMITE_STAFF_MAX } from "@/lib/limites";
 import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
 import { Carteira } from "./carteira";
 import type { ClienteSaude } from "@/lib/saude.server";
@@ -456,7 +457,7 @@ export default function AdminPage() {
     );
     const sem = r.dados.filter((c) => !c.whatsapp).length;
     setAviso(
-      `${r.dados.length} convite(s) gerado(s), válidos por 30 dias.` +
+      `${r.dados.length} convite(s) gerado(s), válidos por ${DIAS_CONVITE} dias.` +
         (sem ? ` ${sem} sem telefone: o link está na planilha para enviar por outro caminho.` : ""),
     );
   }
@@ -1449,7 +1450,7 @@ export default function AdminPage() {
                 </span>
               </div>
               <p className="text-[13px] leading-relaxed text-[#4A4639]">
-                Quem abrir o link entra com a conta dele e passa a administrar este negócio. O link vale 30 dias.
+                Quem abrir o link entra com a conta dele e passa a administrar este negócio. O link vale {DIAS_CONVITE} dias.
               </p>
               {convite?.slug === aberto.slug ? (
                 <div className="flex flex-col gap-2">
@@ -1546,6 +1547,18 @@ export default function AdminPage() {
                           <span className="shrink-0 rounded-full bg-[#E7EEE9] px-2.5 py-1 text-xs font-semibold text-[#2C6A53]">
                             {a.papel === "admin" ? "Cliente" : "Equipe"}
                           </span>
+                          {/* Token roubado vale até expirar: isto o recusa antes disso */}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const r = await encerrarSessoes(await token(), a.uid);
+                              setAviso(r.ok ? "Sessões encerradas: a pessoa entra de novo na próxima ação." : r.error);
+                            }}
+                            aria-label={`Encerrar as sessões de ${a.nome ?? a.email ?? a.uid}`}
+                            className="h-11 shrink-0 rounded-[10px] border border-[#D8D2C6] px-3.5 text-[13px] hover:border-[#17150F]"
+                          >
+                            Encerrar sessões
+                          </button>
                           <button
                             type="button"
                             onClick={() => revogar(aberto.slug, a.uid)}

@@ -114,7 +114,7 @@ Em `.env.local` (desenvolvimento) e no painel da Vercel (produção).
 | `GOOGLE_APPLICATION_CREDENTIALS` | servidor local | caminho do `.json` da conta de serviço |
 | `OWNER_UID` | scripts | quem vira admin da plataforma no primeiro uso |
 | `SITE_URL` | servidor | origem que o proxy usa para consultar a lista de sites fechados |
-| `DESATIVADOS_TOKEN` | servidor | segredo entre o proxy e `/api/desativados`; sem ele a lista fica pública |
+| `DESATIVADOS_TOKEN` | servidor | segredo entre o proxy e `/api/desativados`; sem ele a lista fica pública (já criado em produção) |
 
 `NEXT_PUBLIC_VERSAO` e `NEXT_PUBLIC_COMMIT` não se preenchem à mão: o `next.config.ts` injeta a versão do `package.json` e o commit da Vercel, que aparecem no rodapé do `/admin`.
 
@@ -175,6 +175,7 @@ Estas são as decisões que se perdem se ficarem só na cabeça de alguém:
 - **Alertas do CRM** (`src/lib/alertas.ts`): negociação sem próximo passo, parada há 7+ dias, venda fechada sem o dono entrar em 7 dias, destaque vencendo hoje.
 - **Dinheiro digitado à mão** (`src/lib/dinheiro.ts`): `59,90`, `59.90` e `1.250,00` querem dizer o que parecem.
 - **Datas no fuso de quem olha** (`hojeISO()`): em Manaus, `toISOString()` viraria o dia às 20h e todo compromisso de hoje apareceria como atrasado.
+- **Revogação de sessão** (`src/lib/revogacao.ts`): o verificador de token não consulta o Firebase Auth (o Admin Auth não carrega na Vercel), então a marca de "sessões encerradas" mora em `config/admin`, documento que os dois guardas já leem — custo zero de leitura.
 - **Logout automático** (`src/lib/sessao.ts`): conta por relógio, não por `setTimeout` — aba em segundo plano tem o timer estrangulado pelo navegador.
 
 ---

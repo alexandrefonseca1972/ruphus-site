@@ -59,7 +59,7 @@ export const endPlanAction = memberAction(
 
 export const renameCustomerAction = memberAction(
   z.object({ tenantId: docId, customerId: docId, name: z.string().trim().min(1, "Escreva o nome.").max(80) }),
-  (data) => renameCustomer(adminDb, data),
+  (data, user) => renameCustomer(adminDb, data, user),
 );
 
 export const deleteCustomerAction = memberAction(

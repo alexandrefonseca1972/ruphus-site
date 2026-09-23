@@ -168,3 +168,15 @@ console.log("alertas: ok");
   assert.equal(emReais(25000), "250,00");
 }
 console.log("dinheiro: ok");
+
+// Sessão encerrada pelo admin: o token vale até expirar, o acesso não
+{
+  const { sessaoRevogada } = await import("@/lib/revogacao");
+  const agora = Date.now();
+  assert.equal(sessaoRevogada({ ana: agora }, "ana", agora - 1000), true, "login antes da revogação não vale");
+  assert.equal(sessaoRevogada({ ana: agora }, "ana", agora + 1000), false, "quem entrou depois segue dentro");
+  assert.equal(sessaoRevogada({ ana: agora }, "bia", agora - 1000), false, "revogação é por conta");
+  assert.equal(sessaoRevogada(undefined, "ana", agora), false, "sem marca, ninguém é barrado");
+  assert.equal(sessaoRevogada({ ana: "ontem" }, "ana", agora), false, "lixo no campo não tranca ninguém fora");
+}
+console.log("revogacao: ok");
