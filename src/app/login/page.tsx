@@ -3,15 +3,18 @@
 import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
+  onAuthStateChanged,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
+  updateProfile,
 } from "firebase/auth";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ehAdminDaPlataforma } from "@/app/admin/actions";
 import { negocioDoConvite } from "@/app/convite/actions";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +25,11 @@ import { handleSubmit } from "@/lib/utils";
 const Credentials = z.object({
   email: z.email("Informe um e-mail válido."),
   password: z.string().min(6, "A senha precisa de pelo menos 6 caracteres."),
+});
+// No cadastro o nome também: sem ele, quem entra por senha aparece só como
+// e-mail em "Quem tem acesso", e nas trilhas de auditoria nem isso.
+const Cadastro = Credentials.extend({
+  nome: z.string().trim().min(2, "Informe seu nome.").max(80),
 });
 
 const Vitrine = z.array(z.object({ slug: z.string(), nome: z.string(), sobre: z.string(), capa: z.string() }));
@@ -55,6 +63,9 @@ function Login() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [convidado, setConvidado] = useState<{ nome: string } | null>(null);
+  const rodando = useRef(false);   // uma ação do formulário está em curso
+  const [verSenha, setVerSenha] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
   const [vitrine, setVitrine] = useState<Vitrine>([]);
 
   // De quem é o convite: o nome do negócio é o que a pessoa reconhece, e ela
@@ -65,9 +76,14 @@ function Login() {
     let vivo = true;
     negocioDoConvite(token).then(
       (r) => {
-        if (vivo && r.ok) {
+        if (!vivo) return;
+        if (r.ok) {
           setConvidado({ nome: r.nome });
           setMode("signup");
+        } else {
+          // convite vencido ou já usado: sem isto a tela vira um login comum e
+          // a pessoa não entende por que o link "não fez nada"
+          setNotice("Este convite não vale mais. Peça outro à Ruphus — eles valem 7 dias.");
         }
       },
       () => {},
@@ -76,6 +92,19 @@ function Login() {
       vivo = false;
     };
   }, [proximo]);
+
+  // Já entrou: esta tela não tem nada a oferecer. Vai para onde a conta pertence.
+  // Enquanto uma ação roda, não: criar conta já deixa a pessoa logada, e sair
+  // daqui no meio abortaria o nome e a verificação de e-mail que vêm depois.
+  useEffect(
+    () =>
+      onAuthStateChanged(auth, async (u) => {
+        if (u && !rodando.current) router.replace(await paraOnde());
+      }),
+    // paraOnde lê apenas `proximo`, que não muda sem recarregar a tela
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [router, proximo],
+  );
 
   // A folha de contato do desktop. Falhar aqui não custa nada: a tela fica lisa.
   useEffect(() => {
@@ -96,6 +125,7 @@ function Login() {
     setError("");
     setNotice("");
     setBusy(true);
+    rodando.current = true;
     try {
       await action();
       if (redirect) router.replace(await paraOnde());
@@ -104,16 +134,26 @@ function Login() {
         setError(errorMessage(err));
       }
     } finally {
+      rodando.current = false;
       setBusy(false);
     }
   }
 
   function submit(form: FormData) {
-    run(() => {
-      const { email, password } = Credentials.parse(Object.fromEntries(form));
-      return mode === "signin"
-        ? signInWithEmailAndPassword(auth, email, password)
-        : createUserWithEmailAndPassword(auth, email, password);
+    run(async () => {
+      const dados = Object.fromEntries(form);
+      if (mode === "signin") {
+        const { email, password } = Credentials.parse(dados);
+        await signInWithEmailAndPassword(auth, email, password);
+        return;
+      }
+      const { email, password, nome } = Cadastro.parse(dados);
+      const { user } = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(user, { displayName: nome });
+      // o nome só entra no token depois de renovar, e é dele que o servidor lê
+      await user.getIdToken(true);
+      // falhar aqui não impede de entrar: a conta existe, o e-mail só não foi confirmado
+      await sendEmailVerification(user).catch(() => {});
     });
   }
 
@@ -185,14 +225,16 @@ function Login() {
             </p>
           )}
           <h1 className="text-[36px] leading-[1.04] font-semibold tracking-[-0.032em]">
-            {convidado ? "Entre para abrir sua agenda" : signin ? "Entrar na Ruphus" : "Criar conta"}
+            {convidado && !signin ? "Entre para abrir sua agenda" : signin ? "Entrar na Ruphus" : "Criar conta"}
           </h1>
           <p className="text-sm leading-relaxed text-[#5C5747]">
-            {convidado
+            {convidado && !signin
               ? "Use o Google ou crie uma senha. O acesso fica no seu nome."
-              : signin
-                ? "Use seu e-mail ou sua conta Google."
-                : "Leva menos de um minuto."}
+              : convidado
+                ? "Entre com a conta que você já tem: o convite continua valendo."
+                : signin
+                  ? "Use seu e-mail ou sua conta Google."
+                  : "Leva menos de um minuto."}
           </p>
         </div>
 
@@ -218,7 +260,14 @@ function Login() {
           <span className="h-px grow bg-[#E6E3D9]" />
         </div>
 
-        <form onSubmit={handleSubmit(submit)} className="grid gap-4">
+        <form onSubmit={(ev) => handleSubmit(submit)(ev)} className="grid gap-4">
+          {!signin && (
+            <div className="grid gap-1.5">
+              <label htmlFor="nome" className={ROTULO}>Seu nome</label>
+              <Input id="nome" name="nome" type="text" autoComplete="name" maxLength={80} required className={CAMPO} />
+            </div>
+          )}
+
           <div className="grid gap-1.5">
             <label htmlFor="email" className={ROTULO}>E-mail</label>
             <Input id="email" name="email" type="email" autoComplete="email" required className={CAMPO} />
@@ -232,21 +281,50 @@ function Login() {
                   type="button"
                   className="text-xs text-[#6B6555] underline underline-offset-[3px]"
                   disabled={busy}
-                  onClick={(e) => resetPassword(new FormData(e.currentTarget.form!).get("email") as string)}
+                  onClick={(e) => {
+                    const form = e.currentTarget.form!;
+                    const email = String(new FormData(form).get("email") ?? "");
+                    if (!email.trim()) return (form.elements.namedItem("email") as HTMLInputElement).focus();
+                    resetPassword(email);
+                  }}
                 >
                   Esqueci a senha
                 </button>
               )}
             </div>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete={signin ? "current-password" : "new-password"}
-              minLength={6}
-              required
-              className={CAMPO}
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                name="password"
+                type={verSenha ? "text" : "password"}
+                autoComplete={signin ? "current-password" : "new-password"}
+                minLength={6}
+                required
+                onKeyUp={(e) => setCapsLock(e.getModifierState?.("CapsLock") ?? false)}
+                className={`${CAMPO} pr-12`}
+              />
+              <button
+                type="button"
+                aria-pressed={verSenha}
+                aria-label={verSenha ? "Ocultar a senha" : "Mostrar a senha"}
+                onClick={() => setVerSenha((v) => !v)}
+                className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-[#6B6555] hover:text-[#17150F]"
+              >
+                {verSenha ? (
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
+                    <path d="M3 3l18 18" /><path d="M10.6 10.7a2 2 0 0 0 2.8 2.8" />
+                    <path d="M6.7 6.8C4.6 8.1 3 10 2 12c1.8 3.6 5.5 6 10 6 1.7 0 3.2-.3 4.6-1" />
+                    <path d="M9.9 6.2A9.9 9.9 0 0 1 12 6c4.5 0 8.2 2.4 10 6a14 14 0 0 1-3.2 4" />
+                  </svg>
+                ) : (
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
+                    <path d="M2 12c1.8-3.6 5.5-6 10-6s8.2 2.4 10 6c-1.8 3.6-5.5 6-10 6s-8.2-2.4-10-6z" />
+                    <circle cx="12" cy="12" r="2.6" />
+                  </svg>
+                )}
+              </button>
+            </div>
+            {capsLock && <span className="text-xs text-[#8A5A22]">Caps Lock está ligado.</span>}
             {!signin && <span className="text-xs text-[#8C8574]">Pelo menos 6 caracteres.</span>}
           </div>
 
@@ -273,27 +351,27 @@ function Login() {
             disabled={busy}
             className={`h-[50px] gap-2.5 rounded-[10px] text-[15px] font-semibold ${convidado ? "bg-[#2C6A53] hover:bg-[#245C47]" : ""}`}
           >
-            {convidado ? "Criar conta e entrar" : signin ? "Entrar" : "Criar conta"}
+            {busy ? "Um instante…" : convidado && !signin ? "Criar conta e entrar" : signin ? "Entrar" : "Criar conta"}
             <span className="flex size-5 items-center justify-center rounded-md bg-white/15 font-[family-name:var(--font-geist-mono)] text-[11px]">&#8629;</span>
           </Button>
         </form>
 
-        {!convidado && (
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm text-[#5C5747]">{signin ? "Não tem conta?" : "Já tem conta?"}</span>
-            <button
-              type="button"
-              className="text-sm font-semibold underline underline-offset-4"
-              onClick={() => {
-                setMode(signin ? "signup" : "signin");
-                setError("");
-                setNotice("");
-              }}
-            >
-              {signin ? "Criar conta" : "Entrar"}
-            </button>
-          </div>
-        )}
+        {/* Convidado que já é cliente também troca de modo: sem isto, "este e-mail
+            já tem conta" virava um beco sem saída */}
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm text-[#5C5747]">{signin ? "Não tem conta?" : "Já tem conta?"}</span>
+          <button
+            type="button"
+            className="text-sm font-semibold underline underline-offset-4"
+            onClick={() => {
+              setMode(signin ? "signup" : "signin");
+              setError("");
+              setNotice("");
+            }}
+          >
+            {signin ? "Criar conta" : "Entrar"}
+          </button>
+        </div>
 
         <div className="grid gap-3">
           <span className="h-px bg-[#EFEDE4]" />
