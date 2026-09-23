@@ -46,6 +46,8 @@ function Login() {
   const proximo = params.get("next");
   // Voltou porque a sessão expirou: diga isso, senão parece que o login caiu sozinho
   const expirou = Number(params.get("expirou")) || 0;
+  // Quem chega por "?trocar=1" quer entrar com outra conta: não é para levar embora
+  const trocar = params.get("trocar") === "1";
 
   // Quem administra a plataforma trabalha no /admin; quem é dono de um negócio,
   // no /painel. O convite, quando existe, vence os dois.
@@ -63,7 +65,8 @@ function Login() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [convidado, setConvidado] = useState<{ nome: string } | null>(null);
-  const rodando = useRef(false);   // uma ação do formulário está em curso
+  const rodando = useRef(false);        // uma ação do formulário está em curso
+  const escolheuModo = useRef(false);   // a pessoa já escolheu entrar ou criar conta
   const [verSenha, setVerSenha] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
   const [vitrine, setVitrine] = useState<Vitrine>([]);
@@ -79,11 +82,13 @@ function Login() {
         if (!vivo) return;
         if (r.ok) {
           setConvidado({ nome: r.nome });
-          setMode("signup");
+          // quem já clicou em "Já tem conta? Entrar" enquanto isto voltava do
+          // servidor não é jogado de volta para o cadastro
+          if (!escolheuModo.current) setMode("signup");
         } else {
           // convite vencido ou já usado: sem isto a tela vira um login comum e
           // a pessoa não entende por que o link "não fez nada"
-          setNotice("Este convite não vale mais. Peça outro à Ruphus — eles valem 7 dias.");
+          setError("Este convite não vale mais. Peça outro à Ruphus — eles valem 7 dias.");
         }
       },
       () => {},
@@ -96,15 +101,24 @@ function Login() {
   // Já entrou: esta tela não tem nada a oferecer. Vai para onde a conta pertence.
   // Enquanto uma ação roda, não: criar conta já deixa a pessoa logada, e sair
   // daqui no meio abortaria o nome e a verificação de e-mail que vêm depois.
-  useEffect(
-    () =>
-      onAuthStateChanged(auth, async (u) => {
-        if (u && !rodando.current) router.replace(await paraOnde());
-      }),
+  // "?trocar=1" desliga isto: é a única forma de entrar com outra conta.
+  useEffect(() => {
+    if (trocar) return;
+    let vivo = true;
+    const parar = onAuthStateChanged(auth, async (u) => {
+      if (!u || rodando.current) return;
+      const destino = await paraOnde();
+      // de novo depois do await: paraOnde faz uma volta ao servidor, e nesse
+      // meio-tempo a pessoa pode ter começado a criar a conta
+      if (vivo && !rodando.current) router.replace(destino);
+    });
+    return () => {
+      vivo = false;
+      parar();
+    };
     // paraOnde lê apenas `proximo`, que não muda sem recarregar a tela
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [router, proximo],
-  );
+  }, [router, proximo, trocar]);
 
   // A folha de contato do desktop. Falhar aqui não custa nada: a tela fica lisa.
   useEffect(() => {
@@ -149,10 +163,12 @@ function Login() {
       }
       const { email, password, nome } = Cadastro.parse(dados);
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(user, { displayName: nome });
-      // o nome só entra no token depois de renovar, e é dele que o servidor lê
-      await user.getIdToken(true);
-      // falhar aqui não impede de entrar: a conta existe, o e-mail só não foi confirmado
+      // Daqui para baixo nada pode barrar a entrada: a conta já existe, e falhar
+      // deixaria a pessoa logada olhando o formulário, sem conseguir criar de novo.
+      await updateProfile(user, { displayName: nome })
+        // o nome só entra no token depois de renovar, e é dele que o servidor lê
+        .then(() => user.getIdToken(true))
+        .catch(() => {});
       await sendEmailVerification(user).catch(() => {});
     });
   }
@@ -260,6 +276,8 @@ function Login() {
           <span className="h-px grow bg-[#E6E3D9]" />
         </div>
 
+        {/* o handler é montado no evento, não no render: submit lê uma ref, e
+            montá-lo durante o render quebra a regra de refs do compilador */}
         <form onSubmit={(ev) => handleSubmit(submit)(ev)} className="grid gap-4">
           {!signin && (
             <div className="grid gap-1.5">
@@ -284,7 +302,11 @@ function Login() {
                   onClick={(e) => {
                     const form = e.currentTarget.form!;
                     const email = String(new FormData(form).get("email") ?? "");
-                    if (!email.trim()) return (form.elements.namedItem("email") as HTMLInputElement).focus();
+                    if (!email.trim()) {
+                      setError("Escreva seu e-mail para receber o link.");
+                      (form.elements.namedItem("email") as HTMLInputElement).focus();
+                      return;
+                    }
                     resetPassword(email);
                   }}
                 >
@@ -300,7 +322,9 @@ function Login() {
                 autoComplete={signin ? "current-password" : "new-password"}
                 minLength={6}
                 required
+                onKeyDown={(e) => setCapsLock(e.getModifierState?.("CapsLock") ?? false)}
                 onKeyUp={(e) => setCapsLock(e.getModifierState?.("CapsLock") ?? false)}
+                onBlur={() => setCapsLock(false)}
                 className={`${CAMPO} pr-12`}
               />
               <button
@@ -364,6 +388,7 @@ function Login() {
             type="button"
             className="text-sm font-semibold underline underline-offset-4"
             onClick={() => {
+              escolheuModo.current = true;
               setMode(signin ? "signup" : "signin");
               setError("");
               setNotice("");
