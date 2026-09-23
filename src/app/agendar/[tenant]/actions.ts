@@ -31,6 +31,10 @@ export async function createBooking(input: unknown) {
     return { ok: false as const, error: `Agende com até ${MAX_DAYS_AHEAD} dias de antecedência.`, field: true as const };
   }
   // IP só para contar tentativas por dispositivo; guardado apenas como hash
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim();
+  // x-real-ip vem do proxy; no x-forwarded-for o primeiro valor é escolhido por
+  // quem chama, então vale o último, que foi acrescentado por quem está na frente
+  const h = await headers();
+  const encaminhado = h.get("x-forwarded-for")?.split(",").at(-1)?.trim();
+  const ip = h.get("x-real-ip")?.trim() || encaminhado;
   return book(adminDb, b.data, ip);
 }

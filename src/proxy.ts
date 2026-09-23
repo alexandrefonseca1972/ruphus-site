@@ -4,11 +4,19 @@ import { NextResponse, type NextRequest } from "next/server";
 // toda visita e não pode consultar o banco a cada uma.
 let fechados: { slugs: Set<string>; ate: number } = { slugs: new Set(), ate: 0 };
 
+// A origem vem do ambiente, não do pedido: o Host chega de fora e não decide
+// para onde o servidor busca a lista de sites fechados.
+const ORIGEM = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "";
+const SEGREDO = process.env.DESATIVADOS_TOKEN || "";
+
 async function foraDoAr(slug: string, origem: string) {
   if (Date.now() > fechados.ate) {
     fechados = { slugs: fechados.slugs, ate: Date.now() + 60_000 };
     try {
-      const r = await fetch(new URL("/api/desativados", origem), { cache: "no-store" });
+      const r = await fetch(new URL("/api/desativados", ORIGEM || origem), {
+        cache: "no-store",
+        ...(SEGREDO && { headers: { "x-ruphus": SEGREDO } }),
+      });
       if (r.ok) fechados = { slugs: new Set(await r.json()), ate: Date.now() + 60_000 };
     } catch {
       // sem resposta, vale a lista anterior: melhor servir o site do que derrubar todos

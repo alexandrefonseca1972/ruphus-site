@@ -1463,9 +1463,7 @@ export default function AdminPage() {
                     {detalhe?.telefone && (
                       <a
                         className={`${BOTAO} border border-[#2C6A53] bg-white text-[#2C6A53] hover:bg-[#EEF2F0]`}
-                        href={`https://wa.me/${detalhe.telefone}?text=${encodeURIComponent(
-                          `Olá! Este é o acesso ao painel do ${aberto.nome}: ${convite.url}`,
-                        )}`}
+                        href={linkWhatsApp(detalhe.telefone, `Olá! Este é o acesso ao painel do ${aberto.nome}: ${convite.url}`) ?? "#"}
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -1639,11 +1637,14 @@ export default function AdminPage() {
               {detalhe?.telefone && (
                 <a
                   className={`${BOTAO} border border-[#2C6A53] bg-white text-[#2C6A53] hover:bg-[#EEF2F0]`}
-                  href={`https://wa.me/${detalhe.telefone}?text=${encodeURIComponent(
-                    `Olá! Fizemos o site do ${aberto.nome}: https://${aberto.slug}.ruphus.site/\n\n` +
-                      `Para o link da bio no Instagram: https://${aberto.slug}.ruphus.site/bio\n` +
-                      `E os clientes já podem agendar online: https://${aberto.slug}.ruphus.site/agendar`,
-                  )}`}
+                  href={
+                    linkWhatsApp(
+                      detalhe.telefone,
+                      `Olá! Fizemos o site do ${aberto.nome}: https://${aberto.slug}.ruphus.site/\n\n` +
+                        `Para o link da bio no Instagram: https://${aberto.slug}.ruphus.site/bio\n` +
+                        `E os clientes já podem agendar online: https://${aberto.slug}.ruphus.site/agendar`,
+                    ) ?? "#"
+                  }
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -1665,7 +1666,7 @@ export default function AdminPage() {
                   Agendamento ↗
                 </a>
                 {detalhe?.telefone && (
-                  <a className={`${BOTAO_CLARO} justify-start`} href={`https://wa.me/${detalhe.telefone}`} target="_blank" rel="noreferrer">
+                  <a className={`${BOTAO_CLARO} justify-start`} href={linkWhatsApp(detalhe.telefone, `Olá! Aqui é da Ruphus.`) ?? "#"} target="_blank" rel="noreferrer">
                     Falar com o dono ↗
                   </a>
                 )}

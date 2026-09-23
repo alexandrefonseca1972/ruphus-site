@@ -43,13 +43,17 @@ service cloud.firestore {
 
       match /members/{uid} {
         allow read: if isMember(t);
+        // "viaConvite" é o que faz o negócio contar na cota da conta: só o
+        // servidor escreve, senão dá para gastar a cota de quem tem o uid conhecido
         allow create: if hasRole(t, ['owner', 'admin'])
           && request.resource.data.uid == uid
-          && request.resource.data.role in ['admin', 'member'];
+          && request.resource.data.role in ['admin', 'member']
+          && !('viaConvite' in request.resource.data);
         allow update: if hasRole(t, ['owner', 'admin'])
           && resource.data.role != 'owner'
           && request.resource.data.uid == uid
-          && request.resource.data.role in ['admin', 'member'];
+          && request.resource.data.role in ['admin', 'member']
+          && request.resource.data.get('viaConvite', false) == resource.data.get('viaConvite', false);
         allow delete: if hasRole(t, ['owner', 'admin']) && resource.data.role != 'owner';
       }
 
@@ -117,9 +121,19 @@ service cloud.firestore {
         allow read: if isMember(t);
       }
 
-      // Qualquer outra coleção do tenant (um nível só: nada de subcoleções como .../members aninhado)
-      match /{collection}/{doc} {
-        allow read, write: if !(collection in ['members', 'appointments', 'history', 'customers', 'plans', 'limits']) && isMember(t);
+      // Lista fechada, não pega-tudo: coleção nova nasce negada e só entra aqui
+      // quando alguém decidir que o funcionário pode mesmo ler e escrever nela.
+      match /services/{s} {
+        allow read, write: if isMember(t);
+      }
+      match /sites/{s} {
+        allow read, write: if isMember(t);
+      }
+      // Profissional novo é criado pelo servidor: é lá que o limite do plano é
+      // contado, e regra não sabe contar documentos. Editar e excluir seguem aqui.
+      match /staff/{s} {
+        allow read, update, delete: if isMember(t);
+        allow create: if false;
       }
     }
   }

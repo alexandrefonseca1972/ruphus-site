@@ -3,11 +3,13 @@
 import { adminDb } from "@/lib/admin";
 import { createPlan, deleteCustomer, endPlan, renameCustomer, requireMember, reschedule, rescheduleSlots, UserError } from "@/lib/booking.server";
 import { z } from "zod";
-import { PlanInput, RescheduleInput } from "@/lib/scheduling";
+import { PlanInput, RescheduleInput, Staff } from "@/lib/scheduling";
+import { criarProfissional } from "@/lib/negocios.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 
 // Chamáveis por POST direto: valida entrada e membro do tenant em toda chamada
 const SlotsInput = RescheduleInput.omit({ time: true });
+const docIdStaff = z.string().min(1).max(128).regex(/^[^/]+$/);
 
 export async function getRescheduleSlots(idToken: string, input: unknown) {
   const q = SlotsInput.safeParse(input);
@@ -40,6 +42,12 @@ function memberAction<S extends z.ZodType<{ tenantId: string }>, R>(
     }
   };
 }
+
+/** Profissional novo passa pelo servidor: as regras não deixam o cliente criar. */
+export const criarProfissionalAction = memberAction(
+  z.object({ tenantId: docIdStaff, dados: Staff }),
+  async (data) => ({ ok: true as const, id: await criarProfissional(adminDb, data.tenantId, data.dados) }),
+);
 
 export const rescheduleAppointment = memberAction(RescheduleInput, (data, user) => reschedule(adminDb, data, user));
 export const createPlanAction = memberAction(PlanInput, (data, user) => createPlan(adminDb, data, user));

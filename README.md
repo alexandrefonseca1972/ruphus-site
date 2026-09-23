@@ -113,6 +113,8 @@ Em `.env.local` (desenvolvimento) e no painel da Vercel (produção).
 | `FIREBASE_SERVICE_ACCOUNT` | servidor | credencial do Admin SDK, em JSON, na Vercel |
 | `GOOGLE_APPLICATION_CREDENTIALS` | servidor local | caminho do `.json` da conta de serviço |
 | `OWNER_UID` | scripts | quem vira admin da plataforma no primeiro uso |
+| `SITE_URL` | servidor | origem que o proxy usa para consultar a lista de sites fechados |
+| `DESATIVADOS_TOKEN` | servidor | segredo entre o proxy e `/api/desativados`; sem ele a lista fica pública |
 
 `NEXT_PUBLIC_VERSAO` e `NEXT_PUBLIC_COMMIT` não se preenchem à mão: o `next.config.ts` injeta a versão do `package.json` e o commit da Vercel, que aparecem no rodapé do `/admin`.
 
@@ -236,6 +238,7 @@ A versão no ar aparece no rodapé do `/admin` (`v0.2.0 · <commit>`).
 - **Comentário explica o porquê**, nunca o quê. Se descreve o que a linha faz, ele sobra.
 - **Erro esperado é classe** (`ErroPrevisto`): a tela mostra a mensagem; o resto vira erro genérico.
 - **Uma responsabilidade por arquivo em `src/lib`**, com o servidor isolado em `*.server.ts` e `server-only`.
+- **Regra do Firestore é lista fechada**: coleção nova sob `tenants/{t}` nasce negada, e entra na regra só quando alguém decide que o funcionário pode mesmo ler e escrever nela.
 - **Acessibilidade não é opcional**: `<button>` de verdade, rótulo em todo campo, alvo de toque de 44px no celular e campo com 16px (senão o iOS dá zoom).
 - Mudanças relevantes entram no `CHANGELOG.md`, do ponto de vista de quem usa.
 

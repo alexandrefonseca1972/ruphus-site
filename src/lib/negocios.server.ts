@@ -2,6 +2,7 @@ import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { UserError } from "@/lib/booking.server";
 import { TenantInput } from "@/lib/tenant-input";
+import { limiteStaffDe } from "@/lib/limites";
 
 /** Negócios que cada conta pode ter, até o admin da plataforma liberar mais. */
 export const LIMITE_PADRAO = 1;
@@ -73,4 +74,22 @@ export async function definirLimite(db: Firestore, uid: string, negocios: number
   if (!Number.isInteger(negocios) || negocios < 1 || negocios > 50) throw new UserError("O limite vai de 1 a 50 negócios.");
   await db.doc(`limites/${uid}`).set({ negocios, atualizadoEm: FieldValue.serverTimestamp() }, { merge: true });
   return negocios;
+}
+
+/** Cria o profissional se o plano ainda tem vaga.
+ *
+ * Numa transação, e no servidor, porque regra do Firestore não sabe contar
+ * documentos: a trava na tela sozinha é só um aviso educado. */
+export async function criarProfissional(db: Firestore, tenantId: string, dados: Record<string, unknown>) {
+  const tenant = db.doc(`tenants/${tenantId}`);
+  const novo = tenant.collection("staff").doc();
+  await db.runTransaction(async (tx) => {
+    const [doc, equipe] = await Promise.all([tx.get(tenant), tx.get(tenant.collection("staff"))]);
+    const limite = limiteStaffDe(doc.get("limiteStaff") as number | undefined);
+    if (equipe.size >= limite) {
+      throw new UserError(`Seu plano inclui ${limite} profissionais. Para abrir mais uma vaga, fale com a Ruphus.`);
+    }
+    tx.create(novo, dados);
+  });
+  return novo.id;
 }

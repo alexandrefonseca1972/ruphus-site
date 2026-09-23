@@ -116,13 +116,16 @@ await assertSucceeds(getDocs(collection(bob, "tenants/acme/plans")));
 // Storage (bob é admin de acme, mallory não é membro)
 const file = (uid, path) => ref(env.authenticatedContext(uid).storage(), path);
 const bytes = (n) => new Uint8Array(n);
-await assertSucceeds(uploadBytes(file("bob", "tenants/acme/logo.png"), bytes(10)));
+const imagem = { contentType: "image/png" };
+await assertSucceeds(uploadBytes(file("bob", "tenants/acme/logo.png"), bytes(10), imagem));
+// só imagem: HTML no bucket viraria página no domínio do Storage
+await assertFails(uploadBytes(file("bob", "tenants/acme/pagina.html"), bytes(10), { contentType: "text/html" }));
 await assertSucceeds(getBytes(file("alice", "tenants/acme/logo.png")));
 await assertFails(getBytes(file("mallory", "tenants/acme/logo.png")));
-await assertFails(uploadBytes(file("mallory", "tenants/acme/x.png"), bytes(10)));
+await assertFails(uploadBytes(file("mallory", "tenants/acme/x.png"), bytes(10), imagem));
 await assertFails(getBytes(ref(env.unauthenticatedContext().storage(), "tenants/acme/logo.png")));
-await assertFails(uploadBytes(file("alice", "tenants/acme/big.bin"), bytes(10 * 1024 * 1024)));
-await assertFails(uploadBytes(file("alice", "outro/lugar.png"), bytes(10)));
+await assertFails(uploadBytes(file("alice", "tenants/acme/big.png"), bytes(10 * 1024 * 1024), imagem));
+await assertFails(uploadBytes(file("alice", "outro/lugar.png"), bytes(10), imagem));
 
 // Clientes: o que o dono escreve sobre o cliente e dele; nome e telefone nao
 await env.withSecurityRulesDisabled((ctx) =>
@@ -162,6 +165,21 @@ await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenant
 await assertSucceeds(setDoc(doc(alice, "tenants/acme"), { name: "Acme Salão", ownerId: "alice", limiteStaff: 5 }));
 await assertFails(setDoc(doc(alice, "tenants/acme"), { name: "Acme Salão", ownerId: "alice", limiteStaff: 50 }));
 await assertFails(setDoc(doc(alice, "tenants/acme"), { name: "Acme Salão", ownerId: "alice" })); // apagar também é mudar
+
+// Profissional novo só pelo servidor (é lá que o limite do plano é contado)
+await assertFails(setDoc(doc(alice, "tenants/acme/staff/novo"), { name: "Bia", active: true }));
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/staff/bia"), { name: "Bia", active: true }));
+await assertSucceeds(setDoc(doc(alice, "tenants/acme/staff/bia"), { name: "Bia Souza", active: true }));
+await assertSucceeds(deleteDoc(doc(alice, "tenants/acme/staff/bia")));
+
+// Coleção que ninguém liberou nasce negada (antes o coringa abria tudo)
+await assertFails(setDoc(doc(alice, "tenants/acme/inventada/x"), { a: 1 }));
+await assertFails(getDoc(doc(alice, "tenants/acme/inventada/x")));
+
+// "viaConvite" é do servidor: sem isto dá para queimar a cota de outra conta
+await assertFails(setDoc(doc(alice, "tenants/acme/members/vitima"), { uid: "vitima", role: "admin", viaConvite: true }));
+await assertSucceeds(setDoc(doc(alice, "tenants/acme/members/vitima"), { uid: "vitima", role: "admin" }));
+await assertFails(setDoc(doc(alice, "tenants/acme/members/vitima"), { uid: "vitima", role: "admin", viaConvite: true }));
 
 await env.cleanup();
 console.log("rules ok");
