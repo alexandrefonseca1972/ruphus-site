@@ -1,6 +1,7 @@
 "use client";
 
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { auth } from "@/lib/firebase";
@@ -717,6 +718,10 @@ export default function AdminPage() {
                   </div>
                   <span className="text-[11.5px] leading-relaxed text-[#6F6A5E]">0 desliga. Vale para este painel e para o painel dos clientes.</span>
                 </form>
+
+                <Link href="/ajuda/vendas" className="flex h-11 items-center rounded-[10px] border border-[#D8D2C6] px-3.5 text-[13px] text-[#17150F] hover:border-[#17150F]">
+                  Manual do vendedor
+                </Link>
 
                 <div className="flex items-center gap-3 border-t border-[#EDE9E1] pt-3.5">
                   <span className="flex min-w-0 flex-col">
