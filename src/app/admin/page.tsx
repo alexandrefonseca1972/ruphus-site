@@ -157,6 +157,7 @@ export default function AdminPage() {
   const [prazo, setPrazo] = useState<"" | Prazo>("");
   const [contato, setContato] = useState<"" | "hoje">("");   // "falei hoje"
   const [alerta, setAlerta] = useState("");                  // id do alerta em foco
+  const [menuAjustes, setMenuAjustes] = useState(false);     // engrenagem: o que é da plataforma
   const [fixados, setFixados] = useState(false);
   const [foraDoAr, setForaDoAr] = useState(false);
   const [menuFiltros, setMenuFiltros] = useState(false);
@@ -577,8 +578,8 @@ export default function AdminPage() {
 
   return (
     <>
-      {/* Barra de menu: os comandos do painel, sempre no mesmo lugar */}
-      <div role="menubar" aria-label="Painel" className="flex flex-wrap items-center gap-2 border-b border-[#E2DDD3] bg-white px-4 py-2.5 sm:px-5">
+      {/* Navegação, busca e ajustes. Filtro e ordem ficam com as visões, abaixo. */}
+      <header aria-label="Painel" className="flex flex-wrap items-center gap-2 border-b border-[#E2DDD3] bg-white px-4 py-2.5 sm:px-5">
         <span className="mr-1 flex items-baseline gap-2 sm:border-r sm:border-[#EDE9E1] sm:pr-4">
           <h1 className="font-[family-name:var(--fonte-serifa)] text-[22px] leading-none tracking-tight">Administração</h1>
           <span className="hidden text-[11px] text-[#8B8578] sm:inline">ruphus.site</span>
@@ -603,10 +604,173 @@ export default function AdminPage() {
           ))}
         </div>
 
+
+        <div className="grow" />
+
+        <div className="flex h-9 w-full items-center gap-2 rounded-lg border border-[#D8D2C6] bg-[#FBFAF8] px-3 focus-within:border-[#17150F] sm:w-[320px]">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#6F6A5E" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.2-3.2" />
+          </svg>
+          <label htmlFor="busca" className="sr-only">Buscar espaço</label>
+          <input
+            id="busca"
+            ref={campoBusca}
+            type="search"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar negócio"
+            className="grow bg-transparent text-[13px] outline-none placeholder:text-[#8B8578]"
+          />
+          <kbd className="hidden rounded border border-[#D8D2C6] bg-white px-1.5 text-[11px] text-[#6F6A5E] sm:block">/</kbd>
+        </div>
+
+        {/* Ajuste é ajuste: o que se define uma vez mora aqui, não acima da lista */}
         <div className="relative">
           <button
             type="button"
-            role="menuitem"
+            aria-haspopup="true"
+            aria-expanded={menuAjustes}
+            aria-label="Ajustes da plataforma"
+            onClick={() => setMenuAjustes((v) => !v)}
+            className={`relative flex size-9 items-center justify-center rounded-lg border ${menuAjustes ? "border-[#17150F] bg-[#17150F]" : "border-[#D8D2C6] bg-white hover:border-[#17150F]"}`}
+          >
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke={menuAjustes ? "#FFFFFF" : "#17150F"} strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3.2" />
+              <path d="M12 3v2.2M12 18.8V21M21 12h-2.2M5.2 12H3M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6M18.4 18.4l-1.6-1.6M7.2 7.2L5.6 5.6" />
+            </svg>
+            {!assinatura && (
+              <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-white bg-[#B8791F]" />
+            )}
+          </button>
+
+          {menuAjustes && (
+            <>
+              <button type="button" aria-label="Fechar ajustes" onClick={() => setMenuAjustes(false)} className="fixed inset-0 z-30 cursor-default" />
+              <div
+                role="dialog"
+                aria-label="Ajustes da plataforma"
+                className="absolute right-0 top-11 z-40 flex max-h-[80vh] w-[min(92vw,420px)] flex-col gap-4 overflow-y-auto rounded-xl border border-[#C8C1B3] bg-white p-4 shadow-[0_18px_48px_rgba(23,21,15,0.18)]"
+              >
+                <div className="flex items-baseline gap-2">
+                  <h2 className="font-[family-name:var(--fonte-serifa)] text-[20px] leading-none">Ajustes</h2>
+                  <span className="text-[11px] text-[#8B8578]">valem para toda a plataforma</span>
+                </div>
+
+                <form
+                  className="flex flex-col gap-1.5"
+                  onSubmit={async (ev) => {
+                    ev.preventDefault();
+                    const nome = new FormData(ev.currentTarget).get("assinatura");
+                    const r = await definirAssinatura(await token(), nome);
+                    setAviso(r.ok ? "" : r.error);
+                    if (r.ok) setAssinatura(r.dados);
+                  }}
+                >
+                  <span className="flex items-center gap-2 text-xs font-semibold text-[#4A4639]">
+                    Quem assina as mensagens
+                    {!assinatura && <span className="rounded-full bg-[#FBF3DC] px-2 py-0.5 text-[10px] font-semibold text-[#7A5A2E]">falta definir</span>}
+                  </span>
+                  <div className="flex gap-2">
+                    <input
+                      name="assinatura"
+                      defaultValue={assinatura}
+                      maxLength={40}
+                      aria-label="Nome de quem fala com o cliente"
+                      placeholder="seu primeiro nome"
+                      className={`h-11 grow rounded-[10px] border bg-white px-3 text-sm text-[#17150F] outline-none focus:border-[#17150F] ${assinatura ? "border-[#D8D2C6]" : "border-[#B8791F]"}`}
+                    />
+                    <button type="submit" className={BOTAO_ESCURO}>Salvar</button>
+                  </div>
+                  <span className="text-[11.5px] leading-relaxed text-[#6F6A5E]">Entra em toda mensagem pronta. Sem isso, enviar e copiar ficam travados.</span>
+                </form>
+
+                <form
+                  className="flex flex-col gap-1.5 border-t border-[#EDE9E1] pt-3.5"
+                  onSubmit={async (ev) => {
+                    ev.preventDefault();
+                    const r = await definirMinutosInativo(await token(), new FormData(ev.currentTarget).get("minutos"));
+                    setAviso(r.ok ? (r.dados ? `Sai sozinho depois de ${r.dados} minutos parado.` : "Logout automático desligado.") : r.error);
+                  }}
+                >
+                  <span className="text-xs font-semibold text-[#4A4639]">Sair sozinho depois de parado</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      key={minutosInativo}
+                      name="minutos"
+                      type="number"
+                      min={0}
+                      max={MINUTOS_MAX}
+                      defaultValue={minutosInativo}
+                      aria-label="Minutos parado até sair"
+                      className="h-11 w-24 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm tabular-nums text-[#17150F] outline-none focus:border-[#17150F]"
+                    />
+                    <span className="text-[13px] text-[#4A4639]">minutos</span>
+                    <div className="grow" />
+                    <button type="submit" className={BOTAO_CLARO}>Salvar</button>
+                  </div>
+                  <span className="text-[11.5px] leading-relaxed text-[#6F6A5E]">0 desliga. Vale para este painel e para o painel dos clientes.</span>
+                </form>
+
+                <div className="flex items-center gap-3 border-t border-[#EDE9E1] pt-3.5">
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate text-[12px] text-[#4A4639]">{email}</span>
+                    <span className="font-[family-name:var(--font-geist-mono)] text-[11px] text-[#8B8578]">{VERSAO} · {COMMIT}</span>
+                  </span>
+                  <div className="grow" />
+                  <button
+                    type="button"
+                    className="h-11 rounded-[10px] border border-[#D8D2C6] px-3.5 text-[13px] font-semibold text-[#8A2F2F] hover:border-[#8A2F2F]"
+                    onClick={() => signOut(auth).then(() => router.replace("/login"))}
+                  >
+                    Sair
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </header>
+
+      {/* As visões viram abas: o que se repete todo dia vira lugar fixo */}
+      <div className="flex flex-wrap items-center gap-1 border-b border-[#E2DDD3] bg-white px-4 sm:px-5">
+        {VISOES.map((v) => {
+          const n = contaVisao(v);
+          const ativa = visaoAtiva?.id === v.id;
+          return (
+            <span key={v.id} className="flex items-center">
+              {v.separa && <span aria-hidden="true" className="mx-2 h-5 w-px bg-[#EDE9E1]" />}
+              <button
+                type="button"
+                aria-pressed={ativa}
+                onClick={() => verVisao(v)}
+                className={`${ABA} ${
+                  ativa
+                    ? "border-[#17150F] font-bold text-[#17150F]"
+                    : `border-transparent ${v.urgente && n ? "font-semibold text-[#8A2F2F]" : "text-[#17150F]"} hover:border-[#D8D2C6]`
+                }`}
+              >
+                {v.urgente && n > 0 && <span aria-hidden="true" className="size-1.5 rounded-full bg-[#8A2F2F]" />}
+                {v.rotulo}
+                <span
+                  className={`${CONTA} ${
+                    ativa ? "bg-[#17150F] text-white" : v.urgente && n ? "bg-[#FBF0EE] text-[#8A2F2F]" : "bg-[#F3EFE7] text-[#6F6A5E]"
+                  }`}
+                >
+                  {n}
+                </span>
+              </button>
+            </span>
+          );
+        })}
+
+        <div className="grow" />
+
+        {/* Filtro e ordem moram com as visões: são todos recortes da mesma lista */}
+        <div className="flex items-center gap-2 py-1.5">
+        <div className="relative">
+          <button
+            type="button"
             aria-haspopup="true"
             aria-expanded={menuFiltros}
             onClick={() => setMenuFiltros((v) => !v)}
@@ -630,7 +794,7 @@ export default function AdminPage() {
               <div
                 role="menu"
                 aria-label="Filtros"
-                className="absolute left-0 top-11 z-40 flex max-h-[70vh] w-[min(92vw,420px)] flex-col gap-3.5 overflow-y-auto rounded-xl border border-[#C8C1B3] bg-white p-4 shadow-[0_18px_48px_rgba(23,21,15,0.18)]"
+                className="absolute right-0 top-11 z-40 flex max-h-[70vh] w-[min(92vw,420px)] flex-col gap-3.5 overflow-y-auto rounded-xl border border-[#C8C1B3] bg-white p-4 shadow-[0_18px_48px_rgba(23,21,15,0.18)]"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Cidade</span>
@@ -701,7 +865,7 @@ export default function AdminPage() {
           )}
         </div>
 
-        <label htmlFor="ordem" className="sr-only">Ordenar</label>
+        <label htmlFor="ordem" className="text-[11px] uppercase tracking-[0.06em] text-[#6F6A5E]">Ordem</label>
         <select
           id="ordem"
           value={ordem}
@@ -715,69 +879,7 @@ export default function AdminPage() {
           <option value="avaliacoes">Mais avaliações</option>
           <option value="nome">Nome (A–Z)</option>
         </select>
-
-        <div className="grow" />
-
-        <div className="flex h-9 w-full items-center gap-2 rounded-lg border border-[#D8D2C6] bg-[#FBFAF8] px-3 focus-within:border-[#17150F] sm:w-[320px]">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#6F6A5E" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="7" />
-            <path d="M20 20l-3.2-3.2" />
-          </svg>
-          <label htmlFor="busca" className="sr-only">Buscar espaço</label>
-          <input
-            id="busca"
-            ref={campoBusca}
-            type="search"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar negócio"
-            className="grow bg-transparent text-[13px] outline-none placeholder:text-[#8B8578]"
-          />
-          <kbd className="hidden rounded border border-[#D8D2C6] bg-white px-1.5 text-[11px] text-[#6F6A5E] sm:block">/</kbd>
         </div>
-
-        <span className="hidden text-[12px] text-[#6F6A5E] lg:inline">{email}</span>
-        <button
-          className="h-9 rounded-lg border border-[#D8D2C6] px-3 text-[12px] hover:border-[#17150F]"
-          onClick={() => signOut(auth).then(() => router.replace("/login"))}
-        >
-          Sair
-        </button>
-      </div>
-
-      {/* As visões viram abas: o que se repete todo dia vira lugar fixo */}
-      <div className="flex flex-wrap items-center gap-1 border-b border-[#E2DDD3] bg-white px-4 sm:px-5">
-        {VISOES.map((v) => {
-          const n = contaVisao(v);
-          const ativa = visaoAtiva?.id === v.id;
-          return (
-            <span key={v.id} className="flex items-center">
-              {v.separa && <span aria-hidden="true" className="mx-2 h-5 w-px bg-[#EDE9E1]" />}
-              <button
-                type="button"
-                aria-pressed={ativa}
-                onClick={() => verVisao(v)}
-                className={`${ABA} ${
-                  ativa
-                    ? "border-[#17150F] font-bold text-[#17150F]"
-                    : `border-transparent ${v.urgente && n ? "font-semibold text-[#8A2F2F]" : "text-[#17150F]"} hover:border-[#D8D2C6]`
-                }`}
-              >
-                {v.urgente && n > 0 && <span aria-hidden="true" className="size-1.5 rounded-full bg-[#8A2F2F]" />}
-                {v.rotulo}
-                <span
-                  className={`${CONTA} ${
-                    ativa ? "bg-[#17150F] text-white" : v.urgente && n ? "bg-[#FBF0EE] text-[#8A2F2F]" : "bg-[#F3EFE7] text-[#6F6A5E]"
-                  }`}
-                >
-                  {n}
-                </span>
-              </button>
-            </span>
-          );
-        })}
-
-        <div className="grow" />
 
         {cidade && (
           <button
@@ -854,66 +956,20 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* Uma vez só: o nome entra em toda mensagem pronta, sem o vendedor redigitar */}
-        <details className="rounded-2xl border border-[#E2DDD3] bg-white px-4 py-3">
-          <summary className="cursor-pointer text-sm text-[#6F6A5E]">
-            Quem assina as mensagens{assinatura ? ` · ${assinatura}` : " · ninguém ainda"}
-          </summary>
-          <form
-            className="mt-3 flex flex-wrap items-end gap-2"
-            onSubmit={async (ev) => {
-              ev.preventDefault();
-              const nome = new FormData(ev.currentTarget).get("assinatura");
-              const r = await definirAssinatura(await token(), nome);
-              setAviso(r.ok ? "" : r.error);
-              if (r.ok) setAssinatura(r.dados);
-            }}
-          >
-            <label className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
-              Nome de quem fala com o cliente
-              <input
-                name="assinatura"
-                defaultValue={assinatura}
-                maxLength={40}
-                placeholder="Alexandre"
-                className="h-11 w-56 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm text-[#17150F] outline-none focus:border-[#17150F]"
-              />
-            </label>
-            <button type="submit" className={BOTAO_ESCURO}>Salvar</button>
-          </form>
-        </details>
-
-        {/* Sai sozinho no computador do balcão, que fica aberto o dia todo */}
-        <details className="rounded-2xl border border-[#E2DDD3] bg-white px-4 py-3">
-          <summary className="cursor-pointer text-sm text-[#6F6A5E]">
-            Sair sozinho depois de parado{minutosInativo ? ` · ${minutosInativo} min` : " · desligado"}
-          </summary>
-          <form
-            className="mt-3 flex flex-wrap items-end gap-2"
-            onSubmit={async (ev) => {
-              ev.preventDefault();
-              const r = await definirMinutosInativo(await token(), new FormData(ev.currentTarget).get("minutos"));
-              setAviso(r.ok ? (r.dados ? `Sai sozinho depois de ${r.dados} minutos parado.` : "Logout automático desligado.") : r.error);
-            }}
-          >
-            <label className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
-              Minutos parado (0 desliga)
-              <input
-                // renasce quando a configuração chega do banco: sem isto o campo
-                // ficava em 0 e um "Salvar" sem querer desligava o logout de todos
-                key={minutosInativo}
-                name="minutos"
-                type="number"
-                min={0}
-                max={MINUTOS_MAX}
-                defaultValue={minutosInativo}
-                className="h-11 w-32 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm tabular-nums text-[#17150F] outline-none focus:border-[#17150F]"
-              />
-            </label>
-            <button type="submit" className={BOTAO_ESCURO}>Salvar</button>
-            <span className="text-xs text-[#6F6A5E]">Vale para este painel e para o painel dos clientes.</span>
-          </form>
-        </details>
+        {/* Configuração pendente vira uma linha que some ao ser resolvida, não uma caixa fixa */}
+        {!assinatura && (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#E7D6B4] bg-[#FBF3DC] px-3.5 py-2.5">
+            <span className="text-[13px] text-[#7A5A2E]">Ninguém assina as mensagens: elas não podem ser enviadas até alguém assinar.</span>
+            <div className="grow" />
+            <button
+              type="button"
+              onClick={() => setMenuAjustes(true)}
+              className="h-9 rounded-lg bg-[#7A5A2E] px-3.5 text-[12.5px] font-semibold text-white hover:bg-[#654A26]"
+            >
+              Definir agora
+            </button>
+          </div>
+        )}
 
         {/* Montado sempre, visível só na aba: é assim que a aba sabe quantas estão em atraso */}
         <div className={tela === "cobranca" ? "" : "hidden"}>
