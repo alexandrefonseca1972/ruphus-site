@@ -1,6 +1,6 @@
 # Ruphus
 
-`v0.3.0` · Next.js 16 · Firebase · Vercel
+Next.js 16 · Firebase · Vercel · [o que mudou em cada versão](CHANGELOG.md)
 
 **Agenda online e site para quem atende de porta aberta.** Salões, barbearias, pet shops, clínicas e estúdios ganham um endereço próprio, uma agenda que o cliente usa sozinho e um painel para tocar o dia. A Ruphus vende, implanta e cobra por isso — e este repositório é o produto inteiro: o site público, o painel do negócio, o CRM de vendas e a cobrança por Pix.
 
@@ -61,6 +61,8 @@ Quatro telas, escolhidas na barra de cima: **Lista**, **Funil**, **Clientes** e 
 - **Alertas**, acima da lista: sem próximo passo, parado há 7+ dias, fechou e não entrou, destaque vencendo. Cada um filtra a lista com um toque, e a faixa some quando não há o que avisar.
 - **Mensagens prontas** por etapa, em cadência (dia 0, +3, +10), sem link nem preço no primeiro contato e com saída explícita. A assinatura é definida uma vez pelo admin; sem ela, enviar e copiar ficam travados.
 - **Gaveta do negócio**: contato do dono, linha do tempo, cobranças, implantação, objeções respondidas e "Manter em destaque" por 1, 3 ou 7 dias.
+- **Proposta com link próprio**: uma página que o dono abre no celular, com o que está incluído e os valores combinados naquele negócio. Vale 7 dias. Quem prefere anexo usa "Baixar PDF" — é a mesma página impressa, não uma segunda arte.
+- **Convite de uma conta só**: o link abre apenas com o e-mail do dono, confirmado. Sem esse e-mail cadastrado, o convite não sai.
 - **Ajustes na engrenagem**: quem assina, logout automático, conta, versão e sair. O que falta configurar vira um ponto na engrenagem e uma linha acima da lista, que some quando resolvido.
 
 ---
@@ -203,7 +205,7 @@ O que sustenta o isolamento entre negócios, e onde mexer com cuidado:
 - **Toda ação do painel passa por um guarda**: `requireMember` amarra uid ↔ negócio; `adminAction` cobre as 30 ações do `/admin`. O idToken vai como argumento, não como cookie — não há superfície de CSRF.
 - **Fora do alcance do cliente**: `crm`, `cobrancas`, `limites`, `convitesUsados` e `config/*` não são cobertos por regra nenhuma, então são negados por padrão. A exceção é `config/sessao`, que só diz os minutos do logout.
 - **Regras são lista fechada**: sob `tenants/{t}` só `services`, `sites` e `staff` estão liberados. Coleção nova nasce negada.
-- **Convite**: JWT HS256 com segredo de 256 bits em `config/convite`, válido 7 dias, uso único garantido por `create()` em `convitesUsados/{jti}`. É um bearer: quem tiver o link vira admin daquele negócio.
+- **Convite**: JWT HS256 com segredo de 256 bits em `config/convite`, válido 7 dias, uso único garantido por `create()` em `convitesUsados/{jti}`. **Não é um bearer**: o e-mail do dono vai assinado no token (claim `e`), e só entra a conta com aquele endereço **confirmado** — e-mail não confirmado é recusado, porque é o campo que qualquer um preenche com o endereço alheio. Token sem destinatário não vale, então não existe link aberto. Sem `donoEmail` no CRM não sai convite.
 - **Storage** só aceita `image/*` até 10 MB, e só de membro do negócio.
 - **Agendamento anônimo** tem limite por telefone e por dispositivo (IP guardado só como hash). O IP vem de `x-real-ip` ou do último `x-forwarded-for` — o primeiro é escolhido por quem chama.
 - **Prospecção por WhatsApp** segue a política da Meta: mensagem curta, sem link no primeiro contato, com saída explícita e no máximo três toques.
@@ -219,13 +221,14 @@ Sem framework: cada suíte é um arquivo que roda com `tsx` ou `node` e termina 
 ```bash
 npm run test:rules        # regras de acesso (Firestore + Storage)
 npm run test:booking      # agendamento, cota, eventos do CRM, saúde
-npm run test:convite      # convite: criação, validade, aceite
+npm run test:convite      # convite: criação, validade, uso único, a quem abre
 npm run test:cobranca     # Pix, baixa, lote do mês
 npm run test:clientes     # ficha, etiquetas, histórico
 npm run test:crm          # funil, saúde, alertas, dinheiro, revogação (sem emulador)
 npm run test:proxy        # roteamento de {slug}.ruphus.site
 npm run test:pix          # BR Code e CRC
 npm run test:whatsapp     # montagem dos links
+npm run test:admin        # o select da lista do /admin x os campos lidos
 npm run test:scale        # comportamento com volume
 ```
 
