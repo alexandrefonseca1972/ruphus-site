@@ -3,6 +3,17 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.5.4 — 24/09/2026
+
+### E-mails de acesso com link no próprio domínio
+- **Os links dos e-mails de senha e de confirmação passam a abrir em
+  `ruphus.site/conta`** (#57): antes iam para `siteflow-57b6b.firebaseapp.com`,
+  e um link de outro domínio num e-mail de `noreply@ruphus.site` foi um dos
+  motivos de o Outlook mandar a redefinição de senha para o lixo eletrônico.
+- A página pede um clique para confirmar e-mail em vez de aplicar ao abrir
+  (#57): o Outlook abre os links antes da pessoa, e o código vale uma vez só.
+- `conta` entrou na lista de endereços reservados (#57).
+
 ## 0.5.3 — 24/09/2026
 
 ### README e manual técnico alinhados
