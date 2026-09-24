@@ -5,7 +5,7 @@ export type Role = z.infer<typeof Role>;
 
 // Rotas do app, páginas de public/ e subdomínios do próprio app: um negócio com
 // um desses endereços ficaria escondido atrás da rota (ou do subdomínio) de mesmo nome
-const RESERVADOS = ["admin", "agendar", "api", "app", "bio", "convite", "indisponivel", "login", "marca", "pagar", "painel", "privacidade", "s", "sobre", "www"];
+const RESERVADOS = ["admin", "agendar", "api", "app", "bio", "conta", "convite", "indisponivel", "login", "marca", "pagar", "painel", "privacidade", "s", "sobre", "www"];
 
 export const TenantInput = z.object({
   slug: z

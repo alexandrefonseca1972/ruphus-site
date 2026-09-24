@@ -8,6 +8,10 @@ const messages: Record<string, string> = {
   "auth/too-many-requests": "Muitas tentativas. Tente de novo em alguns minutos.",
   "auth/popup-blocked": "O navegador bloqueou a janela do Google. Libere pop-ups e tente de novo.",
   "auth/account-exists-with-different-credential": "Este e-mail já entra por outra forma de acesso.",
+  "auth/expired-action-code": "Este link venceu. Peça um novo.",
+  "auth/invalid-action-code": "Este link já foi usado ou não vale mais. Peça um novo.",
+  "auth/user-disabled": "Esta conta está desativada.",
+  "auth/user-not-found": "Esta conta não existe mais.",
   "permission-denied": "Sem permissão. Esse endereço pode já estar em uso.",
 };
 
