@@ -7,7 +7,8 @@ import {
   where,
 } from "firebase/firestore";
 import { z } from "zod";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
+import { db } from "@/lib/firebase-db";
 
 // Esquema e máscara moram num módulo sem Firebase: o servidor e os testes os usam sem inicializar o app do navegador
 export * from "./tenant-input";

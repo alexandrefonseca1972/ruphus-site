@@ -1,6 +1,5 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
 import { z } from "zod";
 
 const config = z
@@ -23,7 +22,8 @@ const config = z
 
 export const app = getApps().length ? getApp() : initializeApp(config);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// `db` mora em @/lib/firebase-db: aqui ele faria todo mundo que precisa só de
+// login baixar 1 MB do SDK do Firestore junto.
 
 export const idToken = () =>
   auth.currentUser?.getIdToken() ?? Promise.reject(new Error("Sessão expirada. Entre novamente."));

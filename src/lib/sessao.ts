@@ -1,9 +1,8 @@
 "use client";
 
 import { signOut } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
-import { useEffect, useState } from "react";
-import { auth, db } from "@/lib/firebase";
+import { useEffect } from "react";
+import { auth } from "@/lib/firebase";
 import { MINUTOS_MAX } from "@/lib/limites";
 
 export { MINUTOS_MAX };
@@ -32,25 +31,6 @@ export function loginComMotivo(base = "/login") {
 
 const EVENTOS = ["pointerdown", "keydown", "scroll", "touchstart"] as const;
 const OLHADA = 15_000;
-
-/** Os minutos configurados, acompanhados ao vivo.
- *
- * Quem já fala com o Firestore no cliente usa isto. O /admin não: ele recebe o
- * valor junto do resto do painel, na mesma viagem, em vez de abrir um canal só
- * para ler um documento de um campo enquanto a tela ainda está carregando. */
-export function useMinutosInativo() {
-  const [minutos, setMinutos] = useState(0);
-  useEffect(
-    () =>
-      onSnapshot(
-        doc(db, "config", "sessao"),
-        (d) => setMinutos(Number(d.get("minutos")) || 0),
-        () => setMinutos(0), // sem permissão ou offline: não tranca ninguém fora
-      ),
-    [],
-  );
-  return minutos;
-}
 
 export function useAutoLogout(minutos: number) {
   useEffect(() => {
