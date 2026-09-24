@@ -129,9 +129,14 @@ export default function ManualDoVendedor() {
           ]}
         />
         <P>
-          <Termo>A proposta tem página própria.</Termo> No bloco de preço da gaveta, "Gerar link da proposta" cria um
-          endereço que mostra o que está incluído, os valores combinados e o botão "Quero começar". O mesmo link vai
-          pelo WhatsApp e pelo e-mail — sem anexo, e o dono lê no celular. Vale 7 dias; "Refazer" invalida o anterior.
+          <Termo>A proposta tem página própria.</Termo> No bloco de preço da gaveta, “Gerar link da proposta” cria um
+          endereço que mostra o que está incluído, os valores combinados e o botão “Quero começar”. O mesmo link vai
+          pelo WhatsApp e pelo e-mail, e o dono lê no celular. Vale 7 dias; “Refazer” invalida o anterior.
+        </P>
+        <P>
+          <Termo>Quem prefere anexo tem PDF.</Termo> “Baixar PDF”, ao lado de “Ver como o dono vê”, abre a proposta já
+          na caixa de impressão: salve como PDF e anexe no e-mail ou no WhatsApp. É a mesma proposta do link impressa,
+          com o WhatsApp da Ruphus no rodapé — então o arquivo funciona sozinho, se for repassado adiante.
         </P>
         <P>
           O texto é editável antes de enviar. Abrir no WhatsApp registra o envio na linha do tempo e marca o negócio em
@@ -147,7 +152,8 @@ export default function ManualDoVendedor() {
         <P>
           <Termo>Fechou</Termo> abre uma confirmação que faz três coisas de uma vez, e você escolhe quais: gera a
           cobrança da entrada, abre as boas-vindas no WhatsApp e inclui o convite do painel. Entrada em branco é venda
-          sem entrada; a mensalidade é obrigatória.
+          sem entrada; a mensalidade é obrigatória. Sem o e-mail do dono cadastrado, o convite não sai — e o aviso no
+          fim diz isso, para as boas-vindas não irem sem o acesso sem ninguém notar.
         </P>
         <P>
           <Termo>Perdeu</Termo> exige o motivo — preço, já tem site ou agenda, sem interesse agora, não respondeu,
@@ -227,8 +233,10 @@ export default function ManualDoVendedor() {
         <Lista
           itens={[
             <>
-              <Termo>Convite do dono</Termo> — o link vale 7 dias e serve uma vez só. Copiar de novo não gera outro
-              link; “Gerar outro” gera.
+              <Termo>Convite do dono</Termo> — o link vale 7 dias, serve uma vez só e abre <b>só com o e-mail do dono</b>,
+              depois de ele confirmar o endereço. Por isso o botão só aparece com o e-mail preenchido na aba Venda: é
+              ele que impede que um link repassado vire acesso de outra pessoa. Copiar de novo não gera outro link;
+              “Gerar outro” gera.
             </>,
             <>
               <Termo>Profissionais no plano</Termo> — 5 por padrão, ajustável.
