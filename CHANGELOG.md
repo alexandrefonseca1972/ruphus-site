@@ -3,6 +3,23 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.5.2 — 24/09/2026
+
+### Manual do vendedor alinhado ao produto
+- **O manual dizia que a proposta ia "sem anexo"** (#55): o PDF entrou na 0.4.0 e
+  o texto ficou para trás. Agora explica o "Baixar PDF" e por que o arquivo
+  funciona sozinho se for repassado.
+- **E descrevia o convite no modelo antigo** (#55): passou a dizer que o link só
+  abre com o e-mail do dono confirmado, e que é por isso que o botão depende do
+  e-mail na aba Venda. Fechar venda também avisa quando o convite não sai.
+
+### Lint volta a ter dono
+- **O CI passou a rodar `npm run lint`** (#55): ele só reclamava na máquina de
+  quem lembrasse de rodar, e por isso seis erros ficaram parados no manual.
+- `no-unused-vars` deixou de acusar `const { a, b, ...resto }`, que é como se
+  descarta campo, e o eslint parou de olhar `public/`, que são assets servidos
+  como estão e não código compilado (#55).
+
 ## 0.5.1 — 24/09/2026
 
 ### Painel e login mais leves
