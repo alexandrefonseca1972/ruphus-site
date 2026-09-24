@@ -21,8 +21,9 @@ function db() {
 
 async function selfCheck() {
   const d = db();
-  const token = await criarConvite(d, "espaco-de-teste");
+  const token = await criarConvite(d, "espaco-de-teste", "dono@teste.com");
   assert.equal((await lerConvite(d, token))?.tenantId, "espaco-de-teste");
+  assert.equal((await lerConvite(d, token))?.email, "dono@teste.com");
   assert.equal(await lerConvite(d, token + "x"), null); // assinatura adulterada não passa
   assert.equal(await lerConvite(d, "nada"), null);
   console.log("self-check ok");
@@ -42,10 +43,13 @@ if (args.includes("--self-check")) {
       console.error(`${slug}: espaço não encontrado`);
       continue;
     }
-    // mesmo critério do painel: com e-mail do dono no CRM, o link só abre para
-    // aquela conta. Sem isso o script seria a porta de trás da própria regra.
+    // mesmo critério do painel: o link é de uma conta só. Sem e-mail do dono no
+    // CRM não sai convite — senão o script seria a porta de trás da própria regra.
     const email = ((await d.collection("crm").doc(slug).get()).get("donoEmail") as string | null) || null;
-    const url = `${BASE}/convite?c=${await criarConvite(d, slug, email)}`;
-    console.log(`${tenant.get("name")}\n  ${url}\n  ${email ? `abre só com ${email}` : "ABERTO: vale para a primeira conta que usar"}\n`);
+    if (!email) {
+      console.error(`${slug}: sem e-mail do dono no CRM (campo donoEmail). Cadastre na aba Venda antes de convidar.`);
+      continue;
+    }
+    console.log(`${tenant.get("name")}\n  ${BASE}/convite?c=${await criarConvite(d, slug, email)}\n  abre só com ${email}\n`);
   }
 }

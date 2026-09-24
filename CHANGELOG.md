@@ -3,6 +3,21 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.5.0 — 23/09/2026
+
+### Convite é sempre de uma conta só
+- **Não existe mais link de convite aberto** (#53): em 0.4.1 o link só ficava
+  preso quando o e-mail do dono estava cadastrado; sem ele, seguia valendo para
+  a primeira conta que usasse. Agora o destinatário é parte do convite — sem
+  e-mail, não sai link.
+- A gaveta troca o botão por "Convidar {e-mail}" quando dá para convidar, e por
+  um aviso apontando a aba Venda quando falta o e-mail: o que falta é um dado a
+  uma aba de distância, não um erro depois do clique (#53).
+- O lote diz quais negócios ficaram sem link e por quê, em vez de vir menor sem
+  explicação. Fechar venda com convite avisa se o convite não saiu (#53).
+- Token assinado sem destinatário deixa de valer, como já acontecia com os links
+  antigos sem uso único (#53).
+
 ## 0.4.1 — 23/09/2026
 
 ### Convite preso a quem foi convidado

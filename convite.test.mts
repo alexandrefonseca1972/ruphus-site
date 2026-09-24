@@ -7,7 +7,7 @@ import { consumirConvite, conviteAbrePara, criarConvite, lerConvite } from "@/li
 
 const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
 
-const token = await criarConvite(db, "acme");
+const token = await criarConvite(db, "acme", "dona@acme.com");
 const convite = await lerConvite(db, token);
 assert.equal(convite?.tenantId, "acme");
 assert.ok(convite?.jti, "sem jti não há como queimar o link");
@@ -47,9 +47,18 @@ const preso = await lerConvite(db, presoToken);
 assert.equal(preso?.email, "dona@salao.com", "o e-mail viaja normalizado no token");
 assert.equal(preso?.tenantId, "salao");
 
-// Sem e-mail o convite segue aberto: é o comportamento de quem não cadastrou o dono
-assert.equal((await lerConvite(db, await criarConvite(db, "salao")))?.email, null);
-assert.equal((await lerConvite(db, await criarConvite(db, "salao", "")))?.email, null, "e-mail vazio não prende nada");
+// Sem destinatário não existe convite: assinar sem e-mail é erro, não link aberto
+await assert.rejects(() => criarConvite(db, "salao", ""), /e-mail do dono/i, "e-mail vazio não gera link");
+
+// E um token assinado sem destinatário não vale — mesmo tratamento dos links
+// antigos sem jti: é justamente o formato que abre para quem chegar primeiro
+const semDestino = await new SignJWT({ t: "salao" })
+  .setProtectedHeader({ alg: "HS256" })
+  .setJti("abc123")
+  .setIssuedAt()
+  .setExpirationTime("7d")
+  .sign(new TextEncoder().encode(secret));
+assert.equal(await lerConvite(db, semDestino), null, "convite sem destinatário não vale mais");
 
 // Trocar o destinatário exige assinar de novo: ele não está na URL
 const [cab2, corpo2, ass2] = presoToken.split(".");
@@ -61,11 +70,7 @@ assert.equal(await lerConvite(db, `${cab2}.${outroCorpo}.${ass2}`), null, "troca
 // ————— Quem o convite preso deixa entrar —————
 
 const dona = { email: "dona@salao.com" };
-const ok = (c: string | null, u: { email?: string; emailPendente?: string }) => conviteAbrePara({ email: c }, u).ok;
-
-// o link aberto não olha conta nenhuma
-assert.equal(ok(null, {}), true);
-assert.equal(ok(null, { emailPendente: "qualquer@x.com" }), true);
+const ok = (c: string, u: { email?: string; emailPendente?: string }) => conviteAbrePara({ email: c }, u).ok;
 
 // preso: só a dona, e só confirmada
 assert.equal(ok("dona@salao.com", dona), true);

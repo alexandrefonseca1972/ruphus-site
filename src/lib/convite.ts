@@ -3,6 +3,10 @@ import { randomBytes } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { DIAS_CONVITE } from "@/lib/limites";
+import { ErroPrevisto } from "@/lib/erro-previsto";
+
+/** Falta o e-mail do dono. Erro previsto: a mensagem chega à tela como está. */
+export class SemDestinatario extends ErroPrevisto {}
 
 // O convite é um link: quem abrir e entrar com a conta dele vira admin do espaço.
 // O segredo mora no Firestore (só o Admin SDK lê), então não precisa de variável
@@ -34,13 +38,15 @@ async function segredo(db: Firestore) {
  *  "joao@gmail.com" é a mesma pessoa, e o Firebase guarda como veio. */
 export const mesmoEmail = (e: string) => e.trim().toLowerCase();
 
-/** Cria o link. Com `email`, o convite passa a valer só para essa conta.
+/** Cria o link para uma conta. Sem e-mail não há convite: o destinatário é
+ *  parte do convite, não um extra.
  *
  * O e-mail vai assinado dentro do token, não na URL: mudar o endereço no link
  * quebra a assinatura em vez de trocar o destinatário. */
-export async function criarConvite(db: Firestore, tenantId: string, email?: string | null) {
-  const para = email ? mesmoEmail(email) : null;
-  return new SignJWT(para ? { t: tenantId, e: para } : { t: tenantId })
+export async function criarConvite(db: Firestore, tenantId: string, email: string) {
+  const para = mesmoEmail(email ?? "");
+  if (!para) throw new SemDestinatario("Cadastre o e-mail do dono antes de convidar.");
+  return new SignJWT({ t: tenantId, e: para })
     .setProtectedHeader({ alg: "HS256" })
     .setJti(randomBytes(16).toString("hex"))
     .setIssuedAt()
@@ -48,13 +54,16 @@ export async function criarConvite(db: Firestore, tenantId: string, email?: stri
     .sign(await segredo(db));
 }
 
-/** Devolve o tenant, o jti e o e-mail a que o convite está preso (null = qualquer
- *  conta), ou null se o link for inválido ou tiver vencido. */
+/** Devolve o tenant, o jti e o e-mail a que o convite está preso, ou null se o
+ *  link for inválido, tiver vencido, ou não disser para quem é.
+ *
+ *  Token sem destinatário não vale — mesmo tratamento que os links antigos sem
+ *  jti receberam: é justamente o formato que abre para quem chegar primeiro. */
 export async function lerConvite(db: Firestore, token: string) {
   try {
     const { payload } = await jwtVerify(token, await segredo(db), { algorithms: ["HS256"] });
-    return typeof payload.t === "string" && typeof payload.jti === "string"
-      ? { tenantId: payload.t, jti: payload.jti, email: typeof payload.e === "string" ? payload.e : null }
+    return typeof payload.t === "string" && typeof payload.jti === "string" && typeof payload.e === "string" && payload.e
+      ? { tenantId: payload.t, jti: payload.jti, email: payload.e }
       : null;
   } catch {
     return null;
@@ -67,10 +76,9 @@ export async function lerConvite(db: Firestore, token: string) {
  * Firestore nenhum. `email` é o do token JÁ confirmado pelo Firebase;
  * `emailPendente` é o não confirmado, que só serve para a mensagem. */
 export function conviteAbrePara(
-  convite: { email: string | null },
+  convite: { email: string },
   user: { email?: string; emailPendente?: string },
 ): { ok: true } | { ok: false; error: string } {
-  if (!convite.email) return { ok: true };   // link aberto: vale para quem chegar primeiro
   // Confirmado é a única prova: sem isso, criar conta com o e-mail alheio abriria o convite dos outros
   if (!user.email) {
     return {
