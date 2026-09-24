@@ -3,6 +3,16 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.5.1 — 24/09/2026
+
+### Painel e login mais leves
+- **O SDK do Firestore saiu do /admin e do /login** (#54): eles só precisam de
+  login, mas baixavam 1 MB de JS do Firestore porque `db` morava no mesmo
+  módulo que `auth` — bastava importar um para arrastar o outro. O /admin caiu
+  de 1804 KB para 1268 KB de JS, e o /login de 1671 KB para 1136 KB.
+- O /painel continua com o Firestore: ele lista os negócios da conta com uma
+  consulta de verdade (#54).
+
 ## 0.5.0 — 23/09/2026
 
 ### Convite é sempre de uma conta só

@@ -4,7 +4,7 @@ import { collection, onSnapshot, query, type QueryConstraint } from "firebase/fi
 import { useEffect, useState } from "react";
 import type { z } from "zod";
 import { errorMessage } from "@/lib/auth-errors";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebase-db";
 
 /** Coleção do tenant em tempo real; documentos fora do schema são ignorados. */
 export function useCollection<S extends z.ZodType>(
