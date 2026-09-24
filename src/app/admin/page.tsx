@@ -408,7 +408,9 @@ export default function AdminPage() {
     let urlConvite: string | null = null;
     if (d.convite) {
       const r = await gerarConvite(t, slug);
+      // falhar calado aqui manda boas-vindas sem o acesso e ninguém percebe
       if (r.ok) urlConvite = r.dados.url;
+      else feito.push(`convite não gerado: ${r.error}`);
     }
     if (d.cobrarEntrada) {
       const r = await cobrar(t, slug, "entrada", null);
@@ -463,22 +465,26 @@ export default function AdminPage() {
     setAviso("");
     const r = await gerarConvites(await token(), [...marcados]);
     if (!r.ok) return setAviso(r.error);
-    if (!r.dados.length) return setAviso("Nenhum dos negócios marcados existe mais.");
+    const { convites, semEmail } = r.dados;
+    // sem e-mail do dono não sai link: dizer quem ficou de fora é o que torna
+    // isso resolvível, em vez de um lote que "veio menor" sem explicação
+    const faltando = semEmail.length
+      ? ` ${semEmail.length} sem e-mail do dono, e por isso sem link: ${semEmail.slice(0, 3).join(", ")}${semEmail.length > 3 ? "…" : ""}. Cadastre na aba Venda.`
+      : "";
+    if (!convites.length) return setAviso(`Nenhum convite gerado.${faltando || " Nenhum dos negócios marcados existe mais."}`);
     // uma planilha com o link pronto de cada um: é assim que 300 convites viram trabalho possível
     baixar(
       `convites-${new Date().toISOString().slice(0, 10)}.csv`,
       [
         ["negocio", "site", "telefone", "abre_com_o_email", "link_do_convite", "abrir_whatsapp"],
-        ...r.dados.map((c) => [c.nome, `https://${c.slug}.ruphus.site`, c.telefone ?? "", c.email ?? "", c.url, c.whatsapp ?? ""]),
+        ...convites.map((c) => [c.nome, `https://${c.slug}.ruphus.site`, c.telefone ?? "", c.email, c.url, c.whatsapp ?? ""]),
       ],
     );
-    const sem = r.dados.filter((c) => !c.whatsapp).length;
-    const abertos = r.dados.filter((c) => !c.email).length;
+    const sem = convites.filter((c) => !c.whatsapp).length;
     setAviso(
-      `${r.dados.length} convite(s) gerado(s), válidos por ${DIAS_CONVITE} dias.` +
+      `${convites.length} convite(s) gerado(s), válidos por ${DIAS_CONVITE} dias.` +
         (sem ? ` ${sem} sem telefone: o link está na planilha para enviar por outro caminho.` : "") +
-        // sem e-mail do dono o link abre para quem chegar primeiro: quem envia precisa saber
-        (abertos ? ` ${abertos} sem e-mail do dono: esses abrem para a primeira conta que usar o link.` : ""),
+        faltando,
     );
   }
 
@@ -1657,20 +1663,14 @@ export default function AdminPage() {
                 </span>
               </div>
               <p className="text-[13px] leading-relaxed text-[#4A4639]">
-                Quem abrir o link entra com a conta dele e passa a administrar este negócio. O link vale {DIAS_CONVITE} dias.
-                {!crm[aberto.slug]?.donoEmail && " Sem o e-mail do dono na aba Venda, ele abre para a primeira conta que usar."}
+                O link é de uma conta só: abre com o e-mail do dono e torna essa conta administradora do negócio. Vale {DIAS_CONVITE} dias.
               </p>
               {convite?.slug === aberto.slug ? (
                 <div className="flex flex-col gap-2">
                   <code className="truncate rounded-lg border border-[#E2DDD3] bg-white px-3 py-2.5 text-xs text-[#4A4639]">
                     {convite.url}
                   </code>
-                  {/* preso a uma conta ou aberto: quem envia decide o cuidado pelo canal */}
-                  <span className={`text-[12px] ${convite.email ? "text-[#2C6A53]" : "text-[#B8791F]"}`}>
-                    {convite.email
-                      ? `Só abre com o e-mail ${convite.email}.`
-                      : "Abre para a primeira conta que usar. Cadastre o e-mail do dono na aba Venda e gere outro para prender o link."}
-                  </span>
+                  <span className="text-[12px] text-[#2C6A53]">Só abre com o e-mail {convite.email}.</span>
                   <div className="flex flex-wrap items-center gap-2">
                     <button type="button" className={BOTAO_ESCURO} onClick={copiarConvite}>
                       {convite.copiado ? "Copiado ✓" : "Copiar link"}
@@ -1694,10 +1694,16 @@ export default function AdminPage() {
                     </button>
                   </div>
                 </div>
-              ) : (
+              ) : crm[aberto.slug]?.donoEmail ? (
                 <button type="button" className={`${BOTAO_ESCURO} self-start`} onClick={() => convidar(aberto.slug)}>
-                  Convidar
+                  Convidar {crm[aberto.slug]?.donoEmail}
                 </button>
+              ) : (
+                // Barrar aqui, e não na mensagem de erro depois do clique: o que
+                // falta é um dado de uma aba ao lado, e o vendedor resolve em 10s
+                <span className="text-[13px] leading-relaxed text-[#B8791F]">
+                  Cadastre o e-mail do dono na aba <b>Venda</b> para convidar. É ele que tranca o link nessa conta — sem isso, quem receber o link repassado entra no lugar dele.
+                </span>
               )}
             </section>
 
