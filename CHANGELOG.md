@@ -3,6 +3,19 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.5.3 — 24/09/2026
+
+### README e manual técnico alinhados
+- **O README descrevia o convite como bearer** (#56): "quem tiver o link vira
+  admin daquele negócio" era verdade até a 0.4.1 e deixou de ser. Documentação
+  errada sobre quem entra no painel é pior que documentação nenhuma.
+- Proposta com link e PDF, convite de uma conta só, `test:admin` e os módulos
+  `firebase-db.ts` / `sessao-config.ts` entraram nas listas onde faltavam (#56).
+- `npm run convite` agora está documentado como exigindo `donoEmail` (#56).
+- **A versão saiu do topo do README** (#56): era um número escrito à mão que
+  envelhecia a cada release — estava em `v0.3.0` com a 0.5.2 no ar. No lugar,
+  um link para o CHANGELOG, que é onde a informação já mora.
+
 ## 0.5.2 — 24/09/2026
 
 ### Manual do vendedor alinhado ao produto

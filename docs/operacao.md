@@ -157,7 +157,7 @@ npm run import:sites       # importa sites e cria os negócios
 npm run seed:agenda        # cria serviços e equipe a partir do site
 npm run vitrine            # atualiza a vitrine da landing
 npm run sync:sites         # copia ../sites para public/s
-npm run convite -- <slug>  # gera um link de convite pela linha de comando
+npm run convite -- <slug>  # link de convite pela linha de comando (exige donoEmail no CRM)
 ```
 
 ---

@@ -73,6 +73,7 @@ negócio, criar profissional, agendar, remarcar, planos.
 | `datetime.ts` | isomórfico | fuso, `freeSlots`, máscaras, `customerKey`, links de WhatsApp |
 | `saude.ts`, `alertas.ts`, `clientes.ts`, `dinheiro.ts`, `pix.ts`, `revogacao.ts`, `limites.ts` | puro | regra de negócio, testável sem banco |
 | `sessao.ts`, `use-collection.ts`, `firebase.ts` | cliente | logout automático, coleções em tempo real, SDK web |
+| `firebase-db.ts`, `sessao-config.ts` | cliente | Firestore do navegador, e o único `onSnapshot` de sessão — separados para quem só faz login não baixar 1 MB de SDK |
 
 `datetime.ts` **não importa zod** de propósito: ele entra no pacote que o
 celular do cliente final baixa.
@@ -161,9 +162,9 @@ leitura. Token com `auth_time` anterior à marca é recusado.
 | `requireMember` / `memberAction` | ações do painel | é membro daquele negócio, ou admin da plataforma |
 | `exigeDono` | renomear e excluir cliente | papel `owner`/`admin` do negócio |
 
-Papéis dentro do negócio: `owner` (quem criou), `admin` (entrou por convite),
-`member` (equipe). O admin da plataforma entra em qualquer negócio, para dar
-suporte.
+Papéis dentro do negócio: `owner` (quem criou), `admin` (entrou por convite — e
+o convite só abre para o e-mail do dono, confirmado), `member` (equipe). O admin
+da plataforma entra em qualquer negócio, para dar suporte.
 
 ---
 
@@ -267,6 +268,10 @@ inexistente. Os valores vêm do CRM, então a proposta é sempre a que foi
 combinada. Vale 7 dias; gerar de novo reaproveita o link, "refazer" invalida o
 anterior.
 
+O PDF é essa mesma página impressa: `?pdf=1` abre a caixa de impressão, o CSS de
+`print` esconde os botões e o rodapé ganha o WhatsApp da Ruphus, já que o arquivo
+circula sem a barra de ação. Não há segunda arte para sair de sincronia.
+
 ---
 
 ## 9. CRM: funil, saúde e alertas
@@ -305,7 +310,7 @@ e não entrou (7+ dias) · destaque vence hoje.
 | Reservas por telefone/dia | 5 | contador em `limits/` |
 | Reservas por dispositivo/dia | 20 | contador em `limits/`, chave = **hash** do IP |
 | Logout por inatividade | 0 (desligado) a 720 min | `config/sessao`, aplicado no cliente |
-| Validade do convite | 7 dias, uso único | JWT + `convitesUsados/{jti}` |
+| Validade do convite | 7 dias, uso único, uma conta só | JWT (claim `e`) + `convitesUsados/{jti}` |
 
 O IP **nunca é gravado**: só `sha256("siteflow:" + ip)` truncado em 16 chars. O
 IP vem de `x-real-ip` ou do **último** `x-forwarded-for` — o primeiro é escolhido
@@ -347,7 +352,8 @@ imprimindo `ok`. O que toca o banco sobe o emulador sozinho.
 | `npm run test:whatsapp` | não | DDI por tamanho do número |
 | `npm run test:rules` | sim | regras do Firestore e do Storage |
 | `npm run test:booking` | sim | reservas, concorrência, planos, limites, CRM |
-| `npm run test:convite` | sim | validade e uso único |
+| `npm run test:convite` | sim | validade, uso único e a quem o link abre |
+| `npm run test:admin` | não | o `select` da lista não pode ficar atrás dos campos lidos |
 | `npm run test:cobranca` | sim | Pix, token, baixa |
 | `npm run test:scale` | sim | carga e concorrência com equipe grande |
 
