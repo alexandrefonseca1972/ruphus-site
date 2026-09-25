@@ -5,6 +5,8 @@
 
 // duração (min) e preço (R$) típicos por tipo de serviço; a primeira regra que casar vence
 export const TABELA: [RegExp, number, number][] = [
+  [/or[çc]amento/i, 30, 0], // conversa com o artista: não se cobra
+  [/fine ?line|blackwork|cobertura de tatu|reforma de tatu|tatuagem autoral/i, 120, 250],
   [/banho de gel|banho em gel/i, 60, 70], // unha, não pet
   [/banho\s*(e|\+)\s*tosa|tosa\s*(e|\+)\s*banho/i, 120, 100],
   [/tosa|grooming/i, 90, 80],
@@ -43,7 +45,7 @@ export const PADRAO: [RegExp, string[]][] = [
   [/veterin|clínica animal|clinica veterin|hospital veterin/i, ["Consulta veterinária", "Vacinação", "Banho e tosa"]],
   [/pet ?shop|petshop|agropet|banho e tosa|ração|racao|animal/i, ["Banho", "Tosa", "Banho e tosa"]],
   [/barbearia|barber|barbeiro/i, ["Corte", "Barba", "Corte + barba"]],
-  [/tattoo|tatuagem|piercing/i, ["Sessão de tatuagem", "Orçamento"]],
+  [/tattoo|tatuagem|piercing/i, ["Tatuagem autoral", "Fine line", "Blackwork", "Cobertura de tatuagem", "Orçamento"]],
   [/nail|esmalteria|manicure|unhas/i, ["Manicure", "Pedicure", "Alongamento em gel"]],
   [/podolog/i, ["Podologia"]],
   [/depila|laser/i, ["Depilação a laser", "Avaliação"]],

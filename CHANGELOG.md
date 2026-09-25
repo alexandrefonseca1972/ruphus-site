@@ -3,6 +3,22 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.6.1 — 25/09/2026
+
+### Tatuagem e imagem de compartilhamento no gerador de sites
+- **Estúdio de tatuagem agora vira site** (#59): no modelo editorial, o mesmo
+  dos 10 estúdios da fábrica, com fotos de estúdio, as paletas deles (lilás,
+  vermelho, cobre, petróleo) e os serviços que anunciam — tatuagem autoral, fine
+  line, blackwork, cobertura e orçamento. Antes a linha caía em "nicho não
+  reconhecido".
+- **Imagem de compartilhamento no padrão da fábrica** (#59): o link de um site
+  gerado enviado no WhatsApp mostrava a foto crua (e cortada, na de beleza, que
+  é em pé). Agora é a mesma composição dos og.jpg da fábrica — foto escurecida,
+  traço na cor do site, nome na fonte de título dele, ramo e cidade — montada na
+  hora em `/og.jpg` e entregue em JPEG de ~40 KB, abaixo do que o WhatsApp aceita.
+- Orçamento entra na agenda com 30 minutos e sem preço (#59): é a conversa com o
+  artista, e anunciar R$ 80 por ela afastava o cliente.
+
 ## 0.6.0 — 24/09/2026
 
 ### Gerador de sites

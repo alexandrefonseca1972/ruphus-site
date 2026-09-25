@@ -2,7 +2,7 @@
 // que já estão no ar (seções, textos e camada Ruphus), com o CSS em
 // public/s/assets/gerado/pet.css e as fotos do banco public/s/assets/pet.
 import {
-  AVISO, cabecaComum, type DadosSite, esc, faixaProposta, foneBR, jsonLd, jsonLdNegocio, lugar, mapa, notaBR, variante, zap,
+  AVISO, cabecaComum, type Capa, type DadosSite, esc, faixaProposta, foneBR, jsonLd, jsonLdNegocio, lugar, mapa, notaBR, variante, zap,
 } from "@/lib/gerador";
 
 // paletas reais dos sites de pet, das mais usadas: [claro, escuro]
@@ -123,6 +123,14 @@ export function visualPet(slug: string, sub: DadosSite["sub"]) {
   return { cor: /--accent:(#[0-9A-F]{6})/.exec(paleta[0])![1], foto: `/assets/pet/${topo}-800.jpg`, paleta, topo };
 }
 
+const rotuloDe = (d: Pick<DadosSite, "sub">) => (tipoDe(d) === "vet" ? "Clínica veterinária" : "Pet shop");
+
+/** A imagem de compartilhamento: a foto do topo, na versão grande, e a mesma fonte de título. */
+export function capaPet(d: DadosSite): Capa {
+  const { topo, cor } = visualPet(d.slug, d.sub);
+  return { foto: `/assets/pet/${topo}.jpg`, cor, fonte: "Fraunces", linha: [rotuloDe(d), lugar(d)].filter(Boolean).join(" em ") };
+}
+
 const img = (nome: string, extra = "") =>
   `<img src="../assets/pet/${nome}-800.jpg" srcset="../assets/pet/${nome}-800.jpg 800w, ../assets/pet/${nome}.jpg 1400w" sizes="(max-width:700px) 100vw, 360px" width="1400" height="933" alt="${esc(FOTOS[nome])}" loading="lazy" decoding="async"${extra}>`;
 
@@ -142,7 +150,7 @@ export function renderPet(d: DadosSite): string {
   const galeria = GALERIA[tipo];
   const g0 = variante(d.slug, galeria.length, "galeria");
   const fotos = [0, 1, 2].map((i) => galeria[(g0 + i * 2) % galeria.length]);
-  const rotulo = tipo === "vet" ? "Clínica veterinária" : "Pet shop";
+  const rotulo = rotuloDe(d);
   const onde = lugar(d);
   const sub = [rotulo, onde].filter(Boolean).join(" em ");
   const descr = `${sub}: horário, serviços, como chegar e agendamento pelo WhatsApp.`;
@@ -175,7 +183,7 @@ export function renderPet(d: DadosSite): string {
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/gerado/pet.css">
 <style>:root{${paleta[0]}}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){${paleta[1]}}}:root[data-theme="dark"]{${paleta[1]}}.hero{background:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("../assets/pet/${topo}-800.jpg") center 38%/cover no-repeat;}@media (min-width:760px){.hero{background-image:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("../assets/pet/${topo}.jpg");}}</style>
-${cabecaComum(d.slug, tituloPag, descr, `/assets/pet/${topo}.jpg`)}
+${cabecaComum(d.slug, tituloPag, descr)}
 <meta name="theme-color" content="${cor}">
 ${d.uf ? `<meta name="geo.region" content="BR-${esc(d.uf)}">` : ""}
 ${jsonLdNegocio(d, descr, `/assets/pet/${topo}.jpg`)}${jsonLd({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) })}

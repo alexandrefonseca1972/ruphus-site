@@ -2,10 +2,10 @@
 // já estão no ar (hero com fx.js, marquee, serviços numerados, reputação), com o
 // CSS em public/s/assets/gerado/beleza.css e as fotos do banco public/s/assets/beleza.
 import {
-  AVISO, cabecaComum, type DadosSite, esc, faixaProposta, foneBR, jsonLdNegocio, lugar, mapa, notaBR, variante, zap,
+  AVISO, cabecaComum, type Capa, type DadosSite, esc, faixaProposta, foneBR, jsonLdNegocio, lugar, mapa, notaBR, variante, zap,
 } from "@/lib/gerador";
 
-type Tipo = "barbearia" | "salao" | "estetica" | "unhas";
+type Tipo = "barbearia" | "salao" | "estetica" | "unhas" | "tatuagem";
 
 // paletas reais da família editorial: [--ink, --acc, --deep, --tint]
 const QUENTES: [string, string, string, string][] = [
@@ -23,6 +23,13 @@ const DELICADAS: [string, string, string, string][] = [
   ["#171210", "#F0704A", "#C04F2F", "#fdede9"],
   ["#151312", "#C9A24A", "#9E7C33", "#f8f3e9"],
 ];
+// as paletas dos estúdios de tatuagem da fábrica: lilás, vermelho, cobre e petróleo
+const TINTAS: [string, string, string, string][] = [
+  ["#100F12", "#8E7CC3", "#6A5A9C", "#f1eff7"],
+  ["#121010", "#C04545", "#933030", "#f7e8e8"],
+  ["#131110", "#B5732F", "#8F5624", "#f6eee6"],
+  ["#101210", "#5F9EA0", "#447A7C", "#ebf3f3"],
+];
 // os quatro pares de fonte que a família usa, todos com Archivo no texto
 const FONTES: [string, string][] = [
   ["Fraunces", "Fraunces:opsz,wght@9..144,400;9..144,600"],
@@ -31,7 +38,7 @@ const FONTES: [string, string][] = [
   ["Cormorant Garamond", "Cormorant+Garamond:ital,wght@0,400;0,600;1,400"],
 ];
 
-const ROTULO: Record<Tipo, string> = { barbearia: "Barbearia", salao: "Salão de beleza", estetica: "Estética", unhas: "Nail designer" };
+const ROTULO: Record<Tipo, string> = { barbearia: "Barbearia", salao: "Salão de beleza", estetica: "Estética", unhas: "Nail designer", tatuagem: "Estúdio de tatuagem" };
 
 const TEXTOS: Record<Tipo, string[]> = {
   barbearia: [
@@ -54,6 +61,11 @@ const TEXTOS: Record<Tipo, string[]> = {
     "Manicure, pedicure e nail art com capricho e biossegurança.",
     "Suas unhas do jeito que você imaginou, com hora marcada.",
   ],
+  tatuagem: [
+    "Arte na pele com traço autoral, biossegurança e atendimento próximo.",
+    "Da ideia ao desenho final, um projeto feito com você e para você.",
+    "Fine line, blackwork e projetos autorais, com material descartável e hora marcada.",
+  ],
 };
 
 const PADRAO: Record<Tipo, string[]> = {
@@ -61,10 +73,18 @@ const PADRAO: Record<Tipo, string[]> = {
   salao: ["Corte", "Escova", "Coloração", "Hidratação"],
   estetica: ["Limpeza de pele", "Design de sobrancelha", "Extensão de cílios"],
   unhas: ["Manicure", "Pedicure", "Alongamento em gel"],
+  tatuagem: ["Tatuagem autoral", "Fine line", "Blackwork", "Cobertura e reforma", "Orçamento"],
 };
 
 // descrição e selo por serviço; a primeira regra que casar vence
 const DESCRICOES: [RegExp, string, string][] = [
+  // tatuagem primeiro: "Cobertura" e "Sessão" não podem cair nas regras de salão
+  [/fine ?line/i, "Traços finos e delicados, perfeitos para desenhos minimalistas.", "Delicado"],
+  [/blackwork|pontilh|realism/i, "Preenchimentos sólidos e contrastes fortes em preto.", "Impacto"],
+  [/cobertura|reforma|cover/i, "Transforme ou renove tatuagens antigas com um novo projeto.", "Renovação"],
+  [/or[çc]amento/i, "Converse com o artista, ajuste a ideia e receba o orçamento sem compromisso.", "Sem compromisso"],
+  [/piercing/i, "Perfuração com material esterilizado e joia escolhida com você.", "Biossegurança"],
+  [/tatua|tattoo|autoral/i, "Projetos exclusivos criados com você, do rascunho à pele.", "Exclusivo"],
   [/corte\s*(e|\+)\s*barba|combo/i, "O pacote completo para sair pronto da cadeira em uma única visita.", "Mais pedido"],
   [/barba/i, "Desenho, alinhamento e toalha quente para um acabamento limpo e confortável.", "Toalha quente"],
   [/pigment/i, "Cobertura de falhas com aspecto natural.", "Acabamento"],
@@ -92,15 +112,21 @@ const PINO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentCol
 const GOOGLE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.39 3.62v3h3.87c2.26-2.09 3.57-5.16 3.57-8.81z"/><path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.94-2.92l-3.87-3c-1.07.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.29v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.27 14.27A7.2 7.2 0 0 1 4.89 12c0-.79.14-1.56.38-2.27v-3.1H1.29a12 12 0 0 0 0 10.74l3.98-3.1z"/><path fill="#EA4335" d="M12 4.77c1.76 0 3.34.61 4.58 1.8l3.44-3.44A11.98 11.98 0 0 0 12 0 12 12 0 0 0 1.29 6.63l3.98 3.1C6.22 6.88 8.87 4.77 12 4.77z"/></svg>';
 const INSTA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none"/></svg>';
 
-const tipoDe = (sub: DadosSite["sub"]): Tipo => (sub === "barbearia" || sub === "estetica" || sub === "unhas" ? sub : "salao");
+const tipoDe = (sub: DadosSite["sub"]): Tipo => (sub === "barbearia" || sub === "estetica" || sub === "unhas" || sub === "tatuagem" ? sub : "salao");
 
 /** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. */
 export function visualBeleza(slug: string, sub: DadosSite["sub"]) {
   const tipo = tipoDe(sub);
-  const paletas = tipo === "barbearia" ? QUENTES : DELICADAS;
+  const paletas = tipo === "barbearia" ? QUENTES : tipo === "tatuagem" ? TINTAS : DELICADAS;
   const [ink, acc, deep, tint] = paletas[variante(slug, paletas.length, "cor")];
   const kit = `/assets/beleza/${tipo}-${variante(slug, 4, "kit") + 1}`;
   return { tipo, ink, acc, deep, tint, kit, cor: acc, foto: `${kit}/hero.jpg`, fonte: FONTES[variante(slug, FONTES.length, "fonte")] };
+}
+
+/** A imagem de compartilhamento: a foto do topo do kit e a fonte de título do próprio site. */
+export function capaBeleza(d: DadosSite): Capa {
+  const { tipo, kit, cor, fonte } = visualBeleza(d.slug, d.sub);
+  return { foto: `${kit}/hero.jpg`, cor, fonte: fonte[0], linha: [ROTULO[tipo], d.cidade].filter(Boolean).join(" em ") };
 }
 
 export function renderBeleza(d: DadosSite): string {
@@ -144,7 +170,7 @@ export function renderBeleza(d: DadosSite): string {
 <link href="https://fonts.googleapis.com/css2?family=${fonte[1]}&family=Archivo:ital,wght@0,400;0,500;0,700;0,800;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/gerado/beleza.css">
 <style>:root{--ink:${ink};--paper:#ffffff;--acc:${acc};--deep:${deep};--tint:${tint};--grey:#8b8587;--serif:'${fonte[0]}',serif}</style>
-${cabecaComum(d.slug, tituloPag, descr, `${kit}/hero.jpg`)}
+${cabecaComum(d.slug, tituloPag, descr)}
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${ink}"/><text x="32" y="45" font-family="Arial Narrow,Arial,sans-serif" font-size="36" font-weight="700" fill="${acc}" text-anchor="middle">${esc(d.nome[0].toUpperCase())}</text></svg>`)}">
 ${jsonLdNegocio(d, descr, `${kit}/hero.jpg`)}
 </head>
