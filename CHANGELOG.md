@@ -25,6 +25,10 @@ o PR, onde está o porquê.
   no preço e no fechamento.
 - **"Criar minha conta" cai no cadastro** (#62): o login abre em "Criar conta",
   não em "Entrar".
+- **Funcionalidades na primeira tela** (#63): atalhos para Site, Agenda online,
+  Painel e Link da bio no lugar dos selos de números, que repetiam a contagem da
+  busca. A prévia no celular não fica mais com o aviso de proposta coberto pelo
+  entalhe.
 
 ## 0.7.0 — 25/09/2026
 
