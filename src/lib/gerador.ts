@@ -327,7 +327,7 @@ export const faixaProposta = (d: Pick<DadosSite, "slug" | "origem">) =>
   `<aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">${
     d.origem === "cadastro"
       ? `Esta página é uma prévia feita com a <a href="https://www.ruphus.site/" style="color:#f2b56b">Ruphus</a>, ainda não publicada. <a href="https://www.ruphus.site/privacidade" style="color:#a2918d">Privacidade</a>`
-      : `Esta página é uma proposta da <a href="https://www.ruphus.site/sobre" style="color:#f2b56b">Ruphus</a>, não o site oficial. <a href="https://wa.me/${RUPHUS}?text=${encodeURIComponent(`Quero remover a página de proposta ${d.slug}`)}" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ruphus.site/privacidade" style="color:#a2918d">Privacidade</a>`
+      : `Esta página é uma proposta da <a href="https://www.ruphus.site/" style="color:#f2b56b">Ruphus</a>, não o site oficial. <a href="https://wa.me/${RUPHUS}?text=${encodeURIComponent(`Quero remover a página de proposta ${d.slug}`)}" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ruphus.site/privacidade" style="color:#a2918d">Privacidade</a>`
   }</aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){var b=document.querySelector("aside[data-ysis=proposta]");if(!b)return;var h=b.getBoundingClientRect().height;document.querySelectorAll("header,nav,.site-header,.nav,.topo").forEach(function(el){var s=getComputedStyle(el);if(s.position==="fixed"||s.position==="sticky")el.style.top=h+"px"});});</script>`;
 
 export const AVISO =

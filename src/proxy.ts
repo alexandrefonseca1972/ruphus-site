@@ -64,8 +64,29 @@ export function sitePath(slug: string, pathname: string) {
   return `/s/${slug}${pathname === "/" ? "/index.html" : pathname}`;
 }
 
+/** Um endereço só para cada página, para o Google não dividir a landing em três:
+ *  ruphus.site vai para www (o domínio de todos os links) e /sobre para a raiz. */
+export function enderecoCanonico(host: string, pathname: string) {
+  const h = host.split(":")[0];
+  const caminho = /^\/sobre\/?$/.test(pathname) ? "/" : pathname;
+  if (h === "ruphus.site") return { host: "www.ruphus.site", pathname: caminho };
+  return caminho !== pathname ? { host: null, pathname: caminho } : null;
+}
+
 export async function proxy(request: NextRequest) {
-  const slug = siteSlug(request.headers.get("host") ?? "");
+  const host = request.headers.get("host") ?? "";
+  const slug = siteSlug(host);
+  const canonico = slug ? null : enderecoCanonico(host, request.nextUrl.pathname);
+  if (canonico) {
+    const url = request.nextUrl.clone();
+    if (canonico.host) {
+      url.host = canonico.host;
+      url.port = "";
+      url.protocol = "https:";
+    }
+    url.pathname = canonico.pathname;
+    return NextResponse.redirect(url, 308);
+  }
   if (!slug) {
     const pagina = paginaEstatica(request.nextUrl.pathname);
     if (!pagina) return NextResponse.next();

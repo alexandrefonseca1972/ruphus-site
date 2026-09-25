@@ -68,3 +68,16 @@ assert.equal(paginaEstatica("/"), "/sobre/index.html");
 assert.equal(paginaEstatica("/sobre"), "/sobre/index.html");
 assert.equal(paginaEstatica("/painel"), null);
 console.log("landing ok");
+
+import { enderecoCanonico } from "@/proxy";
+// um endereço só por página: apex vai para www, /sobre vai para a raiz
+assert.deepEqual(enderecoCanonico("ruphus.site", "/"), { host: "www.ruphus.site", pathname: "/" });
+assert.deepEqual(enderecoCanonico("ruphus.site", "/login"), { host: "www.ruphus.site", pathname: "/login" });
+assert.deepEqual(enderecoCanonico("ruphus.site", "/sobre"), { host: "www.ruphus.site", pathname: "/" }, "um salto só");
+assert.deepEqual(enderecoCanonico("www.ruphus.site", "/sobre/"), { host: null, pathname: "/" });
+assert.equal(enderecoCanonico("www.ruphus.site", "/"), null);
+assert.equal(enderecoCanonico("www.ruphus.site", "/sobre/index.html"), null, "o arquivo da landing continua servido");
+// no computador de quem desenvolve e nos previews, /sobre vai para a raiz do mesmo host
+assert.deepEqual(enderecoCanonico("localhost:3001", "/sobre"), { host: null, pathname: "/" });
+assert.equal(enderecoCanonico("siteflow-ruphus-projects.vercel.app", "/admin"), null);
+console.log("endereço canônico ok");

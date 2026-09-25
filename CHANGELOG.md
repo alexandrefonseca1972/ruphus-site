@@ -5,6 +5,17 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Encontrável no Google
+- **Um endereço só** (#71): `ruphus.site` leva a `www.ruphus.site` e `/sobre` à
+  raiz; antes a landing respondia nos três, e o Google dividia a página.
+- **`robots.txt` e sitemap de verdade** (#71): antes as duas URLs devolviam a
+  tela do app ("Carregando…").
+- **Título e descrição falam de agendamento online** (#71), e os dados
+  estruturados apontam para o endereço certo, com logo que existe e Macapá e
+  Santana entre as cidades.
+- **O app fica fora da busca** (#71): login, painel, admin e a agenda de cada
+  negócio levam `noindex`. A landing e a privacidade continuam indexáveis.
+
 ### O site só é oficial depois da entrada paga
 - **Cadastro nasce como prévia** (#70): faixa "prévia feita com a Ruphus, ainda
   não publicada" (sem "Pedir remoção", foi o dono que criou) e fora do Google. O
