@@ -249,10 +249,13 @@ button{font:inherit;color:inherit}
          background-image:linear-gradient(var(--volt),var(--volt));background-repeat:no-repeat;background-size:100% .38em;background-position:0 78%}
 .hero-p{margin-top:24px;font-size:18px;line-height:1.4;color:var(--ardosia);max-width:44ch}
 .hero-p b{font-weight:500;color:var(--preto)}
-.selos{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
 
 /* busca: o campo é uma pílula branca sobre a tela */
 .busca{margin-top:32px;max-width:600px}
+.atalhos{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px;list-style:none}
+.atalhos a{display:inline-flex;align-items:baseline;gap:8px;min-height:44px;padding:11px 16px;border-radius:64px;background:var(--branco);color:var(--preto);text-decoration:none;font-size:15px;font-weight:500;transition:background .2s}
+.atalhos a:hover{background:var(--volt)}
+.atalhos small{font-family:var(--mono);font-size:11px;letter-spacing:-.03em;text-transform:uppercase;color:var(--ardosia)}
 .busca-l{display:block;margin-bottom:10px;color:var(--ardosia)}
 .busca-c{position:relative;display:flex;align-items:center}
 .busca-c svg{position:absolute;left:22px;color:var(--fumo);pointer-events:none;transition:color .2s}
@@ -272,7 +275,7 @@ button{font:inherit;color:inherit}
 .hero-obj-cab{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .fone{position:relative;width:min(264px,100%);margin:0 auto;aspect-ratio:300/620;border:8px solid var(--grafite);border-radius:44px;background:var(--grafite);overflow:hidden}
 .fone::before{content:"";position:absolute;top:8px;left:50%;transform:translateX(-50%);width:76px;height:5px;border-radius:99px;background:var(--preto);z-index:3}
-.fone-tela{position:absolute;inset:0;border-radius:36px;overflow:hidden;background:var(--nevoa)}
+.fone-tela{position:absolute;inset:20px 0 0;border-radius:0 0 36px 36px;overflow:hidden;background:var(--nevoa)}
 .fone-i{position:absolute;top:0;left:0;width:390px;height:920px;border:0;transform:scale(var(--escala,.7282));transform-origin:top left;pointer-events:none;opacity:0;transition:opacity .55s ease}
 .fone-i.ativa{opacity:1}
 .escolha{list-style:none;display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
@@ -293,7 +296,7 @@ button{font:inherit;color:inherit}
   .hero-obj{padding-inline:16px}
   .fone{width:100%;aspect-ratio:4/5;border-width:6px;border-radius:32px}
   .fone::before{display:none}
-  .fone-tela{border-radius:26px}
+  .fone-tela{inset:0;border-radius:26px}
   .hero-obj-cab{flex-direction:column;align-items:flex-start;gap:4px}
   .hero-obj-cab .bt-texto{padding-block:10px;min-height:44px}
 }
@@ -532,12 +535,14 @@ button{font:inherit;color:inherit}
         <span style="--i:2">já</span> <span style="--i:3">saiu</span><br>
         <span style="--i:4">da</span> <span style="--i:5"><mark>fábrica.</mark></span>
       </h1>
-      <p class="hero-p entra" style="--atraso:700ms">A Ruphus é a fábrica de sites e landing pages da Ruphus para pequenas e médias empresas do Brasil. <b>Fazemos o seu antes de qualquer conversa</b> — você abre, olha e só decide depois.</p>
-      <div class="selos entra" style="--atraso:800ms" aria-label="Números da fábrica">
-        <span class="tag"><i></i><span id="selo-sites">— sites no ar</span></span>
-        <span class="tag clara" id="selo-cidades">— cidades</span>
-        <span class="tag clara">Feito à mão, um a um</span>
-      </div>
+      <p class="hero-p entra" style="--atraso:700ms">A Ruphus é a fábrica de sites e landing pages para pequenas e médias empresas do Brasil. <b>Fazemos o seu antes de qualquer conversa</b> — você abre, olha e só decide depois.</p>
+
+      <ul class="atalhos entra" style="--atraso:800ms" aria-label="O que vem junto">
+        <li><a href="#faz">Site <small>no seu domínio</small></a></li>
+        <li><a href="#agenda">Agenda online <small>sem cadastro</small></a></li>
+        <li><a href="#painel">Painel <small>no celular</small></a></li>
+        <li><a href="https://barbaros-barbearia.ruphus.site/bio" target="_blank" rel="noopener">Link da bio ↗</a></li>
+      </ul>
 
       <div class="busca entra" style="--atraso:900ms">
         <label class="mono busca-l" for="q">Procure o nome do seu negócio</label>
@@ -849,7 +854,6 @@ document.querySelectorAll('.revela').forEach(el => olho.observe(el));
 const CIDADES = 14;           // Manaus, Belém, Ananindeua, Marituba, Benevides, Castanhal,
                               // Barcarena, Santa Izabel, Manacapuru, Itacoatiara, Parauapebas,
                               // Santarém, Parintins e São Luís
-document.getElementById('selo-sites').textContent = SITES.length + ' sites no ar';
 // nichos e bairros contados do catálogo: o que a lista tem é o que a seção diz
 const nichos = new Set(), bairros = new Set();
 for (const o of SITES){
@@ -860,7 +864,6 @@ for (const o of SITES){
 document.getElementById('n-nichos').textContent = nichos.size;
 document.getElementById('n-bairros').textContent = bairros.size;
 document.getElementById('n-cidades').textContent = CIDADES;
-document.getElementById('selo-cidades').textContent = CIDADES + ' cidades';
 
 /* ——— esteira: um em cada onze, para as cidades se misturarem ——— */
 const esteira = document.getElementById('esteira');
