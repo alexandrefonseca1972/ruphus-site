@@ -2,7 +2,6 @@ import { ImageResponse } from "next/og";
 import sharp from "sharp";
 import { adminDb } from "@/lib/admin";
 import { lerSite } from "@/lib/gerador.server";
-import { siteSlug } from "@/proxy";
 import { capaBeleza } from "@/lib/site-beleza";
 import { capaPet } from "@/lib/site-pet";
 
@@ -26,16 +25,19 @@ async function fonte(familia: string, texto: string) {
   return (await fetch(url)).arrayBuffer();
 }
 
-export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
+// De onde a foto é buscada. Não do pedido: rota em cache (revalidate) não pode ler
+// request.url nem headers — na Vercel isso é erro 500, e no next dev passa calado.
+// O www serve /s/assets; o SITE_URL é o mesmo que o proxy usa.
+const BASE =
+  process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.NODE_ENV === "development" ? `http://localhost:${process.env.PORT ?? 3000}` : "https://www.ruphus.site");
+
+export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const d = await lerSite(adminDb, (await params).slug);
   if (!d) return new Response("Imagem não encontrada", { status: 404 });
   const capa = d.sub === "petshop" || d.sub === "vet" ? capaPet(d) : capaBeleza(d);
 
-  // A foto é buscada pelo mesmo endereço que pediu a imagem: no subdomínio o proxy
-  // leva /assets a /s/assets; no www (e no dev) o caminho já precisa do /s
-  const url = new URL(req.url);
-  const host = req.headers.get("host") ?? url.host;
-  const foto = `${url.protocol}//${host}${siteSlug(host) ? "" : "/s"}${capa.foto}`;
+  const foto = `${BASE}/s${capa.foto}`;
 
   const [titulo, texto] = await Promise.all([fonte(capa.fonte, d.nome), fonte("Inter", `${capa.linha}ruphus.site`)]);
   const png = await new ImageResponse(
