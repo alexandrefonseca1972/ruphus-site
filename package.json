@@ -27,6 +27,7 @@
     "test:whatsapp": "tsx whatsapp.test.mts",
     "test:admin": "tsx admin.test.mts",
     "test:gerador": "tsx gerador.test.mts",
+    "test:lembrete": "tsx lembrete.test.mts",
     "test:gerador-banco": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server gerador-banco.test.mts'"
   },
   "dependencies": {

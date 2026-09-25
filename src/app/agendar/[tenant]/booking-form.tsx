@@ -14,6 +14,7 @@ import {
   TIMEZONE,
   zonedTime,
 } from "@/lib/datetime";
+import { ics, linkGoogleAgenda, mapas } from "@/lib/lembrete";
 import { cn } from "@/lib/utils";
 import { createBooking, getAgenda } from "./actions";
 
@@ -25,6 +26,9 @@ type Props = {
   rating?: number | null;
   reviews?: number | null;
   city?: string | null;
+  uf?: string | null;
+  address?: string | null;
+  bairro?: string | null;
   services: { id: string; name: string; durationMin: number; priceCents: number }[];
   staff: { id: string; name: string; serviceIds: string[]; workDays: number[] }[];
 };
@@ -126,7 +130,7 @@ function Rodape() {
   );
 }
 
-export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, services, staff }: Props) {
+export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, services, staff }: Props) {
   // Nada vem marcado: quem agenda diz o que quer, e só então a agenda aparece.
   // Os serviços chegam do servidor na ordem do que mais se agenda.
   const [serviceIds, setServiceIds] = useState<string[]>([]);
@@ -147,6 +151,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const [submitError, setSubmitError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [copiado, setCopiado] = useState(false);
 
   const escolhidos = services.filter((s) => serviceIds.includes(s.id));
   const totalMin = escolhidos.reduce((sum, s) => sum + s.durationMin, 0);
@@ -268,8 +273,38 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   // ---------- confirmado ----------
   if (done && escolha && atendente) {
     const avisoUrl = recado(escolha.hora, atendente.name);
+    const servicos = escolhidos.map((s) => s.name).join(" + ");
+    const fim = fimDe(date, escolha.hora, totalMin);
+    const dias = Math.round((Date.parse(date) - Date.parse(today)) / 86_400_000);
+    const quando = dias <= 0 ? "hoje" : dias === 1 ? "amanhã" : `daqui a ${dias} dias`;
+    // Como chegar: a rua quando a casa cadastrou; sem ela, bairro e cidade ainda levam perto
+    const cidadeUf = [city, uf].filter(Boolean).join("/");
+    const onde = address ? [address, bairro, cidadeUf].filter(Boolean).join(", ") : bairro && city ? `${bairro}, ${cidadeUf}` : "";
+    const rotas = onde ? mapas(onde) : null;
+    const compromisso = {
+      id: `${tenantId}-${date}-${escolha.hora.replace(":", "")}`,
+      titulo: `${servicos} · ${name}`,
+      inicio: zonedTime(date, escolha.hora),
+      fim: new Date(zonedTime(date, escolha.hora).getTime() + totalMin * 60_000),
+      local: onde || [name, cidadeUf].filter(Boolean).join(", "),
+      detalhes: [`Com ${atendente.name}.`, totalCents ? `${formatBRL(totalCents)}, pago no local.` : "", phone ? `WhatsApp da casa: ${formatPhone(phone)}` : ""]
+        .filter(Boolean)
+        .join("\n"),
+    };
+    // no celular o .ics abre direto na agenda; no computador, baixa
+    const salvarNaAgenda = () => {
+      const url = URL.createObjectURL(new Blob([ics(compromisso)], { type: "text/calendar;charset=utf-8" }));
+      const a = Object.assign(document.createElement("a"), { href: url, download: "agendamento.ics" });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+    const desmarcar = linkWhatsApp(
+      phone,
+      `Olá! Preciso desmarcar ou mudar meu horário de ${longDate(date)}, às ${escolha.hora} (${servicos}). Meu nome é ${customerName.trim()}.`,
+    );
     return (
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col gap-4 bg-[#F2F0E7] p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-[#17150F]">
+        <Cabecalho name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
         <div className={cn(PAINEL, "overflow-hidden shadow-[0_28px_50px_-34px_rgba(22,21,15,0.28)]")}>
           <div className="flex flex-col gap-4 p-5">
             <p className={cn("flex items-center gap-2 text-[9px] font-medium tracking-[0.16em] text-[#2C6A53] uppercase", MONO)} role="status">
@@ -281,16 +316,17 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
               horário reservado
             </p>
             <div className="flex flex-col gap-1">
-              <h1 className="text-[28px] leading-[1.06] font-semibold tracking-[-0.03em] first-letter:uppercase">{longDate(date)}</h1>
-              <p className={cn(MONO, "text-[21px]")}>
-                {escolha.hora} — {fimDe(date, escolha.hora, totalMin)}
+              <p className={cn(MONO, "text-[11px] tracking-[0.06em] text-[#6B6555]")}>{quando}</p>
+              <h2 className="text-[28px] leading-[1.06] font-semibold tracking-[-0.03em] first-letter:uppercase">{longDate(date)}</h2>
+              <p className={cn(MONO, "text-[22px]")}>
+                {escolha.hora} — {fim}
               </p>
             </div>
             <dl className="flex flex-col gap-1.5 text-[13px]">
               <div className="flex gap-2.5">
                 <dt className={cn(ROTULO, "w-16 shrink-0")}>serviço</dt>
                 <dd>
-                  {escolhidos.map((s) => s.name).join(" + ")} · {formatDuration(totalMin)} · <span className={MONO}>{formatBRL(totalCents)}</span>
+                  {servicos} · {formatDuration(totalMin)}
                 </dd>
               </div>
               <div className="flex gap-2.5">
@@ -298,18 +334,44 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 <dd>{atendente.name}</dd>
               </div>
               <div className="flex gap-2.5">
-                <dt className={cn(ROTULO, "w-16 shrink-0")}>onde</dt>
-                <dd>{[name, city].filter(Boolean).join(" · ")}</dd>
+                <dt className={cn(ROTULO, "w-16 shrink-0")}>valor</dt>
+                <dd>
+                  {totalCents ? (
+                    <>
+                      <span className={MONO}>{formatBRL(totalCents)}</span> <span className="text-[#5C5747]">· pago no local</span>
+                    </>
+                  ) : (
+                    <span className="text-[#5C5747]">a combinar com a casa</span>
+                  )}
+                </dd>
               </div>
+              {!onde && (
+                <div className="flex gap-2.5">
+                  <dt className={cn(ROTULO, "w-16 shrink-0")}>onde</dt>
+                  <dd>{[name, city].filter(Boolean).join(" · ")}</dd>
+                </div>
+              )}
             </dl>
+            <div className="flex flex-col gap-1.5">
+              <button type="button" onClick={salvarNaAgenda} className={PRIMARIO}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="5" width="18" height="16" rx="2" />
+                  <path d="M3 10h18M8 3v4M16 3v4M12 13v5M9.5 15.5h5" />
+                </svg>
+                Salvar na minha agenda
+              </button>
+              <a href={linkGoogleAgenda(compromisso)} target="_blank" rel="noreferrer" className="self-center py-2 text-xs text-[#5C5747] underline underline-offset-4">
+                ou no Google Agenda
+              </a>
+            </div>
           </div>
           <div className="h-px bg-[repeating-linear-gradient(to_right,#D5D0C1_0_6px,transparent_6px_12px)]" />
           <div className="flex flex-col gap-3.5 p-5">
-            {/* Quem confirma é a casa: o cliente sai daqui sabendo disso, sem ser
-                levado ao WhatsApp. Mandar o resumo fica como opção. */}
+            {/* Quem confirma é a casa, no número que o cliente deu: "seu" deixa claro que
+                o número mostrado é o dele, não o da casa. Mandar o resumo fica como opção. */}
             <p className="text-[15px] leading-relaxed">
-              <strong className="font-semibold">{name}</strong> vai confirmar o seu horário pelo WhatsApp{" "}
-              <span className={cn(MONO, "text-[13px] whitespace-nowrap")}>{customerPhone}</span>.
+              A casa vai te chamar no <strong className="font-semibold">seu</strong> WhatsApp{" "}
+              <span className={cn(MONO, "text-[13px] whitespace-nowrap")}>{customerPhone}</span> para confirmar.
             </p>
             {avisoUrl && (
               <div className="flex flex-col gap-2">
@@ -320,18 +382,93 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                   className="flex h-[50px] items-center justify-center gap-2.5 rounded-[10px] border border-[#D5D0C1] bg-white text-[15px] font-semibold text-[#17150F] hover:border-[#17150F]"
                 >
                   <Zap />
-                  Mandar o resumo no WhatsApp
+                  Mandar o resumo para a casa
                 </a>
                 <p className="text-center text-xs text-[#5C5747]">Opcional. O horário já está reservado.</p>
               </div>
             )}
           </div>
         </div>
-        <div className="rounded-xl border border-[#E4E1D5] bg-[#F6F4EB] p-4">
-          <p className={cn(ROTULO, "mb-1.5")}>precisa desmarcar?</p>
-          <p className="text-xs leading-relaxed text-[#5C5747]">
-            Fale no WhatsApp {city ? `da casa` : "do estabelecimento"}. Avisar cedo libera o horário para outra pessoa.
-          </p>
+
+        {rotas && (
+          <section aria-labelledby="como-chegar" className={cn(PAINEL, "overflow-hidden")}>
+            {/* o mapa é a incorporação pública do Google: sem chave, e só carrega aqui, depois de agendar */}
+            <iframe
+              src={rotas.embed}
+              title={`Mapa: ${onde}`}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              className="block h-44 w-full border-0 bg-[#E9E6DB]"
+            />
+            <div className="flex flex-col gap-3.5 p-5">
+              <div className="flex flex-col gap-1">
+                <h2 id="como-chegar" className={ROTULO}>como chegar</h2>
+                {address ? (
+                  <>
+                    <p className="text-[16px] leading-snug font-semibold">{address}</p>
+                    <p className="text-[13px] text-[#5C5747]">{[bairro, cidadeUf].filter(Boolean).join(" · ")}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[16px] leading-snug font-semibold">{[bairro, cidadeUf].filter(Boolean).join(" · ")}</p>
+                    <p className="text-[13px] text-[#5C5747]">O endereço exato: confirme com a casa pelo WhatsApp.</p>
+                  </>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <a
+                  href={rotas.google}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#D5D0C1] bg-white text-sm font-semibold hover:border-[#17150F]"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z" />
+                    <circle cx="12" cy="9" r="2.5" />
+                  </svg>
+                  Google Maps
+                </a>
+                <a
+                  href={rotas.waze}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#D5D0C1] bg-white text-sm font-semibold hover:border-[#17150F]"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 11l18-8-8 18-2-8-8-2z" />
+                  </svg>
+                  Waze
+                </a>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  navigator.clipboard.writeText(onde).then(
+                    () => setCopiado(true),
+                    () => {},
+                  )
+                }
+                className="h-10 text-[13px] font-semibold underline underline-offset-4"
+              >
+                <span aria-live="polite">{copiado ? "Endereço copiado" : "Copiar endereço"}</span>
+              </button>
+            </div>
+          </section>
+        )}
+
+        <div className="flex flex-col gap-2.5 rounded-xl border border-[#E4E1D5] bg-[#F6F4EB] p-4">
+          <p className={ROTULO}>precisa desmarcar ou mudar?</p>
+          <p className="text-xs leading-relaxed text-[#5C5747]">Avisar cedo libera o horário para outra pessoa.</p>
+          {desmarcar && (
+            <a
+              href={desmarcar}
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-11 items-center justify-center rounded-[10px] border border-[#D5D0C1] bg-white text-sm font-semibold hover:border-[#17150F]"
+            >
+              Avisar a casa pelo WhatsApp
+            </a>
+          )}
         </div>
         <button type="button" onClick={() => location.reload()} className="h-11 text-sm font-semibold underline underline-offset-4">
           Fazer outro agendamento
