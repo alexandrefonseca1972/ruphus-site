@@ -79,7 +79,14 @@ export type Crm = {
   ultimoContatoEm: string | null;
   /** Em destaque no topo da lista até esta data (inclusive) */
   fixadoAte: string | null;
+  /** O anúncio de onde veio o cadastro (utm_* do link), quando veio de um */
+  utm: Utm | null;
 };
+
+/** Os parâmetros utm_* do link do anúncio, guardados no navegador até o cadastro. */
+export type Utm = Partial<Record<"source" | "medium" | "campaign" | "content" | "term", string>>;
+/** Como a campanha aparece no funil: o nome da campanha, ou a fonte quando não há nome. */
+export const campanhaDe = (u: Utm | null | undefined) => (u ? u.campaign || u.source || null : null);
 
 /** Um acontecimento na linha do tempo do negócio. Parte é gravada (notas, estágio,
  *  mensagens); parte é lida do que já existe (convite aceito, agendamento, cobrança). */

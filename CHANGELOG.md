@@ -5,6 +5,22 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Anúncios medidos, do clique ao negócio criado
+- **Campanha no funil** (#72): links com `utm_*` (por exemplo
+  `www.ruphus.site/?utm_source=instagram&utm_campaign=setembro`) ficam guardados
+  no navegador por 30 dias e vão para o funil quando o negócio é criado. O funil
+  ganha o quadro "Anúncios" (cadastros e fechados por campanha), e a gaveta diz
+  de qual anúncio o negócio veio.
+- **Pixel da Meta nos Ajustes do `/admin`** (#72): com o ID salvo, a landing
+  registra visita e clique no WhatsApp, e o cadastro registra o negócio criado
+  ("CompleteRegistration"). Vazio desliga. A privacidade explica o Pixel.
+
+### Landing
+- **WhatsApp flutuante** (#72) no lugar do botão do topo; sobe quando a barra de
+  baixo aparece.
+- **Demonstrações na conta de exemplo** (#72): "Ver um site", a agenda e a bio
+  abrem a `barbearia-force`, não o site de um negócio real.
+
 ### Encontrável no Google
 - **Um endereço só** (#71): `ruphus.site` leva a `www.ruphus.site` e `/sobre` à
   raiz; antes a landing respondia nos três, e o Google dividia a página.

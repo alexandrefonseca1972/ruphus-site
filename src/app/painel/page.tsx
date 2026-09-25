@@ -16,6 +16,7 @@ import { loginComMotivo } from "@/lib/sessao";
 import { mascaraSlug, myTenants, slugify, TenantInput, type Role } from "@/lib/tenants";
 import { cn } from "@/lib/utils";
 import { criarNegocioAction, minhaCota, slugLivre } from "./actions";
+import { lerUtm, pixel } from "@/lib/anuncios";
 import { CamposNegocio, errosDe, VAZIO } from "@/components/campos-negocio";
 
 type Negocio = Awaited<ReturnType<typeof myTenants>>[number];
@@ -275,11 +276,16 @@ function NegocioForm({
     setErro("");
     setBusy(true);
     // No servidor: é lá que o limite de negócios por conta é conferido
-    const r = await criarNegocioAction(await idToken(), { name, slug: final, ...campos }).catch(() => ({
+    // o anúncio que trouxe a pessoa vai junto: é o que o funil do /admin agrupa por campanha
+    const r = await criarNegocioAction(await idToken(), { name, slug: final, ...campos }, lerUtm()).catch(() => ({
       ok: false as const,
       error: "Não foi possível criar agora. Verifique a conexão e tente de novo.",
     }));
-    if (r.ok) return onCriado(r.slug);
+    if (r.ok) {
+      // a conversão que os anúncios otimizam: negócio criado, não só conta aberta
+      void pixel("CompleteRegistration");
+      return onCriado(r.slug);
+    }
     setErro(r.error);
     setBusy(false);
   }

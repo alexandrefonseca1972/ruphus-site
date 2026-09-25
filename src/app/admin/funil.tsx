@@ -10,6 +10,7 @@ import {
   prazoDe,
   PRECO_PADRAO,
   ROTULO,
+  campanhaDe,
   type Crm,
   type Estagio,
   type MotivoPerda,
@@ -79,6 +80,16 @@ export function Funil({
       const ok = deles.filter((x) => crm[x.slug]?.estagio === "fechado").length;
       return { o, contatos: deles.length, fechados: ok };
     });
+    // os anúncios: cada campanha, quantos negócios criou e quantos fecharam
+    const porCampanha = new Map<string, { cadastros: number; fechados: number }>();
+    for (const x of espacos) {
+      const nome = campanhaDe(crm[x.slug]?.utm);
+      if (!nome) continue;
+      const c = porCampanha.get(nome) ?? { cadastros: 0, fechados: 0 };
+      c.cadastros++;
+      if (crm[x.slug]?.estagio === "fechado") c.fechados++;
+      porCampanha.set(nome, c);
+    }
     return {
       colunas: Object.fromEntries(COLUNAS.map((e) => [e, de(e)])) as Record<(typeof COLUNAS)[number], Espaco[]>,
       perdidos,
@@ -92,6 +103,7 @@ export function Funil({
       atrasadas: espacos.filter((x) => prazoDe(crm[x.slug], hoje) === "atrasada").length,
       motivos: [...motivos].sort((a, b) => b[1] - a[1]),
       origens,
+      campanhas: [...porCampanha].sort((a, b) => b[1].cadastros - a[1].cadastros),
     };
   }, [espacos, crm, periodo, agora, hoje]);
 
@@ -296,6 +308,37 @@ export function Funil({
               ))}
             </tbody>
           </table>
+        </section>
+
+        <section aria-labelledby="campanhas-t" className="overflow-hidden rounded-2xl border border-[#E2DDD3] bg-white">
+          <h3 id="campanhas-t" className="px-4 pt-4 pb-3 font-[family-name:var(--fonte-serifa)] text-[22px] leading-none">Anúncios</h3>
+          {n.campanhas.length ? (
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr className="bg-[#FBFAF8] text-[11px] tracking-[0.06em] text-[#6F6A5E] uppercase">
+                  <th scope="col" className="px-4 py-2.5 text-left font-medium">Campanha</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Cadastros</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Fechados</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Conversão</th>
+                </tr>
+              </thead>
+              <tbody>
+                {n.campanhas.map(([nome, { cadastros, fechados }]) => (
+                  <tr key={nome} className="border-t border-[#E2DDD3]">
+                    <td className="max-w-0 truncate px-4 py-2.5 font-semibold" title={nome}>{nome}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{cadastros}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{fechados}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold tabular-nums">{`${Math.round((fechados / cadastros) * 100)}%`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="px-4 pb-4 text-xs leading-relaxed text-[#6F6A5E]">
+              Nenhum cadastro veio de anúncio ainda. Use links com <code>utm_campaign</code> nos anúncios, por exemplo
+              {" "}<code className="break-all">www.ruphus.site/?utm_source=instagram&amp;utm_campaign=setembro</code>: cada campanha aparece aqui com os negócios que criou.
+            </p>
+          )}
         </section>
 
         <section aria-labelledby="perdas-t" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] bg-white p-4">

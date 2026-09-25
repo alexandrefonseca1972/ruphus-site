@@ -58,6 +58,10 @@ export const Lead = z.object({
 });
 export type Lead = z.infer<typeof Lead>;
 
+/** utm_* do anúncio, como o navegador guardou: texto curto, e nada além destas chaves. */
+const campoUtm = z.string().trim().max(100).optional();
+export const UtmInput = z.object({ source: campoUtm, medium: campoUtm, campaign: campoUtm, content: campoUtm, term: campoUtm });
+
 export type Leitura = {
   leads: { aba: string; linha: number; lead: Lead }[];
   erros: { aba: string; linha: number; motivo: string }[];

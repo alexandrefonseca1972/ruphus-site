@@ -9,7 +9,7 @@ import { ErroPrevisto } from "@/lib/erro-previsto";
 const RAIZ = "crm";
 
 export { ESTAGIOS, ROTULO } from "@/lib/crm-tipos";
-import { ESTAGIOS as LISTA, MOTIVOS_PERDA, ORIGENS, ROTULO, type Crm, type Evento, type MotivoPerda, type Nota, type Origem } from "@/lib/crm-tipos";
+import { ESTAGIOS as LISTA, MOTIVOS_PERDA, ORIGENS, ROTULO, type Crm, type Evento, type MotivoPerda, type Nota, type Origem, type Utm } from "@/lib/crm-tipos";
 export type { Crm, Evento, Nota };
 
 /** Erro previsto: a mensagem chega à tela como está (o resto vira "não foi possível") */
@@ -66,6 +66,7 @@ export function negocio(d: { get: (campo: string) => unknown }): Crm {
     perdidoEm: (d.get("perdidoEm") as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null,
     ultimoContatoEm: (d.get("ultimoContatoEm") as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null,
     fixadoAte: (d.get("fixadoAte") as string | null) ?? null,
+    utm: (d.get("utm") as Utm | null) ?? null,
   };
 }
 

@@ -224,6 +224,18 @@ assert.equal((await pagina("../etc")).status, 404);
   assert.deepEqual(pf.mudancas, []);
 }
 
+// ─── Cadastro que veio de anúncio: a campanha vai para o funil ───
+{
+  const base = { sub: "barbearia", telefone: "(96) 99222-0000", cidade: "Macapá", uf: "AP" };
+  await criarNegocio(db, { uid: "via-anuncio", email: "a@b.com" }, { ...base, name: "Corte Fino", slug: "corte-fino" },
+    { source: "instagram", medium: "pago", campaign: "setembro", term: "" });
+  assert.deepEqual((await db.doc("crm/corte-fino").get()).get("utm"), { source: "instagram", medium: "pago", campaign: "setembro" }, "campo vazio não entra");
+  // UTM adulterada ou grande demais: o cadastro passa, sem a origem
+  await criarNegocio(db, { uid: "utm-estranha" }, { ...base, name: "Corte Grosso", slug: "corte-grosso" }, { campaign: "x".repeat(500) });
+  assert.equal((await db.doc("crm/corte-grosso").get()).get("utm"), undefined);
+  assert.equal((await db.doc("tenants/corte-grosso").get()).exists, true);
+}
+
 // ─── A entrada paga publica o site: sai a faixa, entra o Google ───
 {
   const { GET } = await import("@/app/s/[slug]/index.html/route");

@@ -21,6 +21,7 @@ import {
   definirAssinatura,
   encerrarSessoes,
   definirMinutosInativo,
+  definirPixel,
   definirLimiteStaff,
   linkDaProposta,
   liberarNegocios,
@@ -42,13 +43,14 @@ import { Carteira } from "./carteira";
 import { Gerador } from "./gerador";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
-import { COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
+import { COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, campanhaDe, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
 
 const PAGINA = 40;
 const VAZIO: Crm = {
   estagio: "novo", entradaCents: null, mensalCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
   donoNome: null, donoPapel: null, donoWhatsapp: null, donoEmail: null, motivoPerda: null, detalhePerda: null,
   origem: null, indicadoPor: null, entrouEm: null, perdidoEm: null, ultimoContatoEm: null, fixadoAte: null,
+  utm: null,
 };
 const CIDADES_VISIVEIS = 5;
 const ITEM_MENU = "flex h-11 items-center rounded-lg px-2.5 text-left text-[13px] text-[#17150F] hover:bg-[#F4F2EE]";
@@ -128,6 +130,7 @@ export default function AdminPage() {
   const campoBusca = useRef<HTMLInputElement>(null);
   // vem junto do painel, na mesma viagem; o próprio admin também sai sozinho
   const [minutosInativo, setMinutosInativo] = useState(0);
+  const [metaPixel, setMetaPixel] = useState("");
   useAutoLogout(minutosInativo);
   const [estado, setEstado] = useState<"carregando" | "negado" | "pronto">("carregando");
   const [email, setEmail] = useState("");
@@ -195,6 +198,7 @@ export default function AdminPage() {
         setCrm(r.dados.crm);
         setAssinatura(r.dados.assinatura);
         setMinutosInativo(r.dados.minutosInativo);
+        setMetaPixel(r.dados.metaPixel);
         setEstado("pronto");
       }),
     [router],
@@ -741,6 +745,37 @@ export default function AdminPage() {
                     <button type="submit" className={BOTAO_CLARO}>Salvar</button>
                   </div>
                   <span className="text-[11.5px] leading-relaxed text-[#6F6A5E]">0 desliga. Vale para este painel e para o painel dos clientes.</span>
+                </form>
+
+                <form
+                  className="flex flex-col gap-1.5 border-t border-[#EDE9E1] pt-3.5"
+                  onSubmit={async (ev) => {
+                    ev.preventDefault();
+                    const r = await definirPixel(await token(), new FormData(ev.currentTarget).get("pixel"));
+                    setAviso(r.ok ? (r.dados ? "Pixel da Meta salvo: a landing e o cadastro já medem." : "Pixel da Meta desligado.") : r.error);
+                    if (r.ok) setMetaPixel(r.dados);
+                  }}
+                >
+                  <span className="flex items-center gap-2 text-xs font-semibold text-[#4A4639]">
+                    Pixel da Meta
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${metaPixel ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#F3EFE7] text-[#6F6A5E]"}`}>{metaPixel ? "ligado" : "desligado"}</span>
+                  </span>
+                  <div className="flex gap-2">
+                    <input
+                      key={metaPixel}
+                      name="pixel"
+                      inputMode="numeric"
+                      defaultValue={metaPixel}
+                      maxLength={20}
+                      aria-label="ID do Pixel da Meta"
+                      placeholder="ID do conjunto de dados"
+                      className="h-11 min-w-0 grow rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-sm tabular-nums text-[#17150F] outline-none focus:border-[#17150F]"
+                    />
+                    <button type="submit" className={BOTAO_CLARO}>Salvar</button>
+                  </div>
+                  <span className="text-[11.5px] leading-relaxed text-[#6F6A5E]">
+                    Meta → Gerenciador de Eventos → Fontes de dados. Mede visitas e cliques no WhatsApp da landing e o negócio criado no cadastro. Vazio desliga.
+                  </span>
                 </form>
 
                 <Link href="/ajuda/vendas" className="flex h-11 items-center rounded-[10px] border border-[#D8D2C6] px-3.5 text-[13px] text-[#17150F] hover:border-[#17150F]">
@@ -1494,6 +1529,7 @@ export default function AdminPage() {
             <details key={`atributos-${aberto.slug}`} className="rounded-2xl border border-[#E2DDD3] px-4 py-3">
               <summary className="cursor-pointer text-[12.5px] text-[#4A4639]">
                 Como chegou · {ORIGENS[crm[aberto.slug]?.origem ?? "importado"]}
+                {campanhaDe(crm[aberto.slug]?.utm) && ` (anúncio: ${campanhaDe(crm[aberto.slug]?.utm)})`}
                 {" · "}
                 Destaque · {emDestaque(crm[aberto.slug], dataDeHoje) ? `até ${diaCurto(crm[aberto.slug]!.fixadoAte!)}` : "fora"}
               </summary>
