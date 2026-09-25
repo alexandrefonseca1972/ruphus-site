@@ -6,12 +6,12 @@ o PR, onde está o porquê.
 ## Em avaliação
 
 ### Formulários que conferem enquanto a pessoa digita
-- **Criar conta** (#73): nome só com letras, e-mail sem espaço e em minúsculas,
+- **Criar conta** (#74): nome só com letras, e-mail sem espaço e em minúsculas,
   erro embaixo do campo ao sair dele (em português, no lugar do aviso do
   navegador) e o cursor vai para o primeiro campo errado. A senha nova pede 8
   caracteres com letra e número, e a lista embaixo marca cada requisito ao
   digitar; quem já tem conta segue entrando com a senha que criou.
-- **Dados do negócio** (#73): WhatsApp com máscara `(96) 99999-0000`, UF só com
+- **Dados do negócio** (#74): WhatsApp com máscara `(96) 99999-0000`, UF só com
   duas letras, cidade e bairro sem símbolos, Instagram só com o que um perfil
   aceita. Vale no cadastro, no "Meu negócio" e na aba Site do admin.
 
