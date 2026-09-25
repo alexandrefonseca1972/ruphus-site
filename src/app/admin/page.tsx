@@ -171,6 +171,8 @@ export default function AdminPage() {
   const [fixados, setFixados] = useState(false);
   const [foraDoAr, setForaDoAr] = useState(false);
   const [menuFiltros, setMenuFiltros] = useState(false);
+  // o painel se alinha pela direita do botão; quando a barra quebra e o botão cai à esquerda, isso o joga para fora da tela
+  const [filtrosAEsquerda, setFiltrosAEsquerda] = useState(false);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
   // fixo por render: se viesse de Date.now() a cada chamada, um espaço podia cair
   // em "hoje" na contagem e em "atrasada" na lista, na virada da meia-noite
@@ -805,7 +807,10 @@ export default function AdminPage() {
             type="button"
             aria-haspopup="true"
             aria-expanded={menuFiltros}
-            onClick={() => setMenuFiltros((v) => !v)}
+            onClick={(ev) => {
+              setFiltrosAEsquerda(ev.currentTarget.getBoundingClientRect().right < Math.min(innerWidth * 0.92, 420) + 8);
+              setMenuFiltros((v) => !v);
+            }}
             className={`flex h-9 items-center gap-2 rounded-lg px-3 text-[13px] ${menuFiltros ? "bg-[#17150F] font-semibold text-white" : "hover:bg-[#F4F2EE]"}`}
           >
             Filtros
@@ -826,7 +831,7 @@ export default function AdminPage() {
               <div
                 role="menu"
                 aria-label="Filtros"
-                className="absolute right-0 top-11 z-40 flex max-h-[70vh] w-[min(92vw,420px)] flex-col gap-3.5 overflow-y-auto rounded-xl border border-[#C8C1B3] bg-white p-4 shadow-[0_18px_48px_rgba(23,21,15,0.18)]"
+                className={`absolute ${filtrosAEsquerda ? "left-0" : "right-0"} top-11 z-40 flex max-h-[70vh] w-[min(92vw,420px)] flex-col gap-3.5 overflow-y-auto rounded-xl border border-[#C8C1B3] bg-white p-4 shadow-[0_18px_48px_rgba(23,21,15,0.18)]`}
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Cidade</span>
@@ -1084,7 +1089,7 @@ export default function AdminPage() {
           </div>
 
           {/* Cabeçalho de coluna: sem ele, "★ 4,9 · 1.125" é um número a adivinhar */}
-          <div className="hidden items-center gap-4 border-b border-[#E2DDD3] bg-[#FBFAF8] px-5 py-2.5 text-[#6F6A5E] lg:flex">
+          <div className="hidden items-center gap-4 border-b border-[#E2DDD3] bg-[#FBFAF8] px-5 py-2.5 text-[#6F6A5E] xl:flex">
             <input
               type="checkbox"
               aria-label="Marcar os negócios desta tela"
@@ -1101,19 +1106,19 @@ export default function AdminPage() {
                 })
               }
             />
-            <button type="button" onClick={() => setOrdem("nome")} className={`${ORDENAVEL} w-[296px]`}>
+            <button type="button" onClick={() => setOrdem("nome")} className={`${ORDENAVEL} w-[288px] shrink-0`}>
               Negócio{seta("nome")}
             </button>
-            <span className="w-[150px] text-[11px] font-semibold uppercase tracking-[0.06em]">Cidade</span>
-            <span className="w-[170px] text-[11px] font-semibold uppercase tracking-[0.06em]">Nicho</span>
-            <button type="button" onClick={() => setOrdem("nota")} className={`${ORDENAVEL} w-[130px]`}>
+            <span className="w-[150px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.06em]">Cidade</span>
+            <span className="w-[170px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.06em]">Nicho</span>
+            <button type="button" onClick={() => setOrdem("nota")} className={`${ORDENAVEL} w-[130px] shrink-0`}>
               Google{seta("nota")}
             </button>
-            <span className="w-[140px] text-[11px] font-semibold uppercase tracking-[0.06em]">Funil</span>
+            <span className="w-[140px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.06em]">Funil</span>
             <button type="button" onClick={() => setOrdem("compromisso")} className={`${ORDENAVEL} min-w-0 grow`}>
               Próxima ação{seta("compromisso")}
             </button>
-            <span className="w-[180px]" />
+            <span className="w-[180px] shrink-0" />
           </div>
 
           <ul>
@@ -1123,9 +1128,9 @@ export default function AdminPage() {
               return (
                 <li
                   key={e.slug}
-                  className="flex flex-col gap-3 border-b border-[#F1EDE6] px-4 py-3.5 last:border-0 sm:px-5 lg:flex-row lg:items-center lg:gap-4"
+                  className="flex flex-col gap-3 border-b border-[#F1EDE6] px-4 py-3.5 last:border-0 sm:px-5 xl:flex-row xl:items-center xl:gap-4"
                 >
-                  <div className="flex min-w-0 items-start gap-3 lg:w-[320px]">
+                  <div className="flex min-w-0 items-start gap-3 xl:w-[320px] xl:shrink-0">
                     <input
                       type="checkbox"
                       aria-label={`Marcar ${e.nome}`}
@@ -1154,19 +1159,19 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 text-[13px] text-[#4A4639] lg:contents">
-                    <span className="lg:w-[150px]">{local(e) || "cidade não identificada"}</span>
-                    <span className="lg:w-[170px]">
+                  <div className="flex flex-wrap items-center gap-2 text-[13px] text-[#4A4639] xl:contents">
+                    <span className="xl:w-[150px] xl:shrink-0">{local(e) || "cidade não identificada"}</span>
+                    <span className="xl:w-[170px] xl:shrink-0">
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${CORES_NICHO[e.nicho] ?? "bg-[#F3EFE7] text-[#4A4639]"}`}>
                         {e.nicho}
                       </span>
                     </span>
-                    <span className="lg:w-[130px]">
+                    <span className="xl:w-[130px] xl:shrink-0">
                       {e.nota
                         ? `★ ${e.nota.toFixed(1).replace(".", ",")}${e.avaliacoes ? ` · ${e.avaliacoes.toLocaleString("pt-BR")}` : ""}`
                         : "sem nota"}
                     </span>
-                    <span className="lg:w-[140px]">
+                    <span className="xl:w-[140px] xl:shrink-0">
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${COR[(crm[e.slug]?.estagio ?? "novo") as Estagio]}`}>
                         {ROTULO[(crm[e.slug]?.estagio ?? "novo") as Estagio]}
                       </span>
@@ -1174,7 +1179,7 @@ export default function AdminPage() {
                         <span className="ml-1 rounded-full bg-[#F1E7E7] px-2 py-0.5 text-xs font-semibold text-[#8A2F2F]">fora do ar</span>
                       )}
                     </span>
-                    <span className="min-w-0 lg:grow">
+                    <span className="min-w-0 xl:grow">
                       {p && p !== "futura" ? (
                         <span
                           className={`block truncate text-[12px] font-semibold ${p === "atrasada" ? "text-[#8A2F2F]" : "text-[#7A5A2E]"}`}
@@ -1194,7 +1199,7 @@ export default function AdminPage() {
                     </span>
                   </div>
 
-                  <div className="flex grow justify-end gap-2 lg:w-[180px] lg:grow-0">
+                  <div className="flex grow justify-end gap-2 xl:w-[180px] xl:shrink-0 xl:grow-0">
                     {!ativo && (
                       <button type="button" className={BOTAO_ESCURO} onClick={() => convidar(e.slug)}>
                         {convite?.slug === e.slug ? (convite.copiado ? "Copiado ✓" : "Link gerado") : "Convidar"}
