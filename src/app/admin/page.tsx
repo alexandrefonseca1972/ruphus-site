@@ -37,6 +37,7 @@ import { loginComMotivo, MINUTOS_MAX, useAutoLogout } from "@/lib/sessao";
 import { COMMIT, VERSAO } from "@/lib/versao";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX } from "@/lib/limites";
 import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
+import { SiteDoNegocio } from "./site-gaveta";
 import { Carteira } from "./carteira";
 import { Gerador } from "./gerador";
 import type { ClienteSaude } from "@/lib/saude.server";
@@ -157,7 +158,7 @@ export default function AdminPage() {
   const [fechando, setFechando] = useState<string | null>(null);
   const [saude, setSaude] = useState<ClienteSaude | null>(null);
   // A aba escolhida vale para o próximo negócio aberto: quem está cobrando segue cobrando
-  const [aba, setAba] = useState<"venda" | "historico" | "cliente" | "cobranca">("venda");
+  const [aba, setAba] = useState<"venda" | "historico" | "cliente" | "site" | "cobranca">("venda");
   const [estagio, setEstagio] = useState("");
   const [prazo, setPrazo] = useState<"" | Prazo>("");
   const [contato, setContato] = useState<"" | "hoje">("");   // "falei hoje"
@@ -1363,6 +1364,7 @@ export default function AdminPage() {
                   ["venda", "Venda", <path key="v" d="M3 17l6-6 4 4 8-8M15 7h6v6" />],
                   ["historico", `Histórico${eventos ? ` · ${eventos.length}` : ""}`, <><circle key="c" cx="12" cy="12" r="8.5" /><path key="p" d="M12 7.5V12l3 2" /></>],
                   ["cliente", "Cliente", <><circle key="c" cx="12" cy="8" r="3.5" /><path key="p" d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" /></>],
+                  ["site", "Site", <><rect key="r" x="3" y="4" width="18" height="16" rx="2" /><path key="p" d="M3 9h18M7 6.5h.01M10 6.5h.01" /></>],
                   ["cobranca", "Cobrança", <><rect key="r" x="3" y="6" width="18" height="12" rx="2" /><path key="p" d="M3 10h18M7 15h3" /></>],
                 ] as const
               ).map(([id, rotulo, icone]) => (
@@ -1647,6 +1649,7 @@ export default function AdminPage() {
 
               </>
             )}
+            {aba === "site" && <SiteDoNegocio key={`site-${aberto.slug}`} slug={aberto.slug} token={token} />}
             {aba === "cliente" && (
               <>
             {clienteAberto && <ImplantacaoESaude saude={saude} lembrar={(p) => lembrar(aberto.slug, p)} />}

@@ -4,7 +4,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { lerPlanilha } from "@/lib/gerador";
 import { gerarNoBanco, lerSite } from "@/lib/gerador.server";
-import { criarNegocio, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
+import { criarNegocio, lerNegocio, lerSiteDoNegocio, previaDoSite, salvarNegocio } from "@/lib/negocios.server";
 
 const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
 const planilha = (...linhas: unknown[][]) =>
@@ -177,6 +177,44 @@ assert.equal((await pagina("../etc")).status, 404);
   await salvarNegocio(db, "navalha", { name: "Navalha", sub: "barbearia", telefone: "(92) 99123-4567", cidade: "Manaus", uf: "AM" });
   const n = (await db.doc("tenants/navalha").get()).data()!;
   assert.equal(n.gerado.origem, "prospeccao", "o site continua sendo proposta até a Ruphus mudar");
+}
+
+// ─── Gaveta do admin, aba "Site": completar o site de quem se cadastrou ───
+{
+  // a planilha com o telefone de um cliente do cadastro não regrava o site dele como proposta
+  const [p] = await gerarNoBanco(db, planilha(["Sorriso da Planilha", "(96) 99111-3333", "Odontologia", "Macapá", "AP", 4.9, 30, "", "", "", ""]), true, "a");
+  assert.deepEqual([p.slug, p.acao], ["sorriso-leve", "pular"]);
+  assert.match(p.motivo ?? "", /cliente do cadastro/);
+  const intacto = (await db.doc("tenants/sorriso-leve").get()).data()!;
+  assert.deepEqual([intacto.name, intacto.gerado.origem], ["Sorriso Leve Odonto", "cadastro"], "nome e origem do dono ficam");
+
+  const pedido = { name: "Sorriso Leve Odonto", sub: "odonto", telefone: "96991113333", cidade: "Macapá", uf: "AP", bairro: "Trem", instagram: "@sorrisoleve", horario: "Seg a sex, 8h às 18h" };
+  const google = { nota: 4.9, avaliacoes: 30 };
+  assert.equal((await lerSiteDoNegocio(db, "sorriso-leve")).tipo, "cadastro");
+  // a prévia diz só o que muda, e não grava
+  const pr = await previaDoSite(db, "sorriso-leve", pedido, google);
+  assert.deepEqual(pr.mudancas.map((m) => [m.campo, m.antes, m.depois]), [["Bairro", "", "Trem"], ["Nota no Google", "", "4,9"], ["Avaliações no Google", "", "30"]]);
+  assert.equal((await db.doc("tenants/sorriso-leve").get()).get("gerado.bairro"), "", "prévia não grava");
+  await assert.rejects(previaDoSite(db, "sorriso-leve", { ...pedido, sub: "" }, google), /ramo/);
+
+  // gravar leva a nota do Google e o site continua do dono
+  await salvarNegocio(db, "sorriso-leve", pedido, google);
+  const s = (await db.doc("tenants/sorriso-leve").get()).data()!;
+  assert.deepEqual([s.site.rating, s.site.reviews, s.gerado.bairro, s.gerado.origem], [4.9, 30, "Trem", "cadastro"]);
+  assert.equal((await db.doc("tenants/sorriso-leve/services/limpeza").get()).get("priceCents"), 12000, "a agenda do dono não muda");
+  assert.equal((await previaDoSite(db, "sorriso-leve", pedido, google)).mudancas.length, 0, "depois de gravar, nada a mudar");
+  // e o dono salvando pelo "Meu negócio" depois não apaga a nota
+  await salvarNegocio(db, "sorriso-leve", pedido);
+  assert.equal((await lerSiteDoNegocio(db, "sorriso-leve")).google.nota, 4.9);
+
+  // os outros tipos que a aba reconhece
+  await db.doc("tenants/sem-site").set({ name: "Sem Site", ownerId: "alguem" });
+  assert.equal((await lerSiteDoNegocio(db, "sem-site")).tipo, "sem-site");
+  assert.equal((await lerSiteDoNegocio(db, "fabrica-x")).tipo, "fabrica");
+  assert.equal((await lerSiteDoNegocio(db, "navalha")).tipo, "prospeccao");
+  // na fábrica, a prévia não oferece o que não muda a página
+  const pf = await previaDoSite(db, "fabrica-x", { name: "Fábrica X", sub: "vet", telefone: "91988887777", cidade: "Belém", uf: "PA", bairro: "Nazaré" }, google);
+  assert.deepEqual(pf.mudancas, []);
 }
 
 // entrada adulterada no navegador não passa
