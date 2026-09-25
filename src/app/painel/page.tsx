@@ -16,6 +16,7 @@ import { loginComMotivo } from "@/lib/sessao";
 import { mascaraSlug, myTenants, slugify, TenantInput, type Role } from "@/lib/tenants";
 import { cn } from "@/lib/utils";
 import { criarNegocioAction, minhaCota, slugLivre } from "./actions";
+import { CamposNegocio, errosDe, VAZIO } from "@/components/campos-negocio";
 
 type Negocio = Awaited<ReturnType<typeof myTenants>>[number];
 
@@ -24,9 +25,10 @@ const PAPEL: Record<Role, string> = { owner: "Dono", admin: "Admin", member: "Eq
 // Cada conta começa com 1 negócio; o admin da plataforma libera mais pelo /admin
 const FALAR_COM_RUPHUS = "https://wa.me/5511948680554?text=" + encodeURIComponent("Olá! Quero cadastrar mais um negócio na Ruphus.");
 
+// o negócio já nasce com site, serviços do ramo e uma equipe: o segundo passo é ajustar, não cadastrar do zero
 const PASSOS = [
-  { titulo: "Crie o negócio", texto: "Nome e endereço do link." },
-  { titulo: "Cadastre serviços e quem atende", texto: "Duração, preço e horários." },
+  { titulo: "Crie o negócio", texto: "Nome, ramo e WhatsApp: o site e a agenda saem prontos." },
+  { titulo: "Ajuste serviços e horários", texto: "Preços, duração e quem atende, do seu jeito." },
   { titulo: "Divulgue o link", texto: "Bio do Instagram e status do WhatsApp." },
 ];
 
@@ -234,6 +236,10 @@ function NegocioForm({
   // Enquanto a pessoa não mexe no endereço, ele acompanha o nome
   const [slugEditado, setSlugEditado] = useState(false);
   const [touched, setTouched] = useState({ name: false, slug: false });
+  const [campos, setCampos] = useState(VAZIO);
+  // os campos do negócio só mostram erro depois da primeira tentativa de criar
+  const [tentou, setTentou] = useState(false);
+  const errosCampos = errosDe(campos);
   const [disp, setDisp] = useState<{ para: string; estado: Disponibilidade }>({ para: "", estado: "" });
   const [erro, setErro] = useState("");
   const [busy, setBusy] = useState(false);
@@ -263,12 +269,13 @@ function NegocioForm({
 
   async function criar() {
     setTouched({ name: true, slug: true });
+    setTentou(true);
     setSlug(final);
-    if (erroNome || erroSlug || estado !== "livre") return;
+    if (erroNome || erroSlug || estado !== "livre" || Object.keys(errosCampos).length) return;
     setErro("");
     setBusy(true);
     // No servidor: é lá que o limite de negócios por conta é conferido
-    const r = await criarNegocioAction(await idToken(), { name, slug: final }).catch(() => ({
+    const r = await criarNegocioAction(await idToken(), { name, slug: final, ...campos }).catch(() => ({
       ok: false as const,
       error: "Não foi possível criar agora. Verifique a conexão e tente de novo.",
     }));
@@ -281,7 +288,7 @@ function NegocioForm({
     <section ref={ref} aria-labelledby="form-negocio" className="grid scroll-mt-6 gap-5 rounded-2xl border bg-card p-5 sm:gap-5.5 sm:p-7">
       <div className="grid gap-1">
         <h2 id="form-negocio" className="text-[17px] font-semibold">{titulo}</h2>
-        <p className="text-sm text-muted-foreground">O nome aparece no site e no link de agendamento. Dá para mudar depois.</p>
+        <p className="text-sm text-muted-foreground">Com isso o seu site e a agenda já saem prontos. Dá para mudar tudo depois.</p>
       </div>
       <form
         noValidate
@@ -361,6 +368,8 @@ function NegocioForm({
             {!msgSlug && <p className="hidden text-muted-foreground sm:block">Preenchido a partir do nome. Só letras minúsculas, números e hífen.</p>}
           </div>
         </div>
+
+        <CamposNegocio valores={campos} onChange={setCampos} erros={tentou ? errosCampos : {}} />
 
         {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

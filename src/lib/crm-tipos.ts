@@ -46,6 +46,7 @@ export const ORIGENS = {
   indicacao: "Indicação",
   anuncio: "Anúncio",
   importado: "Importado",
+  cadastro: "Cadastro no site",
   outro: "Outro",
 } as const;
 export type Origem = keyof typeof ORIGENS;

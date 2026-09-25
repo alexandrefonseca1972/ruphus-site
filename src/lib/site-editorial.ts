@@ -202,7 +202,7 @@ ${cabecaComum(d.slug, tituloPag, descr)}
 ${jsonLdNegocio(d, descr, `${kit}/hero.jpg`)}
 </head>
 <body id="top">
-${faixaProposta(d.slug)}
+${d.origem === "cadastro" ? "" : faixaProposta(d.slug)}
 
 <header id="hd">
   <a class="logo" href="#top">${esc(d.nome)}</a>
@@ -311,13 +311,13 @@ ${temNota ? `
 </section>
 
 <footer>
-  <span>${esc(`${d.nome} — ${tag}`)}<br><small>Site-modelo de demonstração criado pela Ruphus</small></span>
+  <span>${esc(`${d.nome} — ${tag}`)}<br><small>${d.origem === "cadastro" ? "Site criado com Ruphus" : "Site-modelo de demonstração criado pela Ruphus"}</small></span>
   <span class="social">
     <a href="${oi}" target="_blank" rel="noopener" aria-label="WhatsApp de ${esc(d.nome)}">${WA}</a>
     ${d.instagram ? `<a href="https://www.instagram.com/${esc(d.instagram)}/" target="_blank" rel="noopener" aria-label="Instagram de ${esc(d.nome)}">${INSTA}</a>` : ""}
     <a href="${google}" target="_blank" rel="noopener" aria-label="${esc(d.nome)} no Google Maps">${PINO}</a>
   </span>
-<p data-ysis="fonte" style="margin:14px 0 0;font-size:.76rem;line-height:1.5;opacity:.6">Imagens ilustrativas, não são fotos do estabelecimento. ${temNota ? "Nota e número de avaliações do Google" : "Endereço e contato do perfil público do Google"}, consultados em ${esc(d.consultado)}. Valores públicos, sujeitos a mudança.</p>
+<p data-ysis="fonte" style="margin:14px 0 0;font-size:.76rem;line-height:1.5;opacity:.6">Imagens ilustrativas, não são fotos do estabelecimento.${d.origem === "cadastro" ? "" : ` ${temNota ? "Nota e número de avaliações do Google" : "Endereço e contato do perfil público do Google"}, consultados em ${esc(d.consultado)}. Valores públicos, sujeitos a mudança.`}</p>
 </footer>
 
 <a class="wpp-float" href="${oi}" target="_blank" rel="noopener" aria-label="Agendar pelo WhatsApp de ${esc(d.nome)}">${WA}</a>

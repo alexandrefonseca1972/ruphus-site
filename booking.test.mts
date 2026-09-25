@@ -339,23 +339,25 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
 // Um negócio por conta, até o admin da plataforma liberar mais
 {
   const dona = { uid: "dona-limite", email: "dona@teste.dev" };
-  assert.equal(await criarNegocio(db, dona, { name: "Primeiro", slug: "primeiro-limite" }), "primeiro-limite");
+  // o cadastro pede ramo, WhatsApp e cidade: o negócio já nasce com site e agenda
+  const NEGOCIO = { sub: "barbearia", telefone: "(96) 99123-4567", cidade: "Macapá", uf: "AP" };
+  assert.equal(await criarNegocio(db, dona, { ...NEGOCIO, name: "Primeiro", slug: "primeiro-limite" }), "primeiro-limite");
   const membro = await db.doc("tenants/primeiro-limite/members/dona-limite").get();
   assert.deepEqual([membro.get("role"), membro.get("email")], ["owner", "dona@teste.dev"]);
   assert.deepEqual(await cotaDe(db, dona.uid), { usados: 1, limite: 1 });
-  await assert.rejects(criarNegocio(db, dona, { name: "Segundo", slug: "segundo-limite" }), /Sua conta inclui 1 negócio/);
+  await assert.rejects(criarNegocio(db, dona, { ...NEGOCIO, name: "Segundo", slug: "segundo-limite" }), /Sua conta inclui 1 negócio/);
   assert.equal((await db.doc("tenants/segundo-limite").get()).exists, false, "recusado não deixa nada gravado");
 
   await definirLimite(db, dona.uid, 2);
-  assert.equal(await criarNegocio(db, dona, { name: "Segundo", slug: "segundo-limite" }), "segundo-limite");
-  await assert.rejects(criarNegocio(db, dona, { name: "Terceiro", slug: "terceiro-limite" }), /Sua conta inclui 2 negócios/);
+  assert.equal(await criarNegocio(db, dona, { ...NEGOCIO, name: "Segundo", slug: "segundo-limite" }), "segundo-limite");
+  await assert.rejects(criarNegocio(db, dona, { ...NEGOCIO, name: "Terceiro", slug: "terceiro-limite" }), /Sua conta inclui 2 negócios/);
 
   const outra = { uid: "outra-limite" };
-  await assert.rejects(criarNegocio(db, outra, { name: "Tomado", slug: "primeiro-limite" }), /já está em uso/);
-  await assert.rejects(criarNegocio(db, outra, { name: "Reservado", slug: "painel" }), /reservado/);
+  await assert.rejects(criarNegocio(db, outra, { ...NEGOCIO, name: "Tomado", slug: "primeiro-limite" }), /já está em uso/);
+  await assert.rejects(criarNegocio(db, outra, { ...NEGOCIO, name: "Reservado", slug: "painel" }), /reservado/);
   // Funcionário de outro negócio não gasta a cota
   await db.doc("tenants/primeiro-limite/members/outra-limite").set({ uid: "outra-limite", role: "member" });
-  assert.equal(await criarNegocio(db, outra, { name: "Dela", slug: "dela-limite" }), "dela-limite");
+  assert.equal(await criarNegocio(db, outra, { ...NEGOCIO, name: "Dela", slug: "dela-limite" }), "dela-limite");
   await assert.rejects(definirLimite(db, dona.uid, 0), /de 1 a 50/);
   // Admin adicionado por outro dono não gasta a cota; admin que entrou por convite gasta
   const alvo = { uid: "alvo-limite" };
@@ -414,14 +416,15 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   const slug = "dela-limite";
   const hoje = todayIn();
   let x = await saudeDe(db, slug, hoje);
-  // criado pelo próprio dono no /painel: o dono já está dentro
-  assert.deepEqual(x.passos, { convite: true, servicos: false, profissionais: false, agendamento: false });
+  // criado pelo próprio dono no /painel: o dono já está dentro, e o negócio nasce
+  // com os serviços do ramo e uma equipe — falta só o primeiro agendamento
+  assert.deepEqual(x.passos, { convite: true, servicos: true, profissionais: true, agendamento: false });
   assert.equal(x.saude, "atencao");
   await db.doc(`tenants/${slug}/members/dono-saude`).set({ uid: "dono-saude", role: "admin", email: "dono@teste.dev", createdAt: Timestamp.now() });
   await db.doc(`tenants/${slug}/services/corte`).set({ name: "Corte", durationMin: 30, priceCents: 4000, active: true });
   await db.collection("cobrancas").doc(`${slug}-mensal`).set({ slug, tipo: "mensal", competencia: "2026-01", valorCents: 5990, vencimento: addDays(hoje, -2), status: "aberta" });
   x = await saudeDe(db, slug, hoje);
-  assert.deepEqual([x.passos.convite, x.passos.servicos, x.passos.profissionais], [true, true, false]);
+  assert.deepEqual([x.passos.convite, x.passos.servicos, x.passos.profissionais], [true, true, true]);
   assert.equal(x.detalhes.convite, "dono@teste.dev");
   assert.deepEqual([x.cobranca, x.diasParaVencer, x.saude], ["atrasada", -2, "risco"]);
 }

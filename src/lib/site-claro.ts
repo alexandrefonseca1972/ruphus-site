@@ -131,7 +131,7 @@ ${d.uf ? `<meta name="geo.region" content="BR-${esc(d.uf)}">` : ""}
 ${jsonLdNegocio(d, descr, `/assets/${c.pasta}/${topo}.jpg`)}${jsonLd({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) })}
 </head>
 <body>
-${faixaProposta(d.slug)}
+${d.origem === "cadastro" ? "" : faixaProposta(d.slug)}
 
 <header class="site-header" id="siteHeader">
   <div class="header-inner">
@@ -326,9 +326,9 @@ ${temNota ? `
     </div>
     <div class="footer-bottom">
       <span>&copy; <span id="yr"></span> ${esc(d.nome)}. Todos os direitos reservados.</span>
-      <span>Página demonstrativa desenvolvida para apresentar o potencial de uma presença digital própria.</span>
+      <span>${d.origem === "cadastro" ? "Site criado com Ruphus." : "Página demonstrativa desenvolvida para apresentar o potencial de uma presença digital própria."}</span>
     </div>
-    <p data-ysis="fonte" style="margin:16px 0 0;text-align:center;font-size:.76rem;line-height:1.5;opacity:.6">Fotos ilustrativas (banco de imagens Pexels), não são imagens do estabelecimento. Endereço, horário, nota e número de avaliações vêm do perfil público do Google Maps, consultado em ${esc(d.consultado)}. Valores públicos, sujeitos a mudança.</p>
+    <p data-ysis="fonte" style="margin:16px 0 0;text-align:center;font-size:.76rem;line-height:1.5;opacity:.6">Fotos ilustrativas (banco de imagens Pexels), não são imagens do estabelecimento.${d.origem === "cadastro" ? "" : ` Endereço, horário, nota e número de avaliações vêm do perfil público do Google Maps, consultado em ${esc(d.consultado)}. Valores públicos, sujeitos a mudança.`}</p>
   </div>
 </footer>
 

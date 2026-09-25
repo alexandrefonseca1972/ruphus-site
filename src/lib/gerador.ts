@@ -147,6 +147,45 @@ export type Sub =
   | "oficina" | "lavagem" | "pneus";
 export type Nicho = { nicho: "pet" | "beleza" | "saude" | "aulas" | "fitness" | "automotivo"; sub: Sub; tipo: string };
 
+/** A ficha de cada nicho: família, tipo schema.org e o nome que a pessoa reconhece.
+ *  Um lugar só para o gerador (que lê a categoria da planilha) e o cadastro (que
+ *  mostra a lista para o dono escolher). */
+export const SUBS: Record<Sub, { nicho: Nicho["nicho"]; tipo: string; rotulo: string }> = {
+  petshop: { nicho: "pet", tipo: "PetStore", rotulo: "Pet shop" },
+  vet: { nicho: "pet", tipo: "VeterinaryCare", rotulo: "Clínica veterinária" },
+  barbearia: { nicho: "beleza", tipo: "BarberShop", rotulo: "Barbearia" },
+  salao: { nicho: "beleza", tipo: "HairSalon", rotulo: "Salão de beleza" },
+  estetica: { nicho: "beleza", tipo: "BeautySalon", rotulo: "Estética" },
+  unhas: { nicho: "beleza", tipo: "NailSalon", rotulo: "Manicure e unhas" },
+  tatuagem: { nicho: "beleza", tipo: "TattooParlor", rotulo: "Estúdio de tatuagem" },
+  odonto: { nicho: "saude", tipo: "Dentist", rotulo: "Odontologia" },
+  fisio: { nicho: "saude", tipo: "Physiotherapy", rotulo: "Fisioterapia" },
+  psico: { nicho: "saude", tipo: "MedicalBusiness", rotulo: "Psicologia" },
+  nutri: { nicho: "saude", tipo: "MedicalBusiness", rotulo: "Nutrição" },
+  clinica: { nicho: "saude", tipo: "MedicalClinic", rotulo: "Clínica médica" },
+  idiomas: { nicho: "aulas", tipo: "EducationalOrganization", rotulo: "Escola de idiomas" },
+  reforco: { nicho: "aulas", tipo: "EducationalOrganization", rotulo: "Reforço escolar" },
+  musica: { nicho: "aulas", tipo: "EducationalOrganization", rotulo: "Escola de música" },
+  autoescola: { nicho: "aulas", tipo: "DrivingSchool", rotulo: "Autoescola" },
+  academia: { nicho: "fitness", tipo: "ExerciseGym", rotulo: "Academia" },
+  pilates: { nicho: "fitness", tipo: "SportsActivityLocation", rotulo: "Pilates e yoga" },
+  lutas: { nicho: "fitness", tipo: "SportsActivityLocation", rotulo: "Artes marciais e lutas" },
+  danca: { nicho: "fitness", tipo: "SportsActivityLocation", rotulo: "Dança" },
+  oficina: { nicho: "automotivo", tipo: "AutoRepair", rotulo: "Oficina mecânica" },
+  lavagem: { nicho: "automotivo", tipo: "AutoWash", rotulo: "Estética automotiva e lava-jato" },
+  pneus: { nicho: "automotivo", tipo: "TireShop", rotulo: "Pneus e alinhamento" },
+};
+
+/** Os nichos em grupos, na ordem em que o dono os procura na lista. */
+export const GRUPOS: [string, Sub[]][] = [
+  ["Beleza", ["barbearia", "salao", "estetica", "unhas", "tatuagem"]],
+  ["Saúde", ["odonto", "fisio", "psico", "nutri", "clinica"]],
+  ["Pet", ["petshop", "vet"]],
+  ["Fitness", ["academia", "pilates", "lutas", "danca"]],
+  ["Aulas e cursos", ["idiomas", "reforco", "musica", "autoescola"]],
+  ["Automotivo", ["oficina", "lavagem", "pneus"]],
+];
+
 // A primeira regra que casar vence, então a ordem é a regra de negócio:
 // - automotivo antes de estética ("estética automotiva") e antes de música ("baterias automotivas");
 // - veterinária antes de pet shop; unha antes de salão;
@@ -154,38 +193,65 @@ export type Nicho = { nicho: "pet" | "beleza" | "saude" | "aulas" | "fitness" | 
 //   último, para "clínica de estética" e "clínica veterinária" ficarem onde estão;
 // - luta e dança antes de academia ("academia de lutas"); pilates e academia antes de salão,
 //   que pega "studio"; idiomas e música antes de reforço ("escola de …").
-const RAMOS: [RegExp, Nicho | null][] = [
-  [/tatu|tattoo|piercing/, { nicho: "beleza", sub: "tatuagem", tipo: "TattooParlor" }],
-  [/auto ?escola|\bcfc\b|formacao de condutores|habilitacao/, { nicho: "aulas", sub: "autoescola", tipo: "DrivingSchool" }],
-  [/estetica automotiva|lava[ -]?jato|lava[ -]?rapido|lavagem (automotiva|de (carro|veiculo))|polimento|detailing|higienizacao automotiva|martelinho/, { nicho: "automotivo", sub: "lavagem", tipo: "AutoWash" }],
-  [/pneu|borracharia|alinhamento|balanceamento/, { nicho: "automotivo", sub: "pneus", tipo: "TireShop" }],
-  [/oficina|mecanic|auto ?center|centro automotivo|funilaria|injecao eletronica|automotiv|retifica/, { nicho: "automotivo", sub: "oficina", tipo: "AutoRepair" }],
-  [/veterin|clinica animal|hospital animal|\bvet\b/, { nicho: "pet", sub: "vet", tipo: "VeterinaryCare" }],
-  [/\bpet|agropet|banho e tosa|tosa|racao|aquario/, { nicho: "pet", sub: "petshop", tipo: "PetStore" }],
-  [/barb/, { nicho: "beleza", sub: "barbearia", tipo: "BarberShop" }],
-  [/unha|nail|manicure|esmalteria/, { nicho: "beleza", sub: "unhas", tipo: "NailSalon" }],
-  [/odonto|dentist|dental|ortodont/, { nicho: "saude", sub: "odonto", tipo: "Dentist" }],
-  [/fisioterap|\brpg\b|quiropraxi|osteopat/, { nicho: "saude", sub: "fisio", tipo: "Physiotherapy" }],
-  [/psicolog|psicoterap|psicanal/, { nicho: "saude", sub: "psico", tipo: "MedicalBusiness" }],
-  [/nutri/, { nicho: "saude", sub: "nutri", tipo: "MedicalBusiness" }],
-  [/jiu|muay|boxe|kickbox|karate|judo|taekwon|\bmma\b|capoeira|luta|artes marciais/, { nicho: "fitness", sub: "lutas", tipo: "SportsActivityLocation" }],
-  [/danca|ballet|\bbale|zumba|forro|dance/, { nicho: "fitness", sub: "danca", tipo: "SportsActivityLocation" }],
-  [/pilates|yoga|ioga/, { nicho: "fitness", sub: "pilates", tipo: "SportsActivityLocation" }],
-  [/academia|crossfit|cross ?training|musculacao|treino funcional|personal|fitness|\bgym\b/, { nicho: "fitness", sub: "academia", tipo: "ExerciseGym" }],
-  [/estetic|sobrancel|cilio|lash|micropigment|depila|spa|pele|massag|massoterap|podolog|bronze|dermat|biomedic|maquiag|make/, { nicho: "beleza", sub: "estetica", tipo: "BeautySalon" }],
-  [/idioma|ingles|espanhol|frances|english|language/, { nicho: "aulas", sub: "idiomas", tipo: "EducationalOrganization" }],
-  [/musica|violao|piano|canto|guitarra|bateria|teclado/, { nicho: "aulas", sub: "musica", tipo: "EducationalOrganization" }],
-  [/reforco|aulas? particular|explicador|pre-?vestibular|preparatorio|cursinho|apoio escolar/, { nicho: "aulas", sub: "reforco", tipo: "EducationalOrganization" }],
-  [/salao|cabel|hair|beleza|beauty|cachos|escova|tranca|penteado|studio/, { nicho: "beleza", sub: "salao", tipo: "HairSalon" }],
-  [/clinica|consultorio|medic|pediatr|cardiolog|ginecolog|posto de saude|check-?up/, { nicho: "saude", sub: "clinica", tipo: "MedicalClinic" }],
+const RAMOS: [RegExp, Sub][] = [
+  [/tatu|tattoo|piercing/, "tatuagem"],
+  [/auto ?escola|\bcfc\b|formacao de condutores|habilitacao/, "autoescola"],
+  [/estetica automotiva|lava[ -]?jato|lava[ -]?rapido|lavagem (automotiva|de (carro|veiculo))|polimento|detailing|higienizacao automotiva|martelinho/, "lavagem"],
+  [/pneu|borracharia|alinhamento|balanceamento/, "pneus"],
+  [/oficina|mecanic|auto ?center|centro automotivo|funilaria|injecao eletronica|automotiv|retifica/, "oficina"],
+  [/veterin|clinica animal|hospital animal|\bvet\b/, "vet"],
+  [/\bpet|agropet|banho e tosa|tosa|racao|aquario/, "petshop"],
+  [/barb/, "barbearia"],
+  [/unha|nail|manicure|esmalteria/, "unhas"],
+  [/odonto|dentist|dental|ortodont/, "odonto"],
+  [/fisioterap|\brpg\b|quiropraxi|osteopat/, "fisio"],
+  [/psicolog|psicoterap|psicanal/, "psico"],
+  [/nutri/, "nutri"],
+  [/jiu|muay|boxe|kickbox|karate|judo|taekwon|\bmma\b|capoeira|luta|artes marciais/, "lutas"],
+  [/danca|ballet|\bbale|zumba|forro|dance/, "danca"],
+  [/pilates|yoga|ioga/, "pilates"],
+  [/academia|crossfit|cross ?training|musculacao|treino funcional|personal|fitness|\bgym\b/, "academia"],
+  [/estetic|sobrancel|cilio|lash|micropigment|depila|spa|pele|massag|massoterap|podolog|bronze|dermat|biomedic|maquiag|make/, "estetica"],
+  [/idioma|ingles|espanhol|frances|english|language/, "idiomas"],
+  [/musica|violao|piano|canto|guitarra|bateria|teclado/, "musica"],
+  [/reforco|aulas? particular|explicador|pre-?vestibular|preparatorio|cursinho|apoio escolar/, "reforco"],
+  [/salao|cabel|hair|beleza|beauty|cachos|escova|tranca|penteado|studio/, "salao"],
+  [/clinica|consultorio|medic|pediatr|cardiolog|ginecolog|posto de saude|check-?up/, "clinica"],
 ];
 
 /** O nicho, lido da categoria — e só do nome quando não há categoria: "Petisco
  *  Bar" com categoria "Restaurante" não é pet shop. null = fora do que o gerador faz. */
 export function nichoDe(l: { categoria: string; nome: string }): Nicho | null {
   const fonte = (l.categoria || l.nome).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  return RAMOS.find(([re]) => re.test(fonte))?.[1] ?? null;
+  const sub = RAMOS.find(([re]) => re.test(fonte))?.[1];
+  return sub ? { nicho: SUBS[sub].nicho, sub, tipo: SUBS[sub].tipo } : null;
 }
+
+// ─── Cadastro pelo dono ──────────────────────────────────────────────────────
+
+const SUB_IDS = Object.keys(SUBS) as [Sub, ...Sub[]];
+
+/** O que o dono informa do próprio negócio: no cadastro e na aba "Meu negócio".
+ *  Compartilhado com a tela, que avisa antes; o servidor confere de novo. */
+export const DadosNegocio = z.object({
+  name: z.string().trim().min(2, "Informe o nome do negócio").max(80, "Use no máximo 80 caracteres"),
+  sub: z.enum(SUB_IDS, "Escolha o ramo do negócio"),
+  telefone: z.string().transform((t) => normalizar(t)).refine((t) => !!t && t !== RUPHUS, "Informe o WhatsApp com DDD"),
+  cidade: z.string().trim().min(2, "Informe a cidade").max(60),
+  uf: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "UF com duas letras"),
+  bairro: z.string().trim().max(60).default(""),
+  endereco: z.string().trim().max(160).default(""),
+  instagram: z.string().transform((v) => perfil(v)).default(""),
+  horario: z.string().trim().max(120).default(""),
+});
+export type DadosNegocio = z.infer<typeof DadosNegocio>;
+export const NegocioInput = DadosNegocio.extend({ slug: TenantInput.shape.slug });
+
+/** Os dados do dono no formato que o gerador grava (o mesmo de uma linha da planilha). */
+export const leadDoDono = (d: DadosNegocio, email = ""): Lead => ({
+  nome: d.name, telefone: d.telefone, categoria: "", endereco: d.endereco, bairro: d.bairro, cidade: d.cidade, uf: d.uf,
+  nota: null, avaliacoes: null, instagram: d.instagram, horario: d.horario, servicos: [], email, slug: "", score: "", abordagem: "",
+});
 
 // ─── Endereço do site ────────────────────────────────────────────────────────
 
@@ -243,6 +309,9 @@ export type DadosSite = {
   servicos: string[];
   /** "setembro de 2026": quando os dados do Google foram lidos */
   consultado: string;
+  /** prospecção: a Ruphus fez sem o dono pedir, e o site traz a faixa de proposta;
+   *  cadastro: o próprio dono criou, e o site é dele. Ausente = prospecção. */
+  origem?: "prospeccao" | "cadastro";
 };
 
 export const lugar = (d: Pick<DadosSite, "bairro" | "cidade">) => [d.bairro, d.cidade].filter(Boolean).join(", ");
