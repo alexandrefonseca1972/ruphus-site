@@ -5,6 +5,16 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Depois de agendar: agenda do celular e como chegar
+- **Como chegar** (#75): mapa, endereço (ou bairro e cidade, quando a casa não
+  cadastrou a rua) e botões de Google Maps, Waze e copiar o endereço.
+- **Salvar na minha agenda** (#75): arquivo de agenda com lembrete 2 horas antes,
+  ou o Google Agenda.
+- **Mais claro** (#75): o nome da casa no topo, "amanhã"/"daqui a 3 dias", o valor
+  com "pago no local", "A casa vai te chamar no **seu** WhatsApp" (o número
+  mostrado é o do cliente, e parecia ser o da casa) e desmarcar com botão e
+  mensagem pronta.
+
 ### Formulários que conferem enquanto a pessoa digita
 - **Criar conta** (#74): nome só com letras, e-mail sem espaço e em minúsculas,
   erro embaixo do campo ao sair dele (em português, no lugar do aviso do

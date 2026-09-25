@@ -27,6 +27,10 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
     rating: (tenant.get("site.rating") as number | null) ?? null,
     reviews: (tenant.get("site.reviews") as number | null) ?? null,
     city: (tenant.get("site.city") as string | null) ?? null,
+    // o "Como chegar" depois de agendar: sem rua, bairro e cidade já apontam no mapa
+    uf: (tenant.get("site.uf") as string | null) ?? null,
+    address: (tenant.get("site.address") as string | null) ?? null,
+    bairro: (tenant.get("gerado.bairro") as string | null) || null,
     // Ordem: o que mais se agenda primeiro. Enquanto ninguém agendou, vale a
     // ordem em que o site lista os serviços (ordem), que é a do próprio negócio.
     services: services.docs
