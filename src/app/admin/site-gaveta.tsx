@@ -154,7 +154,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
             {dados.tipo === "sem-site" ? "O site vai sair assim" : `${previa.length} ${previa.length === 1 ? "mudança" : "mudanças"} para publicar`}
           </h3>
           <ul className="flex flex-col divide-y divide-[#EDE9E1] text-[13px]">
-            {previa.map((m) => (
+            {previa.map((m) => ({ ...m, ...(m.campo === "WhatsApp" && { antes: m.antes && formatPhone(m.antes), depois: formatPhone(m.depois) }) })).map((m) => (
               <li key={m.campo} className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-2 py-2">
                 <span className="text-[#6F6A5E]">{m.campo}</span>
                 <span className="min-w-0 break-words">

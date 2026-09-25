@@ -1357,7 +1357,7 @@ export default function AdminPage() {
             </div>
 
             {/* A gaveta tem o que o vendedor usa todo dia em "Venda"; o resto fica a um toque */}
-            <div role="tablist" aria-label="Seções do negócio" className="sticky top-0 z-10 -mx-6 -mt-2 flex gap-1 overflow-x-auto border-b border-[#E2DDD3] bg-white px-6 [scrollbar-width:none] sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden">
+            <div role="tablist" aria-label="Seções do negócio" className="sticky -top-6 z-10 -mx-6 -mt-2 flex shrink-0 gap-1 overflow-x-auto border-b border-[#E2DDD3] bg-white px-6 [scrollbar-width:none] sm:-top-8 sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden">
               {(
                 [
                   // ícones em traço, do mesmo peso dos outros da gaveta
