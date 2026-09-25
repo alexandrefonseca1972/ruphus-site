@@ -71,7 +71,7 @@ negócio, criar profissional, agendar, remarcar, planos.
 | `crm.ts`, `cobranca.ts`, `convite.ts`, `saude.server.ts` | servidor | CRM, Pix, convites, saúde |
 | `scheduling.ts` | isomórfico | schemas zod de serviço, profissional, reserva, plano |
 | `datetime.ts` | isomórfico | fuso, `freeSlots`, máscaras, `customerKey`, links de WhatsApp |
-| `gerador.ts`, `site-pet.ts`, `site-beleza.ts`, `catalogo.ts` | puro | gerador de sites: planilha → leads, nicho, slug e os dois modelos de página; `catalogo.ts` é a tabela de serviços que o `seed:agenda` também usa |
+| `gerador.ts`, `site-pet.ts`, `site-beleza.ts`, `catalogo.ts` | puro | gerador de sites: planilha → leads, nicho, slug e os dois modelos de página (pet; beleza, que inclui barbearia, salão, estética, unhas e tatuagem); `catalogo.ts` é a tabela de serviços que o `seed:agenda` também usa |
 | `gerador.server.ts` | servidor | grava os sites da planilha (prévia e gravação são a mesma conta) |
 | `saude.ts`, `alertas.ts`, `clientes.ts`, `dinheiro.ts`, `pix.ts`, `revogacao.ts`, `limites.ts` | puro | regra de negócio, testável sem banco |
 | `sessao.ts`, `use-collection.ts`, `firebase.ts` | cliente | logout automático, coleções em tempo real, SDK web |

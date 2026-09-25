@@ -60,17 +60,16 @@ import { renderPet } from "@/lib/site-pet";
       [71, "CLÍNICA DAY SPA", "Macapá", "Clínica de Estética / Spa", "4,9", 224, "(96) 99108-6847", "", "ALTA", ""],
       [72, "Bestlaser", "Macapá", "Clínica de Estética / Laser", "5,0", 433, "(96) 3217-8751", "Facebook provável (não auditado)", "MÉDIA", ""]] },
   ]);
-  assert.deepEqual(leads.map((l) => [l.aba, l.lead.nome]), [["Leads Qualificados", "Clínica Day Spa"], ["3ª leva", "Bestlaser"]]);
-  const [spa, laser] = leads.map((l) => l.lead);
+  assert.deepEqual(leads.map((l) => [l.aba, l.lead.nome]), [["Leads Qualificados", "Clínica Day Spa"], ["Leads Qualificados", "Kaos Tattoo"], ["3ª leva", "Bestlaser"]]);
+  const [spa, , laser] = leads.map((l) => l.lead);
   assert.equal(spa.avaliacoes, 224, "Nº avaliações");
   assert.equal(nichoDe(spa)?.sub, "estetica", "Categoria(s)");
   assert.equal(spa.instagram, "dayspa_ap", "@ tirado do texto da rede social");
   assert.equal(laser.instagram, "", "texto sem @ não vira Instagram");
   assert.deepEqual([spa.score, spa.abordagem], ["ALTA", "Vocês são o 1º resultado do Google"]);
   assert.ok(fixo(laser.telefone) && !fixo(spa.telefone), "fixo tem 8 dígitos depois do DDD");
-  assert.deepEqual(erros.map((e) => [e.aba, e.linha]), [["Leads Qualificados", 3], ["3ª leva", 2]], "a aba de notas não gera erro");
-  assert.match(erros[0].motivo, /nicho/, "tatuagem fica de fora");
-  assert.match(erros[1].motivo, /Mesmo telefone da linha 2 \(Leads Qualificados\)/, "repetido entre abas aponta a aba");
+  assert.deepEqual(erros.map((e) => [e.aba, e.linha]), [["3ª leva", 2]], "a aba de notas não gera erro");
+  assert.match(erros[0].motivo, /Mesmo telefone da linha 2 \(Leads Qualificados\)/, "repetido entre abas aponta a aba");
 }
 // os ramos do levantamento de beleza que antes caíam fora
 for (const [categoria, sub] of [["Massoterapia", "estetica"], ["Podologia", "estetica"], ["Salão de bronzeamento", "estetica"], ["Biomedicina estética", "estetica"],
@@ -81,14 +80,15 @@ for (const [categoria, sub] of [["Massoterapia", "estetica"], ["Podologia", "est
 // sem coluna de nome não há o que ler
 assert.match(lerPlanilha([["a", "b"], [1, 2]]).erros[0].motivo, /cabeçalho/);
 
-// nicho: veterinária antes de pet shop, unha antes de salão, tatuagem fora,
+// nicho: veterinária antes de pet shop, unha antes de salão,
 // e o nome só decide quando não há categoria
 assert.equal(nichoDe({ categoria: "Clínica Veterinária", nome: "" })?.sub, "vet");
 assert.equal(nichoDe({ categoria: "Banho e tosa", nome: "" })?.sub, "petshop");
 assert.equal(nichoDe({ categoria: "Esmalteria", nome: "" })?.sub, "unhas");
 assert.equal(nichoDe({ categoria: "Salão de Beleza", nome: "" })?.tipo, "HairSalon");
 assert.equal(nichoDe({ categoria: "Design de sobrancelhas", nome: "" })?.sub, "estetica");
-assert.equal(nichoDe({ categoria: "Studio de tatuagem", nome: "" }), null);
+assert.equal(nichoDe({ categoria: "Studio de tatuagem", nome: "" })?.tipo, "TattooParlor", "tatuagem antes de “studio” virar salão");
+assert.equal(nichoDe({ categoria: "", nome: "Kaos Tattoo Studio" })?.sub, "tatuagem");
 assert.equal(nichoDe({ categoria: "Restaurante", nome: "Petisco Bar" }), null);
 assert.equal(nichoDe({ categoria: "", nome: "Barbearia Navalha" })?.sub, "barbearia");
 
@@ -113,6 +113,7 @@ for (const [nome, html] of [
   ["vet", renderPet({ ...base, sub: "vet", tipo: "VeterinaryCare" })],
   ["barbearia", renderBeleza({ ...base, sub: "barbearia", tipo: "BarberShop" })],
   ["unhas", renderBeleza({ ...base, sub: "unhas", tipo: "NailSalon", nota: null, avaliacoes: null })],
+  ["tatuagem", renderBeleza({ ...base, sub: "tatuagem", tipo: "TattooParlor", servicos: ["Fine line", "Orçamento"] })],
 ] as const) {
   assert.ok(!html.includes("<script>alert"), `${nome}: nome escapado`);
   assert.ok(!/"telephone":"\+5511948680554"/.test(html), `${nome}: JSON-LD com o telefone do negócio, não o nosso`);
@@ -122,10 +123,19 @@ for (const [nome, html] of [
   assert.ok(html.includes('data-ysis="proposta"') && html.includes('data-agendar="1"') && html.includes('data-ysis="aviso"'), `${nome}: camada Ruphus`);
   assert.ok(html.includes('<link rel="canonical" href="https://pet-feliz.ruphus.site/">'), `${nome}: canonical`);
   assert.ok(html.includes('content="noindex, nofollow"'), `${nome}: fora do Google`);
+  assert.ok(html.includes('<meta property="og:image" content="https://pet-feliz.ruphus.site/og.jpg">') && html.includes('content="1200"'), `${nome}: prévia do WhatsApp em og.jpg 1200×630`);
   assert.ok(!html.includes("undefined") && !html.includes("null"), `${nome}: nenhum campo vazio vazou`);
 }
 // JSON-LD não fecha a tag com "</script>" no nome
 assert.ok(renderPet({ ...base, nome: "A</script><b>" }).includes("A\\u003c/script>\\u003cb>"));
+// tatuagem: fotos, rótulo e textos do estúdio, não os de salão
+{
+  const html = renderBeleza({ ...base, sub: "tatuagem", tipo: "TattooParlor", servicos: ["Fine line", "Cobertura de tatuagem", "Orçamento"] });
+  assert.match(html, /assets\/beleza\/tatuagem-\d\/hero\.jpg/);
+  assert.ok(html.includes("Estúdio de tatuagem"));
+  assert.ok(html.includes("Traços finos e delicados") && html.includes("Transforme ou renove tatuagens antigas") && html.includes("sem compromisso"));
+  assert.ok(html.includes('"@type":"TattooParlor"'));
+}
 // sem nota, a seção de avaliações some
 assert.ok(!renderBeleza({ ...base, sub: "salao", nota: null, avaliacoes: null }).includes('id="depoimentos"'));
 assert.ok(!renderPet({ ...base, nota: null, avaliacoes: null }).includes('id="avaliacoes"'));

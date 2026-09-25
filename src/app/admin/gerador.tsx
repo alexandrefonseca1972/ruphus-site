@@ -69,7 +69,7 @@ export function Gerador({ idToken, aoGerar }: { idToken: string; aoGerar: () => 
           <h2 className="font-[family-name:var(--fonte-serifa)] text-[26px] leading-none">Gerar sites</h2>
           <p className="max-w-[62ch] text-[13px] text-[#6F6A5E]">
             Envie a planilha de leads (.xlsx) e cada linha vira um site-proposta no mesmo padrão dos que já estão no ar, com agenda e ficha no funil.
-            Por enquanto: pet shop, veterinária, barbearia, salão, estética e unhas.
+            Por enquanto: pet shop, veterinária, barbearia, salão, estética, unhas e tatuagem.
           </p>
         </div>
         <a href="/modelo-leads.xlsx" download className={`${BOTAO} flex items-center border border-[#D8D2C6] bg-white hover:border-[#17150F]`}>

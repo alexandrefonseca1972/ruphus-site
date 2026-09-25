@@ -476,6 +476,7 @@ export const gerarSites = adminAction(async (user, entrada: unknown, aplicar: bo
   // o site e a bio saem do cache agora, não em até um minuto
   if (aplicar) for (const { slug } of linhas.filter((l) => l.acao !== "pular")) {
     revalidatePath(`/s/${slug}/index.html`);
+    revalidatePath(`/s/${slug}/og.jpg`);
     revalidatePath(`/bio/${slug}`);
   }
   return linhas;

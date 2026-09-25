@@ -3,7 +3,7 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { EQUIPE, montar, porRamo } from "@/lib/catalogo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
-import { candidatos, fixo, Lead, nichoDe, type Sub } from "@/lib/gerador";
+import { candidatos, type DadosSite, fixo, Lead, nichoDe, type Sub } from "@/lib/gerador";
 import { visualBeleza } from "@/lib/site-beleza";
 import { visualPet } from "@/lib/site-pet";
 
@@ -29,7 +29,7 @@ const semAcento = (s: unknown) => String(s ?? "").normalize("NFD").replace(/[\u0
 
 // o ramo por extenso, para o catálogo sair certo quando a planilha não lista serviços
 const RAMO: Record<Sub, string> = {
-  petshop: "pet shop", vet: "veterinária", barbearia: "barbearia", salao: "salão cabelo", estetica: "estética", unhas: "unhas",
+  petshop: "pet shop", vet: "veterinária", barbearia: "barbearia", salao: "salão cabelo", estetica: "estética", unhas: "unhas", tatuagem: "tatuagem",
 };
 
 /** Grava os sites da planilha. Com aplicar=false só diz o que faria: a prévia e a
@@ -137,4 +137,42 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   }
   await writer.close();
   return resposta;
+}
+
+const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
+/** O que a página e a imagem de compartilhamento de um site gerado precisam.
+ *  null = não é site do gerador (slug estranho, tenant inexistente ou da fábrica). */
+export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | null> {
+  if (!SLUG.test(slug)) return null;
+  const t = db.collection("tenants").doc(slug);
+  const [tenant, servicos] = await Promise.all([t.get(), t.collection("services").where("active", "==", true).get()]);
+  const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; atualizadoEm?: { toDate(): Date } } | undefined;
+  if (!tenant.exists || !gerado?.sub) return null;
+
+  const quando = gerado.atualizadoEm?.toDate() ?? new Date();
+  const s = (campo: string) => String(tenant.get(`site.${campo}`) ?? "");
+  const n = (campo: string) => (typeof tenant.get(`site.${campo}`) === "number" ? (tenant.get(`site.${campo}`) as number) : null);
+  return {
+    slug,
+    nome: String(tenant.get("name")),
+    telefone: s("phone"),
+    sub: gerado.sub,
+    tipo: s("category"),
+    endereco: s("address"),
+    bairro: gerado.bairro ?? "",
+    cidade: s("city"),
+    uf: s("uf"),
+    nota: n("rating"),
+    avaliacoes: n("reviews"),
+    instagram: s("instagram"),
+    horario: gerado.horario ?? "",
+    // a ordem em que o gerador gravou, a mesma que a agenda usa de desempate
+    servicos: servicos.docs
+      .sort((a, b) => Number(a.get("ordem") ?? 99) - Number(b.get("ordem") ?? 99))
+      .map((d) => String(d.get("name")))
+      .slice(0, 8),
+    consultado: `${MESES[quando.getMonth()]} de ${quando.getFullYear()}`,
+  };
 }

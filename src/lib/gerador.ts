@@ -138,13 +138,13 @@ export const fixo = (telefone: string) => telefone.length === 12;
 
 // ─── Nicho ───────────────────────────────────────────────────────────────────
 
-export type Sub = "petshop" | "vet" | "barbearia" | "salao" | "estetica" | "unhas";
+export type Sub = "petshop" | "vet" | "barbearia" | "salao" | "estetica" | "unhas" | "tatuagem";
 export type Nicho = { nicho: "pet" | "beleza"; sub: Sub; tipo: string };
 
 // a primeira regra que casar vence: veterinária antes de pet shop, unha antes de salão
-// tatuagem fica de fora antes de "studio" a levar para salão
+// tatuagem antes de "studio" a levar para salão
 const RAMOS: [RegExp, Nicho | null][] = [
-  [/tatu|tattoo|piercing/, null],
+  [/tatu|tattoo|piercing/, { nicho: "beleza", sub: "tatuagem", tipo: "TattooParlor" }],
   [/veterin|clinica animal|hospital animal|\bvet\b/, { nicho: "pet", sub: "vet", tipo: "VeterinaryCare" }],
   [/pet|agropet|banho e tosa|tosa|racao|aquario/, { nicho: "pet", sub: "petshop", tipo: "PetStore" }],
   [/barb/, { nicho: "beleza", sub: "barbearia", tipo: "BarberShop" }],
@@ -229,7 +229,10 @@ export const faixaProposta = (slug: string) =>
 export const AVISO =
   '<p data-ysis="aviso" style="margin-top:14px;font-size:.8rem;line-height:1.5;opacity:.72">Seus dados não ficam neste site: o formulário monta a mensagem e abre o WhatsApp para você enviar. Nada é gravado aqui, e o retorno vem pelo mesmo canal.</p>';
 
-export const cabecaComum = (slug: string, titulo: string, descricao: string, imagem: string) => {
+/** O que a imagem de compartilhamento (og.jpg) mostra: cada modelo diz a sua. */
+export type Capa = { foto: string; cor: string; fonte: string; linha: string };
+
+export const cabecaComum = (slug: string, titulo: string, descricao: string) => {
   const url = `https://${slug}.ruphus.site/`;
   return `<link rel="canonical" href="${url}">
 <meta name="robots" content="noindex, nofollow">
@@ -239,8 +242,12 @@ export const cabecaComum = (slug: string, titulo: string, descricao: string, ima
 <meta property="og:title" content="${esc(titulo)}">
 <meta property="og:description" content="${esc(descricao)}">
 <meta property="og:url" content="${url}">
-<meta property="og:image" content="${url}${imagem.replace(/^\//, "")}">
-<meta name="twitter:card" content="summary_large_image">`;
+<meta property="og:image" content="${url}og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="${esc(titulo)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="${url}og.jpg">`;
 };
 
 /** O JSON-LD do negócio: telefone do lead (nunca o nosso) e imagem com caminho absoluto. */
