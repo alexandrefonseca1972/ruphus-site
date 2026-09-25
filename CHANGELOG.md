@@ -3,7 +3,7 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
-## Em avaliação
+## 0.9.0 — 25/09/2026
 
 ### O admin completa o site de quem se cadastrou sozinho
 - **Aba "Site" na gaveta do negócio** (#67): diz de onde o site vem (sem site,
@@ -13,6 +13,15 @@ o PR, onde está o porquê.
 - **A planilha não regrava o site do cadastro** (#67): o mesmo telefone de um
   cliente que se cadastrou vira "pular". Antes virava "atualizar", que trazia de
   volta a faixa de proposta e sobrescrevia o que o dono editou.
+
+### Cadastro novo não passa despercebido
+- **Entra no funil com o contato para hoje** (#69): quem se cadastra sozinho já
+  chega com "Dar boas-vindas: cadastrou sozinho no site" combinado para o dia.
+  Aparece em "Para hoje" no `/admin` e, se passar do dia, em "Atrasados".
+
+### Sites de beleza
+- **Menu legível sobre a foto do topo** (#68): links e "Contato" ficam brancos
+  até a página rolar. Vale para barbearia, salão, estética e unhas.
 
 ## 0.8.0 — 25/09/2026
 

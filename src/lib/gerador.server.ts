@@ -4,6 +4,7 @@ import { z } from "zod";
 import { EQUIPE, montar, porRamo } from "@/lib/catalogo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { candidatos, type DadosSite, fixo, Lead, type Nicho, nichoDe, type Sub } from "@/lib/gerador";
+import { dateIn } from "@/lib/datetime";
 import { visualEditorial } from "@/lib/site-editorial";
 import { ehClaro, visualClaro } from "@/lib/site-claro";
 
@@ -92,6 +93,9 @@ export function registrosDoSite(
     ref: db.collection("crm").doc(slug),
     dados: {
       origem: o.origem === "cadastro" ? "cadastro" : "importado",
+      // quem se cadastra sozinho não avisa ninguém: o passo combinado para hoje põe o
+      // negócio em "Para hoje" no /admin e, se passar do dia, em "Atrasados"
+      ...(o.origem === "cadastro" && { proximaAcao: "Dar boas-vindas: cadastrou sozinho no site", proximaData: dateIn(new Date()) }),
       ...(lead.email && { donoEmail: lead.email }),
       ...(o.donoNome && { donoNome: o.donoNome }),
       ...(nota && { notas: FieldValue.increment(1) }),
