@@ -23,7 +23,7 @@ import { anotar, CrmInput, lerCrm, linhaDoTempo, listarNotas, registrarMensagem,
 import { diaCurto, hojeISO } from "@/lib/crm-tipos";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import { competenciaAtual } from "@/lib/pix";
-import { gerarNoBanco } from "@/lib/gerador.server";
+import { gerarNoBanco, publicarSite } from "@/lib/gerador.server";
 
 export type Espaco = {
   slug: string;
@@ -468,7 +468,11 @@ export const cobrarMes = adminAction(async (_user, competencia?: string) => {
 });
 
 export const marcarPaga = adminAction(async (user, id: string, recebidoCents: number, pagoEm: string) => {
-  await baixar(adminDb, id, { recebidoCents, pagoEm, por: user.email ?? user.uid });
+  const paga = await baixar(adminDb, id, { recebidoCents, pagoEm, por: user.email ?? user.uid });
+  // a entrada é o "publicar": a faixa de proposta sai e o site abre para o Google
+  if (paga.tipo === "entrada" && paga.slug && (await publicarSite(adminDb, paga.slug))) {
+    for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${paga.slug}/${p}`);
+  }
 });
 
 export const cancelarCobranca = adminAction(async (user, id: string) => {

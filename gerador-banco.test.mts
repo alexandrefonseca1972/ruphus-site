@@ -4,7 +4,8 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { dateIn } from "@/lib/datetime";
 import { lerPlanilha } from "@/lib/gerador";
-import { gerarNoBanco, lerSite } from "@/lib/gerador.server";
+import { baixar } from "@/lib/cobranca";
+import { gerarNoBanco, lerSite, publicarSite } from "@/lib/gerador.server";
 import { criarNegocio, lerNegocio, lerSiteDoNegocio, previaDoSite, salvarNegocio } from "@/lib/negocios.server";
 
 const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
@@ -142,7 +143,10 @@ assert.equal((await pagina("../etc")).status, 404);
   assert.equal(site.origem, "cadastro");
   const { GET } = await import("@/app/s/[slug]/index.html/route");
   const html = await (await GET(new Request("http://x/"), { params: Promise.resolve({ slug: "sorriso-leve" }) })).text();
-  assert.ok(!html.includes('data-ysis="proposta"') && !html.includes("Pedir remoção"), "cadastro não é proposta");
+  // até a entrada ser paga é prévia: faixa própria (sem "Pedir remoção", foi o dono que criou) e fora do Google
+  assert.ok(html.includes('data-ysis="proposta"') && html.includes("ainda não publicada"), "cadastro nasce como prévia");
+  assert.ok(!html.includes("Pedir remoção"), "o dono não pede remoção do próprio site");
+  assert.ok(html.includes('content="noindex, nofollow"'));
   assert.ok(html.includes("Site criado com Ruphus"));
   assert.ok(!/R\$\s?\d/.test(html), "e continua sem preço de saúde");
 
@@ -218,6 +222,31 @@ assert.equal((await pagina("../etc")).status, 404);
   // na fábrica, a prévia não oferece o que não muda a página
   const pf = await previaDoSite(db, "fabrica-x", { name: "Fábrica X", sub: "vet", telefone: "91988887777", cidade: "Belém", uf: "PA", bairro: "Nazaré" }, google);
   assert.deepEqual(pf.mudancas, []);
+}
+
+// ─── A entrada paga publica o site: sai a faixa, entra o Google ───
+{
+  const { GET } = await import("@/app/s/[slug]/index.html/route");
+  const html = async (slug: string) => (await GET(new Request("http://x/"), { params: Promise.resolve({ slug }) })).text();
+  assert.ok((await html("navalha")).includes("Pedir remoção"), "prospecção é proposta");
+  // a baixa da entrada diz de quem é e de que tipo, para a ação publicar
+  await db.doc("cobrancas/navalha-entrada").set({ slug: "navalha", tipo: "entrada", status: "aberta", valorCents: 25000 });
+  assert.deepEqual(await baixar(db, "navalha-entrada", { recebidoCents: 25000, pagoEm: "2026-09-25", por: "t" }), { slug: "navalha", tipo: "entrada" });
+  assert.equal(await publicarSite(db, "navalha"), true);
+  const pub = await html("navalha");
+  assert.ok(!pub.includes('data-ysis="proposta"'), "publicado não tem faixa");
+  assert.ok(pub.includes('content="index, follow"'), "e entra no Google");
+  assert.ok(pub.includes("Site criado com Ruphus"), "nem se diz demonstração");
+  // reenviar a planilha não despublica
+  await gerarNoBanco(db, planilha(["Navalha", "(92) 99123-4567", "Barbearia", "Manaus", "AM", 4.9, 80, "", "", "", ""]), true, "a");
+  assert.equal((await lerSite(db, "navalha"))?.publicado, true);
+  // o cadastro também, pelo mesmo caminho
+  await publicarSite(db, "sorriso-leve");
+  assert.ok(!(await html("sorriso-leve")).includes('data-ysis="proposta"'));
+  assert.equal((await lerNegocio(db, "sorriso-leve")).publicado, true);
+  // site da fábrica não vira gerado por causa de uma entrada paga
+  assert.equal(await publicarSite(db, "fabrica-x"), false);
+  assert.equal((await db.doc("tenants/fabrica-x").get()).get("gerado"), undefined);
 }
 
 // entrada adulterada no navegador não passa

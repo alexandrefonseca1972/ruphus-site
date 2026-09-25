@@ -197,12 +197,12 @@ export function renderEditorial(d: DadosSite): string {
 <link href="https://fonts.googleapis.com/css2?family=${fonte[1]}&family=Archivo:ital,wght@0,400;0,500;0,700;0,800;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/gerado/beleza.css">
 <style>:root{--ink:${ink};--paper:#ffffff;--acc:${acc};--deep:${deep};--tint:${tint};--grey:#8b8587;--serif:'${fonte[0]}',serif}</style>
-${cabecaComum(d.slug, tituloPag, descr)}
+${cabecaComum(d.slug, tituloPag, descr, d.publicado)}
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${ink}"/><text x="32" y="45" font-family="Arial Narrow,Arial,sans-serif" font-size="36" font-weight="700" fill="${acc}" text-anchor="middle">${esc(d.nome[0].toUpperCase())}</text></svg>`)}">
 ${jsonLdNegocio(d, descr, `${kit}/hero.jpg`)}
 </head>
 <body id="top">
-${d.origem === "cadastro" ? "" : faixaProposta(d.slug)}
+${d.publicado ? "" : faixaProposta(d)}
 
 <header id="hd">
   <a class="logo" href="#top">${esc(d.nome)}</a>
@@ -311,7 +311,7 @@ ${temNota ? `
 </section>
 
 <footer>
-  <span>${esc(`${d.nome} — ${tag}`)}<br><small>${d.origem === "cadastro" ? "Site criado com Ruphus" : "Site-modelo de demonstração criado pela Ruphus"}</small></span>
+  <span>${esc(`${d.nome} — ${tag}`)}<br><small>${d.origem === "cadastro" || d.publicado ? "Site criado com Ruphus" : "Site-modelo de demonstração criado pela Ruphus"}</small></span>
   <span class="social">
     <a href="${oi}" target="_blank" rel="noopener" aria-label="WhatsApp de ${esc(d.nome)}">${WA}</a>
     ${d.instagram ? `<a href="https://www.instagram.com/${esc(d.instagram)}/" target="_blank" rel="noopener" aria-label="Instagram de ${esc(d.nome)}">${INSTA}</a>` : ""}

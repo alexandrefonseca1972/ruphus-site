@@ -312,15 +312,23 @@ export type DadosSite = {
   /** prospecção: a Ruphus fez sem o dono pedir, e o site traz a faixa de proposta;
    *  cadastro: o próprio dono criou, e o site é dele. Ausente = prospecção. */
   origem?: "prospeccao" | "cadastro";
+  /** a entrada foi paga: o site é oficial — sem faixa de proposta e aberto ao Google.
+   *  Até lá, de prospecção ou de cadastro, ele é proposta. */
+  publicado?: boolean;
 };
 
 export const lugar = (d: Pick<DadosSite, "bairro" | "cidade">) => [d.bairro, d.cidade].filter(Boolean).join(", ");
 export const mapa = (d: Pick<DadosSite, "nome" | "endereco" | "cidade" | "uf">) =>
   [d.nome, d.endereco || [d.cidade, d.uf].filter(Boolean).join(" - ")].filter(Boolean).join(", ");
 
-/** A camada da Ruphus que todo site-proposta carrega, igual à dos sites que já estão no ar. */
-export const faixaProposta = (slug: string) =>
-  `<aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">Esta página é uma proposta da <a href="https://www.ruphus.site/sobre" style="color:#f2b56b">Ruphus</a>, não o site oficial. <a href="https://wa.me/${RUPHUS}?text=${encodeURIComponent(`Quero remover a página de proposta ${slug}`)}" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ruphus.site/privacidade" style="color:#a2918d">Privacidade</a></aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){var b=document.querySelector("aside[data-ysis=proposta]");if(!b)return;var h=b.getBoundingClientRect().height;document.querySelectorAll("header,nav,.site-header,.nav,.topo").forEach(function(el){var s=getComputedStyle(el);if(s.position==="fixed"||s.position==="sticky")el.style.top=h+"px"});});</script>`;
+/** A camada da Ruphus que todo site-proposta carrega, igual à dos sites que já estão no ar.
+ *  O do cadastro não oferece "Pedir remoção": foi o próprio dono que criou. */
+export const faixaProposta = (d: Pick<DadosSite, "slug" | "origem">) =>
+  `<aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">${
+    d.origem === "cadastro"
+      ? `Esta página é uma prévia feita com a <a href="https://www.ruphus.site/" style="color:#f2b56b">Ruphus</a>, ainda não publicada. <a href="https://www.ruphus.site/privacidade" style="color:#a2918d">Privacidade</a>`
+      : `Esta página é uma proposta da <a href="https://www.ruphus.site/sobre" style="color:#f2b56b">Ruphus</a>, não o site oficial. <a href="https://wa.me/${RUPHUS}?text=${encodeURIComponent(`Quero remover a página de proposta ${d.slug}`)}" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ruphus.site/privacidade" style="color:#a2918d">Privacidade</a>`
+  }</aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){var b=document.querySelector("aside[data-ysis=proposta]");if(!b)return;var h=b.getBoundingClientRect().height;document.querySelectorAll("header,nav,.site-header,.nav,.topo").forEach(function(el){var s=getComputedStyle(el);if(s.position==="fixed"||s.position==="sticky")el.style.top=h+"px"});});</script>`;
 
 export const AVISO =
   '<p data-ysis="aviso" style="margin-top:14px;font-size:.8rem;line-height:1.5;opacity:.72">Seus dados não ficam neste site: o formulário monta a mensagem e abre o WhatsApp para você enviar. Nada é gravado aqui, e o retorno vem pelo mesmo canal.</p>';
@@ -328,10 +336,11 @@ export const AVISO =
 /** O que a imagem de compartilhamento (og.jpg) mostra: cada modelo diz a sua. */
 export type Capa = { foto: string; cor: string; fonte: string; linha: string };
 
-export const cabecaComum = (slug: string, titulo: string, descricao: string) => {
+export const cabecaComum = (slug: string, titulo: string, descricao: string, publicado = false) => {
   const url = `https://${slug}.ruphus.site/`;
+  // proposta não entra no Google: só o site pago, que é o oficial
   return `<link rel="canonical" href="${url}">
-<meta name="robots" content="noindex, nofollow">
+<meta name="robots" content="${publicado ? "index, follow" : "noindex, nofollow"}">
 <meta name="description" content="${esc(descricao)}">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="pt_BR">

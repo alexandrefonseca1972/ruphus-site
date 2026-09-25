@@ -28,7 +28,7 @@ const TIPO: Record<TipoSite, { rotulo: string; cor: string; texto: string; acao:
   cadastro: {
     rotulo: "Site do cadastro",
     cor: "bg-[#FBF3DC] text-[#7A5A2E]",
-    texto: "Montado com o que o dono digitou. Complete bairro, endereço, horário e a nota do Google para ele ficar como os da prospecção. Continua do dono: sem faixa de proposta.",
+    texto: "Montado com o que o dono digitou. Complete bairro, endereço, horário e a nota do Google para ele ficar como os da prospecção.",
     acao: "Publicar mudanças",
   },
   prospeccao: {
@@ -45,7 +45,7 @@ const TIPO: Record<TipoSite, { rotulo: string; cor: string; texto: string; acao:
   },
 };
 
-type Dados = { name: string; tipo: TipoSite; google: { nota: number | null; avaliacoes: number | null } } & Valores;
+type Dados = { name: string; tipo: TipoSite; publicado: boolean; google: { nota: number | null; avaliacoes: number | null } } & Valores;
 
 export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Promise<string> }) {
   const [dados, setDados] = useState<Dados | null>(null);
@@ -66,8 +66,8 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
   }
   function mostrar(r: Awaited<ReturnType<typeof ler>>) {
     if (!r?.ok) return setErroCarga(r ? r.error : "Sem conexão.");
-    const { name, tipo, google, fabrica: _f, ...resto } = r.dados;
-    setDados({ ...VAZIO, ...resto, name, tipo, google });
+    const { name, tipo, google, fabrica: _f, publicado, ...resto } = r.dados;
+    setDados({ ...VAZIO, ...resto, name, tipo, google, publicado });
     setNome(name);
     setCampos({ ...VAZIO, ...resto, telefone: resto.telefone ? formatPhone(resto.telefone) : "" });
     setNota(google.nota == null ? "" : String(google.nota).replace(".", ","));
@@ -136,6 +136,13 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
         </div>
         <p className="text-[13px] leading-relaxed text-[#4A4639]">{tipo.texto}</p>
         {temSite && !fabrica && (
+          <p className={`rounded-[10px] px-3 py-2.5 text-xs ${dados.publicado ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#FBFAF8] text-[#4A4639]"}`}>
+            {dados.publicado
+              ? "Publicado: a entrada foi paga, o site está sem faixa e aberto ao Google."
+              : "Proposta: com faixa e fora do Google até a entrada ser paga. A baixa da entrada, na aba Cobrança, publica o site."}
+          </p>
+        )}
+        {temSite && !fabrica && (
           // o que aparece no WhatsApp quando alguém recebe o link: resume o site numa imagem
           // eslint-disable-next-line @next/next/no-img-element -- imagem gerada pela própria rota, 1200×630
           <img src={`/s/${slug}/og.jpg?v=${versao}`} alt={`Prévia do link do site de ${dados.name}`} width={1200} height={630} className="aspect-[1200/630] w-full rounded-lg border border-[#E2DDD3] object-cover" />
@@ -167,7 +174,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
           </ul>
           <p className="text-xs text-[#6F6A5E]">
             {fabrica ? "A página da fábrica não muda." : "Publica na hora. Serviços, equipe e agenda do negócio não mudam."}
-            {dados.tipo === "cadastro" && " O site continua sem a faixa de proposta."}
+            {dados.tipo === "cadastro" && !dados.publicado && " O site continua como prévia até a entrada ser paga."}
           </p>
           <div className="flex justify-end gap-2">
             <button type="button" className={BOTAO_CLARO} disabled={busy} onClick={() => setPrevia(null)}>Voltar e editar</button>

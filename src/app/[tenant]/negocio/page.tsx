@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RUPHUS } from "@/lib/catalogo";
 import { CamposNegocio, errosDe, VAZIO, type Valores } from "@/components/campos-negocio";
 import { idToken } from "@/lib/firebase";
 import { lerNegocioAction, salvarNegocioAction } from "../actions";
@@ -19,6 +20,7 @@ export default function MeuNegocio() {
   const [nome, setNome] = useState("");
   const [campos, setCampos] = useState<Valores>(VAZIO);
   const [fabrica, setFabrica] = useState(false);
+  const [publicado, setPublicado] = useState(true);
   const [estado, setEstado] = useState<"carregando" | "pronto" | "erro">("carregando");
   const [tentou, setTentou] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -32,9 +34,10 @@ export default function MeuNegocio() {
       const r = await lerNegocioAction(await idToken(), { tenantId: slug }).catch(() => null);
       if (!atual) return;
       if (!r?.ok) return setEstado("erro");
-      const { name, fabrica, ...resto } = r.dados;
+      const { name, fabrica, publicado, ...resto } = r.dados;
       setNome(name);
       setFabrica(fabrica);
+      setPublicado(publicado);
       setCampos({ ...VAZIO, ...resto, telefone: resto.telefone ? formatarFone(resto.telefone) : "" });
       setEstado("pronto");
     })();
@@ -94,6 +97,23 @@ export default function MeuNegocio() {
         </form>
 
         <aside className="grid gap-4 rounded-2xl border bg-card p-5">
+          {!fabrica && !publicado && (
+            // o site do cadastro nasce como prévia: a faixa e o Google só mudam com a entrada paga
+            <div className="grid gap-2.5 rounded-xl bg-muted p-4">
+              <h2 className="text-[15px] font-semibold">Seu site está como prévia</h2>
+              <p className="text-sm text-muted-foreground">
+                Ele já abre e recebe agendamentos, mas mostra uma faixa de &ldquo;ainda não publicada&rdquo; e fica fora do Google. Para publicar: R$ 250 uma vez e R$ 59,90 por mês.
+              </p>
+              <a
+                href={`https://wa.me/${RUPHUS}?text=${encodeURIComponent(`Olá! Quero publicar o site ${slug}.ruphus.site.`)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground"
+              >
+                Publicar meu site
+              </a>
+            </div>
+          )}
           <h2 className="text-[15px] font-semibold">Seus links</h2>
           {fabrica ? (
             <p className="text-sm text-muted-foreground">O seu site foi feito sob medida pela Ruphus: para mudar a página, fale com a gente. Os dados daqui valem para a bio e o agendamento.</p>
