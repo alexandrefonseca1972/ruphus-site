@@ -515,7 +515,8 @@ button{font:inherit;color:inherit}
   <nav aria-label="Seções" class="entra" style="--atraso:80ms;margin:0 auto">
     <ul class="pilula">
       <li><a href="#faz">O que fazemos</a></li>
-      <li><a href="#como">Como funciona</a></li>
+      <li><a href="#agenda">Agenda</a></li>
+      <li><a href="#painel">Painel</a></li>
       <li><a href="#preco">Preço</a></li>
     </ul>
   </nav>
@@ -567,7 +568,7 @@ button{font:inherit;color:inherit}
 
   <div class="esteira" aria-hidden="true"><div class="esteira-faixa" id="esteira"></div></div>
 
-  <section class="wrap sec" id="faz" aria-labelledby="faz-t">
+  <section class="wrap sec" id="faz" data-demo="https://barbaros-barbearia.ruphus.site" data-demo-rot="Ver um site" data-demo-txt="sites no ar, com agenda aberta" aria-labelledby="faz-t">
     <div class="sec-cab">
       <span class="tag">O que a Ruphus faz</span>
       <h2 class="sec-t revela" id="faz-t">Transformação digital do tamanho da sua empresa.</h2>
@@ -579,6 +580,10 @@ button{font:inherit;color:inherit}
         <h3>Fábrica de sites e landing pages personalizadas</h3>
         <p>Cada site nasce das suas fotos, dos seus serviços, do seu bairro e da sua reputação no Google. Nenhum é cópia do outro — a lista aí embaixo é a prova. Página estática, sem plugin e sem banco de dados: abre rápido no 4G da rua, no celular do seu cliente.</p>
         <ul aria-label="O que vem no site"><li>Site institucional</li><li>Landing page</li><li>Botão de WhatsApp</li><li>Mapa e rota</li><li>Google e Instagram</li><li>Domínio e hospedagem</li></ul>
+        <div class="acoes" style="margin-top:auto">
+          <a class="bt bt-cheio" href="https://barbaros-barbearia.ruphus.site" target="_blank" rel="noopener">Ver um site pronto ↗</a>
+          <a class="bt bt-texto" href="#q">Procurar o meu</a>
+        </div>
       </article>
       <article class="cartao escuro revela" style="--atraso:220ms">
         <span class="tag">Já vem junto</span>
@@ -603,7 +608,7 @@ button{font:inherit;color:inherit}
     </div>
   </section>
 
-  <section class="wrap sec" id="agenda" aria-labelledby="agenda-t">
+  <section class="wrap sec" id="agenda" data-demo="https://barbaros-barbearia.ruphus.site/agendar" data-demo-rot="Ver uma agenda" data-demo-txt="agenda aberta em todos os sites" aria-labelledby="agenda-t">
     <div class="duas">
       <div style="display:flex;flex-direction:column;gap:24px">
         <span class="tag">Agendamento online · já incluso</span>
@@ -664,7 +669,7 @@ button{font:inherit;color:inherit}
     </div>
   </section>
 
-  <section class="wrap sec" id="painel" aria-labelledby="painel-t">
+  <section class="wrap sec" id="painel" data-demo="https://barbaros-barbearia.ruphus.site/bio" data-demo-rot="Ver um link da bio" data-demo-txt="painel e link da bio na mensalidade" aria-labelledby="painel-t">
     <div class="sec-cab">
       <span class="tag">Painel do negócio · na mensalidade</span>
       <h2 class="sec-t revela" id="painel-t">O site trabalha. O painel mostra o serviço.</h2>
@@ -704,6 +709,10 @@ button{font:inherit;color:inherit}
           <span class="endereco"><code>barbaros-barbearia.ruphus.site/bio</code><span class="mono" style="background:var(--preto);color:var(--branco);padding:6px 10px;border-radius:64px;font-size:10px">copiar</span></span>
         </div>
       </article>
+    </div>
+    <div class="acoes revela" style="--atraso:440ms;margin-top:24px">
+      <a class="bt bt-cheio" href="https://barbaros-barbearia.ruphus.site/bio" target="_blank" rel="noopener">Ver um link da bio ↗</a>
+      <a class="bt bt-branco" href="/painel">Criar minha conta</a>
     </div>
   </section>
 
@@ -754,7 +763,7 @@ button{font:inherit;color:inherit}
     </div>
   </section>
 
-  <section class="wrap sec" id="preco" aria-labelledby="preco-t">
+  <section class="wrap sec" id="preco" data-demo="https://barbaros-barbearia.ruphus.site/agendar" data-demo-rot="Ver uma agenda" data-demo-txt="agenda aberta em todos os sites" aria-labelledby="preco-t">
     <div class="sec-cab">
       <span class="tag">Preço</span>
       <h2 class="sec-t revela" id="preco-t">Dois números, ditos antes de você perguntar.</h2>
@@ -778,6 +787,10 @@ button{font:inherit;color:inherit}
       <li><b>Manutenção</b><span>Mudou horário, preço ou telefone? A gente atualiza.</span></li>
     </ul>
     <p class="preco-p revela" style="--atraso:320ms">O mesmo preço para todo cliente. Não há plano maior nem menor. <mark>O seu site provavelmente já está pronto</mark> — você abre, olha, e só paga se quiser publicar.</p>
+    <div class="acoes revela" style="--atraso:360ms;margin-top:24px">
+      <a class="bt bt-cheio" href="#q">Procurar o meu negócio</a>
+      <a class="bt bt-branco" href="/painel">Criar minha conta</a>
+    </div>
   </section>
 
   <section class="wrap" aria-labelledby="cta-t">
@@ -791,6 +804,7 @@ button{font:inherit;color:inherit}
           Falar no WhatsApp
         </a>
         <a class="bt bt-texto" style="color:var(--branco)" href="#q">Procurar o meu</a>
+        <a class="bt bt-texto" style="color:var(--branco)" href="/painel">Criar minha conta</a>
       </div>
       <footer class="rodape">
         <span>Ruphus faz o site e o agendamento de quem atende de porta aberta.</span>
@@ -807,7 +821,7 @@ button{font:inherit;color:inherit}
   <div class="barra-c">
     <span class="barra-n mono"><i></i><span id="barra-n">— sites no ar, com agenda aberta</span></span>
     <span style="flex-grow:1"></span>
-    <a class="bt bt-fantasma" href="https://barbaros-barbearia.ruphus.site/agendar" target="_blank" rel="noopener">Ver uma agenda</a>
+    <a class="bt bt-fantasma" id="barra-demo" href="https://barbaros-barbearia.ruphus.site/agendar" target="_blank" rel="noopener">Ver uma agenda</a>
     <a class="bt bt-volt" href="#q">Procurar o meu negócio</a>
   </div>
 </div>
@@ -929,6 +943,19 @@ if (gatilho && 'IntersectionObserver' in window){
   if (fim) new IntersectionObserver(([e]) => {
     if (e.isIntersecting) barra.classList.remove('dentro');
   }, { threshold: 0 }).observe(fim);
+}
+
+// a demo da barra acompanha a funcionalidade que está na tela
+const demo = document.getElementById('barra-demo');
+const qtd = document.getElementById('barra-n');
+if ('IntersectionObserver' in window){
+  const o = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return;
+    const d = e.target.dataset;
+    demo.href = d.demo; demo.textContent = d.demoRot + ' ↗';
+    qtd.textContent = (d.demoTxt.startsWith('sites') ? SITES.length + ' ' : '') + d.demoTxt;
+  }), { rootMargin: '-45% 0px -45% 0px' });
+  document.querySelectorAll('[data-demo]').forEach(s => o.observe(s));
 }
 
 /* ——— vitrine: prévia ao vivo no telefone ——— */

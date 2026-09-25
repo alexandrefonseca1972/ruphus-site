@@ -19,6 +19,10 @@ o PR, onde está o porquê.
   "Pedir remoção", que valem só para os sites de prospecção.
 - **Todo cadastro entra no funil** (#61) com a origem "Cadastro no site" e o
   e-mail do dono, pronto para convite e cobrança.
+- **A landing mostra o produto** (#61): site, agenda e painel ganham cada um o
+  botão da demo ao vivo, o menu leva direto à Agenda e ao Painel, a barra de
+  baixo troca a demo conforme a seção, e "Criar minha conta" aparece no painel,
+  no preço e no fechamento.
 
 ## 0.7.0 — 25/09/2026
 
