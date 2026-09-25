@@ -3,6 +3,17 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## Em avaliação
+
+### O admin completa o site de quem se cadastrou sozinho
+- **Aba "Site" na gaveta do negócio** (#67): diz de onde o site vem (sem site,
+  cadastro, prospecção ou fábrica) e edita os dados dele mais a nota e as
+  avaliações do Google, que o dono não informa. Uma prévia mostra campo a campo
+  o que muda antes de publicar. Conta antiga sem site ganha o site por aqui.
+- **A planilha não regrava o site do cadastro** (#67): o mesmo telefone de um
+  cliente que se cadastrou vira "pular". Antes virava "atualizar", que trazia de
+  volta a faixa de proposta e sobrescrevia o que o dono editou.
+
 ## 0.8.0 — 25/09/2026
 
 ### Quem cria a conta sozinho já sai com site e agenda prontos

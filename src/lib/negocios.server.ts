@@ -1,5 +1,6 @@
 import "server-only";
-import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { type DocumentSnapshot, FieldValue, type Firestore } from "firebase-admin/firestore";
+import { z } from "zod";
 import { UserError } from "@/lib/booking.server";
 import { DadosNegocio, leadDoDono, NegocioInput, type Sub, SUBS } from "@/lib/gerador";
 import { registrosDoSite } from "@/lib/gerador.server";
@@ -93,10 +94,55 @@ export async function lerNegocio(db: Firestore, slug: string) {
   };
 }
 
+/** Nota e avaliações do Google: o dono não edita (seria a própria nota); só o admin da plataforma informa. */
+export const Google = z.object({ nota: z.number().min(0).max(5).nullable(), avaliacoes: z.number().int().min(0).nullable() });
+export type Google = z.infer<typeof Google>;
+
+/** De onde vem o site: sem-site (conta de antes do site automático), cadastro (o dono criou),
+ *  prospeccao (planilha do gerador, com a faixa de proposta) ou fabrica (página estática). */
+export type TipoSite = "sem-site" | "cadastro" | "prospeccao" | "fabrica";
+const tipoDe = (t: DocumentSnapshot): TipoSite =>
+  !t.get("gerado") ? (t.get("site.url") ? "fabrica" : "sem-site") : t.get("gerado.origem") === "cadastro" ? "cadastro" : "prospeccao";
+
+/** O que a aba "Site" da gaveta do admin mostra: os dados do dono, o tipo e o Google. */
+export async function lerSiteDoNegocio(db: Firestore, slug: string) {
+  const [dados, t] = await Promise.all([lerNegocio(db, slug), db.doc(`tenants/${slug}`).get()]);
+  const num = (c: string) => (typeof t.get(c) === "number" ? (t.get(c) as number) : null);
+  return { ...dados, tipo: tipoDe(t), google: { nota: num("site.rating"), avaliacoes: num("site.reviews") } };
+}
+
+export type Mudanca = { campo: string; antes: string; depois: string };
+
+/** O que salvarNegocio mudaria, campo a campo, sem gravar: o admin confere antes de publicar. */
+export async function previaDoSite(db: Firestore, slug: string, input: unknown, google: Google) {
+  const parsed = DadosNegocio.safeParse(input);
+  if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
+  const d = parsed.data;
+  const atual = await lerSiteDoNegocio(db, slug);
+  const fabrica = atual.tipo === "fabrica";
+  const n = (v: number | null) => (v == null ? "" : String(v).replace(".", ","));
+  const pares: [string, string, string, boolean][] = [
+    ["Nome", atual.name, d.name, true],
+    ["Ramo", atual.sub ? SUBS[atual.sub as Sub].rotulo : "", SUBS[d.sub].rotulo, !fabrica],
+    ["WhatsApp", atual.telefone, d.telefone, true],
+    ["Cidade", atual.cidade, d.cidade, true],
+    ["UF", atual.uf, d.uf, true],
+    ["Bairro", atual.bairro, d.bairro, !fabrica],
+    ["Endereço", atual.endereco, d.endereco, true],
+    ["Instagram", atual.instagram, d.instagram, true],
+    ["Horário", atual.horario, d.horario, !fabrica],
+    ["Nota no Google", n(atual.google.nota), n(google.nota), !fabrica],
+    ["Avaliações no Google", n(atual.google.avaliacoes), n(google.avaliacoes), !fabrica],
+  ];
+  const mudancas: Mudanca[] = pares.filter(([, a, b, conta]) => conta && a !== b).map(([campo, antes, depois]) => ({ campo, antes, depois }));
+  return { tipo: atual.tipo, mudancas };
+}
+
 /** Grava o que o dono editou. Não mexe em serviços nem na equipe (são dele), nem na
- *  nota e nas avaliações do Google que o gerador trouxe. Negócio criado antes do
- *  site automático ganha o site aqui, quando o dono escolhe o ramo. */
-export async function salvarNegocio(db: Firestore, slug: string, input: unknown) {
+ *  nota e nas avaliações do Google que o gerador trouxe — a não ser que o admin as
+ *  mande em `google`. Negócio criado antes do site automático ganha o site aqui,
+ *  quando o dono escolhe o ramo. */
+export async function salvarNegocio(db: Firestore, slug: string, input: unknown, google?: Google) {
   const parsed = DadosNegocio.safeParse(input);
   if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
   const d = parsed.data;
@@ -113,11 +159,11 @@ export async function salvarNegocio(db: Firestore, slug: string, input: unknown)
     return;
   }
   const origem = t.get("gerado.origem") === "cadastro" || !t.get("gerado") ? "cadastro" : "prospeccao";
-  const [negocio] = registrosDoSite(db, slug, leadDoDono(d), { nicho: SUBS[d.sub].nicho, sub: d.sub, tipo: SUBS[d.sub].tipo }, {
+  const [negocio] = registrosDoSite(db, slug, { ...leadDoDono(d), ...google }, { nicho: SUBS[d.sub].nicho, sub: d.sub, tipo: SUBS[d.sub].tipo }, {
     novo: false, ownerId: String(t.get("ownerId")), origem,
   });
   const { rating: _nota, reviews: _avaliacoes, ...site } = negocio.dados.site as Record<string, unknown>;
-  await ref.set({ ...negocio.dados, site }, { merge: true });
+  await ref.set({ ...negocio.dados, site: google ? negocio.dados.site : site }, { merge: true });
 }
 
 /** O admin da plataforma libera (ou reduz) quantos negócios uma conta pode ter. */
