@@ -287,7 +287,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       inicio: zonedTime(date, escolha.hora),
       fim: new Date(zonedTime(date, escolha.hora).getTime() + totalMin * 60_000),
       local: onde || [name, cidadeUf].filter(Boolean).join(", "),
-      detalhes: [`Com ${atendente.name}.`, totalCents ? `${formatBRL(totalCents)}, pago no local.` : "", phone ? `WhatsApp da casa: ${formatPhone(phone)}` : ""]
+      detalhes: [`Com ${atendente.name}.`, totalCents ? `${formatBRL(totalCents)}, pago no local.` : "", phone ? `WhatsApp de ${name}: ${formatPhone(phone)}` : ""]
         .filter(Boolean)
         .join("\n"),
     };
@@ -341,7 +341,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                       <span className={MONO}>{formatBRL(totalCents)}</span> <span className="text-[#5C5747]">· pago no local</span>
                     </>
                   ) : (
-                    <span className="text-[#5C5747]">a combinar com a casa</span>
+                    <span className="text-[#5C5747]">a combinar com {name}</span>
                   )}
                 </dd>
               </div>
@@ -352,25 +352,13 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 </div>
               )}
             </dl>
-            <div className="flex flex-col gap-1.5">
-              <button type="button" onClick={salvarNaAgenda} className={PRIMARIO}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <rect x="3" y="5" width="18" height="16" rx="2" />
-                  <path d="M3 10h18M8 3v4M16 3v4M12 13v5M9.5 15.5h5" />
-                </svg>
-                Salvar na minha agenda
-              </button>
-              <a href={linkGoogleAgenda(compromisso)} target="_blank" rel="noreferrer" className="self-center py-2 text-xs text-[#5C5747] underline underline-offset-4">
-                ou no Google Agenda
-              </a>
-            </div>
           </div>
           <div className="h-px bg-[repeating-linear-gradient(to_right,#D5D0C1_0_6px,transparent_6px_12px)]" />
           <div className="flex flex-col gap-3.5 p-5">
-            {/* Quem confirma é a casa, no número que o cliente deu: "seu" deixa claro que
-                o número mostrado é o dele, não o da casa. Mandar o resumo fica como opção. */}
+            {/* Quem confirma é o negócio, no número que o cliente deu: "seu" deixa claro que
+                o número mostrado é o dele, não o do negócio. Falar com ele é a ação da tela. */}
             <p className="text-[15px] leading-relaxed">
-              A casa vai te chamar no <strong className="font-semibold">seu</strong> WhatsApp{" "}
+              <strong className="font-semibold">{name}</strong> vai te chamar no <strong className="font-semibold">seu</strong> WhatsApp{" "}
               <span className={cn(MONO, "text-[13px] whitespace-nowrap")}>{customerPhone}</span> para confirmar.
             </p>
             {avisoUrl && (
@@ -382,7 +370,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                   className="flex h-[50px] items-center justify-center gap-2.5 rounded-[10px] border border-[#D5D0C1] bg-white text-[15px] font-semibold text-[#17150F] hover:border-[#17150F]"
                 >
                   <Zap />
-                  Mandar o resumo para a casa
+                  Mandar o resumo no WhatsApp
                 </a>
                 <p className="text-center text-xs text-[#5C5747]">Opcional. O horário já está reservado.</p>
               </div>
@@ -411,7 +399,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 ) : (
                   <>
                     <p className="text-[16px] leading-snug font-semibold">{[bairro, cidadeUf].filter(Boolean).join(" · ")}</p>
-                    <p className="text-[13px] text-[#5C5747]">O endereço exato: confirme com a casa pelo WhatsApp.</p>
+                    <p className="text-[13px] text-[#5C5747]">O endereço exato: confirme com {name} pelo WhatsApp.</p>
                   </>
                 )}
               </div>
@@ -466,7 +454,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
               rel="noreferrer"
               className="flex h-11 items-center justify-center rounded-[10px] border border-[#D5D0C1] bg-white text-sm font-semibold hover:border-[#17150F]"
             >
-              Avisar a casa pelo WhatsApp
+              Falar com {name} no WhatsApp
             </a>
           )}
         </div>
@@ -474,6 +462,17 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           Fazer outro agendamento
         </button>
         <div className="flex-1" />
+        {/* Útil para poucos: fica no rodapé, sem disputar com falar com o negócio */}
+        <p className="flex items-center justify-center gap-1.5 text-xs text-[#5C5747]">
+          Salvar na agenda:
+          <button type="button" onClick={salvarNaAgenda} className="py-2 underline underline-offset-4 hover:text-[#17150F]">
+            celular
+          </button>
+          <span aria-hidden="true">·</span>
+          <a href={linkGoogleAgenda(compromisso)} target="_blank" rel="noreferrer" className="py-2 underline underline-offset-4 hover:text-[#17150F]">
+            Google Agenda
+          </a>
+        </p>
         <Rodape />
       </main>
     );
