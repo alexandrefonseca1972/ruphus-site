@@ -2,7 +2,7 @@ import "server-only";
 import { type DocumentSnapshot, FieldValue, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { UserError } from "@/lib/booking.server";
-import { DadosNegocio, leadDoDono, NegocioInput, type Sub, SUBS } from "@/lib/gerador";
+import { DadosNegocio, leadDoDono, NegocioInput, type Sub, SUBS, UtmInput } from "@/lib/gerador";
 import { registrosDoSite } from "@/lib/gerador.server";
 import { limiteStaffDe } from "@/lib/limites";
 
@@ -37,9 +37,12 @@ export async function cotaDe(db: Firestore, uid: string) {
  *
  * Numa transação: dois cliques (ou duas abas) ao mesmo tempo não passam juntos
  * pela contagem, e o endereço já tomado falha antes de gravar qualquer coisa. */
-export async function criarNegocio(db: Firestore, user: { uid: string; email?: string; name?: string }, input: unknown) {
+export async function criarNegocio(db: Firestore, user: { uid: string; email?: string; name?: string }, input: unknown, utmBruta?: unknown) {
   const parsed = NegocioInput.safeParse(input);
   if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
+  // a origem do anúncio é informação a mais: se vier estranha, o cadastro segue sem ela
+  const lida = UtmInput.safeParse(utmBruta);
+  const utm = lida.success ? Object.fromEntries(Object.entries(lida.data).filter(([, v]) => v)) : {};
   const { slug, ...dados } = parsed.data;
   const admin = await ehAdminDaPlataforma(db, user.uid);
 
@@ -62,6 +65,7 @@ export async function criarNegocio(db: Firestore, user: { uid: string; email?: s
     const n = { nicho: SUBS[dados.sub].nicho, sub: dados.sub, tipo: SUBS[dados.sub].tipo };
     for (const e of registrosDoSite(db, slug, leadDoDono(dados, user.email), n, {
       novo: true, ownerId: user.uid, origem: "cadastro", equipe: user.name, donoNome: user.name,
+      utm: Object.keys(utm).length ? utm : null,
     })) {
       tx.set(e.ref, e.dados, { merge: true });
     }

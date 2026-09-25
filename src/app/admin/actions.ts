@@ -261,6 +261,8 @@ export type Painel = {
   assinatura: string;
   /** minutos parado até o logout automático; 0 desliga */
   minutosInativo: number;
+  /** ID do Pixel da Meta; vazio = desligado */
+  metaPixel: string;
 };
 
 /** Tudo o que o painel precisa para abrir, numa viagem só.
@@ -271,12 +273,13 @@ export type Painel = {
  * novo antes de consultar qualquer coisa. Aqui o paralelo é de verdade: ele
  * acontece deste lado, depois de uma conferência só. */
 export const abrirPainel = adminAction(async (): Promise<Painel> => {
-  const [espacos, hoje, crm, assina, sessao] = await Promise.all([
+  const [espacos, hoje, crm, assina, sessao, marketing] = await Promise.all([
     espacosComAcessos(),
     resumoDoDia(),
     lerCrm(adminDb),
     adminDb.doc("config/crm").get(),
     adminDb.doc("config/sessao").get(),
+    adminDb.doc("config/marketing").get(),
   ]);
   return {
     espacos,
@@ -284,6 +287,7 @@ export const abrirPainel = adminAction(async (): Promise<Painel> => {
     crm,
     assinatura: String(assina.get("assinatura") ?? ""),
     minutosInativo: Number(sessao.get("minutos")) || 0,
+    metaPixel: String(marketing.get("metaPixel") ?? ""),
   };
 });
 
@@ -428,6 +432,15 @@ export const definirMinutosInativo = adminAction(async (_user, minutos: unknown)
   if (!Number.isInteger(n) || n < 0 || n > MINUTOS_MAX) throw new ErroPrevisto(`Use de 0 (desligado) a ${MINUTOS_MAX} minutos.`);
   await adminDb.doc("config/sessao").set({ minutos: n }, { merge: true });
   return n;
+});
+
+/** ID do Pixel da Meta, que a landing e o cadastro carregam. Vazio desliga. */
+export const definirPixel = adminAction(async (_user, id: unknown) => {
+  const limpo = String(id ?? "").replace(/\D/g, "");
+  if (limpo && !/^\d{10,20}$/.test(limpo)) throw new ErroPrevisto("O ID do Pixel tem só números (de 10 a 20).");
+  await adminDb.doc("config/marketing").set({ metaPixel: limpo }, { merge: true });
+  revalidatePath("/api/marketing");
+  return limpo;
 });
 
 export const lerPixConfig = adminAction(async () => pixCadastrado(adminDb));

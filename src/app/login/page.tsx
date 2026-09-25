@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { errorMessage } from "@/lib/auth-errors";
 import { auth } from "@/lib/firebase";
 import { handleSubmit } from "@/lib/utils";
+import { guardarUtm } from "@/lib/anuncios";
 
 const Credentials = z.object({
   email: z.email("Informe um e-mail válido."),
@@ -74,6 +75,9 @@ function Login() {
 
   // De quem é o convite: o nome do negócio é o que a pessoa reconhece, e ela
   // chegou aqui por um link no WhatsApp, não procurando a Ruphus.
+  // anúncio que aponta direto para o cadastro: a origem fica guardada até o negócio ser criado
+  useEffect(() => guardarUtm(location.search), []);
+
   useEffect(() => {
     const token = proximo?.startsWith("/convite") ? new URLSearchParams(proximo.split("?")[1]).get("c") : null;
     if (!token) return;

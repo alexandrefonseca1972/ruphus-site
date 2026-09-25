@@ -31,9 +31,9 @@ export async function minhaCota(idToken: string) {
 }
 
 /** Cria o negócio no servidor: é aqui que o limite por conta vale (as regras não contam negócios). */
-export async function criarNegocioAction(idToken: string, input: unknown) {
+export async function criarNegocioAction(idToken: string, input: unknown, utm?: unknown) {
   try {
-    return { ok: true as const, slug: await criarNegocio(adminDb, await quem(idToken), input) };
+    return { ok: true as const, slug: await criarNegocio(adminDb, await quem(idToken), input, utm) };
   } catch (err) {
     if (err instanceof UserError) return { ok: false as const, error: err.message };
     console.error("[painel] falha ao criar negócio", err);

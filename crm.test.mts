@@ -64,6 +64,7 @@ assert.deepEqual(magro, {
   perdidoEm: null,
   ultimoContatoEm: null,
   fixadoAte: null,
+  utm: null,
 });
 
 // estágio desconhecido não quebra a tela nem pinta chip inexistente
