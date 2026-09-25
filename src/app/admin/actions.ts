@@ -52,8 +52,18 @@ const NICHOS: Record<string, string> = {
   medicalclinic: "Saúde",
   dentist: "Odontologia",
   physician: "Saúde",
-  healthclub: "Saúde",
+  healthclub: "Fitness",
   podiatric: "Podologia",
+  // os do gerador de sites
+  physiotherapy: "Fisioterapia",
+  medicalbusiness: "Saúde",
+  educationalorganization: "Aulas e cursos",
+  drivingschool: "Autoescola",
+  exercisegym: "Fitness",
+  sportsactivitylocation: "Fitness",
+  autorepair: "Automotivo",
+  autowash: "Automotivo",
+  tireshop: "Automotivo",
 };
 const nicho = (tipo: unknown) => NICHOS[String(tipo ?? "").toLowerCase()] ?? "Outros";
 

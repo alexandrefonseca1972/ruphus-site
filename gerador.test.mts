@@ -6,8 +6,14 @@ import { candidatos, type DadosSite, fixo, lerPlanilha as lerAbasDaPlanilha, nic
 
 // uma aba só, como a maioria das planilhas
 const lerPlanilha = (linhas: unknown[][]) => lerAbasDaPlanilha([{ aba: "Leads", linhas }]);
-import { renderBeleza } from "@/lib/site-beleza";
-import { renderPet } from "@/lib/site-pet";
+import { renderEditorial as renderBeleza } from "@/lib/site-editorial";
+import { existsSync } from "node:fs";
+import { AULAS } from "@/lib/nichos/aulas";
+import { AUTOMOTIVO } from "@/lib/nichos/automotivo";
+import { FITNESS } from "@/lib/nichos/fitness";
+import { PET } from "@/lib/nichos/pet";
+import { SAUDE } from "@/lib/nichos/saude";
+import { ehClaro, renderClaro, renderClaro as renderPet } from "@/lib/site-claro";
 
 // cabeçalho com acento, maiúscula e nome em inglês, depois de uma linha de título
 {
@@ -18,7 +24,7 @@ import { renderPet } from "@/lib/site-pet";
     ["Barbearia do Zé", 92991234567, "Barbearia", "", "Manaus", "AM", 4.9, "120", "@barbadoze", "", "", ""],
     [],
     ["Sem Telefone", "", "Pet shop"],
-    ["Oficina X", "(11) 98888-7777", "Mecânica"],
+    ["Restaurante do Zé", "(11) 98888-7777", "Restaurante"],
     ["Pet Repetido", "91 99372 1156", "Pet shop"],
   ]);
   assert.deepEqual(ignoradas, ["Tempo de atividade"], "coluna desconhecida é avisada, não quebra");
@@ -141,5 +147,50 @@ assert.ok(!renderBeleza({ ...base, sub: "salao", nota: null, avaliacoes: null })
 assert.ok(!renderPet({ ...base, nota: null, avaliacoes: null }).includes('id="avaliacoes"'));
 // com Instagram, o link aparece
 assert.ok(renderPet({ ...base, instagram: "petfeliz" }).includes("https://www.instagram.com/petfeliz/"));
+
+// ─── Os modelos-base: todo nicho completo, sem foto faltando nem repetida ───
+for (const [sub, c] of Object.entries({ ...PET, ...SAUDE, ...AULAS })) {
+  const citadas = [...c.topo, ...c.galeria, ...c.passos.map(([f]) => f)];
+  for (const f of citadas) {
+    assert.ok(c.fotos[f], `${sub}: ${f} sem alt`);
+    for (const t of ["", "-800"]) assert.ok(existsSync(`public/s/assets/${c.pasta}/${f}${t}.jpg`), `${sub}: falta ${c.pasta}/${f}${t}.jpg`);
+  }
+  // a galeria pula de 2 em 2: com 4 fotos a terceira repetia a primeira
+  for (let i = 0; i < 40; i++) {
+    const html = renderClaro({ ...base, slug: `site-${i}`, sub: sub as DadosSite["sub"] });
+    const galeria = /<div class="galeria">([\s\S]*?)<\/div>/.exec(html)![1];
+    const fotos = [...galeria.matchAll(/src="([^"]+)"/g)].map((m) => m[1]);
+    assert.equal(new Set(fotos).size, 3, `${sub}: galeria repetida em site-${i}`);
+  }
+}
+for (const [sub, e] of Object.entries({ ...FITNESS, ...AUTOMOTIVO })) {
+  for (const kit of e.kits) for (const f of ["hero", "ga1", "ga2", "ga3"]) assert.ok(existsSync(`public/s${kit}/${f}.jpg`), `${sub}: falta ${kit}/${f}.jpg`);
+}
+
+// cada nicho novo reconhecido pela categoria, com a ordem das regras respeitada
+for (const [categoria, sub] of [
+  ["Clínica odontológica", "odonto"], ["Dentista", "odonto"], ["Fisioterapia", "fisio"], ["RPG e pilates", "fisio"],
+  ["Psicóloga", "psico"], ["Nutricionista", "nutri"], ["Clínica médica", "clinica"], ["Consultório pediátrico", "clinica"],
+  ["Escola de inglês", "idiomas"], ["Reforço escolar", "reforco"], ["Escola de música", "musica"], ["Autoescola", "autoescola"], ["CFC Centro de Formação de Condutores", "autoescola"],
+  ["Academia", "academia"], ["Crossfit", "academia"], ["Studio de Pilates", "pilates"], ["Academia de Jiu-jitsu", "lutas"], ["Escola de dança", "danca"],
+  ["Oficina mecânica", "oficina"], ["Estética automotiva", "lavagem"], ["Lava-jato", "lavagem"], ["Borracharia", "pneus"], ["Baterias automotivas", "oficina"],
+  // o que já existia continua onde estava
+  ["Clínica de Estética", "estetica"], ["Clínica veterinária", "vet"], ["Biomedicina estética", "estetica"], ["Salão de Beleza", "salao"], ["Studio de Tatuagem", "tatuagem"],
+] as const) assert.equal(nichoDe({ categoria, nome: "" })?.sub, sub, categoria);
+assert.equal(nichoDe({ categoria: "Academia de competição", nome: "" })?.sub, "academia", "“competição” não é pet");
+
+// toda página de todo nicho: nada vazio vazando, camada Ruphus, e saúde sem preço nem antes/depois
+const subs: DadosSite["sub"][] = ["petshop", "vet", "barbearia", "salao", "estetica", "unhas", "tatuagem", "odonto", "fisio", "psico", "nutri", "clinica",
+  "idiomas", "reforco", "musica", "autoescola", "academia", "pilates", "lutas", "danca", "oficina", "lavagem", "pneus"];
+for (const sub of subs) {
+  const d = { ...base, sub, nome: "Negócio Exemplo", servicos: [] };
+  const html = ehClaro(sub) ? renderClaro(d) : renderBeleza(d);
+  assert.ok(!html.includes("undefined") && !html.includes("null") && !html.includes("NaN"), `${sub}: campo vazio vazou`);
+  assert.ok(html.includes('data-ysis="proposta"') && html.includes('data-agendar="1"'), `${sub}: camada Ruphus`);
+  if (["odonto", "fisio", "psico", "nutri", "clinica"].includes(sub)) {
+    assert.ok(!/R\$\s?\d/.test(html), `${sub}: saúde não anuncia preço`);
+    assert.ok(!/antes e depois|resultado garantido|o melhor/i.test(html), `${sub}: publicidade vedada em saúde`);
+  }
+}
 
 console.log("gerador: ok");

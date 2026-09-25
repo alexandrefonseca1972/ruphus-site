@@ -138,22 +138,49 @@ export const fixo = (telefone: string) => telefone.length === 12;
 
 // ─── Nicho ───────────────────────────────────────────────────────────────────
 
-export type Sub = "petshop" | "vet" | "barbearia" | "salao" | "estetica" | "unhas" | "tatuagem";
-export type Nicho = { nicho: "pet" | "beleza"; sub: Sub; tipo: string };
+export type Sub =
+  | "petshop" | "vet"
+  | "barbearia" | "salao" | "estetica" | "unhas" | "tatuagem"
+  | "odonto" | "fisio" | "psico" | "nutri" | "clinica"
+  | "idiomas" | "reforco" | "musica" | "autoescola"
+  | "academia" | "pilates" | "lutas" | "danca"
+  | "oficina" | "lavagem" | "pneus";
+export type Nicho = { nicho: "pet" | "beleza" | "saude" | "aulas" | "fitness" | "automotivo"; sub: Sub; tipo: string };
 
-// a primeira regra que casar vence: veterinária antes de pet shop, unha antes de salão
-// tatuagem antes de "studio" a levar para salão
+// A primeira regra que casar vence, então a ordem é a regra de negócio:
+// - automotivo antes de estética ("estética automotiva") e antes de música ("baterias automotivas");
+// - veterinária antes de pet shop; unha antes de salão;
+// - saúde específica (odonto, fisio, psico, nutri) antes de estética, e clínica médica por
+//   último, para "clínica de estética" e "clínica veterinária" ficarem onde estão;
+// - luta e dança antes de academia ("academia de lutas"); pilates e academia antes de salão,
+//   que pega "studio"; idiomas e música antes de reforço ("escola de …").
 const RAMOS: [RegExp, Nicho | null][] = [
   [/tatu|tattoo|piercing/, { nicho: "beleza", sub: "tatuagem", tipo: "TattooParlor" }],
+  [/auto ?escola|\bcfc\b|formacao de condutores|habilitacao/, { nicho: "aulas", sub: "autoescola", tipo: "DrivingSchool" }],
+  [/estetica automotiva|lava[ -]?jato|lava[ -]?rapido|lavagem (automotiva|de (carro|veiculo))|polimento|detailing|higienizacao automotiva|martelinho/, { nicho: "automotivo", sub: "lavagem", tipo: "AutoWash" }],
+  [/pneu|borracharia|alinhamento|balanceamento/, { nicho: "automotivo", sub: "pneus", tipo: "TireShop" }],
+  [/oficina|mecanic|auto ?center|centro automotivo|funilaria|injecao eletronica|automotiv|retifica/, { nicho: "automotivo", sub: "oficina", tipo: "AutoRepair" }],
   [/veterin|clinica animal|hospital animal|\bvet\b/, { nicho: "pet", sub: "vet", tipo: "VeterinaryCare" }],
-  [/pet|agropet|banho e tosa|tosa|racao|aquario/, { nicho: "pet", sub: "petshop", tipo: "PetStore" }],
+  [/\bpet|agropet|banho e tosa|tosa|racao|aquario/, { nicho: "pet", sub: "petshop", tipo: "PetStore" }],
   [/barb/, { nicho: "beleza", sub: "barbearia", tipo: "BarberShop" }],
   [/unha|nail|manicure|esmalteria/, { nicho: "beleza", sub: "unhas", tipo: "NailSalon" }],
+  [/odonto|dentist|dental|ortodont/, { nicho: "saude", sub: "odonto", tipo: "Dentist" }],
+  [/fisioterap|\brpg\b|quiropraxi|osteopat/, { nicho: "saude", sub: "fisio", tipo: "Physiotherapy" }],
+  [/psicolog|psicoterap|psicanal/, { nicho: "saude", sub: "psico", tipo: "MedicalBusiness" }],
+  [/nutri/, { nicho: "saude", sub: "nutri", tipo: "MedicalBusiness" }],
+  [/jiu|muay|boxe|kickbox|karate|judo|taekwon|\bmma\b|capoeira|luta|artes marciais/, { nicho: "fitness", sub: "lutas", tipo: "SportsActivityLocation" }],
+  [/danca|ballet|\bbale|zumba|forro|dance/, { nicho: "fitness", sub: "danca", tipo: "SportsActivityLocation" }],
+  [/pilates|yoga|ioga/, { nicho: "fitness", sub: "pilates", tipo: "SportsActivityLocation" }],
+  [/academia|crossfit|cross ?training|musculacao|treino funcional|personal|fitness|\bgym\b/, { nicho: "fitness", sub: "academia", tipo: "ExerciseGym" }],
   [/estetic|sobrancel|cilio|lash|micropigment|depila|spa|pele|massag|massoterap|podolog|bronze|dermat|biomedic|maquiag|make/, { nicho: "beleza", sub: "estetica", tipo: "BeautySalon" }],
+  [/idioma|ingles|espanhol|frances|english|language/, { nicho: "aulas", sub: "idiomas", tipo: "EducationalOrganization" }],
+  [/musica|violao|piano|canto|guitarra|bateria|teclado/, { nicho: "aulas", sub: "musica", tipo: "EducationalOrganization" }],
+  [/reforco|aulas? particular|explicador|pre-?vestibular|preparatorio|cursinho|apoio escolar/, { nicho: "aulas", sub: "reforco", tipo: "EducationalOrganization" }],
   [/salao|cabel|hair|beleza|beauty|cachos|escova|tranca|penteado|studio/, { nicho: "beleza", sub: "salao", tipo: "HairSalon" }],
+  [/clinica|consultorio|medic|pediatr|cardiolog|ginecolog|posto de saude|check-?up/, { nicho: "saude", sub: "clinica", tipo: "MedicalClinic" }],
 ];
 
-/** Pet ou beleza, lido da categoria — e só do nome quando não há categoria: "Petisco
+/** O nicho, lido da categoria — e só do nome quando não há categoria: "Petisco
  *  Bar" com categoria "Restaurante" não é pet shop. null = fora do que o gerador faz. */
 export function nichoDe(l: { categoria: string; nome: string }): Nicho | null {
   const fonte = (l.categoria || l.nome).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();

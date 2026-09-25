@@ -140,7 +140,7 @@ levantamento); aba de notas é pulada.
 
 O telefone identifica o negócio: se ele já tem site da fábrica ou conta, a linha
 fica de fora; se já tem site gerado, é atualizado — agenda e funil não são
-mexidos. Nicho fora de pet, beleza e tatuagem sai com o motivo na lista.
+mexidos. Nicho fora dos modelos (pet, beleza, tatuagem, saúde, aulas, fitness e automotivo) sai com o motivo na lista.
 
 ### Ninguém consegue agendar em um negócio
 

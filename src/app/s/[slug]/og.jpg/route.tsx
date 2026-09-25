@@ -2,8 +2,8 @@ import { ImageResponse } from "next/og";
 import sharp from "sharp";
 import { adminDb } from "@/lib/admin";
 import { lerSite } from "@/lib/gerador.server";
-import { capaBeleza } from "@/lib/site-beleza";
-import { capaPet } from "@/lib/site-pet";
+import { capaEditorial } from "@/lib/site-editorial";
+import { capaClaro, ehClaro } from "@/lib/site-claro";
 
 // A imagem que aparece quando o link de um site gerado é enviado no WhatsApp: a
 // mesma composição dos og.jpg da fábrica (foto do topo escurecida, traço na cor
@@ -35,7 +35,7 @@ const BASE =
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const d = await lerSite(adminDb, (await params).slug);
   if (!d) return new Response("Imagem não encontrada", { status: 404 });
-  const capa = d.sub === "petshop" || d.sub === "vet" ? capaPet(d) : capaBeleza(d);
+  const capa = ehClaro(d.sub) ? capaClaro(d) : capaEditorial(d);
 
   const foto = `${BASE}/s${capa.foto}`;
 

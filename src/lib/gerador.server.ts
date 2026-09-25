@@ -4,8 +4,8 @@ import { z } from "zod";
 import { EQUIPE, montar, porRamo } from "@/lib/catalogo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { candidatos, type DadosSite, fixo, Lead, nichoDe, type Sub } from "@/lib/gerador";
-import { visualBeleza } from "@/lib/site-beleza";
-import { visualPet } from "@/lib/site-pet";
+import { visualEditorial } from "@/lib/site-editorial";
+import { ehClaro, visualClaro } from "@/lib/site-claro";
 
 // Teto do lote, o mesmo dos convites: acima disso a espera fica longa demais
 export const TETO_LOTE = 300;
@@ -30,6 +30,10 @@ const semAcento = (s: unknown) => String(s ?? "").normalize("NFD").replace(/[\u0
 // o ramo por extenso, para o catálogo sair certo quando a planilha não lista serviços
 const RAMO: Record<Sub, string> = {
   petshop: "pet shop", vet: "veterinária", barbearia: "barbearia", salao: "salão cabelo", estetica: "estética", unhas: "unhas", tatuagem: "tatuagem",
+  odonto: "odontologia", fisio: "fisioterapia", psico: "psicologia", nutri: "nutrição", clinica: "clínica médica",
+  idiomas: "idiomas", reforco: "reforço escolar", musica: "música", autoescola: "autoescola",
+  academia: "academia", pilates: "pilates", lutas: "lutas", danca: "dança",
+  oficina: "oficina mecânica", lavagem: "estética automotiva", pneus: "pneus",
 };
 
 /** Grava os sites da planilha. Com aplicar=false só diz o que faria: a prévia e a
@@ -97,7 +101,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   for (const { slug, acao, lead } of saida) {
     if (acao === "pular") continue;
     const n = nichoDe(lead)!;
-    const visual = n.nicho === "pet" ? visualPet(slug, n.sub) : visualBeleza(slug, n.sub);
+    const visual = ehClaro(n.sub) ? visualClaro(slug, n.sub) : visualEditorial(slug, n.sub);
     const t = tenants.doc(slug);
     const novo = acao === "criar";
     void writer.set(t, {
@@ -122,7 +126,9 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
     // negócio ou o funil, e reenviar a planilha não pode apagar o que fizeram.
     if (novo) {
       void writer.set(t.collection("members").doc(ownerId), { uid: ownerId, role: "owner", createdAt: FieldValue.serverTimestamp() });
-      const servicos = lead.servicos.length ? lead.servicos.map(montar) : porRamo(`${RAMO[n.sub]} ${lead.categoria}`);
+      const servicos = (lead.servicos.length ? lead.servicos.map(montar) : porRamo(`${RAMO[n.sub]} ${lead.categoria}`))
+        // saúde não anuncia preço (regra dos conselhos): o valor fica "a combinar"
+        .map((s) => (n.nicho === "saude" ? { ...s, priceCents: 0 } : s));
       servicos.forEach(({ id, ...s }, ordem) => void writer.set(t.collection("services").doc(id), { ...s, ordem }));
       void writer.set(t.collection("staff").doc("equipe"), { ...EQUIPE, serviceIds: servicos.map((s) => s.id), createdAt: FieldValue.serverTimestamp() });
       // o levantamento do lead (score e gancho) vira nota no funil: quem abre a ficha já tem a abordagem

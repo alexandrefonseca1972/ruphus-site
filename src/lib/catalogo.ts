@@ -5,6 +5,28 @@
 
 // duração (min) e preço (R$) típicos por tipo de serviço; a primeira regra que casar vence
 export const TABELA: [RegExp, number, number][] = [
+  // porta de entrada de academia, estúdio e escola: não se cobra
+  [/aula experimental|avalia[çc][ãa]o f[íi]sica/i, 60, 0],
+  // nichos do gerador (saúde entra sem preço de qualquer jeito: ver gerador.server.ts)
+  [/psicoterapia|terapia de casal|atendimento online/i, 50, 150],
+  [/fisioterap|\brpg\b|pilates cl[íi]nico/i, 50, 100],
+  [/bioimped/i, 20, 60],
+  [/troca de [óo]leo/i, 40, 150],
+  [/revis[ãa]o/i, 120, 300],
+  [/alinhamento|balanceamento/i, 40, 80],
+  [/troca de pneu|reparo de pneu/i, 30, 60],
+  [/lavagem/i, 60, 60],
+  [/polimento|vitrifica/i, 240, 400],
+  [/higieniza[çc][ãa]o interna/i, 180, 250],
+  [/diagn[óo]stico/i, 60, 120],
+  [/freio/i, 90, 200],
+  [/suspens/i, 120, 300],
+  [/personal/i, 60, 100],
+  [/muscula|funcional|pilates|yoga|jiu|muay|boxe|dan[çc]a|ritmos|ballet/i, 60, 0],
+  [/ingl[êe]s|espanhol|idioma|conversa[çc][ãa]o/i, 60, 80],
+  [/refor[çc]o|aula particular/i, 60, 70],
+  [/viol[ãa]o|piano|canto|guitarra|teclado|aula de bateria/i, 60, 90],
+  [/aula pr[áa]tica|dire[çc][ãa]o|legisla[çc][ãa]o/i, 50, 100],
   [/or[çc]amento/i, 30, 0], // conversa com o artista: não se cobra
   [/fine ?line|blackwork|cobertura de tatu|reforma de tatu|tatuagem autoral/i, 120, 250],
   [/banho de gel|banho em gel/i, 60, 70], // unha, não pet
@@ -42,6 +64,24 @@ export const TABELA: [RegExp, number, number][] = [
 
 // quando não há serviço agendável listado, o catálogo sai do ramo do negócio
 export const PADRAO: [RegExp, string[]][] = [
+  // nichos do gerador: o texto começa pelo ramo por extenso (RAMO em gerador.server.ts),
+  // então ancorar no começo impede "biomedicina" de cair em clínica médica
+  [/^odontologia/i, ["Avaliação odontológica", "Limpeza", "Restauração", "Clareamento"]],
+  [/^fisioterapia/i, ["Avaliação fisioterapêutica", "Sessão de fisioterapia", "RPG", "Pilates clínico"]],
+  [/^psicologia/i, ["Primeira consulta", "Psicoterapia individual", "Terapia de casal", "Atendimento online"]],
+  [/^nutrição/i, ["Consulta nutricional", "Retorno", "Bioimpedância"]],
+  [/^clínica médica/i, ["Consulta", "Retorno", "Check-up"]],
+  [/^idiomas/i, ["Aula experimental", "Inglês", "Espanhol", "Conversação"]],
+  [/^reforço escolar/i, ["Aula experimental", "Reforço escolar", "Aula particular"]],
+  [/^música/i, ["Aula experimental", "Violão", "Piano", "Canto"]],
+  [/^autoescola/i, ["Aula prática de direção", "Aula de legislação", "Aula para habilitados"]],
+  [/^academia/i, ["Avaliação física", "Musculação", "Treino funcional", "Personal trainer"]],
+  [/^pilates/i, ["Aula experimental", "Pilates em aparelhos", "Pilates solo", "Yoga"]],
+  [/^lutas/i, ["Aula experimental", "Jiu-jitsu", "Muay thai", "Boxe"]],
+  [/^dança/i, ["Aula experimental", "Dança de salão", "Ritmos", "Ballet adulto"]],
+  [/^oficina mecânica/i, ["Diagnóstico", "Revisão", "Troca de óleo", "Freios", "Suspensão"]],
+  [/^estética automotiva/i, ["Lavagem completa", "Higienização interna", "Polimento", "Vitrificação"]],
+  [/^pneus/i, ["Alinhamento", "Balanceamento", "Troca de pneus", "Reparo de pneu"]],
   [/veterin|clínica animal|clinica veterin|hospital veterin/i, ["Consulta veterinária", "Vacinação", "Banho e tosa"]],
   [/pet ?shop|petshop|agropet|banho e tosa|ração|racao|animal/i, ["Banho", "Tosa", "Banho e tosa"]],
   [/barbearia|barber|barbeiro/i, ["Corte", "Barba", "Corte + barba"]],

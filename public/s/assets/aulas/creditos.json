@@ -1,0 +1,218 @@
+{
+ "idiomas-turma": {
+  "alt": "Turma de adultos em aula de idiomas com professor",
+  "pexels": "5756664",
+  "w": 1400,
+  "h": 933,
+  "kb": 247,
+  "heroi": true,
+  "sub": "idiomas"
+ },
+ "idiomas-sala": {
+  "alt": "Aluna levanta a mão em aula de idiomas para adultos",
+  "pexels": "5756649",
+  "w": 1400,
+  "h": 933,
+  "kb": 226,
+  "heroi": true,
+  "sub": "idiomas"
+ },
+ "idiomas-participacao": {
+  "alt": "Aluna participa da aula enquanto o professor explica",
+  "pexels": "5756655",
+  "w": 1400,
+  "h": 933,
+  "kb": 189,
+  "heroi": false,
+  "sub": "idiomas"
+ },
+ "idiomas-conversacao": {
+  "alt": "Duas alunas praticam conversação",
+  "pexels": "5756666",
+  "w": 1400,
+  "h": 933,
+  "kb": 120,
+  "heroi": false,
+  "sub": "idiomas"
+ },
+ "idiomas-aula-online": {
+  "alt": "Professor dá aula de idiomas online por videochamada",
+  "pexels": "6937871",
+  "w": 1400,
+  "h": 933,
+  "kb": 181,
+  "heroi": false,
+  "sub": "idiomas"
+ },
+ "idiomas-conversa-cafe": {
+  "alt": "Aluna e professor conversam em aula ao ar livre",
+  "pexels": "8554325",
+  "w": 1400,
+  "h": 933,
+  "kb": 210,
+  "heroi": false,
+  "sub": "idiomas"
+ },
+ "reforco-biblioteca": {
+  "alt": "Jovens estudam juntos na biblioteca",
+  "pexels": "6344239",
+  "w": 1400,
+  "h": 933,
+  "kb": 205,
+  "heroi": true,
+  "sub": "reforco"
+ },
+ "reforco-tutora": {
+  "alt": "Professora acompanha aluna em aula de reforço",
+  "pexels": "6503101",
+  "w": 1400,
+  "h": 933,
+  "kb": 126,
+  "heroi": true,
+  "sub": "reforco"
+ },
+ "reforco-explicacao": {
+  "alt": "Professora ajuda adolescente com a lição",
+  "pexels": "7692564",
+  "w": 1400,
+  "h": 933,
+  "kb": 165,
+  "heroi": false,
+  "sub": "reforco"
+ },
+ "reforco-dupla": {
+  "alt": "Dois estudantes revisam matéria com livro e notebook",
+  "pexels": "8199761",
+  "w": 1400,
+  "h": 933,
+  "kb": 174,
+  "heroi": false,
+  "sub": "reforco"
+ },
+ "reforco-grupo": {
+  "alt": "Professor orienta grupo de estudantes na biblioteca",
+  "pexels": "8199558",
+  "w": 1400,
+  "h": 933,
+  "kb": 157,
+  "heroi": false,
+  "sub": "reforco"
+ },
+ "musica-violao-aula": {
+  "alt": "Professor e aluno tocam violão e guitarra na sala de aula",
+  "pexels": "7447157",
+  "w": 1400,
+  "h": 933,
+  "kb": 140,
+  "heroi": true,
+  "sub": "musica"
+ },
+ "musica-piano": {
+  "alt": "Aluna estuda piano com partitura",
+  "pexels": "6647418",
+  "w": 1400,
+  "h": 933,
+  "kb": 138,
+  "heroi": true,
+  "sub": "musica"
+ },
+ "musica-violao": {
+  "alt": "Professor ensina acorde de violão ao aluno",
+  "pexels": "7447155",
+  "w": 1400,
+  "h": 933,
+  "kb": 145,
+  "heroi": false,
+  "sub": "musica"
+ },
+ "musica-piano-aula": {
+  "alt": "Professor acompanha adolescente no piano",
+  "pexels": "10222305",
+  "w": 1400,
+  "h": 933,
+  "kb": 139,
+  "heroi": false,
+  "sub": "musica"
+ },
+ "musica-canto": {
+  "alt": "Aluna sorri durante aula de canto no estúdio",
+  "pexels": "26387784",
+  "w": 1400,
+  "h": 933,
+  "kb": 157,
+  "heroi": false,
+  "sub": "musica"
+ },
+ "musica-teclado": {
+  "alt": "Adolescente toca teclado com a professora ao lado",
+  "pexels": "8520514",
+  "w": 1400,
+  "h": 933,
+  "kb": 151,
+  "heroi": false,
+  "sub": "musica"
+ },
+ "autoescola-estrada": {
+  "alt": "Vista da estrada pelo para-brisa do carro",
+  "pexels": "12765677",
+  "w": 1400,
+  "h": 933,
+  "kb": 135,
+  "heroi": true,
+  "sub": "autoescola"
+ },
+ "autoescola-aluna": {
+  "alt": "Aluna sorridente segura o volante",
+  "pexels": "6816982",
+  "w": 1400,
+  "h": 933,
+  "kb": 132,
+  "heroi": false,
+  "sub": "autoescola"
+ },
+ "autoescola-volante": {
+  "alt": "Mão no volante e painel do carro",
+  "pexels": "5650630",
+  "w": 1400,
+  "h": 933,
+  "kb": 113,
+  "heroi": false,
+  "sub": "autoescola"
+ },
+ "autoescola-instrucao": {
+  "alt": "Instrutor explica ao aluno durante o trajeto",
+  "pexels": "12236799",
+  "w": 1400,
+  "h": 933,
+  "kb": 83,
+  "heroi": false,
+  "sub": "autoescola"
+ },
+ "autoescola-rodovia": {
+  "alt": "Estrada vista pelo para-brisa em aula de direção",
+  "pexels": "12236790",
+  "w": 1400,
+  "h": 933,
+  "kb": 136,
+  "heroi": true,
+  "sub": "autoescola"
+ },
+ "autoescola-retrovisor": {
+  "alt": "Aluna ajustando o retrovisor antes de sair com o carro",
+  "pexels": "6816984",
+  "w": 1400,
+  "h": 933,
+  "kb": 117,
+  "heroi": false,
+  "sub": "autoescola"
+ },
+ "autoescola-volante-aluna": {
+  "alt": "Aluna sorridente sentada ao volante",
+  "pexels": "6816993",
+  "w": 1400,
+  "h": 933,
+  "kb": 123,
+  "heroi": false,
+  "sub": "autoescola"
+ }
+}
