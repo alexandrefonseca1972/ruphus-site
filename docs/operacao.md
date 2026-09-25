@@ -131,6 +131,13 @@ de `npm audit fix` desfeito sem reinstalar.
    do gerador** (aba Gerador do `/admin`): esses não têm pasta, são montados do
    Firestore. Se um deles some, confira se o tenant ainda tem o campo `gerado`.
 
+### Um cliente se cadastrou sozinho
+
+Ele já tem site, agenda (serviços do ramo e uma equipe) e ficha no funil com a
+origem "Cadastro no site". Os dados do negócio (WhatsApp, endereço, Instagram,
+horário) ele mesmo edita na aba "Meu negócio". O site dele não traz a faixa de
+proposta.
+
 ### Gerar sites a partir de uma planilha
 
 `/admin` → aba **Gerador** → escolha o `.xlsx` (há um modelo para baixar). A

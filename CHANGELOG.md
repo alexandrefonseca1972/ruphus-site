@@ -3,6 +3,23 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.8.0 — 25/09/2026
+
+### Quem cria a conta sozinho já sai com site e agenda prontos
+- **Site no ar no cadastro** (#61): o `/painel` pede também ramo (os 23 nichos
+  do gerador), WhatsApp e cidade, e o negócio nasce com o site em
+  `{slug}.ruphus.site` no modelo do ramo. Antes o endereço dava 404.
+- **Agenda aberta no primeiro minuto** (#61): serviços do ramo e uma equipe com o
+  nome do dono, fazendo todos eles. Saúde entra sem preço, como no gerador.
+- **Aba "Meu negócio"** (#61): o dono edita nome, ramo, WhatsApp, endereço,
+  cidade, Instagram e horário; o site, a imagem do WhatsApp e a bio mudam na
+  hora. Negócio criado antes ganha o site ao escolher o ramo; site feito pela
+  fábrica tem os dados de contato atualizados, e a página continua a mesma.
+- **O site é do dono** (#61): sem a faixa "Esta página é uma proposta" nem o
+  "Pedir remoção", que valem só para os sites de prospecção.
+- **Todo cadastro entra no funil** (#61) com a origem "Cadastro no site" e o
+  e-mail do dono, pronto para convite e cobrança.
+
 ## 0.7.0 — 25/09/2026
 
 ### Quatro modelos-base novos no gerador de sites

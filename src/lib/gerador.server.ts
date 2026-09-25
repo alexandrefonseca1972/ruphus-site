@@ -1,9 +1,9 @@
 import "server-only";
-import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { type DocumentData, type DocumentReference, FieldValue, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { EQUIPE, montar, porRamo } from "@/lib/catalogo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
-import { candidatos, type DadosSite, fixo, Lead, nichoDe, type Sub } from "@/lib/gerador";
+import { candidatos, type DadosSite, fixo, Lead, type Nicho, nichoDe, type Sub } from "@/lib/gerador";
 import { visualEditorial } from "@/lib/site-editorial";
 import { ehClaro, visualClaro } from "@/lib/site-claro";
 
@@ -35,6 +35,70 @@ const RAMO: Record<Sub, string> = {
   academia: "academia", pilates: "pilates", lutas: "lutas", danca: "dança",
   oficina: "oficina mecânica", lavagem: "estética automotiva", pneus: "pneus",
 };
+
+type Escrita = { ref: DocumentReference; dados: DocumentData };
+
+/** O que um site gerado grava — o mesmo para a planilha do admin e o cadastro do dono.
+ *
+ *  O negócio (nome, dados do site e o `gerado` que a rota do site lê) sempre; dono,
+ *  agenda, equipe e funil só na criação: depois disso quem mexe é o dono ou o funil,
+ *  e reenviar a planilha não pode apagar o que fizeram. Tudo com merge. */
+export function registrosDoSite(
+  db: Firestore,
+  slug: string,
+  lead: Lead,
+  n: Nicho,
+  o: { novo: boolean; ownerId: string; origem: "prospeccao" | "cadastro"; equipe?: string; donoNome?: string },
+): Escrita[] {
+  const visual = ehClaro(n.sub) ? visualClaro(slug, n.sub) : visualEditorial(slug, n.sub);
+  const t = db.collection("tenants").doc(slug);
+  const agora = FieldValue.serverTimestamp();
+  const escritas: Escrita[] = [{
+    ref: t,
+    dados: {
+      name: lead.nome,
+      ...(o.novo && { ownerId: o.ownerId, createdAt: agora }),
+      site: {
+        url: `https://${slug}.ruphus.site`,
+        phone: lead.telefone,
+        address: lead.endereco || null,
+        category: n.tipo,
+        city: lead.cidade || null,
+        uf: lead.uf || null,
+        rating: lead.nota,
+        reviews: lead.avaliacoes,
+        color: visual.cor,
+        instagram: lead.instagram || null,
+        photo: visual.foto,
+      },
+      gerado: { nicho: n.nicho, sub: n.sub, bairro: lead.bairro, horario: lead.horario, origem: o.origem, atualizadoEm: agora },
+    },
+  }];
+  if (!o.novo) return escritas;
+
+  escritas.push({ ref: t.collection("members").doc(o.ownerId), dados: { uid: o.ownerId, role: "owner", createdAt: agora } });
+  const servicos = (lead.servicos.length ? lead.servicos.map(montar) : porRamo(`${RAMO[n.sub]} ${lead.categoria}`))
+    // saúde não anuncia preço (regra dos conselhos): o valor fica "a combinar"
+    .map((s) => (n.nicho === "saude" ? { ...s, priceCents: 0 } : s));
+  servicos.forEach(({ id, ...s }, ordem) => escritas.push({ ref: t.collection("services").doc(id), dados: { ...s, ordem } }));
+  escritas.push({
+    ref: t.collection("staff").doc("equipe"),
+    dados: { ...EQUIPE, ...(o.equipe && { name: o.equipe }), serviceIds: servicos.map((s) => s.id), createdAt: agora },
+  });
+  // o levantamento do lead (score e gancho) vira nota no funil: quem abre a ficha já tem a abordagem
+  const nota = [lead.score && `Score do levantamento: ${lead.score}.`, lead.abordagem && `Abordagem sugerida: ${lead.abordagem}`].filter(Boolean).join(" ").slice(0, 600);
+  if (nota) escritas.push({ ref: db.collection(`crm/${slug}/notas`).doc(), dados: { texto: nota, autor: "Gerador de sites", quando: agora } });
+  escritas.push({
+    ref: db.collection("crm").doc(slug),
+    dados: {
+      origem: o.origem === "cadastro" ? "cadastro" : "importado",
+      ...(lead.email && { donoEmail: lead.email }),
+      ...(o.donoNome && { donoNome: o.donoNome }),
+      ...(nota && { notas: FieldValue.increment(1) }),
+    },
+  });
+  return escritas;
+}
 
 /** Grava os sites da planilha. Com aplicar=false só diz o que faria: a prévia e a
  *  gravação são a mesma conta, então o que o admin confirma é o que sai. */
@@ -100,45 +164,8 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   const writer = db.bulkWriter();
   for (const { slug, acao, lead } of saida) {
     if (acao === "pular") continue;
-    const n = nichoDe(lead)!;
-    const visual = ehClaro(n.sub) ? visualClaro(slug, n.sub) : visualEditorial(slug, n.sub);
-    const t = tenants.doc(slug);
-    const novo = acao === "criar";
-    void writer.set(t, {
-      name: lead.nome,
-      ...(novo && { ownerId, createdAt: FieldValue.serverTimestamp() }),
-      site: {
-        url: `https://${slug}.ruphus.site`,
-        phone: lead.telefone,
-        address: lead.endereco || null,
-        category: n.tipo,
-        city: lead.cidade || null,
-        uf: lead.uf || null,
-        rating: lead.nota,
-        reviews: lead.avaliacoes,
-        color: visual.cor,
-        instagram: lead.instagram || null,
-        photo: visual.foto,
-      },
-      gerado: { nicho: n.nicho, sub: n.sub, bairro: lead.bairro, horario: lead.horario, atualizadoEm: FieldValue.serverTimestamp() },
-    }, { merge: true });
-    // Agenda, dono e CRM só na criação: depois disso quem mexe é o dono do
-    // negócio ou o funil, e reenviar a planilha não pode apagar o que fizeram.
-    if (novo) {
-      void writer.set(t.collection("members").doc(ownerId), { uid: ownerId, role: "owner", createdAt: FieldValue.serverTimestamp() });
-      const servicos = (lead.servicos.length ? lead.servicos.map(montar) : porRamo(`${RAMO[n.sub]} ${lead.categoria}`))
-        // saúde não anuncia preço (regra dos conselhos): o valor fica "a combinar"
-        .map((s) => (n.nicho === "saude" ? { ...s, priceCents: 0 } : s));
-      servicos.forEach(({ id, ...s }, ordem) => void writer.set(t.collection("services").doc(id), { ...s, ordem }));
-      void writer.set(t.collection("staff").doc("equipe"), { ...EQUIPE, serviceIds: servicos.map((s) => s.id), createdAt: FieldValue.serverTimestamp() });
-      // o levantamento do lead (score e gancho) vira nota no funil: quem abre a ficha já tem a abordagem
-      const nota = [lead.score && `Score do levantamento: ${lead.score}.`, lead.abordagem && `Abordagem sugerida: ${lead.abordagem}`].filter(Boolean).join(" ").slice(0, 600);
-      if (nota) void writer.create(db.collection(`crm/${slug}/notas`).doc(), { texto: nota, autor: "Gerador de sites", quando: FieldValue.serverTimestamp() });
-      void writer.set(db.collection("crm").doc(slug), {
-        origem: "importado",
-        ...(lead.email && { donoEmail: lead.email }),
-        ...(nota && { notas: FieldValue.increment(1) }),
-      }, { merge: true });
+    for (const e of registrosDoSite(db, slug, lead, nichoDe(lead)!, { novo: acao === "criar", ownerId, origem: "prospeccao" })) {
+      void writer.set(e.ref, e.dados, { merge: true });
     }
   }
   await writer.close();
@@ -154,7 +181,7 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
   if (!SLUG.test(slug)) return null;
   const t = db.collection("tenants").doc(slug);
   const [tenant, servicos] = await Promise.all([t.get(), t.collection("services").where("active", "==", true).get()]);
-  const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; atualizadoEm?: { toDate(): Date } } | undefined;
+  const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; origem?: string; atualizadoEm?: { toDate(): Date } } | undefined;
   if (!tenant.exists || !gerado?.sub) return null;
 
   const quando = gerado.atualizadoEm?.toDate() ?? new Date();
@@ -180,5 +207,6 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
       .map((d) => String(d.get("name")))
       .slice(0, 8),
     consultado: `${MESES[quando.getMonth()]} de ${quando.getFullYear()}`,
+    origem: gerado.origem === "cadastro" ? "cadastro" : "prospeccao",
   };
 }

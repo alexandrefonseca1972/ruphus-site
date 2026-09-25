@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { lerPlanilha } from "@/lib/gerador";
-import { gerarNoBanco } from "@/lib/gerador.server";
+import { gerarNoBanco, lerSite } from "@/lib/gerador.server";
+import { criarNegocio, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
 
 const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
 const planilha = (...linhas: unknown[][]) =>
@@ -110,6 +111,73 @@ assert.match(await (await pagina("navalha")).text(), /assets\/gerado\/beleza\.cs
 assert.equal((await pagina("pet-feliz")).status, 404, "tenant da fábrica não é gerado");
 assert.equal((await pagina("nao-existe")).status, 404);
 assert.equal((await pagina("../etc")).status, 404);
+
+// ─── Cadastro pelo dono: o negócio já nasce com site, agenda, equipe e funil ───
+{
+  const dona = { uid: "dona-cadastro", email: "dona@exemplo.com", name: "Dra. Ana" };
+  const base = { name: "Sorriso Leve", slug: "sorriso-leve", sub: "odonto", telefone: "(96) 99111-2222", cidade: "Macapá", uf: "ap", bairro: "Centro" };
+  await assert.rejects(criarNegocio(db, dona, { ...base, sub: "" }), /ramo/, "sem ramo não cria");
+  await assert.rejects(criarNegocio(db, dona, { ...base, telefone: "123" }), /WhatsApp/);
+  assert.equal(await criarNegocio(db, dona, base), "sorriso-leve");
+
+  const t = (await db.doc("tenants/sorriso-leve").get()).data()!;
+  assert.deepEqual([t.name, t.ownerId, t.site.phone, t.site.uf, t.site.category], ["Sorriso Leve", "dona-cadastro", "5596991112222", "AP", "Dentist"]);
+  assert.deepEqual([t.gerado.sub, t.gerado.origem], ["odonto", "cadastro"]);
+  const membro = (await db.doc("tenants/sorriso-leve/members/dona-cadastro").get()).data()!;
+  assert.deepEqual([membro.role, membro.email, membro.nome], ["owner", "dona@exemplo.com", "Dra. Ana"]);
+  const servicos = await db.collection("tenants/sorriso-leve/services").get();
+  assert.ok(servicos.size >= 3, "a agenda já nasce com os serviços do ramo");
+  assert.ok(servicos.docs.every((d) => d.get("priceCents") === 0), "saúde sem preço");
+  const equipe = (await db.doc("tenants/sorriso-leve/staff/equipe").get()).data()!;
+  assert.equal(equipe.name, "Dra. Ana", "a equipe começa com o nome do dono");
+  assert.equal(equipe.serviceIds.length, servicos.size, "e faz todos os serviços: a agenda abre no primeiro minuto");
+  const crm = (await db.doc("crm/sorriso-leve").get()).data()!;
+  assert.deepEqual([crm.origem, crm.donoEmail, crm.donoNome], ["cadastro", "dona@exemplo.com", "Dra. Ana"]);
+
+  // o site é dele: sem a faixa de proposta nem o "Pedir remoção"
+  const site = (await lerSite(db, "sorriso-leve"))!;
+  assert.equal(site.origem, "cadastro");
+  const { GET } = await import("@/app/s/[slug]/index.html/route");
+  const html = await (await GET(new Request("http://x/"), { params: Promise.resolve({ slug: "sorriso-leve" }) })).text();
+  assert.ok(!html.includes('data-ysis="proposta"') && !html.includes("Pedir remoção"), "cadastro não é proposta");
+  assert.ok(html.includes("Site criado com Ruphus"));
+  assert.ok(!/R\$\s?\d/.test(html), "e continua sem preço de saúde");
+
+  // a cota continua valendo: 1 negócio por conta
+  await assert.rejects(criarNegocio(db, dona, { ...base, slug: "outro-sorriso" }), /Sua conta inclui 1 negócio/);
+  assert.equal((await db.doc("tenants/outro-sorriso").get()).exists, false, "e nada foi gravado");
+
+  // "Meu negócio": muda os dados e o ramo sem mexer na agenda
+  await db.doc("tenants/sorriso-leve/services/limpeza").update({ priceCents: 12000 });
+  await salvarNegocio(db, "sorriso-leve", { name: "Sorriso Leve Odonto", sub: "odonto", telefone: "96991113333", cidade: "Macapá", uf: "AP", instagram: "@sorrisoleve", horario: "Seg a sex, 8h às 18h" });
+  const t2 = (await db.doc("tenants/sorriso-leve").get()).data()!;
+  assert.deepEqual([t2.name, t2.site.phone, t2.site.instagram, t2.gerado.horario, t2.gerado.origem], ["Sorriso Leve Odonto", "5596991113333", "sorrisoleve", "Seg a sex, 8h às 18h", "cadastro"]);
+  assert.equal((await db.doc("tenants/sorriso-leve/services/limpeza").get()).get("priceCents"), 12000, "o preço que o dono pôs fica");
+  assert.equal((await lerNegocio(db, "sorriso-leve")).instagram, "sorrisoleve");
+  await assert.rejects(salvarNegocio(db, "sorriso-leve", { name: "X" }), /nome|ramo/);
+}
+// negócio criado antes do site automático ganha o site ao escolher o ramo
+{
+  await db.doc("tenants/antigo").set({ name: "Antigo", ownerId: "alguem" });
+  assert.equal(await lerSite(db, "antigo"), null);
+  await salvarNegocio(db, "antigo", { name: "Antigo", sub: "barbearia", telefone: "96991114444", cidade: "Santana", uf: "AP" });
+  assert.equal((await lerSite(db, "antigo"))?.origem, "cadastro");
+  assert.equal((await db.collection("tenants/antigo/services").get()).size, 0, "a agenda de quem já existia não é mexida");
+}
+// site da fábrica: os dados mudam, mas ele não vira site gerado (a página é o arquivo)
+{
+  await db.doc("tenants/fabrica-x").set({ name: "Fábrica X", ownerId: "p", site: { url: "https://fabrica-x.ruphus.site", phone: "5591000000001", rating: 4.8 } });
+  assert.equal((await lerNegocio(db, "fabrica-x")).fabrica, true);
+  await salvarNegocio(db, "fabrica-x", { name: "Fábrica X", sub: "petshop", telefone: "91988887777", cidade: "Belém", uf: "PA" });
+  const f = (await db.doc("tenants/fabrica-x").get()).data()!;
+  assert.deepEqual([f.site.phone, f.site.rating, f.gerado], ["5591988887777", 4.8, undefined]);
+}
+// a prospecção que o dono edita não perde a nota do Google
+{
+  await salvarNegocio(db, "navalha", { name: "Navalha", sub: "barbearia", telefone: "(92) 99123-4567", cidade: "Manaus", uf: "AM" });
+  const n = (await db.doc("tenants/navalha").get()).data()!;
+  assert.equal(n.gerado.origem, "prospeccao", "o site continua sendo proposta até a Ruphus mudar");
+}
 
 // entrada adulterada no navegador não passa
 await assert.rejects(gerarNoBanco(db, [{ linha: 1, lead: { nome: "x" } }], true, "a"), /Planilha inválida/);

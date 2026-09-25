@@ -70,6 +70,8 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
     { href: `/${slug}/servicos`, label: "Serviços" },
     { href: `/${slug}/profissionais`, label: "Profissionais" },
     { href: `/${slug}/clientes`, label: "Clientes" },
+    // os dados do negócio (site, bio, WhatsApp) só para quem gere
+    ...(state.podeGerir ? [{ href: `/${slug}/negocio`, label: "Meu negócio" }] : []),
   ];
   const isActive = (href: string) => pathname === href || (href !== `/${slug}` && pathname.startsWith(`${href}/`));
   return (

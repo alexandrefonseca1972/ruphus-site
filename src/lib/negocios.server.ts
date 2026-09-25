@@ -1,7 +1,8 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { UserError } from "@/lib/booking.server";
-import { TenantInput } from "@/lib/tenant-input";
+import { DadosNegocio, leadDoDono, NegocioInput, type Sub, SUBS } from "@/lib/gerador";
+import { registrosDoSite } from "@/lib/gerador.server";
 import { limiteStaffDe } from "@/lib/limites";
 
 /** Negócios que cada conta pode ter, até o admin da plataforma liberar mais. */
@@ -30,14 +31,15 @@ export async function cotaDe(db: Firestore, uid: string) {
   return { usados, limite: admin ? null : ((limite.get("negocios") as number | undefined) ?? LIMITE_PADRAO) };
 }
 
-/** Cria o negócio com quem pediu como dono, se a conta ainda tem cota.
+/** Cria o negócio com quem pediu como dono, se a conta ainda tem cota — e já com o
+ *  site no ar, a agenda aberta (serviços do ramo e uma equipe) e a ficha no funil.
  *
  * Numa transação: dois cliques (ou duas abas) ao mesmo tempo não passam juntos
- * pela contagem, e o endereço já tomado falha no create em vez de sobrescrever. */
+ * pela contagem, e o endereço já tomado falha antes de gravar qualquer coisa. */
 export async function criarNegocio(db: Firestore, user: { uid: string; email?: string; name?: string }, input: unknown) {
-  const parsed = TenantInput.safeParse(input);
+  const parsed = NegocioInput.safeParse(input);
   if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
-  const { slug, name } = parsed.data;
+  const { slug, ...dados } = parsed.data;
   const admin = await ehAdminDaPlataforma(db, user.uid);
 
   await db.runTransaction(async (tx) => {
@@ -56,17 +58,66 @@ export async function criarNegocio(db: Firestore, user: { uid: string; email?: s
           : `Sua conta inclui ${max} negócios. Para cadastrar outro, fale com a Ruphus.`,
       );
     }
-    const t = db.doc(`tenants/${slug}`);
-    tx.create(t, { name, ownerId: user.uid, createdAt: FieldValue.serverTimestamp() });
-    tx.create(t.collection("members").doc(user.uid), {
-      uid: user.uid,
-      role: "owner",
+    const n = { nicho: SUBS[dados.sub].nicho, sub: dados.sub, tipo: SUBS[dados.sub].tipo };
+    for (const e of registrosDoSite(db, slug, leadDoDono(dados, user.email), n, {
+      novo: true, ownerId: user.uid, origem: "cadastro", equipe: user.name, donoNome: user.name,
+    })) {
+      tx.set(e.ref, e.dados, { merge: true });
+    }
+    // o membro do dono com e-mail e nome: é o que "Quem tem acesso" mostra
+    tx.set(db.doc(`tenants/${slug}/members/${user.uid}`), {
       ...(user.email && { email: user.email }),
       ...(user.name && { nome: user.name }),
-      createdAt: FieldValue.serverTimestamp(),
-    });
+    }, { merge: true });
   });
   return slug;
+}
+
+/** O que a aba "Meu negócio" mostra para editar. `fabrica`: site feito pela fábrica,
+ *  estático — os dados mudam a bio e o agendamento, mas não a página. */
+export async function lerNegocio(db: Firestore, slug: string) {
+  const t = await db.doc(`tenants/${slug}`).get();
+  if (!t.exists) throw new UserError("Negócio não encontrado.");
+  const s = (campo: string) => String(t.get(campo) ?? "");
+  return {
+    name: s("name"),
+    sub: (t.get("gerado.sub") as Sub | undefined) ?? "",
+    telefone: s("site.phone"),
+    cidade: s("site.city"),
+    uf: s("site.uf"),
+    bairro: s("gerado.bairro"),
+    endereco: s("site.address"),
+    instagram: s("site.instagram"),
+    horario: s("gerado.horario"),
+    fabrica: !t.get("gerado") && !!t.get("site.url"),
+  };
+}
+
+/** Grava o que o dono editou. Não mexe em serviços nem na equipe (são dele), nem na
+ *  nota e nas avaliações do Google que o gerador trouxe. Negócio criado antes do
+ *  site automático ganha o site aqui, quando o dono escolhe o ramo. */
+export async function salvarNegocio(db: Firestore, slug: string, input: unknown) {
+  const parsed = DadosNegocio.safeParse(input);
+  if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
+  const d = parsed.data;
+  const ref = db.doc(`tenants/${slug}`);
+  const t = await ref.get();
+  if (!t.exists) throw new UserError("Negócio não encontrado.");
+
+  if (!t.get("gerado") && t.get("site.url")) {
+    // site da fábrica: a página é um arquivo; muda o que a bio e o agendamento leem
+    await ref.set({
+      name: d.name,
+      site: { phone: d.telefone, city: d.cidade, uf: d.uf, address: d.endereco || null, instagram: d.instagram || null },
+    }, { merge: true });
+    return;
+  }
+  const origem = t.get("gerado.origem") === "cadastro" || !t.get("gerado") ? "cadastro" : "prospeccao";
+  const [negocio] = registrosDoSite(db, slug, leadDoDono(d), { nicho: SUBS[d.sub].nicho, sub: d.sub, tipo: SUBS[d.sub].tipo }, {
+    novo: false, ownerId: String(t.get("ownerId")), origem,
+  });
+  const { rating: _nota, reviews: _avaliacoes, ...site } = negocio.dados.site as Record<string, unknown>;
+  await ref.set({ ...negocio.dados, site }, { merge: true });
 }
 
 /** O admin da plataforma libera (ou reduz) quantos negócios uma conta pode ter. */
