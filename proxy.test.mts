@@ -18,10 +18,13 @@ console.log("proxy ok");
 
 import { sitePath } from "@/proxy";
 // raiz do site vira o arquivo; assets é compartilhada entre todos os sites
+// os sites do gerador dependem disto: sem pasta em public/s, /s/{slug}/index.html
+// cai na rota src/app/s/[slug]/index.html
 assert.equal(sitePath("lindass", "/"), "/s/lindass/index.html");
 assert.equal(sitePath("lindass", "/img/8040045c087e.jpg"), "/s/lindass/img/8040045c087e.jpg");
 assert.equal(sitePath("samurai-pet", "/assets/pet/loja-racao-800.jpg"), "/s/assets/pet/loja-racao-800.jpg");
 assert.equal(sitePath("samurai-pet", "/assets/fx.js"), "/s/assets/fx.js");
+assert.equal(sitePath("site-gerado", "/assets/gerado/beleza.css"), "/s/assets/gerado/beleza.css");
 // nome parecido não é a pasta compartilhada
 assert.equal(sitePath("lindass", "/assetsfoo/x.png"), "/s/lindass/assetsfoo/x.png");
 assert.equal(sitePath("lindass", "/s/lindass/img/hero.jpg"), "/s/lindass/img/hero.jpg", "caminho completo não dobra");

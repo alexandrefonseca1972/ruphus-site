@@ -38,10 +38,12 @@ jobs:
       - run: npm run test:whatsapp
       - run: npm run test:pix
       - run: npm run test:admin
+      - run: npm run test:gerador
 
       # Com emulador do Firestore (e do Auth, no booking)
       - run: npm run test:rules
       - run: npm run test:convite
       - run: npm run test:cobranca
+      - run: npm run test:gerador-banco
       - run: npm run test:booking
       - run: npm run test:scale

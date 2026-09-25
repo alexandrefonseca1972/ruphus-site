@@ -127,7 +127,20 @@ de `npm audit fix` desfeito sem reinstalar.
 2. `curl -sI https://<slug>.ruphus.site/` — 404 com a página "indisponível"
    significa lista de desativados; 404 seco significa pasta ausente em
    `public/s/<slug>`.
-3. Pasta ausente: `npm run sync:sites` e publique.
+3. Pasta ausente: `npm run sync:sites` e publique — **a menos que seja um site
+   do gerador** (aba Gerador do `/admin`): esses não têm pasta, são montados do
+   Firestore. Se um deles some, confira se o tenant ainda tem o campo `gerado`.
+
+### Gerar sites a partir de uma planilha
+
+`/admin` → aba **Gerador** → escolha o `.xlsx` (há um modelo para baixar). A
+tela mostra o que vai acontecer com cada linha antes de gravar; só grava no
+botão "Gerar". Todas as abas com cabeçalho são lidas (levas de um mesmo
+levantamento); aba de notas é pulada.
+
+O telefone identifica o negócio: se ele já tem site da fábrica ou conta, a linha
+fica de fora; se já tem site gerado, é atualizado — agenda e funil não são
+mexidos. Nicho fora de pet e beleza (tatuagem, por ora) sai com o motivo na lista.
 
 ### Ninguém consegue agendar em um negócio
 
@@ -153,6 +166,7 @@ Todo script que grava tem modo de simulação — rode sem `--aplicar` primeiro.
 
 ```bash
 npm run membros            # preenche e-mail e nome nos acessos antigos
+npm run gerar:sites -- planilha.xlsx   # gera sites da planilha (--aplicar grava)
 npm run import:sites       # importa sites e cria os negócios
 npm run seed:agenda        # cria serviços e equipe a partir do site
 npm run vitrine            # atualiza a vitrine da landing

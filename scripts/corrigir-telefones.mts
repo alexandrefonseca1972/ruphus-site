@@ -13,18 +13,7 @@ import { cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-
-export const RUPHUS = "5511948680554";
-
-/** Só dígitos com DDI, pelo tamanho — 55 também é DDD, então prefixo não decide. */
-export function normalizar(bruto: string) {
-  const d = bruto.replace(/\D/g, "");
-  if (d.length === 10 || d.length === 11) return `55${d}`;
-  if ((d.length === 12 || d.length === 13) && d.startsWith("55")) return d;
-  // 15 dígitos = DDI dobrado na importação (55 + 5592…)
-  if (d.length === 15 && d.startsWith("5555")) return d.slice(2);
-  return "";
-}
+import { normalizar, RUPHUS } from "@/lib/catalogo";
 
 /** O telefone do negócio: o primeiro número da página que não seja o nosso. */
 export function telefoneDoSite(html: string) {

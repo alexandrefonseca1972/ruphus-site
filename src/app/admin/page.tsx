@@ -38,6 +38,7 @@ import { COMMIT, VERSAO } from "@/lib/versao";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX } from "@/lib/limites";
 import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
 import { Carteira } from "./carteira";
+import { Gerador } from "./gerador";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
 import { COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
@@ -151,7 +152,7 @@ export default function AdminPage() {
   const [eventos, setEventos] = useState<Evento[] | null>(null);
   // qual negócio está sendo marcado como perdido (pela gaveta ou soltando no funil)
   const [perdendo, setPerdendo] = useState<string | null>(null);
-  const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca">("lista");
+  const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca" | "gerador">("lista");
   // qual negócio está sendo marcado como fechado (confirma valores e já faz o pós-venda)
   const [fechando, setFechando] = useState<string | null>(null);
   const [saude, setSaude] = useState<ClienteSaude | null>(null);
@@ -611,7 +612,7 @@ export default function AdminPage() {
         </span>
 
         <div role="group" aria-label="Visão" className="flex rounded-[10px] bg-[#EFEBE2] p-[3px]">
-          {(["lista", "funil", "clientes", "cobranca"] as const).map((v) => (
+          {(["lista", "funil", "clientes", "cobranca", "gerador"] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -619,7 +620,7 @@ export default function AdminPage() {
               onClick={() => setTela(v)}
               className={`h-8 rounded-lg px-3 text-[12px] ${tela === v ? "bg-white font-semibold shadow-[0_1px_2px_rgba(23,21,15,.12)]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
             >
-              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : v === "clientes" ? "Clientes" : "Cobrança"}
+              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : v === "clientes" ? "Clientes" : v === "cobranca" ? "Cobrança" : "Gerador"}
               {v === "cobranca" && atrasadas > 0 && (
                 <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${tela === v ? "bg-[#FBF0EE] text-[#8A2F2F]" : "bg-[#F1E7E7] text-[#8A2F2F]"}`}>
                   {atrasadas}
@@ -1007,7 +1008,18 @@ export default function AdminPage() {
           <Atrasadas idToken={idToken} aviso={setAviso} cortar={(slug) => mudarNegocio(slug, { publicado: false })} aoContar={setAtrasadas} />
         </div>
 
-        {tela === "cobranca" ? null : tela === "clientes" ? (
+        {tela === "cobranca" ? null : tela === "gerador" ? (
+          <Gerador
+            idToken={idToken}
+            aoGerar={async () => {
+              // os sites novos entram na lista e no funil sem recarregar a página
+              const r = await abrirPainel(idToken);
+              if (!r.ok) return;
+              setEspacos(r.dados.espacos);
+              setCrm(r.dados.crm);
+            }}
+          />
+        ) : tela === "clientes" ? (
           <Carteira idToken={idToken} hoje={dataDeHoje} espacos={espacos} abrir={abrir} />
         ) : tela === "funil" ? (
           <Funil
@@ -1837,6 +1849,8 @@ export default function AdminPage() {
                     src={`/s/_p/${aberto.slug}.webp`}
                     alt={`Página inicial do site de ${aberto.nome}`}
                     className="size-full object-cover object-top"
+                    // site do gerador não tem captura: o quadro fica liso, sem ícone quebrado
+                    onError={(e) => { e.currentTarget.hidden = true; }}
                   />
                 </a>
                 {/* eslint-disable-next-line @next/next/no-img-element -- QR em SVG gerado pela própria rota */}
