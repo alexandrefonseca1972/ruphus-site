@@ -3,6 +3,13 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## Em avaliação
+
+### Cadastro novo não passa despercebido
+- **Entra no funil com o contato para hoje** (#69): quem se cadastra sozinho já
+  chega com "Dar boas-vindas: cadastrou sozinho no site" combinado para o dia.
+  Aparece em "Para hoje" no `/admin` e, se passar do dia, em "Atrasados".
+
 ## 0.8.0 — 25/09/2026
 
 ### Quem cria a conta sozinho já sai com site e agenda prontos

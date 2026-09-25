@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { dateIn } from "@/lib/datetime";
 import { lerPlanilha } from "@/lib/gerador";
 import { gerarNoBanco, lerSite } from "@/lib/gerador.server";
 import { criarNegocio, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
@@ -133,6 +134,8 @@ assert.equal((await pagina("../etc")).status, 404);
   assert.equal(equipe.serviceIds.length, servicos.size, "e faz todos os serviços: a agenda abre no primeiro minuto");
   const crm = (await db.doc("crm/sorriso-leve").get()).data()!;
   assert.deepEqual([crm.origem, crm.donoEmail, crm.donoNome], ["cadastro", "dona@exemplo.com", "Dra. Ana"]);
+  // ninguém é avisado de um cadastro: ele já entra no funil com o contato combinado para hoje
+  assert.deepEqual([crm.proximaAcao, crm.proximaData], ["Dar boas-vindas: cadastrou sozinho no site", dateIn(new Date())]);
 
   // o site é dele: sem a faixa de proposta nem o "Pedir remoção"
   const site = (await lerSite(db, "sorriso-leve"))!;
