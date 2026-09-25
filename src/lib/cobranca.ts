@@ -176,6 +176,8 @@ export async function baixar(db: Firestore, id: string, b: { recebidoCents: numb
     baixaPor: b.por,
     atualizadoEm: FieldValue.serverTimestamp(),
   });
+  // quem chamou decide o que a baixa desencadeia: a entrada publica o site
+  return { slug: String(atual.get("slug") ?? ""), tipo: (atual.get("tipo") === "entrada" ? "entrada" : "mensal") as Tipo };
 }
 
 export async function cancelar(db: Firestore, id: string, por: string) {

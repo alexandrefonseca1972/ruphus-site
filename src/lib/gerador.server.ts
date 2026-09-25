@@ -182,6 +182,16 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   return resposta;
 }
 
+/** A entrada foi paga: o site deixa de ser proposta. Só vale para site gerado — o da
+ *  fábrica é um arquivo, e gravar `gerado` nele o faria passar por gerado.
+ *  Devolve se publicou, para quem chamou limpar o cache do site. */
+export async function publicarSite(db: Firestore, slug: string) {
+  const t = db.collection("tenants").doc(slug);
+  if (!(await t.get()).get("gerado.sub")) return false;
+  await t.update({ "gerado.publicadoEm": FieldValue.serverTimestamp() });
+  return true;
+}
+
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
@@ -191,7 +201,7 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
   if (!SLUG.test(slug)) return null;
   const t = db.collection("tenants").doc(slug);
   const [tenant, servicos] = await Promise.all([t.get(), t.collection("services").where("active", "==", true).get()]);
-  const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; origem?: string; atualizadoEm?: { toDate(): Date } } | undefined;
+  const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; origem?: string; publicadoEm?: unknown; atualizadoEm?: { toDate(): Date } } | undefined;
   if (!tenant.exists || !gerado?.sub) return null;
 
   const quando = gerado.atualizadoEm?.toDate() ?? new Date();
@@ -218,5 +228,6 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
       .slice(0, 8),
     consultado: `${MESES[quando.getMonth()]} de ${quando.getFullYear()}`,
     origem: gerado.origem === "cadastro" ? "cadastro" : "prospeccao",
+    publicado: !!gerado.publicadoEm,
   };
 }

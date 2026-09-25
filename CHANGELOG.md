@@ -3,6 +3,17 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## Em avaliação
+
+### O site só é oficial depois da entrada paga
+- **Cadastro nasce como prévia** (#70): faixa "prévia feita com a Ruphus, ainda
+  não publicada" (sem "Pedir remoção", foi o dono que criou) e fora do Google. O
+  "Meu negócio" avisa e tem o botão "Publicar meu site", que abre o WhatsApp.
+- **Baixa da entrada publica** (#70): ao marcar a entrada como paga na aba
+  Cobrança, o site gerado (cadastro ou prospecção) perde a faixa, entra no Google
+  e o rodapé deixa de dizer "demonstração". Antes a faixa da prospecção nunca
+  saía, nem depois de vendido. Reenviar a planilha não despublica.
+
 ## 0.9.0 — 25/09/2026
 
 ### O admin completa o site de quem se cadastrou sozinho

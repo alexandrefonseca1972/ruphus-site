@@ -91,6 +91,8 @@ export async function lerNegocio(db: Firestore, slug: string) {
     instagram: s("site.instagram"),
     horario: s("gerado.horario"),
     fabrica: !t.get("gerado") && !!t.get("site.url"),
+    /** entrada paga: sem faixa de proposta e no Google */
+    publicado: !!t.get("gerado.publicadoEm"),
   };
 }
 

@@ -125,13 +125,13 @@ export function renderClaro(d: DadosSite): string {
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/gerado/pet.css">
 <style>:root{${paleta[0]}}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){${paleta[1]}}}:root[data-theme="dark"]{${paleta[1]}}.hero{background:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("../assets/${c.pasta}/${topo}-800.jpg") center 38%/cover no-repeat;}@media (min-width:760px){.hero{background-image:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("../assets/${c.pasta}/${topo}.jpg");}}</style>
-${cabecaComum(d.slug, tituloPag, descr)}
+${cabecaComum(d.slug, tituloPag, descr, d.publicado)}
 <meta name="theme-color" content="${cor}">
 ${d.uf ? `<meta name="geo.region" content="BR-${esc(d.uf)}">` : ""}
 ${jsonLdNegocio(d, descr, `/assets/${c.pasta}/${topo}.jpg`)}${jsonLd({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) })}
 </head>
 <body>
-${d.origem === "cadastro" ? "" : faixaProposta(d.slug)}
+${d.publicado ? "" : faixaProposta(d)}
 
 <header class="site-header" id="siteHeader">
   <div class="header-inner">
@@ -326,7 +326,7 @@ ${temNota ? `
     </div>
     <div class="footer-bottom">
       <span>&copy; <span id="yr"></span> ${esc(d.nome)}. Todos os direitos reservados.</span>
-      <span>${d.origem === "cadastro" ? "Site criado com Ruphus." : "Página demonstrativa desenvolvida para apresentar o potencial de uma presença digital própria."}</span>
+      <span>${d.origem === "cadastro" || d.publicado ? "Site criado com Ruphus." : "Página demonstrativa desenvolvida para apresentar o potencial de uma presença digital própria."}</span>
     </div>
     <p data-ysis="fonte" style="margin:16px 0 0;text-align:center;font-size:.76rem;line-height:1.5;opacity:.6">Fotos ilustrativas (banco de imagens Pexels), não são imagens do estabelecimento.${d.origem === "cadastro" ? "" : ` Endereço, horário, nota e número de avaliações vêm do perfil público do Google Maps, consultado em ${esc(d.consultado)}. Valores públicos, sujeitos a mudança.`}</p>
   </div>

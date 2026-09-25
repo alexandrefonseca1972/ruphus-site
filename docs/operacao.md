@@ -150,6 +150,14 @@ fica de fora; se já tem site gerado, é atualizado — agenda e funil não são
 mexidos. Nicho fora dos modelos (pet, beleza, tatuagem, saúde, aulas, fitness e automotivo) sai com o motivo na lista.
 Telefone de cliente que se cadastrou sozinho também fica de fora: o site é dele.
 
+### Publicar um site (tirar a faixa de proposta)
+
+Todo site gerado — da planilha ou do cadastro — é proposta até a entrada ser paga:
+faixa no topo e fora do Google. Dar baixa na **entrada** (gaveta → Cobrança →
+"Marcar como paga") publica o site na hora: a faixa sai e ele passa a ser
+indexado. A mensalidade não publica nada. A aba **Site** da gaveta mostra se o
+site está publicado.
+
 ### Montar ou completar o site de um negócio
 
 Gaveta do negócio → aba **Site**. Serve sobretudo para quem se cadastrou sozinho:
