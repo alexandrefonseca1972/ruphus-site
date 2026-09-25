@@ -3,6 +3,43 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.6.0 — 24/09/2026
+
+### Gerador de sites
+- **Planilha de leads vira site no ar** (#58): na aba Gerador do `/admin`, um
+  `.xlsx` com nome, telefone e categoria vira, por linha, um site-proposta em
+  `{slug}.ruphus.site` no mesmo padrão dos que já estão no ar — com agenda,
+  dono e ficha no funil, como o importador fazia. Sem commit e sem deploy: a
+  página é montada do Firestore na hora.
+- Dois modelos, tirados das famílias que já existem (#58): **pet** (pet shop e
+  veterinária, o modelo dos 241 sites de pet) e **beleza** (barbearia, salão,
+  estética e unhas, o modelo editorial). Paleta, fontes, textos e fotos variam
+  por site, sempre iguais para o mesmo endereço.
+- A prévia mostra o endereço de cada linha antes de gravar (#58). Endereço de
+  site da fábrica ou de negócio real nunca é sobrescrito; mandar a planilha de
+  novo atualiza pelo telefone sem apagar agenda, preço ou estágio no funil.
+- **Sem negócio em dobro** (#58): o telefone identifica o negócio. Se ele já tem
+  site da fábrica ou conta real, a linha fica de fora ("já tem site: …"); se já
+  tem site gerado, atualiza aquele mesmo que o nome tenha mudado na planilha. O
+  mesmo telefone em duas abas entra uma vez só, e nome + cidade iguais aos de
+  outro negócio aparecem como "possível duplicado" na prévia.
+- Planilha de levantamento com várias abas (#58): lê todas as levas, reconhece
+  "Categoria(s)", "Nº avaliações" e o @ do Instagram no texto da rede social,
+  aceita massoterapia, podologia, bronzeamento, dermatologia, maquiagem e
+  tranças, avisa telefone fixo e leva score e gancho de abordagem para o funil
+  como nota do negócio.
+- `npm run gerar:sites -- planilha.xlsx` faz o mesmo pela linha de comando,
+  simulando por padrão (#58). Foi assim que saíram os 151 sites de beleza e
+  estética de Macapá e Santana.
+- Os sites gerados não herdam três defeitos dos da fábrica (#58): telefone da
+  Ruphus no JSON-LD, caminho `sobreassets` na imagem e botão de Instagram que
+  abria o WhatsApp.
+
+### Correções
+- **A foto da `/bio` dos 241 sites de pet dava 404** (#58): o caminho do banco
+  de imagens compartilhado ganhava o slug na frente.
+- `assets` entrou nos endereços reservados (#58).
+
 ## 0.5.4 — 24/09/2026
 
 ### E-mails de acesso com link no próprio domínio

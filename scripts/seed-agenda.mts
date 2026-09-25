@@ -9,41 +9,7 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { applicationDefault, cert, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-
-// duração (min) e preço (R$) típicos por tipo de serviço; a primeira regra que casar vence
-const TABELA: [RegExp, number, number][] = [
-  [/banho de gel|banho em gel/i, 60, 70], // unha, não pet
-  [/banho\s*(e|\+)\s*tosa|tosa\s*(e|\+)\s*banho/i, 120, 100],
-  [/tosa|grooming/i, 90, 80],
-  [/banho/i, 60, 60],
-  [/vacina/i, 20, 90],
-  [/consulta|clínic|clinic|veterin|check-?up|avalia/i, 40, 120],
-  [/exame|laborat|ultrassom|raio-?x/i, 30, 150],
-  [/castra|cirurg/i, 60, 400],
-  [/corte\s*(e|\+)\s*barba|combo/i, 75, 70],
-  [/barba|navalha/i, 30, 35],
-  [/corte|cabelo|degrad|máquina/i, 45, 45],
-  [/progressiva|alisa|selage|botox|relaxa/i, 180, 250],
-  [/colora|mecha|luzes|tintura|loiro|platina/i, 150, 220],
-  [/escova|finaliza|penteado|chapinha/i, 45, 50],
-  [/hidrata|cronograma|tratamento capilar|cauteriza/i, 60, 90],
-  [/tranç|dread|nagô|box braid/i, 180, 200],
-  [/alongamento|fibra|gel|postiç/i, 120, 150],
-  [/manicure|esmalta|unha|nail/i, 45, 35],
-  [/pedicure|spa dos pés|podolog/i, 60, 50],
-  // micropigmentação ANTES de sobrancelha: a regra de sobrancelha capturava "micropigmentação"
-  // e anunciava 30min/R$40 num procedimento de horas e centenas de reais — erro de 10x no
-  // preço que aparece na bio do cliente. Valores de mercado; confirme com cada profissional.
-  [/micropigment|microblading|nanoblading|fio a fio|dermopigment/i, 120, 450],
-  [/sobrancelha|henna|design/i, 30, 40],
-  [/cíli|cili|lash|extens/i, 120, 150],
-  [/depila|cera|laser/i, 45, 70],
-  [/limpeza de pele|peeling|facial|skin/i, 60, 120],
-  [/massagem|massot|relaxa|drenagem|spa/i, 60, 120],
-  [/maquiagem|make/i, 60, 100],
-  [/tatua|tattoo|piercing/i, 120, 250],
-  [/microagulha|preenchi|toxina|harmoniza|estétic/i, 60, 200],
-];
+import { EQUIPE, idDe, montar, porRamo as ramo } from "@/lib/catalogo";
 
 // o que a página lista mas não se agenda: produto, loja, entrega
 const NAO_AGENDA =
@@ -51,27 +17,10 @@ const NAO_AGENDA =
 
 const TETO = 8; // catálogo curto escolhe melhor que catálogo longo
 
-// quando a página não lista nada agendável (só produtos, ou sem seção de serviços),
-// o catálogo sai do ramo do negócio, lido do título e da descrição
-const PADRAO: [RegExp, string[]][] = [
-  [/veterin|clínica animal|clinica veterin|hospital veterin/i, ["Consulta veterinária", "Vacinação", "Banho e tosa"]],
-  [/pet ?shop|petshop|agropet|banho e tosa|ração|racao|animal/i, ["Banho", "Tosa", "Banho e tosa"]],
-  [/barbearia|barber|barbeiro/i, ["Corte", "Barba", "Corte + barba"]],
-  [/tattoo|tatuagem|piercing/i, ["Sessão de tatuagem", "Orçamento"]],
-  [/nail|esmalteria|manicure|unhas/i, ["Manicure", "Pedicure", "Alongamento em gel"]],
-  [/podolog/i, ["Podologia"]],
-  [/depila|laser/i, ["Depilação a laser", "Avaliação"]],
-  [/massag|massot|spa|terapi/i, ["Massagem relaxante", "Drenagem linfática"]],
-  [/sobrancelha|cíli|cili|lash|micropigment/i, ["Design de sobrancelha", "Extensão de cílios"]],
-  [/cabelei|cabelo|hair|mechas|cachos|tranç|escova|salão|salao/i, ["Corte", "Escova", "Coloração", "Hidratação"]],
-  [/estétic|estetic|beleza|pele|dermat|clínic|clinic/i, ["Limpeza de pele", "Avaliação estética"]],
-];
-
+// sem nada agendável na página, o catálogo sai do ramo lido do título e da descrição
 function porRamo(html: string) {
-  const texto = [/<title>([\s\S]*?)<\/title>/i, /name="description" content="([^"]*)"/i]
-    .map((re) => re.exec(html)?.[1] ?? "").join(" ");
-  const achado = PADRAO.find(([re]) => re.test(texto));
-  return (achado ? achado[1] : ["Atendimento"]).map(montar);
+  return ramo([/<title>([\s\S]*?)<\/title>/i, /name="description" content="([^"]*)"/i]
+    .map((re) => re.exec(html)?.[1] ?? "").join(" "));
 }
 
 export function extrairServicos(html: string) {
@@ -86,34 +35,9 @@ export function extrairServicos(html: string) {
   return [...new Set(nomes)].slice(0, TETO).map(montar);
 }
 
-function montar(name: string) {
-  const regra = TABELA.find(([re]) => re.test(name));
-  return {
-    id: idDe(name),
-    name,
-    durationMin: regra ? regra[1] : 60,
-    priceCents: (regra ? regra[2] : 80) * 100,
-    active: true,
-  };
-}
-
 const ENTIDADES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", nbsp: " ", mdash: "—", ndash: "–" };
 const desmarcar = (s: string) =>
   s.replace(/<[^>]*>/g, "").replace(/&(#?\w+);/g, (m, e) => ENTIDADES[e] ?? m).replace(/\s+/g, " ").trim();
-
-export const idDe = (nome: string) =>
-  nome.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "servico";
-
-// um profissional por tenant: a casa atende de segunda a sábado
-const EQUIPE = {
-  name: "Equipe",
-  hours: { "1": h(), "2": h(), "3": h(), "4": h(), "5": h(), "6": { start: "09:00", end: "17:00" } },
-  active: true,
-};
-function h() {
-  return { start: "09:00", end: "19:00" };
-}
 
 // Dia da semana como o app guarda: 0 = domingo … 6 = sábado (igual a Date#getDay)
 const DIA: Record<string, number> = { su: 0, mo: 1, tu: 2, we: 3, th: 4, fr: 5, sa: 6 };

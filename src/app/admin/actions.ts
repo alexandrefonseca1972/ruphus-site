@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { adminDb } from "@/lib/admin";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
@@ -22,6 +23,7 @@ import { anotar, CrmInput, lerCrm, linhaDoTempo, listarNotas, registrarMensagem,
 import { diaCurto, hojeISO } from "@/lib/crm-tipos";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import { competenciaAtual } from "@/lib/pix";
+import { gerarNoBanco } from "@/lib/gerador.server";
 
 export type Espaco = {
   slug: string;
@@ -465,3 +467,16 @@ export const cancelarCobranca = adminAction(async (user, id: string) => {
 
 /** Abertas com vencimento no passado. Cortar o site continua sendo clique humano. */
 export const listarAtrasadas = adminAction(async () => enviaveis(await atrasadas(adminDb, hojeISO())));
+
+// ─── Gerador de sites ────────────────────────────────────────────────────────
+
+/** Da planilha lida no navegador aos sites no ar. Com aplicar=false só diz o que faria. */
+export const gerarSites = adminAction(async (user, entrada: unknown, aplicar: boolean) => {
+  const linhas = await gerarNoBanco(adminDb, entrada, aplicar, process.env.OWNER_UID || user.uid);
+  // o site e a bio saem do cache agora, não em até um minuto
+  if (aplicar) for (const { slug } of linhas.filter((l) => l.acao !== "pular")) {
+    revalidatePath(`/s/${slug}/index.html`);
+    revalidatePath(`/bio/${slug}`);
+  }
+  return linhas;
+});

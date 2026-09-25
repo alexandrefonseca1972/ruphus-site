@@ -71,6 +71,8 @@ negócio, criar profissional, agendar, remarcar, planos.
 | `crm.ts`, `cobranca.ts`, `convite.ts`, `saude.server.ts` | servidor | CRM, Pix, convites, saúde |
 | `scheduling.ts` | isomórfico | schemas zod de serviço, profissional, reserva, plano |
 | `datetime.ts` | isomórfico | fuso, `freeSlots`, máscaras, `customerKey`, links de WhatsApp |
+| `gerador.ts`, `site-pet.ts`, `site-beleza.ts`, `catalogo.ts` | puro | gerador de sites: planilha → leads, nicho, slug e os dois modelos de página; `catalogo.ts` é a tabela de serviços que o `seed:agenda` também usa |
+| `gerador.server.ts` | servidor | grava os sites da planilha (prévia e gravação são a mesma conta) |
 | `saude.ts`, `alertas.ts`, `clientes.ts`, `dinheiro.ts`, `pix.ts`, `revogacao.ts`, `limites.ts` | puro | regra de negócio, testável sem banco |
 | `sessao.ts`, `use-collection.ts`, `firebase.ts` | cliente | logout automático, coleções em tempo real, SDK web |
 | `firebase-db.ts`, `sessao-config.ts` | cliente | Firestore do navegador, e o único `onSnapshot` de sessão — separados para quem só faz login não baixar 1 MB de SDK |
@@ -91,6 +93,10 @@ celular do cliente final baixa.
 3. **Senão**, reescreve para o arquivo estático em `public/s/{slug}`, com três
    exceções que apontam para o app: `/agendar` → `/agendar/{slug}`, `/bio` →
    `/bio/{slug}`, e `/assets/...` → `/s/assets/...` (pasta compartilhada).
+   **Sem pasta em `public/s/{slug}`**, o `/s/{slug}/index.html` cai na rota
+   `src/app/s/[slug]/index.html/route.ts`: é assim que os sites do gerador vão
+   ao ar sem arquivo e sem deploy (o `public/` responde antes das rotas
+   dinâmicas, então os sites da fábrica não passam por ela).
 4. **Sem slug** (apex, `www`): `/` → `public/sobre/index.html`, `/privacidade` →
    a página estática; qualquer outra rota segue para o app.
 
@@ -356,6 +362,8 @@ imprimindo `ok`. O que toca o banco sobe o emulador sozinho.
 | `npm run test:admin` | não | o `select` da lista não pode ficar atrás dos campos lidos |
 | `npm run test:cobranca` | sim | Pix, token, baixa |
 | `npm run test:scale` | sim | carga e concorrência com equipe grande |
+| `npm run test:gerador` | não | leitura da planilha, nicho, slug, HTML escapado e camada Ruphus |
+| `npm run test:gerador-banco` | sim | endereço ocupado, reenvio sem apagar agenda e funil, a rota do site |
 
 O CI roda o conjunto a cada push. **Confira a execução do commit final antes de
 mesclar** — não a de um commit anterior.
