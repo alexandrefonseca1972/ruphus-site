@@ -916,7 +916,7 @@ function render(){
   vazio.hidden = achados.length > 0;
   const termo = q.value.trim();
   contagem.innerHTML = !termos.length
-    ? '<b>' + SITES.length + ' sites</b> já publicados em ' + CIDADES + ' cidades'
+    ? '<b>' + SITES.length + ' sites</b> feitos um a um, já publicados em ' + CIDADES + ' cidades'
     : achados.length === 0 ? 'Nenhum site com esse nome'
     : '<b>' + achados.length + (achados.length === 1 ? ' site' : ' sites') + '</b> com “'
       + termo.replace(/[<>&]/g, '') + '”';
