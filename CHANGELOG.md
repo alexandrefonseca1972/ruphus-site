@@ -29,6 +29,10 @@ o PR, onde está o porquê.
   Painel e Link da bio no lugar dos selos de números, que repetiam a contagem da
   busca. A prévia no celular não fica mais com o aviso de proposta coberto pelo
   entalhe.
+- **A landing conta todos os sites** (#66): os do gerador (161, de Macapá e
+  Santana) entram na busca, na lista e nos números, via `/api/catalogo`; antes
+  a página só conhecia os estáticos. Dois estáticos que tinham ficado fora do
+  catálogo voltam. 673 → 836 sites, 14 → 16 cidades.
 
 ## 0.7.0 — 25/09/2026
 
