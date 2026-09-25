@@ -23,6 +23,8 @@ o PR, onde está o porquê.
   botão da demo ao vivo, o menu leva direto à Agenda e ao Painel, a barra de
   baixo troca a demo conforme a seção, e "Criar minha conta" aparece no painel,
   no preço e no fechamento.
+- **"Criar minha conta" cai no cadastro** (#62): o login abre em "Criar conta",
+  não em "Entrar".
 
 ## 0.7.0 — 25/09/2026
 
