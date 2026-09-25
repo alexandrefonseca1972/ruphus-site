@@ -12,7 +12,7 @@ header{position:fixed;top:var(--dnh,36px);left:0;right:0;z-index:50;display:flex
 header.scrolled{background:rgba(255,255,255,.94);backdrop-filter:blur(10px);box-shadow:0 1px 0 rgba(14,12,13,.08)}
 .logo{font-family:var(--serif);font-size:1.6rem;letter-spacing:.05em;white-space:nowrap;transition:color .4s}
 header:not(.scrolled) .logo{color:#fff}
-header:not(.scrolled) .logo em{color:var(--acc)}
+header:not(.scrolled) .logo em{color:var(--acc)}header:not(.scrolled) nav a{color:#fff}header:not(.scrolled) nav a::after{background:#fff}header:not(.scrolled) .btn-wpp{border-color:rgba(255,255,255,.75);color:#fff}header:not(.scrolled) .btn-wpp:hover{background:#fff;color:var(--ink)}
 .logo em{font-style:normal;color:var(--deep)}
 @media(max-width:760px){.logo{font-size:1.22rem;white-space:normal;line-height:1.1;max-width:52vw;display:inline-flex;align-items:center;min-height:40px}}
 nav{display:flex;gap:24px;font-size:.74rem;text-transform:uppercase;letter-spacing:.16em;font-weight:500}

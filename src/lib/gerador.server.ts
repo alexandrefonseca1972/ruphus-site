@@ -116,13 +116,13 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   // (mesmo que o nome tenha mudado na planilha). Com site da fábrica ou conta
   // real: o negócio já existe, a linha fica de fora.
   const telefones = [...new Set(lida.data.map(({ lead }) => lead.telefone))];
-  const porTelefone = new Map<string, { slug: string; gerado: boolean }>();
+  const porTelefone = new Map<string, { slug: string; gerado: boolean; cadastro: boolean }>();
   for (let i = 0; i < telefones.length; i += 30) { // o "in" do Firestore aceita até 30
     const achados = await tenants.where("site.phone", "in", telefones.slice(i, i + 30)).select("site.phone", "gerado").get();
     for (const d of achados.docs) {
       const t = String(d.get("site.phone"));
       // entre um gerado e outro qualquer com o mesmo número, o que não é gerado decide: não duplicar
-      if (!porTelefone.has(t) || !d.get("gerado")) porTelefone.set(t, { slug: d.id, gerado: !!d.get("gerado") });
+      if (!porTelefone.has(t) || !d.get("gerado")) porTelefone.set(t, { slug: d.id, gerado: !!d.get("gerado"), cadastro: d.get("gerado.origem") === "cadastro" });
     }
   }
 
@@ -141,6 +141,12 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
     const base = { aba, linha, nome: lead.nome, conflito: null, motivo: null, aviso: semZap, lead };
     if (ja && !ja.gerado) {
       saida.push({ ...base, slug: ja.slug, acao: "pular", motivo: `já tem site: ${ja.slug}.ruphus.site` });
+      continue;
+    }
+    // o site do cadastro é do dono: regravar como prospecção traria de volta a faixa de
+    // proposta e apagaria o que ele editou. Completar esse site é pela gaveta, aba "Site".
+    if (ja?.cadastro) {
+      saida.push({ ...base, slug: ja.slug, acao: "pular", motivo: `cliente do cadastro (${ja.slug}): complete o site pela gaveta, aba Site` });
       continue;
     }
     if (ja) {

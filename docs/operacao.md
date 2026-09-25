@@ -148,6 +148,16 @@ levantamento); aba de notas é pulada.
 O telefone identifica o negócio: se ele já tem site da fábrica ou conta, a linha
 fica de fora; se já tem site gerado, é atualizado — agenda e funil não são
 mexidos. Nicho fora dos modelos (pet, beleza, tatuagem, saúde, aulas, fitness e automotivo) sai com o motivo na lista.
+Telefone de cliente que se cadastrou sozinho também fica de fora: o site é dele.
+
+### Montar ou completar o site de um negócio
+
+Gaveta do negócio → aba **Site**. Serve sobretudo para quem se cadastrou sozinho:
+o site dele sai só com nome, ramo, WhatsApp e cidade. Complete bairro, endereço,
+horário e a nota do Google; "Revisar mudanças" mostra campo a campo o que muda,
+e só grava em "Publicar mudanças". Conta antiga sem site ganha o site ao escolher
+o ramo. O site do cadastro continua sem a faixa de proposta; serviços, equipe e
+agenda não mudam. Em site da fábrica mudam só os dados da bio e do agendamento.
 
 ### Ninguém consegue agendar em um negócio
 

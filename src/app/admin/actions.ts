@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { adminDb } from "@/lib/admin";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
-import { cotaDe, definirLimite } from "@/lib/negocios.server";
+import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNegocio as salvarSite } from "@/lib/negocios.server";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX, limiteStaffDe, MINUTOS_MAX } from "@/lib/limites";
 import { gerarProposta } from "@/lib/proposta.server";
 import { saudeDe } from "@/lib/saude.server";
@@ -479,6 +479,27 @@ export const cancelarCobranca = adminAction(async (user, id: string) => {
 export const listarAtrasadas = adminAction(async () => enviaveis(await atrasadas(adminDb, hojeISO())));
 
 // ─── Gerador de sites ────────────────────────────────────────────────────────
+
+/** A aba "Site" da gaveta: o que o negócio tem hoje. */
+export const siteDoNegocio = adminAction(async (_user, slug: string) => {
+  slugValido(slug);
+  return lerSiteDoNegocio(adminDb, slug);
+});
+
+/** Monta ou completa o site de um negócio pela gaveta — o do cadastro, sobretudo, que
+ *  sai só com o que o dono digitou. Com aplicar=false só diz o que mudaria; o site do
+ *  cadastro continua do dono (sem faixa de proposta) e serviços e equipe não mudam. */
+export const montarSite = adminAction(async (_user, slug: string, dados: unknown, google: unknown, aplicar: boolean) => {
+  slugValido(slug);
+  const g = Google.safeParse(google);
+  if (!g.success) throw new ErroPrevisto("Nota de 0 a 5 e avaliações em número inteiro.");
+  const previa = await previaDoSite(adminDb, slug, dados, g.data);
+  if (!aplicar) return previa;
+  await salvarSite(adminDb, slug, dados, previa.tipo === "fabrica" ? undefined : g.data);
+  for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${slug}/${p}`);
+  revalidatePath(`/bio/${slug}`);
+  return previa;
+});
 
 /** Da planilha lida no navegador aos sites no ar. Com aplicar=false só diz o que faria. */
 export const gerarSites = adminAction(async (user, entrada: unknown, aplicar: boolean) => {
