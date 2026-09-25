@@ -1,0 +1,263 @@
+{
+  "odonto-consulta": {
+    "alt": "Dentista atendendo paciente na cadeira em consultório claro",
+    "pexels": "3845747",
+    "w": 1400,
+    "h": 933,
+    "kb": 145,
+    "heroi": true,
+    "sub": "odonto"
+  },
+  "odonto-consultorio": {
+    "alt": "Consultório odontológico moderno com cadeira e equipamentos",
+    "pexels": "4269277",
+    "w": 1400,
+    "h": 933,
+    "kb": 101,
+    "heroi": true,
+    "sub": "odonto"
+  },
+  "odonto-cadeira": {
+    "alt": "Cadeira odontológica em sala limpa e iluminada",
+    "pexels": "6812479",
+    "w": 1400,
+    "h": 933,
+    "kb": 127,
+    "heroi": true,
+    "sub": "odonto"
+  },
+  "odonto-sorriso": {
+    "alt": "Paciente sorrindo ao se ver no espelho após atendimento",
+    "pexels": "3845744",
+    "w": 1400,
+    "h": 933,
+    "kb": 151,
+    "heroi": false,
+    "sub": "odonto"
+  },
+  "odonto-conversa": {
+    "alt": "Dentista conversando com paciente antes do procedimento",
+    "pexels": "3845807",
+    "w": 1400,
+    "h": 933,
+    "kb": 144,
+    "heroi": false,
+    "sub": "odonto"
+  },
+  "odonto-instrumentos": {
+    "alt": "Detalhe das peças de mão do equipo odontológico",
+    "pexels": "6812481",
+    "w": 1400,
+    "h": 933,
+    "kb": 78,
+    "heroi": false,
+    "sub": "odonto"
+  },
+  "fisio-sessao": {
+    "alt": "Fisioterapeuta alongando a perna de paciente em sala ampla e clara",
+    "pexels": "6111582",
+    "w": 1400,
+    "h": 933,
+    "kb": 164,
+    "heroi": true,
+    "sub": "fisio"
+  },
+  "fisio-pilates": {
+    "alt": "Exercício no aparelho de pilates com acompanhamento da fisioterapeuta",
+    "pexels": "6111587",
+    "w": 1400,
+    "h": 933,
+    "kb": 150,
+    "heroi": true,
+    "sub": "fisio"
+  },
+  "fisio-alongamento": {
+    "alt": "Fisioterapeuta orientando alongamento lateral do paciente",
+    "pexels": "6111580",
+    "w": 1400,
+    "h": 933,
+    "kb": 144,
+    "heroi": true,
+    "sub": "fisio"
+  },
+  "fisio-reabilitacao": {
+    "alt": "Paciente deitado na maca fazendo exercício de reabilitação",
+    "pexels": "6111586",
+    "w": 1400,
+    "h": 933,
+    "kb": 139,
+    "heroi": false,
+    "sub": "fisio"
+  },
+  "fisio-elastico": {
+    "alt": "Paciente fazendo exercício com faixa elástica guiado pelo fisioterapeuta",
+    "pexels": "4506163",
+    "w": 1400,
+    "h": 933,
+    "kb": 76,
+    "heroi": false,
+    "sub": "fisio"
+  },
+  "fisio-avaliacao": {
+    "alt": "Fisioterapeuta avaliando pescoço e ombro da paciente",
+    "pexels": "4506165",
+    "w": 1400,
+    "h": 933,
+    "kb": 99,
+    "heroi": false,
+    "sub": "fisio"
+  },
+  "psico-sessao": {
+    "alt": "Sessão de terapia em sala aconchegante com sofá e plantas",
+    "pexels": "7176030",
+    "w": 1400,
+    "h": 933,
+    "kb": 158,
+    "heroi": true,
+    "sub": "psico"
+  },
+  "psico-diva": {
+    "alt": "Paciente deitada no divã conversando com a psicóloga",
+    "pexels": "36729380",
+    "w": 1400,
+    "h": 933,
+    "kb": 113,
+    "heroi": true,
+    "sub": "psico"
+  },
+  "psico-sala": {
+    "alt": "Paciente falando no sofá enquanto a terapeuta faz anotações",
+    "pexels": "7176029",
+    "w": 1400,
+    "h": 933,
+    "kb": 166,
+    "heroi": false,
+    "sub": "psico"
+  },
+  "psico-escuta": {
+    "alt": "Psicóloga ouvindo a paciente com atenção",
+    "pexels": "36729384",
+    "w": 1400,
+    "h": 933,
+    "kb": 110,
+    "heroi": false,
+    "sub": "psico"
+  },
+  "psico-conversa": {
+    "alt": "Terapeuta e paciente conversando em consultório tranquilo",
+    "pexels": "14797768",
+    "w": 1400,
+    "h": 933,
+    "kb": 164,
+    "heroi": false,
+    "sub": "psico"
+  },
+  "psico-anotacoes": {
+    "alt": "Terapeuta com prancheta em sala clara com janela",
+    "pexels": "5699435",
+    "w": 1400,
+    "h": 933,
+    "kb": 158,
+    "heroi": false,
+    "sub": "psico"
+  },
+  "nutri-consultorio": {
+    "alt": "Nutricionista escrevendo à mesa do consultório com frutas",
+    "pexels": "15319035",
+    "w": 1400,
+    "h": 933,
+    "kb": 135,
+    "heroi": true,
+    "sub": "nutri"
+  },
+  "nutri-consulta": {
+    "alt": "Nutricionista atendendo paciente na mesa do consultório",
+    "pexels": "15319045",
+    "w": 1400,
+    "h": 933,
+    "kb": 124,
+    "heroi": true,
+    "sub": "nutri"
+  },
+  "nutri-nutricionista": {
+    "alt": "Nutricionista segurando brócolis com fita métrica no pescoço",
+    "pexels": "15319047",
+    "w": 1400,
+    "h": 933,
+    "kb": 128,
+    "heroi": false,
+    "sub": "nutri"
+  },
+  "nutri-medidas": {
+    "alt": "Nutricionista medindo a cintura do paciente com fita métrica",
+    "pexels": "15319043",
+    "w": 1400,
+    "h": 933,
+    "kb": 171,
+    "heroi": false,
+    "sub": "nutri"
+  },
+  "nutri-frutas": {
+    "alt": "Fruteira e prancheta de plano alimentar sobre a mesa",
+    "pexels": "15319044",
+    "w": 1400,
+    "h": 933,
+    "kb": 95,
+    "heroi": false,
+    "sub": "nutri"
+  },
+  "clinica-recepcao": {
+    "alt": "Recepção e sala de espera de clínica clara e organizada",
+    "pexels": "8459996",
+    "w": 1400,
+    "h": 933,
+    "kb": 103,
+    "heroi": true,
+    "sub": "clinica"
+  },
+  "clinica-consultorio": {
+    "alt": "Médico atendendo paciente em consultório amplo",
+    "pexels": "8460095",
+    "w": 1400,
+    "h": 933,
+    "kb": 145,
+    "heroi": true,
+    "sub": "clinica"
+  },
+  "clinica-consulta": {
+    "alt": "Médica sorridente conversando com paciente à mesa",
+    "pexels": "7579831",
+    "w": 1400,
+    "h": 933,
+    "kb": 127,
+    "heroi": true,
+    "sub": "clinica"
+  },
+  "clinica-atendimento": {
+    "alt": "Médica conversando com gestante no consultório",
+    "pexels": "7088833",
+    "w": 1400,
+    "h": 933,
+    "kb": 128,
+    "heroi": false,
+    "sub": "clinica"
+  },
+  "clinica-medica": {
+    "alt": "Médica com estetoscópio preenchendo prontuário à mesa",
+    "pexels": "7579827",
+    "w": 1400,
+    "h": 933,
+    "kb": 105,
+    "heroi": false,
+    "sub": "clinica"
+  },
+  "clinica-prontuario": {
+    "alt": "Médico segurando prancheta com ficha do paciente",
+    "pexels": "7088834",
+    "w": 1400,
+    "h": 933,
+    "kb": 79,
+    "heroi": false,
+    "sub": "clinica"
+  }
+}

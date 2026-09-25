@@ -1,11 +1,29 @@
-// Modelo beleza do gerador: a página editorial dos sites de barbearia e salão que
-// já estão no ar (hero com fx.js, marquee, serviços numerados, reputação), com o
-// CSS em public/s/assets/gerado/beleza.css e as fotos do banco public/s/assets/beleza.
+// Modelo editorial do gerador: a página dos sites de barbearia, salão e tatuagem da
+// fábrica (hero com fx.js, marquee, serviços numerados, reputação). O CSS é
+// public/s/assets/gerado/beleza.css; cada nicho traz o seu Estilo (os de beleza
+// estão aqui, os demais em src/lib/nichos) e os seus kits de fotos.
 import {
-  AVISO, cabecaComum, type Capa, type DadosSite, esc, faixaProposta, foneBR, jsonLdNegocio, lugar, mapa, notaBR, variante, zap,
+  AVISO, cabecaComum, type Capa, type DadosSite, esc, faixaProposta, foneBR, jsonLdNegocio, lugar, mapa, notaBR, type Sub, variante, zap,
 } from "@/lib/gerador";
+import { AUTOMOTIVO } from "@/lib/nichos/automotivo";
+import { FITNESS } from "@/lib/nichos/fitness";
 
-type Tipo = "barbearia" | "salao" | "estetica" | "unhas" | "tatuagem";
+/** O que muda de um nicho para outro no modelo editorial. */
+export type Estilo = {
+  rotulo: string;
+  /** a frase do topo e do "Sobre"; uma por site, pela variante */
+  textos: string[];
+  /** serviços quando a agenda não tem nenhum */
+  padrao: string[];
+  /** [--ink, --acc, --deep, --tint] */
+  paletas: [string, string, string, string][];
+  /** pastas com hero.jpg e ga1..3.jpg, a partir de /assets */
+  kits: string[];
+  /** descrição e selo por serviço, conferidos antes das regras comuns */
+  descricoes?: [RegExp, string, string][];
+  /** exemplo do campo de observações do formulário */
+  obs?: string;
+};
 
 // paletas reais da família editorial: [--ink, --acc, --deep, --tint]
 const QUENTES: [string, string, string, string][] = [
@@ -38,9 +56,7 @@ const FONTES: [string, string][] = [
   ["Cormorant Garamond", "Cormorant+Garamond:ital,wght@0,400;0,600;1,400"],
 ];
 
-const ROTULO: Record<Tipo, string> = { barbearia: "Barbearia", salao: "Salão de beleza", estetica: "Estética", unhas: "Nail designer", tatuagem: "Estúdio de tatuagem" };
-
-const TEXTOS: Record<Tipo, string[]> = {
+const TEXTOS = {
   barbearia: [
     "Cortes alinhados, barba no detalhe e aquele atendimento que faz você voltar.",
     "Do clássico ao degradê, com navalha, toalha quente e hora marcada.",
@@ -68,7 +84,7 @@ const TEXTOS: Record<Tipo, string[]> = {
   ],
 };
 
-const PADRAO: Record<Tipo, string[]> = {
+const PADRAO = {
   barbearia: ["Corte", "Barba", "Corte + barba", "Sobrancelha"],
   salao: ["Corte", "Escova", "Coloração", "Hidratação"],
   estetica: ["Limpeza de pele", "Design de sobrancelha", "Extensão de cílios"],
@@ -102,8 +118,8 @@ const DESCRICOES: [RegExp, string, string][] = [
   [/massag|drenag/i, "Relaxamento e bem-estar em um momento só seu.", "Bem-estar"],
   [/depila/i, "Depilação com técnica e conforto.", "Conforto"],
 ];
-const detalhe = (s: string, i: number): [string, string] => {
-  const achado = DESCRICOES.find(([re]) => re.test(s));
+const detalhe = (e: Estilo, s: string, i: number): [string, string] => {
+  const achado = [...(e.descricoes ?? []), ...DESCRICOES].find(([re]) => re.test(s));
   return achado ? [achado[1], achado[2]] : ["Atendimento com hora marcada — confirme os detalhes pelo WhatsApp.", ["Especial", "Detalhe", "Cuidado"][i % 3]];
 };
 
@@ -112,29 +128,40 @@ const PINO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentCol
 const GOOGLE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.39 3.62v3h3.87c2.26-2.09 3.57-5.16 3.57-8.81z"/><path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.94-2.92l-3.87-3c-1.07.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.29v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.27 14.27A7.2 7.2 0 0 1 4.89 12c0-.79.14-1.56.38-2.27v-3.1H1.29a12 12 0 0 0 0 10.74l3.98-3.1z"/><path fill="#EA4335" d="M12 4.77c1.76 0 3.34.61 4.58 1.8l3.44-3.44A11.98 11.98 0 0 0 12 0 12 12 0 0 0 1.29 6.63l3.98 3.1C6.22 6.88 8.87 4.77 12 4.77z"/></svg>';
 const INSTA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none"/></svg>';
 
-const tipoDe = (sub: DadosSite["sub"]): Tipo => (sub === "barbearia" || sub === "estetica" || sub === "unhas" || sub === "tatuagem" ? sub : "salao");
+const beleza = (tipo: keyof typeof TEXTOS, rotulo: string, paletas: Estilo["paletas"]): Estilo => ({
+  rotulo, textos: TEXTOS[tipo], padrao: PADRAO[tipo], paletas, kits: [1, 2, 3, 4].map((n) => `/assets/beleza/${tipo}-${n}`),
+});
+const ESTILOS: Partial<Record<Sub, Estilo>> = {
+  barbearia: beleza("barbearia", "Barbearia", QUENTES),
+  salao: beleza("salao", "Salão de beleza", DELICADAS),
+  estetica: beleza("estetica", "Estética", DELICADAS),
+  unhas: beleza("unhas", "Nail designer", DELICADAS),
+  tatuagem: beleza("tatuagem", "Estúdio de tatuagem", TINTAS),
+  ...FITNESS,
+  ...AUTOMOTIVO,
+};
+const estiloDe = (sub: Sub) => ESTILOS[sub] ?? ESTILOS.salao!;
 
 /** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. */
-export function visualBeleza(slug: string, sub: DadosSite["sub"]) {
-  const tipo = tipoDe(sub);
-  const paletas = tipo === "barbearia" ? QUENTES : tipo === "tatuagem" ? TINTAS : DELICADAS;
-  const [ink, acc, deep, tint] = paletas[variante(slug, paletas.length, "cor")];
-  const kit = `/assets/beleza/${tipo}-${variante(slug, 4, "kit") + 1}`;
-  return { tipo, ink, acc, deep, tint, kit, cor: acc, foto: `${kit}/hero.jpg`, fonte: FONTES[variante(slug, FONTES.length, "fonte")] };
+export function visualEditorial(slug: string, sub: Sub) {
+  const e = estiloDe(sub);
+  const [ink, acc, deep, tint] = e.paletas[variante(slug, e.paletas.length, "cor")];
+  const kit = e.kits[variante(slug, e.kits.length, "kit")];
+  return { e, ink, acc, deep, tint, kit, cor: acc, foto: `${kit}/hero.jpg`, fonte: FONTES[variante(slug, FONTES.length, "fonte")] };
 }
 
 /** A imagem de compartilhamento: a foto do topo do kit e a fonte de título do próprio site. */
-export function capaBeleza(d: DadosSite): Capa {
-  const { tipo, kit, cor, fonte } = visualBeleza(d.slug, d.sub);
-  return { foto: `${kit}/hero.jpg`, cor, fonte: fonte[0], linha: [ROTULO[tipo], d.cidade].filter(Boolean).join(" em ") };
+export function capaEditorial(d: DadosSite): Capa {
+  const { e, kit, cor, fonte } = visualEditorial(d.slug, d.sub);
+  return { foto: `${kit}/hero.jpg`, cor, fonte: fonte[0], linha: [e.rotulo, d.cidade].filter(Boolean).join(" em ") };
 }
 
-export function renderBeleza(d: DadosSite): string {
-  const { tipo, ink, acc, deep, tint, kit, fonte } = visualBeleza(d.slug, d.sub);
+export function renderEditorial(d: DadosSite): string {
+  const { e, ink, acc, deep, tint, kit, fonte } = visualEditorial(d.slug, d.sub);
   const onde = lugar(d);
-  const rotulo = ROTULO[tipo];
+  const rotulo = e.rotulo;
   const tag = [rotulo, [d.cidade, d.uf].filter(Boolean).join("/")].filter(Boolean).join(" · ");
-  const texto = TEXTOS[tipo][variante(d.slug, TEXTOS[tipo].length, "texto")] + (onde ? ` Em ${onde}.` : "");
+  const texto = e.textos[variante(d.slug, e.textos.length, "texto")] + (onde ? ` Em ${onde}.` : "");
   const temNota = d.nota != null && !!d.avaliacoes;
   const nota = temNota ? notaBR(d.nota!) : "";
   const descr = `${d.nome} — ${rotulo}${d.cidade ? ` em ${d.cidade}` : ""}${temNota ? ` com nota ${nota} e ${d.avaliacoes} avaliações no Google` : ""}. Agende pelo WhatsApp.`;
@@ -142,7 +169,7 @@ export function renderBeleza(d: DadosSite): string {
   const oi = zap(d.telefone, `Olá! Vim pelo site da ${d.nome} e quero agendar um horário.`);
   const busca = mapa(d);
   const google = esc(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(busca)}`);
-  const servicos = d.servicos.length ? d.servicos : PADRAO[tipo];
+  const servicos = d.servicos.length ? d.servicos : e.padrao;
   const endereco = d.endereco || [onde, d.uf].filter(Boolean).join(" - ");
   // o nome em duas linhas, a segunda em itálico na cor de destaque, como na família
   const palavras = d.nome.split(/\s+/);
@@ -219,7 +246,7 @@ ${faixaProposta(d.slug)}
 <section class="servicos" id="servicos">
   <div class="sec-head rv"><span class="label">Serviços</span><h2>O que você encontra</h2></div>
   ${servicos.map((s, i) => {
-    const [p, selo] = detalhe(s, i);
+    const [p, selo] = detalhe(e, s, i);
     return `<div class="svc-row rv"><span class="num">${String(i + 1).padStart(2, "0")}</span><div><h3>${esc(s)}</h3><p>${esc(p)}</p></div><span class="tag-pill">${esc(selo)}</span></div>`;
   }).join("")}
   <div class="precos rv"><h3>Tabela de preços</h3>
@@ -247,7 +274,7 @@ ${faixaProposta(d.slug)}
       <label for="wf-per">Período</label>
       <select id="wf-per" name="periodo"><option value="">Tanto faz</option><option>Manhã</option><option>Tarde</option><option>Noite</option></select>
       <label for="wf-msg">Observações (opcional)</label>
-      <textarea id="wf-msg" name="msg" placeholder="Ex.: primeira visita, referência, alergia a produto…"></textarea>
+      <textarea id="wf-msg" name="msg" placeholder="${e.obs ?? "Ex.: primeira visita, referência, alergia a produto…"}"></textarea>
       <button type="submit">${WA} Enviar pelo WhatsApp</button>
     ${AVISO}
 </form>

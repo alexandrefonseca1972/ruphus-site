@@ -3,6 +3,29 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.7.0 — 25/09/2026
+
+### Quatro modelos-base novos no gerador de sites
+- **Saúde, Aulas e cursos, Fitness e Automotivo** (#60), cada um cobrindo vários
+  nichos com fotos, paletas, textos, serviços e perguntas próprios:
+  odontologia, fisioterapia, psicologia, nutrição e clínica; idiomas, reforço,
+  música e autoescola; academia, pilates, lutas e dança; oficina, estética
+  automotiva e pneus. São 16 nichos novos, somando 23.
+- Os modelos reaproveitam as duas páginas que já estão no ar (#60): Saúde e
+  Aulas na clara, a dos sites de pet; Fitness e Automotivo na editorial, a de
+  barbearia e tatuagem. O HTML de pet e de beleza saiu idêntico ao de antes da
+  mudança, conferido por hash.
+- Saúde segue as regras dos conselhos (#60): sem preço anunciado (a agenda nasce
+  com valor zero), sem antes e depois, sem promessa de resultado.
+- Fotos de banco Pexels, conferidas uma a uma (#60): nada de logomarca legível,
+  e autoescola só com alunos adultos.
+- Aula experimental e avaliação física entram na agenda sem preço (#60).
+
+### Correções
+- **Galeria com foto repetida** (#60): com 4 fotos no nicho, a terceira repetia a
+  primeira. Toda galeria agora tem 5 ou 6, e um teste confere as 3 distintas.
+- "Lava-jato" com hífen e "competição" (que caía em pet shop) (#60).
+
 ## 0.6.1 — 25/09/2026
 
 ### Tatuagem e imagem de compartilhamento no gerador de sites
