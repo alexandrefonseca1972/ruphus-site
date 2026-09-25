@@ -21,6 +21,10 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "Ruphus",
   description: "Site e agendamento online para pequenos negócios de bairro.",
+  // O app (login, painel, admin, agenda de cada negócio) não é página de busca, e /{slug}
+  // responde qualquer endereço. Quem aparece no Google é a landing e a privacidade,
+  // HTML estático em public/, e os sites publicados, cada um com o seu robots.
+  robots: { index: false, follow: false },
 };
 
 // viewportFit cover: as áreas seguras do iPhone passam a valer (barra de gestos)
