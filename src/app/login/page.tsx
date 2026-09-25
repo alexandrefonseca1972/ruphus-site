@@ -23,15 +23,39 @@ import { auth } from "@/lib/firebase";
 import { handleSubmit } from "@/lib/utils";
 import { guardarUtm } from "@/lib/anuncios";
 
+// Máscaras: o que o campo aceita enquanto a pessoa digita. O schema confere de novo no envio.
+/** Nome: letras (com acento), espaço, apóstrofo, hífen e ponto; sem espaço duplo nem no começo. */
+const mascaraNome = (v: string) => v.replace(/[^\p{L}\s'.-]/gu, "").replace(/\s+/g, " ").replace(/^\s/, "").slice(0, 80);
+/** E-mail: sem espaço e em minúsculas, como o Firebase compara. */
+const mascaraEmail = (v: string) => v.replace(/\s/g, "").toLowerCase().slice(0, 254);
+
+const Email = z.string().trim().toLowerCase().pipe(z.email("E-mail incompleto: confira o @ e o domínio (ex.: nome@gmail.com)."));
 const Credentials = z.object({
-  email: z.email("Informe um e-mail válido."),
+  email: Email,
+  // quem já tem conta entra com a senha que criou, mesmo de antes da regra de 8
   password: z.string().min(6, "A senha precisa de pelo menos 6 caracteres."),
 });
+// Senha nova: o que cada requisito diz é o que a lista embaixo do campo mostra.
+const REQUISITOS: [string, (s: string) => boolean][] = [
+  ["8 caracteres ou mais", (s) => s.length >= 8],
+  ["uma letra", (s) => /\p{L}/u.test(s)],
+  ["um número", (s) => /\d/.test(s)],
+];
 // No cadastro o nome também: sem ele, quem entra por senha aparece só como
 // e-mail em "Quem tem acesso", e nas trilhas de auditoria nem isso.
-const Cadastro = Credentials.extend({
-  nome: z.string().trim().min(2, "Informe seu nome.").max(80),
+const Cadastro = z.object({
+  email: Email,
+  password: z.string().max(128, "Use no máximo 128 caracteres.").refine((s) => REQUISITOS.every(([, ok]) => ok(s)), "A senha precisa de 8 caracteres, com letra e número."),
+  nome: z
+    .string()
+    .transform((v) => mascaraNome(v).trim())
+    .refine((v) => (v.match(/\p{L}/gu) ?? []).length >= 2, "Informe seu nome, com pelo menos 2 letras."),
 });
+/** A primeira mensagem de erro de um campo, ou "" se ele está certo. */
+const erroDe = (campo: z.ZodType, v: string) => {
+  const r = campo.safeParse(v);
+  return r.success ? "" : r.error.issues[0].message;
+};
 
 const Vitrine = z.array(z.object({ slug: z.string(), nome: z.string(), sobre: z.string(), capa: z.string() }));
 type Vitrine = z.infer<typeof Vitrine>;
@@ -70,6 +94,12 @@ function Login() {
   const rodando = useRef(false);        // uma ação do formulário está em curso
   const escolheuModo = useRef(false);   // a pessoa já escolheu entrar ou criar conta
   const [verSenha, setVerSenha] = useState(false);
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  // o erro de um campo aparece quando a pessoa sai dele (ou tenta enviar), não na primeira letra
+  const [vistos, setVistos] = useState<ReadonlySet<string>>(new Set());
+  const ver = (campo: string) => setVistos((v) => new Set(v).add(campo));
   const [capsLock, setCapsLock] = useState(false);
   const [vitrine, setVitrine] = useState<Vitrine>([]);
 
@@ -158,7 +188,14 @@ function Login() {
     }
   }
 
-  function submit(form: FormData) {
+  function submit(form: FormData, el?: HTMLFormElement) {
+    // confere tudo antes de ir ao Firebase: o erro fica no campo, e o cursor vai para ele
+    const errado = (["nome", "email", "password"] as const).find((c) => erros[c]);
+    if (errado) {
+      setVistos(new Set(["nome", "email", "password"]));
+      (el?.elements.namedItem(errado) as HTMLInputElement | null)?.focus();
+      return;
+    }
     run(async () => {
       const dados = Object.fromEntries(form);
       if (mode === "signin") {
@@ -186,6 +223,15 @@ function Login() {
   }
 
   const signin = mode === "signin";
+  const erros = {
+    nome: signin ? "" : erroDe(Cadastro.shape.nome, nome),
+    email: erroDe(Email, email),
+    password: erroDe(signin ? Credentials.shape.password : Cadastro.shape.password, senha),
+  };
+  const mostra = (c: keyof typeof erros) => (vistos.has(c) ? erros[c] : "");
+  const ERRO_CAMPO = "border-[#B4533A] focus-visible:border-[#B4533A]";
+  const msg = (c: keyof typeof erros) =>
+    mostra(c) ? <span id={`${c}-erro`} className="text-xs text-[#8A3A22]">{mostra(c)}</span> : null;
 
   return (
     <main className="relative flex flex-1 items-center justify-center overflow-hidden bg-[#F2F0E7] p-4">
@@ -283,17 +329,49 @@ function Login() {
 
         {/* o handler é montado no evento, não no render: submit lê uma ref, e
             montá-lo durante o render quebra a regra de refs do compilador */}
-        <form onSubmit={(ev) => handleSubmit(submit)(ev)} className="grid gap-4">
+        {/* noValidate: a validação é a nossa, em português e no campo; a do navegador vinha em inglês, por cima */}
+        <form noValidate onSubmit={(ev) => handleSubmit(submit)(ev)} className="grid gap-4">
           {!signin && (
             <div className="grid gap-1.5">
               <label htmlFor="nome" className={ROTULO}>Seu nome</label>
-              <Input id="nome" name="nome" type="text" autoComplete="name" maxLength={80} required className={CAMPO} />
+              <Input
+                id="nome"
+                name="nome"
+                type="text"
+                autoComplete="name"
+                autoCapitalize="words"
+                maxLength={80}
+                required
+                value={nome}
+                onChange={(e) => setNome(mascaraNome(e.target.value))}
+                onBlur={() => ver("nome")}
+                aria-invalid={!!mostra("nome")}
+                aria-describedby={mostra("nome") ? "nome-erro" : undefined}
+                className={`${CAMPO} ${mostra("nome") ? ERRO_CAMPO : ""}`}
+              />
+              {msg("nome")}
             </div>
           )}
 
           <div className="grid gap-1.5">
             <label htmlFor="email" className={ROTULO}>E-mail</label>
-            <Input id="email" name="email" type="email" autoComplete="email" required className={CAMPO} />
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              required
+              value={email}
+              onChange={(e) => setEmail(mascaraEmail(e.target.value))}
+              onBlur={() => ver("email")}
+              aria-invalid={!!mostra("email")}
+              aria-describedby={mostra("email") ? "email-erro" : undefined}
+              className={`${CAMPO} ${mostra("email") ? ERRO_CAMPO : ""}`}
+            />
+            {msg("email")}
           </div>
 
           <div className="grid gap-1.5">
@@ -325,12 +403,20 @@ function Login() {
                 name="password"
                 type={verSenha ? "text" : "password"}
                 autoComplete={signin ? "current-password" : "new-password"}
-                minLength={6}
+                minLength={signin ? 6 : 8}
+                maxLength={128}
                 required
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                aria-invalid={!!mostra("password")}
+                aria-describedby={signin ? (mostra("password") ? "password-erro" : undefined) : "senha-requisitos"}
                 onKeyDown={(e) => setCapsLock(e.getModifierState?.("CapsLock") ?? false)}
                 onKeyUp={(e) => setCapsLock(e.getModifierState?.("CapsLock") ?? false)}
-                onBlur={() => setCapsLock(false)}
-                className={`${CAMPO} pr-12`}
+                onBlur={() => {
+                  setCapsLock(false);
+                  ver("password");
+                }}
+                className={`${CAMPO} pr-12 ${mostra("password") ? ERRO_CAMPO : ""}`}
               />
               <button
                 type="button"
@@ -354,7 +440,19 @@ function Login() {
               </button>
             </div>
             {capsLock && <span className="text-xs text-[#8A5A22]">Caps Lock está ligado.</span>}
-            {!signin && <span className="text-xs text-[#8C8574]">Pelo menos 6 caracteres.</span>}
+            {signin && msg("password")}
+            {!signin && (
+              // a lista vai marcando enquanto a pessoa digita: ela vê o que falta, sem esperar o erro
+              <ul id="senha-requisitos" aria-live="polite" className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
+                {REQUISITOS.map(([texto, ok]) => (
+                  <li key={texto} className={ok(senha) ? "text-[#235B45]" : mostra("password") ? "text-[#8A3A22]" : "text-[#8C8574]"}>
+                    <span aria-hidden="true">{ok(senha) ? "✓ " : "○ "}</span>
+                    {texto}
+                    <span className="sr-only">{ok(senha) ? " (ok)" : " (falta)"}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {error && (
