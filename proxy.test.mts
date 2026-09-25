@@ -28,6 +28,7 @@ assert.equal(sitePath("site-gerado", "/assets/gerado/beleza.css"), "/s/assets/ge
 // nome parecido não é a pasta compartilhada
 assert.equal(sitePath("lindass", "/assetsfoo/x.png"), "/s/lindass/assetsfoo/x.png");
 assert.equal(sitePath("lindass", "/s/lindass/img/hero.jpg"), "/s/lindass/img/hero.jpg", "caminho completo não dobra");
+assert.equal(sitePath("am-hair-makeup", "/s/assets/beleza/estetica-1/hero.jpg"), "/s/assets/beleza/estetica-1/hero.jpg", "foto compartilhada da /bio no subdomínio");
 assert.equal(sitePath("lindass", "/s/outro/img/x.jpg"), "/s/lindass/s/outro/img/x.jpg", "só o próprio site passa direto");
 console.log("sitePath ok");
 
