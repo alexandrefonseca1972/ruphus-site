@@ -60,7 +60,8 @@ function Login() {
     return r.ok ? "/admin" : "/painel";
   }
 
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  // "?criar=1" vem do "Criar minha conta" da landing: abrir em "Entrar" fazia a pessoa procurar o cadastro
+  const [mode, setMode] = useState<"signin" | "signup">(params.get("criar") === "1" ? "signup" : "signin");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
