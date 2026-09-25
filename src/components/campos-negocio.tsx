@@ -2,6 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatPhone } from "@/lib/datetime";
 import { DadosNegocio, GRUPOS, SUBS } from "@/lib/gerador";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,19 @@ export function errosDe(v: Valores): Partial<Record<Campo, string>> {
 
 const CAMPO = "h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]";
 
+// Máscara de cada campo enquanto a pessoa digita; o schema confere de novo no servidor.
+const texto = (v: string) => v.replace(/\s+/g, " ").replace(/^\s/, "");
+const MASCARA: Partial<Record<Campo, (v: string) => string>> = {
+  telefone: formatPhone,
+  uf: (v) => v.replace(/[^a-z]/gi, "").toUpperCase().slice(0, 2),
+  cidade: (v) => texto(v.replace(/[^\p{L}\s'.-]/gu, "")),
+  bairro: (v) => texto(v.replace(/[^\p{L}\d\s'.,-]/gu, "")),
+  endereco: texto,
+  horario: texto,
+  // @ opcional e só o que um perfil do Instagram aceita
+  instagram: (v) => v.replace(/[^@\w.]/g, "").replace(/(?!^)@/g, "").slice(0, 31),
+};
+
 export function CamposNegocio({
   valores, onChange, erros, completo = false,
 }: {
@@ -34,7 +48,8 @@ export function CamposNegocio({
   /** a aba "Meu negócio" também edita endereço, Instagram e horário */
   completo?: boolean;
 }) {
-  const muda = (c: Campo) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => onChange({ ...valores, [c]: e.target.value });
+  const muda = (c: Campo) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    onChange({ ...valores, [c]: (MASCARA[c] ?? ((v: string) => v))(e.target.value) });
   const msg = (c: Campo) => <p id={`negocio-${c}-msg`} aria-live="polite" className="min-h-4 text-xs text-destructive">{erros[c] ?? ""}</p>;
   const texto = (c: Campo, rotulo: string, extra: React.InputHTMLAttributes<HTMLInputElement>) => (
     <div className="grid gap-1.5">
