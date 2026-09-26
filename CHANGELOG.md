@@ -5,6 +5,12 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Fora quem não tem telefone
+- **33 sites da fábrica sem WhatsApp nem telefone saem do ar** (#79), da vitrine
+  e da landing (836 → 803 sites), e os 34 negócios sem telefone (com a conta de
+  teste `salao-de-boas-caras`) saem do banco. Sem contato não há proposta nem
+  agendamento.
+
 ### Depois de agendar: agenda do celular e como chegar
 - **Como chegar** (#75): mapa, endereço (ou bairro e cidade, quando a casa não
   cadastrou a rua) e botões de Google Maps, Waze e copiar o endereço.
