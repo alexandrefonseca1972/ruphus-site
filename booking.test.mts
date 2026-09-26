@@ -4,7 +4,8 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
-import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, loadCatalog, renameCustomer, requireMember, reschedule, rescheduleSlots } from "@/lib/booking.server";
+import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, loadCatalog, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente } from "@/lib/booking.server";
+import { DadosCliente } from "@/lib/cliente-dados";
 import { addDays, customerKey, formatPhone, maskBRL, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 import { cotaDe, criarNegocio, definirLimite } from "@/lib/negocios.server";
@@ -274,6 +275,19 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
     renameCustomer(db, { tenantId: "salao", customerId: "5500000000000", name: "Ninguém" }, { uid: "owner" }),
     /Cliente nao encontrado/,
   );
+
+  // Nascimento e e-mail: o dono registra; o servidor limpa e confere de novo
+  const dados = DadosCliente.parse({ nascimento: "1990-12-31", email: " Marcia@Email.COM " });
+  assert.deepEqual(dados, { nascimento: "1990-12-31", email: "marcia@email.com" }, "e-mail sem espaço e minúsculo");
+  await salvarDadosCliente(db, { tenantId: "salao", customerId: chave, dados }, { uid: "owner" });
+  assert.deepEqual([(await cli.get()).get("nascimento"), (await cli.get()).get("email")], ["1990-12-31", "marcia@email.com"]);
+  await assert.rejects(salvarDadosCliente(db, { tenantId: "salao", customerId: chave, dados }, { uid: "recepcao" }), /dono ou um administrador/, "dado pessoal: a equipe não grava");
+  for (const ruim of [{ nascimento: "1990-02-31", email: "" }, { nascimento: "2999-01-01", email: "" }, { nascimento: "", email: "marcia@" }]) {
+    assert.equal(DadosCliente.safeParse(ruim).success, false, JSON.stringify(ruim));
+  }
+  // vazio apaga
+  await salvarDadosCliente(db, { tenantId: "salao", customerId: chave, dados: DadosCliente.parse({ nascimento: "", email: "" }) }, { uid: "owner" });
+  assert.deepEqual([(await cli.get()).get("nascimento"), (await cli.get()).get("email")], [undefined, undefined]);
 
   // Excluir: só dono/admin, e nunca com horário marcado
   await t.collection("members").doc("func").set({ uid: "func", role: "member" });

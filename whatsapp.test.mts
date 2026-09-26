@@ -40,3 +40,25 @@ assert.equal(erroNome("A"), "Informe seu nome, com pelo menos 2 letras");
 assert.equal(erroNome(""), "Informe seu nome");
 assert.equal(erroNome("Zé"), "");
 console.log("nome: ok");
+
+// dados do cliente na ficha: nascimento e e-mail
+import { erroEmail, erroNascimento, idade, isoDeBR, mascaraData, mascaraEmail } from "@/lib/cliente-dados";
+assert.equal(mascaraData("31121990"), "31/12/1990");
+assert.equal(mascaraData("3a1/1"), "31/1", "letra e barra digitada não entram");
+assert.equal(mascaraData("311219901234"), "31/12/1990", "no máximo 8 dígitos");
+assert.equal(isoDeBR("31/12/1990"), "1990-12-31");
+const hoje = new Date("2026-09-26T12:00:00Z");
+assert.equal(erroNascimento("", hoje), "", "vazio é permitido");
+assert.equal(erroNascimento("31/12/19", hoje), "Complete a data: DD/MM/AAAA");
+assert.equal(erroNascimento("31/02/1990", hoje), "Essa data não existe");
+assert.equal(erroNascimento("01/13/1990", hoje), "Essa data não existe");
+assert.equal(erroNascimento("01/01/1850", hoje), "Confira o ano");
+assert.equal(erroNascimento("01/01/2027", hoje), "A data não pode ser no futuro");
+assert.equal(erroNascimento("29/02/2000", hoje), "", "bissexto vale");
+assert.equal(idade("1990-09-27", hoje), 35, "ainda não fez aniversário este ano");
+assert.equal(idade("1990-09-26", hoje), 36);
+assert.equal(mascaraEmail(" Ana @Gmail.COM "), "ana@gmail.com");
+assert.equal(erroEmail("ana@gmail"), "E-mail incompleto: confira o @ e o domínio");
+assert.equal(erroEmail(""), "");
+assert.equal(erroEmail("ana@gmail.com"), "");
+console.log("dados do cliente: ok");

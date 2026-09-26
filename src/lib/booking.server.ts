@@ -4,6 +4,7 @@ import { ErroPrevisto } from "@/lib/erro-previsto";
 import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
 import { addDays, customerKey, freeSlots, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import type { DadosCliente } from "@/lib/cliente-dados";
 import { Service, Staff, type AgendaQuery, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
@@ -90,6 +91,25 @@ export async function renameCustomer(
   for (const d of futuros.docs) batch.update(d.ref, { customerName: name });
   await batch.commit();
   return { ok: true as const, name, agendamentos: futuros.size };
+}
+
+/** Data de nascimento e e-mail do cliente, que o dono registra. São dados pessoais: só
+ *  dono ou admin do negócio grava, e só pelo servidor, que confere de novo (as regras
+ *  do Firestore não deixam o navegador escrever esses campos). Vazio apaga. */
+export async function salvarDadosCliente(
+  db: Firestore,
+  { tenantId, customerId, dados }: { tenantId: string; customerId: string; dados: DadosCliente },
+  user: { uid: string },
+) {
+  await exigeDono(db, tenantId, user.uid, "registrar dados do cliente");
+  const cliente = db.collection("tenants").doc(tenantId).collection("customers").doc(customerId);
+  if (!(await cliente.get()).exists) throw new UserError("Cliente não encontrado.");
+  await cliente.update({
+    nascimento: dados.nascimento || FieldValue.delete(),
+    email: dados.email || FieldValue.delete(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  return { ok: true as const };
 }
 
 /** Exclui o cliente e as anotações dele. Só dono ou admin do negócio (ou da plataforma).

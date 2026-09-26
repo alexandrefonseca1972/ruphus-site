@@ -1,7 +1,8 @@
 "use server";
 
 import { adminDb } from "@/lib/admin";
-import { createPlan, deleteCustomer, endPlan, renameCustomer, requireMember, reschedule, rescheduleSlots, UserError } from "@/lib/booking.server";
+import { createPlan, deleteCustomer, endPlan, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
+import { DadosCliente } from "@/lib/cliente-dados";
 import { z } from "zod";
 import { PlanInput, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
@@ -61,6 +62,11 @@ export const endPlanAction = memberAction(
 export const renameCustomerAction = memberAction(
   z.object({ tenantId: docId, customerId: docId, name: z.string().trim().min(1, "Escreva o nome.").max(80) }),
   (data, user) => renameCustomer(adminDb, data, user),
+);
+
+export const salvarDadosClienteAction = memberAction(
+  z.object({ tenantId: docId, customerId: docId, dados: DadosCliente }),
+  (data, user) => salvarDadosCliente(adminDb, data, user),
 );
 
 export const deleteCustomerAction = memberAction(
