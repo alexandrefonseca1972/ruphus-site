@@ -17,15 +17,16 @@ const COLUNAS = {
   bairro: ["bairro", "neighborhood"],
   cidade: ["cidade", "municipio", "city"],
   uf: ["uf", "estado", "state"],
-  nota: ["nota", "notagoogle", "avaliacao", "rating", "estrelas"],
-  avaliacoes: ["avaliacoes", "navaliacoes", "numeroavaliacoes", "numerodeavaliacoes", "totalavaliacoes", "qtdavaliacoes", "reviews"],
+  nota: ["nota", "notagoogle", "notageral", "avaliacao", "rating", "estrelas"],
+  // "Nº de avaliações" normaliza para "ndeavaliacoes": o º não é letra
+  avaliacoes: ["avaliacoes", "navaliacoes", "ndeavaliacoes", "numeroavaliacoes", "numerodeavaliacoes", "totalavaliacoes", "qtdavaliacoes", "reviews"],
   instagram: ["instagram", "insta", "ig", "redesocial", "redesocialprincipal", "redesocialprincipalfrequencia"],
   horario: ["horario", "horarios", "funcionamento", "horariodefuncionamento", "workinghours"],
   servicos: ["servicos", "services"],
   email: ["email", "emaildodono", "emaildono"],
   slug: ["slug", "subdominio", "endereco do site"],
   // do levantamento do lead: vão para o funil, não para o site
-  score: ["score", "pontuacao", "prioridade"],
+  score: ["score", "scoredeoportunidade", "pontuacao", "prioridade"],
   abordagem: ["ganchodeabordagemsugerido", "gancho", "abordagem", "observacao", "observacoes"],
 } as const;
 type Campo = keyof typeof COLUNAS;
@@ -69,7 +70,26 @@ export type Leitura = {
   ignoradas: string[];
 };
 
-const texto = (v: unknown) => (v == null ? "" : String(v).replace(/\s+/g, " ").trim());
+// O levantamento marca o que não achou em vez de deixar a célula vazia. Isso não pode
+// virar bairro, horário ou endereço no site: vale como vazio.
+const SEM_DADO = /^(n[aã]o\s+(verificad[oa]s?|vis[ií]vel|informad[oa]|encontrad[oa]|dispon[ií]vel)|sem\s+(dados?|informa[cç][aã]o)|n\/?[ad]|-+|—|\?+|null|undefined)$/i;
+const texto = (v: unknown) => {
+  const t = v == null ? "" : String(v).replace(/\s+/g, " ").trim();
+  return SEM_DADO.test(t) ? "" : t;
+};
+
+/** UF pelo DDD do telefone: o levantamento nem sempre traz a coluna, e sem ela o site
+ *  sai "Picos" em vez de "Picos/PI" e o Google fica sem o estado. */
+const UF_DO_DDD: Record<string, string> = Object.fromEntries(
+  Object.entries({
+    SP: "11 12 13 14 15 16 17 18 19", RJ: "21 22 24", ES: "27 28", MG: "31 32 33 34 35 37 38",
+    PR: "41 42 43 44 45 46", SC: "47 48 49", RS: "51 53 54 55", DF: "61", GO: "62 64", TO: "63",
+    MT: "65 66", MS: "67", AC: "68", RO: "69", BA: "71 73 74 75 77", SE: "79", PE: "81 87", AL: "82",
+    PB: "83", RN: "84", CE: "85 88", PI: "86 89", PA: "91 93 94", AM: "92 97", RR: "95", AP: "96", MA: "98 99",
+  }).flatMap(([uf, ddds]) => ddds.split(" ").map((d) => [d, uf])),
+);
+/** "5586999990000" → "PI"; sem DDD conhecido, "". */
+export const ufDoTelefone = (telefone: string) => UF_DO_DDD[telefone.replace(/^55/, "").slice(0, 2)] ?? "";
 const numero = (v: unknown) => {
   const n = typeof v === "number" ? v : Number(texto(v).replace(",", "."));
   return texto(v) && Number.isFinite(n) ? n : null;
@@ -134,6 +154,11 @@ export function lerPlanilha(abas: { aba: string; linhas: unknown[][] }[]): Leitu
     });
   }
   if (!comCabecalho) erros.push({ aba: abas[0]?.aba ?? "", linha: 1, motivo: "Não achei o cabeçalho: a planilha precisa de uma coluna “nome”." });
+  // Sem coluna UF, vale a do DDD mais comum da planilha: um levantamento é de uma região,
+  // e o dono com número de outro estado (5 em 106 no do Piauí) não muda onde o negócio fica.
+  const ddds = leads.map(({ lead }) => ufDoTelefone(lead.telefone)).filter(Boolean);
+  const daPlanilha = [...new Set(ddds)].sort((a, b) => ddds.filter((u) => u === b).length - ddds.filter((u) => u === a).length)[0] ?? "";
+  for (const { lead } of leads) if (!lead.uf) lead.uf = daPlanilha;
   return { leads, erros, ignoradas: [...ignoradas] };
 }
 
