@@ -29,6 +29,7 @@ type Props = {
   uf?: string | null;
   address?: string | null;
   bairro?: string | null;
+  temSite?: boolean;
   services: { id: string; name: string; durationMin: number; priceCents: number }[];
   staff: { id: string; name: string; serviceIds: string[]; workDays: number[] }[];
 };
@@ -80,33 +81,58 @@ function Zap({ className }: { className?: string }) {
   );
 }
 
-function Cabecalho({ name, rating, reviews, city, phone }: Pick<Props, "name" | "rating" | "reviews" | "city" | "phone">) {
+/** Nome, nota e cidade do negócio, no topo das telas da agenda. */
+function Identidade({ name, rating, reviews, city }: Pick<Props, "name" | "rating" | "reviews" | "city">) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <h1 className="truncate text-base leading-tight font-semibold tracking-[-0.02em]">{name}</h1>
+      {(rating || city) && (
+        <p className="flex items-center gap-1.5 text-[11px] text-[#5C5747]">
+          {rating ? (
+            <>
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="size-3 text-[#C9962F]">
+                <path d="M12 2l2.9 6.3 6.6.7-4.9 4.5 1.3 6.5L12 16.8 6.1 20l1.3-6.5L2.5 9l6.6-.7z" />
+              </svg>
+              <span className={cn(MONO, "text-[11px] text-[#17150F]")}>
+                {rating.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              </span>
+              {reviews ? <span className="truncate">· {reviews.toLocaleString("pt-BR")} no Google</span> : null}
+            </>
+          ) : null}
+          {rating && city ? <span aria-hidden="true">·</span> : null}
+          {city ? <span className="truncate">{city}</span> : null}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Cabecalho({ tenantId, temSite, name, rating, reviews, city, phone }: Pick<Props, "tenantId" | "temSite" | "name" | "rating" | "reviews" | "city" | "phone">) {
   const falar = linkWhatsApp(phone, `Olá! Quero marcar um horário no ${name}.`);
+  // O nome leva ao negócio: no computador, o site inteiro; no celular, a bio, que cabe na
+  // tela e já tem os botões. Endereço completo: esta página também abre em www.ruphus.site.
+  const base = `https://${tenantId}.ruphus.site`;
+  const destinos = [
+    { href: temSite ? `${base}/` : `${base}/bio`, className: "hidden sm:flex" },
+    { href: `${base}/bio`, className: "flex sm:hidden" },
+  ];
   return (
     <header className={cn("flex items-center gap-3 p-3.5", PAINEL)}>
-      <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-[#17150F] text-[12px] text-[#FAF9F5]", MONO)}>
-        {iniciais(name)}
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <h1 className="truncate text-base leading-tight font-semibold tracking-[-0.02em]">{name}</h1>
-        {(rating || city) && (
-          <p className="flex items-center gap-1.5 text-[11px] text-[#5C5747]">
-            {rating ? (
-              <>
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="size-3 text-[#C9962F]">
-                  <path d="M12 2l2.9 6.3 6.6.7-4.9 4.5 1.3 6.5L12 16.8 6.1 20l1.3-6.5L2.5 9l6.6-.7z" />
-                </svg>
-                <span className={cn(MONO, "text-[11px] text-[#17150F]")}>
-                  {rating.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                </span>
-                {reviews ? <span className="truncate">· {reviews.toLocaleString("pt-BR")} no Google</span> : null}
-              </>
-            ) : null}
-            {rating && city ? <span aria-hidden="true">·</span> : null}
-            {city ? <span className="truncate">{city}</span> : null}
-          </p>
-        )}
-      </div>
+      {destinos.map((d) => (
+        <a
+          key={d.className}
+          href={d.href}
+          target="_blank"
+          rel="noreferrer"
+          title={`Ver a página de ${name}`}
+          className={cn("min-w-0 flex-1 items-center gap-3 rounded-[11px] hover:[&_h1]:underline", d.className)}
+        >
+          <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-[#17150F] text-[12px] text-[#FAF9F5]", MONO)}>
+            {iniciais(name)}
+          </span>
+          <Identidade name={name} rating={rating} reviews={reviews} city={city} />
+        </a>
+      ))}
       {falar && (
         <a
           href={falar}
@@ -130,7 +156,7 @@ function Rodape() {
   );
 }
 
-export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, services, staff }: Props) {
+export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, services, staff }: Props) {
   // Nada vem marcado: quem agenda diz o que quer, e só então a agenda aparece.
   // Os serviços chegam do servidor na ordem do que mais se agenda.
   const [serviceIds, setServiceIds] = useState<string[]>([]);
@@ -304,7 +330,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     );
     return (
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col gap-4 bg-[#F2F0E7] p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-[#17150F]">
-        <Cabecalho name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
+        <Cabecalho tenantId={tenantId} temSite={temSite} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
         <div className={cn(PAINEL, "overflow-hidden shadow-[0_28px_50px_-34px_rgba(22,21,15,0.28)]")}>
           <div className="flex flex-col gap-4 p-5">
             <p className={cn("flex items-center gap-2 text-[9px] font-medium tracking-[0.16em] text-[#2C6A53] uppercase", MONO)} role="status">
@@ -486,7 +512,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     const falar = linkWhatsApp(phone, `Olá! Quero marcar um horário no ${name}.`);
     return (
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col gap-4 bg-[#F2F0E7] p-4 py-6 text-[#17150F]">
-        <Cabecalho name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
+        <Cabecalho tenantId={tenantId} temSite={temSite} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
         <div className={cn(PAINEL, "flex flex-col gap-4 p-5")}>
           <p className={cn("text-[9px] font-medium tracking-[0.16em] text-[#6B6555] uppercase", MONO)}>agenda online ainda fechada</p>
           <p className="text-sm leading-relaxed text-[#5C5747]">
@@ -675,7 +701,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     <main className="mx-auto min-h-dvh w-full max-w-[420px] bg-[#F2F0E7] p-4 pb-[max(6rem,env(safe-area-inset-bottom))] text-[#17150F] lg:max-w-[1120px]">
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[1fr_340px] lg:items-start lg:gap-8">
         <div className="flex flex-col gap-4">
-          <Cabecalho name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
+          <Cabecalho tenantId={tenantId} temSite={temSite} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
 
           {slotError && (
             <p role="alert" className="rounded-[10px] border border-[#E7C9BF] bg-[#FBF1EE] p-3 text-sm text-[#B4472F]">

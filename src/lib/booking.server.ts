@@ -31,6 +31,8 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
     uf: (tenant.get("site.uf") as string | null) ?? null,
     address: (tenant.get("site.address") as string | null) ?? null,
     bairro: (tenant.get("gerado.bairro") as string | null) || null,
+    // tem página própria (fábrica ou gerador): o nome no topo leva a ela no computador
+    temSite: !!(tenant.get("gerado.sub") || tenant.get("site.url")),
     // Ordem: o que mais se agenda primeiro. Enquanto ninguém agendou, vale a
     // ordem em que o site lista os serviços (ordem), que é a do próprio negócio.
     services: services.docs

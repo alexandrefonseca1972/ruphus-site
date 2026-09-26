@@ -27,6 +27,8 @@ o PR, onde está o porquê.
 - **Salvar na agenda** (#75, #76): arquivo de agenda com lembrete 2 horas antes,
   ou o Google Agenda — discreto no rodapé (#76): a ação da tela é falar com o
   negócio, pelo nome dele ("Falar com Barbearia Force no WhatsApp").
+- **O nome no topo leva ao negócio** (#81): no computador, ao site; no celular,
+  à bio. Sem site próprio, à bio nos dois.
 - **Mais claro** (#75): o nome da casa no topo, "amanhã"/"daqui a 3 dias", o valor
   com "pago no local", "A casa vai te chamar no **seu** WhatsApp" (o número
   mostrado é o do cliente, e parecia ser o da casa) e desmarcar com botão e
