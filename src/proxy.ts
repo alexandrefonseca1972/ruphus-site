@@ -58,6 +58,9 @@ export function sitePath(slug: string, pathname: string) {
   // já endereçado ao próprio site (a /bio pede /s/{slug}/img/… para funcionar em www e no
   // subdomínio com o mesmo HTML em cache): não prefixa de novo, senão vira /s/{slug}/s/{slug}/…
   if (pathname.startsWith(`/s/${slug}/`)) return pathname;
+  // a foto do banco compartilhado na /bio (/s/assets/…, o mesmo caminho em www): já é o
+  // endereço final. Sem isto virava /s/{slug}/s/assets/… e a bio abria com a imagem quebrada
+  if (pathname.startsWith("/s/assets/")) return pathname;
   // as páginas pedem "../assets/…", que na raiz do subdomínio vira /assets/…: é a pasta compartilhada
   if (pathname === "/assets" || pathname.startsWith("/assets/")) return `/s${pathname}`;
   // public/ não serve índice de diretório: a raiz do site aponta direto para o arquivo
