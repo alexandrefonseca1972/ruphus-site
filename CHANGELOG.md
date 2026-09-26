@@ -10,6 +10,7 @@ o PR, onde está o porquê.
   e da landing (836 → 803 sites), e os 34 negócios sem telefone (com a conta de
   teste `salao-de-boas-caras`) saem do banco. Sem contato não há proposta nem
   agendamento.
+
 ### Gerador lê o levantamento do jeito que ele vem
 - **Nomes de coluna do levantamento** (#78): "Nota geral", "Nº de avaliações" e
   "Score de oportunidade" passam a valer. Os 106 sites do Piauí tinham saído sem
