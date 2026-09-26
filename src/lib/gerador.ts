@@ -90,9 +90,12 @@ const UF_DO_DDD: Record<string, string> = Object.fromEntries(
 );
 /** "5586999990000" → "PI"; sem DDD conhecido, "". */
 export const ufDoTelefone = (telefone: string) => UF_DO_DDD[telefone.replace(/^55/, "").slice(0, 2)] ?? "";
+// O levantamento marca estimativa com "~4.4" ou "aprox. 120": vale o número (decisão de
+// produto: nota aproximada no site é melhor que nenhuma).
 const numero = (v: unknown) => {
-  const n = typeof v === "number" ? v : Number(texto(v).replace(",", "."));
-  return texto(v) && Number.isFinite(n) ? n : null;
+  const t = texto(v).replace(/^(~|≈|±|aprox\.?|cerca de)\s*/i, "");
+  const n = typeof v === "number" ? v : Number(t.replace(",", "."));
+  return t && Number.isFinite(n) ? n : null;
 };
 /** "@loja", "instagram.com/loja/", "loja" ou "Instagram @loja (10k) — ativa" viram "loja";
  *  texto sem perfil ("Facebook provável") vira vazio, não um Instagram inventado */

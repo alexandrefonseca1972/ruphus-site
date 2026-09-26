@@ -98,6 +98,9 @@ assert.match(lerPlanilha([["a", "b"], [1, 2]]).erros[0].motivo, /cabeçalho/);
   assert.equal(leads.length, 1, "sem telefone de verdade, a linha não vira site");
   const l = leads[0].lead;
   assert.deepEqual([l.nota, l.avaliacoes, l.score], [5, 107, "Alta"], "nota, avaliações e score com os nomes do levantamento");
+  // estimativa do levantamento ("~4.4", "aprox. 120") vale o número
+  const aprox = lerPlanilha([["Nome", "Telefone", "Categoria", "Nota geral", "Nº de avaliações"], ["Studio Aprox", "(86) 99111-0009", "Estética", "~4.4", "aprox. 120"]]).leads[0].lead;
+  assert.deepEqual([aprox.nota, aprox.avaliacoes], [4.4, 120]);
   assert.equal(l.bairro, "", "\"não verificado\" não vira bairro no site");
   assert.equal(l.instagram, "");
   assert.equal(l.horario, "", "Horário (S/N) responde sim/não, não é horário");
