@@ -278,6 +278,8 @@ export default function AdminPage() {
     setAcessos(null);
     setDetalhe(null);
     setAviso("");
+    // "Copiado ✓" é do negócio em que se copiou: sem isto, abrir o próximo já mostrava copiado
+    setCopiado("");
     const t = await token();
     setEventos(null);
     const [a, d, n] = await Promise.all([listarAcessos(t, e.slug), detalhesEspaco(t, e.slug), linhaDoTempoDo(t, e.slug)]);
