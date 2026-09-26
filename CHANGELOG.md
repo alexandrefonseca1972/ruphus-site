@@ -10,6 +10,15 @@ o PR, onde está o porquê.
   e da landing (836 → 803 sites), e os 34 negócios sem telefone (com a conta de
   teste `salao-de-boas-caras`) saem do banco. Sem contato não há proposta nem
   agendamento.
+### Gerador lê o levantamento do jeito que ele vem
+- **Nomes de coluna do levantamento** (#78): "Nota geral", "Nº de avaliações" e
+  "Score de oportunidade" passam a valer. Os 106 sites do Piauí tinham saído sem
+  a nota do Google por isso.
+- **"Não verificado" não vira dado** (#78): "não verificado", "não visível",
+  "N/A", "-" contam como vazio; telefone mascarado ("(86) 3XXX-XXXX") segue
+  recusado.
+- **UF sem coluna UF** (#78): a do DDD mais comum da planilha. Os 106 sites do
+  Piauí, que estavam sem UF, ganharam "PI".
 
 ### Depois de agendar: agenda do celular e como chegar
 - **Como chegar** (#75): mapa, endereço (ou bairro e cidade, quando a casa não
