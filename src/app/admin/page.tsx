@@ -154,6 +154,12 @@ export default function AdminPage() {
   const [aviso, setAviso] = useState("");
   const [crm, setCrm] = useState<Record<string, Crm>>({});
   const [eventos, setEventos] = useState<Evento[] | null>(null);
+  // A nota do Gerador (score e abordagem do levantamento) é preparo, não algo que
+  // aconteceu: fora do histórico e da contagem — todo negócio abria com "Histórico · 1".
+  // Ela aparece na aba Venda, onde o primeiro contato começa.
+  const doLevantamento = (e: Evento) => e.tipo === "nota" && e.autor === "Gerador de sites";
+  const historia = eventos && eventos.filter((e) => !doLevantamento(e));
+  const levantamento = eventos?.find(doLevantamento)?.detalhe ?? null;
   // qual negócio está sendo marcado como perdido (pela gaveta ou soltando no funil)
   const [perdendo, setPerdendo] = useState<string | null>(null);
   const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca" | "gerador">("lista");
@@ -1400,7 +1406,7 @@ export default function AdminPage() {
               {(
                 [
                   ["venda", "Venda"],
-                  ["historico", `Histórico${eventos ? ` · ${eventos.length}` : ""}`],
+                  ["historico", `Histórico${historia ? ` · ${historia.length}` : ""}`],
                   ["cliente", "Cliente"],
                   ["site", "Site"],
                   ["cobranca", "Cobrança"],
@@ -1469,6 +1475,22 @@ export default function AdminPage() {
 
             {/* Etapa numa linha: progresso à esquerda, desfecho à direita. São
                 coisas diferentes — fechar e perder perguntam antes de gravar. */}
+            {levantamento && (() => {
+              // "Score do levantamento: ALTA. Abordagem sugerida: …" — o Gerador grava assim
+              const score = /Score do levantamento:\s*([^.]+)\./i.exec(levantamento)?.[1]?.trim();
+              const abordagem = levantamento.replace(/^[\s\S]*?Abordagem sugerida:\s*/i, "").trim() || levantamento;
+              return (
+                <section aria-labelledby="levantamento-t" className="flex flex-col gap-2 rounded-2xl border border-[#E2DDD3] bg-[#FBFAF8] p-4">
+                  <div className="flex items-center gap-2">
+                    <h3 id="levantamento-t" className="text-[11px] font-semibold tracking-[0.07em] text-[#6F6A5E] uppercase">Levantamento</h3>
+                    <div className="grow" />
+                    {score && <span className="rounded-full bg-[#F3EFE7] px-2.5 py-1 text-[11px] font-semibold text-[#4A4639]">score {score.toLowerCase()}</span>}
+                  </div>
+                  <p className="text-[13px] leading-relaxed text-[#17150F]">{abordagem}</p>
+                </section>
+              );
+            })()}
+
             <section aria-label="Etapa" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">
               <div className="flex items-center gap-2">
                 <h3 className="text-[11px] font-semibold tracking-[0.07em] text-[#6F6A5E] uppercase">Etapa</h3>
@@ -1675,13 +1697,13 @@ export default function AdminPage() {
               </div>
             </details>
 
-            <LinhaDoTempo key={`resumo-${aberto.slug}`} eventos={eventos} limite={3} onVerTudo={() => setAba("historico")} anotar={(texto) => novaNota(aberto.slug, texto)} />
+            <LinhaDoTempo key={`resumo-${aberto.slug}`} eventos={historia} limite={3} onVerTudo={() => setAba("historico")} anotar={(texto) => novaNota(aberto.slug, texto)} />
 
               </>
             )}
             {aba === "historico" && (
               <>
-            <LinhaDoTempo key={`linha-${aberto.slug}`} eventos={eventos} anotar={(texto) => novaNota(aberto.slug, texto)} />
+            <LinhaDoTempo key={`linha-${aberto.slug}`} eventos={historia} anotar={(texto) => novaNota(aberto.slug, texto)} />
 
               </>
             )}
