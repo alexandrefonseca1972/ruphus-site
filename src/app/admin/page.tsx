@@ -1322,9 +1322,9 @@ export default function AdminPage() {
               </div>
               <div className="min-w-0 grow">
                 <h2 className="font-[family-name:var(--fonte-serifa)] text-[28px] leading-tight tracking-tight">{aberto.nome}</h2>
-                <p className="mt-1 truncate text-[13px] text-[#6F6A5E]">
-                  {aberto.slug}.ruphus.site{local(aberto) ? ` · ${local(aberto)}` : ""} · {aberto.nicho}
-                </p>
+                {/* endereço numa linha e o resto na outra: juntos, o endereço longo cortava cidade e ramo */}
+                <p className="mt-1 truncate text-[13px] text-[#6F6A5E]">{aberto.slug}.ruphus.site</p>
+                <p className="truncate text-[13px] text-[#6F6A5E]">{[local(aberto), aberto.nicho].filter(Boolean).join(" · ")}</p>
                 {/* O que o vendedor precisa saber antes de rolar: em que pé está e o que ficou combinado */}
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR[crm[aberto.slug]?.estagio ?? "novo"]}`}>
@@ -1393,18 +1393,19 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* A gaveta tem o que o vendedor usa todo dia em "Venda"; o resto fica a um toque */}
-            <div role="tablist" aria-label="Seções do negócio" className="sticky -top-6 z-10 -mx-6 -mt-2 flex shrink-0 gap-1 overflow-x-auto border-b border-[#E2DDD3] bg-white px-6 [scrollbar-width:none] sm:-top-8 sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden">
+            {/* A gaveta tem o que o vendedor usa todo dia em "Venda"; o resto fica a um toque.
+                Só texto e dividindo a largura: com ícone, as cinco abas passavam da gaveta e
+                "Cobrança" ficava cortada */}
+            <div role="tablist" aria-label="Seções do negócio" className="sticky -top-6 z-10 -mx-6 -mt-2 flex shrink-0 gap-0 overflow-x-auto sm:gap-1 border-b border-[#E2DDD3] bg-white px-6 [scrollbar-width:none] sm:-top-8 sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden">
               {(
                 [
-                  // ícones em traço, do mesmo peso dos outros da gaveta
-                  ["venda", "Venda", <path key="v" d="M3 17l6-6 4 4 8-8M15 7h6v6" />],
-                  ["historico", `Histórico${eventos ? ` · ${eventos.length}` : ""}`, <><circle key="c" cx="12" cy="12" r="8.5" /><path key="p" d="M12 7.5V12l3 2" /></>],
-                  ["cliente", "Cliente", <><circle key="c" cx="12" cy="8" r="3.5" /><path key="p" d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" /></>],
-                  ["site", "Site", <><rect key="r" x="3" y="4" width="18" height="16" rx="2" /><path key="p" d="M3 9h18M7 6.5h.01M10 6.5h.01" /></>],
-                  ["cobranca", "Cobrança", <><rect key="r" x="3" y="6" width="18" height="12" rx="2" /><path key="p" d="M3 10h18M7 15h3" /></>],
+                  ["venda", "Venda"],
+                  ["historico", `Histórico${eventos ? ` · ${eventos.length}` : ""}`],
+                  ["cliente", "Cliente"],
+                  ["site", "Site"],
+                  ["cobranca", "Cobrança"],
                 ] as const
-              ).map(([id, rotulo, icone]) => (
+              ).map(([id, rotulo]) => (
                 <button
                   key={id}
                   type="button"
@@ -1413,11 +1414,8 @@ export default function AdminPage() {
                   aria-selected={aba === id}
                   aria-controls="aba-painel"
                   onClick={() => setAba(id)}
-                  className={`flex h-12 items-center gap-1.5 px-3 text-[13px] whitespace-nowrap ${aba === id ? "font-semibold text-[#17150F] shadow-[inset_0_-2px_0_#17150F]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
+                  className={`flex h-12 flex-1 items-center justify-center px-1 text-[12px] whitespace-nowrap sm:px-2 sm:text-[13px] ${aba === id ? "font-semibold text-[#17150F] shadow-[inset_0_-2px_0_#17150F]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
                 >
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
-                    {icone}
-                  </svg>
                   {rotulo}
                 </button>
               ))}
