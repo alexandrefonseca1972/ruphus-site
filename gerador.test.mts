@@ -2,7 +2,7 @@
 //   npm run test:gerador
 import assert from "node:assert/strict";
 import lerAbas from "read-excel-file/node";
-import { candidatos, type DadosSite, fixo, lerPlanilha as lerAbasDaPlanilha, nichoDe, variante } from "@/lib/gerador";
+import { candidatos, type DadosSite, fixo, lerPlanilha as lerAbasDaPlanilha, nichoDe, ufDoTelefone, variante } from "@/lib/gerador";
 
 // uma aba só, como a maioria das planilhas
 const lerPlanilha = (linhas: unknown[][]) => lerAbasDaPlanilha([{ aba: "Leads", linhas }]);
@@ -85,6 +85,33 @@ for (const [categoria, sub] of [["Massoterapia", "estetica"], ["Podologia", "est
 
 // sem coluna de nome não há o que ler
 assert.match(lerPlanilha([["a", "b"], [1, 2]]).erros[0].motivo, /cabeçalho/);
+
+// o levantamento do Piauí: "Nota geral", "Nº de avaliações", "Score de oportunidade",
+// sem coluna UF e com "não verificado" onde não achou o dado
+{
+  const { leads, erros } = lerPlanilha([
+    ["Nome", "Categoria(s)", "Endereço completo", "Bairro", "Nota geral", "Nº de avaliações", "Horário de funcionamento (S/N)", "Rede social principal", "Telefone / WhatsApp", "Score de oportunidade", "Cidade"],
+    ["Alan Barbearia", "Barbearia", "Ao lado da antiga Panificadora", "não verificado", "5.0", "107.0", "Sim", "não verificado", "(89) 99999-1234", "Alta", "Floriano"],
+    ["Yalodê Studio", "Salão de Beleza", "R. São João, 811", "Não visível", "4.8", "26.0", "não verificado", "@yalode", "não verificado", "Média", "Piripiri"],
+    ["Mascarado", "Barbearia", "", "", "4.9", "40", "", "", "(86) 3XXX-XXXX", "Alta", "Teresina"],
+  ]);
+  assert.equal(leads.length, 1, "sem telefone de verdade, a linha não vira site");
+  const l = leads[0].lead;
+  assert.deepEqual([l.nota, l.avaliacoes, l.score], [5, 107, "Alta"], "nota, avaliações e score com os nomes do levantamento");
+  assert.equal(l.bairro, "", "\"não verificado\" não vira bairro no site");
+  assert.equal(l.instagram, "");
+  assert.equal(l.horario, "", "Horário (S/N) responde sim/não, não é horário");
+  assert.equal(l.uf, "PI", "UF pelo DDD quando a planilha não tem a coluna");
+  assert.deepEqual(erros.map((e) => e.motivo), ["Telefone ausente ou inválido.", "Telefone ausente ou inválido."], "\"não verificado\" e (86) 3XXX-XXXX são sem telefone");
+}
+// a coluna UF, quando existe, manda; o DDD só preenche o que falta
+assert.equal(lerPlanilha([["Nome", "Telefone", "Categoria", "UF"], ["Corte Fino", "(96) 99111-2222", "Barbearia", "pa"]]).leads[0].lead.uf, "PA");
+// sem coluna UF, a do DDD mais comum vale para todos: o dono com número de fora não muda o estado
+assert.deepEqual(
+  lerPlanilha([["Nome", "Telefone", "Categoria"], ["Corte Um", "(86) 99111-0001", "Barbearia"], ["Corte Dois", "(86) 99111-0002", "Barbearia"], ["Corte Três", "(51) 99111-0003", "Barbearia"]]).leads.map((x) => x.lead.uf),
+  ["PI", "PI", "PI"],
+);
+assert.deepEqual(["5586999990000", "5596991112222", "5592991112222", "5511988887777", "5500123456789"].map(ufDoTelefone), ["PI", "AP", "AM", "SP", ""]);
 
 // nicho: veterinária antes de pet shop, unha antes de salão,
 // e o nome só decide quando não há categoria
