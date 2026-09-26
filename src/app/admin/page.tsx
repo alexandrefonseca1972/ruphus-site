@@ -43,7 +43,7 @@ import { Carteira } from "./carteira";
 import { Gerador } from "./gerador";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
-import { COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, campanhaDe, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
+import { AUTOR_LEVANTAMENTO, COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, campanhaDe, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
 
 const PAGINA = 40;
 const VAZIO: Crm = {
@@ -157,7 +157,7 @@ export default function AdminPage() {
   // A nota do Gerador (score e abordagem do levantamento) é preparo, não algo que
   // aconteceu: fora do histórico e da contagem — todo negócio abria com "Histórico · 1".
   // Ela aparece na aba Venda, onde o primeiro contato começa.
-  const doLevantamento = (e: Evento) => e.tipo === "nota" && e.autor === "Gerador de sites";
+  const doLevantamento = (e: Evento) => e.tipo === "nota" && e.autor === AUTOR_LEVANTAMENTO;
   const historia = eventos && eventos.filter((e) => !doLevantamento(e));
   const levantamento = eventos?.find(doLevantamento)?.detalhe ?? null;
   // qual negócio está sendo marcado como perdido (pela gaveta ou soltando no funil)
@@ -1473,12 +1473,10 @@ export default function AdminPage() {
               </div>
             </section>
 
-            {/* Etapa numa linha: progresso à esquerda, desfecho à direita. São
-                coisas diferentes — fechar e perder perguntam antes de gravar. */}
             {levantamento && (() => {
               // "Score do levantamento: ALTA. Abordagem sugerida: …" — o Gerador grava assim
               const score = /Score do levantamento:\s*([^.]+)\./i.exec(levantamento)?.[1]?.trim();
-              const abordagem = levantamento.replace(/^[\s\S]*?Abordagem sugerida:\s*/i, "").trim() || levantamento;
+              const abordagem = /Abordagem sugerida:\s*([\s\S]*)/i.exec(levantamento)?.[1]?.trim() ?? (score ? "" : levantamento);
               return (
                 <section aria-labelledby="levantamento-t" className="flex flex-col gap-2 rounded-2xl border border-[#E2DDD3] bg-[#FBFAF8] p-4">
                   <div className="flex items-center gap-2">
@@ -1486,11 +1484,13 @@ export default function AdminPage() {
                     <div className="grow" />
                     {score && <span className="rounded-full bg-[#F3EFE7] px-2.5 py-1 text-[11px] font-semibold text-[#4A4639]">score {score.toLowerCase()}</span>}
                   </div>
-                  <p className="text-[13px] leading-relaxed text-[#17150F]">{abordagem}</p>
+                  {abordagem && <p className="text-[13px] leading-relaxed text-[#17150F]">{abordagem}</p>}
                 </section>
               );
             })()}
 
+            {/* Etapa numa linha: progresso à esquerda, desfecho à direita. São
+                coisas diferentes — fechar e perder perguntam antes de gravar. */}
             <section aria-label="Etapa" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">
               <div className="flex items-center gap-2">
                 <h3 className="text-[11px] font-semibold tracking-[0.07em] text-[#6F6A5E] uppercase">Etapa</h3>

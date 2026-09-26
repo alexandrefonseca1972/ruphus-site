@@ -15,6 +15,7 @@ o PR, onde está o porquê.
 - **Agenda e cadastro com a mesma regra de nome** (#82): o campo só aceita
   letras (com acento), espaço, apóstrofo, hífen e ponto, e pede 2 letras. O
   servidor confere igual: "3232323232" não passa mais como nome de quem agenda.
+  Renomear o cliente na ficha segue a mesma regra (#86).
 
 ### Fora quem não tem telefone
 - **33 sites da fábrica sem WhatsApp nem telefone saem do ar** (#79), da vitrine

@@ -450,7 +450,10 @@ function DadosDoCliente({
           autoComplete="off"
           placeholder="DD/MM/AAAA"
           value={data}
-          onChange={(e) => setData(mascaraData(e.target.value))}
+          onChange={(e) => {
+            setData(mascaraData(e.target.value));
+            setAviso(null);
+          }}
           onBlur={() => ver("data")}
           aria-invalid={!!mostra("data")}
           aria-describedby="nascimento-aviso"
@@ -471,7 +474,10 @@ function DadosDoCliente({
           spellCheck={false}
           placeholder="nome@exemplo.com"
           value={mail}
-          onChange={(e) => setMail(mascaraEmail(e.target.value))}
+          onChange={(e) => {
+            setMail(mascaraEmail(e.target.value));
+            setAviso(null);
+          }}
           onBlur={() => ver("email")}
           aria-invalid={!!mostra("email")}
           aria-describedby="email-cliente-aviso"

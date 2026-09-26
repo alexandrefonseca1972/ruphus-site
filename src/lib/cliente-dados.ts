@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dateIn } from "@/lib/datetime";
 
 // Data de nascimento e e-mail do cliente, que o dono registra na ficha. A tela e o
 // servidor usam as mesmas regras: o que a tela avisa é o que o servidor recusa.
@@ -26,14 +27,15 @@ export function erroNascimento(v: string, hoje = new Date()) {
   // 31/02 vira 03/03 no Date: se o dia ou o mês mudou, a data não existe
   if (!iso || data.getUTCMonth() !== m - 1 || data.getUTCDate() !== d) return "Essa data não existe";
   if (a < 1900) return "Confira o ano";
-  if (iso > hoje.toISOString().slice(0, 10)) return "A data não pode ser no futuro";
+  // no fuso do negócio: em UTC, depois das 21h a data de amanhã passava
+  if (iso > dateIn(hoje)) return "A data não pode ser no futuro";
   return "";
 }
 
 /** Idade completa na data de hoje. */
 export function idade(iso: string, hoje = new Date()) {
   const [a, m, d] = iso.split("-").map(Number);
-  const [ha, hm, hd] = [hoje.getFullYear(), hoje.getMonth() + 1, hoje.getDate()];
+  const [ha, hm, hd] = dateIn(hoje).split("-").map(Number);
   return ha - a - (hm < m || (hm === m && hd < d) ? 1 : 0);
 }
 

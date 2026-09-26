@@ -3,6 +3,7 @@
 import { adminDb } from "@/lib/admin";
 import { createPlan, deleteCustomer, endPlan, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
+import { erroNome } from "@/lib/nome";
 import { z } from "zod";
 import { PlanInput, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
@@ -60,7 +61,13 @@ export const endPlanAction = memberAction(
 );
 
 export const renameCustomerAction = memberAction(
-  z.object({ tenantId: docId, customerId: docId, name: z.string().trim().min(1, "Escreva o nome.").max(80) }),
+  z.object({ tenantId: docId, customerId: docId, name: z
+      .string()
+      .trim()
+      .max(80)
+      // a regra da agenda (#82): sem ela, o dono renomeava para "3232" ou "."
+      .refine((v) => !erroNome(v), "Use só letras no nome, com pelo menos 2."),
+  }),
   (data, user) => renameCustomer(adminDb, data, user),
 );
 
