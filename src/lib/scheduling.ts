@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { erroNome } from "@/lib/nome";
 
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário inválido");
@@ -48,7 +49,11 @@ export type AgendaQuery = z.infer<typeof AgendaQuery>;
 
 export const BookingInput = SlotQuery.extend({
   time: hhmm,
-  customerName: z.string().trim().min(2, "Informe seu nome").max(80, "Nome muito longo"),
+  // a mesma regra da tela: sem ela, "3232323232" passava como nome
+  customerName: z.string().trim().max(80, "Nome muito longo").superRefine((v, ctx) => {
+    const erro = erroNome(v);
+    if (erro) ctx.addIssue({ code: "custom", message: erro });
+  }),
   customerPhone: z
     .string()
     .trim()

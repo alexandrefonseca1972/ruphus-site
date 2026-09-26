@@ -15,6 +15,7 @@ import {
   zonedTime,
 } from "@/lib/datetime";
 import { ics, linkGoogleAgenda, mapas } from "@/lib/lembrete";
+import { erroNome, mascaraNome } from "@/lib/nome";
 import { cn } from "@/lib/utils";
 import { createBooking, getAgenda } from "./actions";
 
@@ -62,7 +63,6 @@ const iniciais = (nome: string) =>
     .map((p) => p[0])
     .join("")
     .toUpperCase();
-const nameError = (v: string) => (!v.trim() ? "Informe seu nome" : v.trim().length < 2 ? "Nome muito curto" : "");
 // Enquanto faltam dígitos a dica conta, não acusa: acusar quem ainda digita é ruído.
 const faltamDigitos = (v: string) => {
   const d = v.replace(/\D/g, "");
@@ -185,7 +185,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const fazTudo = (p: Props["staff"][number]) => serviceIds.every((id) => p.serviceIds.includes(id));
   const profissionais = staff.filter(fazTudo);
   const atendente = staff.find((p) => p.id === escolha?.staffId);
-  const errors = { name: nameError(customerName), phone: phoneError(customerPhone) };
+  const errors = { name: erroNome(customerName), phone: phoneError(customerPhone) };
   const contatoOk = !errors.name && !errors.phone;
   const dia = agenda?.find((d) => d.date === date);
   // A grade começa com os primeiros horários; "ver todos" vale para o dia aberto. Se o
@@ -620,14 +620,14 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 maxLength={80}
                 placeholder="Como te chamam"
                 value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
+                onChange={(e) => setCustomerName(mascaraNome(e.target.value))}
                 onBlur={() => setTouched((t) => ({ ...t, name: true }))}
                 aria-invalid={touched.name && !!errors.name}
                 aria-describedby="nome-aviso"
                 className={cn(CAMPO, touched.name && errors.name && "border-[#B4472F]", !errors.name && customerName && "border-[#2C6A53]")}
               />
               <p id="nome-aviso" aria-live="polite" className={cn(MONO, "min-h-4 text-[10px]", touched.name && errors.name ? "text-[#B4472F]" : "text-[#6B6555]")}>
-                {touched.name && errors.name ? errors.name : customerName.trim().length >= 2 ? "tudo certo" : "como o negócio vai te chamar"}
+                {touched.name && errors.name ? errors.name : !errors.name ? "tudo certo" : "como o negócio vai te chamar"}
               </p>
             </div>
             <div className="flex flex-col gap-1.5">

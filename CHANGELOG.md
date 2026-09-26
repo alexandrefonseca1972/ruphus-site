@@ -5,6 +5,11 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Nome de gente, não número
+- **Agenda e cadastro com a mesma regra de nome** (#82): o campo só aceita
+  letras (com acento), espaço, apóstrofo, hífen e ponto, e pede 2 letras. O
+  servidor confere igual: "3232323232" não passa mais como nome de quem agenda.
+
 ### Fora quem não tem telefone
 - **33 sites da fábrica sem WhatsApp nem telefone saem do ar** (#79), da vitrine
   e da landing (836 → 803 sites), e os 34 negócios sem telefone (com a conta de
