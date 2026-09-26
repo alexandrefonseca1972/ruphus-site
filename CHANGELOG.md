@@ -18,6 +18,8 @@ o PR, onde está o porquê.
 - **"Não verificado" não vira dado** (#78): "não verificado", "não visível",
   "N/A", "-" contam como vazio; telefone mascarado ("(86) 3XXX-XXXX") segue
   recusado.
+- **Nota aproximada vale** (#80): "~4.4" ou "aprox. 120" viram 4,4 e 120. Os 106
+  sites do Piauí estão todos com nota e avaliações (planilha reenviada).
 - **UF sem coluna UF** (#78): a do DDD mais comum da planilha. Os 106 sites do
   Piauí, que estavam sem UF, ganharam "PI".
 
