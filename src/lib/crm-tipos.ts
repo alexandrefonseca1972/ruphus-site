@@ -116,3 +116,6 @@ export const prazoDe = (c: Pick<Crm, "proximaData"> | undefined, hoje: string): 
 
 /** "2026-09-25" → "25/09" */
 export const diaCurto = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
+
+/** Autor da nota que o Gerador grava com o levantamento do lead; o admin a mostra à parte do histórico. */
+export const AUTOR_LEVANTAMENTO = "Gerador de sites";

@@ -3,6 +3,7 @@ import { type DocumentData, type DocumentReference, FieldValue, type Firestore }
 import { z } from "zod";
 import { EQUIPE, montar, porRamo } from "@/lib/catalogo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
+import { AUTOR_LEVANTAMENTO } from "@/lib/crm-tipos";
 import { candidatos, type DadosSite, fixo, Lead, type Nicho, nichoDe, type Sub } from "@/lib/gerador";
 import type { Utm } from "@/lib/crm-tipos";
 import { dateIn } from "@/lib/datetime";
@@ -89,7 +90,7 @@ export function registrosDoSite(
   });
   // o levantamento do lead (score e gancho) vira nota no funil: quem abre a ficha já tem a abordagem
   const nota = [lead.score && `Score do levantamento: ${lead.score}.`, lead.abordagem && `Abordagem sugerida: ${lead.abordagem}`].filter(Boolean).join(" ").slice(0, 600);
-  if (nota) escritas.push({ ref: db.collection(`crm/${slug}/notas`).doc(), dados: { texto: nota, autor: "Gerador de sites", quando: agora } });
+  if (nota) escritas.push({ ref: db.collection(`crm/${slug}/notas`).doc(), dados: { texto: nota, autor: AUTOR_LEVANTAMENTO, quando: agora } });
   escritas.push({
     ref: db.collection("crm").doc(slug),
     dados: {

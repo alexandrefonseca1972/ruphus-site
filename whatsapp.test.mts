@@ -57,6 +57,10 @@ assert.equal(erroNascimento("01/01/2027", hoje), "A data não pode ser no futuro
 assert.equal(erroNascimento("29/02/2000", hoje), "", "bissexto vale");
 assert.equal(idade("1990-09-27", hoje), 35, "ainda não fez aniversário este ano");
 assert.equal(idade("1990-09-26", hoje), 36);
+// 22h em Brasília já é dia 27 em UTC: amanhã continua sendo futuro, e ninguém faz aniversário antes
+const noite = new Date("2026-09-27T01:00:00Z");
+assert.equal(erroNascimento("27/09/2026", noite), "A data não pode ser no futuro");
+assert.equal(idade("1990-09-27", noite), 35);
 assert.equal(mascaraEmail(" Ana @Gmail.COM "), "ana@gmail.com");
 assert.equal(erroEmail("ana@gmail"), "E-mail incompleto: confira o @ e o domínio");
 assert.equal(erroEmail(""), "");
