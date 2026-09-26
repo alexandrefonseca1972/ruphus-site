@@ -29,3 +29,14 @@ assert.ok(l!.includes("?text="));
 assert.equal(decodeURIComponent(l!.split("?text=")[1]), "Olá!\nAgendei às 10:30 & confirmo");
 
 console.log("whatsapp: ok");
+
+// nome de quem agenda ou se cadastra: a mesma regra na tela e no servidor
+import { erroNome, mascaraNome } from "@/lib/nome";
+assert.equal(mascaraNome("3232323232232"), "", "número não entra no nome");
+assert.equal(mascaraNome("  Ana   Maria 2 "), "Ana Maria ");
+assert.equal(mascaraNome("D'Ávila-Souza Jr."), "D'Ávila-Souza Jr.");
+assert.equal(erroNome("3232323232232"), "Use só letras no nome");
+assert.equal(erroNome("A"), "Informe seu nome, com pelo menos 2 letras");
+assert.equal(erroNome(""), "Informe seu nome");
+assert.equal(erroNome("Zé"), "");
+console.log("nome: ok");

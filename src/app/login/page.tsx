@@ -22,10 +22,9 @@ import { errorMessage } from "@/lib/auth-errors";
 import { auth } from "@/lib/firebase";
 import { handleSubmit } from "@/lib/utils";
 import { guardarUtm } from "@/lib/anuncios";
+import { erroNome, mascaraNome } from "@/lib/nome";
 
 // Máscaras: o que o campo aceita enquanto a pessoa digita. O schema confere de novo no envio.
-/** Nome: letras (com acento), espaço, apóstrofo, hífen e ponto; sem espaço duplo nem no começo. */
-const mascaraNome = (v: string) => v.replace(/[^\p{L}\s'.-]/gu, "").replace(/\s+/g, " ").replace(/^\s/, "").slice(0, 80);
 /** E-mail: sem espaço e em minúsculas, como o Firebase compara. */
 const mascaraEmail = (v: string) => v.replace(/\s/g, "").toLowerCase().slice(0, 254);
 
@@ -49,7 +48,10 @@ const Cadastro = z.object({
   nome: z
     .string()
     .transform((v) => mascaraNome(v).trim())
-    .refine((v) => (v.match(/\p{L}/gu) ?? []).length >= 2, "Informe seu nome, com pelo menos 2 letras."),
+    .superRefine((v, ctx) => {
+      const erro = erroNome(v);
+      if (erro) ctx.addIssue({ code: "custom", message: `${erro}.` });
+    }),
 });
 /** A primeira mensagem de erro de um campo, ou "" se ele está certo. */
 const erroDe = (campo: z.ZodType, v: string) => {
