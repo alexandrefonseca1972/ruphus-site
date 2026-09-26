@@ -5,6 +5,12 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Ficha do cliente com nascimento e e-mail
+- **O dono registra data de nascimento e e-mail** (#83) na ficha do cliente:
+  máscara DD/MM/AAAA e e-mail sem espaço e em minúsculas, erro no campo em tempo
+  real (data que não existe, no futuro, e-mail incompleto) e a idade ao lado. Só
+  dono e administradores gravam, e pelo servidor, que confere de novo.
+
 ### Nome de gente, não número
 - **Agenda e cadastro com a mesma regra de nome** (#82): o campo só aceita
   letras (com acento), espaço, apóstrofo, hífen e ponto, e pede 2 letras. O

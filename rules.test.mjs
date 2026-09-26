@@ -139,6 +139,9 @@ await assertFails(updateDoc(cliente(alice), { phone: "(11) 90000-0000" }));
 await assertFails(updateDoc(cliente(alice), { semCampanha: "sim" }));
 await assertFails(updateDoc(cliente(alice), { etiquetas: ["a", "b", "c", "d", "e", "f", "g", "h", "i"] }));
 await assertFails(updateDoc(cliente(mallory), { etiquetas: ["invadido"] }));
+// nascimento e e-mail são dado pessoal: só o servidor grava (dono/admin, validado)
+await assertFails(updateDoc(cliente(alice), { email: "x@y.com" }));
+await assertFails(updateDoc(cliente(alice), { nascimento: "1990-01-01" }));
 await assertFails(getDoc(cliente(mallory)));
 
 const notas = (db) => collection(db, "tenants/acme/customers/5511999990000/notas");
