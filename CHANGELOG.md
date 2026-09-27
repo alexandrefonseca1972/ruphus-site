@@ -5,6 +5,10 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Admin: filtro por estado
+- **"Estado" nos filtros da lista e do funil** (#96), com a contagem de cada UF;
+  a lista de cidades passa a mostrar só as do estado escolhido.
+
 ### Formulário do site: sem data passada
 - **"Dia de preferência" e "Data" a partir de hoje** (#95) no formulário que
   manda o pedido pelo WhatsApp: nos dois modelos do gerador e nos 366 sites da
