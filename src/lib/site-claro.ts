@@ -345,6 +345,8 @@ ${temNota ? `
   document.getElementById('drawerBackdrop').addEventListener('click',closeDrawer);
   document.querySelectorAll('.drawer-link').forEach(function(a){a.addEventListener('click',closeDrawer);});
   document.getElementById('yr').textContent=new Date().getFullYear();
+  // data a partir de hoje (no fuso de quem abre): o navegador recusa data passada
+  document.getElementById('agData').min=new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
   var form=document.getElementById('agendarForm');
   var v=function(id){return document.getElementById(id).value.trim();};
   form.addEventListener('submit',function(e){

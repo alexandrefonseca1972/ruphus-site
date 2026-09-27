@@ -329,6 +329,7 @@ addEventListener('scroll',function(){hd.classList.toggle('scrolled',scrollY>40);
 var io=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target);}});},{threshold:.12});
 document.querySelectorAll('.rv').forEach(function(el){io.observe(el);});
 // form -> whatsapp
+document.getElementById('wf-dia').min=new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
 document.getElementById('waform').addEventListener('submit',function(ev){
   ev.preventDefault();
   var f=ev.target, linhas=['Olá! Quero agendar um horário.','Nome: '+f.nome.value];

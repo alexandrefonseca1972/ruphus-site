@@ -561,6 +561,7 @@
   var yr = document.getElementById('yr');
   if(yr) yr.textContent = new Date().getFullYear();
 
+  document.getElementById('agData').min=new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
   var form = document.getElementById('agendarForm');
   function buildMessage(){
     var brand = form.getAttribute('data-brand') || '';
@@ -586,6 +587,8 @@
     var ok = true;
     if(!nome.value.trim()){ nome.reportValidity(); ok = false; }
     if(ok && !tel.value.trim()){ tel.reportValidity(); ok = false; }
+    var dia = document.getElementById('agData');
+    if(ok && !dia.checkValidity()){ dia.reportValidity(); ok = false; }
     return ok;
   }
   var note = document.getElementById('agendarNote');

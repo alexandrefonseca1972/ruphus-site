@@ -5,6 +5,11 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Formulário do site: sem data passada
+- **"Dia de preferência" e "Data" a partir de hoje** (#95) no formulário que
+  manda o pedido pelo WhatsApp: nos dois modelos do gerador e nos 366 sites da
+  fábrica. Data passada não envia; o navegador avisa.
+
 ### Demonstração sempre em dia
 - **A demonstração volta ao padrão sozinha toda madrugada** (#94), às 3h de
   Brasília: datas de exemplo a partir do dia, teste da véspera apagado e senha
