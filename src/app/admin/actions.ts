@@ -24,7 +24,7 @@ import { diaCurto, hojeISO } from "@/lib/crm-tipos";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import { competenciaAtual } from "@/lib/pix";
 import { gerarNoBanco, publicarSite } from "@/lib/gerador.server";
-import { DEMO } from "@/lib/demo";
+import { PAGINAS_DEMO } from "@/lib/demo";
 import { acessoDemo, restaurarDemo } from "@/lib/demo.server";
 
 export type Espaco = {
@@ -540,6 +540,6 @@ export const acessoDaDemo = adminAction(async () => acessoDemo(adminDb));
 /** Volta a demonstração ao padrão depois que o cliente testou: dados de exemplo e senha nova. */
 export const restaurarADemo = adminAction(async (user) => {
   const r = await restaurarDemo(adminDb, { adminUid: user.uid });
-  for (const p of [`/s/${DEMO}/index.html`, `/s/${DEMO}/og.jpg`, `/bio/${DEMO}`, `/agendar/${DEMO}`]) revalidatePath(p);
+  for (const p of PAGINAS_DEMO) revalidatePath(p);
   return r;
 });

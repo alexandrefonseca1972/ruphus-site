@@ -70,6 +70,8 @@ export function sitePath(slug: string, pathname: string) {
 /** Um endereço só para cada página, para o Google não dividir a landing em três:
  *  ruphus.site vai para www (o domínio de todos os links) e /sobre para a raiz. */
 export function enderecoCanonico(host: string, pathname: string) {
+  // API não entra na busca, e o Cron da Vercel não segue redirecionamento
+  if (pathname.startsWith("/api/")) return null;
   const h = host.split(":")[0];
   const caminho = /^\/sobre\/?$/.test(pathname) ? "/" : pathname;
   if (h === "ruphus.site") return { host: "www.ruphus.site", pathname: caminho };

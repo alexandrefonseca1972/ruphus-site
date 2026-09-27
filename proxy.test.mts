@@ -73,6 +73,7 @@ console.log("landing ok");
 import { enderecoCanonico } from "@/proxy";
 // um endereço só por página: apex vai para www, /sobre vai para a raiz
 assert.deepEqual(enderecoCanonico("ruphus.site", "/"), { host: "www.ruphus.site", pathname: "/" });
+assert.equal(enderecoCanonico("ruphus.site", "/api/cron/demo"), null, "o cron não segue redirecionamento");
 assert.deepEqual(enderecoCanonico("ruphus.site", "/login"), { host: "www.ruphus.site", pathname: "/login" });
 assert.deepEqual(enderecoCanonico("ruphus.site", "/sobre"), { host: "www.ruphus.site", pathname: "/" }, "um salto só");
 assert.deepEqual(enderecoCanonico("www.ruphus.site", "/sobre/"), { host: null, pathname: "/" });
