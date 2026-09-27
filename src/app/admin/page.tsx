@@ -140,6 +140,7 @@ export default function AdminPage() {
   const [atrasadas, setAtrasadas] = useState(0);      // cobranças vencidas, no rótulo da aba
   const [hoje, setHoje] = useState<{ agendamentosHoje: number; espacosComAgenda: number } | null>(null);
   const [busca, setBusca] = useState("");
+  const [uf, setUf] = useState("");
   const [cidade, setCidade] = useState("");
   const [nicho, setNicho] = useState("");
   const [situacao, setSituacao] = useState("");
@@ -237,6 +238,7 @@ export default function AdminPage() {
     const termo = semAcento(busca.trim());
     const testes: Record<string, (e: Espaco) => boolean> = {
       busca: (e) => !termo || semAcento(`${e.nome} ${e.slug} ${e.cidade ?? ""} ${e.telefone ?? ""}`).includes(termo),
+      uf: (e) => !uf || e.uf === uf,
       cidade: (e) => !cidade || local(e) === cidade,
       nicho: (e) => !nicho || e.nicho === nicho,
       situacao: (e) => !situacao || (situacao === "ativo" ? e.acessos > 1 : e.acessos <= 1),
@@ -249,8 +251,9 @@ export default function AdminPage() {
     };
     return (e: Espaco, ...exceto: string[]) =>
       Object.entries(testes).every(([nome, teste]) => exceto.includes(nome) || teste(e));
-  }, [busca, cidade, nicho, situacao, estagio, prazo, foraDoAr, contato, fixados, emFoco, dataDeHoje, crm]);
+  }, [busca, uf, cidade, nicho, situacao, estagio, prazo, foraDoAr, contato, fixados, emFoco, dataDeHoje, crm]);
 
+  const ufs = useMemo(() => contar(espacos.filter((e) => passa(e, "uf")), (e) => e.uf ?? ""), [espacos, passa]);
   const cidades = useMemo(() => contar(espacos.filter((e) => passa(e, "cidade")), local), [espacos, passa]);
   const nichos = useMemo(() => contar(espacos.filter((e) => passa(e, "nicho")), (e) => e.nicho), [espacos, passa]);
 
@@ -551,7 +554,7 @@ export default function AdminPage() {
       </main>
     );
 
-  const chave = [busca, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), contato, String(fixados), alerta].join("|");
+  const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), contato, String(fixados), alerta].join("|");
   const contarPrazos = (base: Espaco[]) => {
     const n = { atrasada: 0, hoje: 0, futura: 0 };
     for (const e of base) {
@@ -572,8 +575,8 @@ export default function AdminPage() {
       : topoCidades;
   const quantos = pagina.chave === chave ? pagina.n : PAGINA;
   const visiveis = lista.slice(0, quantos);
-  const filtrando = busca || cidade || nicho || situacao || estagio || prazo || foraDoAr;
-  const nFiltros = [cidade, nicho, estagio, prazo, foraDoAr ? "x" : ""].filter(Boolean).length;
+  const filtrando = busca || uf || cidade || nicho || situacao || estagio || prazo || foraDoAr;
+  const nFiltros = [uf, cidade, nicho, estagio, prazo, foraDoAr ? "x" : ""].filter(Boolean).length;
 
   // a contagem de cada aba respeita busca, cidade e nicho, e ignora as
   // dimensões que a própria aba controla — senão promete o que não entrega
@@ -606,8 +609,14 @@ export default function AdminPage() {
     setFixados(v.fixados ?? false);
     setAlerta("");
   }
+  // a cidade escolhida é "Cidade/UF": trocar para outro estado a deixaria sem nenhum negócio
+  function escolherUf(novo: string) {
+    setUf(novo);
+    if (novo && cidade && !cidade.endsWith(`/${novo}`)) setCidade("");
+  }
   function limparTudo() {
     setBusca("");
+    setUf("");
     setCidade("");
     setNicho("");
     verVisao(VISOES.find((v) => v.id === "todos")!);   // por id: a ordem das visões muda
@@ -881,6 +890,16 @@ export default function AdminPage() {
                 className={`absolute ${filtrosAEsquerda ? "left-0" : "right-0"} top-11 z-40 flex max-h-[70vh] w-[min(92vw,420px)] flex-col gap-3.5 overflow-y-auto rounded-xl border border-[#C8C1B3] bg-white p-4 shadow-[0_18px_48px_rgba(23,21,15,0.18)]`}
               >
                 <div className="flex flex-wrap items-center gap-2">
+                  <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Estado</span>
+                  <Chip ativo={!uf} onClick={() => escolherUf("")}>Todos</Chip>
+                  {ufs.map(([u, n]) => (
+                    <Chip key={u} ativo={uf === u} onClick={() => escolherUf(uf === u ? "" : u)}>
+                      {u} <span className={uf === u ? "text-white/70" : "text-[#6F6A5E]"}>{n}</span>
+                    </Chip>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 border-t border-[#EDE9E1] pt-3.5">
                   <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Cidade</span>
                   <Chip ativo={!cidade} onClick={() => setCidade("")}>Todas</Chip>
                   {cidadesVisiveis.map(([c, n]) => (
@@ -965,6 +984,16 @@ export default function AdminPage() {
         </select>
         </div>
 
+        {uf && (
+          <button
+            type="button"
+            onClick={() => escolherUf("")}
+            className="my-2 mr-1.5 flex h-8 items-center gap-2 rounded-full bg-[#17150F] pl-3 pr-2 text-[12px] font-semibold text-white"
+          >
+            {uf} <span aria-hidden="true">✕</span>
+            <span className="sr-only">Tirar o filtro de estado</span>
+          </button>
+        )}
         {cidade && (
           <button
             type="button"
