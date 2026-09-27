@@ -61,6 +61,8 @@ const emDestaque = (c: Crm | undefined, hoje: string) => !!c?.fixadoAte && c.fix
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 // relevância: a nota pesa, mas um 5,0 de três pessoas não passa na frente de um 4,7 de quinhentas
+/** A conta de demonstração (site do cadastro, WhatsApp de teste): não publicar nem trocar o número. */
+const DEMO = "barbearia-force";
 const relevancia = (e: Espaco) => (e.nota ?? 0) * Math.log10((e.avaliacoes ?? 0) + 1);
 const local = (e: Espaco) => (e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ""}` : "");
 
@@ -643,6 +645,16 @@ export default function AdminPage() {
               )}
             </button>
           ))}
+          {/* A conta de demonstração: é por ela que se mostra o produto a quem ainda não é cliente */}
+          <a
+            href={`/${DEMO}`}
+            target="_blank"
+            rel="noreferrer"
+            title="Abre o painel da conta de demonstração em outra aba"
+            className="flex h-8 items-center rounded-lg px-3 text-[12px] text-[#6F6A5E] hover:text-[#17150F]"
+          >
+            Demonstração <span aria-hidden="true" className="ml-1">↗</span>
+          </a>
         </div>
 
 
