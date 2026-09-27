@@ -5,6 +5,11 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Gerador: planilha de Rondônia sem editar à mão
+- **Colunas "Nome da Empresa", "Nicho/Categoria" e "Avaliação Google"** (#90)
+  passam a ser lidas, e a nota que o Excel transformou em data ("4.9" virou
+  04/09) volta a ser 4,9.
+
 ### Funil: coluna "Novo" enxuta
 - **"Novo" mostra 6 negócios, os mais relevantes** (#89), na ordem escolhida em
   "Ordem" (e não mais em ordem alfabética), com quem tem data combinada no topo.

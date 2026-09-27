@@ -101,6 +101,24 @@ assert.match(lerPlanilha([["a", "b"], [1, 2]]).erros[0].motivo, /cabeçalho/);
   // estimativa do levantamento ("~4.4", "aprox. 120") vale o número
   const aprox = lerPlanilha([["Nome", "Telefone", "Categoria", "Nota geral", "Nº de avaliações"], ["Studio Aprox", "(86) 99111-0009", "Estética", "~4.4", "aprox. 120"]]).leads[0].lead;
   assert.deepEqual([aprox.nota, aprox.avaliacoes], [4.4, 120]);
+  // levantamento de Rondônia: "Nome da Empresa", "Nicho/Categoria", "Avaliação Google", e o
+  // Excel guardou "4.9" como 4 de setembro — a nota volta; "5.0" chega como texto
+  const ro = lerPlanilha([
+    ["#", "Nome da Empresa", "Cidade", "Estado", "Nicho/Categoria", "Avaliação Google", "Nº Avaliações", "Telefone"],
+    [1, "Chalé das Unhas", "Porto Velho", "RO", "Esmalteria/Unhas", new Date(Date.UTC(2026, 8, 4)), 863, "(69) 99111-0001"],
+    [2, "Kapitan Barbearia", "Ariquemes", "RO", "Barbearia", "5.0", 831, "(69) 99111-0002"],
+    [3, "Studio Sobrancelha", "Cacoal", "RO", "Design de Sobrancelha", new Date(Date.UTC(2026, 2, 4)), 40, "(69) 99111-0003"],
+    [4, "Laser Depil", "Vilhena", "RO", "Depilação/Laser", new Date(Date.UTC(2026, 6, 4)), 50, "(69) 99111-0004"],
+    [5, "Spa Zen", "Jaru", "RO", "Spa/Massagem", new Date(Date.UTC(2026, 11, 25)), 60, "(69) 99111-0005"],
+  ]);
+  assert.deepEqual(ro.erros, []);
+  assert.deepEqual(ro.leads.map((x) => [x.lead.nome, x.lead.categoria, x.lead.nota]), [
+    ["Chalé das Unhas", "Esmalteria/Unhas", 4.9],
+    ["Kapitan Barbearia", "Barbearia", 5],
+    ["Studio Sobrancelha", "Design de Sobrancelha", 4.3],
+    ["Laser Depil", "Depilação/Laser", 4.7],
+    ["Spa Zen", "Spa/Massagem", null], // 25/12 não é nota que o Excel converteu: fica sem nota
+  ]);
   assert.equal(l.bairro, "", "\"não verificado\" não vira bairro no site");
   assert.equal(l.instagram, "");
   assert.equal(l.horario, "", "Horário (S/N) responde sim/não, não é horário");
