@@ -242,3 +242,12 @@ for (const sub of subs) {
 }
 
 console.log("gerador: ok");
+
+// UF do cadastro: só as 27 que existem ("XX" passava pelo formato de duas letras)
+{
+  const { DadosNegocio } = await import("@/lib/gerador");
+  assert.equal(DadosNegocio.shape.uf.safeParse("ap").data, "AP");
+  assert.equal(DadosNegocio.shape.uf.safeParse("XX").error?.issues[0].message, "Escolha a UF");
+  assert.equal(DadosNegocio.shape.uf.safeParse("").success, false);
+  console.log("uf do cadastro: ok");
+}

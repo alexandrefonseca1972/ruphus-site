@@ -89,6 +89,8 @@ const UF_DO_DDD: Record<string, string> = Object.fromEntries(
   }).flatMap(([uf, ddds]) => ddds.split(" ").map((d) => [d, uf])),
 );
 /** "5586999990000" → "PI"; sem DDD conhecido, "". */
+/** As 27 UFs, na ordem em que o seletor mostra. */
+export const UFS = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"] as const;
 export const ufDoTelefone = (telefone: string) => UF_DO_DDD[telefone.replace(/^55/, "").slice(0, 2)] ?? "";
 // O levantamento marca estimativa com "~4.4" ou "aprox. 120": vale o número (decisão de
 // produto: nota aproximada no site é melhor que nenhuma).
@@ -277,7 +279,7 @@ export const DadosNegocio = z.object({
   sub: z.enum(SUB_IDS, "Escolha o ramo do negócio"),
   telefone: z.string().transform((t) => normalizar(t)).refine((t) => !!t && t !== RUPHUS, "Informe o WhatsApp com DDD"),
   cidade: z.string().trim().min(2, "Informe a cidade").max(60),
-  uf: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "UF com duas letras"),
+  uf: z.string().trim().toUpperCase().pipe(z.enum(UFS, "Escolha a UF")),
   bairro: z.string().trim().max(60).default(""),
   endereco: z.string().trim().max(160).default(""),
   instagram: z.string().transform((v) => perfil(v)).default(""),
