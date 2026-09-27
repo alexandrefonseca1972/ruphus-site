@@ -5,6 +5,12 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Clientes: ordenar e paginar
+- **Lista de clientes com ordem e páginas** (#88): clicar no título da coluna
+  (cliente, última visita, visitas, gasto 12m) ordena, e de novo inverte; no
+  celular, um seletor faz o mesmo. Páginas de 10, 25, 50 ou 100, com anterior e
+  próxima, no lugar do "Carregar mais".
+
 ### Preço "a partir de" ou sem preço
 - **Cada serviço escolhe como o preço aparece** (#87): fixo, "a partir de" ou
   não informar. A agenda, a bio, os pacotes e a imagem do link seguem a escolha;

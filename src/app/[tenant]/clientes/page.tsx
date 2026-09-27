@@ -34,7 +34,16 @@ const Visita = z.object({
   priceCents: z.number().optional(),
 });
 
-const PAGINA = 50;
+const POR_PAGINA = [10, 25, 50, 100];
+
+// Nome em ordem alfabética; o resto começa pelo maior (quem veio por último, quem mais vem, quem mais gasta)
+type Ordem = "nome" | "ultima" | "visitas" | "gasto";
+const ORDENS: { id: Ordem; rotulo: string }[] = [
+  { id: "nome", rotulo: "Nome" },
+  { id: "ultima", rotulo: "Última visita" },
+  { id: "visitas", rotulo: "Visitas" },
+  { id: "gasto", rotulo: "Gasto 12m" },
+];
 
 function haQuanto(ms: number, agora: number) {
   const dias = Math.floor((agora - ms) / DIA_EM_MS);
@@ -54,7 +63,9 @@ export default function CustomersPage() {
   const [planning, setPlanning] = useState(false);
   const [janela, setJanela] = useState<number | null>(null);
   const [copiado, setCopiado] = useState(false);
-  const [limite, setLimite] = useState(PAGINA);
+  const [ordem, setOrdem] = useState<{ por: Ordem; sobe: boolean }>({ por: "nome", sobe: true });
+  const [porPagina, setPorPagina] = useState(25);
+  const [pagina, setPagina] = useState(1);
 
   // Instante fixo ao abrir a página, como na agenda: Date.now() durante o render
   // daria uma janela que anda sozinha a cada re-render.
@@ -81,7 +92,31 @@ export default function CustomersPage() {
   const term = normalize(search.trim());
   const digits = search.replace(/\D/g, "");
   const base = sumidos ?? customers;
-  const shown = base?.filter((c) => !term || normalize(c.name).includes(term) || (digits && c.id.includes(digits)));
+  const filtrados = base?.filter((c) => !term || normalize(c.name).includes(term) || (digits && c.id.includes(digits)));
+  const valor = (c: { id: string }) => {
+    const r = resumo.get(c.id);
+    return ordem.por === "ultima" ? (r?.ultimaMs ?? 0) : ordem.por === "visitas" ? (r?.visitas ?? 0) : (r?.gastoCents ?? 0);
+  };
+  const shown = filtrados && [...filtrados].sort((a, b) => {
+    const d = ordem.por === "nome" ? a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }) : valor(a) - valor(b);
+    return (ordem.sobe ? d : -d) || a.name.localeCompare(b.name, "pt-BR");
+  });
+  const paginas = Math.max(1, Math.ceil((shown?.length ?? 0) / porPagina));
+  // a lista encolheu (busca, filtro, exclusão) com a página lá no fim: fica na última que existe
+  const atual = Math.min(pagina, paginas);
+  const inicio = (atual - 1) * porPagina;
+  const ordenar = (por: Ordem) => {
+    setOrdem((o) => ({ por, sobe: o.por === por ? !o.sobe : por === "nome" }));
+    setPagina(1);
+  };
+  const cabecalho = (por: Ordem, rotulo: string, direita = false) => (
+    <span role="columnheader" aria-sort={ordem.por === por ? (ordem.sobe ? "ascending" : "descending") : "none"} className={cn(direita && "text-right")}>
+      <button type="button" onClick={() => ordenar(por)} className={cn("inline-flex items-center gap-1 uppercase hover:text-foreground", ordem.por === por && "text-foreground")}>
+        {rotulo}
+        <span aria-hidden="true" className={cn("text-[10px]", ordem.por !== por && "opacity-0")}>{ordem.sobe ? "▲" : "▼"}</span>
+      </button>
+    </span>
+  );
 
   // Quem tem horário marcado pela frente não sumiu, mesmo sem visita passada (cliente novo)
   const comHorario = useMemo(
@@ -98,7 +133,7 @@ export default function CustomersPage() {
       key={rotulo}
       type="button"
       aria-pressed={janela === dias}
-      onClick={() => { setJanela(dias); setCopiado(false); setLimite(PAGINA); }}
+      onClick={() => { setJanela(dias); setCopiado(false); setPagina(1); }}
       className={cn("h-9 rounded-md px-3 text-[13px] whitespace-nowrap text-muted-foreground hover:text-foreground", janela === dias && "bg-card font-medium text-foreground shadow-sm")}
     >
       {rotulo}
@@ -128,7 +163,7 @@ export default function CustomersPage() {
             type="search"
             value={search}
             placeholder="Buscar por nome ou telefone"
-            onChange={(e) => { setSearch(e.target.value); setLimite(PAGINA); }}
+            onChange={(e) => { setSearch(e.target.value); setPagina(1); }}
             className="h-11 bg-card pl-11 text-[15px]"
           />
         </div>
@@ -178,16 +213,37 @@ export default function CustomersPage() {
       ) : (
         <section aria-label="Lista de clientes" className="overflow-hidden rounded-2xl border bg-card">
           {/* Visitas e gasto contam os últimos 12 meses: é a janela que a página já busca */}
-          <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1fr)_11rem_9rem_6rem_8rem_2.75rem] gap-4 bg-background px-6 py-3 text-xs font-medium tracking-wider text-muted-foreground uppercase md:grid">
-            <span>Cliente</span>
+          {/* Clicar no título ordena; de novo, inverte */}
+          <div className="hidden grid-cols-[minmax(0,1fr)_11rem_9rem_6rem_8rem_2.75rem] gap-4 bg-background px-6 py-3 text-xs font-medium tracking-wider text-muted-foreground uppercase md:grid">
+            {cabecalho("nome", "Cliente")}
             <span>WhatsApp</span>
-            <span>Última visita</span>
-            <span className="text-right">Visitas</span>
-            <span className="text-right">Gasto 12m</span>
+            {cabecalho("ultima", "Última visita")}
+            {cabecalho("visitas", "Visitas", true)}
+            {cabecalho("gasto", "Gasto 12m", true)}
             <span />
           </div>
+          {/* No celular os títulos somem: a ordem vira um seletor */}
+          <div className="flex items-center gap-2 bg-background px-4 py-2.5 text-[13px] md:hidden">
+            <label htmlFor="ordem" className="text-muted-foreground">Ordenar por</label>
+            <select
+              id="ordem"
+              value={`${ordem.por}:${ordem.sobe ? "sobe" : "desce"}`}
+              onChange={(e) => {
+                const [por, dir] = e.target.value.split(":");
+                setOrdem({ por: por as Ordem, sobe: dir === "sobe" });
+                setPagina(1);
+              }}
+              className="h-10 min-w-0 flex-1 rounded-md border bg-card px-2"
+            >
+              {ORDENS.flatMap(({ id, rotulo }) =>
+                id === "nome"
+                  ? [<option key="nome:sobe" value="nome:sobe">Nome (A–Z)</option>, <option key="nome:desce" value="nome:desce">Nome (Z–A)</option>]
+                  : [<option key={`${id}:desce`} value={`${id}:desce`}>{rotulo} (maior primeiro)</option>, <option key={`${id}:sobe`} value={`${id}:sobe`}>{rotulo} (menor primeiro)</option>],
+              )}
+            </select>
+          </div>
           <ul>
-            {shown.slice(0, limite).map((c) => {
+            {shown.slice(inicio, inicio + porPagina).map((c) => {
               const r = resumo.get(c.id);
               const sumido = !comHorario.has(c.id) && (!r?.ultimaMs || agora - r.ultimaMs > 60 * DIA_EM_MS);
               return (
@@ -240,12 +296,35 @@ export default function CustomersPage() {
               );
             })}
           </ul>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3.5 text-[13px] text-muted-foreground md:px-6">
-            <span>Mostrando {Math.min(limite, shown.length)} de {shown.length}</span>
-            {shown.length > limite && (
-              <Button variant="outline" className="h-10 px-4" onClick={() => setLimite(limite + PAGINA)}>Carregar mais</Button>
-            )}
-          </div>
+          <nav aria-label="Páginas da lista" className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-4 py-3 text-[13px] text-muted-foreground md:px-6">
+            <span className="tabular-nums">
+              {inicio + 1}–{Math.min(inicio + porPagina, shown.length)} de {shown.length}
+            </span>
+            <label className="flex items-center gap-2">
+              Por página
+              <select
+                value={porPagina}
+                onChange={(e) => {
+                  setPorPagina(Number(e.target.value));
+                  setPagina(1);
+                }}
+                className="h-9 rounded-md border bg-card px-2 text-foreground tabular-nums"
+              >
+                {POR_PAGINA.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </label>
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="outline" className="h-10 px-3" disabled={atual <= 1} onClick={() => setPagina(atual - 1)}>
+                Anterior
+              </Button>
+              <span aria-live="polite" className="tabular-nums whitespace-nowrap">Página {atual} de {paginas}</span>
+              <Button variant="outline" className="h-10 px-3" disabled={atual >= paginas} onClick={() => setPagina(atual + 1)}>
+                Próxima
+              </Button>
+            </div>
+          </nav>
         </section>
       )}
     </>
