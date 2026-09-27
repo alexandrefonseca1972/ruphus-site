@@ -5,6 +5,12 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Manual do vendedor em dia
+- **Manual do vendedor revisado** (#97): gaveta com abas e o cartão
+  Levantamento, busca e filtros (estado, cidade, nicho), o Funil, a
+  Demonstração, o Gerador, a baixa da entrada que publica o site e o Pixel da
+  Meta; corrigido o motivo de perda "o negócio fechou".
+
 ### Admin: filtro por estado
 - **"Estado" nos filtros da lista e do funil** (#96), com a contagem de cada UF;
   a lista de cidades passa a mostrar só as do estado escolhido.
