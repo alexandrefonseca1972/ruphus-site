@@ -24,6 +24,8 @@ import { diaCurto, hojeISO } from "@/lib/crm-tipos";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import { competenciaAtual } from "@/lib/pix";
 import { gerarNoBanco, publicarSite } from "@/lib/gerador.server";
+import { DEMO } from "@/lib/demo";
+import { acessoDemo, restaurarDemo } from "@/lib/demo.server";
 
 export type Espaco = {
   slug: string;
@@ -528,4 +530,16 @@ export const gerarSites = adminAction(async (user, entrada: unknown, aplicar: bo
     revalidatePath(`/bio/${slug}`);
   }
   return linhas;
+});
+
+// ─── Demonstração ────────────────────────────────────────────────────────────
+
+/** O acesso de dono da conta de demonstração, para o vendedor passar ao cliente. */
+export const acessoDaDemo = adminAction(async () => acessoDemo(adminDb));
+
+/** Volta a demonstração ao padrão depois que o cliente testou: dados de exemplo e senha nova. */
+export const restaurarADemo = adminAction(async (user) => {
+  const r = await restaurarDemo(adminDb, { adminUid: user.uid });
+  for (const p of [`/s/${DEMO}/index.html`, `/s/${DEMO}/og.jpg`, `/bio/${DEMO}`, `/agendar/${DEMO}`]) revalidatePath(p);
+  return r;
 });
