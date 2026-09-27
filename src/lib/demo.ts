@@ -4,6 +4,9 @@
 export const DEMO = "barbearia-force";
 export const DEMO_EMAIL = "demo@ruphus.site";
 
+/** O que sai do cache quando a demonstração é restaurada. */
+export const PAGINAS_DEMO = [`/s/${DEMO}/index.html`, `/s/${DEMO}/og.jpg`, `/bio/${DEMO}`, `/agendar/${DEMO}`];
+
 const base = `https://${DEMO}.ruphus.site`;
 export const LINKS_DEMO = [
   { rotulo: "Site", href: `${base}/` },

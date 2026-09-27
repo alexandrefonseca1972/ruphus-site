@@ -90,7 +90,7 @@ export function DemoMenu({ token }: { token: () => Promise<string> }) {
                     </button>
                   </div>
                 ))}
-                <p className="text-[11px] text-[#6F6A5E]">Entra em ruphus.site/login.{quando ? ` Senha de ${quando}.` : ""}</p>
+                <p className="text-[11px] text-[#6F6A5E]">Entra em ruphus.site/login.{quando ? ` Senha de ${quando}.` : ""} Volta ao padrão sozinha toda madrugada, às 3h, com senha nova.</p>
               </>
             )}
           </section>

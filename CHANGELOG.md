@@ -5,6 +5,11 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Demonstração sempre em dia
+- **A demonstração volta ao padrão sozinha toda madrugada** (#94), às 3h de
+  Brasília: datas de exemplo a partir do dia, teste da véspera apagado e senha
+  nova (o menu "Demonstração" mostra a do dia).
+
 ### Demonstração pronta para mostrar e restaurar
 - **Menu "Demonstração" no admin** (#93): site, bio, agendamento e painel da
   conta de exemplo, e o acesso de dono (`demo@ruphus.site` + senha) para o
