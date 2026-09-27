@@ -1086,6 +1086,11 @@ export default function AdminPage() {
               setPrazo("");
               setTela("lista");
             }}
+            verNovos={() => {
+              setEstagio("novo");
+              setPrazo("");
+              setTela("lista");
+            }}
           />
         ) : (
         <section aria-label="Espaços" className={`${CARTAO} overflow-hidden`}>

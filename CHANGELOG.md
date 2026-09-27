@@ -5,6 +5,12 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Funil: coluna "Novo" enxuta
+- **"Novo" mostra 6 negócios, os mais relevantes** (#89), na ordem escolhida em
+  "Ordem" (e não mais em ordem alfabética), com quem tem data combinada no topo.
+  "Mostrar mais" cresce de 6 em 6, e "Ver os N novos na Lista" abre a fila
+  inteira com filtros e busca.
+
 ### Clientes: ordenar e paginar
 - **Lista de clientes com ordem e páginas** (#88): clicar no título da coluna
   (cliente, última visita, visitas, gasto 12m) ordena, e de novo inverte; no

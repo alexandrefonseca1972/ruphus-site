@@ -22,7 +22,8 @@ import type { Espaco } from "./actions";
 // agrupados por estágio, com os números do período em cima e origem e perdas embaixo.
 
 const COLUNAS = ["novo", "oferta", "negociando", "fechado"] as const satisfies readonly Estagio[];
-const NOVOS_POR_VEZ = 12;
+// "Novo" tem a planilha inteira (mil e tantos): a coluna mostra poucos, e a fila se trabalha na Lista
+const NOVOS_POR_VEZ = 6;
 const PERIODOS = { mes: "Este mês", "30": "Últimos 30 dias", "90": "Últimos 90 dias", tudo: "Desde o início" } as const;
 type Periodo = keyof typeof PERIODOS;
 
@@ -42,6 +43,7 @@ export function Funil({
   mover,
   verAtrasadas,
   verPerdidos,
+  verNovos,
 }: {
   espacos: Espaco[];
   crm: Record<string, Crm>;
@@ -50,6 +52,7 @@ export function Funil({
   mover: (slug: string, estagio: Estagio) => void;
   verAtrasadas: () => void;
   verPerdidos: () => void;
+  verNovos: () => void;
 }) {
   const [periodo, setPeriodo] = useState<Periodo>("mes");
   const [novos, setNovos] = useState(NOVOS_POR_VEZ);
@@ -204,9 +207,12 @@ export function Funil({
       <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <div className="grid min-w-[1080px] grid-cols-[repeat(4,minmax(0,1fr))_220px] items-start gap-3">
           {COLUNAS.map((e) => {
+            // Quem tem data combinada vem antes. No resto, "Novo" fica na ordem da Lista
+            // (mais relevantes, por padrão): em ordem alfabética, a coluna abria com "1000 Patas"
             const todos = [...n.colunas[e]].sort(
               (a, b) =>
-                (crm[a.slug]?.proximaData ?? "9999").localeCompare(crm[b.slug]?.proximaData ?? "9999") || a.nome.localeCompare(b.nome, "pt-BR"),
+                (crm[a.slug]?.proximaData ?? "9999").localeCompare(crm[b.slug]?.proximaData ?? "9999") ||
+                (e === "novo" ? 0 : a.nome.localeCompare(b.nome, "pt-BR")),
             );
             const cartoes = e === "novo" ? todos.slice(0, novos) : todos;
             const soma = todos.reduce((s, x) => s + mensal(crm[x.slug]), 0);
@@ -241,13 +247,18 @@ export function Funil({
                 ))}
                 {!todos.length && <p className="rounded-xl border border-dashed border-[#D8D2C6] p-3 text-center text-[11px] text-[#6F6A5E]"><span className="hidden sm:inline">Arraste um negócio para cá</span><span className="sm:hidden">Nenhum negócio nesta etapa</span></p>}
                 {e === "novo" && todos.length > novos && (
-                  <button
-                    type="button"
-                    onClick={() => setNovos((v) => v + NOVOS_POR_VEZ * 2)}
-                    className="h-10 rounded-[10px] border border-dashed border-[#D8D2C6] text-xs text-[#6F6A5E] hover:border-[#17150F] hover:text-[#17150F]"
-                  >
-                    + {todos.length - novos} negócios
-                  </button>
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setNovos((v) => v + NOVOS_POR_VEZ)}
+                      className="h-10 rounded-[10px] border border-dashed border-[#D8D2C6] text-xs text-[#6F6A5E] hover:border-[#17150F] hover:text-[#17150F]"
+                    >
+                      Mostrar mais {Math.min(NOVOS_POR_VEZ, todos.length - novos)}
+                    </button>
+                    <button type="button" onClick={verNovos} className="h-9 text-[11px] font-semibold underline underline-offset-4">
+                      Ver os {todos.length} novos na Lista
+                    </button>
+                  </div>
                 )}
               </section>
             );
