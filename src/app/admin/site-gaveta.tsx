@@ -195,7 +195,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
             <Input id="negocio-nome" value={nome} maxLength={80} onChange={(e) => setNome(e.target.value)} aria-invalid={tentou && !!erroNome} className={CAMPO} />
             <p aria-live="polite" className="min-h-4 text-xs text-destructive">{tentou ? erroNome : ""}</p>
           </div>
-          <CamposNegocio valores={campos} onChange={setCampos} erros={tentou ? erros : {}} completo />
+          <CamposNegocio valores={campos} onChange={setCampos} erros={erros} mostrarTodos={tentou} completo />
 
           {!fabrica && (
             <fieldset className="grid gap-3 rounded-xl bg-[#FBFAF8] p-3.5">

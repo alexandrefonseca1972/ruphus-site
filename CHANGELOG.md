@@ -5,6 +5,14 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Meu negócio: erros na hora e UF da lista
+- **Os campos do negócio avisam ao sair deles** (#91), e não só ao salvar — em
+  Meu negócio, no cadastro e na aba Site do admin. UF vira lista com os 27
+  estados, vem do DDD do WhatsApp, e o servidor recusa UF que não existe.
+- **Meu negócio:** Salvar só acende com alteração, "Alterações não salvas" ao
+  lado, aviso do navegador ao sair sem salvar, e endereço, Instagram e horário
+  juntos em "Na página e na bio".
+
 ### Gerador: planilha de Rondônia sem editar à mão
 - **Colunas "Nome da Empresa", "Nicho/Categoria" e "Avaliação Google"** (#90)
   passam a ser lidas, e a nota que o Excel transformou em data ("4.9" virou

@@ -375,7 +375,7 @@ function NegocioForm({
           </div>
         </div>
 
-        <CamposNegocio valores={campos} onChange={setCampos} erros={tentou ? errosCampos : {}} />
+        <CamposNegocio valores={campos} onChange={setCampos} erros={errosCampos} mostrarTodos={tentou} />
 
         {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

@@ -19,6 +19,9 @@ export default function MeuNegocio() {
   const slug = tenant.id;
   const [nome, setNome] = useState("");
   const [campos, setCampos] = useState<Valores>(VAZIO);
+  // o que está gravado: Salvar só acende quando algo mudou
+  const [salvo, setSalvo] = useState<{ nome: string; campos: Valores } | null>(null);
+  const [nomeVisto, setNomeVisto] = useState(false);
   const [fabrica, setFabrica] = useState(false);
   const [publicado, setPublicado] = useState(true);
   const [estado, setEstado] = useState<"carregando" | "pronto" | "erro">("carregando");
@@ -35,10 +38,12 @@ export default function MeuNegocio() {
       if (!atual) return;
       if (!r?.ok) return setEstado("erro");
       const { name, fabrica, publicado, ...resto } = r.dados;
+      const lidos = { ...VAZIO, ...resto, telefone: resto.telefone ? formatarFone(resto.telefone) : "" };
       setNome(name);
       setFabrica(fabrica);
       setPublicado(publicado);
-      setCampos({ ...VAZIO, ...resto, telefone: resto.telefone ? formatarFone(resto.telefone) : "" });
+      setCampos(lidos);
+      setSalvo({ nome: name, campos: lidos });
       setEstado("pronto");
     })();
     return () => {
@@ -48,6 +53,21 @@ export default function MeuNegocio() {
 
   const erros = errosDe(campos);
   const erroNome = nome.trim().length < 2 ? "Informe o nome do negócio" : "";
+  const mudou = !!salvo && (nome !== salvo.nome || (Object.keys(VAZIO) as (keyof Valores)[]).some((c) => campos[c] !== salvo.campos[c]));
+
+  // sair com alteração não salva: o navegador pergunta antes
+  useEffect(() => {
+    if (!mudou) return;
+    const segura = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", segura);
+    return () => window.removeEventListener("beforeunload", segura);
+  }, [mudou]);
+
+  // editar de novo tira o "Salvo." da tela
+  const editar = <T,>(set: (v: T) => void) => (v: T) => {
+    set(v);
+    setAviso(null);
+  };
 
   async function salvar() {
     setTentou(true);
@@ -58,6 +78,7 @@ export default function MeuNegocio() {
     setBusy(false);
     if (!r) return setAviso({ ok: false, texto: "Não foi possível salvar. Verifique a conexão e tente de novo." });
     if (!r.ok) return setAviso({ ok: false, texto: r.error });
+    setSalvo({ nome, campos });
     setAviso({ ok: true, texto: fabrica ? "Dados salvos. A bio e o agendamento já mostram as mudanças." : "Salvo. O site já mostra as mudanças." });
     setVersao((v) => v + 1);
   }
@@ -82,17 +103,27 @@ export default function MeuNegocio() {
         >
           <div className="grid gap-1.5">
             <Label htmlFor="negocio-nome">Nome do negócio</Label>
-            <Input id="negocio-nome" value={nome} maxLength={80} onChange={(e) => setNome(e.target.value)} aria-invalid={tentou && !!erroNome} className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]" />
-            <p aria-live="polite" className="min-h-4 text-xs text-destructive">{tentou ? erroNome : ""}</p>
+            <Input
+              id="negocio-nome"
+              value={nome}
+              maxLength={80}
+              onChange={(e) => editar(setNome)(e.target.value.replace(/\s+/g, " ").replace(/^\s/, ""))}
+              onBlur={() => setNomeVisto(true)}
+              aria-invalid={(tentou || nomeVisto) && !!erroNome}
+              aria-describedby="negocio-nome-msg"
+              className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]"
+            />
+            <p id="negocio-nome-msg" aria-live="polite" className="min-h-4 text-xs text-destructive">{tentou || nomeVisto ? erroNome : ""}</p>
           </div>
-          <CamposNegocio valores={campos} onChange={setCampos} erros={tentou ? erros : {}} completo />
+          <CamposNegocio valores={campos} onChange={editar(setCampos)} erros={erros} mostrarTodos={tentou} completo />
           {aviso && (
             <p role={aviso.ok ? "status" : "alert"} className={aviso.ok ? "text-sm text-emerald-700 dark:text-emerald-300" : "text-sm text-destructive"}>
               {aviso.texto}
             </p>
           )}
-          <div className="flex justify-end">
-            <Button type="submit" disabled={busy} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busy ? "Salvando…" : "Salvar"}</Button>
+          <div className="flex items-center justify-end gap-3">
+            {mudou && !busy && <span className="text-xs text-muted-foreground">Alterações não salvas</span>}
+            <Button type="submit" disabled={busy || !mudou} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busy ? "Salvando…" : "Salvar"}</Button>
           </div>
         </form>
 
