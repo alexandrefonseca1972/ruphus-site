@@ -179,6 +179,7 @@ for (const [nome, html] of [
   assert.ok(html.includes('content="noindex, nofollow"'), `${nome}: fora do Google`);
   assert.ok(html.includes('<meta property="og:image" content="https://pet-feliz.ruphus.site/og.jpg">') && html.includes('content="1200"'), `${nome}: prévia do WhatsApp em og.jpg 1200×630`);
   assert.ok(!html.includes("undefined") && !html.includes("null"), `${nome}: nenhum campo vazio vazou`);
+  assert.ok(/getElementById\('(wf-dia|agData)'\)\.min=new Date/.test(html), `${nome}: data do formulário a partir de hoje`);
 }
 // JSON-LD não fecha a tag com "</script>" no nome
 assert.ok(renderPet({ ...base, nome: "A</script><b>" }).includes("A\\u003c/script>\\u003cb>"));
