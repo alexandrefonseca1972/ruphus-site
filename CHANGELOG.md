@@ -5,6 +5,18 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Demonstração pronta para mostrar e restaurar
+- **Menu "Demonstração" no admin** (#93): site, bio, agendamento e painel da
+  conta de exemplo, e o acesso de dono (`demo@ruphus.site` + senha) para o
+  vendedor passar ao cliente testar.
+- **Dados de exemplo**: 6 serviços (fixo, "a partir de" e sem preço), 3
+  profissionais, 10 clientes com etiquetas e ficha, 23 agendamentos do último mês
+  e da próxima semana (atendidos, falta, cancelado), 3 clientes sumidos e um
+  plano recorrente — sempre a partir do dia em que se restaura.
+- **"Restaurar padrão"**: depois do teste, apaga o que o cliente fez (agenda,
+  clientes, serviços, equipe, convidados), volta aos dados de exemplo e troca a
+  senha — quem testou deixa de entrar.
+
 ### Admin: atalho para a demonstração
 - **"Demonstração ↗" no menu do admin** (#92), depois de Gerador: abre em outra
   aba o painel da conta de demonstração (`barbearia-force`), a que se usa para

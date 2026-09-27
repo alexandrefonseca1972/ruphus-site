@@ -446,5 +446,62 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   assert.deepEqual([x.cobranca, x.diasParaVencer, x.saude], ["atrasada", -2, "risco"]);
 }
 
+// Demonstração: restaurar apaga o que o cliente fez, volta ao padrão e troca a senha
+{
+  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ??= "demo-siteflow";
+  const { acessoDemo, montarAgenda, restaurarDemo } = await import("@/lib/demo.server");
+  // a agenda de exemplo encaixa em qualquer dia do ano: passado fica no passado, futuro no futuro
+  for (let i = 0; i < 61; i++) {
+    const hoje = addDays("2026-01-01", i * 6);
+    for (const a of montarAgenda(hoje)) assert.ok(a.status === "booked" || a.data !== hoje, `${hoje}: nada de exemplo cai hoje`);
+  }
+  const slug = "demo-teste";
+  const d = db.collection("tenants").doc(slug);
+  await d.set({ name: "Nome do teste", ownerId: "dono-original", limiteStaff: 1, site: { url: `https://${slug}.ruphus.site`, phone: "5511911112222" }, gerado: { origem: "cadastro", sub: "barbearia" } });
+  await d.collection("members").doc("dono-original").set({ uid: "dono-original", role: "owner" });
+  await d.collection("members").doc("convidado").set({ uid: "convidado", role: "staff" });
+  await d.collection("services").doc("lixo").set({ name: "Criado no teste", durationMin: 30, priceCents: 1, active: true });
+  await d.collection("appointments").doc("lixo").set({ status: "booked" });
+  await d.collection("limits").doc("device-x").set({ count: 20 });
+
+  const entra = async (senha: string) => (await fetch(`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=x`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "demo@ruphus.site", password: senha, returnSecureToken: true }),
+  })).ok;
+  const estado = async () => {
+    const [m, sv, st, ap, cl, pl, lim, t] = await Promise.all(["members", "services", "staff", "appointments", "customers", "plans", "limits"].map((c) => d.collection(c).get()).concat([d.get() as never]));
+    return { m, sv, st, ap, cl, pl, lim, t: t as unknown as FirebaseFirestore.DocumentSnapshot };
+  };
+
+  const r1 = await restaurarDemo(db, { slug, adminUid: "admin" });
+  let e = await estado();
+  const dono = e.m.docs.find((x) => x.id !== "dono-original")!;
+  assert.deepEqual(e.m.docs.map((x) => x.id).sort(), ["dono-original", dono.id].sort(), "convidado sai, o dono original fica");
+  assert.deepEqual([dono.get("role"), dono.get("email")], ["owner", "demo@ruphus.site"]);
+  assert.deepEqual(e.sv.docs.map((x) => x.id).sort(), ["barba", "corte", "corte-barba", "infantil", "pigmentacao", "sobrancelha"]);
+  assert.deepEqual([e.st.size, e.cl.size, e.pl.size, e.lim.size], [3, 10, 1, 0]);
+  assert.ok(e.ap.size > r1.agendamentos && !e.ap.docs.some((x) => x.id === "lixo"), "exemplo + plano, sem o que o teste criou");
+  assert.deepEqual([e.t.get("name"), e.t.get("site.phone"), e.t.get("ownerId"), e.t.get("limiteStaff")], ["Barbearia Force", "5596999990000", "dono-original", undefined]);
+  assert.equal(e.sv.docs.find((x) => x.id === "corte")!.get("usos") > 0, true, "popularidade ordena a página pública");
+  assert.ok(await entra(r1.senha));
+  const quantos = e.ap.size;
+
+  // o cliente testa: agenda pela página pública, cria serviço; o vendedor restaura
+  const segunda = [...Array(7).keys()].map((i) => addDays(todayIn(), i + 1)).find((x) => weekday(x) === 1)!;
+  const livres = await availableSlots(db, { tenantId: slug, serviceIds: ["sobrancelha"], staffId: "mario", date: segunda });
+  assert.ok(livres.length > 0);
+  assert.equal((await book(db, { tenantId: slug, serviceIds: ["sobrancelha"], staffId: "mario", date: segunda, time: livres[0], customerName: "Cliente Testando", customerPhone: "(96) 98888-7777" })).ok, true);
+  await d.collection("services").doc("outro").set({ name: "Outro", durationMin: 30, priceCents: 1, active: true });
+
+  const r2 = await restaurarDemo(db, { slug, adminUid: "admin" });
+  e = await estado();
+  assert.equal(e.ap.size, quantos, "mesma demonstração de novo");
+  assert.equal(e.cl.docs.some((x) => x.id === customerKey("(96) 98888-7777")), false);
+  assert.equal(e.sv.size, 6);
+  assert.notEqual(r2.senha, r1.senha);
+  assert.ok(await entra(r2.senha) && !(await entra(r1.senha)), "senha antiga não entra mais");
+  assert.equal(typeof (await db.doc("config/admin").get()).get(`revogados.${dono.id}`), "number", "sessão de quem testou é recusada");
+  assert.equal((await acessoDemo(db))?.senha, r2.senha);
+}
+
 console.log("booking ok");
 process.exit(0);
