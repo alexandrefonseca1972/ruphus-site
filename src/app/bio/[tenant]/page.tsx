@@ -3,12 +3,12 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { adminDb } from "@/lib/admin";
 import { availableSlots } from "@/lib/booking.server";
-import { addDays, formatBRL, linkWhatsApp, todayIn, weekday, WEEKDAYS } from "@/lib/datetime";
+import { addDays, formatBRL, linkWhatsApp, todayIn, weekday, WEEKDAYS, precoDe, type TipoPreco } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
 
-type Servico = { id: string; nome: string; duracao: number; preco: number };
+type Servico = { id: string; nome: string; duracao: number; preco: number; tipoPreco?: TipoPreco };
 type Expediente = { dia: number; inicio: string; fim: string };
 
 type Bio = {
@@ -53,7 +53,7 @@ const carregar = cache(async (slug: string): Promise<Bio | null> => {
     foto: tenant.get("site.photo") ?? null,
     servicos: servicos.docs.flatMap((d) => {
       const s = Service.safeParse(d.data());
-      return s.success ? [{ id: d.id, nome: s.data.name, duracao: s.data.durationMin, preco: s.data.priceCents }] : [];
+      return s.success ? [{ id: d.id, nome: s.data.name, duracao: s.data.durationMin, preco: s.data.priceCents, tipoPreco: s.data.tipoPreco }] : [];
     }),
     expediente: Object.entries(horas).flatMap(([dia, j]) => (j ? [{ dia: Number(dia), inicio: j.start, fim: j.end }] : [])),
     equipeId: equipe.docs[0]?.id ?? null,
@@ -278,7 +278,7 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
                     <span className="block text-[15px] font-semibold leading-tight">{sv.nome}</span>
                     <span className="block text-[13px] leading-snug text-[#6F6A5E]">{duracao(sv.duracao)}</span>
                   </span>
-                  {sv.preco ? <span className="shrink-0 text-sm font-semibold">{formatBRL(sv.preco)}</span> : null}
+                  {sv.preco ? <span className="shrink-0 text-right text-sm font-semibold">{precoDe({ priceCents: sv.preco, tipoPreco: sv.tipoPreco })}</span> : null}
                   <Seta className="shrink-0 text-[#A9A396]" />
                 </a>
               </li>

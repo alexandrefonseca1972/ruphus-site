@@ -99,6 +99,7 @@ assert.deepEqual([created.type, created.by, created.byName, created.appointmentI
 assert.equal(saved.serviceName, "Corte + Luzes");
 assert.equal(saved.durationMin, 120);
 assert.equal(saved.priceCents, 25000);
+assert.equal(saved.precoAberto, false, "tudo com preço fixo");
 assert.equal(saved.end.toMillis() - saved.start.toMillis(), 120 * 60_000);
 assert.deepEqual(await availableSlots(db, { ...combo, serviceIds: ["corte"] }), ["09:00", "11:30"], "combo ocupa 09:30–11:30");
 
@@ -132,11 +133,13 @@ assert.equal(moved.start.toMillis(), zonedTime(D, "09:15").getTime());
 assert.equal(moved.end.toMillis() - moved.start.toMillis(), 30 * 60_000);
 assert.equal(moved.status, "booked", "remarcado volta a aguardar confirmação");
 // Serviço mudou de duração/preço depois da reserva: remarcar deixa tudo coerente
-await t.collection("services").doc("corte").update({ durationMin: 45, priceCents: 6000 });
+// e virou "a partir de": o valor do agendamento passa a ser o mínimo
+await t.collection("services").doc("corte").update({ durationMin: 45, priceCents: 6000, tipoPreco: "aPartir" });
 assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D, time: "09:15" }, actor)).ok, true);
 moved = (await corte.ref.get()).data()!;
 assert.deepEqual([moved.durationMin, moved.priceCents, (moved.end.toMillis() - moved.start.toMillis()) / 60_000], [45, 6000, 45]);
-await t.collection("services").doc("corte").update({ durationMin: 30, priceCents: 5000 });
+assert.equal(moved.precoAberto, true);
+await t.collection("services").doc("corte").update({ durationMin: 30, priceCents: 5000, tipoPreco: "fixo" });
 assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D, time: "09:15" }, actor)).ok, true);
 moved = (await corte.ref.get()).data()!;
 assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "11:30" }, actor)).ok, true, "outro dia");

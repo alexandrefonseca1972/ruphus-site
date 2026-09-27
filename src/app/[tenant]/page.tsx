@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
 import { auth } from "@/lib/firebase";
 import { db } from "@/lib/firebase-db";
-import { addDays, customerKey, dateIn, formatBRL, formatLongDate, formatTime, todayIn, weekday, WEEKDAYS, whatsappLink, zonedTime } from "@/lib/datetime";
+import { addDays, customerKey, dateIn, formatBRL, formatLongDate, formatTime, todayIn, weekday, WEEKDAYS, whatsappLink, zonedTime, precoDe } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { cn, openExternal } from "@/lib/utils";
@@ -28,6 +28,7 @@ const Appointment = z.object({
   staffId: z.string(),
   staffName: z.string(),
   priceCents: z.number(),
+  precoAberto: z.boolean().optional(),
   start: z.instanceof(Timestamp),
   end: z.instanceof(Timestamp),
   customerName: z.string(),
@@ -266,7 +267,7 @@ export default function AgendaPage() {
                     {a.planId && <span className="rounded-full border px-2.5 py-0.5 text-xs">Recorrente</span>}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {a.serviceName} · com {a.staffName} · {formatBRL(a.priceCents)} ·{" "}
+                    {[a.serviceName, `com ${a.staffName}`, precoDe({ priceCents: a.priceCents, tipoPreco: a.precoAberto ? "aPartir" : "fixo" })].filter(Boolean).join(" · ")} ·{" "}
                     <a href={whatsappLink(a.customerPhone)} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline">
                       {a.customerPhone}
                     </a>

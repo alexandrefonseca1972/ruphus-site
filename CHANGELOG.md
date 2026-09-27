@@ -5,6 +5,12 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Preço "a partir de" ou sem preço
+- **Cada serviço escolhe como o preço aparece** (#87): fixo, "a partir de" ou
+  não informar. A agenda, a bio, os pacotes e a imagem do link seguem a escolha;
+  com um serviço "a partir de" ou sem preço, a soma também vira "a partir de", e
+  sem preço nenhum o valor fica "a combinar". Serviços antigos continuam fixos.
+
 ### Ficha do cliente com nascimento e e-mail
 - **O dono registra data de nascimento e e-mail** (#83) na ficha do cliente:
   máscara DD/MM/AAAA e e-mail sem espaço e em minúsculas, erro no campo em tempo

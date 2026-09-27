@@ -41,7 +41,7 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
         const s = Service.safeParse(d.data());
         const usos = typeof d.get("usos") === "number" ? (d.get("usos") as number) : 0;
         const ordem = typeof d.get("ordem") === "number" ? (d.get("ordem") as number) : 99;
-        return s.success ? [{ id: d.id, name: s.data.name, durationMin: s.data.durationMin, priceCents: s.data.priceCents, usos, ordem }] : [];
+        return s.success ? [{ id: d.id, name: s.data.name, durationMin: s.data.durationMin, priceCents: s.data.priceCents, tipoPreco: s.data.tipoPreco, usos, ordem }] : [];
       })
       .sort((a, b) => b.usos - a.usos || a.ordem - b.ordem || a.name.localeCompare(b.name, "pt-BR"))
       .map(({ usos, ordem, ...s }) => s),
@@ -335,6 +335,8 @@ function writeAppointment(
     serviceName: ctx.svc.map((s) => s.name).join(" + "),
     durationMin: ctx.durationMin,
     priceCents: ctx.svc.reduce((sum, s) => sum + s.priceCents, 0),
+    // algum serviço "a partir de" ou sem preço: o valor é o mínimo, não o final
+    precoAberto: ctx.svc.some((s) => (s.tipoPreco ?? "fixo") !== "fixo"),
     staffId: a.staffId,
     staffName: ctx.staff.name,
     start,
@@ -505,6 +507,7 @@ export async function reschedule(db: Firestore, input: RescheduleInput, actor: A
       serviceName: ctx.svc.map((s) => s.name).join(" + "),
       durationMin: ctx.durationMin,
       priceCents: ctx.svc.reduce((sum, s) => sum + s.priceCents, 0),
+      precoAberto: ctx.svc.some((s) => (s.tipoPreco ?? "fixo") !== "fixo"),
       status: "booked", // precisa de nova confirmação
       rescheduledAt: FieldValue.serverTimestamp(),
     });
