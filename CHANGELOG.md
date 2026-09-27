@@ -5,6 +5,11 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Admin: atalho para a demonstração
+- **"Demonstração ↗" no menu do admin** (#92), depois de Gerador: abre em outra
+  aba o painel da conta de demonstração (`barbearia-force`), a que se usa para
+  mostrar o produto.
+
 ### Meu negócio: erros na hora e UF da lista
 - **Os campos do negócio avisam ao sair deles** (#91), e não só ao salvar — em
   Meu negócio, no cadastro e na aba Site do admin. UF vira lista com os 27
