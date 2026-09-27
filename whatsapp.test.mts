@@ -66,3 +66,12 @@ assert.equal(erroEmail("ana@gmail"), "E-mail incompleto: confira o @ e o domíni
 assert.equal(erroEmail(""), "");
 assert.equal(erroEmail("ana@gmail.com"), "");
 console.log("dados do cliente: ok");
+
+// Preço fixo, "a partir de" ou sem preço — um serviço ou a soma de vários
+import { precoDe } from "@/lib/datetime";
+assert.equal(precoDe({ priceCents: 3000 }), "R$ 30,00", "sem tipo = fixo (serviços antigos)");
+assert.equal(precoDe({ priceCents: 3000, tipoPreco: "aPartir" }), "a partir de R$ 30,00");
+assert.equal(precoDe({ priceCents: 0, tipoPreco: "naoInformado" }), "");
+assert.equal(precoDe({ priceCents: 3000, tipoPreco: "fixo" }, { priceCents: 0, tipoPreco: "naoInformado" }), "a partir de R$ 30,00", "um sem preço deixa a soma em aberto");
+assert.equal(precoDe({ priceCents: 3000 }, { priceCents: 2000 }), "R$ 50,00");
+console.log("preço: ok");

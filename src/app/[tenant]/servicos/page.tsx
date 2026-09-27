@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
 import { db } from "@/lib/firebase-db";
-import { formatBRL, formatDuration, maskBRL } from "@/lib/datetime";
+import { formatBRL, formatDuration, maskBRL, precoDe, type TipoPreco } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { useTenant } from "../layout";
@@ -25,6 +25,11 @@ const erroDe = (campo: "name" | "durationMin" | "priceCents", valor: unknown) =>
 };
 
 type Editando = (Service & { id: string }) | null;
+const TIPOS: [TipoPreco, string][] = [
+  ["fixo", "Fixo"],
+  ["aPartir", "A partir de"],
+  ["naoInformado", "Não informar"],
+];
 
 // "Limpeza de pele " e "limpeza de Pele" são o mesmo serviço para quem agenda
 const chaveNome = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -32,7 +37,8 @@ const chaveNome = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, 
 function ServiceForm({ editing, emUso, onSave, onCancel }: { editing: Editando; emUso: Set<string>; onSave: (data: Service) => Promise<void>; onCancel: () => void }) {
   const [name, setName] = useState(editing?.name ?? "");
   const [duration, setDuration] = useState(String(editing?.durationMin ?? 30));
-  const [price, setPrice] = useState(editing ? formatBRL(editing.priceCents) : "");
+  const [tipo, setTipo] = useState<TipoPreco>(editing?.tipoPreco ?? "fixo");
+  const [price, setPrice] = useState(editing && editing.tipoPreco !== "naoInformado" ? formatBRL(editing.priceCents) : "");
   // erro só aparece depois que a pessoa passou pelo campo (ou tentou salvar); daí em diante, a cada tecla
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
@@ -40,7 +46,7 @@ function ServiceForm({ editing, emUso, onSave, onCancel }: { editing: Editando; 
   const errors = {
     name: erroDe("name", name) || (emUso.has(chaveNome(name)) ? "Já existe um serviço com este nome" : ""),
     durationMin: duration ? erroDe("durationMin", Number(duration)) : "Informe a duração",
-    price: price ? erroDe("priceCents", toCents(price)) : "Informe o preço",
+    price: tipo === "naoInformado" ? "" : price ? erroDe("priceCents", toCents(price)) : "Informe o preço",
   };
   const show = (f: keyof typeof errors) => (touched[f] ? errors[f] : "");
   const touch = (f: string) => () => setTouched((t) => ({ ...t, [f]: true }));
@@ -50,11 +56,12 @@ function ServiceForm({ editing, emUso, onSave, onCancel }: { editing: Editando; 
     if (Object.values(errors).some(Boolean)) return;
     setBusy(true);
     try {
-      await onSave({ name: name.trim(), durationMin: Number(duration), priceCents: toCents(price), active: editing?.active ?? true });
+      await onSave({ name: name.trim(), durationMin: Number(duration), priceCents: tipo === "naoInformado" ? 0 : toCents(price), tipoPreco: tipo, active: editing?.active ?? true });
       if (!editing) {
         setName("");
         setDuration("30");
         setPrice("");
+        setTipo("fixo");
         setTouched({});
       }
     } catch {
@@ -94,19 +101,33 @@ function ServiceForm({ editing, emUso, onSave, onCancel }: { editing: Editando; 
             aria-describedby="durationMin-msg"
           />
         </Field>
-        <Field id="price" label="Preço" error={show("price")}>
+        <Field id="price" label="Preço" error={show("price")} hint={tipo === "aPartir" ? "o menor valor" : undefined}>
           <Input
             id="price"
             className="h-11 bg-card px-3.5 text-[15px] tabular-nums"
-            value={price}
+            disabled={tipo === "naoInformado"}
+            value={tipo === "naoInformado" ? "" : price}
             onChange={(e) => setPrice(maskBRL(e.target.value))}
             onBlur={touch("price")}
             inputMode="numeric"
-            placeholder="R$ 0,00"
+            placeholder={tipo === "naoInformado" ? "Sem preço" : "R$ 0,00"}
             aria-invalid={!!show("price")}
             aria-describedby="price-msg"
           />
         </Field>
+      </div>
+      {/* Quem cobra conforme o caso mostra "a partir de"; quem prefere combinar, nenhum preço */}
+      <div role="radiogroup" aria-labelledby="tipo-preco-t" className="flex flex-wrap items-center gap-2">
+        <span id="tipo-preco-t" className="w-full text-sm font-medium sm:mr-1 sm:w-auto">Como o preço aparece</span>
+        {TIPOS.map(([t, rotulo]) => (
+          <label
+            key={t}
+            className={cn("flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-[13px]", tipo === t && "border-foreground bg-muted")}
+          >
+            <input type="radio" name="tipoPreco" checked={tipo === t} onChange={() => setTipo(t)} className="size-4 accent-foreground" />
+            {rotulo}
+          </label>
+        ))}
       </div>
       <div className="flex justify-end gap-2">
         {editing && <Button type="button" variant="ghost" className="h-10 px-4" onClick={onCancel}>Cancelar</Button>}
@@ -211,11 +232,20 @@ export default function ServicesPage() {
                     </span>
                     <span className="text-[13px] text-muted-foreground">
                       {quem.length ? quem.join(", ") : "Ninguém faz ainda"}
-                      <span className="sm:hidden"> · {formatDuration(s.durationMin)} · {formatBRL(s.priceCents)}</span>
+                      <span className="sm:hidden"> · {formatDuration(s.durationMin)} · {precoDe(s) || "sem preço"}</span>
                     </span>
                   </div>
                   <span className="hidden tabular-nums sm:block">{formatDuration(s.durationMin)}</span>
-                  <span className="hidden font-medium tabular-nums sm:block">{formatBRL(s.priceCents)}</span>
+                  <span className="hidden tabular-nums sm:block">
+                    {s.tipoPreco === "naoInformado" ? (
+                      <span className="text-muted-foreground">Não informado</span>
+                    ) : (
+                      <>
+                        {s.tipoPreco === "aPartir" && <span className="block text-xs text-muted-foreground">a partir de</span>}
+                        <span className="font-medium">{formatBRL(s.priceCents)}</span>
+                      </>
+                    )}
+                  </span>
                   <label className="order-last col-span-2 flex items-center gap-2.5 text-[13px] text-muted-foreground sm:order-none sm:col-span-1">
                     <input
                       type="checkbox"

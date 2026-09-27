@@ -46,6 +46,18 @@ export const formatLongDate = (d: Date, tz = TIMEZONE) =>
 export const formatBRL = (cents: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 
+export const TIPOS_PRECO = ["fixo", "aPartir", "naoInformado"] as const;
+export type TipoPreco = (typeof TIPOS_PRECO)[number];
+
+/** Preço de um serviço ou da soma de vários: "R$ 30,00", "a partir de R$ 30,00" ou "" quando
+ *  nenhum informa preço. Basta um não ser fixo para a soma virar "a partir de". */
+export function precoDe(...itens: { priceCents: number; tipoPreco?: TipoPreco }[]) {
+  const cents = itens.reduce((t, s) => t + s.priceCents, 0);
+  const aberto = itens.some((s) => (s.tipoPreco ?? "fixo") !== "fixo");
+  if (!aberto) return formatBRL(cents);
+  return cents ? `a partir de ${formatBRL(cents)}` : "";
+}
+
 export const formatDuration = (min: number) =>
   min < 60 ? `${min} min` : `${Math.floor(min / 60)}h${min % 60 ? String(min % 60).padStart(2, "0") : ""}`;
 

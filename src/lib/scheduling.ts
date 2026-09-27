@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TIPOS_PRECO } from "@/lib/datetime";
 import { erroNome } from "@/lib/nome";
 
 
@@ -9,9 +10,12 @@ export const Service = z.object({
   name: z.string().trim().min(1, "Informe o nome").max(80, "Nome muito longo"),
   durationMin: z.number().int().min(5, "A duração mínima é de 5 minutos").max(480, "A duração máxima é de 8 horas"),
   priceCents: z.number().int().min(0, "Preço inválido").max(9_999_999, "O preço máximo é R$ 99.999,99"),
+  // "a partir de" o preço, ou sem preço (priceCents 0). Ausente = fixo, como os serviços de antes.
+  tipoPreco: z.enum(TIPOS_PRECO).optional(),
   active: z.boolean(),
 });
 export type Service = z.infer<typeof Service>;
+
 
 export const WindowSchema = z
   .object({ start: hhmm, end: hhmm })

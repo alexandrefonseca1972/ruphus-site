@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   addDays,
-  formatBRL,
   formatDuration,
   formatLongDate,
   formatPhone,
@@ -13,6 +12,8 @@ import {
   phoneError,
   TIMEZONE,
   zonedTime,
+  precoDe,
+  type TipoPreco,
 } from "@/lib/datetime";
 import { ics, linkGoogleAgenda, mapas } from "@/lib/lembrete";
 import { erroNome, mascaraNome } from "@/lib/nome";
@@ -31,7 +32,7 @@ type Props = {
   address?: string | null;
   bairro?: string | null;
   temSite?: boolean;
-  services: { id: string; name: string; durationMin: number; priceCents: number }[];
+  services: { id: string; name: string; durationMin: number; priceCents: number; tipoPreco?: TipoPreco }[];
   staff: { id: string; name: string; serviceIds: string[]; workDays: number[] }[];
 };
 
@@ -181,7 +182,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
 
   const escolhidos = services.filter((s) => serviceIds.includes(s.id));
   const totalMin = escolhidos.reduce((sum, s) => sum + s.durationMin, 0);
-  const totalCents = escolhidos.reduce((sum, s) => sum + s.priceCents, 0);
+  const total = precoDe(...escolhidos);
   const fazTudo = (p: Props["staff"][number]) => serviceIds.every((id) => p.serviceIds.includes(id));
   const profissionais = staff.filter(fazTudo);
   const atendente = staff.find((p) => p.id === escolha?.staffId);
@@ -313,7 +314,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       inicio: zonedTime(date, escolha.hora),
       fim: new Date(zonedTime(date, escolha.hora).getTime() + totalMin * 60_000),
       local: onde || [name, cidadeUf].filter(Boolean).join(", "),
-      detalhes: [`Com ${atendente.name}.`, totalCents ? `${formatBRL(totalCents)}, pago no local.` : "", phone ? `WhatsApp de ${name}: ${formatPhone(phone)}` : ""]
+      detalhes: [`Com ${atendente.name}.`, total ? `${total}, pago no local.` : "", phone ? `WhatsApp de ${name}: ${formatPhone(phone)}` : ""]
         .filter(Boolean)
         .join("\n"),
     };
@@ -362,9 +363,9 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
               <div className="flex gap-2.5">
                 <dt className={cn(ROTULO, "w-16 shrink-0")}>valor</dt>
                 <dd>
-                  {totalCents ? (
+                  {total ? (
                     <>
-                      <span className={MONO}>{formatBRL(totalCents)}</span> <span className="text-[#5C5747]">· pago no local</span>
+                      <span className={MONO}>{total}</span> <span className="text-[#5C5747]">· pago no local</span>
                     </>
                   ) : (
                     <span className="text-[#5C5747]">a combinar com {name}</span>
@@ -557,7 +558,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           {escolhidos.map((s) => s.name).join(" + ")}
           {atendente ? ` com ${atendente.name}` : ""}
         </span>
-        <span className={cn(MONO, "font-medium")}>{formatBRL(totalCents)}</span>
+        {total && <span className={cn(MONO, "font-medium")}>{total}</span>}
       </div>
     </div>
   );
@@ -746,7 +747,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                       </span>
                       <span className="min-w-0 flex-1 break-words text-[15px] font-semibold tracking-[-0.01em]">{s.name}</span>
                       <span className={cn(MONO, "shrink-0 text-xs", sel ? "text-[#FAF9F5]/75" : "text-[#5C5747]")}>
-                        {formatDuration(s.durationMin)} · {formatBRL(s.priceCents)}
+                        {[formatDuration(s.durationMin), precoDe(s)].filter(Boolean).join(" · ")}
                       </span>
                     </button>
                   </li>
@@ -755,7 +756,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
             </ul>
             {escolhidos.length > 1 && (
               <p className={cn(MONO, "text-[10px] tracking-[0.06em] text-[#6B6555]")}>
-                somando: {formatDuration(totalMin)} · {formatBRL(totalCents)}
+                somando: {[formatDuration(totalMin), total].filter(Boolean).join(" · ")}
               </p>
             )}
           </section>
@@ -982,7 +983,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 {atendente ? ` · ${atendente.name}` : ""}
               </span>
               <span className="truncate text-sm font-semibold tracking-[-0.01em]">
-                {escolhidos.map((s) => s.name).join(" + ")} · {formatBRL(totalCents)}
+                {[escolhidos.map((s) => s.name).join(" + "), total].filter(Boolean).join(" · ")}
               </span>
             </div>
             <button type="button" onClick={() => setEtapa("confirmar")} disabled={!agenda} className={cn(PRIMARIO, "shrink-0 disabled:opacity-60")}>

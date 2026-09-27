@@ -1,8 +1,8 @@
 import { ImageResponse } from "next/og";
 import { notFound } from "next/navigation";
 import { adminDb } from "@/lib/admin";
+import { precoDe } from "@/lib/datetime";
 import { loadCatalog } from "@/lib/booking.server";
-import { formatBRL } from "@/lib/datetime";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -36,7 +36,7 @@ export default async function OgImage({ params }: { params: Promise<{ tenant: st
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {services.map((s) => (
             <span key={s.id} style={{ fontSize: 32, color: "#d4d4d8" }}>
-              {s.name} · {formatBRL(s.priceCents)}
+              {[s.name, precoDe(s)].filter(Boolean).join(" · ")}
             </span>
           ))}
         </div>

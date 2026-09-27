@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { auth, idToken } from "@/lib/firebase";
 import { db } from "@/lib/firebase-db";
-import { dateIn, formatBRL, formatLongDate, formatTime, whatsappLink } from "@/lib/datetime";
+import { dateIn, formatBRL, formatLongDate, formatTime, whatsappLink, precoDe } from "@/lib/datetime";
 import { useCollection } from "@/lib/use-collection";
 import { brDeIso, erroEmail, erroNascimento, idade, isoDeBR, mascaraData, mascaraEmail } from "@/lib/cliente-dados";
 import { deleteCustomerAction, endPlanAction, renameCustomerAction, salvarDadosClienteAction } from "../../actions";
@@ -23,6 +23,7 @@ const Appointment = z.object({
   serviceName: z.string(),
   staffName: z.string(),
   priceCents: z.number(),
+  precoAberto: z.boolean().optional(),
   start: z.instanceof(Timestamp),
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
   planId: z.string().optional(),
@@ -362,7 +363,7 @@ export default function CustomerPage() {
                       {a.planId && <span className="rounded-full border px-2 py-0.5 text-xs font-normal">Recorrente</span>}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {a.serviceName} · {a.staffName} · {formatBRL(a.priceCents)}
+                      {[a.serviceName, a.staffName, precoDe({ priceCents: a.priceCents, tipoPreco: a.precoAberto ? "aPartir" : "fixo" })].filter(Boolean).join(" · ")}
                     </p>
                   </div>
                   <Button variant="ghost" size="sm" aria-expanded={openHistory === a.id} onClick={() => setOpenHistory(openHistory === a.id ? null : a.id)}>

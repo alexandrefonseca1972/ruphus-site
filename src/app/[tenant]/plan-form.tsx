@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { idToken } from "@/lib/firebase";
-import { MAX_DAYS_AHEAD, WEEKDAYS, addDays, formatBRL, formatDuration, formatLongDate, formatPhone, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import { MAX_DAYS_AHEAD, WEEKDAYS, addDays, formatDuration, formatLongDate, formatPhone, planDates, todayIn, weekday, zonedTime, precoDe } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
@@ -177,7 +177,7 @@ export function PlanForm(props: {
               >
                 <span className="text-sm font-semibold">{s.name}</span>
                 <span className={cn("text-xs tabular-nums", sel ? "opacity-80" : "text-muted-foreground")}>
-                  {formatDuration(s.durationMin)} · {formatBRL(s.priceCents)}
+                  {[formatDuration(s.durationMin), precoDe(s)].filter(Boolean).join(" · ")}
                 </span>
               </button>
             );
@@ -185,7 +185,7 @@ export function PlanForm(props: {
         </div>
         {escolhidos.length > 1 && (
           <p className="text-xs text-muted-foreground tabular-nums">
-            somando: {formatDuration(escolhidos.reduce((t, s) => t + s.durationMin, 0))} · {formatBRL(escolhidos.reduce((t, s) => t + s.priceCents, 0))}
+            somando: {formatDuration(escolhidos.reduce((t, s) => t + s.durationMin, 0))} · {precoDe(...escolhidos) || "sem preço"}
           </p>
         )}
       </fieldset>
