@@ -10,14 +10,14 @@ import { slugify, TenantInput } from "@/lib/tenant-input";
 /** Nomes de coluna aceitos, já normalizados (sem acento, minúsculo, só letra e número).
  *  A planilha de cada um tem cabeçalho diferente; a gente se adapta a ela. */
 const COLUNAS = {
-  nome: ["nome", "empresa", "negocio", "estabelecimento", "razaosocial", "nomefantasia", "name", "title"],
+  nome: ["nome", "nomedaempresa", "empresa", "negocio", "estabelecimento", "razaosocial", "nomefantasia", "name", "title"],
   telefone: ["telefone", "whatsapp", "whats", "celular", "fone", "contato", "phone", "telefonewhatsapp"],
-  categoria: ["categoria", "categorias", "nicho", "ramo", "segmento", "tipo", "category", "atividade"],
+  categoria: ["categoria", "categorias", "nicho", "nichocategoria", "ramo", "segmento", "tipo", "category", "atividade"],
   endereco: ["endereco", "logradouro", "enderecocompleto", "address", "fulladdress", "rua"],
   bairro: ["bairro", "neighborhood"],
   cidade: ["cidade", "municipio", "city"],
   uf: ["uf", "estado", "state"],
-  nota: ["nota", "notagoogle", "notageral", "avaliacao", "rating", "estrelas"],
+  nota: ["nota", "notagoogle", "notageral", "avaliacao", "avaliacaogoogle", "rating", "estrelas"],
   // "Nº de avaliações" normaliza para "ndeavaliacoes": o º não é letra
   avaliacoes: ["avaliacoes", "navaliacoes", "ndeavaliacoes", "numeroavaliacoes", "numerodeavaliacoes", "totalavaliacoes", "qtdavaliacoes", "reviews"],
   instagram: ["instagram", "insta", "ig", "redesocial", "redesocialprincipal", "redesocialprincipalfrequencia"],
@@ -97,6 +97,13 @@ const numero = (v: unknown) => {
   const n = typeof v === "number" ? v : Number(t.replace(",", "."));
   return t && Number.isFinite(n) ? n : null;
 };
+/** Nota que o Excel leu como data: "4.9" vira 4 de setembro (dia 4, mês 9). Nota vai de
+ *  1,0 a 4,9 nesse formato ("5.0" não vira data), então dia 1–4 e mês 1–9 voltam a ser a nota. */
+const notaDe = (v: unknown) => {
+  if (!(v instanceof Date)) return numero(v);
+  const [dia, mes] = [v.getUTCDate(), v.getUTCMonth() + 1];
+  return dia <= 4 && mes <= 9 ? dia + mes / 10 : null;
+};
 /** "@loja", "instagram.com/loja/", "loja" ou "Instagram @loja (10k) — ativa" viram "loja";
  *  texto sem perfil ("Facebook provável") vira vazio, não um Instagram inventado */
 const perfil = (v: unknown) => {
@@ -135,7 +142,7 @@ export function lerPlanilha(abas: { aba: string; linhas: unknown[][] }[]): Leitu
         bairro: texto(v("bairro")),
         cidade: texto(v("cidade")),
         uf: texto(v("uf")).toUpperCase().slice(0, 2),
-        nota: numero(v("nota")),
+        nota: notaDe(v("nota")),
         avaliacoes: numero(v("avaliacoes")),
         instagram: perfil(v("instagram")),
         horario: texto(v("horario")),
