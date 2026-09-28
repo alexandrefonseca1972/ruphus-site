@@ -289,7 +289,7 @@ async function limitError(
   const active = future.docs.filter((d) => ["booked", "confirmed"].includes(d.get("status"))).length;
 
   if (active >= LIMITS.activePerPhone) {
-    return { error: `Você já tem ${LIMITS.activePerPhone} horários marcados. Cancele um deles com o salão para marcar outro.` };
+    return { error: `Você já tem ${LIMITS.activePerPhone} horários marcados. Cancele um deles com o negócio, pelo WhatsApp, para marcar outro.` };
   }
   if ((phoneDoc.get("count") ?? 0) >= LIMITS.dailyPerPhone) {
     return { error: "Muitos agendamentos com este WhatsApp hoje. Tente amanhã ou fale direto com o negócio." };
@@ -339,8 +339,6 @@ function writeAppointment(
   const history = ctx.t.collection("history").doc();
   const key = customerKey(a.customerPhone);
   tx.create(history, { appointmentId: ref.id, type: "created", at: FieldValue.serverTimestamp(), ...by, ...(planId && { planId }) });
-  // Popularidade: é ela que ordena os serviços na página pública
-  for (const id of a.serviceIds) tx.set(ctx.t.collection("services").doc(id), { usos: FieldValue.increment(1) }, { merge: true });
   tx.create(ref, {
     lastHistoryId: history.id,
     serviceIds: a.serviceIds,
@@ -371,32 +369,64 @@ function writeAppointment(
 
 export async function book(db: Firestore, input: BookingInput, ip?: string) {
   if (await foraDoAr(db, input.tenantId)) return { ok: false as const, error: FORA_DO_AR, field: true as const };
-  return contended(() => db.runTransaction(async (tx) => {
-    const ctx = await slotContext(tx, db, input);
-    if (!ctx) return { ok: false as const, error: "Serviço ou profissional indisponível." };
+  const r = await contended(() => db.runTransaction(async (tx) => {
+    const t = db.collection("tenants").doc(input.tenantId);
+    // "Qualquer profissional": a grade ofereceu o horário com alguém; se esse alguém foi
+    // tomado, vale outro da equipe que faça todos os serviços e esteja livre na mesma hora
+    const candidatos = [input.staffId];
+    if (input.qualquer) {
+      const equipe = await tx.get(t.collection("staff").where("active", "==", true));
+      for (const d of equipe.docs) {
+        const faz = (d.get("serviceIds") as string[] | undefined) ?? [];
+        if (d.id !== input.staffId && input.serviceIds.every((id) => faz.includes(id))) candidatos.push(d.id);
+      }
+    }
+    const contextos: { staffId: string; ctx: SlotContext }[] = [];
+    for (const staffId of candidatos) {
+      const ctx = await slotContext(tx, db, { ...input, staffId });
+      if (ctx) contextos.push({ staffId, ctx });
+    }
+    if (!contextos.length) return { ok: false as const, error: "Serviço ou profissional indisponível." };
     // Confirmar de novo o que já foi reservado (resposta perdida na rede, toque depois do
     // aviso de demora) devolve a mesma reserva, em vez de "ocupado" pelo próprio horário
     const mesmo = await tx.get(
-      ctx.t.collection("appointments")
+      t.collection("appointments")
         .where("customerKey", "==", customerKey(input.customerPhone))
         .where("start", "==", zonedTime(input.date, input.time)),
     );
-    const ja = mesmo.docs.find((d) => d.get("staffId") === input.staffId && d.get("status") !== "cancelled");
-    if (ja) return { ok: true as const, id: ja.id };
-    if (!ctx.slots.includes(input.time)) {
-      return { ok: false as const, error: "Esse horário acabou de ser ocupado. Escolha outro." };
-    }
-    const limit = await limitError(tx, ctx.t, input, ip);
+    const ja = mesmo.docs.find((d) => candidatos.includes(d.get("staffId")) && d.get("status") !== "cancelled");
+    if (ja) return { ok: true as const, id: ja.id, staffId: String(ja.get("staffId")), novo: false };
+    const livre = contextos.find((c) => c.ctx.slots.includes(input.time));
+    if (!livre) return { ok: false as const, error: "Esse horário acabou de ser ocupado. Escolha outro." };
+    const limit = await limitError(tx, livre.ctx.t, input, ip);
     if (limit.error) return { ok: false as const, error: limit.error, field: true as const };
-    const customer = await tx.get(ctx.t.collection("customers").doc(customerKey(input.customerPhone)));
-    const id = writeAppointment(tx, ctx, input, { by: "cliente", byName: input.customerName }, { renameCustomer: !customer.exists });
+    const customer = await tx.get(t.collection("customers").doc(customerKey(input.customerPhone)));
+    const id = writeAppointment(tx, livre.ctx, { ...input, staffId: livre.staffId }, { by: "cliente", byName: input.customerName }, { renameCustomer: !customer.exists });
     limit.bump!();
-    return { ok: true as const, id };
+    return { ok: true as const, id, staffId: livre.staffId, novo: true };
   }, TX));
+  if (!r.ok) return r;
+  if (r.novo) await contarUso(db, input.tenantId, input.serviceIds);
+  return { ok: true as const, id: r.id, staffId: r.staffId };
+}
+
+/** Popularidade (ordena a página pública). Fora da transação da reserva: dentro, toda
+ *  reserva do mesmo serviço disputava o mesmo documento, mesmo com outra pessoa e outro
+ *  dia, e um pico dava "Muita gente agendando" sem conflito de verdade. */
+async function contarUso(db: Firestore, tenantId: string, serviceIds: string[], vezes = 1) {
+  const t = db.collection("tenants").doc(tenantId);
+  await Promise.all(serviceIds.map((id) => t.collection("services").doc(id).set({ usos: FieldValue.increment(vezes) }, { merge: true })))
+    .catch((err) => console.error("[booking] contar uso", err)); // contador não derruba a reserva
 }
 
 /** Cria o plano e um agendamento por semana. Datas ocupadas (ou já passadas) são puladas e devolvidas. */
 export async function createPlan(db: Firestore, input: PlanInput, actor: Actor) {
+  const r = await criarPlano(db, input, actor);
+  if (r.ok && r.created.length) await contarUso(db, input.tenantId, input.serviceIds, r.created.length);
+  return r;
+}
+
+async function criarPlano(db: Firestore, input: PlanInput, actor: Actor) {
   return contended(() => db.runTransaction(async (tx) => {
     const dates = planDates(input.startDate, input.weekday, input.weeks);
     const t = db.collection("tenants").doc(input.tenantId);

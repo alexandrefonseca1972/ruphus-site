@@ -88,7 +88,7 @@ assert.equal(await loadCatalog(db, "nao-existe"), null);
 assert.equal((await availableSlots(db, { ...base, serviceIds: ["corte"] })).length, 11); // 09:00..11:30
 
 const primeira = await book(db, { ...base, serviceIds: ["corte"], time: "09:00" });
-assert.deepEqual(primeira, { ok: true, id: (await t.collection("appointments").limit(1).get()).docs[0]?.id ?? assert.fail() });
+assert.deepEqual(primeira, { ok: true, id: (await t.collection("appointments").limit(1).get()).docs[0]?.id ?? assert.fail(), staffId: "ana" });
 // o mesmo cliente confirmando de novo (resposta perdida na rede) recebe a mesma reserva, sem duplicar
 assert.deepEqual(await book(db, { ...base, serviceIds: ["corte"], time: "09:00" }), primeira, "confirmar de novo é seguro");
 assert.equal((await t.collection("appointments").get()).size, 1);
@@ -528,6 +528,26 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   assert.deepEqual([r.ok, !r.ok && "field" in r], [false, true], "recusa fica na confirmação, com o aviso");
   await db.doc("crm/salao").set({ publicado: true }, { merge: true });
   assert.notEqual(await loadCatalog(db, "salao"), null, "de volta ao ar, abre de novo");
+}
+
+// "Qualquer profissional": o oferecido foi tomado, vale quem está livre na mesma hora
+{
+  const dia = addDays(todayIn(), 10);
+  const usos = async () => ((await t.collection("services").doc("corte").get()).get("usos") as number) ?? 0;
+  const antes = await usos();
+  assert.equal((await book(db, { ...base, ...outro(), date: dia, serviceIds: ["corte"], time: "10:00" })).ok, true, "alguém pega Ana às 10h");
+  const semEscolha = await book(db, { ...base, ...outro(), date: dia, serviceIds: ["corte"], time: "10:00", qualquer: true });
+  assert.deepEqual([semEscolha.ok, semEscolha.ok && semEscolha.staffId], [true, "bia"], "qualquer: fica com a Bia");
+  assert.equal((await book(db, { ...base, ...outro(), date: dia, serviceIds: ["corte"], time: "10:00" })).ok, false, "escolheu a Ana: ocupado");
+  assert.equal((await book(db, { ...base, ...outro(), date: dia, serviceIds: ["corte"], time: "10:00", qualquer: true })).ok, false, "as duas ocupadas");
+  // popularidade: uma vez por reserva nova, fora da transação; repetir a confirmação não conta
+  assert.equal(await usos(), antes + 2);
+  const c = { ...base, ...outro(), date: dia, serviceIds: ["corte"], time: "11:00" };
+  await book(db, c);
+  await book(db, c);
+  assert.equal(await usos(), antes + 3, "confirmar de novo não conta de novo");
+  // o servidor aplica a regra de telefone da tela
+  assert.equal(BookingInput.safeParse({ ...base, serviceIds: ["corte"], time: "11:00", customerPhone: "0000000000" }).success, false);
 }
 
 console.log("booking ok");

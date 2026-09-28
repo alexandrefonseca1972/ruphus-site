@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   addDays,
@@ -177,6 +177,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const [lembrado, setLembrado] = useState(false);
   const [touched, setTouched] = useState({ name: false, phone: false });
   const [slotError, setSlotError] = useState("");
+  // falha ao carregar a semana: separado do "ocupado", some quando a próxima busca dá certo
+  const [erroAgenda, setErroAgenda] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -216,8 +218,12 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     if (!serviceIds.length) return;
     let atual = true;
     getAgenda({ tenantId, serviceIds, staffId, from })
+      .then((dias) => {
+        if (atual) setErroAgenda(false);
+        return dias;
+      })
       .catch(() => {
-        if (atual) setSlotError("Não foi possível carregar os horários. Tente de novo.");
+        if (atual) setErroAgenda(true);
         return [] as Dia[];
       })
       .then((dias) => atual && setBuscado({ para: chave, dias }));
@@ -237,11 +243,25 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   // Trocar de profissional não apaga o horário escolhido: se ele segue livre com
   // quem foi escolhido agora, fica (com o atendente atualizado); se não, sai
   useEffect(() => {
-    if (!agenda || !escolha) return;
+    // depois de reservado, quem atende é o que o servidor disse (no "qualquer um" pode ser
+    // outro): a grade antiga não pode trocar de volta
+    if (done || !agenda || !escolha) return;
     const vaga = agenda.find((d) => d.date === date)?.horarios.find((h) => h.hora === escolha.hora);
     if (!vaga) setEscolha(null); // eslint-disable-line react-hooks/set-state-in-effect -- segue a agenda recebida
     else if (vaga.staffId !== escolha.staffId) setEscolha(vaga);
-  }, [agenda, date, escolha]);
+  }, [agenda, date, escolha, done]);
+
+  // Trocar de etapa leva ao topo e, na confirmação, põe o foco no título: sem isso a tela
+  // nova abria no meio e o leitor de tela ficava no botão que sumiu
+  const primeiraEtapa = useRef(true);
+  useEffect(() => {
+    if (primeiraEtapa.current) {
+      primeiraEtapa.current = false;
+      return;
+    }
+    scrollTo({ top: 0 });
+    if (etapa === "confirmar") document.getElementById("passo-confirmar")?.focus();
+  }, [etapa]);
 
   function toggleService(id: string) {
     // Mantém a ordem do catálogo: "Corte + Barba", não a ordem dos cliques
@@ -279,11 +299,15 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
         time: escolha.hora,
         customerName,
         customerPhone,
+        // "qualquer um": se o oferecido na grade ocupou, o servidor tenta outro livre na mesma hora
+        qualquer: !staffId,
       }).catch(() => ({ ok: false as const, error: "Não foi possível confirmar agora. Verifique sua conexão e tente de novo.", field: true as const })),
       semResposta,
     ]).finally(() => setBusy(false));
     if (!result.ok && "field" in result) return setSubmitError(result.error);
     if (result.ok) {
+      // quem ficou com o horário (pode ser outro, no "qualquer um")
+      setEscolha((e) => (e ? { ...e, staffId: result.staffId } : e));
       try {
         localStorage.setItem(CONTACT_KEY, JSON.stringify({ name: customerName.trim(), phone: customerPhone }));
       } catch {}
@@ -316,8 +340,11 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     );
 
   // ---------- confirmado ----------
-  if (done && escolha && atendente) {
-    const avisoUrl = recado(escolha.hora, atendente.name);
+  // sem exigir o atendente: a equipe pode ter mudado depois de a página abrir, e a reserva
+  // feita ficava presa na confirmação
+  if (done && escolha) {
+    const quem = atendente?.name;
+    const avisoUrl = recado(escolha.hora, quem);
     const servicos = escolhidos.map((s) => s.name).join(" + ");
     const fim = fimDe(date, escolha.hora, totalMin);
     const dias = Math.round((Date.parse(date) - Date.parse(today)) / 86_400_000);
@@ -333,7 +360,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       inicio: zonedTime(date, escolha.hora, fuso),
       fim: new Date(zonedTime(date, escolha.hora, fuso).getTime() + totalMin * 60_000),
       local: onde || [name, cidadeUf].filter(Boolean).join(", "),
-      detalhes: [`Com ${atendente.name}.`, total ? `${total}, pago no local.` : "", phone ? `WhatsApp de ${name}: ${formatPhone(phone)}` : ""]
+      detalhes: [quem ? `Com ${quem}.` : "", total ? `${total}, pago no local.` : "", phone ? `WhatsApp de ${name}: ${formatPhone(phone)}` : ""]
         .filter(Boolean)
         .join("\n"),
     };
@@ -377,7 +404,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
               </div>
               <div className="flex gap-2.5">
                 <dt className={cn(ROTULO, "w-16 shrink-0")}>com</dt>
-                <dd>{atendente.name}</dd>
+                <dd>{quem ?? "a equipe"}</dd>
               </div>
               <div className="flex gap-2.5">
                 <dt className={cn(ROTULO, "w-16 shrink-0")}>valor</dt>
@@ -490,6 +517,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           </section>
         )}
 
+        {/* sem telefone do negócio não há como desmarcar por aqui: o quadro não aparece vazio */}
+        {desmarcar && (
         <div className="flex flex-col gap-2.5 rounded-xl border border-[#E4E1D5] bg-[#F6F4EB] p-4">
           <p className={ROTULO}>precisa desmarcar ou mudar?</p>
           <p className="text-xs leading-relaxed text-[#5C5747]">Avisar cedo libera o horário para outra pessoa.</p>
@@ -504,6 +533,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
             </a>
           )}
         </div>
+        )}
         <button type="button" onClick={() => location.reload()} className="h-11 text-sm font-semibold underline underline-offset-4">
           Fazer outro agendamento
         </button>
@@ -511,11 +541,11 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
         {/* Útil para poucos: fica no rodapé, sem disputar com falar com o negócio */}
         <p className="flex items-center justify-center gap-1.5 text-xs text-[#5C5747]">
           Salvar na agenda:
-          <button type="button" onClick={salvarNaAgenda} className="py-2 underline underline-offset-4 hover:text-[#17150F]">
+          <button type="button" onClick={salvarNaAgenda} className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-[#17150F]">
             celular
           </button>
           <span aria-hidden="true">·</span>
-          <a href={linkGoogleAgenda(compromisso)} target="_blank" rel="noreferrer" className="py-2 underline underline-offset-4 hover:text-[#17150F]">
+          <a href={linkGoogleAgenda(compromisso)} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-[#17150F]">
             Google Agenda
           </a>
         </p>
@@ -586,6 +616,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   if (etapa === "confirmar" && escolha) {
     return (
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col gap-4 bg-[#F2F0E7] p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-[#17150F]">
+        <h2 id="passo-confirmar" tabIndex={-1} className="sr-only">Confirme seu agendamento</h2>
         <button
           type="button"
           onClick={() => setEtapa("escolha")}
@@ -622,6 +653,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           </div>
         ) : (
           <form
+            id="contato-form"
             onSubmit={(e) => {
               e.preventDefault();
               confirmar();
@@ -707,7 +739,14 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           </p>
         )}
 
-        <button type="button" onClick={() => confirmar()} disabled={busy} className={PRIMARIO}>
+        {/* com o formulário aberto, o botão é o envio dele: "↵"/"ok" no teclado confirma */}
+        <button
+          type={lembrado ? "button" : "submit"}
+          form={lembrado ? undefined : "contato-form"}
+          onClick={lembrado ? () => confirmar() : undefined}
+          disabled={busy}
+          className={PRIMARIO}
+        >
           {busy ? "Reservando…" : `Confirmar às ${escolha.hora}`}
           <span className={cn("flex size-5 items-center justify-center rounded-md bg-[#FAF9F5]/16 text-[11px]", MONO)}>&#8629;</span>
         </button>
@@ -731,6 +770,14 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
             <p role="alert" className="rounded-[10px] border border-[#E7C9BF] bg-[#FBF1EE] p-3 text-sm text-[#B4472F]">
               {slotError}
             </p>
+          )}
+          {erroAgenda && (
+            <div role="alert" className="flex items-center gap-3 rounded-[10px] border border-[#E7C9BF] bg-[#FBF1EE] p-3 text-sm text-[#B4472F]">
+              <span className="flex-1">Não foi possível carregar os horários.</span>
+              <button type="button" onClick={() => setVersao((v) => v + 1)} className="h-11 shrink-0 rounded-[10px] border border-[#E7C9BF] bg-white px-3 font-semibold">
+                Tentar de novo
+              </button>
+            </div>
           )}
 
           <section aria-labelledby="oque" className="flex flex-col gap-2.5">
@@ -906,7 +953,9 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                   min={today}
                   max={addDays(today, MAX_DAYS_AHEAD)}
                   onChange={(e) => {
-                    if (!e.target.value) return;
+                    // no computador dá para digitar qualquer ano: fora do intervalo, não busca
+                    const v = e.target.value;
+                    if (!v || v < today || v > addDays(today, MAX_DAYS_AHEAD)) return;
                     setFrom(e.target.value);
                     setDate(e.target.value);
                     setEscolha(null);

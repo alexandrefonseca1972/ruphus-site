@@ -5,6 +5,18 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Agenda: "qualquer um" de verdade e menos tropeços
+- **"Qualquer profissional" fica com quem está livre** (#102): se o oferecido
+  foi tomado, a reserva vai para outro da equipe no mesmo horário.
+- **Sem "Muita gente agendando" falso** em picos do mesmo serviço.
+- **Telefone validado no servidor** como na tela.
+- **Tela de sucesso sempre aparece**, com o nome de quem vai atender.
+- **Erro ao carregar horários** com "Tentar de novo"; data fora do intervalo não
+  esvazia a faixa de dias.
+- **Enter confirma**, a página sobe ao trocar de etapa, botões de 44 px, quadro
+  de desmarcar só quando há como, e o aviso do limite fala do negócio, não do
+  "salão".
+
 ### Admin: o WhatsApp do dono vale para todo envio
 - **Outros WhatsApp do negócio** (#103): sócio, gerente… no cartão "Contato do
   dono", cada um com o botão de abrir a conversa. Proposta e cobrança seguem
