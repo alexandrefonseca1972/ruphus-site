@@ -199,9 +199,13 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     try {
       const saved = JSON.parse(localStorage.getItem(CONTACT_KEY) ?? "null");
       if (saved?.name && saved?.phone) {
-        setCustomerName(saved.name); // eslint-disable-line react-hooks/set-state-in-effect -- leitura única do localStorage
-        setCustomerPhone(formatPhone(saved.phone));
-        setLembrado(true);
+        const nome = String(saved.name);
+        const fone = formatPhone(String(saved.phone));
+        setCustomerName(nome); // eslint-disable-line react-hooks/set-state-in-effect -- leitura única do localStorage
+        setCustomerPhone(fone);
+        // Só esconde o formulário se o contato guardado ainda vale: um nome de antes da regra
+        // atual deixava o botão desligado, o formulário escondido e nenhum aviso — a tela travava
+        setLembrado(!erroNome(nome) && !phoneError(fone));
       }
     } catch {}
   }, []);
@@ -252,19 +256,30 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     if (!escolha) return;
     setSubmitError("");
     setTouched({ name: true, phone: true });
-    if (!contatoOk) return;
+    if (!contatoOk) {
+      // no celular os campos ficam acima do botão, às vezes fora da tela: leva até o que falta
+      setLembrado(false);
+      setSubmitError("Confira seu nome e WhatsApp acima.");
+      requestAnimationFrame(() => document.getElementById(errors.name ? "customerName" : "customerPhone")?.focus());
+      return;
+    }
     setBusy(true);
-    const result = await createBooking({
-      tenantId,
-      serviceIds,
-      staffId: escolha.staffId,
-      date,
-      time: escolha.hora,
-      customerName,
-      customerPhone,
-    })
-      .catch(() => ({ ok: false as const, error: "Não foi possível confirmar agora. Verifique sua conexão e tente de novo." }))
-      .finally(() => setBusy(false));
+    // rede do celular caindo deixava "Reservando…" para sempre: com 20 s sem resposta, avisa
+    const semResposta = new Promise<{ ok: false; error: string; field: true }>((r) =>
+      setTimeout(() => r({ ok: false, error: "A confirmação não respondeu. Verifique a internet e toque em confirmar de novo.", field: true }), 20_000),
+    );
+    const result = await Promise.race([
+      createBooking({
+        tenantId,
+        serviceIds,
+        staffId: escolha.staffId,
+        date,
+        time: escolha.hora,
+        customerName,
+        customerPhone,
+      }).catch(() => ({ ok: false as const, error: "Não foi possível confirmar agora. Verifique sua conexão e tente de novo." })),
+      semResposta,
+    ]).finally(() => setBusy(false));
     if (!result.ok && "field" in result) return setSubmitError(result.error);
     if (result.ok) {
       try {
@@ -621,7 +636,10 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 maxLength={80}
                 placeholder="Como te chamam"
                 value={customerName}
-                onChange={(e) => setCustomerName(mascaraNome(e.target.value))}
+                onChange={(e) => {
+                  setCustomerName(mascaraNome(e.target.value));
+                  setSubmitError("");
+                }}
                 onBlur={() => setTouched((t) => ({ ...t, name: true }))}
                 aria-invalid={touched.name && !!errors.name}
                 aria-describedby="nome-aviso"
@@ -645,6 +663,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 value={customerPhone}
                 onChange={(e) => {
                   setCustomerPhone(formatPhone(e.target.value));
+                  setSubmitError("");
                   // Valida enquanto digita assim que o número fica completo
                   if (e.target.value.replace(/\D/g, "").length >= 10) setTouched((t) => ({ ...t, phone: true }));
                 }}
@@ -684,7 +703,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           </p>
         )}
 
-        <button type="button" onClick={() => confirmar()} disabled={busy || !contatoOk} className={PRIMARIO}>
+        <button type="button" onClick={() => confirmar()} disabled={busy} className={PRIMARIO}>
           {busy ? "Reservando…" : `Confirmar às ${escolha.hora}`}
           <span className={cn("flex size-5 items-center justify-center rounded-md bg-[#FAF9F5]/16 text-[11px]", MONO)}>&#8629;</span>
         </button>

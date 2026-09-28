@@ -5,6 +5,13 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Agenda: "Confirmar" não trava mais no celular
+- **O botão de confirmar sempre responde** (#98): contato guardado de outra vez
+  que não vale mais vai para o formulário, com o erro à vista, em vez de
+  esconder o formulário com o botão desligado; o toque leva ao campo que falta;
+  e se a confirmação não responder em 20 s, a pessoa é avisada para tentar de
+  novo.
+
 ### Manual do vendedor em dia
 - **Manual do vendedor revisado** (#97): gaveta com abas e o cartão
   Levantamento, busca e filtros (estado, cidade, nicho), o Funil, a
