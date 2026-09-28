@@ -39,6 +39,24 @@ export const todayIn = (tz = TIMEZONE) => dateIn(new Date(), tz);
 export const formatTime = (d: Date, tz = TIMEZONE) =>
   new Intl.DateTimeFormat("pt-BR", { timeZone: tz, hour: "2-digit", minute: "2-digit" }).format(d);
 
+// Fuso de cada estado. Os horários da agenda são gravados como hora de parede no fuso de
+// referência (TIMEZONE): é o que o dono e o cliente leem, no painel e no WhatsApp. O fuso
+// real do negócio só entra onde a hora vira instante de verdade: esconder o horário que já
+// passou e exportar para o calendário do cliente. Os estados não listados seguem Brasília.
+const FUSO_UF: Record<string, string> = {
+  AM: "America/Manaus",
+  RR: "America/Boa_Vista",
+  RO: "America/Porto_Velho",
+  MT: "America/Cuiaba",
+  MS: "America/Campo_Grande",
+  AC: "America/Rio_Branco",
+};
+export const fusoDaUF = (uf?: string | null) => FUSO_UF[(uf ?? "").toUpperCase()] ?? TIMEZONE;
+
+/** Agora, como hora de parede do fuso dado, na convenção em que a agenda grava. Em Manaus,
+ *  às 10h05, é "10:05" — sem isto os horários sumiam uma hora antes. */
+export const agoraNaParede = (tz: string, agora = new Date()) => zonedTime(dateIn(agora, tz), formatTime(agora, tz));
+
 /** "segunda-feira, 21 de setembro" */
 export const formatLongDate = (d: Date, tz = TIMEZONE) =>
   new Intl.DateTimeFormat("pt-BR", { timeZone: tz, weekday: "long", day: "numeric", month: "long" }).format(d);

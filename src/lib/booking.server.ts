@@ -3,7 +3,7 @@ import { sessaoRevogada } from "@/lib/revogacao";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
-import { addDays, customerKey, freeSlots, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import { addDays, agoraNaParede, customerKey, freeSlots, fusoDaUF, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import type { DadosCliente } from "@/lib/cliente-dados";
 import { Service, Staff, type AgendaQuery, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
 
@@ -183,7 +183,8 @@ export async function requireMember(verify: VerifyToken, db: Firestore, idToken:
 // excludeId: ao remarcar, o próprio agendamento não conta como ocupado
 async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery, excludeId?: string) {
   const t = db.collection("tenants").doc(q.tenantId);
-  const [staffSnap, ...svcSnaps] = await tx.getAll(
+  const [tenantSnap, staffSnap, ...svcSnaps] = await tx.getAll(
+    t,
     t.collection("staff").doc(q.staffId),
     ...q.serviceIds.map((id) => t.collection("services").doc(id)),
   );
@@ -214,7 +215,8 @@ async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery, exclude
     busy: booked.docs
       .filter((d) => d.get("status") !== "cancelled" && d.id !== excludeId)
       .map((d) => ({ start: (d.get("start") as Timestamp).toDate(), end: (d.get("end") as Timestamp).toDate() })),
-    now: new Date(),
+    // o que já passou é pela hora local do negócio (Manaus está 1h atrás de Brasília)
+    now: agoraNaParede(fusoDaUF(tenantSnap.get("site.uf") as string | undefined)),
   });
   return { t, svc, durationMin, staff: staff.data, slots };
 }
@@ -398,8 +400,9 @@ export async function createPlan(db: Firestore, input: PlanInput, actor: Actor) 
   return contended(() => db.runTransaction(async (tx) => {
     const dates = planDates(input.startDate, input.weekday, input.weeks);
     const t = db.collection("tenants").doc(input.tenantId);
-    // Uma leitura só para o profissional e os serviços, e uma consulta para toda a janela do plano
-    const [staffSnap, ...svcSnaps] = await tx.getAll(
+    // Uma leitura só para o negócio, o profissional e os serviços, e uma consulta para toda a janela do plano
+    const [tenantSnap, staffSnap, ...svcSnaps] = await tx.getAll(
+      t,
       t.collection("staff").doc(input.staffId),
       ...input.serviceIds.map((id) => t.collection("services").doc(id)),
     );
@@ -428,7 +431,7 @@ export async function createPlan(db: Firestore, input: PlanInput, actor: Actor) 
     const busy = booked.docs
       .filter((d) => d.get("status") !== "cancelled")
       .map((d) => ({ start: (d.get("start") as Timestamp).toDate(), end: (d.get("end") as Timestamp).toDate() }));
-    const now = new Date();
+    const now = agoraNaParede(fusoDaUF(tenantSnap.get("site.uf") as string | undefined));
     const free: string[] = [];
     const skipped: string[] = [];
     for (const date of dates) {

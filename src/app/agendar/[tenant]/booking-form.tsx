@@ -32,6 +32,8 @@ type Props = {
   address?: string | null;
   bairro?: string | null;
   temSite?: boolean;
+  /** Fuso real do negócio: o "Salvar na agenda" do cliente precisa do instante certo */
+  fuso?: string;
   services: { id: string; name: string; durationMin: number; priceCents: number; tipoPreco?: TipoPreco }[];
   staff: { id: string; name: string; serviceIds: string[]; workDays: number[] }[];
 };
@@ -157,7 +159,7 @@ function Rodape() {
   );
 }
 
-export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, services, staff }: Props) {
+export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, fuso, services, staff }: Props) {
   // Nada vem marcado: quem agenda diz o que quer, e só então a agenda aparece.
   // Os serviços chegam do servidor na ordem do que mais se agenda.
   const [serviceIds, setServiceIds] = useState<string[]>([]);
@@ -327,8 +329,9 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     const compromisso = {
       id: `${tenantId}-${date}-${escolha.hora.replace(":", "")}`,
       titulo: `${servicos} · ${name}`,
-      inicio: zonedTime(date, escolha.hora),
-      fim: new Date(zonedTime(date, escolha.hora).getTime() + totalMin * 60_000),
+      // no fuso do negócio: "10:30" em Manaus é 14:30 UTC, não 13:30 (o celular mostraria 09:30)
+      inicio: zonedTime(date, escolha.hora, fuso),
+      fim: new Date(zonedTime(date, escolha.hora, fuso).getTime() + totalMin * 60_000),
       local: onde || [name, cidadeUf].filter(Boolean).join(", "),
       detalhes: [`Com ${atendente.name}.`, total ? `${total}, pago no local.` : "", phone ? `WhatsApp de ${name}: ${formatPhone(phone)}` : ""]
         .filter(Boolean)
