@@ -56,6 +56,8 @@ export function Funil({
 }) {
   const [periodo, setPeriodo] = useState<Periodo>("mes");
   const [novos, setNovos] = useState(NOVOS_POR_VEZ);
+  // no celular as cinco colunas (1.080 px) rolavam para o lado: mostra uma etapa por vez
+  const [etapaMovel, setEtapaMovel] = useState<Estagio>("novo");
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [sobre, setSobre] = useState<Estagio | null>(null);
   const [agora] = useState(() => new Date());
@@ -204,8 +206,23 @@ export function Funil({
         </ol>
       </section>
 
-      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-        <div className="grid min-w-[1080px] grid-cols-[repeat(4,minmax(0,1fr))_220px] items-start gap-3">
+      <div role="tablist" aria-label="Etapas" className="-mx-4 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:hidden [&::-webkit-scrollbar]:hidden">
+        {[...COLUNAS, "perdido" as const].map((e) => (
+          <button
+            key={e}
+            type="button"
+            role="tab"
+            aria-selected={etapaMovel === e}
+            onClick={() => setEtapaMovel(e)}
+            className={`flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-xs whitespace-nowrap ${etapaMovel === e ? "border-[#17150F] bg-[#17150F] font-bold text-white" : "border-[#D8D2C6] bg-white font-semibold text-[#17150F]"}`}
+          >
+            {ROTULO[e]} <span className={etapaMovel === e ? "text-white/70" : "text-[#6F6A5E]"}>{(e === "perdido" ? n.perdidos.length : n.colunas[e].length).toLocaleString("pt-BR")}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="sm:overflow-x-auto">
+        <div className="flex flex-col gap-3 sm:grid sm:min-w-[1080px] sm:grid-cols-[repeat(4,minmax(0,1fr))_220px] sm:items-start">
           {COLUNAS.map((e) => {
             // Quem tem data combinada vem antes. No resto, "Novo" fica na ordem da Lista
             // (mais relevantes, por padrão): em ordem alfabética, a coluna abria com "1000 Patas"
@@ -221,7 +238,7 @@ export function Funil({
                 key={e}
                 aria-label={ROTULO[e]}
                 {...alvo(e)}
-                className={`flex flex-col gap-2.5 rounded-2xl p-3 transition-colors ${sobre === e ? "bg-[#E4DED2] ring-2 ring-[#17150F]" : "bg-[#EFEBE2]"}`}
+                className={`flex flex-col gap-2.5 rounded-2xl p-3 transition-colors ${etapaMovel === e ? "" : "max-sm:hidden"} ${sobre === e ? "bg-[#E4DED2] ring-2 ring-[#17150F]" : "bg-[#EFEBE2]"}`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR[e]}`}>{ROTULO[e]}</span>
@@ -267,7 +284,7 @@ export function Funil({
           <section
             aria-label="Perdido"
             {...alvo("perdido")}
-            className={`flex flex-col gap-2.5 rounded-2xl p-3 transition-colors ${sobre === "perdido" ? "bg-[#EBDCDC] ring-2 ring-[#8A2F2F]" : "bg-[#EFEBE2]"}`}
+            className={`flex flex-col gap-2.5 rounded-2xl p-3 transition-colors ${etapaMovel === "perdido" ? "" : "max-sm:hidden"} ${sobre === "perdido" ? "bg-[#EBDCDC] ring-2 ring-[#8A2F2F]" : "bg-[#EFEBE2]"}`}
           >
             <div className="flex items-center justify-between gap-2">
               <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR.perdido}`}>{ROTULO.perdido}</span>

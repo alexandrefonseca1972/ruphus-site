@@ -625,7 +625,7 @@ export default function AdminPage() {
     verVisao(VISOES.find((v) => v.id === "todos")!);   // por id: a ordem das visões muda
   }
 
-  const ABA = "flex h-12 items-center gap-2 border-b-2 px-3 text-[13px] transition-colors";
+  const ABA = "flex h-12 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 text-[13px] transition-colors";
   const CONTA = "rounded-full px-2 py-0.5 text-[11px] font-semibold";
   const ORDENAVEL = "flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] hover:text-[#17150F]";
   const seta = (chaveOrdem: string) => (ordem === chaveOrdem ? " ↓" : "");
@@ -639,7 +639,7 @@ export default function AdminPage() {
           <span className="hidden text-[11px] text-[#8B8578] sm:inline">ruphus.site</span>
         </span>
 
-        <div role="group" aria-label="Visão" className="flex rounded-[10px] bg-[#EFEBE2] p-[3px]">
+        <div role="group" aria-label="Visão" className="hidden rounded-[10px] bg-[#EFEBE2] p-[3px] sm:flex">
           {(["lista", "funil", "clientes", "cobranca", "gerador"] as const).map((v) => (
             <button
               key={v}
@@ -663,7 +663,13 @@ export default function AdminPage() {
 
         <div className="grow" />
 
-        <div className="flex h-9 w-full items-center gap-2 rounded-lg border border-[#D8D2C6] bg-[#FBFAF8] px-3 focus-within:border-[#17150F] sm:w-[320px]">
+        {/* no celular a Demonstração fica no topo: as telas foram para a barra de baixo */}
+        <div className="sm:hidden">
+          <DemoMenu token={token} aDireita />
+        </div>
+
+        {/* no celular, a busca desce para a própria linha, abaixo do título e dos botões */}
+        <div className="flex h-10 w-full items-center gap-2 rounded-lg border border-[#D8D2C6] bg-[#FBFAF8] px-3 focus-within:border-[#17150F] max-sm:order-last sm:h-9 sm:w-[320px]">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#6F6A5E" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
             <circle cx="11" cy="11" r="7" />
             <path d="M20 20l-3.2-3.2" />
@@ -689,7 +695,7 @@ export default function AdminPage() {
             aria-expanded={menuAjustes}
             aria-label="Ajustes da plataforma"
             onClick={() => setMenuAjustes((v) => !v)}
-            className={`relative flex size-9 items-center justify-center rounded-lg border ${menuAjustes ? "border-[#17150F] bg-[#17150F]" : "border-[#D8D2C6] bg-white hover:border-[#17150F]"}`}
+            className={`relative flex size-11 items-center justify-center rounded-lg border sm:size-9 ${menuAjustes ? "border-[#17150F] bg-[#17150F]" : "border-[#D8D2C6] bg-white hover:border-[#17150F]"}`}
           >
             <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke={menuAjustes ? "#FFFFFF" : "#17150F"} strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
               <circle cx="12" cy="12" r="3.2" />
@@ -827,6 +833,8 @@ export default function AdminPage() {
 
       {/* As visões viram abas: o que se repete todo dia vira lugar fixo */}
       <div className="flex flex-wrap items-center gap-1 border-b border-[#E2DDD3] bg-white px-4 sm:px-5">
+        {/* no celular as oito visões quebravam em até quatro linhas: viram uma faixa que rola */}
+        <div className="-mx-4 flex w-[calc(100%+2rem)] overflow-x-auto px-4 [scrollbar-width:none] sm:contents [&::-webkit-scrollbar]:hidden">
         {VISOES.map((v) => {
           const n = contaVisao(v);
           const ativa = visaoAtiva?.id === v.id;
@@ -856,6 +864,7 @@ export default function AdminPage() {
             </span>
           );
         })}
+        </div>
 
         <div className="grow" />
 
@@ -885,12 +894,13 @@ export default function AdminPage() {
                 type="button"
                 aria-label="Fechar filtros"
                 onClick={() => setMenuFiltros(false)}
-                className="fixed inset-0 z-30 cursor-default"
+                className="fixed inset-0 z-30 cursor-default max-sm:bg-[#17150F]/35"
               />
+              {/* no celular, uma folha que sobe de baixo, com o botão de ver o resultado sempre à mão */}
               <div
                 role="menu"
                 aria-label="Filtros"
-                className={`absolute ${filtrosAEsquerda ? "left-0" : "right-0"} top-11 z-40 flex max-h-[70vh] w-[min(92vw,420px)] flex-col gap-3.5 overflow-y-auto rounded-xl border border-[#C8C1B3] bg-white p-4 shadow-[0_18px_48px_rgba(23,21,15,0.18)]`}
+                className={`absolute ${filtrosAEsquerda ? "left-0" : "right-0"} top-11 z-40 flex max-h-[70vh] w-[min(92vw,420px)] flex-col gap-3.5 overflow-y-auto rounded-xl border border-[#C8C1B3] bg-white p-4 shadow-[0_18px_48px_rgba(23,21,15,0.18)] max-sm:fixed max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-0 max-sm:max-h-[85dvh] max-sm:w-full max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:px-5 max-sm:pb-0`}
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Estado</span>
@@ -960,11 +970,14 @@ export default function AdminPage() {
                   ))}
                 </div>
 
-                <div className="flex items-center gap-3 border-t border-[#EDE9E1] pt-3.5">
+                <div className="flex items-center gap-3 border-t border-[#EDE9E1] pt-3.5 max-sm:sticky max-sm:bottom-0 max-sm:-mx-5 max-sm:bg-white max-sm:px-5 max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))]">
                   <button type="button" className={BOTAO_CLARO} onClick={limparTudo}>Limpar</button>
                   <div className="grow" />
-                  <span className="text-[13px] text-[#6F6A5E]">{lista.length} resultado(s)</span>
-                  <button type="button" className={BOTAO_ESCURO} onClick={() => setMenuFiltros(false)}>Pronto</button>
+                  <span className="text-[13px] text-[#6F6A5E] max-sm:hidden">{lista.length} resultado(s)</span>
+                  <button type="button" className={BOTAO_ESCURO} onClick={() => setMenuFiltros(false)}>
+                    <span className="sm:hidden">Ver {lista.length.toLocaleString("pt-BR")}</span>
+                    <span className="max-sm:hidden">Pronto</span>
+                  </button>
                 </div>
               </div>
             </>
@@ -1028,7 +1041,7 @@ export default function AdminPage() {
         )}
       </div>
 
-      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-5">
+      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:p-5">
         {aviso && <p className="text-sm text-[#6F6A5E]">{aviso}</p>}
 
         {/* O que passou do ponto e ninguém viu: some da tela quando não há nada */}
@@ -1351,6 +1364,35 @@ export default function AdminPage() {
           </span>
         </footer>
       </main>
+
+      {/* No celular as telas moram embaixo, ao alcance do polegar: no topo não cabiam */}
+      <nav aria-label="Telas do admin" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-[#E2DDD3] bg-white pb-[env(safe-area-inset-bottom)] sm:hidden">
+        {(
+          [
+            ["lista", "Lista", <path key="l" d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />],
+            ["funil", "Funil", <path key="f" d="M3 5h18l-7 8v6l-4-2v-4z" />],
+            ["clientes", "Clientes", <><circle key="c" cx="12" cy="8" r="3.5" /><path key="p" d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" /></>],
+            ["cobranca", "Cobrança", <><rect key="r" x="3" y="6" width="18" height="12" rx="2" /><path key="p" d="M3 10h18M7 15h3" /></>],
+            ["gerador", "Gerador", <path key="g" d="M12 3v18M3 12h18" />],
+          ] as const
+        ).map(([v, rotulo, icone]) => (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={tela === v}
+            onClick={() => setTela(v)}
+            className={`relative flex h-16 flex-col items-center justify-center gap-1 text-[10px] ${tela === v ? "font-bold text-[#17150F]" : "text-[#6F6A5E]"}`}
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth={tela === v ? 2.1 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              {icone}
+            </svg>
+            {rotulo}
+            {v === "cobranca" && atrasadas > 0 && (
+              <span className="absolute top-2 right-[calc(50%-18px)] rounded-full bg-[#8A2F2F] px-1.5 text-[10px] font-semibold text-white">{atrasadas}</span>
+            )}
+          </button>
+        ))}
+      </nav>
 
       {aberto && (
         <>
