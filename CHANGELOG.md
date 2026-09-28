@@ -5,6 +5,22 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Agenda: fora do ar é fora do ar, e confirmar é seguro
+- **Negócio tirado do ar não recebe agendamento por nenhum endereço** (#100):
+  antes, www.ruphus.site/agendar/… (o link que o painel divulga) seguia
+  aberto e reservando.
+- **Confirmar de novo não duplica nem dá "ocupado"**: a mesma pessoa, no mesmo
+  horário e profissional, recebe a reserva que já existe.
+- **Rede caindo ou servidor ocupado mantêm a escolha** na tela de confirmação,
+  com o aviso, em vez de devolver à grade.
+
+### Agenda: "Confirmar" não trava mais no celular
+- **O botão de confirmar sempre responde** (#98): contato guardado de outra vez
+  que não vale mais vai para o formulário, com o erro à vista, em vez de
+  esconder o formulário com o botão desligado; o toque leva ao campo que falta;
+  e se a confirmação não responder em 20 s, a pessoa é avisada para tentar de
+  novo.
+
 ### Manual do vendedor em dia
 - **Manual do vendedor revisado** (#97): gaveta com abas e o cartão
   Levantamento, busca e filtros (estado, cidade, nicho), o Funil, a
