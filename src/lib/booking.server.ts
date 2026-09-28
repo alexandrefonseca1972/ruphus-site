@@ -10,15 +10,23 @@ import { Service, Staff, type AgendaQuery, type BookingInput, type PlanInput, ty
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
 
 /** Dados públicos da página de agendamento. Nunca inclui dados de clientes. */
+/** Tirado do ar pelo admin (cobrança): a agenda pública não abre nem reserva. O proxy
+ *  só barra o subdomínio; o link que o painel divulga é www.ruphus.site/agendar/{slug}. */
+async function foraDoAr(db: Firestore, tenantId: string) {
+  return (await db.doc(`crm/${tenantId}`).get()).get("publicado") === false;
+}
+const FORA_DO_AR = "Este negócio não está recebendo agendamentos online agora.";
+
 export async function loadCatalog(db: Firestore, tenantId: string) {
   if (!SLUG.test(tenantId)) return null;
   const t = db.collection("tenants").doc(tenantId);
-  const [tenant, services, staff] = await Promise.all([
+  const [tenant, services, staff, fora] = await Promise.all([
     t.get(),
     t.collection("services").where("active", "==", true).get(),
     t.collection("staff").where("active", "==", true).get(),
+    foraDoAr(db, tenantId),
   ]);
-  if (!tenant.exists) return null;
+  if (!tenant.exists || fora) return null;
   return {
     name: String(tenant.get("name")),
     // o WhatsApp do negócio: é por ele que o agendamento chega a quem atende
@@ -212,6 +220,7 @@ async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery, exclude
 }
 
 export async function availableSlots(db: Firestore, q: SlotQuery) {
+  if (await foraDoAr(db, q.tenantId)) return [];
   return db.runTransaction(async (tx) => (await slotContext(tx, db, q))?.slots ?? [], { readOnly: true });
 }
 
@@ -297,7 +306,7 @@ const TX = { maxAttempts: 10 };
 const BUSY_ERROR = "Muita gente agendando ao mesmo tempo. Tente de novo em instantes.";
 
 /** Erro de disputa (ABORTED/lock timeout) vira mensagem para a pessoa, e não exceção. */
-async function contended<T>(run: () => Promise<T>): Promise<T | { ok: false; error: string }> {
+async function contended<T>(run: () => Promise<T>): Promise<T | { ok: false; error: string; field: true }> {
   try {
     return await run();
   } catch (err) {
@@ -305,7 +314,8 @@ async function contended<T>(run: () => Promise<T>): Promise<T | { ok: false; err
     // 10 = ABORTED; 4 = DEADLINE_EXCEEDED, que o Firestore usa para estouro de trava
     if (code === 10 || code === "aborted" || (code === 4 && /lock|contention/i.test(message))) {
       console.error("[booking] disputa na transação", err);
-      return { ok: false as const, error: BUSY_ERROR };
+      // field: a pessoa fica na confirmação, com a escolha, e tenta de novo
+      return { ok: false as const, error: BUSY_ERROR, field: true as const };
     }
     throw err;
   }
@@ -358,9 +368,19 @@ function writeAppointment(
 }
 
 export async function book(db: Firestore, input: BookingInput, ip?: string) {
+  if (await foraDoAr(db, input.tenantId)) return { ok: false as const, error: FORA_DO_AR, field: true as const };
   return contended(() => db.runTransaction(async (tx) => {
     const ctx = await slotContext(tx, db, input);
     if (!ctx) return { ok: false as const, error: "Serviço ou profissional indisponível." };
+    // Confirmar de novo o que já foi reservado (resposta perdida na rede, toque depois do
+    // aviso de demora) devolve a mesma reserva, em vez de "ocupado" pelo próprio horário
+    const mesmo = await tx.get(
+      ctx.t.collection("appointments")
+        .where("customerKey", "==", customerKey(input.customerPhone))
+        .where("start", "==", zonedTime(input.date, input.time)),
+    );
+    const ja = mesmo.docs.find((d) => d.get("staffId") === input.staffId && d.get("status") !== "cancelled");
+    if (ja) return { ok: true as const, id: ja.id };
     if (!ctx.slots.includes(input.time)) {
       return { ok: false as const, error: "Esse horário acabou de ser ocupado. Escolha outro." };
     }

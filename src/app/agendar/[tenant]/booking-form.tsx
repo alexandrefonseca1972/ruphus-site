@@ -266,7 +266,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     setBusy(true);
     // rede do celular caindo deixava "Reservando…" para sempre: com 20 s sem resposta, avisa
     const semResposta = new Promise<{ ok: false; error: string; field: true }>((r) =>
-      setTimeout(() => r({ ok: false, error: "A confirmação não respondeu. Verifique a internet e toque em confirmar de novo.", field: true }), 20_000),
+      setTimeout(() => r({ ok: false, error: "A confirmação não respondeu. Verifique a internet e toque em confirmar de novo: se o horário já tiver sido reservado, ele não é marcado duas vezes.", field: true }), 20_000),
     );
     const result = await Promise.race([
       createBooking({
@@ -277,7 +277,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
         time: escolha.hora,
         customerName,
         customerPhone,
-      }).catch(() => ({ ok: false as const, error: "Não foi possível confirmar agora. Verifique sua conexão e tente de novo." })),
+      }).catch(() => ({ ok: false as const, error: "Não foi possível confirmar agora. Verifique sua conexão e tente de novo.", field: true as const })),
       semResposta,
     ]).finally(() => setBusy(false));
     if (!result.ok && "field" in result) return setSubmitError(result.error);
@@ -288,7 +288,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       scrollTo({ top: 0 });
       return setDone(true);
     }
-    // Horário tomado por outra pessoa: volta para a grade já atualizada
+    // Horário tomado por outra pessoa (ou serviço/profissional que saiu): volta para a
+    // grade já atualizada. Rede e servidor ocupado são "field" e ficam na confirmação
     setSlotError(result.error);
     setEscolha(null);
     setEtapa("escolha");

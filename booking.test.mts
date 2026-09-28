@@ -75,8 +75,12 @@ assert.equal(await loadCatalog(db, "nao-existe"), null);
 
 assert.equal((await availableSlots(db, { ...base, serviceIds: ["corte"] })).length, 11); // 09:00..11:30
 
-assert.deepEqual(await book(db, { ...base, serviceIds: ["corte"], time: "09:00" }), { ok: true, id: (await t.collection("appointments").limit(1).get()).docs[0]?.id ?? assert.fail() });
-assert.equal((await book(db, { ...base, serviceIds: ["corte"], time: "09:00" })).ok, false, "mesmo horário");
+const primeira = await book(db, { ...base, serviceIds: ["corte"], time: "09:00" });
+assert.deepEqual(primeira, { ok: true, id: (await t.collection("appointments").limit(1).get()).docs[0]?.id ?? assert.fail() });
+// o mesmo cliente confirmando de novo (resposta perdida na rede) recebe a mesma reserva, sem duplicar
+assert.deepEqual(await book(db, { ...base, serviceIds: ["corte"], time: "09:00" }), primeira, "confirmar de novo é seguro");
+assert.equal((await t.collection("appointments").get()).size, 1);
+assert.equal((await book(db, { ...base, ...outro(), serviceIds: ["corte"], time: "09:00" })).ok, false, "mesmo horário, outra pessoa");
 assert.equal((await book(db, { ...base, serviceIds: ["luzes"], time: "08:45" })).ok, false, "fora do expediente");
 assert.equal((await book(db, { ...base, serviceIds: ["luzes"], time: "09:15" })).ok, false, "sobreposição parcial");
 assert.equal((await book(db, { ...base, serviceIds: ["corte"], time: "09:07" })).ok, false, "fora da grade de 15 min");
@@ -501,6 +505,17 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   assert.ok(await entra(r2.senha) && !(await entra(r1.senha)), "senha antiga não entra mais");
   assert.equal(typeof (await db.doc("config/admin").get()).get(`revogados.${dono.id}`), "number", "sessão de quem testou é recusada");
   assert.equal((await acessoDemo(db))?.senha, r2.senha);
+}
+
+// Negócio tirado do ar (cobrança): a agenda pública não abre nem reserva, por qualquer endereço
+{
+  await db.doc("crm/salao").set({ publicado: false }, { merge: true });
+  assert.equal(await loadCatalog(db, "salao"), null);
+  assert.deepEqual(await availableSlots(db, { ...base, serviceIds: ["corte"], date: addDays(todayIn(), 9) }), []);
+  const r = await book(db, { ...base, ...outro(), serviceIds: ["corte"], date: addDays(todayIn(), 9), time: "10:00" });
+  assert.deepEqual([r.ok, !r.ok && "field" in r], [false, true], "recusa fica na confirmação, com o aviso");
+  await db.doc("crm/salao").set({ publicado: true }, { merge: true });
+  assert.notEqual(await loadCatalog(db, "salao"), null, "de volta ao ar, abre de novo");
 }
 
 console.log("booking ok");
