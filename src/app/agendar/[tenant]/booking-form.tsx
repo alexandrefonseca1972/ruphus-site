@@ -18,7 +18,10 @@ import {
 import { ics, linkGoogleAgenda, mapas } from "@/lib/lembrete";
 import { erroNome, mascaraNome } from "@/lib/nome";
 import { cn } from "@/lib/utils";
-import { createBooking, getAgenda } from "./actions";
+import type { book } from "@/lib/booking.server";
+import { getAgenda } from "./actions";
+
+type Resposta = Awaited<ReturnType<typeof book>>;
 
 type Props = {
   tenantId: string;
@@ -181,7 +184,10 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const [erroAgenda, setErroAgenda] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
+  // o que o servidor gravou: a confirmação mostra isso, não a escolha atual da tela
+  // (uma resposta atrasada chega depois de o cliente mexer na grade)
+  const [reserva, setReserva] = useState<Extract<Resposta, { ok: true }> | null>(null);
+  const pedido = useRef<string | undefined>(undefined);
   const [copiado, setCopiado] = useState(false);
 
   const escolhidos = services.filter((s) => serviceIds.includes(s.id));
@@ -245,11 +251,11 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   useEffect(() => {
     // depois de reservado, quem atende é o que o servidor disse (no "qualquer um" pode ser
     // outro): a grade antiga não pode trocar de volta
-    if (done || !agenda || !escolha) return;
+    if (reserva || !agenda || !escolha) return;
     const vaga = agenda.find((d) => d.date === date)?.horarios.find((h) => h.hora === escolha.hora);
     if (!vaga) setEscolha(null); // eslint-disable-line react-hooks/set-state-in-effect -- segue a agenda recebida
     else if (vaga.staffId !== escolha.staffId) setEscolha(vaga);
-  }, [agenda, date, escolha, done]);
+  }, [agenda, date, escolha, reserva]);
 
   // Trocar de etapa leva ao topo e, na confirmação, põe o foco no título: sem isso a tela
   // nova abria no meio e o leitor de tela ficava no botão que sumiu
@@ -285,13 +291,28 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       requestAnimationFrame(() => document.getElementById(errors.name ? "customerName" : "customerPhone")?.focus());
       return;
     }
+    // O mesmo pedido em toda tentativa até chegar a resposta, mesmo recarregando a página:
+    // confirmar de novo devolve o que já foi marcado, em vez de marcar outro horário
+    const chavePedido = `pedido-${tenantId}`;
+    try {
+      pedido.current ??= sessionStorage.getItem(chavePedido) ?? undefined;
+    } catch {}
+    // randomUUID só existe em HTTPS (e localhost): testando pelo IP da rede, vale o improviso
+    pedido.current ??= crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    try {
+      sessionStorage.setItem(chavePedido, pedido.current);
+    } catch {}
     setBusy(true);
-    // rede do celular caindo deixava "Reservando…" para sempre: com 20 s sem resposta, avisa
-    const semResposta = new Promise<{ ok: false; error: string; field: true }>((r) =>
-      setTimeout(() => r({ ok: false, error: "A confirmação não respondeu. Verifique a internet e toque em confirmar de novo: se o horário já tiver sido reservado, ele não é marcado duas vezes.", field: true }), 20_000),
-    );
-    const result = await Promise.race([
-      createBooking({
+    const recusa = (error: string) => ({ ok: false as const, error, field: true as const });
+    // rede do celular caindo deixava "Reservando…" para sempre: com 20 s sem resposta,
+    // desiste deste envio e a próxima tentativa sai na hora (sem AbortSignal.timeout,
+    // que o Safari do iOS 15 não tem)
+    const aborta = new AbortController();
+    const prazo = setTimeout(() => aborta.abort(), 20_000);
+    const result: Resposta = await fetch("/api/agendar", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
         tenantId,
         serviceIds,
         staffId: escolha.staffId,
@@ -301,18 +322,32 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
         customerPhone,
         // "qualquer um": se o oferecido na grade ocupou, o servidor tenta outro livre na mesma hora
         qualquer: !staffId,
-      }).catch(() => ({ ok: false as const, error: "Não foi possível confirmar agora. Verifique sua conexão e tente de novo.", field: true as const })),
-      semResposta,
-    ]).finally(() => setBusy(false));
+        pedido: pedido.current,
+      }),
+      signal: aborta.signal,
+    })
+      .then((r) => (r.ok ? r.json() : recusa("Não foi possível confirmar agora. Tente de novo em instantes.")))
+      .catch(() =>
+        recusa(
+          aborta.signal.aborted
+            ? "A confirmação não respondeu. Verifique a internet e toque em confirmar de novo: se o horário já tiver sido reservado, ele não é marcado duas vezes."
+            : "Não foi possível confirmar agora. Verifique sua conexão e tente de novo.",
+        ),
+      )
+      .finally(() => {
+        clearTimeout(prazo);
+        setBusy(false);
+      });
     if (!result.ok && "field" in result) return setSubmitError(result.error);
     if (result.ok) {
-      // quem ficou com o horário (pode ser outro, no "qualquer um")
-      setEscolha((e) => (e ? { ...e, staffId: result.staffId } : e));
+      // respondido: o próximo agendamento (outro filho, "Fazer outro agendamento") é outro pedido
+      pedido.current = undefined;
       try {
+        sessionStorage.removeItem(chavePedido);
         localStorage.setItem(CONTACT_KEY, JSON.stringify({ name: customerName.trim(), phone: customerPhone }));
       } catch {}
       scrollTo({ top: 0 });
-      return setDone(true);
+      return setReserva(result);
     }
     // Horário tomado por outra pessoa (ou serviço/profissional que saiu): volta para a
     // grade já atualizada. Rede e servidor ocupado são "field" e ficam na confirmação
@@ -325,14 +360,14 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
 
   // O recado que o cliente leva no WhatsApp: é ele que avisa quem atende, então
   // sai pronto, com tudo que a casa precisa para achar o horário na agenda.
-  const recado = (hora: string, quem?: string) =>
+  const recado = (servicos: string, dia: string, hora: string, quem?: string) =>
     linkWhatsApp(
       phone,
       [
         `Olá! Acabei de agendar pelo site do ${name}.`,
         "",
-        escolhidos.map((s) => s.name).join(" + "),
-        `${longDate(date)}, às ${hora}`,
+        servicos,
+        `${longDate(dia)}, às ${hora}`,
         ...(quem ? [`com ${quem}`] : []),
         "",
         `Meu nome é ${customerName.trim()} (${customerPhone}).`,
@@ -342,11 +377,11 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   // ---------- confirmado ----------
   // sem exigir o atendente: a equipe pode ter mudado depois de a página abrir, e a reserva
   // feita ficava presa na confirmação
-  if (done && escolha) {
-    const quem = atendente?.name;
-    const avisoUrl = recado(escolha.hora, quem);
-    const servicos = escolhidos.map((s) => s.name).join(" + ");
-    const fim = fimDe(date, escolha.hora, totalMin);
+  if (reserva) {
+    const { date, time: hora, durationMin: totalMin, serviceName: servicos, staffName: quem } = reserva;
+    const total = precoDe({ priceCents: reserva.priceCents, tipoPreco: reserva.precoAberto ? "aPartir" : "fixo" });
+    const avisoUrl = recado(servicos, date, hora, quem);
+    const fim = fimDe(date, hora, totalMin);
     const dias = Math.round((Date.parse(date) - Date.parse(today)) / 86_400_000);
     const quando = dias <= 0 ? "hoje" : dias === 1 ? "amanhã" : `daqui a ${dias} dias`;
     // Como chegar: a rua quando a casa cadastrou; sem ela, bairro e cidade ainda levam perto
@@ -354,11 +389,11 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     const onde = address ? [address, bairro, cidadeUf].filter(Boolean).join(", ") : bairro && city ? `${bairro}, ${cidadeUf}` : "";
     const rotas = onde ? mapas(onde) : null;
     const compromisso = {
-      id: `${tenantId}-${date}-${escolha.hora.replace(":", "")}`,
+      id: `${tenantId}-${reserva.id}`,
       titulo: `${servicos} · ${name}`,
       // no fuso do negócio: "10:30" em Manaus é 14:30 UTC, não 13:30 (o celular mostraria 09:30)
-      inicio: zonedTime(date, escolha.hora, fuso),
-      fim: new Date(zonedTime(date, escolha.hora, fuso).getTime() + totalMin * 60_000),
+      inicio: zonedTime(date, hora, fuso),
+      fim: new Date(zonedTime(date, hora, fuso).getTime() + totalMin * 60_000),
       local: onde || [name, cidadeUf].filter(Boolean).join(", "),
       detalhes: [quem ? `Com ${quem}.` : "", total ? `${total}, pago no local.` : "", phone ? `WhatsApp de ${name}: ${formatPhone(phone)}` : ""]
         .filter(Boolean)
@@ -373,7 +408,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     };
     const desmarcar = linkWhatsApp(
       phone,
-      `Olá! Preciso desmarcar ou mudar meu horário de ${longDate(date)}, às ${escolha.hora} (${servicos}). Meu nome é ${customerName.trim()}.`,
+      `Olá! Preciso desmarcar ou mudar meu horário de ${longDate(date)}, às ${hora} (${servicos}). Meu nome é ${customerName.trim()}.`,
     );
     return (
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col gap-4 bg-[#F2F0E7] p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-[#17150F]">
@@ -392,7 +427,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
               <p className={cn(MONO, "text-[11px] tracking-[0.06em] text-[#6B6555]")}>{quando}</p>
               <h2 className="text-[28px] leading-[1.06] font-semibold tracking-[-0.03em] first-letter:uppercase">{longDate(date)}</h2>
               <p className={cn(MONO, "text-[22px]")}>
-                {escolha.hora} — {fim}
+                {hora} — {fim}
               </p>
             </div>
             <dl className="flex flex-col gap-1.5 text-[13px]">

@@ -87,11 +87,20 @@ assert.equal(await loadCatalog(db, "nao-existe"), null);
 
 assert.equal((await availableSlots(db, { ...base, serviceIds: ["corte"] })).length, 11); // 09:00..11:30
 
-const primeira = await book(db, { ...base, serviceIds: ["corte"], time: "09:00" });
-assert.deepEqual(primeira, { ok: true, id: (await t.collection("appointments").limit(1).get()).docs[0]?.id ?? assert.fail(), staffId: "ana" });
+const primeira = await book(db, { ...base, serviceIds: ["corte"], time: "09:00", pedido: "p1" });
+const primeiraId = (await t.collection("appointments").limit(1).get()).docs[0]?.id ?? assert.fail();
+// a confirmação mostra o que ficou gravado
+assert.deepEqual(primeira, { ok: true, id: primeiraId, staffName: "Ana", serviceName: "Corte", durationMin: 30, priceCents: 5000, precoAberto: false, date, time: "09:00" });
 // o mesmo cliente confirmando de novo (resposta perdida na rede) recebe a mesma reserva, sem duplicar
-assert.deepEqual(await book(db, { ...base, serviceIds: ["corte"], time: "09:00" }), primeira, "confirmar de novo é seguro");
+assert.deepEqual(await book(db, { ...base, serviceIds: ["corte"], time: "09:00", pedido: "p1" }), primeira, "confirmar de novo é seguro");
+// a resposta se perdeu e o cliente mudou a escolha: recebe o que ficou marcado, não um segundo horário
+assert.deepEqual(await book(db, { ...base, serviceIds: ["luzes"], time: "10:00", pedido: "p1" }), primeira, "mesmo pedido, outra escolha");
 assert.equal((await t.collection("appointments").get()).size, 1);
+// sem o pedido certo não há repetição: ninguém descobre a reserva de um telefone pela hora
+assert.equal((await book(db, { ...base, serviceIds: ["corte"], time: "09:00", pedido: "outro" })).ok, false, "outro pedido, mesmo horário: ocupado");
+// duas tentativas do mesmo pedido ao mesmo tempo, com escolhas diferentes: uma reserva só
+const juntas = await Promise.all(["10:00", "10:30"].map((time) => book(db, { ...base, date: addDays(todayIn(), 40), customerPhone: "11 97777-0001", serviceIds: ["corte"], time, pedido: "junto" })));
+assert.equal(juntas[0].ok && juntas[1].ok && juntas[0].id === juntas[1].id, true, "mesmo pedido em paralelo: a mesma reserva");
 assert.equal((await book(db, { ...base, ...outro(), serviceIds: ["corte"], time: "09:00" })).ok, false, "mesmo horário, outra pessoa");
 assert.equal((await book(db, { ...base, serviceIds: ["luzes"], time: "08:45" })).ok, false, "fora do expediente");
 assert.equal((await book(db, { ...base, serviceIds: ["luzes"], time: "09:15" })).ok, false, "sobreposição parcial");
@@ -526,6 +535,12 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   assert.deepEqual(await availableSlots(db, { ...base, serviceIds: ["corte"], date: addDays(todayIn(), 9) }), []);
   const r = await book(db, { ...base, ...outro(), serviceIds: ["corte"], date: addDays(todayIn(), 9), time: "10:00" });
   assert.deepEqual([r.ok, !r.ok && "field" in r], [false, true], "recusa fica na confirmação, com o aviso");
+  // reservou, a resposta se perdeu e o negócio saiu do ar: confirmar de novo ainda mostra a reserva
+  await db.doc("crm/salao").set({ publicado: true }, { merge: true });
+  const antesDeSair = { ...base, ...outro(), serviceIds: ["corte"], date: addDays(todayIn(), 9), time: "10:30", pedido: "fora1" };
+  const feita = await book(db, antesDeSair);
+  await db.doc("crm/salao").set({ publicado: false }, { merge: true });
+  assert.deepEqual(await book(db, antesDeSair), feita, "fora do ar, a repetição devolve a reserva");
   await db.doc("crm/salao").set({ publicado: true }, { merge: true });
   assert.notEqual(await loadCatalog(db, "salao"), null, "de volta ao ar, abre de novo");
 }
@@ -537,15 +552,19 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   const antes = await usos();
   assert.equal((await book(db, { ...base, ...outro(), date: dia, serviceIds: ["corte"], time: "10:00" })).ok, true, "alguém pega Ana às 10h");
   const semEscolha = await book(db, { ...base, ...outro(), date: dia, serviceIds: ["corte"], time: "10:00", qualquer: true });
-  assert.deepEqual([semEscolha.ok, semEscolha.ok && semEscolha.staffId], [true, "bia"], "qualquer: fica com a Bia");
+  assert.deepEqual([semEscolha.ok, semEscolha.ok && semEscolha.staffName], [true, "Bia"], "qualquer: fica com a Bia");
   assert.equal((await book(db, { ...base, ...outro(), date: dia, serviceIds: ["corte"], time: "10:00" })).ok, false, "escolheu a Ana: ocupado");
   assert.equal((await book(db, { ...base, ...outro(), date: dia, serviceIds: ["corte"], time: "10:00", qualquer: true })).ok, false, "as duas ocupadas");
   // popularidade: uma vez por reserva nova, fora da transação; repetir a confirmação não conta
   assert.equal(await usos(), antes + 2);
-  const c = { ...base, ...outro(), date: dia, serviceIds: ["corte"], time: "11:00" };
-  await book(db, c);
-  await book(db, c);
+  const c = { ...base, ...outro(), date: dia, serviceIds: ["corte"], time: "11:00", pedido: "c1" };
+  const r1 = await book(db, c);
+  assert.deepEqual(await book(db, c), r1, "confirmar de novo devolve a mesma reserva");
   assert.equal(await usos(), antes + 3, "confirmar de novo não conta de novo");
+  // a mãe marca os dois filhos às 11:30 com o mesmo WhatsApp: são duas reservas, não repetição
+  const mae = { ...base, ...outro(), date: dia, serviceIds: ["corte"], time: "11:30", qualquer: true };
+  const filhos = [await book(db, { ...mae, pedido: "f1" }), await book(db, { ...mae, pedido: "f2" })];
+  assert.deepEqual(filhos.map((f) => f.ok && f.staffName), ["Ana", "Bia"], "dois filhos, duas reservas");
   // o servidor aplica a regra de telefone da tela
   assert.equal(BookingInput.safeParse({ ...base, serviceIds: ["corte"], time: "11:00", customerPhone: "0000000000" }).success, false);
 }
