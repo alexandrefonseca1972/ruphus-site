@@ -6,7 +6,7 @@ import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, loadCatalog, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
-import { addDays, customerKey, formatPhone, maskBRL, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import { addDays, agoraNaParede, customerKey, formatPhone, fusoDaUF, maskBRL, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 import { cotaDe, criarNegocio, definirLimite } from "@/lib/negocios.server";
 import { anotar, linhaDoTempo, registrarMensagem, salvarCrm } from "@/lib/crm";
@@ -49,6 +49,18 @@ assert.deepEqual(
   [], // qualquer início colide com 09:15–09:45
 );
 assert.deepEqual(freeSlots({ date: day, window: w, durationMin: 15, busy: [], now: at("09:20") }), ["09:30", "09:45"]);
+
+// Fuso por estado: a agenda grava hora de parede (convenção de Brasília); o fuso real entra
+// só no "já passou" e no calendário do cliente
+assert.deepEqual([fusoDaUF("AM"), fusoDaUF("rr"), fusoDaUF("AP"), fusoDaUF(null)], ["America/Manaus", "America/Boa_Vista", "America/Sao_Paulo", "America/Sao_Paulo"]);
+{
+  const manaus1005 = new Date("2030-01-07T14:05:00Z"); // 10:05 em Manaus = 11:05 em Brasília
+  assert.equal(agoraNaParede("America/Manaus", manaus1005).toISOString(), at("10:05").toISOString());
+  const janela = { start: "09:00", end: "12:00" };
+  assert.equal(freeSlots({ date: day, window: janela, durationMin: 30, busy: [], now: agoraNaParede("America/Manaus", manaus1005) })[0], "10:15", "Manaus às 10:05 ainda vê 10:15");
+  assert.equal(freeSlots({ date: day, window: janela, durationMin: 30, busy: [], now: manaus1005 })[0], "11:15", "sem o fuso, sumia uma hora");
+  assert.equal(zonedTime(day, "10:30", "America/Manaus").toISOString(), "2030-01-07T14:30:00.000Z", "calendário do cliente em Manaus");
+}
 
 // Reservas no emulador
 const app = initializeApp({ projectId: "demo-siteflow" });

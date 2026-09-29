@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { adminDb } from "@/lib/admin";
 import { loadCatalog } from "@/lib/booking.server";
-import { todayIn } from "@/lib/datetime";
+import { todayIn, fusoDaUF } from "@/lib/datetime";
 import { BookingForm } from "./booking-form";
 
 // Metadata e página compartilham a mesma leitura
@@ -30,5 +30,5 @@ export default async function BookingPage({ params }: PageProps<"/agendar/[tenan
   const { tenant } = await params;
   const catalog = await getCatalog(tenant);
   if (!catalog) notFound();
-  return <BookingForm tenantId={tenant} today={todayIn()} {...catalog} />;
+  return <BookingForm tenantId={tenant} today={todayIn()} fuso={fusoDaUF(catalog.uf)} {...catalog} />;
 }

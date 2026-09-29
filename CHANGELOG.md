@@ -5,6 +5,12 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Agenda no fuso do negócio
+- **Amazonas, Roraima e demais estados fora do horário de Brasília** (#101): os
+  horários de hoje não somem mais uma hora antes, e o "Salvar na agenda" põe a
+  hora certa no celular do cliente. O painel e as mensagens continuam mostrando
+  a hora local de sempre.
+
 ### Agenda: fora do ar é fora do ar, e confirmar é seguro
 - **Negócio tirado do ar não recebe agendamento por nenhum endereço** (#100):
   antes, www.ruphus.site/agendar/… (o link que o painel divulga) seguia
