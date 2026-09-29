@@ -83,3 +83,13 @@ assert.equal(enderecoCanonico("www.ruphus.site", "/sobre/index.html"), null, "o 
 assert.deepEqual(enderecoCanonico("localhost:3001", "/sobre"), { host: null, pathname: "/" });
 assert.equal(enderecoCanonico("siteflow-ruphus-projects.vercel.app", "/admin"), null);
 console.log("endereço canônico ok");
+
+import { NextRequest } from "next/server";
+import { proxy } from "@/proxy";
+// a reserva da página de agendamento no subdomínio vai direto à rota, sem virar /s/{slug}/api/…
+{
+  const r = await proxy(new NextRequest("https://barbeariasoul.ruphus.site/api/agendar", { method: "POST" }));
+  assert.equal(r.headers.get("x-middleware-next"), "1", "reserva no subdomínio chega à rota");
+  assert.equal(r.headers.get("x-middleware-rewrite"), null);
+  console.log("reserva no subdomínio ok");
+}

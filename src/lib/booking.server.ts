@@ -3,7 +3,7 @@ import { sessaoRevogada } from "@/lib/revogacao";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
-import { addDays, agoraNaParede, customerKey, freeSlots, fusoDaUF, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import { addDays, agoraNaParede, customerKey, dateIn, formatTime, freeSlots, fusoDaUF, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import type { DadosCliente } from "@/lib/cliente-dados";
 import { Service, Staff, type AgendaQuery, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
 
@@ -289,7 +289,7 @@ async function limitError(
   const active = future.docs.filter((d) => ["booked", "confirmed"].includes(d.get("status"))).length;
 
   if (active >= LIMITS.activePerPhone) {
-    return { error: `Você já tem ${LIMITS.activePerPhone} horários marcados. Cancele um deles com o salão para marcar outro.` };
+    return { error: `Você já tem ${LIMITS.activePerPhone} horários marcados. Cancele um deles com o negócio, pelo WhatsApp, para marcar outro.` };
   }
   if ((phoneDoc.get("count") ?? 0) >= LIMITS.dailyPerPhone) {
     return { error: "Muitos agendamentos com este WhatsApp hoje. Tente amanhã ou fale direto com o negócio." };
@@ -339,9 +339,7 @@ function writeAppointment(
   const history = ctx.t.collection("history").doc();
   const key = customerKey(a.customerPhone);
   tx.create(history, { appointmentId: ref.id, type: "created", at: FieldValue.serverTimestamp(), ...by, ...(planId && { planId }) });
-  // Popularidade: é ela que ordena os serviços na página pública
-  for (const id of a.serviceIds) tx.set(ctx.t.collection("services").doc(id), { usos: FieldValue.increment(1) }, { merge: true });
-  tx.create(ref, {
+  const dados = {
     lastHistoryId: history.id,
     serviceIds: a.serviceIds,
     serviceName: ctx.svc.map((s) => s.name).join(" + "),
@@ -359,44 +357,116 @@ function writeAppointment(
     status: "booked",
     createdAt: FieldValue.serverTimestamp(),
     ...(planId && { planId }),
-  });
+  };
+  tx.create(ref, dados);
   // Reserva anônima não troca o nome de um cliente já cadastrado (qualquer um pode digitar o telefone de outro)
   tx.set(
     ctx.t.collection("customers").doc(key),
     { ...(opts.renameCustomer && { name: a.customerName }), phone: a.customerPhone, updatedAt: FieldValue.serverTimestamp() },
     { merge: true },
   );
-  return ref.id;
+  return { id: ref.id, dados };
+}
+
+/** O que a tela de confirmado mostra: o que ficou gravado, não o que a tela pediu
+ *  (a resposta pode chegar depois de o cliente mexer na grade, ou a equipe ter mudado). */
+function reservaDe(id: string, a: FirebaseFirestore.DocumentData) {
+  const start: Date = a.start instanceof Date ? a.start : (a.start as Timestamp).toDate();
+  return {
+    id,
+    staffName: String(a.staffName),
+    serviceName: String(a.serviceName),
+    durationMin: Number(a.durationMin),
+    priceCents: Number(a.priceCents),
+    precoAberto: !!a.precoAberto,
+    date: dateIn(start),
+    time: formatTime(start),
+  };
+}
+
+/** Confirmar de novo o que já foi reservado (resposta perdida na rede, toque depois do aviso
+ *  de demora, página recarregada) acha a reserva pelo pedido da tela, mesmo que a escolha
+ *  tenha mudado: a tela mostra o que ficou marcado, não um segundo horário. Pelo pedido, não
+ *  por telefone e hora: a mãe que marca os dois filhos às 10:00 faz duas reservas. Uma marca
+ *  por pedido, e não uma consulta: duas tentativas ao mesmo tempo leem o mesmo documento, e
+ *  a transação faz a segunda esperar a primeira. */
+async function reservaDoPedido(
+  ler: (ref: FirebaseFirestore.DocumentReference) => Promise<FirebaseFirestore.DocumentSnapshot>,
+  t: FirebaseFirestore.DocumentReference,
+  input: BookingInput,
+) {
+  if (!input.pedido) return null;
+  const marca = await ler(t.collection("pedidos").doc(input.pedido));
+  if (!marca.exists) return null;
+  const ja = await ler(t.collection("appointments").doc(String(marca.get("appointmentId"))));
+  // cancelada: o pedido vale para uma reserva nova
+  if (ja.get("status") === "cancelled" || ja.get("customerKey") !== customerKey(input.customerPhone)) return null;
+  return ja.exists ? reservaDe(ja.id, ja.data()!) : null;
 }
 
 export async function book(db: Firestore, input: BookingInput, ip?: string) {
-  if (await foraDoAr(db, input.tenantId)) return { ok: false as const, error: FORA_DO_AR, field: true as const };
-  return contended(() => db.runTransaction(async (tx) => {
-    const ctx = await slotContext(tx, db, input);
-    if (!ctx) return { ok: false as const, error: "Serviço ou profissional indisponível." };
-    // Confirmar de novo o que já foi reservado (resposta perdida na rede, toque depois do
-    // aviso de demora) devolve a mesma reserva, em vez de "ocupado" pelo próprio horário
-    const mesmo = await tx.get(
-      ctx.t.collection("appointments")
-        .where("customerKey", "==", customerKey(input.customerPhone))
-        .where("start", "==", zonedTime(input.date, input.time)),
-    );
-    const ja = mesmo.docs.find((d) => d.get("staffId") === input.staffId && d.get("status") !== "cancelled");
-    if (ja) return { ok: true as const, id: ja.id };
-    if (!ctx.slots.includes(input.time)) {
-      return { ok: false as const, error: "Esse horário acabou de ser ocupado. Escolha outro." };
+  const t = db.collection("tenants").doc(input.tenantId);
+  // Fora do ar não aceita reserva nova, mas a repetição de uma já feita (a resposta se
+  // perdeu e o negócio saiu do ar nesse meio-tempo) ainda devolve a reserva
+  if (await foraDoAr(db, input.tenantId)) {
+    const ja = await reservaDoPedido((ref) => ref.get(), t, input);
+    return ja ? { ok: true as const, ...ja } : { ok: false as const, error: FORA_DO_AR, field: true as const };
+  }
+  const r = await contended(() => db.runTransaction(async (tx) => {
+    // antes da equipe e da grade, que podem ter mudado depois de reservado
+    const ja = await reservaDoPedido((ref) => tx.get(ref), t, input);
+    if (ja) return { ok: true as const, ...ja, novo: false };
+    // O oferecido na grade primeiro; só no "qualquer profissional", e só se ele foi tomado,
+    // lê o resto da equipe (ler todos sempre travava o dia da equipe inteira na transação)
+    let livre: { staffId: string; ctx: SlotContext } | undefined;
+    let algum = false;
+    const tenta = async (staffId: string) => {
+      const ctx = await slotContext(tx, db, { ...input, staffId });
+      algum ||= !!ctx;
+      if (ctx?.slots.includes(input.time)) livre = { staffId, ctx };
+    };
+    await tenta(input.staffId);
+    if (!livre && input.qualquer) {
+      const equipe = await tx.get(t.collection("staff").where("active", "==", true));
+      for (const d of equipe.docs) {
+        const faz = (d.get("serviceIds") as string[] | undefined) ?? [];
+        if (d.id !== input.staffId && input.serviceIds.every((id) => faz.includes(id))) await tenta(d.id);
+        if (livre) break;
+      }
     }
-    const limit = await limitError(tx, ctx.t, input, ip);
+    if (!algum) return { ok: false as const, error: "Serviço ou profissional indisponível." };
+    if (!livre) return { ok: false as const, error: "Esse horário acabou de ser ocupado. Escolha outro." };
+    const limit = await limitError(tx, livre.ctx.t, input, ip);
     if (limit.error) return { ok: false as const, error: limit.error, field: true as const };
-    const customer = await tx.get(ctx.t.collection("customers").doc(customerKey(input.customerPhone)));
-    const id = writeAppointment(tx, ctx, input, { by: "cliente", byName: input.customerName }, { renameCustomer: !customer.exists });
+    const customer = await tx.get(t.collection("customers").doc(customerKey(input.customerPhone)));
+    const { id, dados } = writeAppointment(tx, livre.ctx, { ...input, staffId: livre.staffId }, { by: "cliente", byName: input.customerName }, { renameCustomer: !customer.exists });
+    if (input.pedido) tx.set(t.collection("pedidos").doc(input.pedido), { appointmentId: id, createdAt: FieldValue.serverTimestamp() });
     limit.bump!();
-    return { ok: true as const, id };
+    return { ok: true as const, ...reservaDe(id, dados), novo: true };
   }, TX));
+  if (!r.ok) return r;
+  if (r.novo) await contarUso(db, input.tenantId, input.serviceIds);
+  const { novo: _, ...reserva } = r;
+  return reserva;
+}
+
+/** Popularidade (ordena a página pública). Fora da transação da reserva: dentro, toda
+ *  reserva do mesmo serviço disputava o mesmo documento, mesmo com outra pessoa e outro
+ *  dia, e um pico dava "Muita gente agendando" sem conflito de verdade. */
+async function contarUso(db: Firestore, tenantId: string, serviceIds: string[], vezes = 1) {
+  const t = db.collection("tenants").doc(tenantId);
+  await Promise.all(serviceIds.map((id) => t.collection("services").doc(id).set({ usos: FieldValue.increment(vezes) }, { merge: true })))
+    .catch((err) => console.error("[booking] contar uso", err)); // contador não derruba a reserva
 }
 
 /** Cria o plano e um agendamento por semana. Datas ocupadas (ou já passadas) são puladas e devolvidas. */
 export async function createPlan(db: Firestore, input: PlanInput, actor: Actor) {
+  const r = await criarPlano(db, input, actor);
+  if (r.ok && r.created.length) await contarUso(db, input.tenantId, input.serviceIds, r.created.length);
+  return r;
+}
+
+async function criarPlano(db: Firestore, input: PlanInput, actor: Actor) {
   return contended(() => db.runTransaction(async (tx) => {
     const dates = planDates(input.startDate, input.weekday, input.weeks);
     const t = db.collection("tenants").doc(input.tenantId);

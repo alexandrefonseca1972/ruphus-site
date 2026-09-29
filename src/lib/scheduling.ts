@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TIPOS_PRECO } from "@/lib/datetime";
+import { phoneError, TIPOS_PRECO } from "@/lib/datetime";
 import { erroNome } from "@/lib/nome";
 
 
@@ -62,7 +62,14 @@ export const BookingInput = SlotQuery.extend({
     .string()
     .trim()
     .regex(/^[\d\s()+-]{8,20}$/, "Informe um telefone válido")
-    .refine((p) => /^\d{10,13}$/.test(p.replace(/\D/g, "")), "Informe o telefone com DDD"),
+    .refine((p) => /^\d{10,13}$/.test(p.replace(/\D/g, "")), "Informe o telefone com DDD")
+    // a mesma regra da tela: "0000000000" passava e furava o limite por telefone
+    .refine((p) => !phoneError(p), "Confira o número de WhatsApp"),
+  // escolheu "qualquer profissional": se o oferecido ocupou, vale outro livre na mesma hora
+  qualquer: z.boolean().optional(),
+  // gerado pela tela e mantido até ela receber a resposta: confirmar de novo acha a mesma
+  // reserva (tenants/{t}/pedidos/{pedido}). Sem ele, não há repetição reconhecida
+  pedido: id.optional(),
 });
 export type BookingInput = z.infer<typeof BookingInput>;
 

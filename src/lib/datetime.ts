@@ -35,6 +35,8 @@ export function addDays(date: string, days: number) {
 /** Data "AAAA-MM-DD" de um instante, no fuso do negócio */
 export const dateIn = (d: Date, tz = TIMEZONE) => new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d);
 export const todayIn = (tz = TIMEZONE) => dateIn(new Date(), tz);
+/** A janela em que a página pública aceita agendar: de hoje até MAX_DAYS_AHEAD. */
+export const dentroDaJanela = (date: string) => date >= todayIn() && date <= addDays(todayIn(), MAX_DAYS_AHEAD);
 
 export const formatTime = (d: Date, tz = TIMEZONE) =>
   new Intl.DateTimeFormat("pt-BR", { timeZone: tz, hour: "2-digit", minute: "2-digit" }).format(d);
