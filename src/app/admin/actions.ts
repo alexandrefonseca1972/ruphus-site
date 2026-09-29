@@ -147,6 +147,7 @@ async function convitesPara(slugs: string[]): Promise<{ convites: ConviteEmLote[
     adminDb.getAll(...alvos.map((s) => adminDb.collection("crm").doc(s))),
   ]);
   const donoEmail = new Map(crms.map((d) => [d.id, ((d.get("donoEmail") as string | null) || null)]));
+  const donoWhatsapp = new Map(crms.map((d) => [d.id, ((d.get("donoWhatsapp") as string | null) || null)]));
   const fora: ConviteEmLote[] = [];
   // sem e-mail não sai convite: o destinatário é parte do link, não um extra
   const semEmail: string[] = [];
@@ -159,7 +160,8 @@ async function convitesPara(slugs: string[]): Promise<{ convites: ConviteEmLote[
       continue;
     }
     const url = `${base}/convite?c=${await criarConvite(adminDb, d.id, email)}`;
-    const telefone = (d.get("site.phone") as string | null) ?? null;
+    // o convite é do dono: a recepção só recebe quando o WhatsApp dele não foi cadastrado
+    const telefone = donoWhatsapp.get(d.id) ?? (d.get("site.phone") as string | null) ?? null;
     const texto = `Olá! Aqui é da Ruphus. O site do ${nome} já está no ar em https://${d.id}.ruphus.site — e a agenda online também.\n\nEste link dá acesso ao painel para você cadastrar serviços, equipe e horários: ${url}\n\nO acesso abre com o e-mail ${email} — é só entrar ou criar a conta com ele.\n\nO link vale ${DIAS_CONVITE} dias.`;
     fora.push({ slug: d.id, nome, telefone, url, whatsapp: linkWhatsApp(telefone, texto), email });
   }

@@ -67,6 +67,8 @@ export type Crm = {
   donoPapel: string | null;
   donoWhatsapp: string | null;
   donoEmail: string | null;
+  /** Outros WhatsApp do negócio (sócio, gerente…): só para falar, proposta e cobrança seguem com o do dono */
+  outrosContatos: Contato[];
   motivoPerda: MotivoPerda | null;
   detalhePerda: string | null;
   /** null = ainda não informado; a tela e os números tratam como "importado" */
@@ -82,6 +84,8 @@ export type Crm = {
   /** O anúncio de onde veio o cadastro (utm_* do link), quando veio de um */
   utm: Utm | null;
 };
+
+export type Contato = { nome: string; whatsapp: string };
 
 /** Os parâmetros utm_* do link do anúncio, guardados no navegador até o cadastro. */
 export type Utm = Partial<Record<"source" | "medium" | "campaign" | "content" | "term", string>>;

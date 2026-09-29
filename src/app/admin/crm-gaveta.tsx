@@ -93,10 +93,80 @@ export function ContatoDono({ negocio, crm, salvar }: { negocio: Negocio; crm: C
         />
         {erroEmail && <span className="text-[#8A2F2F]">{erroEmail}</span>}
       </label>
+      <OutrosContatos crm={crm} salvar={salvar} />
       {negocio.telefone && (
         <p className="rounded-[10px] bg-[#FBFAF8] px-3 py-2.5 text-xs text-[#6F6A5E]">Telefone do site (recepção): {formatPhone(negocio.telefone)}</p>
       )}
     </section>
+  );
+}
+
+/** Mais gente para falar no negócio (sócio, gerente…). Proposta e cobrança seguem com o dono. */
+function OutrosContatos({ crm, salvar }: { crm: Crm; salvar: (dados: Partial<Crm>) => void }) {
+  const [lista, setLista] = useState(crm.outrosContatos.map((c) => ({ nome: c.nome, zap: formatPhone(c.whatsapp) })));
+  const digitos = (zap: string) => zap.replace(/\D/g, "");
+  const invalido = (zap: string) => digitos(zap).length < 10 || digitos(zap).length > 11;
+  // Linha vazia é rascunho e não vai; com número pela metade, nada é gravado até corrigir
+  function gravar(nova = lista) {
+    const cheias = nova.filter((c) => c.zap);
+    if (cheias.some((c) => invalido(c.zap))) return;
+    salvar({ outrosContatos: cheias.map((c) => ({ nome: c.nome.trim(), whatsapp: digitos(c.zap) })) });
+  }
+  const mudar = (i: number, campo: "nome" | "zap", v: string) =>
+    setLista(lista.map((c, j) => (j === i ? { ...c, [campo]: campo === "zap" ? formatPhone(v) : v } : c)));
+
+  return (
+    <div className="flex flex-col gap-2">
+      {lista.map((c, i) => {
+        const erro = c.zap && invalido(c.zap);
+        const link = c.zap && !erro && linkWhatsApp(digitos(c.zap), `Olá${c.nome.trim() ? `, ${c.nome.trim().split(" ")[0]}` : ""}!`);
+        return (
+          <div key={i} className="grid grid-cols-[minmax(0,1fr)_9.5rem_auto] items-end gap-2">
+            <label className={ROTULO_CAMPO}>
+              Outro contato
+              <input value={c.nome} maxLength={60} placeholder="Nome ou papel" onChange={(e) => mudar(i, "nome", e.target.value)} onBlur={() => gravar()} className={CAMPO} />
+            </label>
+            <label className={ROTULO_CAMPO}>
+              <span className={erro ? "text-[#8A2F2F]" : ""}>{erro ? "10 ou 11 dígitos" : "WhatsApp"}</span>
+              <input
+                type="tel"
+                inputMode="tel"
+                value={c.zap}
+                placeholder="(92) 99999-9999"
+                aria-invalid={!!erro}
+                onChange={(e) => mudar(i, "zap", e.target.value)}
+                onBlur={() => gravar()}
+                className={`${CAMPO} tabular-nums ${erro ? "border-[#8A2F2F]" : ""}`}
+              />
+            </label>
+            <div className="flex gap-1">
+              {link && (
+                <a href={link} target="_blank" rel="noreferrer" aria-label={`WhatsApp de ${c.nome || "contato"}`} className={`${BOTAO_VERDE} w-11 px-0`}>
+                  <Zap />
+                </a>
+              )}
+              <button
+                type="button"
+                aria-label={`Remover ${c.nome || "contato"}`}
+                onClick={() => {
+                  const nova = lista.filter((_, j) => j !== i);
+                  setLista(nova);
+                  gravar(nova);
+                }}
+                className={`${BOTAO_CLARO} w-11 px-0`}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      {lista.length < 10 && (
+        <button type="button" onClick={() => setLista([...lista, { nome: "", zap: "" }])} className={`${BOTAO_CLARO} self-start`}>
+          + Adicionar outro WhatsApp
+        </button>
+      )}
+    </div>
   );
 }
 

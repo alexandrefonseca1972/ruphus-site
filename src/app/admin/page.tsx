@@ -49,7 +49,7 @@ import { AUTOR_LEVANTAMENTO, COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO
 const PAGINA = 40;
 const VAZIO: Crm = {
   estagio: "novo", entradaCents: null, mensalCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
-  donoNome: null, donoPapel: null, donoWhatsapp: null, donoEmail: null, motivoPerda: null, detalhePerda: null,
+  donoNome: null, donoPapel: null, donoWhatsapp: null, donoEmail: null, outrosContatos: [], motivoPerda: null, detalhePerda: null,
   origem: null, indicadoPor: null, entrouEm: null, perdidoEm: null, ultimoContatoEm: null, fixadoAte: null,
   utm: null,
 };
@@ -351,6 +351,9 @@ export default function AdminPage() {
     setEspacos((e) => e.map((x) => (x.slug === slug ? { ...x, limiteStaff: r.dados } : x)));
     setAberto((x) => (x && x.slug === slug ? { ...x, limiteStaff: r.dados } : x));
   }
+
+  // convite, links e "Falar com o dono" vão para o dono; a recepção só sem o WhatsApp dele
+  const zapDono = (aberto && crm[aberto.slug]?.donoWhatsapp) || detalhe?.telefone || null;
 
   async function mudarNegocio(slug: string, dados: Partial<Crm>) {
     const atual = crm[slug] ?? VAZIO;
@@ -1790,10 +1793,10 @@ export default function AdminPage() {
                     <button type="button" className={BOTAO_ESCURO} onClick={copiarConvite}>
                       {convite.copiado ? "Copiado ✓" : "Copiar link"}
                     </button>
-                    {detalhe?.telefone && (
+                    {zapDono && (
                       <a
                         className={`${BOTAO} border border-[#2C6A53] bg-white text-[#2C6A53] hover:bg-[#EEF2F0]`}
-                        href={linkWhatsApp(detalhe.telefone, `Olá! Este é o acesso ao painel do ${aberto.nome}: ${convite.url}`) ?? "#"}
+                        href={linkWhatsApp(zapDono, `Olá! Este é o acesso ao painel do ${aberto.nome}: ${convite.url}`) ?? "#"}
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -1984,12 +1987,12 @@ export default function AdminPage() {
                 </div>
               ))}
 
-              {detalhe?.telefone && (
+              {zapDono && (
                 <a
                   className={`${BOTAO} border border-[#2C6A53] bg-white text-[#2C6A53] hover:bg-[#EEF2F0]`}
                   href={
                     linkWhatsApp(
-                      detalhe.telefone,
+                      zapDono,
                       `Olá! Fizemos o site do ${aberto.nome}: https://${aberto.slug}.ruphus.site/\n\n` +
                         `Para o link da bio no Instagram: https://${aberto.slug}.ruphus.site/bio\n` +
                         `E os clientes já podem agendar online: https://${aberto.slug}.ruphus.site/agendar`,
@@ -2015,8 +2018,8 @@ export default function AdminPage() {
                 <a className={`${BOTAO_CLARO} justify-start`} href={`https://${aberto.slug}.ruphus.site/agendar`} target="_blank" rel="noreferrer">
                   Agendamento ↗
                 </a>
-                {detalhe?.telefone && (
-                  <a className={`${BOTAO_CLARO} justify-start`} href={linkWhatsApp(detalhe.telefone, `Olá! Aqui é da Ruphus.`) ?? "#"} target="_blank" rel="noreferrer">
+                {zapDono && (
+                  <a className={`${BOTAO_CLARO} justify-start`} href={linkWhatsApp(zapDono, `Olá! Aqui é da Ruphus.`) ?? "#"} target="_blank" rel="noreferrer">
                     Falar com o dono ↗
                   </a>
                 )}

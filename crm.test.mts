@@ -32,7 +32,8 @@ const cheio = negocio(
 for (const [campo, valor] of Object.entries(cheio)) {
   const tipo = typeof valor;
   assert.ok(
-    valor === null || tipo === "string" || tipo === "number" || tipo === "boolean",
+    valor === null || tipo === "string" || tipo === "number" || tipo === "boolean" ||
+      (Array.isArray(valor) && valor.every((v) => Object.getPrototypeOf(v) === Object.prototype)),
     `${campo} precisa ser simples, veio ${tipo}`,
   );
 }
@@ -56,6 +57,7 @@ assert.deepEqual(magro, {
   donoPapel: null,
   donoWhatsapp: null,
   donoEmail: null,
+  outrosContatos: [],
   motivoPerda: null,
   detalhePerda: null,
   origem: null,
@@ -181,3 +183,16 @@ console.log("dinheiro: ok");
   assert.equal(sessaoRevogada({ ana: "ontem" }, "ana", agora), false, "lixo no campo não tranca ninguém fora");
 }
 console.log("revogacao: ok");
+
+// Outros WhatsApp do negócio: só número completo com DDD, e no máximo dez
+{
+  const { CrmInput } = await import("@/lib/crm");
+  const ok = (outrosContatos: unknown) => CrmInput.safeParse({ outrosContatos }).success;
+  assert.equal(ok([{ nome: "Sócio", whatsapp: "92999998888" }]), true);
+  assert.equal(ok([{ nome: "", whatsapp: "9299998888" }]), true, "fixo com DDD vale, nome é opcional");
+  assert.equal(ok([{ nome: "Sócio", whatsapp: "99998888" }]), false, "sem DDD não passa");
+  assert.equal(ok([{ nome: "Sócio", whatsapp: "(92) 99999-8888" }]), false, "chega só dígitos");
+  assert.equal(ok(Array(11).fill({ nome: "x", whatsapp: "92999998888" })), false, "até dez");
+  assert.deepEqual(negocio(doc({})).outrosContatos, [], "documento antigo lê lista vazia");
+}
+console.log("outros contatos: ok");
