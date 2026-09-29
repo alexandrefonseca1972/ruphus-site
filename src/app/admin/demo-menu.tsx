@@ -8,7 +8,7 @@ type Acesso = { email: string; senha: string; restauradoEm: string | null };
 
 /** "Demonstração" no menu do admin: os links da conta de exemplo, o acesso de dono que o
  *  vendedor passa ao cliente e o botão que devolve tudo ao padrão depois do teste. */
-export function DemoMenu({ token }: { token: () => Promise<string> }) {
+export function DemoMenu({ token, aDireita = false }: { token: () => Promise<string>; aDireita?: boolean }) {
   const [aberto, setAberto] = useState(false);
   const [acesso, setAcesso] = useState<Acesso | null | undefined>(undefined);
   const [confirmando, setConfirmando] = useState(false);
@@ -57,12 +57,12 @@ export function DemoMenu({ token }: { token: () => Promise<string> }) {
         aria-expanded={aberto}
         aria-controls="demo-menu"
         onClick={() => setAberto((a) => !a)}
-        className={`flex h-8 items-center gap-1 rounded-lg px-3 text-[12px] ${aberto ? "bg-white font-semibold shadow-[0_1px_2px_rgba(23,21,15,.12)]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
+        className={`flex items-center gap-1 rounded-lg px-3 text-[12px] ${aDireita ? "h-11 border border-[#D8D2C6] bg-white" : "h-8"} ${aberto ? "bg-white font-semibold shadow-[0_1px_2px_rgba(23,21,15,.12)]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
       >
         Demonstração <span aria-hidden="true" className="text-[10px]">▾</span>
       </button>
       {aberto && (
-        <div id="demo-menu" className="absolute top-10 left-0 z-30 grid w-[300px] max-w-[calc(100vw-2rem)] gap-3 rounded-xl border border-[#E2DDD3] bg-white p-3 text-[13px] shadow-[0_12px_32px_-12px_rgba(23,21,15,.35)]">
+        <div id="demo-menu" className={`absolute ${aDireita ? "top-12 right-0" : "top-10 left-0"} z-30 grid w-[300px] max-w-[calc(100vw-2rem)] gap-3 rounded-xl border border-[#E2DDD3] bg-white p-3 text-[13px] shadow-[0_12px_32px_-12px_rgba(23,21,15,.35)]`}>
           <ul className="grid gap-0.5">
             {LINKS_DEMO.map((l) => (
               <li key={l.rotulo}>

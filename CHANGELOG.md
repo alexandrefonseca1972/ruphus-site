@@ -5,6 +5,13 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Admin no celular
+- **O /admin cabe no celular** (#99): Lista, Funil, Clientes, Cobrança e
+  Gerador numa barra fixa embaixo (no topo passavam da tela); as visões numa
+  faixa que rola, com filtro e ordem na linha de baixo; os filtros numa folha
+  que sobe de baixo, com "Ver N"; e o Funil mostra uma etapa por vez, com
+  seletor, em vez de cinco colunas que rolavam para o lado.
+
 ### Agenda: "qualquer um" de verdade e menos tropeços
 - **"Qualquer profissional" fica com quem está livre** (#102): se o oferecido
   foi tomado, a reserva vai para outro da equipe no mesmo horário.
