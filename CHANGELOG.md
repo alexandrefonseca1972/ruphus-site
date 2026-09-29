@@ -5,6 +5,13 @@ o PR, onde está o porquê.
 
 ## Em avaliação
 
+### Admin: o WhatsApp do dono vale para todo envio
+- **Outros WhatsApp do negócio** (#103): sócio, gerente… no cartão "Contato do
+  dono", cada um com o botão de abrir a conversa. Proposta e cobrança seguem
+  com o dono.
+- **Convite do painel, "Enviar tudo" e "Falar com o dono" vão para o dono**:
+  iam para o telefone do site mesmo com o WhatsApp dele cadastrado.
+
 ### Agenda no fuso do negócio
 - **Amazonas, Roraima e demais estados fora do horário de Brasília** (#101): os
   horários de hoje não somem mais uma hora antes, e o "Salvar na agenda" põe a
