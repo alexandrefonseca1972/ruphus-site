@@ -1,6 +1,7 @@
 import "server-only";
 import { applicationDefault, cert, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 // Vercel: FIREBASE_SERVICE_ACCOUNT com o JSON da conta de serviço.
 // Local: GOOGLE_APPLICATION_CREDENTIALS com o caminho do arquivo.
@@ -14,3 +15,5 @@ const app =
   });
 
 export const adminDb = getFirestore(app);
+// Os sites da fábrica publicados sem deploy ficam em sites/{slug}/ (ver lib/site-arquivo)
+export const adminBucket = getStorage(app).bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);

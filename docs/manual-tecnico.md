@@ -97,6 +97,12 @@ celular do cliente final baixa.
    `src/app/s/[slug]/index.html/route.ts`: é assim que os sites do gerador vão
    ao ar sem arquivo e sem deploy (o `public/` responde antes das rotas
    dinâmicas, então os sites da fábrica não passam por ela).
+   Antes do gerador, essa rota (e a do `og.jpg`) procura o site da fábrica
+   **publicado no Storage** em `sites/{slug}/`; os demais arquivos do site
+   (`img/`, `video/`, favicons) vêm de `src/app/s/[slug]/[...arquivo]/route.ts`,
+   que responde `Range` e `ETag` e manda a CDN guardar por um minuto. As
+   miniaturas do painel seguem em `sites/_p/{slug}.webp`. Publicar é
+   `npm run site -- publicar`, sem PR nem deploy (ver operação).
 4. **Sem slug** (apex, `www`): `/` → `public/sobre/index.html`, `/privacidade` →
    a página estática; qualquer outra rota segue para o app.
 
