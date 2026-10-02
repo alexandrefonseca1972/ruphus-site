@@ -4,12 +4,15 @@ import { Menu } from "@base-ui/react/menu";
 import Link from "next/link";
 import { auth } from "@/lib/firebase";
 import { sair } from "@/lib/sessao";
+import { useAvisos } from "./avisos";
+import { useTenant } from "./layout";
 
 const ITEM = "flex cursor-default rounded-md px-3 py-2 outline-none select-none data-[highlighted]:bg-muted";
 
 /** Conta de quem entrou: trocar de negócio e sair. O layout já manda para /login quando a sessão acaba. */
 export function AccountMenu() {
   const email = auth.currentUser?.email ?? "";
+  const avisos = useAvisos(useTenant().id);
   return (
     <Menu.Root>
       <Menu.Trigger
@@ -29,6 +32,18 @@ export function AccountMenu() {
             <Menu.LinkItem render={<Link href="/ajuda" />} className={ITEM}>
               Ajuda
             </Menu.LinkItem>
+            {avisos.suportado && avisos.ativo !== null && !avisos.bloqueado && (
+              // aviso de novo agendamento neste aparelho; cada pessoa decide o seu
+              <Menu.Item
+                closeOnClick={false}
+                disabled={avisos.ocupado}
+                onClick={() => (avisos.ativo ? avisos.desligar() : avisos.ligar())}
+                className={`${ITEM} justify-between gap-4`}
+              >
+                Avisos de agendamento
+                <span className="text-muted-foreground">{avisos.ocupado ? "…" : avisos.ativo ? "ligados" : "desligados"}</span>
+              </Menu.Item>
+            )}
             {/* recarga de verdade: o Firestore foi encerrado para apagar o cache do aparelho */}
             <Menu.Item onClick={() => sair().then(() => window.location.replace("/login"))} className={`${ITEM} text-destructive`}>
               Sair

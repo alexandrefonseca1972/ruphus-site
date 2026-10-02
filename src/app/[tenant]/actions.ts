@@ -8,6 +8,7 @@ import { z } from "zod";
 import { PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
+import { cancelar, Inscricao, inscrever } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 
 // Chamáveis por POST direto: valida entrada e membro do tenant em toda chamada
@@ -91,6 +92,17 @@ async function exigeGestor(tenantId: string, uid: string) {
 export const lerNegocioAction = memberAction(z.object({ tenantId: docIdStaff }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid);
   return { ok: true as const, dados: await lerNegocio(adminDb, data.tenantId) };
+});
+
+// Avisos de agendamento neste aparelho: qualquer membro (cada um decide o seu celular)
+export const inscreverAvisosAction = memberAction(z.object({ tenantId: docIdStaff, inscricao: Inscricao }), async (data, user) => {
+  await inscrever(adminDb, data.tenantId, user.uid, data.inscricao);
+  return { ok: true as const };
+});
+
+export const cancelarAvisosAction = memberAction(z.object({ tenantId: docIdStaff, endpoint: Inscricao.shape.endpoint }), async (data) => {
+  await cancelar(adminDb, data.tenantId, data.endpoint);
+  return { ok: true as const };
 });
 
 export const salvarRecadoAction = memberAction(z.object({ tenantId: docIdStaff, recado: Recado }), async (data, user) => {

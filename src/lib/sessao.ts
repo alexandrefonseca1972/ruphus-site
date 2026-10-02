@@ -33,6 +33,13 @@ export function loginComMotivo(base = "/login") {
  *  sem internet. O Firestore é carregado só aqui, e só se a página já o usava:
  *  o login e o admin não o baixam. Quem chama recarrega a página depois. */
 export async function sair() {
+  // aparelho compartilhado: quem entrar depois não recebe os avisos deste negócio
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    await (await reg?.pushManager.getSubscription())?.unsubscribe();
+  } catch {
+    // sem service worker ou sem push: nada inscrito
+  }
   await signOut(auth).catch(() => {});
   try {
     const { limparCacheLocal } = await import("@/lib/firebase-db");

@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { avisar, quando } from "@/lib/avisos.server";
 import { adminDb } from "@/lib/admin";
 import { book } from "@/lib/booking.server";
 import { MAX_DAYS_AHEAD, dentroDaJanela } from "@/lib/datetime";
@@ -21,5 +22,19 @@ export async function POST(req: Request) {
   // quem chama, então vale o último, que foi acrescentado por quem está na frente
   const encaminhado = req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim();
   const ip = req.headers.get("x-real-ip")?.trim() || encaminhado;
-  return NextResponse.json(await book(adminDb, b.data, ip));
+  const r = await book(adminDb, b.data, ip);
+  // Aviso no celular de quem atende, depois da resposta: push lento não atrasa a reserva.
+  // Só a reserva nova: a repetição (resposta perdida, segundo toque) já foi avisada.
+  if (r.ok && "novo" in r && r.novo) {
+    const { tenantId, customerName } = b.data;
+    after(() =>
+      avisar(adminDb, tenantId, {
+        title: "Novo agendamento",
+        body: `${customerName.trim()} · ${r.serviceName} · ${quando(r.date, r.time)}${r.staffName ? ` · com ${r.staffName}` : ""}`,
+        url: `/${tenantId}`,
+        tag: `agendamento-${r.id}`,
+      }).catch((e) => console.error("aviso de agendamento", e)),
+    );
+  }
+  return NextResponse.json(r);
 }
