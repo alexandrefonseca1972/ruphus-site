@@ -6,9 +6,12 @@
 //   npm run site -- publicar-todos <raiz> [--aplicar]                     # cada <raiz>/<slug>/ com index.html,
 //                                                                         # e a miniatura de <raiz>/_p/<slug>.webp
 //   npm run site -- baixar <slug> <pasta>
+//   npm run site -- restaurar <slug>                                      # lista os momentos publicados
+//   npm run site -- restaurar <slug> <momento> [--aplicar]                # volta o site ao que estava no ar
 //
 // publicar sincroniza: envia o que mudou, apaga do bucket o que saiu da pasta.
-// Enquanto existir public/s/{slug}, é ela que responde.
+// Enquanto existir public/s/{slug}, é ela que responde. O bucket guarda versões
+// (até 5 por arquivo, por 90 dias): é delas que o restaurar tira o site de volta.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -22,8 +25,9 @@ const [acao, alvo, pastaArg, ...resto] = process.argv.slice(2);
 const opcao = (nome: string) => { const i = resto.indexOf(nome); return i < 0 ? undefined : resto[i + 1]; };
 const aplicar = process.argv.includes("--aplicar");
 const USO = "uso: npm run site -- publicar <slug> <pasta> [--miniatura arquivo.webp] [--aplicar]\n" +
-  "     npm run site -- publicar-todos <raiz> [--aplicar]\n     npm run site -- baixar <slug> <pasta>";
-if (!(acao === "publicar-todos" ? alvo : ["publicar", "baixar"].includes(acao) && alvo && pastaArg)) {
+  "     npm run site -- publicar-todos <raiz> [--aplicar]\n     npm run site -- baixar <slug> <pasta>\n" +
+  "     npm run site -- restaurar <slug> [momento] [--aplicar]";
+if (!(["publicar-todos", "restaurar"].includes(acao) ? alvo : ["publicar", "baixar"].includes(acao) && alvo && pastaArg)) {
   console.error(USO);
   process.exit(1);
 }
@@ -90,6 +94,40 @@ if (acao === "baixar") {
     writeFileSync(destino, (await f.download())[0]);
   }
   console.log(`${remotos.length} arquivos de ${alvo} em ${resolve(pastaArg)}`);
+} else if (acao === "restaurar") {
+  if (!slugValido(alvo)) throw new Error(`slug inválido: ${alvo}`);
+  const [versoes] = await bucket.getFiles({ prefix: `${PREFIXO}/${alvo}/`, versions: true });
+  if (!versoes.length) throw new Error(`${alvo} não tem nada no Storage`);
+  const criado = (v: (typeof versoes)[number]) => new Date(v.metadata.timeCreated!).getTime();
+  // até quando a versão ficou no ar: substituída ou apagada (as atuais não têm)
+  const saiu = (v: (typeof versoes)[number]) => (v.metadata.timeDeleted ? new Date(v.metadata.timeDeleted).getTime() : Infinity);
+  const minuto = (t: number) => new Date(t).toISOString().slice(0, 16);
+  if (!pastaArg) {
+    const momentos = new Map<string, number>();
+    for (const v of versoes) momentos.set(minuto(criado(v)), (momentos.get(minuto(criado(v))) ?? 0) + 1);
+    console.log(`publicações de ${alvo} (UTC, arquivos gravados):`);
+    for (const [m, n] of [...momentos].sort()) console.log(`  ${m}  ${n}`);
+    console.log(`para voltar: npm run site -- restaurar ${alvo} <momento> --aplicar`);
+  } else {
+    // o momento vale até o fim do minuto: é o que a listagem mostra
+    const ate = new Date(`${pastaArg.slice(0, 16)}:59.999Z`).getTime();
+    if (Number.isNaN(ate)) throw new Error(`momento inválido: ${pastaArg} (use o formato da listagem, ex.: 2026-10-02T15:40)`);
+    const porNome = Map.groupBy(versoes, (v) => v.name);
+    const acoes: { nome: string; de?: (typeof versoes)[number]; apagar: boolean }[] = [];
+    for (const [nome, vs] of porNome) {
+      const viva = vs.find((v) => saiu(v) === Infinity);
+      const naquele = vs.find((v) => criado(v) <= ate && saiu(v) > ate);
+      if (naquele && naquele.metadata.generation !== viva?.metadata.generation) acoes.push({ nome, de: naquele, apagar: false });
+      else if (!naquele && viva) acoes.push({ nome, apagar: true });
+    }
+    for (const a of acoes) console.log(`  ${a.apagar ? "-" : "↺"} ${a.nome}`);
+    console.log(`${alvo}: ${acoes.filter((a) => !a.apagar).length} para voltar, ${acoes.filter((a) => a.apagar).length} para apagar`);
+    if (!aplicar) console.log("simulação: rode de novo com --aplicar para restaurar");
+    else {
+      for (const a of acoes) await (a.apagar ? bucket.file(a.nome).delete() : a.de!.copy(bucket.file(a.nome)));
+      console.log(`restaurado: https://${alvo}.ruphus.site (aparece em até um minuto)`);
+    }
+  }
 } else if (acao === "publicar") {
   if (!(await tenants.doc(alvo).get()).exists) console.warn(`aviso: não há tenant ${alvo}: o site abre, mas a bio, a agenda e o painel não`);
   if (existsSync(join("public/s", alvo))) console.warn(`aviso: public/s/${alvo} existe e responde antes do Storage enquanto estiver no repositório`);
