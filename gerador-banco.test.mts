@@ -108,6 +108,13 @@ const html = await r.text();
 assert.ok(html.includes("<title>Pet Feliz Nazaré | Pet shop em Belém</title>"), "nome (já renomeado) e cidade do tenant");
 assert.ok(html.includes("4,8 &middot; 70 avaliações"), "nota atualizada no reenvio");
 assert.ok(html.includes("<h3>Banho</h3>") && html.includes("<h3>Tosa</h3>"), "serviços vêm da agenda");
+// site da fábrica publicado no Storage responde antes do gerador; apagado, o gerador volta
+const { adminBucket } = await import("@/lib/admin");
+const publicado = adminBucket().file("sites/pet-feliz-belem/index.html");
+await publicado.save("<h1>da fábrica</h1>", { contentType: "text/html; charset=utf-8" });
+assert.equal(await (await pagina("pet-feliz-belem")).text(), "<h1>da fábrica</h1>");
+await publicado.delete();
+assert.match(await (await pagina("pet-feliz-belem")).text(), /Pet Feliz Nazaré/);
 assert.equal((await pagina("navalha")).status, 200);
 assert.match(await (await pagina("navalha")).text(), /assets\/gerado\/beleza\.css/, "barbearia usa o modelo beleza");
 assert.equal((await pagina("pet-feliz")).status, 404, "tenant da fábrica não é gerado");

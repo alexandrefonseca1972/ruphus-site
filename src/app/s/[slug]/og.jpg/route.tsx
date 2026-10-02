@@ -2,13 +2,15 @@ import { ImageResponse } from "next/og";
 import sharp from "sharp";
 import { adminDb } from "@/lib/admin";
 import { lerSite } from "@/lib/gerador.server";
+import { doStorage } from "@/lib/site-arquivo.server";
 import { capaEditorial } from "@/lib/site-editorial";
 import { capaClaro, ehClaro } from "@/lib/site-claro";
 
 // A imagem que aparece quando o link de um site gerado é enviado no WhatsApp: a
 // mesma composição dos og.jpg da fábrica (foto do topo escurecida, traço na cor
 // do site, nome na fonte de título, ramo e cidade, "ruphus.site" no canto).
-// Os sites da fábrica têm o arquivo em public/s/{slug}/og.jpg, que responde antes.
+// Os sites da fábrica têm o arquivo em public/s/{slug}/og.jpg, que responde antes,
+// ou publicado no Storage, que esta rota devolve antes de montar a imagem.
 
 // Uma hora: a aba Gerador limpa na hora ao gravar, mas o npm run gerar:sites roda
 // fora do Next e não alcança o cache
@@ -33,7 +35,10 @@ const BASE =
   (process.env.NODE_ENV === "development" ? `http://localhost:${process.env.PORT ?? 3000}` : "https://www.ruphus.site");
 
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
-  const d = await lerSite(adminDb, (await params).slug);
+  const slug = (await params).slug;
+  const publicado = await doStorage(slug, ["og.jpg"]);
+  if (publicado) return publicado;
+  const d = await lerSite(adminDb, slug);
   if (!d) return new Response("Imagem não encontrada", { status: 404 });
   const capa = ehClaro(d.sub) ? capaClaro(d) : capaEditorial(d);
 
