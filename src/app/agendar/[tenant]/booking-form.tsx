@@ -35,6 +35,8 @@ type Props = {
   address?: string | null;
   bairro?: string | null;
   temSite?: boolean;
+  /** recado do dono para quem acabou de agendar; null = texto padrão */
+  recadoDono?: string | null;
   /** Fuso real do negócio: o "Salvar na agenda" do cliente precisa do instante certo */
   fuso?: string;
   services: { id: string; name: string; durationMin: number; priceCents: number; tipoPreco?: TipoPreco }[];
@@ -162,7 +164,7 @@ function Rodape() {
   );
 }
 
-export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, fuso, services, staff }: Props) {
+export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, recadoDono, fuso, services, staff }: Props) {
   // Nada vem marcado: quem agenda diz o que quer, e só então a agenda aparece.
   // Os serviços chegam do servidor na ordem do que mais se agenda.
   const [serviceIds, setServiceIds] = useState<string[]>([]);
@@ -465,10 +467,21 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           <div className="flex flex-col gap-3.5 p-5">
             {/* Quem confirma é o negócio, no número que o cliente deu: "seu" deixa claro que
                 o número mostrado é o dele, não o do negócio. Falar com ele é a ação da tela. */}
-            <p className="text-[15px] leading-relaxed">
-              <strong className="font-semibold">{name}</strong> vai te chamar no <strong className="font-semibold">seu</strong> WhatsApp{" "}
-              <span className={cn(MONO, "text-[13px] whitespace-nowrap")}>{customerPhone}</span> para confirmar.
-            </p>
+            {recadoDono ? (
+              // o recado é do dono (texto puro, quebras de linha mantidas); o número continua
+              // à vista para o cliente conferir onde vai ser chamado
+              <>
+                <p className="text-[15px] leading-relaxed whitespace-pre-line break-words">{recadoDono}</p>
+                <p className="text-[13px] text-[#5C5747]">
+                  Seu WhatsApp: <span className={cn(MONO, "whitespace-nowrap")}>{customerPhone}</span>
+                </p>
+              </>
+            ) : (
+              <p className="text-[15px] leading-relaxed">
+                <strong className="font-semibold">{name}</strong> vai te chamar no <strong className="font-semibold">seu</strong> WhatsApp{" "}
+                <span className={cn(MONO, "text-[13px] whitespace-nowrap")}>{customerPhone}</span> para confirmar.
+              </p>
+            )}
             {avisoUrl && (
               <div className="flex flex-col gap-2">
                 <a

@@ -42,6 +42,8 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
     bairro: (tenant.get("gerado.bairro") as string | null) || null,
     // tem página própria (fábrica ou gerador): o nome no topo leva a ela no computador
     temSite: !!(tenant.get("gerado.sub") || tenant.get("site.url")),
+    // o recado do dono na confirmação; sem ele, a tela usa o texto padrão
+    recadoDono: String(tenant.get("agenda.recado") ?? "").trim() || null,
     // Ordem: o que mais se agenda primeiro. Enquanto ninguém agendou, vale a
     // ordem em que o site lista os serviços (ordem), que é a do próprio negócio.
     services: services.docs

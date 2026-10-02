@@ -21,6 +21,11 @@ export const WindowSchema = z
   .object({ start: hhmm, end: hhmm })
   .refine((w) => w.start < w.end, "O fim do expediente precisa ser depois do início");
 
+/** Recado que o dono deixa para quem acabou de agendar (ex.: "chegue 10 minutos antes").
+ *  Vazio: a tela de confirmação mostra o texto padrão. */
+export const RECADO_MAX = 300;
+export const Recado = z.string().trim().max(RECADO_MAX, `Use no máximo ${RECADO_MAX} caracteres`);
+
 export const Staff = z.object({
   name: z.string().trim().min(1, "Informe o nome").max(80, "Nome muito longo"),
   serviceIds: z.array(id).min(1, "Escolha pelo menos um serviço"),

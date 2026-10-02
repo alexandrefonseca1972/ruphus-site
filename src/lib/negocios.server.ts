@@ -94,6 +94,8 @@ export async function lerNegocio(db: Firestore, slug: string) {
     endereco: s("site.address"),
     instagram: s("site.instagram"),
     horario: s("gerado.horario"),
+    /** recado da tela de confirmação do agendamento; vazio = texto padrão */
+    recado: s("agenda.recado"),
     fabrica: !t.get("gerado") && !!t.get("site.url"),
     /** entrada paga: sem faixa de proposta e no Google */
     publicado: !!t.get("gerado.publicadoEm"),

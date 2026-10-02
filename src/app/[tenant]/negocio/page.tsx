@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { RUPHUS } from "@/lib/catalogo";
 import { CamposNegocio, errosDe, VAZIO, type Valores } from "@/components/campos-negocio";
 import { idToken } from "@/lib/firebase";
-import { lerNegocioAction, salvarNegocioAction } from "../actions";
+import { RECADO_MAX } from "@/lib/scheduling";
+import { lerNegocioAction, salvarNegocioAction, salvarRecadoAction } from "../actions";
 import { useTenant } from "../layout";
 import { PageTitle } from "../page-title";
 
@@ -30,6 +31,11 @@ export default function MeuNegocio() {
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   // muda a cada salvamento: a prévia da imagem é pedida de novo, sem cache do navegador
   const [versao, setVersao] = useState(0);
+  // o recado da confirmação do agendamento: salva à parte, não mexe no site
+  const [recado, setRecado] = useState("");
+  const [recadoSalvo, setRecadoSalvo] = useState("");
+  const [busyRecado, setBusyRecado] = useState(false);
+  const [avisoRecado, setAvisoRecado] = useState<{ ok: boolean; texto: string } | null>(null);
 
   useEffect(() => {
     let atual = true;
@@ -37,7 +43,9 @@ export default function MeuNegocio() {
       const r = await lerNegocioAction(await idToken(), { tenantId: slug }).catch(() => null);
       if (!atual) return;
       if (!r?.ok) return setEstado("erro");
-      const { name, fabrica, publicado, ...resto } = r.dados;
+      const { name, fabrica, publicado, recado, ...resto } = r.dados;
+      setRecado(recado);
+      setRecadoSalvo(recado);
       const lidos = { ...VAZIO, ...resto, telefone: resto.telefone ? formatarFone(resto.telefone) : "" };
       setNome(name);
       setFabrica(fabrica);
@@ -54,14 +62,15 @@ export default function MeuNegocio() {
   const erros = errosDe(campos);
   const erroNome = nome.trim().length < 2 ? "Informe o nome do negócio" : "";
   const mudou = !!salvo && (nome !== salvo.nome || (Object.keys(VAZIO) as (keyof Valores)[]).some((c) => campos[c] !== salvo.campos[c]));
+  const mudouRecado = recado.trim() !== recadoSalvo.trim();
 
   // sair com alteração não salva: o navegador pergunta antes
   useEffect(() => {
-    if (!mudou) return;
+    if (!mudou && !mudouRecado) return;
     const segura = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener("beforeunload", segura);
     return () => window.removeEventListener("beforeunload", segura);
-  }, [mudou]);
+  }, [mudou, mudouRecado]);
 
   // editar de novo tira o "Salvo." da tela
   const editar = <T,>(set: (v: T) => void) => (v: T) => {
@@ -81,6 +90,18 @@ export default function MeuNegocio() {
     setSalvo({ nome, campos });
     setAviso({ ok: true, texto: fabrica ? "Dados salvos. A bio e o agendamento já mostram as mudanças." : "Salvo. O site já mostra as mudanças." });
     setVersao((v) => v + 1);
+  }
+
+  async function salvarRecado() {
+    setAvisoRecado(null);
+    setBusyRecado(true);
+    const r = await salvarRecadoAction(await idToken(), { tenantId: slug, recado }).catch(() => null);
+    setBusyRecado(false);
+    if (!r) return setAvisoRecado({ ok: false, texto: "Não foi possível salvar. Verifique a conexão e tente de novo." });
+    if (!r.ok) return setAvisoRecado({ ok: false, texto: r.error });
+    setRecado(recado.trim());
+    setRecadoSalvo(recado.trim());
+    setAvisoRecado({ ok: true, texto: recado.trim() ? "Salvo. Quem agendar já vê o seu recado." : "Salvo. Quem agendar vê o texto padrão." });
   }
 
   if (!tenant.podeGerir) return <p className="text-muted-foreground">Só o dono ou um administrador do negócio pode ver esta tela.</p>;
@@ -163,6 +184,48 @@ export default function MeuNegocio() {
           </ul>
         </aside>
       </div>
+
+      <form
+        noValidate
+        className="grid gap-4 rounded-2xl border bg-card p-5 sm:p-7 lg:max-w-[calc(100%-24rem)]"
+        onSubmit={(e) => {
+          e.preventDefault();
+          salvarRecado();
+        }}
+      >
+        <div className="grid gap-1">
+          <h2 className="text-[15px] font-semibold">Depois do agendamento</h2>
+          <p className="text-sm text-muted-foreground">
+            Opcional. O que o cliente lê logo depois de agendar. Em branco, ele vê: &ldquo;{nome || "O negócio"} vai te chamar no seu WhatsApp para confirmar.&rdquo;
+          </p>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="negocio-recado">Recado para o cliente</Label>
+          <textarea
+            id="negocio-recado"
+            value={recado}
+            maxLength={RECADO_MAX}
+            rows={3}
+            placeholder="Ex.: Chegue 10 minutos antes. Aceitamos Pix e cartão."
+            onChange={(e) => {
+              setRecado(e.target.value);
+              setAvisoRecado(null);
+            }}
+            aria-describedby="negocio-recado-msg"
+            className="min-h-24 rounded-lg border border-input bg-card px-3.5 py-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:text-[15px]"
+          />
+          <p id="negocio-recado-msg" className="text-xs text-muted-foreground">{recado.length}/{RECADO_MAX} · o número do cliente continua aparecendo logo abaixo</p>
+        </div>
+        {avisoRecado && (
+          <p role={avisoRecado.ok ? "status" : "alert"} className={avisoRecado.ok ? "text-sm text-emerald-700 dark:text-emerald-300" : "text-sm text-destructive"}>
+            {avisoRecado.texto}
+          </p>
+        )}
+        <div className="flex items-center justify-end gap-3">
+          {mudouRecado && !busyRecado && <span className="text-xs text-muted-foreground">Alterações não salvas</span>}
+          <Button type="submit" disabled={busyRecado || !mudouRecado} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busyRecado ? "Salvando…" : "Salvar recado"}</Button>
+        </div>
+      </form>
     </div>
   );
 }

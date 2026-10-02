@@ -5,7 +5,7 @@ import { createPlan, deleteCustomer, endPlan, renameCustomer, requireMember, res
 import { DadosCliente } from "@/lib/cliente-dados";
 import { erroNome } from "@/lib/nome";
 import { z } from "zod";
-import { PlanInput, RescheduleInput, Staff } from "@/lib/scheduling";
+import { PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
@@ -91,6 +91,13 @@ async function exigeGestor(tenantId: string, uid: string) {
 export const lerNegocioAction = memberAction(z.object({ tenantId: docIdStaff }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid);
   return { ok: true as const, dados: await lerNegocio(adminDb, data.tenantId) };
+});
+
+export const salvarRecadoAction = memberAction(z.object({ tenantId: docIdStaff, recado: Recado }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  await adminDb.doc(`tenants/${data.tenantId}`).update({ "agenda.recado": data.recado });
+  revalidatePath(`/agendar/${data.tenantId}`);
+  return { ok: true as const };
 });
 
 export const salvarNegocioAction = memberAction(z.object({ tenantId: docIdStaff, dados: z.unknown() }), async (data, user) => {
