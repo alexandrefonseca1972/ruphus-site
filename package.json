@@ -30,7 +30,7 @@
     "test:admin": "tsx admin.test.mts",
     "test:gerador": "tsx gerador.test.mts",
     "test:lembrete": "tsx lembrete.test.mts",
-    "test:gerador-banco": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server gerador-banco.test.mts'"
+    "test:gerador-banco": "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=demo-siteflow.appspot.com firebase emulators:exec --only firestore,storage --project demo-siteflow 'tsx --conditions=react-server gerador-banco.test.mts'"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

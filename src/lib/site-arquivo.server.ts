@@ -10,7 +10,7 @@ import { cacheDe, faixa, objetoDoSite, tipoDe } from "@/lib/site-arquivo";
 export async function doStorage(slug: string, partes: string[], req?: Request): Promise<Response | null> {
   const nome = objetoDoSite(slug, partes);
   if (!nome) return null;
-  const arquivo = adminBucket.file(nome);
+  const arquivo = adminBucket().file(nome);
   let meta;
   try {
     [meta] = await arquivo.getMetadata();

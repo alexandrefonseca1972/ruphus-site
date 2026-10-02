@@ -15,5 +15,7 @@ const app =
   });
 
 export const adminDb = getFirestore(app);
-// Os sites da fábrica publicados sem deploy ficam em sites/{slug}/ (ver lib/site-arquivo)
-export const adminBucket = getStorage(app).bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+// Os sites da fábrica publicados sem deploy ficam em sites/{slug}/ (ver lib/site-arquivo).
+// Aberto só no uso: sem o nome do bucket (os testes com emulador), importar este
+// arquivo para usar o Firestore não pode quebrar.
+export const adminBucket = () => getStorage(app).bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
