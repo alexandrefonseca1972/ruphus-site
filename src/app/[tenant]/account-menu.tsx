@@ -1,9 +1,9 @@
 "use client";
 
 import { Menu } from "@base-ui/react/menu";
-import { signOut } from "firebase/auth";
 import Link from "next/link";
 import { auth } from "@/lib/firebase";
+import { sair } from "@/lib/sessao";
 
 const ITEM = "flex cursor-default rounded-md px-3 py-2 outline-none select-none data-[highlighted]:bg-muted";
 
@@ -29,7 +29,8 @@ export function AccountMenu() {
             <Menu.LinkItem render={<Link href="/ajuda" />} className={ITEM}>
               Ajuda
             </Menu.LinkItem>
-            <Menu.Item onClick={() => signOut(auth)} className={`${ITEM} text-destructive`}>
+            {/* recarga de verdade: o Firestore foi encerrado para apagar o cache do aparelho */}
+            <Menu.Item onClick={() => sair().then(() => window.location.replace("/login"))} className={`${ITEM} text-destructive`}>
               Sair
             </Menu.Item>
           </Menu.Popup>

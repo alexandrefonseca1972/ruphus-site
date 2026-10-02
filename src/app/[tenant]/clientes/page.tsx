@@ -134,7 +134,7 @@ export default function CustomersPage() {
       type="button"
       aria-pressed={janela === dias}
       onClick={() => { setJanela(dias); setCopiado(false); setPagina(1); }}
-      className={cn("h-9 rounded-md px-3 text-[13px] whitespace-nowrap text-muted-foreground hover:text-foreground", janela === dias && "bg-card font-medium text-foreground shadow-sm")}
+      className={cn("h-9 rounded-md px-3 text-[13px] max-sm:h-10 whitespace-nowrap text-muted-foreground hover:text-foreground", janela === dias && "bg-card font-medium text-foreground shadow-sm")}
     >
       {rotulo}
     </button>
@@ -167,9 +167,9 @@ export default function CustomersPage() {
             className="h-11 bg-card pl-11 text-[15px]"
           />
         </div>
-        <div className="flex max-w-full items-center gap-2.5">
+        <div className="flex max-w-full min-w-0 items-center gap-2.5">
           <span className="shrink-0 text-[13px] text-muted-foreground">Sem vir há</span>
-          <div role="group" aria-label="Filtrar por tempo sem vir" className="flex gap-0.5 overflow-x-auto rounded-lg bg-muted p-1">
+          <div role="group" aria-label="Filtrar por tempo sem vir" className="flex min-w-0 gap-0.5 overflow-x-auto rounded-lg bg-muted p-1">
             {filtro(null, "Todos")}
             {JANELAS.map((j) => filtro(j.dias, j.rotulo))}
           </div>
@@ -266,7 +266,7 @@ export default function CustomersPage() {
                     target="_blank"
                     rel="noreferrer"
                     aria-label={`Falar com ${c.name} no WhatsApp: ${c.phone}`}
-                    className="relative z-10 flex min-h-11 items-center gap-2 rounded-md text-sm tabular-nums text-muted-foreground hover:text-foreground md:text-foreground"
+                    className="relative z-10 flex min-h-11 items-center gap-2 rounded-md text-sm tabular-nums text-muted-foreground hover:text-foreground max-md:min-w-11 max-md:justify-center md:text-foreground"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.9-.9L3 20.5l1.6-4.9A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z" />
@@ -308,7 +308,7 @@ export default function CustomersPage() {
                   setPorPagina(Number(e.target.value));
                   setPagina(1);
                 }}
-                className="h-9 rounded-md border bg-card px-2 text-foreground tabular-nums"
+                className="h-9 rounded-md border bg-card px-2 text-foreground tabular-nums max-sm:h-11"
               >
                 {POR_PAGINA.map((n) => (
                   <option key={n} value={n}>{n}</option>

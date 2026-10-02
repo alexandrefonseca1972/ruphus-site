@@ -178,7 +178,7 @@ export default function MeuNegocio() {
             {[["Site", site], ["Bio para o Instagram", `${site}/bio`], ["Agenda online", `${site}/agendar`]].map(([rotulo, url]) => (
               <li key={rotulo} className="grid">
                 <span className="text-xs text-muted-foreground">{rotulo}</span>
-                <a href={url} target="_blank" rel="noreferrer" className="truncate font-medium underline underline-offset-2">{url.replace("https://", "")}</a>
+                <a href={url} target="_blank" rel="noreferrer" className="truncate py-2 font-medium underline underline-offset-2">{url.replace("https://", "")}</a>
               </li>
             ))}
           </ul>

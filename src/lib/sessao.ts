@@ -29,6 +29,19 @@ export function loginComMotivo(base = "/login") {
   return minutos ? `${base}${base.includes("?") ? "&" : "?"}expirou=${minutos}` : base;
 }
 
+/** Sai da conta e apaga do aparelho os dados que o painel guardou para funcionar
+ *  sem internet. O Firestore é carregado só aqui, e só se a página já o usava:
+ *  o login e o admin não o baixam. Quem chama recarrega a página depois. */
+export async function sair() {
+  await signOut(auth).catch(() => {});
+  try {
+    const { limparCacheLocal } = await import("@/lib/firebase-db");
+    await limparCacheLocal();
+  } catch {
+    // sem IndexedDB (aba anônima antiga): não havia cache para apagar
+  }
+}
+
 const EVENTOS = ["pointerdown", "keydown", "scroll", "touchstart"] as const;
 const OLHADA = 15_000;
 
@@ -49,7 +62,7 @@ export function useAutoLogout(minutos: number) {
       } catch {
         // navegador sem sessionStorage: resta o parâmetro na URL
       }
-      await signOut(auth).catch(() => {});
+      await sair();
       // Recarga de verdade, não router.push: sessão encerrada tem de limpar o
       // que já está em memória na tela (listas, gaveta aberta, rascunhos).
       window.location.replace(loginComMotivo());

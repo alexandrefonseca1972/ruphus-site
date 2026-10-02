@@ -227,7 +227,7 @@ export default function AgendaPage() {
                       aria-pressed={staffFilter === p.id}
                       onClick={() => setStaffFilter(p.id)}
                       className={cn(
-                        "h-9 rounded-full border px-3.5 text-[13px] hover:bg-muted",
+                        "h-9 rounded-full border px-3.5 text-[13px] hover:bg-muted max-sm:h-11",
                         staffFilter === p.id && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
                       )}
                     >
