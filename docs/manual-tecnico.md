@@ -90,7 +90,7 @@ celular do cliente final baixa.
    `^([a-z0-9][a-z0-9-]*)\.ruphus\.site$`. `www` e `app` não são sites.
 2. **Fora do ar?** `foraDoAr(slug)` consulta `/api/desativados` (cache de 60s em
    memória) e, se o slug estiver lá, reescreve para `/indisponivel` com **404**.
-3. **Senão**, reescreve para o arquivo estático em `public/s/{slug}`, com três
+3. **Senão**, reescreve para `/s/{slug}/...` (antes, arquivo estático em `public/s/{slug}`; desde a migração para o Storage só `public/s/assets` continua lá), com três
    exceções que apontam para o app: `/agendar` → `/agendar/{slug}`, `/bio` →
    `/bio/{slug}`, e `/assets/...` → `/s/assets/...` (pasta compartilhada).
    **Sem pasta em `public/s/{slug}`**, o `/s/{slug}/index.html` cai na rota

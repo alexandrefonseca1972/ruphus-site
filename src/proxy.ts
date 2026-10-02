@@ -25,7 +25,8 @@ async function foraDoAr(slug: string, origem: string) {
   return fechados.slugs.has(slug);
 }
 
-// {slug}.ruphus.site serve o site estático em public/s/{slug}; www e apex são o app.
+// {slug}.ruphus.site serve o site em /s/{slug}/ (Storage ou gerador; public/s, se a pasta
+// ainda existir); www e apex são o app.
 const SITE_HOST = /^([a-z0-9][a-z0-9-]*)\.ruphus\.site$/;
 const APP_HOSTS = ["www", "app"];
 
