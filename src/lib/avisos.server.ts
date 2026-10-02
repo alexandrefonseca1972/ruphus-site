@@ -35,6 +35,12 @@ export async function inscrever(db: Firestore, tenantId: string, uid: string, i:
   await db.doc(`tenants/${tenantId}/avisos/${idDe(i.endpoint)}`).set({ uid, endpoint: i.endpoint, keys: i.keys, criadoEm: FieldValue.serverTimestamp() });
 }
 
+/** Se este aparelho recebe os avisos deste negócio (o navegador tem uma inscrição só para todos). */
+export async function inscrito(db: Firestore, tenantId: string, uid: string, endpoint: string) {
+  const d = await db.doc(`tenants/${tenantId}/avisos/${idDe(endpoint)}`).get();
+  return d.exists && d.get("uid") === uid;
+}
+
 export async function cancelar(db: Firestore, tenantId: string, endpoint: string) {
   await db.doc(`tenants/${tenantId}/avisos/${idDe(endpoint)}`).delete();
 }
@@ -47,13 +53,14 @@ export function quando(date: string, hora: string, hoje = todayIn()) {
   return `${WEEKDAYS[weekday(date)].toLowerCase()}, ${d}/${m} às ${hora}`;
 }
 
-/** Manda o aviso a cada aparelho inscrito de quem ainda é membro do negócio.
+/** Manda o aviso a cada aparelho inscrito de quem ainda é membro do negócio (ou admin da plataforma).
  *  Inscrição vencida (404/410) ou de quem saiu da equipe é apagada. Devolve quantos receberam. */
 export async function avisar(db: Firestore, tenantId: string, aviso: { title: string; body: string; url: string; tag?: string }) {
   if (!configurar()) return 0;
   const t = db.collection("tenants").doc(tenantId);
-  const [inscritos, membros] = await Promise.all([t.collection("avisos").get(), t.collection("members").select().get()]);
-  const ativos = new Set(membros.docs.map((m) => m.id));
+  const [inscritos, membros, admin] = await Promise.all([t.collection("avisos").get(), t.collection("members").select().get(), db.doc("config/admin").get()]);
+  // admin da plataforma entra em qualquer negócio sem estar em members (como em requireMember)
+  const ativos = new Set([...membros.docs.map((m) => m.id), ...((admin.get("uids") as string[] | undefined) ?? [])]);
   let enviados = 0;
   await Promise.all(inscritos.docs.map(async (d) => {
     if (!ativos.has(String(d.get("uid")))) return d.ref.delete();

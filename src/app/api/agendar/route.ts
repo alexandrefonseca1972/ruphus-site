@@ -22,19 +22,18 @@ export async function POST(req: Request) {
   // quem chama, então vale o último, que foi acrescentado por quem está na frente
   const encaminhado = req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim();
   const ip = req.headers.get("x-real-ip")?.trim() || encaminhado;
-  const r = await book(adminDb, b.data, ip);
   // Aviso no celular de quem atende, depois da resposta: push lento não atrasa a reserva.
   // Só a reserva nova: a repetição (resposta perdida, segundo toque) já foi avisada.
-  if (r.ok && "novo" in r && r.novo) {
+  const r = await book(adminDb, b.data, ip, (nova) => {
     const { tenantId, customerName } = b.data;
     after(() =>
       avisar(adminDb, tenantId, {
         title: "Novo agendamento",
-        body: `${customerName.trim()} · ${r.serviceName} · ${quando(r.date, r.time)}${r.staffName ? ` · com ${r.staffName}` : ""}`,
+        body: `${customerName.trim()} · ${nova.serviceName} · ${quando(nova.date, nova.time)}${nova.staffName ? ` · com ${nova.staffName}` : ""}`,
         url: `/${tenantId}`,
-        tag: `agendamento-${r.id}`,
+        tag: `agendamento-${nova.id}`,
       }).catch((e) => console.error("aviso de agendamento", e)),
     );
-  }
+  });
   return NextResponse.json(r);
 }

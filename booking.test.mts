@@ -564,8 +564,10 @@ assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP n
   // popularidade: uma vez por reserva nova, fora da transação; repetir a confirmação não conta
   assert.equal(await usos(), antes + 2);
   const c = { ...base, ...outro(), date: dia, serviceIds: ["corte"], time: "11:00", pedido: "c1" };
-  const r1 = await book(db, c);
-  assert.deepEqual(await book(db, c), r1, "confirmar de novo devolve a mesma reserva");
+  const criadas: string[] = [];
+  const r1 = await book(db, c, undefined, (n) => criadas.push(n.id));
+  assert.deepEqual(await book(db, c, undefined, (n) => criadas.push(n.id)), r1, "confirmar de novo devolve a mesma reserva");
+  assert.deepEqual(criadas, [r1.ok && r1.id], "aviso só da reserva nova, uma vez");
   assert.equal(await usos(), antes + 3, "confirmar de novo não conta de novo");
   // a mãe marca os dois filhos às 11:30 com o mesmo WhatsApp: são duas reservas, não repetição
   const mae = { ...base, ...outro(), date: dia, serviceIds: ["corte"], time: "11:30", qualquer: true };
