@@ -125,11 +125,11 @@ de `npm audit fix` desfeito sem reinstalar.
 
 1. Ele está fora do ar de propósito? (`/admin`, etiqueta "fora do ar")
 2. `curl -sI https://<slug>.ruphus.site/` — 404 com a página "indisponível"
-   significa lista de desativados; 404 seco significa pasta ausente em
-   `public/s/<slug>`.
-3. Pasta ausente: o site pode estar publicado no Storage em vez de `public/s`
-   (`npm run site -- baixar <slug> /tmp/x` mostra se está). Se não estiver em
-   nenhum dos dois, `npm run sync:sites` e publique — **a menos que seja um site
+   significa lista de desativados; 404 seco significa que o site não está
+   publicado no Storage (nem é do gerador).
+3. Confira com `npm run site -- baixar <slug> /tmp/x`. Se não estiver, publique
+   de novo (`npm run site -- publicar <slug> <pasta> --aplicar`, ou
+   `npm run sync:sites` para a fábrica inteira) — **a menos que seja um site
    do gerador** (aba Gerador do `/admin`): esses não têm pasta, são montados do
    Firestore. Se um deles some, confira se o tenant ainda tem o campo `gerado`.
 
@@ -197,7 +197,7 @@ npm run gerar:sites -- planilha.xlsx   # gera sites da planilha (--aplicar grava
 npm run import:sites       # importa sites e cria os negócios
 npm run seed:agenda        # cria serviços e equipe a partir do site
 npm run vitrine            # atualiza a vitrine da landing
-npm run sync:sites         # copia ../sites para public/s
+npm run sync:sites         # publica ../sites no Storage (e copia assets/ para public/s)
 npm run site -- publicar <slug> <pasta>   # site da fábrica no ar sem deploy (--aplicar grava)
 npm run site -- baixar <slug> <pasta>     # baixa o site publicado para editar
 npm run convite -- <slug>  # link de convite pela linha de comando (exige donoEmail no CRM)

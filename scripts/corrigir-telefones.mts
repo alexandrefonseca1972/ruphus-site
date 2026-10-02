@@ -11,8 +11,8 @@
 import assert from "node:assert/strict";
 import { cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { normalizar, RUPHUS } from "@/lib/catalogo";
 
 /** O telefone do negócio: o primeiro número da página que não seja o nosso. */
@@ -38,7 +38,8 @@ if (process.argv.includes("--self-check")) {
 initializeApp({ credential: cert(JSON.parse(readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS!, "utf8"))) });
 const db = getFirestore();
 const aplicar = process.argv.includes("--aplicar");
-const SITES = join(import.meta.dirname, "../public/s");
+// os sites da fábrica moram no Storage (sites/{slug}/); public/s ficou só com assets
+const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
 
 let trocados = 0, semAchar = 0, jaOk = 0;
 for (const t of (await db.collection("tenants").get()).docs) {
@@ -46,7 +47,12 @@ for (const t of (await db.collection("tenants").get()).docs) {
   const suspeito = atual === RUPHUS || !normalizar(atual);
   if (!suspeito) { jaOk += 1; continue; }
   let html = "";
-  try { html = readFileSync(join(SITES, t.id, "index.html"), "utf8"); } catch {}
+  try {
+    html = (await bucket.file(`sites/${t.id}/index.html`).download())[0].toString("utf8");
+  } catch (e) {
+    // só "não tem site" vira vazio: erro de acesso não pode virar telefone apagado
+    if ((e as { code?: number }).code !== 404) throw e;
+  }
   const novo = html ? telefoneDoSite(html) : normalizar(atual);
   if (!novo) {
     console.log(`  ? ${t.id}: ${atual || "(vazio)"} → nada encontrado, fica sem telefone`);

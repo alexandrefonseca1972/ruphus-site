@@ -1,13 +1,14 @@
-// Publica um site da fábrica sem deploy: a pasta vai para o Storage em
-// sites/{slug}/ e as rotas de /s/{slug}/ passam a servi-la em até um minuto.
+// Publica sites da fábrica sem deploy: a pasta vai para o Storage em sites/{slug}/
+// e as rotas de /s/{slug}/ passam a servi-la em até um minuto.
 //
 //   npm run site -- publicar <slug> <pasta> [--miniatura arquivo.webp]   # só mostra o que faria
 //   npm run site -- publicar <slug> <pasta> ... --aplicar                 # publica
+//   npm run site -- publicar-todos <raiz> [--aplicar]                     # cada <raiz>/<slug>/ com index.html,
+//                                                                         # e a miniatura de <raiz>/_p/<slug>.webp
 //   npm run site -- baixar <slug> <pasta>
 //
 // publicar sincroniza: envia o que mudou, apaga do bucket o que saiu da pasta.
-// Enquanto existir public/s/{slug}, é ela que responde: apague a pasta do repositório
-// no mesmo passo em que publicar pela primeira vez.
+// Enquanto existir public/s/{slug}, é ela que responde.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -15,71 +16,108 @@ import { applicationDefault, cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { cacheDe, objetoDoSite, PREFIXO, tipoDe } from "@/lib/site-arquivo";
+import { RESERVADOS } from "@/lib/tenant-input";
 
-const [acao, slug, pasta, ...resto] = process.argv.slice(2);
+const [acao, alvo, pastaArg, ...resto] = process.argv.slice(2);
 const opcao = (nome: string) => { const i = resto.indexOf(nome); return i < 0 ? undefined : resto[i + 1]; };
-const aplicar = resto.includes("--aplicar");
-if (!["publicar", "baixar"].includes(acao) || !slug || !pasta) {
-  console.error("uso: npm run site -- publicar <slug> <pasta> [--miniatura arquivo.webp] [--aplicar]\n     npm run site -- baixar <slug> <pasta>");
+const aplicar = process.argv.includes("--aplicar");
+const USO = "uso: npm run site -- publicar <slug> <pasta> [--miniatura arquivo.webp] [--aplicar]\n" +
+  "     npm run site -- publicar-todos <raiz> [--aplicar]\n     npm run site -- baixar <slug> <pasta>";
+if (!(acao === "publicar-todos" ? alvo : ["publicar", "baixar"].includes(acao) && alvo && pastaArg)) {
+  console.error(USO);
   process.exit(1);
 }
-if (!objetoDoSite(slug, ["index.html"]) || slug === "_p") throw new Error(`slug inválido: ${slug}`);
 
 const app = initializeApp({
   credential: process.env.FIREBASE_SERVICE_ACCOUNT ? cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) : applicationDefault(),
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
 });
 const bucket = getStorage(app).bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
-const raiz = `${PREFIXO}/${slug}/`;
-const [remotos] = await bucket.getFiles({ prefix: raiz });
+const tenants = getFirestore(app).collection("tenants");
+// a pasta da fábrica (../sites) também guarda páginas do app antigo (login, catalogo…), que não são sites
+const FORA = new Set([...RESERVADOS, "catalogo", "_p"]);
+const slugValido = (s: string) => !FORA.has(s) && !!objetoDoSite(s, ["index.html"]);
+
+const md5 = (b: Buffer) => createHash("md5").update(b).digest("base64");
+const grava = (nome: string, corpo: Buffer) =>
+  bucket.file(nome).save(corpo, { resumable: false, contentType: tipoDe(nome), metadata: { cacheControl: cacheDe(nome) } });
+const lista = (dir: string): string[] =>
+  readdirSync(dir).flatMap((n) => (n.startsWith(".") ? [] : statSync(join(dir, n)).isDirectory() ? lista(join(dir, n)) : [join(dir, n)]));
+
+/** Sincroniza uma pasta com sites/{slug}/. Devolve o que fez (ou faria). */
+async function publicar(slug: string, pasta: string, miniatura: string | undefined, detalhar: boolean) {
+  if (!slugValido(slug)) throw new Error(`slug inválido: ${slug}`);
+  // previa.jpg é a miniatura do catálogo da fábrica, não do site (o mesmo corte do sync-sites)
+  const locais = lista(pasta).map((c) => relative(pasta, c).split(sep)).filter((p) => p.at(-1) !== "previa.jpg" && !p.at(-1)!.endsWith(".py"));
+  if (!locais.some((p) => p.join("/") === "index.html")) throw new Error(`${pasta} não tem index.html`);
+  const ruins = locais.filter((p) => !objetoDoSite(slug, p)).map((p) => p.join("/"));
+  if (ruins.length) throw new Error(`${slug}: nomes que o site não serve (sem espaço, acento ou mais de 4 níveis):\n  ${ruins.join("\n  ")}`);
+
+  const [remotos] = await bucket.getFiles({ prefix: `${PREFIXO}/${slug}/` });
+  const noBucket = new Map(remotos.map((f) => [f.name, f.metadata.md5Hash]));
+  const envios: { nome: string; corpo: Buffer }[] = [];
+  for (const p of locais) {
+    const nome = objetoDoSite(slug, p)!;
+    const corpo = readFileSync(join(pasta, ...p));
+    if (noBucket.get(nome) !== md5(corpo)) envios.push({ nome, corpo });
+    noBucket.delete(nome);
+  }
+  const apagar = [...noBucket.keys()];
+  let mini: Buffer | null = miniatura ? readFileSync(miniatura) : null;
+  if (mini) {
+    const [m] = await bucket.file(`${PREFIXO}/_p/${slug}.webp`).getMetadata().catch(() => [null]);
+    if (m?.md5Hash === md5(mini)) mini = null;
+  }
+  if (detalhar) {
+    for (const e of envios) console.log(`  + ${e.nome}`);
+    for (const n of apagar) console.log(`  - ${n}`);
+  }
+  if (aplicar) {
+    for (let i = 0; i < envios.length; i += 8) await Promise.all(envios.slice(i, i + 8).map((e) => grava(e.nome, e.corpo)));
+    await Promise.all(apagar.map((n) => bucket.file(n).delete()));
+    if (mini) await grava(`${PREFIXO}/_p/${slug}.webp`, mini);
+  }
+  return { enviar: envios.length, apagar: apagar.length, iguais: locais.length - envios.length, miniatura: !!mini };
+}
 
 if (acao === "baixar") {
-  if (!remotos.length) throw new Error(`${slug} não está publicado no Storage`);
+  const raiz = `${PREFIXO}/${alvo}/`;
+  const [remotos] = await bucket.getFiles({ prefix: raiz });
+  if (!remotos.length) throw new Error(`${alvo} não está publicado no Storage`);
   for (const f of remotos) {
-    const destino = join(pasta, f.name.slice(raiz.length));
+    const destino = join(pastaArg, f.name.slice(raiz.length));
     mkdirSync(dirname(destino), { recursive: true });
     writeFileSync(destino, (await f.download())[0]);
   }
-  console.log(`${remotos.length} arquivos de ${slug} em ${resolve(pasta)}`);
-  process.exit(0);
+  console.log(`${remotos.length} arquivos de ${alvo} em ${resolve(pastaArg)}`);
+} else if (acao === "publicar") {
+  if (!(await tenants.doc(alvo).get()).exists) console.warn(`aviso: não há tenant ${alvo}: o site abre, mas a bio, a agenda e o painel não`);
+  if (existsSync(join("public/s", alvo))) console.warn(`aviso: public/s/${alvo} existe e responde antes do Storage enquanto estiver no repositório`);
+  const r = await publicar(alvo, pastaArg, opcao("--miniatura"), true);
+  console.log(`${alvo}: ${r.enviar} para enviar, ${r.apagar} para apagar, ${r.iguais} iguais${r.miniatura ? ", + miniatura" : ""}`);
+  console.log(aplicar ? `publicado: https://${alvo}.ruphus.site (aparece em até um minuto)` : "simulação: rode de novo com --aplicar para publicar");
+} else {
+  const raiz = alvo;
+  const slugs = readdirSync(raiz).filter((d) => slugValido(d) && existsSync(join(raiz, d, "index.html")));
+  const comTenant = new Set((await tenants.select().get()).docs.map((d) => d.id));
+  const soma = { enviar: 0, apagar: 0, iguais: 0, miniaturas: 0 };
+  const erros: string[] = [];
+  // quatro sites por vez, cada um com até oito envios simultâneos
+  for (let i = 0; i < slugs.length; i += 4) {
+    await Promise.all(slugs.slice(i, i + 4).map(async (s) => {
+      const mini = join(raiz, "_p", `${s}.webp`);
+      try {
+        const r = await publicar(s, join(raiz, s), existsSync(mini) ? mini : undefined, false);
+        soma.enviar += r.enviar; soma.apagar += r.apagar; soma.iguais += r.iguais; soma.miniaturas += +r.miniatura;
+      } catch (e) {
+        erros.push(`${s}: ${(e as Error).message}`);
+      }
+    }));
+    if ((i / 4) % 25 === 24) console.log(`  ${Math.min(i + 4, slugs.length)}/${slugs.length}…`);
+  }
+  const semTenant = slugs.filter((s) => !comTenant.has(s));
+  console.log(`${slugs.length} sites: ${soma.enviar} arquivos para enviar, ${soma.apagar} para apagar, ${soma.iguais} iguais, ${soma.miniaturas} miniaturas`);
+  if (semTenant.length) console.warn(`aviso: ${semTenant.length} sem tenant (bio e agenda não abrem): ${semTenant.slice(0, 10).join(", ")}${semTenant.length > 10 ? "…" : ""}`);
+  if (erros.length) { console.error(`${erros.length} com erro:\n  ${erros.join("\n  ")}`); process.exitCode = 1; }
+  if (!aplicar) console.log("simulação: rode de novo com --aplicar para publicar");
 }
-
-// publicar
-const lista = (dir: string): string[] =>
-  readdirSync(dir).flatMap((n) => (n.startsWith(".") ? [] : statSync(join(dir, n)).isDirectory() ? lista(join(dir, n)) : [join(dir, n)]));
-// previa.jpg é a miniatura do catálogo da fábrica, não do site (o mesmo corte do sync-sites)
-const locais = lista(pasta).map((c) => relative(pasta, c).split(sep)).filter((p) => p.at(-1) !== "previa.jpg" && !p.at(-1)!.endsWith(".py"));
-if (!locais.some((p) => p.join("/") === "index.html")) throw new Error(`${pasta} não tem index.html`);
-const ruins = locais.filter((p) => !objetoDoSite(slug, p)).map((p) => p.join("/"));
-if (ruins.length) throw new Error(`nomes que o site não serve (sem espaço, acento ou mais de 4 níveis):\n  ${ruins.join("\n  ")}`);
-
-const tenant = await getFirestore(app).collection("tenants").doc(slug).get();
-if (!tenant.exists) console.warn(`aviso: não há tenant ${slug}: o site abre, mas a bio, a agenda e o painel não`);
-if (existsSync(join("public/s", slug))) console.warn(`aviso: public/s/${slug} existe e responde antes do Storage enquanto estiver no repositório`);
-
-const md5 = (b: Buffer) => createHash("md5").update(b).digest("base64");
-const noBucket = new Map(remotos.map((f) => [f.name, f.metadata.md5Hash]));
-const envios: { nome: string; corpo: Buffer }[] = [];
-for (const p of locais) {
-  const nome = objetoDoSite(slug, p)!;
-  const corpo = readFileSync(join(pasta, ...p));
-  if (noBucket.get(nome) !== md5(corpo)) envios.push({ nome, corpo });
-  noBucket.delete(nome);
-}
-const miniatura = opcao("--miniatura");
-const apagar = [...noBucket.keys()];
-
-console.log(`${slug}: ${envios.length} para enviar, ${apagar.length} para apagar, ${locais.length - envios.length} iguais${miniatura ? ", + miniatura" : ""}`);
-for (const e of envios) console.log(`  + ${e.nome}`);
-for (const n of apagar) console.log(`  - ${n}`);
-if (!aplicar) {
-  console.log("simulação: rode de novo com --aplicar para publicar");
-  process.exit(0);
-}
-
-const grava = (nome: string, corpo: Buffer) =>
-  bucket.file(nome).save(corpo, { resumable: false, contentType: tipoDe(nome), metadata: { cacheControl: cacheDe(nome) } });
-for (let i = 0; i < envios.length; i += 8) await Promise.all(envios.slice(i, i + 8).map((e) => grava(e.nome, e.corpo)));
-await Promise.all(apagar.map((n) => bucket.file(n).delete()));
-if (miniatura) await grava(`${PREFIXO}/_p/${slug}.webp`, readFileSync(miniatura));
-console.log(`publicado: https://${slug}.ruphus.site (aparece em até um minuto)`);

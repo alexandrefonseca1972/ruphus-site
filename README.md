@@ -35,7 +35,7 @@ Três produtos no mesmo aplicativo, com um banco só.
 
 ### 1. O site e a agenda do cliente final
 
-Cada negócio tem um endereço em `{slug}.ruphus.site`. O site estático mora em `public/s/{slug}` e é servido pelo proxy (`src/proxy.ts`); o agendamento é o app.
+Cada negócio tem um endereço em `{slug}.ruphus.site`. O site da fábrica mora no Firebase Storage em `sites/{slug}/` (publicado com `npm run site`, sem deploy) e o do gerador é montado do Firestore; o proxy (`src/proxy.ts`) leva o subdomínio às rotas de `/s/{slug}/`. O agendamento é o app.
 
 - **Uma tela só** para marcar: serviço, profissional e horário, sem recarregar a página.
 - **Página de bio** (`/bio/{slug}`), no estilo "link na bio", com ISR de 60s.
@@ -149,7 +149,7 @@ Em `.env.local` (desenvolvimento) e no painel da Vercel (produção).
 | `/admin` | admin da plataforma | CRM, carteira e cobrança |
 | `/indisponivel` | — | site fora do ar |
 
-O proxy (`src/proxy.ts`) resolve `{slug}.ruphus.site` para `public/s/{slug}`, mantém `www` e o apex no app, e guarda por um minuto a lista de sites desativados para não consultar o banco a cada visita.
+O proxy (`src/proxy.ts`) resolve `{slug}.ruphus.site` para `/s/{slug}/` (site no Storage, ou montado pelo gerador), mantém `www` e o apex no app, e guarda por um minuto a lista de sites desativados para não consultar o banco a cada visita.
 
 ---
 
@@ -245,7 +245,8 @@ npm run import:sites      # importa sites e cria os tenants
 npm run membros           # preenche e-mail e nome nos acessos antigos (--aplicar grava)
 npm run seed:agenda       # popula uma agenda de exemplo
 npm run vitrine           # atualiza a vitrine pública
-npm run sync:sites        # sincroniza os sites estáticos
+npm run sync:sites        # publica os sites da fábrica (../sites) no Storage
+npm run site -- publicar <slug> <pasta>   # publica um site (--aplicar grava)
 ```
 
 Todo script que grava tem um modo de simulação: rode sem `--aplicar` primeiro.
