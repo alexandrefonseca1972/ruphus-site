@@ -84,6 +84,12 @@ const catalog = await loadCatalog(db, "salao");
 assert.deepEqual(catalog?.services.map((s) => s.id).sort(), ["corte", "luzes"]); // inativo fora
 assert.equal(JSON.stringify(catalog).includes("customer"), false);
 assert.equal(await loadCatalog(db, "nao-existe"), null);
+// recado do dono na confirmação: vazio (ou só espaço) volta ao texto padrão
+assert.equal(catalog?.recadoDono, null);
+await db.doc("tenants/salao").update({ "agenda.recado": "  Chegue 10 minutos antes.  " });
+assert.equal((await loadCatalog(db, "salao"))?.recadoDono, "Chegue 10 minutos antes.");
+await db.doc("tenants/salao").update({ "agenda.recado": "   " });
+assert.equal((await loadCatalog(db, "salao"))?.recadoDono, null);
 
 assert.equal((await availableSlots(db, { ...base, serviceIds: ["corte"] })).length, 11); // 09:00..11:30
 
