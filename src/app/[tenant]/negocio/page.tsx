@@ -133,7 +133,7 @@ export default function MeuNegocio() {
             <div className="grid gap-2.5 rounded-xl bg-muted p-4">
               <h2 className="text-[15px] font-semibold">Seu site está como prévia</h2>
               <p className="text-sm text-muted-foreground">
-                Ele já abre e recebe agendamentos, mas mostra uma faixa de &ldquo;ainda não publicada&rdquo; e fica fora do Google. Para publicar: R$ 250 uma vez e R$ 59,90 por mês.
+                Ele já abre e recebe agendamentos, mas mostra uma faixa de &ldquo;ainda não publicada&rdquo; e fica fora do Google. Para publicar: R$ 250 uma vez e R$ 89,90 por mês.
               </p>
               <a
                 href={`https://wa.me/${RUPHUS}?text=${encodeURIComponent(`Olá! Quero publicar o site ${slug}.ruphus.site.`)}`}
