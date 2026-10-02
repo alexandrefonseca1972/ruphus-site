@@ -24,9 +24,9 @@ export const COR: Record<Estagio, string> = {
 };
 
 /** O que a Ruphus cobra por padrao, em centavos. Mesmo numero que o JSON-LD da
- *  landing anuncia ("R$ 250 + R$ 59,90/mes"): um negocio novo ja nasce com ele
+ *  landing anuncia ("R$ 250 + R$ 89,90/mes"): um negocio novo ja nasce com ele
  *  no cartao, e so se digita quando o acerto sai do padrao. */
-export const PRECO_PADRAO = { entradaCents: 250_00, mensalCents: 59_90 } as const;
+export const PRECO_PADRAO = { entradaCents: 250_00, mensalCents: 89_90 } as const;
 
 /** Por que um negócio saiu do funil sem fechar. Obrigatório ao marcar "perdido". */
 export const MOTIVOS_PERDA = {
