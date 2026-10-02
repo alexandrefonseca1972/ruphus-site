@@ -25,6 +25,9 @@ export const metadata: Metadata = {
   // responde qualquer endereço. Quem aparece no Google é a landing e a privacidade,
   // HTML estático em public/, e os sites publicados, cada um com o seu robots.
   robots: { index: false, follow: false },
+  // painel instalado no iPhone: abre sem a barra do Safari, com o ícone e o nome certos
+  appleWebApp: { capable: true, title: "Ruphus", statusBarStyle: "default" },
+  icons: { apple: "/app/apple-touch-icon.png" },
 };
 
 // viewportFit cover: as áreas seguras do iPhone passam a valer (barra de gestos)

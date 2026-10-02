@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#ffffff">
+<title>Sem conexão · Ruphus</title>
+<style>
+  :root { color-scheme: light dark; --fundo: #ffffff; --texto: #171717; --suave: #525252; --borda: #e5e5e5; --botao: #171717; --botao-texto: #ffffff; }
+  @media (prefers-color-scheme: dark) { :root { --fundo: #0a0a0a; --texto: #fafafa; --suave: #a3a3a3; --borda: #262626; --botao: #fafafa; --botao-texto: #0a0a0a; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--fundo); color: var(--texto); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 360px; text-align: center; display: grid; gap: 16px; justify-items: center; }
+  img { width: 64px; height: 64px; }
+  h1 { margin: 0; font-size: 22px; }
+  p { margin: 0; color: var(--suave); }
+  button { height: 48px; padding: 0 24px; border: 0; border-radius: 12px; background: var(--botao); color: var(--botao-texto); font: inherit; font-weight: 600; cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <img src="/app/icone-192.png" alt="">
+  <h1>Sem conexão</h1>
+  <p>Esta tela ainda não foi aberta neste aparelho. As que você já abriu, como a agenda, funcionam sem internet.</p>
+  <button type="button" onclick="location.reload()">Tentar de novo</button>
+</main>
+<script>addEventListener("online", function () { location.reload(); });</script>
+</body>
+</html>
