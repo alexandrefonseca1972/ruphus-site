@@ -127,7 +127,11 @@ de `npm audit fix` desfeito sem reinstalar.
 2. `curl -sI https://<slug>.ruphus.site/` — 404 com a página "indisponível"
    significa lista de desativados; 404 seco significa que o site não está
    publicado no Storage (nem é do gerador).
-3. Confira com `npm run site -- baixar <slug> /tmp/x`. Se não estiver, publique
+3. Publicaram algo errado? `npm run site -- restaurar <slug>` lista as
+   publicações e `restaurar <slug> <momento> --aplicar` volta o site inteiro ao
+   que estava no ar (o bucket guarda até 5 versões de cada arquivo por 90 dias;
+   o que foi apagado também volta).
+4. Confira com `npm run site -- baixar <slug> /tmp/x`. Se não estiver, publique
    de novo (`npm run site -- publicar <slug> <pasta> --aplicar`, ou
    `npm run sync:sites` para a fábrica inteira) — **a menos que seja um site
    do gerador** (aba Gerador do `/admin`): esses não têm pasta, são montados do
@@ -200,6 +204,7 @@ npm run vitrine            # atualiza a vitrine da landing
 npm run sync:sites         # publica ../sites no Storage (e copia assets/ para public/s)
 npm run site -- publicar <slug> <pasta>   # site da fábrica no ar sem deploy (--aplicar grava)
 npm run site -- baixar <slug> <pasta>     # baixa o site publicado para editar
+npm run site -- restaurar <slug> [momento]   # lista as publicações / volta o site a uma delas (--aplicar grava)
 npm run convite -- <slug>  # link de convite pela linha de comando (exige donoEmail no CRM)
 ```
 
