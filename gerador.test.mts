@@ -125,6 +125,15 @@ assert.match(lerPlanilha([["a", "b"], [1, 2]]).erros[0].motivo, /cabeçalho/);
   assert.equal(l.uf, "PI", "UF pelo DDD quando a planilha não tem a coluna");
   assert.deepEqual(erros.map((e) => e.motivo), ["Telefone ausente ou inválido.", "Telefone ausente ou inválido."], "\"não verificado\" e (86) 3XXX-XXXX são sem telefone");
 }
+// "Verificar…" é o levantamento dizendo que não achou; "Sim" na coluna Horário não é horário
+{
+  const [a, b] = lerPlanilha([
+    ["Nome", "Telefone", "Categoria", "Bairro", "Horário"],
+    ["Salão Um", "(63) 99111-0001", "Salão de Beleza", "Verificar", "Sim"],
+    ["Salão Dois", "(63) 99111-0002", "Salão de Beleza", "A verificar (ver Google Maps)", "Verificar"],
+  ]).leads.map((x) => x.lead);
+  assert.deepEqual([a.bairro, a.horario, b.bairro, b.horario], ["", "", "", ""]);
+}
 // a coluna UF, quando existe, manda; o DDD só preenche o que falta
 assert.equal(lerPlanilha([["Nome", "Telefone", "Categoria", "UF"], ["Corte Fino", "(96) 99111-2222", "Barbearia", "pa"]]).leads[0].lead.uf, "PA");
 // sem coluna UF, a do DDD mais comum vale para todos: o dono com número de fora não muda o estado
