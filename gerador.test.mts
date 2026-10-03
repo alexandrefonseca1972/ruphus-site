@@ -2,6 +2,7 @@
 //   npm run test:gerador
 import assert from "node:assert/strict";
 import lerAbas from "read-excel-file/node";
+import { porRamo } from "@/lib/catalogo";
 import { candidatos, type DadosSite, fixo, lerPlanilha as lerAbasDaPlanilha, nichoDe, ufDoTelefone, variante } from "@/lib/gerador";
 
 // uma aba só, como a maioria das planilhas
@@ -236,6 +237,14 @@ for (const [categoria, sub] of [
   ["Clínica de Estética", "estetica"], ["Clínica veterinária", "vet"], ["Biomedicina estética", "estetica"], ["Salão de Beleza", "salao"], ["Studio de Tatuagem", "tatuagem"],
 ] as const) assert.equal(nichoDe({ categoria, nome: "" })?.sub, sub, categoria);
 assert.equal(nichoDe({ categoria: "Academia de competição", nome: "" })?.sub, "academia", "“competição” não é pet");
+assert.equal(nichoDe({ categoria: "Salão / Coloração", nome: "" })?.sub, "salao", "“coloração” não é ração");
+assert.equal(nichoDe({ categoria: "Ração e acessórios", nome: "" })?.sub, "petshop");
+assert.equal(nichoDe({ categoria: "Espaço de Beleza", nome: "" })?.sub, "salao", "“espaço” não é spa");
+assert.equal(nichoDe({ categoria: "Day Spa", nome: "" })?.sub, "estetica");
+// os serviços padrão leem o mesmo texto: "Coloração" não traz banho e tosa, "Espaço" não traz massagem
+assert.deepEqual(porRamo("salão cabelo Salão / Coloração").map((s) => s.name), ["Corte", "Escova", "Coloração", "Hidratação"]);
+assert.deepEqual(porRamo("estética Espaço de Beleza").map((s) => s.name), ["Limpeza de pele", "Avaliação estética"]);
+assert.deepEqual(porRamo("pet shop Ração e acessórios").map((s) => s.name), ["Banho", "Tosa", "Banho e tosa"]);
 
 // toda página de todo nicho: nada vazio vazando, camada Ruphus, e saúde sem preço nem antes/depois
 const subs: DadosSite["sub"][] = ["petshop", "vet", "barbearia", "salao", "estetica", "unhas", "tatuagem", "odonto", "fisio", "psico", "nutri", "clinica",
