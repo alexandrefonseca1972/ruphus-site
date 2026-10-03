@@ -72,7 +72,7 @@ export type Leitura = {
 
 // O levantamento marca o que não achou em vez de deixar a célula vazia. Isso não pode
 // virar bairro, horário ou endereço no site: vale como vazio.
-const SEM_DADO = /^(n[aã]o\s+(verificad[oa]s?|vis[ií]vel|informad[oa]|encontrad[oa]|dispon[ií]vel)|sem\s+(dados?|informa[cç][aã]o)|n\/?[ad]|-+|—|\?+|null|undefined)$/i;
+const SEM_DADO = /^(n[aã]o\s+(verificad[oa]s?|vis[ií]vel|informad[oa]|encontrad[oa]|dispon[ií]vel)|sem\s+(dados?|informa[cç][aã]o)|(a\s+)?verificar\b.*|n\/?[ad]|-+|—|\?+|null|undefined)$/i;
 const texto = (v: unknown) => {
   const t = v == null ? "" : String(v).replace(/\s+/g, " ").trim();
   return SEM_DADO.test(t) ? "" : t;
@@ -147,7 +147,8 @@ export function lerPlanilha(abas: { aba: string; linhas: unknown[][] }[]): Leitu
         nota: notaDe(v("nota")),
         avaliacoes: numero(v("avaliacoes")),
         instagram: perfil(v("instagram")),
-        horario: texto(v("horario")),
+        // coluna "Horário" respondida com sim/não diz se o perfil tem horário, não qual é
+        horario: texto(v("horario")).replace(/^(sim|n[aã]o)$/i, ""),
         servicos: [...new Set(texto(v("servicos")).split(/[,;|\n]/).map((s) => s.trim()).filter((s) => s.length >= 2))].slice(0, 8),
         email: texto(v("email")).toLowerCase(),
         slug: texto(v("slug")),
