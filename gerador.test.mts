@@ -24,7 +24,7 @@ import { ehClaro, renderClaro, renderClaro as renderPet } from "@/lib/site-claro
     ["Barbearia do Zé", 92991234567, "Barbearia", "", "Manaus", "AM", 4.9, "120", "@barbadoze", "", "", ""],
     [],
     ["Sem Telefone", "", "Pet shop"],
-    ["Restaurante do Zé", "(11) 98888-7777", "Restaurante"],
+    ["Restaurante do Zé", "(11) 97531-2468", "Restaurante"],
     ["Pet Repetido", "91 99372 1156", "Pet shop"],
   ]);
   assert.deepEqual(ignoradas, ["Tempo de atividade"], "coluna desconhecida é avisada, não quebra");
@@ -124,6 +124,20 @@ assert.match(lerPlanilha([["a", "b"], [1, 2]]).erros[0].motivo, /cabeçalho/);
   assert.equal(l.horario, "", "Horário (S/N) responde sim/não, não é horário");
   assert.equal(l.uf, "PI", "UF pelo DDD quando a planilha não tem a coluna");
   assert.deepEqual(erros.map((e) => e.motivo), ["Telefone ausente ou inválido.", "Telefone ausente ou inválido."], "\"não verificado\" e (86) 3XXX-XXXX são sem telefone");
+}
+// telefone inventado não vira site; número real com dígito repetido passa
+{
+  const { leads, erros } = lerPlanilha([
+    ["Nome", "Telefone", "Categoria"],
+    ["Um", "(94) 99999-9999", "Salão de Beleza"],
+    ["Dois", "(83) 98811-2233", "Salão de Beleza"],
+    ["Três", "(91) 91234-5678", "Salão de Beleza"],
+    ["Quatro", "(86) 2222-2222", "Salão de Beleza"],
+    ["Real", "(94) 99255-5522", "Salão de Beleza"],
+  ]);
+  assert.deepEqual(leads.map((x) => x.lead.nome), ["Real"]);
+  assert.equal(erros.length, 4);
+  assert.match(erros[0].motivo, /inventado/);
 }
 // "Verificar…" é o levantamento dizendo que não achou; "Sim" na coluna Horário não é horário
 {
