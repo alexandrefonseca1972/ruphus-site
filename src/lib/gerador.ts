@@ -78,6 +78,14 @@ const texto = (v: unknown) => {
   return SEM_DADO.test(t) ? "" : t;
 };
 
+/** Telefone que o levantamento inventou: o número todo com um dígito só (99999-9999),
+ *  quatro pares (98811-2233, o padrão da planilha falsa da Paraíba) ou uma escada
+ *  (91234-5678). Site com ele mandaria o WhatsApp do "negócio" para um estranho. */
+export const telefoneFalso = (telefone: string) => {
+  const n = telefone.slice(-8);
+  return /^(\d)\1{7}$/.test(n) || /^(\d)\1(\d)\2(\d)\3(\d)\4$/.test(n) || "0123456789".includes(n) || "9876543210".includes(n);
+};
+
 /** UF pelo DDD do telefone: o levantamento nem sempre traz a coluna, e sem ela o site
  *  sai "Picos" em vez de "Picos/PI" e o Google fica sem o estado. */
 const UF_DO_DDD: Record<string, string> = Object.fromEntries(
@@ -158,6 +166,7 @@ export function lerPlanilha(abas: { aba: string; linhas: unknown[][] }[]): Leitu
       const erro = (motivo: string) => void erros.push({ aba, linha, motivo });
       if (!bruto.nome) return erro("Sem nome.");
       if (!telefone || telefone === RUPHUS) return erro("Telefone ausente ou inválido.");
+      if (telefoneFalso(telefone)) return erro("Telefone com cara de inventado: confira no Google antes de gerar.");
       if (!nichoDe(bruto)) return erro(`Não reconheci o nicho (“${bruto.categoria || bruto.nome}”): o gerador faz pet e beleza.`);
       if (vistos.has(telefone)) return erro(`Mesmo telefone da ${vistos.get(telefone)}.`);
       const lido = Lead.safeParse(bruto);
