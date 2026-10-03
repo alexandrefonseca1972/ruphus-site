@@ -9,6 +9,7 @@ import { CamposNegocio, errosDe, VAZIO, type Valores } from "@/components/campos
 import { idToken } from "@/lib/firebase";
 import { RECADO_MAX } from "@/lib/scheduling";
 import { lerNegocioAction, salvarNegocioAction, salvarRecadoAction } from "../actions";
+import { InstalarPainel } from "../app-instalado";
 import { useTenant } from "../layout";
 import { PageTitle } from "../page-title";
 
@@ -182,6 +183,7 @@ export default function MeuNegocio() {
               </li>
             ))}
           </ul>
+          <InstalarPainel />
         </aside>
       </div>
 
