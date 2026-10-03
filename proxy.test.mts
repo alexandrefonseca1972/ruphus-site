@@ -88,8 +88,14 @@ import { NextRequest } from "next/server";
 import { proxy } from "@/proxy";
 // a reserva da página de agendamento no subdomínio vai direto à rota, sem virar /s/{slug}/api/…
 {
-  const r = await proxy(new NextRequest("https://barbeariasoul.ruphus.site/api/agendar", { method: "POST" }));
+  const r = await proxy(new NextRequest("https://barbeariasoul.ruphus.site/api/agendar", { method: "POST", headers: { host: "barbeariasoul.ruphus.site" } }));
   assert.equal(r.headers.get("x-middleware-next"), "1", "reserva no subdomínio chega à rota");
   assert.equal(r.headers.get("x-middleware-rewrite"), null);
   console.log("reserva no subdomínio ok");
+}
+{
+  const r = await proxy(new NextRequest("https://barbeariasoul.ruphus.site/api/desativados", { headers: { host: "barbeariasoul.ruphus.site" } }));
+  assert.equal(r.headers.get("x-middleware-next"), "1", "a lista de fechados no subdomínio chega à rota");
+  assert.equal(r.headers.get("x-middleware-rewrite"), null);
+  console.log("lista de fechados no subdomínio ok");
 }

@@ -103,6 +103,9 @@ export async function proxy(request: NextRequest) {
   // a reserva da página de agendamento, pedida do próprio subdomínio: vai direto para a rota
   // (e antes do "fora do ar": quem já reservou e repete a confirmação ainda recebe a reserva)
   if (request.nextUrl.pathname === "/api/agendar") return NextResponse.next();
+  // a lista de fechados que o próprio proxy pede: sem SITE_URL ela é buscada no subdomínio
+  // visitado, e virando /s/{slug}/api/… dava 404 e nenhum site saía do ar
+  if (request.nextUrl.pathname === "/api/desativados") return NextResponse.next();
   const url = request.nextUrl.clone();
   if (await foraDoAr(slug, request.url)) {
     url.pathname = "/indisponivel";
