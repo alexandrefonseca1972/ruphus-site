@@ -13,14 +13,14 @@ const planilha = (...linhas: unknown[][]) =>
   lerPlanilha([{ aba: "Leads", linhas: [["nome", "telefone", "categoria", "cidade", "uf", "nota", "avaliacoes", "servicos", "email", "score", "gancho"], ...linhas] }]).leads;
 
 // um site da fábrica já mora em "pet-feliz": o gerador não pode encostar nele
-await db.collection("tenants").doc("pet-feliz").set({ name: "Pet Feliz (fábrica)", site: { phone: "5591000000000", city: "Belém" } });
+await db.collection("tenants").doc("pet-feliz").set({ name: "Pet Feliz (fábrica)", site: { phone: "5591987650123", city: "Belém" } });
 
 const lote = planilha(
   ["Pet Feliz", "(91) 99372-1156", "Pet shop", "Belém", "PA", 4.6, 59, "Banho, Tosa", "dono@petfeliz.com", "ALTA", "Nota 4,6 e nenhum site"],
-  ["Pet Feliz", "(91) 98888-0000", "Pet shop", "Belém", "PA", "", "", "", "", "", ""],
+  ["Pet Feliz", "(91) 98123-0001", "Pet shop", "Belém", "PA", "", "", "", "", "", ""],
   ["Navalha", "(92) 99123-4567", "Barbearia", "Manaus", "AM", "", "", "", "", "", ""],
   // o mesmo negócio da fábrica, com outro nome na planilha: não ganha segundo site
-  ["Patinhas do Umarizal", "(91) 00000-0000", "Pet shop", "Belém", "PA", "", "", "", "", "", ""],
+  ["Patinhas do Umarizal", "(91) 98765-0123", "Pet shop", "Belém", "PA", "", "", "", "", "", ""],
   ["Salão Fixo", "(96) 3217-8751", "Salão de beleza", "Macapá", "AP", "", "", "", "", "", ""],
 );
 
@@ -41,7 +41,7 @@ assert.equal((await db.collection("tenants").doc("navalha").get()).exists, false
 const feito = await gerarNoBanco(db, lote, true, "dono-plataforma");
 assert.deepEqual(feito, previa, "o que a prévia mostrou é o que foi gravado");
 assert.equal((await db.collection("tenants").doc("patinhas-do-umarizal").get()).exists, false, "linha pulada não grava");
-assert.equal((await db.doc("tenants/pet-feliz").get()).get("site.phone"), "5591000000000", "e não mexe no site que já existe");
+assert.equal((await db.doc("tenants/pet-feliz").get()).get("site.phone"), "5591987650123", "e não mexe no site que já existe");
 const t = (await db.collection("tenants").doc("pet-feliz-belem").get()).data()!;
 assert.equal(t.name, "Pet Feliz");
 assert.equal(t.ownerId, "dono-plataforma");
@@ -92,7 +92,7 @@ assert.equal((await db.doc("tenants/pet-feliz-belem").get()).get("name"), "Pet F
 
 // mais de 30 telefones: o "in" do Firestore vai em blocos, e o 33º ainda é conferido
 const grande = planilha(...Array.from({ length: 35 }, (_, i) =>
-  [`Loja ${i}`, i === 32 ? "91000000000" : `(96) 99${String(i).padStart(3, "0")}-0000`, "Barbearia", "Macapá", "AP", "", "", "", "", "", ""]));
+  [`Loja ${i}`, i === 32 ? "91987650123" : `(96) 99${String(i).padStart(3, "0")}-0000`, "Barbearia", "Macapá", "AP", "", "", "", "", "", ""]));
 const conferido = await gerarNoBanco(db, grande, false, "a");
 assert.equal(conferido.length, 35);
 assert.deepEqual([conferido[32].acao, conferido[32].slug], ["pular", "pet-feliz"]);

@@ -155,6 +155,8 @@ O telefone identifica o negócio: se ele já tem site da fábrica ou conta, a li
 fica de fora; se já tem site gerado, é atualizado — agenda e funil não são
 mexidos. Nicho fora dos modelos (pet, beleza, tatuagem, saúde, aulas, fitness e automotivo) sai com o motivo na lista.
 Telefone de cliente que se cadastrou sozinho também fica de fora: o site é dele.
+Telefone com cara de inventado (99999-9999, 98811-2233, 91234-5678) fica de fora:
+confira o número no Google e corrija a linha.
 
 ### Publicar um site (tirar a faixa de proposta)
 
