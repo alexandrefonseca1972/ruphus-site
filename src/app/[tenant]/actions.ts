@@ -8,7 +8,7 @@ import { z } from "zod";
 import { PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
-import { cancelar, Inscricao, inscrever } from "@/lib/avisos.server";
+import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 
 // Chamáveis por POST direto: valida entrada e membro do tenant em toda chamada
@@ -99,6 +99,11 @@ export const inscreverAvisosAction = memberAction(z.object({ tenantId: docIdStaf
   await inscrever(adminDb, data.tenantId, user.uid, data.inscricao);
   return { ok: true as const };
 });
+
+export const avisosLigadosAction = memberAction(z.object({ tenantId: docIdStaff, endpoint: Inscricao.shape.endpoint }), async (data, user) => ({
+  ok: true as const,
+  ligado: await inscrito(adminDb, data.tenantId, user.uid, data.endpoint),
+}));
 
 export const cancelarAvisosAction = memberAction(z.object({ tenantId: docIdStaff, endpoint: Inscricao.shape.endpoint }), async (data) => {
   await cancelar(adminDb, data.tenantId, data.endpoint);

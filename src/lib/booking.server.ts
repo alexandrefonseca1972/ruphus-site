@@ -406,7 +406,8 @@ async function reservaDoPedido(
   return ja.exists ? reservaDe(ja.id, ja.data()!) : null;
 }
 
-export async function book(db: Firestore, input: BookingInput, ip?: string) {
+/** aoCriar: só para a reserva nova; a repetição (resposta perdida, segundo toque) não chama. */
+export async function book(db: Firestore, input: BookingInput, ip?: string, aoCriar?: (r: ReturnType<typeof reservaDe>) => void) {
   const t = db.collection("tenants").doc(input.tenantId);
   // Fora do ar não aceita reserva nova, mas a repetição de uma já feita (a resposta se
   // perdeu e o negócio saiu do ar nesse meio-tempo) ainda devolve a reserva
@@ -447,8 +448,11 @@ export async function book(db: Firestore, input: BookingInput, ip?: string) {
     return { ok: true as const, ...reservaDe(id, dados), novo: true };
   }, TX));
   if (!r.ok) return r;
-  if (r.novo) await contarUso(db, input.tenantId, input.serviceIds);
-  const { novo: _, ...reserva } = r;
+  const { novo, ...reserva } = r;
+  if (novo) {
+    await contarUso(db, input.tenantId, input.serviceIds);
+    aoCriar?.(reserva);
+  }
   return reserva;
 }
 

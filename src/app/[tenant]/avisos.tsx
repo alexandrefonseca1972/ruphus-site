@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { idToken } from "@/lib/firebase";
-import { cancelarAvisosAction, inscreverAvisosAction } from "./actions";
+import { avisosLigadosAction, cancelarAvisosAction, inscreverAvisosAction } from "./actions";
 
 // Avisos de novo agendamento neste aparelho (push). Cada pessoa liga no próprio
 // celular; o servidor guarda a inscrição e manda o aviso quando um cliente agenda.
 
 const CHAVE = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
+/** O convite e o menu da conta usam cada um o seu useAvisos: este evento mantém os dois iguais. */
+const MUDOU = "ruphus:avisos";
 
 /** A chave pública VAPID (base64url) no formato que o pushManager pede. */
 function chaveBinaria(base64url: string) {
@@ -43,17 +45,29 @@ export function useAvisos(tenantId: string): Avisos {
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
+  // Ligado é por negócio: a inscrição do navegador é uma só, e o servidor diz se este negócio a tem
   useEffect(() => {
     if (!suportado) return;
     let atual = true;
     navigator.serviceWorker.ready
       .then((r) => r.pushManager.getSubscription())
-      .then((s) => atual && setAtivo(!!s))
+      .then(async (s) => {
+        const r = s && (await avisosLigadosAction(await idToken(), { tenantId, endpoint: s.endpoint }));
+        if (atual) setAtivo(!!r && r.ok && r.ligado);
+      })
       .catch(() => atual && setAtivo(false));
+    const aoMudar = (e: Event) => {
+      const d = (e as CustomEvent<{ tenantId: string; ativo: boolean }>).detail;
+      if (d.tenantId === tenantId) setAtivo(d.ativo);
+    };
+    addEventListener(MUDOU, aoMudar);
     return () => {
       atual = false;
+      removeEventListener(MUDOU, aoMudar);
     };
-  }, [suportado]);
+  }, [suportado, tenantId]);
+
+  const mudou = useCallback((ativo: boolean) => dispatchEvent(new CustomEvent(MUDOU, { detail: { tenantId, ativo } })), [tenantId]);
 
   const ligar = useCallback(async () => {
     setErro(null);
@@ -68,30 +82,31 @@ export function useAvisos(tenantId: string): Avisos {
       const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveBinaria(CHAVE) }));
       const r = await inscreverAvisosAction(await idToken(), { tenantId, inscricao: sub.toJSON() });
       if (!r.ok) throw new Error(r.error);
-      setAtivo(true);
+      mudou(true);
     } catch {
       setErro("Não foi possível ligar os avisos. Verifique a conexão e tente de novo.");
     } finally {
       setOcupado(false);
     }
-  }, [tenantId]);
+  }, [tenantId, mudou]);
 
   const desligar = useCallback(async () => {
     setErro(null);
     setOcupado(true);
     try {
       const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+      // só este negócio: a inscrição do navegador continua servindo aos outros (sair() cancela tudo)
       if (sub) {
-        await cancelarAvisosAction(await idToken(), { tenantId, endpoint: sub.endpoint });
-        await sub.unsubscribe();
+        const r = await cancelarAvisosAction(await idToken(), { tenantId, endpoint: sub.endpoint });
+        if (!r.ok) throw new Error(r.error);
       }
-      setAtivo(false);
+      mudou(false);
     } catch {
       setErro("Não foi possível desligar os avisos. Tente de novo.");
     } finally {
       setOcupado(false);
     }
-  }, [tenantId]);
+  }, [tenantId, mudou]);
 
   return { suportado, ativo, bloqueado, ocupado, erro, ligar, desligar };
 }
