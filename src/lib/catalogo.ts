@@ -40,7 +40,7 @@ export const TABELA: [RegExp, number, number][] = [
   [/corte\s*(e|\+)\s*barba|combo/i, 75, 70],
   [/barba|navalha/i, 30, 35],
   [/corte|cabelo|degrad|máquina/i, 45, 45],
-  [/progressiva|alisa|selage|botox|relaxa/i, 180, 250],
+  [/progressiva|alisa|selage|botox|relaxamento/i, 180, 250], // "relaxa" pegava "Massagem relaxante"
   [/colora|mecha|luzes|tintura|loiro|platina/i, 150, 220],
   [/escova|finaliza|penteado|chapinha/i, 45, 50],
   [/hidrata|cronograma|tratamento capilar|cauteriza/i, 60, 90],
@@ -55,6 +55,8 @@ export const TABELA: [RegExp, number, number][] = [
   [/sobrancelha|henna|design/i, 30, 40],
   [/cíli|cili|lash|extens/i, 120, 150],
   [/depila|cera|laser/i, 45, 70],
+  // antes da limpeza de pele: "Harmonização facial" casava com "facial" e saía a R$ 120
+  [/microagulha|preenchi|toxina|harmoniza/i, 60, 200],
   [/limpeza de pele|peeling|facial|skin/i, 60, 120],
   [/massagem|massot|relaxa|drenagem|\bspa/i, 60, 120],
   [/maquiagem|make/i, 60, 100],

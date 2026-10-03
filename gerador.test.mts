@@ -2,7 +2,7 @@
 //   npm run test:gerador
 import assert from "node:assert/strict";
 import lerAbas from "read-excel-file/node";
-import { porRamo } from "@/lib/catalogo";
+import { montar, porRamo } from "@/lib/catalogo";
 import { candidatos, type DadosSite, fixo, lerPlanilha as lerAbasDaPlanilha, nichoDe, ufDoTelefone, variante } from "@/lib/gerador";
 
 // uma aba só, como a maioria das planilhas
@@ -245,6 +245,11 @@ assert.equal(nichoDe({ categoria: "Day Spa", nome: "" })?.sub, "estetica");
 assert.deepEqual(porRamo("salão cabelo Salão / Coloração").map((s) => s.name), ["Corte", "Escova", "Coloração", "Hidratação"]);
 assert.deepEqual(porRamo("estética Espaço de Beleza").map((s) => s.name), ["Limpeza de pele", "Avaliação estética"]);
 assert.deepEqual(porRamo("pet shop Ração e acessórios").map((s) => s.name), ["Banho", "Tosa", "Banho e tosa"]);
+// preço e duração pelo nome: massagem não é relaxamento capilar, harmonização facial não é limpeza de pele
+assert.deepEqual([montar("Massagem relaxante").durationMin, montar("Massagem relaxante").priceCents], [60, 12000]);
+assert.deepEqual([montar("Relaxamento").durationMin, montar("Relaxamento").priceCents], [180, 25000]);
+assert.equal(montar("Harmonização facial").priceCents, 20000);
+assert.equal(montar("Limpeza de pele").priceCents, 12000);
 
 // toda página de todo nicho: nada vazio vazando, camada Ruphus, e saúde sem preço nem antes/depois
 const subs: DadosSite["sub"][] = ["petshop", "vet", "barbearia", "salao", "estetica", "unhas", "tatuagem", "odonto", "fisio", "psico", "nutri", "clinica",
