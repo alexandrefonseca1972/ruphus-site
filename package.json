@@ -21,6 +21,7 @@
     "convite": "tsx --conditions=react-server --env-file=.env.local scripts/convite.mts",
     "admin": "tsx --env-file=.env.local scripts/admin-plataforma.mts",
     "site": "tsx --env-file=.env.local scripts/site.mts",
+    "dblocal": "tsx --env-file=.env.local scripts/dblocal.mts",
     "membros": "tsx --env-file=.env.local scripts/preencher-membros.mts",
     "test:convite": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server convite.test.mts'",
     "test:cobranca": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server cobranca.test.mts'",
@@ -56,7 +57,7 @@
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.2",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
