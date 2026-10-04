@@ -49,3 +49,6 @@ importantes/
 # scripts de QA descartáveis
 *-qa.mts
 teste-*.mts
+
+# banco local de conferência de leads (cópia do Firestore, com telefones)
+dblocal/
