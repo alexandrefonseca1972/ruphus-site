@@ -88,6 +88,20 @@ function selo(nome: string, cor: string, ouro: string) {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+// Textos de variante (só para sites com `variantes`): frases que são iguais em todo o nicho
+const TEXTOS_PASSOS = [
+  "Como é o atendimento, do primeiro contato ao retorno — com tempo e explicação clara.",
+  "Do primeiro contato ao retorno, cada etapa é explicada antes de acontecer.",
+  "Você sabe o que esperar em cada etapa, do primeiro contato ao acompanhamento.",
+];
+const TEXTOS_GALERIA = ["Um lugar pensado para você", "Por dentro e no dia a dia", "Ambiente e rotina"];
+// Layout: a ordem dos cartões gira pelo slug; sem variantes, a ordem do nicho
+const girar = <T,>(lista: T[], d: DadosSite, sal: string): T[] => {
+  if (!d.variantes || lista.length < 2) return lista;
+  const k = variante(d.slug, lista.length, sal);
+  return [...lista.slice(k), ...lista.slice(0, k)];
+};
+
 export function renderClaro(d: DadosSite): string {
   const c = conteudoDe(d.sub);
   const { paleta, topo } = visualClaro(d.slug, d.sub, d.escolha);
@@ -114,7 +128,7 @@ export function renderClaro(d: DadosSite): string {
   const endereco = d.endereco || [onde, d.uf].filter(Boolean).join(" - ");
   const horario = d.horario || "Confirme o horário pelo WhatsApp";
   const botaoWa = (classe: string) => `<a class="${classe}" href="${oi}" target="_blank" rel="noopener">${WA}<span>Falar no WhatsApp</span></a>`;
-  const faq = c.faq;
+  const faq = girar(c.faq, d, "faq");
   const descricao = (s: string) => c.descricoes.find(([re]) => re.test(s))?.[1] ?? "Serviço oferecido pela casa — confirme detalhes pelo WhatsApp.";
   const img = (nome: string) => imagem(c, nome);
   const ICONE = c.icone;
@@ -207,15 +221,15 @@ ${d.publicado ? "" : faixaProposta(d)}
   <div class="wrap">
     <span class="eyebrow">Como funciona</span>
     <h2 class="section-title">Procedimentos, passo a passo</h2>
-    <p class="lead">${c.textos.passos}</p>
-    <div class="proc-grid">${c.passos.map(([f, h, p]) => `<article class="proc-card">${img(f)}<div class="txt"><h3>${h}</h3><p>${p}</p></div></article>`).join("")}</div>
+    <p class="lead">${d.variantes ? TEXTOS_PASSOS[variante(d.slug, TEXTOS_PASSOS.length, "passos")] : c.textos.passos}</p>
+    <div class="proc-grid">${girar(c.passos, d, "passos").map(([f, h, p]) => `<article class="proc-card">${img(f)}<div class="txt"><h3>${h}</h3><p>${p}</p></div></article>`).join("")}</div>
   </div>
 </section>
 
 <section id="galeria">
   <div class="wrap">
     <span class="eyebrow">${c.textos.galeria[0]}</span>
-    <h2 class="section-title">${c.textos.galeria[1]}</h2>
+    <h2 class="section-title">${d.variantes ? TEXTOS_GALERIA[variante(d.slug, TEXTOS_GALERIA.length, "galeria-titulo")] : c.textos.galeria[1]}</h2>
     <p class="lead">Imagens ilustrativas do tipo de atendimento oferecido na ${esc(d.nome)}.</p>
     <div class="galeria">${fotos.map((f) => img(f)).join("")}</div>
   </div>

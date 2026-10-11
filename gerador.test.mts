@@ -365,3 +365,17 @@ console.log("gerador: ok");
   assert.ok(new Set(["a", "b", "c", "d", "e", "f", "g", "h"].map(titulo)).size >= 2, "sites novos variam o título do agendamento");
   console.log("variantes de texto: ok");
 }
+
+// modelo claro: sites novos variam frases de nicho e a ordem de cartões e perguntas; antigos não
+{
+  const base = { nome: "Clínica Teste", telefone: "5598999990000", sub: "odonto" as const, tipo: "Clínica odontológica", endereco: "Rua A, 10", bairro: "Centro", cidade: "Imperatriz", uf: "MA", nota: 4.8, avaliacoes: 120, instagram: "", horario: "", servicos: [], consultado: "outubro de 2026", publicado: false };
+  const antigo = renderClaro({ ...base, slug: "clinica-antiga" });
+  assert.match(antigo, /Como é o atendimento, do primeiro contato ao retorno/);
+  const sl = ["a", "b", "c", "d", "e", "f", "g", "h"].map((s) => `clinica-${s}`);
+  const TITULOS = ["Um lugar pensado para você", "Por dentro e no dia a dia", "Ambiente e rotina"];
+  const galeria = new Set(sl.map((s) => TITULOS.find((t) => renderClaro({ ...base, slug: s, variantes: true }).includes(`<h2 class="section-title">${t}</h2>`))));
+  const primeiraPergunta = new Set(sl.map((s) => /<details[^>]*>\s*<summary[^>]*>([^<]+)/.exec(renderClaro({ ...base, slug: s, variantes: true }))?.[1]));
+  assert.ok(galeria.size >= 2, "títulos da galeria variam");
+  assert.ok(primeiraPergunta.size >= 2, "ordem das perguntas varia");
+  console.log("variantes do modelo claro: ok");
+}
