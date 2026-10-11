@@ -80,7 +80,7 @@ export function registrosDoSite(
         instagram: lead.instagram || null,
         photo: visual.foto,
       },
-      gerado: { nicho: n.nicho, sub: n.sub, bairro: lead.bairro, horario: lead.horario, origem: o.origem, atualizadoEm: agora, ...(o.escolha && { escolha: o.escolha }) },
+      gerado: { nicho: n.nicho, sub: n.sub, bairro: lead.bairro, horario: lead.horario, origem: o.origem, atualizadoEm: agora, ...(o.escolha && { escolha: o.escolha }), ...(o.novo && { variantes: true }) },
     },
   }];
   if (!o.novo) return escritas;
@@ -138,14 +138,14 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
     }
   }
 
-  // Kits e paletas já usados na mesma cidade e nicho. Um site novo sorteia o menos repetido
+  // Kits e paletas já usados no mesmo estado e nicho. Um site novo sorteia o menos repetido
   // ali; os sites que não têm escolha gravada contam pelo que o slug sorteia (o que já sai).
   const usosDaRegiao = new Map<string, Required<Escolha>[]>();
-  const usosDe = async (cidade: string, sub: Sub) => {
-    const chave = `${cidade}|${sub}`;
+  const usosDe = async (uf: string, sub: Sub) => {
+    const chave = `${uf}|${sub}`;
     if (!usosDaRegiao.has(chave)) {
       const { padrao } = familiaVisual(sub);
-      const achados = await tenants.where("site.city", "==", cidade).select("gerado").get();
+      const achados = await tenants.where("site.uf", "==", uf).select("gerado").get();
       usosDaRegiao.set(chave, achados.docs
         .filter((d) => d.get("gerado.sub") === sub)
         .map((d) => ({ ...padrao(d.id), ...(d.get("gerado.escolha") as Escolha | undefined) } as Required<Escolha>)));
@@ -190,10 +190,10 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
     // o mesmo negócio com outro número — ou outra unidade de uma rede
     const parecido = lista.slice(0, 2).map((s) => existentes.get(s))
       .find((d) => d && lead.cidade && semAcento(d.get("site.city")) === semAcento(lead.cidade));
-    // sem cidade não há região para comparar: fica o que o slug sorteia, como antes
+    // sem UF não há região para comparar: fica o que o slug sorteia, como antes
     const { dim, padrao } = familiaVisual(nichoDe(lead)!.sub);
-    if (lead.cidade) {
-      const regiao = await usosDe(lead.cidade, nichoDe(lead)!.sub);
+    if (lead.uf) {
+      const regiao = await usosDe(lead.uf, nichoDe(lead)!.sub);
       const escolha = sortearVisual(slug, regiao, dim);
       regiao.push(escolha);
       escolhas.set(slug, escolha);
@@ -241,7 +241,7 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
   if (!SLUG.test(slug)) return null;
   const t = db.collection("tenants").doc(slug);
   const [tenant, servicos] = await Promise.all([t.get(), t.collection("services").where("active", "==", true).get()]);
-  const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; origem?: string; publicadoEm?: unknown; atualizadoEm?: { toDate(): Date }; escolha?: Escolha } | undefined;
+  const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; origem?: string; publicadoEm?: unknown; atualizadoEm?: { toDate(): Date }; escolha?: Escolha; variantes?: boolean } | undefined;
   if (!tenant.exists || !gerado?.sub) return null;
 
   const quando = gerado.atualizadoEm?.toDate() ?? new Date();
@@ -270,5 +270,6 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
     origem: gerado.origem === "cadastro" ? "cadastro" : "prospeccao",
     publicado: !!gerado.publicadoEm,
     ...(gerado.escolha && { escolha: gerado.escolha }),
+    ...(gerado.variantes && { variantes: true }),
   };
 }

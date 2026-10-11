@@ -354,3 +354,14 @@ console.log("gerador: ok");
   assert.deepEqual(erros.map((e) => [e.linha, e.motivo]), [[4, "Telefone ausente ou inválido."]]);
   console.log("não identificado: ok");
 }
+
+// textos: sites antigos (sem a flag) mantêm o texto original; sites novos sorteiam variantes
+{
+  const base = { nome: "Barbearia Teste", telefone: "5592999990000", sub: "barbearia" as const, tipo: "Barbearia", endereco: "Rua A, 10", bairro: "Centro", cidade: "Manaus", uf: "AM", nota: 4.8, avaliacoes: 120, instagram: "", horario: "", servicos: ["Corte", "Barba"], consultado: "outubro de 2026", publicado: false };
+  const antigo = renderBeleza({ ...base, slug: "barbearia-antiga" });
+  assert.match(antigo, /Marque seu horário/);
+  assert.match(antigo, /Escolha o serviço e o melhor dia para você/);
+  const titulo = (s: string) => /<span class="label">Agendamento<\/span><h2>([^<]+)<\/h2>/.exec(renderBeleza({ ...base, slug: `barbearia-${s}`, variantes: true }))![1];
+  assert.ok(new Set(["a", "b", "c", "d", "e", "f", "g", "h"].map(titulo)).size >= 2, "sites novos variam o título do agendamento");
+  console.log("variantes de texto: ok");
+}

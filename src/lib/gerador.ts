@@ -389,6 +389,8 @@ export type DadosSite = {
   tipo: string;
   /** kit e paleta escolhidos para a região; ausente = o do slug (sites antigos) */
   escolha?: Escolha;
+  /** textos sorteados entre variantes; ausente = o texto original (sites antigos) */
+  variantes?: boolean;
   endereco: string;
   bairro: string;
   cidade: string;
