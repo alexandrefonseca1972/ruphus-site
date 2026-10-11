@@ -1651,6 +1651,7 @@ export default function AdminPage() {
               onEnviar={(modelo, para) => enviouMensagem(aberto.slug, modelo, para)}
               onCopiar={(texto) => copiar(texto, "mensagem")}
               onPronto={setPronto}
+              linkProposta={proposta?.slug === aberto.slug ? proposta.url : null}
             />
 
             {/* Preço só importa ao propor e ao fechar: fica a um clique */}
