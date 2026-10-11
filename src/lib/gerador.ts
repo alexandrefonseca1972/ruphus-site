@@ -10,17 +10,18 @@ import { slugify, TenantInput } from "@/lib/tenant-input";
 /** Nomes de coluna aceitos, já normalizados (sem acento, minúsculo, só letra e número).
  *  A planilha de cada um tem cabeçalho diferente; a gente se adapta a ela. */
 const COLUNAS = {
-  nome: ["nome", "nomedaempresa", "empresa", "negocio", "estabelecimento", "razaosocial", "nomefantasia", "name", "title"],
+  nome: ["nome", "nomedaempresa", "nomedonegocio", "empresa", "negocio", "estabelecimento", "razaosocial", "nomefantasia", "name", "title"],
   telefone: ["telefone", "whatsapp", "whats", "celular", "fone", "contato", "phone", "telefonewhatsapp"],
-  categoria: ["categoria", "categorias", "nicho", "nichocategoria", "ramo", "segmento", "tipo", "category", "atividade"],
+  categoria: ["categoria", "categorias", "nicho", "nichocategoria", "nichosegmento", "ramo", "segmento", "tipo", "category", "atividade"],
   endereco: ["endereco", "logradouro", "enderecocompleto", "address", "fulladdress", "rua"],
   bairro: ["bairro", "neighborhood"],
-  cidade: ["cidade", "municipio", "city"],
+  // "Cidade/UF" vem como "Belém/PA (Icoaraci)": lerPlanilha separa cidade, UF e distrito
+  cidade: ["cidade", "cidadeuf", "municipio", "city"],
   uf: ["uf", "estado", "state"],
-  nota: ["nota", "notagoogle", "notageral", "avaliacao", "avaliacaogoogle", "rating", "estrelas"],
+  nota: ["nota", "notagoogle", "notagoogleestrelas", "notageral", "avaliacao", "avaliacaogoogle", "rating", "estrelas"],
   // "Nº de avaliações" normaliza para "ndeavaliacoes": o º não é letra
-  avaliacoes: ["avaliacoes", "navaliacoes", "ndeavaliacoes", "numeroavaliacoes", "numerodeavaliacoes", "totalavaliacoes", "qtdavaliacoes", "reviews"],
-  instagram: ["instagram", "insta", "ig", "redesocial", "redesocialprincipal", "redesocialprincipalfrequencia"],
+  avaliacoes: ["avaliacoes", "navaliacoes", "ndeavaliacoes", "numeroavaliacoes", "numerodeavaliacoes", "totalavaliacoes", "totaldeavaliacoes", "qtdavaliacoes", "reviews"],
+  instagram: ["instagram", "insta", "ig", "redesocial", "redesocialprincipal", "redesocialprincipalfrequencia", "instagramredessociais"],
   horario: ["horario", "horarios", "funcionamento", "horariodefuncionamento", "workinghours"],
   servicos: ["servicos", "services"],
   email: ["email", "emaildodono", "emaildono"],
@@ -143,15 +144,21 @@ export function lerPlanilha(abas: { aba: string; linhas: unknown[][] }[]): Leitu
       const linha = topo + i + 2; // como o Excel numera
       if (!l.some((c) => texto(c))) return; // linha em branco não é erro
       const v = (c: Campo) => l[colunas.indexOf(c)];
-      const telefone = normalizar(texto(v("telefone")));
+      // "(91) 3241-8660 / (91) 98615-6886": vale o primeiro celular, senão o primeiro número
+      const fones = texto(v("telefone")).split(/\s*[\/;]\s*/).map(normalizar).filter(Boolean);
+      const telefone = fones.find((f) => f.length === 13) ?? fones[0] ?? "";
+      // "Belém/PA (Icoaraci)": cidade antes da barra, UF depois, distrito entre parênteses
+      const cidadeUf = texto(v("cidade"));
+      const [cidadeSemUf = "", ufDaCidade = ""] = cidadeUf.replace(/\s*\(.*?\)/g, "").split("/").map((s) => s.trim());
+      const distrito = /\((.*?)\)/.exec(cidadeUf)?.[1] ?? "";
       const bruto = {
         nome: texto(v("nome")),
         telefone,
         categoria: texto(v("categoria")),
         endereco: texto(v("endereco")),
-        bairro: texto(v("bairro")),
-        cidade: texto(v("cidade")),
-        uf: texto(v("uf")).toUpperCase().slice(0, 2),
+        bairro: texto(v("bairro")) || distrito,
+        cidade: cidadeSemUf,
+        uf: (texto(v("uf")) || ufDaCidade).toUpperCase().slice(0, 2),
         nota: notaDe(v("nota")),
         avaliacoes: numero(v("avaliacoes")),
         instagram: perfil(v("instagram")),

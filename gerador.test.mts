@@ -289,3 +289,23 @@ console.log("gerador: ok");
   assert.equal(DadosNegocio.shape.uf.safeParse("").success, false);
   console.log("uf do cadastro: ok");
 }
+
+// levantamento de Belém (Prospecção, out/2026): "Nome do negócio", "Cidade/UF" com distrito,
+// "Nicho / Segmento", telefone com dois números separados por barra
+{
+  const { leads, erros } = lerPlanilha([
+    ["PROSPECÇÃO — título", ...Array(10).fill(null)],
+    [null, "Nome do negócio", "Nicho / Segmento", "Endereço", "Bairro", "Cidade/UF", "Telefone / WhatsApp", "Instagram / Redes sociais", "Nota Google (estrelas)", "Total de avaliações", "Site"],
+    [null, "Maria Bonita Salão", "Salão de beleza", "Av. Nazaré, 1", "—", "Belém/PA (Icoaraci)", "(91) 98859-8809 / (91) 98274-6294", "@mariabonita", 4.8, 120, "—"],
+    [null, "Barbearia Dois", "Barbearia", "", "Umarizal", "Ananindeua/PA", "(91) 3241-8660 / (91) 98615-6886", "", "", "", "—"],
+    [null, "Sem Celular", "Barbearia", "", "", "Belém/PA", "(91) 3241-8661", "", "", "", "—"],
+  ]);
+  assert.equal(erros.length, 0, JSON.stringify(erros));
+  const [a, b, c] = leads.map((x) => x.lead);
+  assert.deepEqual([a.nome, a.cidade, a.uf, a.bairro], ["Maria Bonita Salão", "Belém", "PA", "Icoaraci"]);
+  assert.equal(a.telefone, "5591988598809", "vale o primeiro celular");
+  assert.deepEqual([a.instagram, a.nota, a.avaliacoes], ["mariabonita", 4.8, 120]);
+  assert.deepEqual([b.cidade, b.uf, b.bairro, b.telefone], ["Ananindeua", "PA", "Umarizal", "5591986156886"]);
+  assert.equal(c.telefone, "559132418661", "sem celular, vale o fixo");
+  console.log("levantamento de Belém: ok");
+}
