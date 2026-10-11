@@ -3,6 +3,17 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.10.0 — 11/10/2026
+
+### Sites gerados
+- **Sites vizinhos não repetem a mesma cara** (#120): o kit de fotos e a paleta são escolhidos pelo que está menos usado no estado e no nicho. Sites já no ar mantêm o visual atual.
+- **Textos variados em sites novos**: título da galeria, passos do atendimento e tabela de preços mudam de um site para outro, e a ordem de cartões e perguntas do FAQ também. Sites antigos mantêm o texto que já tinham.
+- **Modelo claro com fonte nova**: títulos em Bricolage Grotesque e texto em Figtree.
+
+### Gerador
+- **Planilhas de levantamento** com "Nome do negócio", "Cidade/UF" e "Nicho / Segmento" passam a ser lidas. "Não identificado" conta como dado faltando.
+- **Sem telefone, com rede social**: o negócio fica de fora do site (o site precisa de WhatsApp), mas aparece na conferência para contato pela rede.
+
 ## Em avaliação
 
 ### Admin no celular
