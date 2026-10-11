@@ -3,7 +3,7 @@
 // public/s/assets/gerado/beleza.css; cada nicho traz o seu Estilo (os de beleza
 // estão aqui, os demais em src/lib/nichos) e os seus kits de fotos.
 import {
-  AVISO, cabecaComum, type Capa, type DadosSite, esc, faixaProposta, foneBR, jsonLdNegocio, lugar, mapa, notaBR, type Sub, variante, zap,
+  AVISO, cabecaComum, type Capa, type DadosSite, type Escolha, esc, faixaProposta, foneBR, jsonLdNegocio, lugar, mapa, notaBR, type Sub, variante, zap,
 } from "@/lib/gerador";
 import { AUTOMOTIVO } from "@/lib/nichos/automotivo";
 import { FITNESS } from "@/lib/nichos/fitness";
@@ -20,7 +20,7 @@ export type Estilo = {
   /** pastas com hero.jpg e ga1..3.jpg, a partir de /assets */
   kits: string[];
   /** descrição e selo por serviço, conferidos antes das regras comuns */
-  descricoes?: [RegExp, string, string][];
+  descricoes?: [RegExp, string | string[], string][];
   /** exemplo do campo de observações do formulário */
   obs?: string;
 };
@@ -93,34 +93,34 @@ const PADRAO = {
 };
 
 // descrição e selo por serviço; a primeira regra que casar vence
-const DESCRICOES: [RegExp, string, string][] = [
+const DESCRICOES: [RegExp, string | string[], string][] = [
   // tatuagem primeiro: "Cobertura" e "Sessão" não podem cair nas regras de salão
-  [/fine ?line/i, "Traços finos e delicados, perfeitos para desenhos minimalistas.", "Delicado"],
-  [/blackwork|pontilh|realism/i, "Preenchimentos sólidos e contrastes fortes em preto.", "Impacto"],
-  [/cobertura|reforma|cover/i, "Transforme ou renove tatuagens antigas com um novo projeto.", "Renovação"],
-  [/or[çc]amento/i, "Converse com o artista, ajuste a ideia e receba o orçamento sem compromisso.", "Sem compromisso"],
-  [/piercing/i, "Perfuração com material esterilizado e joia escolhida com você.", "Biossegurança"],
-  [/tatua|tattoo|autoral/i, "Projetos exclusivos criados com você, do rascunho à pele.", "Exclusivo"],
-  [/corte\s*(e|\+)\s*barba|combo/i, "O pacote completo para sair pronto da cadeira em uma única visita.", "Mais pedido"],
-  [/barba/i, "Desenho, alinhamento e toalha quente para um acabamento limpo e confortável.", "Toalha quente"],
-  [/pigment/i, "Cobertura de falhas com aspecto natural.", "Acabamento"],
-  [/sobrancel/i, "Desenho que valoriza o olhar, sem exageros.", "Detalhe"],
-  [/corte/i, "Do clássico ao moderno, com acabamento caprichado e finalização profissional.", "Clássico & moderno"],
-  [/escova|finaliz/i, "Brilho, movimento e fios alinhados para o dia a dia ou para a ocasião.", "Finalização"],
-  [/colora|mecha|luzes|loiro/i, "Cor pensada para o seu tom de pele, com cuidado para a saúde do fio.", "Cor"],
-  [/hidrat|tratamento|cronograma|reconstr/i, "Tratamento para devolver força, maciez e brilho aos fios.", "Tratamento"],
-  [/progressiva|alisa|selagem|botox/i, "Redução de volume e frizz com produtos de qualidade.", "Liso"],
-  [/manicure/i, "Cutilagem cuidadosa e esmaltação caprichada.", "Clássico"],
-  [/pedicure/i, "Pés bem cuidados, com conforto e acabamento impecável.", "Cuidado"],
-  [/alongamento|gel|fibra/i, "Unhas mais longas e resistentes, com formato do seu jeito.", "Durável"],
-  [/cíli|cili|lash/i, "Fios aplicados um a um para um olhar marcante e natural.", "Olhar"],
-  [/limpeza de pele|facial|peeling/i, "Pele limpa, renovada e preparada para os próximos cuidados.", "Pele"],
-  [/massag|drenag/i, "Relaxamento e bem-estar em um momento só seu.", "Bem-estar"],
-  [/depila/i, "Depilação com técnica e conforto.", "Conforto"],
+  [/fine ?line/i, ["Traços finos e delicados, perfeitos para desenhos minimalistas."], "Delicado"],
+  [/blackwork|pontilh|realism/i, ["Preenchimentos sólidos e contrastes fortes em preto."], "Impacto"],
+  [/cobertura|reforma|cover/i, ["Transforme ou renove tatuagens antigas com um novo projeto."], "Renovação"],
+  [/or[çc]amento/i, ["Converse com o artista, ajuste a ideia e receba o orçamento sem compromisso."], "Sem compromisso"],
+  [/piercing/i, ["Perfuração com material esterilizado e joia escolhida com você."], "Biossegurança"],
+  [/tatua|tattoo|autoral/i, ["Projetos exclusivos criados com você, do rascunho à pele."], "Exclusivo"],
+  [/corte\s*(e|\+)\s*barba|combo/i, ["O pacote completo para sair pronto da cadeira em uma única visita.", "Corte e barba feitos na mesma visita, com o alinhamento que combina com o seu rosto.", "Cabelo e barba no mesmo ritmo: sai da cadeira com o visual fechado de ponta a ponta."], "Mais pedido"],
+  [/barba/i, ["Desenho, alinhamento e toalha quente para um acabamento limpo e confortável.", "Barba desenhada com navalha e finalizada com óleo, do contorno ao pescoço.", "Da máquina à navalha: o desenho da barba certo para o seu formato de rosto."], "Toalha quente"],
+  [/pigment/i, ["Cobertura de falhas com aspecto natural."], "Acabamento"],
+  [/sobrancel/i, ["Desenho que valoriza o olhar, sem exageros.", "Sobrancelha alinhada com pinça e navalha, respeitando o formato do seu rosto."], "Detalhe"],
+  [/corte/i, ["Do clássico ao moderno, com acabamento caprichado e finalização profissional.", "Tesoura e máquina na medida certa, com a degradê que você pedir.", "Corte pensado para o seu tipo de cabelo e para o dia a dia, com finalização rápida."], "Clássico & moderno"],
+  [/escova|finaliz/i, ["Brilho, movimento e fios alinhados para o dia a dia ou para a ocasião."], "Finalização"],
+  [/colora|mecha|luzes|loiro/i, ["Cor pensada para o seu tom de pele, com cuidado para a saúde do fio."], "Cor"],
+  [/hidrat|tratamento|cronograma|reconstr/i, ["Tratamento para devolver força, maciez e brilho aos fios."], "Tratamento"],
+  [/progressiva|alisa|selagem|botox/i, ["Redução de volume e frizz com produtos de qualidade."], "Liso"],
+  [/manicure/i, ["Cutilagem cuidadosa e esmaltação caprichada."], "Clássico"],
+  [/pedicure/i, ["Pés bem cuidados, com conforto e acabamento impecável."], "Cuidado"],
+  [/alongamento|gel|fibra/i, ["Unhas mais longas e resistentes, com formato do seu jeito."], "Durável"],
+  [/cíli|cili|lash/i, ["Fios aplicados um a um para um olhar marcante e natural."], "Olhar"],
+  [/limpeza de pele|facial|peeling/i, ["Pele limpa, renovada e preparada para os próximos cuidados."], "Pele"],
+  [/massag|drenag/i, ["Relaxamento e bem-estar em um momento só seu."], "Bem-estar"],
+  [/depila/i, ["Depilação com técnica e conforto."], "Conforto"],
 ];
-const detalhe = (e: Estilo, s: string, i: number): [string, string] => {
+const detalhe = (e: Estilo, slug: string, s: string, i: number, variantes: boolean): [string, string] => {
   const achado = [...(e.descricoes ?? []), ...DESCRICOES].find(([re]) => re.test(s));
-  return achado ? [achado[1], achado[2]] : ["Atendimento com hora marcada — confirme os detalhes pelo WhatsApp.", ["Especial", "Detalhe", "Cuidado"][i % 3]];
+  return achado ? [Array.isArray(achado[1]) ? achado[1][variantes ? variante(slug + s, achado[1].length, "desc") : 0] : achado[1], achado[2]] : ["Atendimento com hora marcada — confirme os detalhes pelo WhatsApp.", ["Especial", "Detalhe", "Cuidado"][i % 3]];
 };
 
 const WA = '<svg viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/></svg>';
@@ -142,22 +142,56 @@ const ESTILOS: Partial<Record<Sub, Estilo>> = {
 };
 const estiloDe = (sub: Sub) => ESTILOS[sub] ?? ESTILOS.salao!;
 
+/** Quantos kits e paletas o estilo tem, e o que o slug sorteia quando o site não tem escolha. */
+export const combinacoesEditorial = (sub: Sub) => ({ kits: estiloDe(sub).kits.length, cores: estiloDe(sub).paletas.length });
+export const escolhaEditorial = (sub: Sub, slug: string): Required<Escolha> => ({
+  kit: variante(slug, estiloDe(sub).kits.length, "kit"),
+  cor: variante(slug, estiloDe(sub).paletas.length, "cor"),
+});
+
+// Textos fixos do modelo, em variantes: cada site sorteia uma por bloco (pelo slug), para
+// que dois sites do mesmo nicho não tenham as mesmas frases de ponta a ponta.
+const VARIANTES = {
+  galeria: ["O espaço e o trabalho", "Por dentro e no trabalho", "Ambiente e resultados"],
+  servicos: ["O que você encontra", "Tudo o que você pode marcar", "Como funciona cada serviço"],
+  agendamento: ["Marque seu horário", "Agende em poucos passos", "Escolha o seu horário"],
+  // [título, texto] — o texto leva {nome} onde entra o nome do negócio
+  precos: [
+    ["Valores sob consulta.", "O estabelecimento não publica a tabela de preços online — chame no WhatsApp e receba os valores atualizados na hora."],
+    ["Preço sob consulta.", "Não publicamos a tabela online: mande uma mensagem no WhatsApp e receba os valores do dia."],
+    ["Valores na conversa.", "Os valores mudam com o serviço e a duração: pergunte no WhatsApp e receba o orçamento na hora."],
+  ],
+  intro: [
+    "Preencha ao lado e envie direto no WhatsApp de {nome}. Sem cadastro, sem aplicativo — a resposta vem na conversa.",
+    "Monte sua mensagem ao lado e envie no WhatsApp de {nome}. Nada de cadastro: a resposta vem na conversa.",
+    "Diga o serviço e o melhor dia. A mensagem segue para o WhatsApp de {nome} e a equipe confirma.",
+  ],
+  // três passos; cada conjunto inteiro é sorteado junto
+  passos: [
+    ["Escolha o serviço e o melhor dia para você.", "Envie — a mensagem já chega pronta no WhatsApp.", "Receba a confirmação do horário pela equipe."],
+    ["Diga qual serviço você quer.", "Mande a mensagem pronta pelo WhatsApp.", "A equipe confirma o horário com você."],
+    ["Conte o que você precisa e quando.", "Confira a mensagem e envie.", "Aguarde a confirmação na conversa."],
+  ],
+};
+const sorteio = <T,>(lista: T[], slug: string, sal: string): T => lista[variante(slug, lista.length, sal)];
+
 /** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. */
-export function visualEditorial(slug: string, sub: Sub) {
+export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha) {
   const e = estiloDe(sub);
-  const [ink, acc, deep, tint] = e.paletas[variante(slug, e.paletas.length, "cor")];
-  const kit = e.kits[variante(slug, e.kits.length, "kit")];
+  const padrao = escolhaEditorial(sub, slug);
+  const [ink, acc, deep, tint] = e.paletas[escolha?.cor ?? padrao.cor];
+  const kit = e.kits[escolha?.kit ?? padrao.kit];
   return { e, ink, acc, deep, tint, kit, cor: acc, foto: `${kit}/hero.jpg`, fonte: FONTES[variante(slug, FONTES.length, "fonte")] };
 }
 
 /** A imagem de compartilhamento: a foto do topo do kit e a fonte de título do próprio site. */
 export function capaEditorial(d: DadosSite): Capa {
-  const { e, kit, cor, fonte } = visualEditorial(d.slug, d.sub);
+  const { e, kit, cor, fonte } = visualEditorial(d.slug, d.sub, d.escolha);
   return { foto: `${kit}/hero.jpg`, cor, fonte: fonte[0], linha: [e.rotulo, d.cidade].filter(Boolean).join(" em ") };
 }
 
 export function renderEditorial(d: DadosSite): string {
-  const { e, ink, acc, deep, tint, kit, fonte } = visualEditorial(d.slug, d.sub);
+  const { e, ink, acc, deep, tint, kit, fonte } = visualEditorial(d.slug, d.sub, d.escolha);
   const onde = lugar(d);
   const rotulo = e.rotulo;
   const tag = [rotulo, [d.cidade, d.uf].filter(Boolean).join("/")].filter(Boolean).join(" · ");
@@ -183,6 +217,10 @@ export function renderEditorial(d: DadosSite): string {
   ].filter((f): f is [string, string] => !!f);
   const marquee = [...servicos, ...servicos].map((s) => `<span>${esc(s)} ✦</span>`).join("");
   const alt = esc(`${d.nome} — ${rotulo}`);
+  const escolhido = <T,>(lista: T[], sal: string): T => (d.variantes ? sorteio(lista, d.slug, sal) : lista[0]);
+  const passos = escolhido(VARIANTES.passos, "passos");
+  const [precoTitulo, precoTexto] = escolhido(VARIANTES.precos, "precos");
+  const intro = escolhido(VARIANTES.intro, "intro").replace("{nome}", esc(d.nome));
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -239,29 +277,29 @@ ${d.publicado ? "" : faixaProposta(d)}
 </section>
 
 <section class="galeria" id="trabalhos">
-  <div class="sec-head rv"><span class="label">Galeria</span><h2>O espaço e o trabalho</h2></div>
+  <div class="sec-head rv"><span class="label">Galeria</span><h2>${escolhido(VARIANTES.galeria, "galeria")}</h2></div>
   <div class="gal-grid">${[1, 2, 3].map((n) => `<div class="tilt rv fit-cover"><img src="..${kit}/ga${n}.jpg" alt="${alt}" loading="lazy"><span class="cap">Imagem ilustrativa</span></div>`).join("")}</div>
 </section>
 
 <section class="servicos" id="servicos">
-  <div class="sec-head rv"><span class="label">Serviços</span><h2>O que você encontra</h2></div>
+  <div class="sec-head rv"><span class="label">Serviços</span><h2>${escolhido(VARIANTES.servicos, "servicos")}</h2></div>
   ${servicos.map((s, i) => {
-    const [p, selo] = detalhe(e, s, i);
+    const [p, selo] = detalhe(e, d.slug, s, i, d.variantes === true);
     return `<div class="svc-row rv"><span class="num">${String(i + 1).padStart(2, "0")}</span><div><h3>${esc(s)}</h3><p>${esc(p)}</p></div><span class="tag-pill">${esc(selo)}</span></div>`;
   }).join("")}
   <div class="precos rv"><h3>Tabela de preços</h3>
-      <div class="price-placeholder"><b>Valores sob consulta.</b> O estabelecimento não publica a tabela de preços online — chame no WhatsApp e receba os valores atualizados na hora.</div></div>
+      <div class="price-placeholder"><b>${precoTitulo}</b> ${precoTexto}</div></div>
 </section>
 
 <section class="agendar" id="agendar">
-  <div class="sec-head rv"><span class="label">Agendamento</span><h2>Marque seu horário</h2></div>
+  <div class="sec-head rv"><span class="label">Agendamento</span><h2>${escolhido(VARIANTES.agendamento, "agendamento")}</h2></div>
   <div class="ag-grid">
     <div class="ag-info rv">
-      <p>Preencha ao lado e envie direto no WhatsApp de ${esc(d.nome)}. Sem cadastro, sem aplicativo — a resposta vem na conversa.</p>
+      <p>${intro}</p>
       <div class="steps">
-        <div class="step"><b>1</b><span>Escolha o serviço e o melhor dia para você.</span></div>
-        <div class="step"><b>2</b><span>Envie — a mensagem já chega pronta no WhatsApp.</span></div>
-        <div class="step"><b>3</b><span>Receba a confirmação do horário pela equipe.</span></div>
+        <div class="step"><b>1</b><span>${passos[0]}</span></div>
+        <div class="step"><b>2</b><span>${passos[1]}</span></div>
+        <div class="step"><b>3</b><span>${passos[2]}</span></div>
       </div>
     </div>
     <form class="waform rv" id="waform" data-wa="${d.telefone}">

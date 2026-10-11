@@ -2,7 +2,7 @@
 // e camada Ruphus), com o conteúdo de cada nicho vindo de src/lib/nichos. O CSS é
 // public/s/assets/gerado/pet.css (o nome ficou: é o arquivo que os sites já pedem).
 import {
-  AVISO, cabecaComum, type Capa, type DadosSite, esc, faixaProposta, foneBR, jsonLd, jsonLdNegocio, lugar, mapa, notaBR, type Sub, variante, zap,
+  AVISO, cabecaComum, type Capa, type DadosSite, type Escolha, esc, faixaProposta, foneBR, jsonLd, jsonLdNegocio, lugar, mapa, notaBR, type Sub, variante, zap,
 } from "@/lib/gerador";
 import { PET } from "@/lib/nichos/pet";
 import { AULAS } from "@/lib/nichos/aulas";
@@ -55,19 +55,27 @@ const FONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 const MAPA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>';
 const INSTA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none"/></svg>';
 
+/** Quantos topos (fotos) e paletas o nicho tem, e o que o slug sorteia sem escolha gravada. */
+export const combinacoesClaro = (sub: Sub) => ({ kits: conteudoDe(sub).topo.length, cores: conteudoDe(sub).paletas.length });
+export const escolhaClaro = (sub: Sub, slug: string): Required<Escolha> => ({
+  kit: variante(slug, conteudoDe(sub).topo.length, "topo"),
+  cor: variante(slug, conteudoDe(sub).paletas.length, "cor"),
+});
+
 /** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. */
-export function visualClaro(slug: string, sub: Sub) {
+export function visualClaro(slug: string, sub: Sub, escolha?: Escolha) {
   const c = conteudoDe(sub);
-  const paleta = c.paletas[variante(slug, c.paletas.length, "cor")];
-  const topo = c.topo[variante(slug, c.topo.length, "topo")];
+  const padrao = escolhaClaro(sub, slug);
+  const paleta = c.paletas[escolha?.cor ?? padrao.cor];
+  const topo = c.topo[escolha?.kit ?? padrao.kit];
   return { cor: /--accent:(#[0-9A-F]{6})/.exec(paleta[0])![1], foto: `/assets/${c.pasta}/${topo}-800.jpg`, paleta, topo };
 }
 
 /** A imagem de compartilhamento: a foto do topo, na versão grande, e a mesma fonte de título. */
 export function capaClaro(d: DadosSite): Capa {
   const c = conteudoDe(d.sub);
-  const { topo, cor } = visualClaro(d.slug, d.sub);
-  return { foto: `/assets/${c.pasta}/${topo}.jpg`, cor, fonte: "Fraunces", linha: [c.rotulo, lugar(d)].filter(Boolean).join(" em ") };
+  const { topo, cor } = visualClaro(d.slug, d.sub, d.escolha);
+  return { foto: `/assets/${c.pasta}/${topo}.jpg`, cor, fonte: "Bricolage Grotesque", linha: [c.rotulo, lugar(d)].filter(Boolean).join(" em ") };
 }
 
 const imagem = (c: Conteudo, nome: string) =>
@@ -80,9 +88,23 @@ function selo(nome: string, cor: string, ouro: string) {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+// Textos de variante (só para sites com `variantes`): frases que são iguais em todo o nicho
+const TEXTOS_PASSOS = [
+  "Como é o atendimento, do primeiro contato ao retorno — com tempo e explicação clara.",
+  "Do primeiro contato ao retorno, cada etapa é explicada antes de acontecer.",
+  "Você sabe o que esperar em cada etapa, do primeiro contato ao acompanhamento.",
+];
+const TEXTOS_GALERIA = ["Um lugar pensado para você", "Por dentro e no dia a dia", "Ambiente e rotina"];
+// Layout: a ordem dos cartões gira pelo slug; sem variantes, a ordem do nicho
+const girar = <T,>(lista: T[], d: DadosSite, sal: string): T[] => {
+  if (!d.variantes || lista.length < 2) return lista;
+  const k = variante(d.slug, lista.length, sal);
+  return [...lista.slice(k), ...lista.slice(0, k)];
+};
+
 export function renderClaro(d: DadosSite): string {
   const c = conteudoDe(d.sub);
-  const { paleta, topo } = visualClaro(d.slug, d.sub);
+  const { paleta, topo } = visualClaro(d.slug, d.sub, d.escolha);
   const cor = /--accent:(#[0-9A-F]{6})/.exec(paleta[0])![1];
   const ouro = /--gold:(#[0-9A-F]{6})/.exec(paleta[0])![1];
   const [titulo, destaque, chamada] = c.titulos[variante(d.slug, c.titulos.length, "titulo")];
@@ -106,7 +128,7 @@ export function renderClaro(d: DadosSite): string {
   const endereco = d.endereco || [onde, d.uf].filter(Boolean).join(" - ");
   const horario = d.horario || "Confirme o horário pelo WhatsApp";
   const botaoWa = (classe: string) => `<a class="${classe}" href="${oi}" target="_blank" rel="noopener">${WA}<span>Falar no WhatsApp</span></a>`;
-  const faq = c.faq;
+  const faq = girar(c.faq, d, "faq");
   const descricao = (s: string) => c.descricoes.find(([re]) => re.test(s))?.[1] ?? "Serviço oferecido pela casa — confirme detalhes pelo WhatsApp.";
   const img = (nome: string) => imagem(c, nome);
   const ICONE = c.icone;
@@ -122,7 +144,7 @@ export function renderClaro(d: DadosSite): string {
 <link rel="preload" as="image" href="../assets/${c.pasta}/${topo}.jpg" fetchpriority="high" media="(min-width:760px)">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Figtree:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/gerado/pet.css">
 <style>:root{${paleta[0]}}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){${paleta[1]}}}:root[data-theme="dark"]{${paleta[1]}}.hero{background:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("../assets/${c.pasta}/${topo}-800.jpg") center 38%/cover no-repeat;}@media (min-width:760px){.hero{background-image:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("../assets/${c.pasta}/${topo}.jpg");}}</style>
 ${cabecaComum(d.slug, tituloPag, descr, d.publicado)}
@@ -199,15 +221,15 @@ ${d.publicado ? "" : faixaProposta(d)}
   <div class="wrap">
     <span class="eyebrow">Como funciona</span>
     <h2 class="section-title">Procedimentos, passo a passo</h2>
-    <p class="lead">${c.textos.passos}</p>
-    <div class="proc-grid">${c.passos.map(([f, h, p]) => `<article class="proc-card">${img(f)}<div class="txt"><h3>${h}</h3><p>${p}</p></div></article>`).join("")}</div>
+    <p class="lead">${d.variantes ? TEXTOS_PASSOS[variante(d.slug, TEXTOS_PASSOS.length, "passos")] : c.textos.passos}</p>
+    <div class="proc-grid">${girar(c.passos, d, "passos").map(([f, h, p]) => `<article class="proc-card">${img(f)}<div class="txt"><h3>${h}</h3><p>${p}</p></div></article>`).join("")}</div>
   </div>
 </section>
 
 <section id="galeria">
   <div class="wrap">
     <span class="eyebrow">${c.textos.galeria[0]}</span>
-    <h2 class="section-title">${c.textos.galeria[1]}</h2>
+    <h2 class="section-title">${d.variantes ? TEXTOS_GALERIA[variante(d.slug, TEXTOS_GALERIA.length, "galeria-titulo")] : c.textos.galeria[1]}</h2>
     <p class="lead">Imagens ilustrativas do tipo de atendimento oferecido na ${esc(d.nome)}.</p>
     <div class="galeria">${fotos.map((f) => img(f)).join("")}</div>
   </div>

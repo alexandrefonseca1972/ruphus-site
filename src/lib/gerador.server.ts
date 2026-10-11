@@ -4,11 +4,17 @@ import { z } from "zod";
 import { EQUIPE, montar, porRamo } from "@/lib/catalogo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { AUTOR_LEVANTAMENTO } from "@/lib/crm-tipos";
-import { candidatos, type DadosSite, fixo, Lead, type Nicho, nichoDe, type Sub } from "@/lib/gerador";
+import { candidatos, type DadosSite, type Escolha, fixo, Lead, type Nicho, nichoDe, type Sub, sortearVisual } from "@/lib/gerador";
 import type { Utm } from "@/lib/crm-tipos";
 import { dateIn } from "@/lib/datetime";
-import { visualEditorial } from "@/lib/site-editorial";
-import { ehClaro, visualClaro } from "@/lib/site-claro";
+import { combinacoesEditorial, escolhaEditorial, visualEditorial } from "@/lib/site-editorial";
+import { combinacoesClaro, ehClaro, escolhaClaro, visualClaro } from "@/lib/site-claro";
+
+/** Kits e paletas do modelo do nicho, e o que o slug sorteia quando o site não tem escolha. */
+const familiaVisual = (sub: Sub) =>
+  ehClaro(sub)
+    ? { dim: combinacoesClaro(sub), padrao: (slug: string) => escolhaClaro(sub, slug) }
+    : { dim: combinacoesEditorial(sub), padrao: (slug: string) => escolhaEditorial(sub, slug) };
 
 // Teto do lote, o mesmo dos convites: acima disso a espera fica longa demais
 export const TETO_LOTE = 300;
@@ -51,9 +57,9 @@ export function registrosDoSite(
   slug: string,
   lead: Lead,
   n: Nicho,
-  o: { novo: boolean; ownerId: string; origem: "prospeccao" | "cadastro"; equipe?: string; donoNome?: string; utm?: Utm | null },
+  o: { novo: boolean; ownerId: string; origem: "prospeccao" | "cadastro"; equipe?: string; donoNome?: string; utm?: Utm | null; escolha?: Escolha },
 ): Escrita[] {
-  const visual = ehClaro(n.sub) ? visualClaro(slug, n.sub) : visualEditorial(slug, n.sub);
+  const visual = ehClaro(n.sub) ? visualClaro(slug, n.sub, o.escolha) : visualEditorial(slug, n.sub, o.escolha);
   const t = db.collection("tenants").doc(slug);
   const agora = FieldValue.serverTimestamp();
   const escritas: Escrita[] = [{
@@ -74,7 +80,7 @@ export function registrosDoSite(
         instagram: lead.instagram || null,
         photo: visual.foto,
       },
-      gerado: { nicho: n.nicho, sub: n.sub, bairro: lead.bairro, horario: lead.horario, origem: o.origem, atualizadoEm: agora },
+      gerado: { nicho: n.nicho, sub: n.sub, bairro: lead.bairro, horario: lead.horario, origem: o.origem, atualizadoEm: agora, ...(o.escolha && { escolha: o.escolha }), ...(o.novo && { variantes: true }) },
     },
   }];
   if (!o.novo) return escritas;
@@ -120,15 +126,33 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   // (mesmo que o nome tenha mudado na planilha). Com site da fábrica ou conta
   // real: o negócio já existe, a linha fica de fora.
   const telefones = [...new Set(lida.data.map(({ lead }) => lead.telefone))];
-  const porTelefone = new Map<string, { slug: string; gerado: boolean; cadastro: boolean }>();
+  const porTelefone = new Map<string, { slug: string; gerado: boolean; cadastro: boolean; escolha?: Escolha }>();
   for (let i = 0; i < telefones.length; i += 30) { // o "in" do Firestore aceita até 30
     const achados = await tenants.where("site.phone", "in", telefones.slice(i, i + 30)).select("site.phone", "gerado").get();
     for (const d of achados.docs) {
       const t = String(d.get("site.phone"));
       // entre um gerado e outro qualquer com o mesmo número, o que não é gerado decide: não duplicar
-      if (!porTelefone.has(t) || !d.get("gerado")) porTelefone.set(t, { slug: d.id, gerado: !!d.get("gerado"), cadastro: d.get("gerado.origem") === "cadastro" });
+      if (!porTelefone.has(t) || !d.get("gerado")) {
+        porTelefone.set(t, { slug: d.id, gerado: !!d.get("gerado"), cadastro: d.get("gerado.origem") === "cadastro", escolha: d.get("gerado.escolha") });
+      }
     }
   }
+
+  // Kits e paletas já usados no mesmo estado e nicho. Um site novo sorteia o menos repetido
+  // ali; os sites que não têm escolha gravada contam pelo que o slug sorteia (o que já sai).
+  const usosDaRegiao = new Map<string, Required<Escolha>[]>();
+  const usosDe = async (uf: string, sub: Sub) => {
+    const chave = `${uf}|${sub}`;
+    if (!usosDaRegiao.has(chave)) {
+      const { padrao } = familiaVisual(sub);
+      const achados = await tenants.where("site.uf", "==", uf).select("gerado").get();
+      usosDaRegiao.set(chave, achados.docs
+        .filter((d) => d.get("gerado.sub") === sub)
+        .map((d) => ({ ...padrao(d.id), ...(d.get("gerado.escolha") as Escolha | undefined) } as Required<Escolha>)));
+    }
+    return usosDaRegiao.get(chave)!;
+  };
+  const escolhas = new Map<string, Escolha | undefined>();
 
   // Um endereço está livre se não há tenant nele. Site da fábrica ou negócio real
   // nunca é sobrescrito: passa para o próximo candidato.
@@ -154,6 +178,8 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
       continue;
     }
     if (ja) {
+      // o que já está no ar fica como está: a escolha dele não muda com a planilha
+      escolhas.set(ja.slug, ja.escolha);
       saida.push({ ...base, slug: ja.slug, acao: "atualizar" });
       continue;
     }
@@ -164,6 +190,16 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
     // o mesmo negócio com outro número — ou outra unidade de uma rede
     const parecido = lista.slice(0, 2).map((s) => existentes.get(s))
       .find((d) => d && lead.cidade && semAcento(d.get("site.city")) === semAcento(lead.cidade));
+    // sem UF não há região para comparar: fica o que o slug sorteia, como antes
+    const { dim, padrao } = familiaVisual(nichoDe(lead)!.sub);
+    if (lead.uf) {
+      const regiao = await usosDe(lead.uf, nichoDe(lead)!.sub);
+      const escolha = sortearVisual(slug, regiao, dim);
+      regiao.push(escolha);
+      escolhas.set(slug, escolha);
+    } else {
+      escolhas.set(slug, padrao(slug));
+    }
     saida.push({
       ...base,
       slug,
@@ -178,7 +214,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   const writer = db.bulkWriter();
   for (const { slug, acao, lead } of saida) {
     if (acao === "pular") continue;
-    for (const e of registrosDoSite(db, slug, lead, nichoDe(lead)!, { novo: acao === "criar", ownerId, origem: "prospeccao" })) {
+    for (const e of registrosDoSite(db, slug, lead, nichoDe(lead)!, { novo: acao === "criar", ownerId, origem: "prospeccao", escolha: escolhas.get(slug) })) {
       void writer.set(e.ref, e.dados, { merge: true });
     }
   }
@@ -205,7 +241,7 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
   if (!SLUG.test(slug)) return null;
   const t = db.collection("tenants").doc(slug);
   const [tenant, servicos] = await Promise.all([t.get(), t.collection("services").where("active", "==", true).get()]);
-  const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; origem?: string; publicadoEm?: unknown; atualizadoEm?: { toDate(): Date } } | undefined;
+  const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; origem?: string; publicadoEm?: unknown; atualizadoEm?: { toDate(): Date }; escolha?: Escolha; variantes?: boolean } | undefined;
   if (!tenant.exists || !gerado?.sub) return null;
 
   const quando = gerado.atualizadoEm?.toDate() ?? new Date();
@@ -233,5 +269,7 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
     consultado: `${MESES[quando.getMonth()]} de ${quando.getFullYear()}`,
     origem: gerado.origem === "cadastro" ? "cadastro" : "prospeccao",
     publicado: !!gerado.publicadoEm,
+    ...(gerado.escolha && { escolha: gerado.escolha }),
+    ...(gerado.variantes && { variantes: true }),
   };
 }
