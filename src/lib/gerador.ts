@@ -67,13 +67,15 @@ export const UtmInput = z.object({ source: campoUtm, medium: campoUtm, campaign:
 export type Leitura = {
   leads: { aba: string; linha: number; lead: Lead }[];
   erros: { aba: string; linha: number; motivo: string }[];
+  /** sem WhatsApp, mas com rede social: não vira site (o site precisa de WhatsApp), fica para contato pela rede */
+  semTelefone: { aba: string; linha: number; nome: string; cidade: string; redeSocial: string }[];
   /** colunas da planilha que o gerador não usa: o admin vê e corrige o nome, se era para usar */
   ignoradas: string[];
 };
 
 // O levantamento marca o que não achou em vez de deixar a célula vazia. Isso não pode
 // virar bairro, horário ou endereço no site: vale como vazio.
-const SEM_DADO = /^(n[aã]o\s+(verificad[oa]s?|vis[ií]vel|informad[oa]|encontrad[oa]|dispon[ií]vel)|sem\s+(dados?|informa[cç][aã]o)|(a\s+)?verificar\b.*|n\/?[ad]|-+|—|\?+|null|undefined)$/i;
+const SEM_DADO = /^(n[aã]o\s+(verificad[oa]s?|vis[ií]vel|informad[oa]|encontrad[oa]|dispon[ií]vel|identificad[oa]s?)(\s*\(.*\))?|sem\s+(dados?|informa[cç][aã]o)|(a\s+)?verificar\b.*|n\/?[ad]|-+|—|\?+|null|undefined)$/i;
 const texto = (v: unknown) => {
   const t = v == null ? "" : String(v).replace(/\s+/g, " ").trim();
   return SEM_DADO.test(t) ? "" : t;
@@ -128,6 +130,7 @@ const perfil = (v: unknown) => {
 export function lerPlanilha(abas: { aba: string; linhas: unknown[][] }[]): Leitura {
   const leads: Leitura["leads"] = [];
   const erros: Leitura["erros"] = [];
+  const semTelefone: Leitura["semTelefone"] = [];
   const ignoradas = new Set<string>();
   // o mesmo negócio em duas abas (ou duas levas) é uma linha só
   const vistos = new Map<string, string>();
@@ -172,7 +175,13 @@ export function lerPlanilha(abas: { aba: string; linhas: unknown[][] }[]): Leitu
       };
       const erro = (motivo: string) => void erros.push({ aba, linha, motivo });
       if (!bruto.nome) return erro("Sem nome.");
-      if (!telefone || telefone === RUPHUS) return erro("Telefone ausente ou inválido.");
+      if (!telefone || telefone === RUPHUS) {
+        // sem WhatsApp, mas com perfil: o negócio existe e dá para procurar pela rede social
+        const redeSocial = texto(v("instagram"));
+        if (redeSocial) semTelefone.push({ aba, linha, nome: bruto.nome, cidade: bruto.cidade, redeSocial });
+        else erro("Telefone ausente ou inválido.");
+        return;
+      }
       if (telefoneFalso(telefone)) return erro("Telefone com cara de inventado: confira no Google antes de gerar.");
       if (!nichoDe(bruto)) return erro(`Não reconheci o nicho (“${bruto.categoria || bruto.nome}”): o gerador faz pet e beleza.`);
       if (vistos.has(telefone)) return erro(`Mesmo telefone da ${vistos.get(telefone)}.`);
@@ -188,7 +197,7 @@ export function lerPlanilha(abas: { aba: string; linhas: unknown[][] }[]): Leitu
   const ddds = leads.map(({ lead }) => ufDoTelefone(lead.telefone)).filter(Boolean);
   const daPlanilha = [...new Set(ddds)].sort((a, b) => ddds.filter((u) => u === b).length - ddds.filter((u) => u === a).length)[0] ?? "";
   for (const { lead } of leads) if (!lead.uf) lead.uf = daPlanilha;
-  return { leads, erros, ignoradas: [...ignoradas] };
+  return { leads, erros, semTelefone, ignoradas: [...ignoradas] };
 }
 
 /** Telefone fixo (8 dígitos depois do DDD): o site sai, mas o WhatsApp não atende. */
@@ -349,6 +358,28 @@ export const foneBR = (t: string) => {
 
 export const notaBR = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
+/** Kit de fotos e paleta que o site usa, pelo índice. Sem escolha gravada (sites antigos),
+ *  vale o que o slug sorteia, como sempre foi. */
+export type Escolha = { kit?: number; cor?: number };
+
+/** Escolhe kit e paleta de um site novo olhando os já existentes na mesma cidade: o kit
+ *  menos usado ali, e dentro dele a paleta menos usada. Empate: o slug decide. */
+export function sortearVisual(slug: string, usos: Required<Escolha>[], dim: { kits: number; cores: number }): Required<Escolha> {
+  const porKit = Array.from({ length: dim.kits }, () => 0);
+  const porPar = new Map<string, number>();
+  for (const { kit, cor } of usos) {
+    porKit[kit] = (porKit[kit] ?? 0) + 1;
+    porPar.set(`${kit}:${cor}`, (porPar.get(`${kit}:${cor}`) ?? 0) + 1);
+  }
+  const menorKit = Math.min(...porKit);
+  const kits = porKit.flatMap((n, k) => (n === menorKit ? [k] : []));
+  const kit = kits[variante(slug, kits.length, "kit-livre")];
+  const porCor = Array.from({ length: dim.cores }, (_, c) => porPar.get(`${kit}:${c}`) ?? 0);
+  const menorCor = Math.min(...porCor);
+  const cores = porCor.flatMap((n, c) => (n === menorCor ? [c] : []));
+  return { kit, cor: cores[variante(slug, cores.length, "cor-livre")] };
+}
+
 /** O que o site precisa saber do negócio: o tenant gravado pelo gerador, mais os serviços. */
 export type DadosSite = {
   slug: string;
@@ -356,6 +387,8 @@ export type DadosSite = {
   telefone: string;
   sub: Sub;
   tipo: string;
+  /** kit e paleta escolhidos para a região; ausente = o do slug (sites antigos) */
+  escolha?: Escolha;
   endereco: string;
   bairro: string;
   cidade: string;

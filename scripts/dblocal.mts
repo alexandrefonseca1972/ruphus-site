@@ -69,13 +69,15 @@ if (process.argv[2] === "comparar") {
   if (!planilha) throw new Error("Informe a planilha: npm run dblocal -- comparar lista.xlsx");
   const { default: lerAbas } = await import("read-excel-file/node");
   const abas = (await lerAbas(planilha)).map(({ sheet, data }) => ({ aba: sheet, linhas: data as unknown[][] }));
-  const { leads, erros } = lerPlanilha(abas);
+  const { leads, erros, semTelefone } = lerPlanilha(abas);
   const saida = [
     ...leads.map(({ aba, linha, lead }) => {
       const { situacao, existente } = classificar(db, lead);
       return [aba, linha, lead.nome, lead.telefone, lead.cidade, situacao, existente?.slug, existente?.site_url, existente?.estagio, existente && (existente.no_ar ? "no ar" : "fora do ar")];
     }),
-    // o que o gerador recusaria de qualquer jeito (sem telefone, telefone inventado, repetido na planilha)
+    // sem WhatsApp, mas com rede social: não gera site, fica para contato pela rede
+    ...semTelefone.map((s) => [s.aba, s.linha, s.nome, "", s.cidade, `sem telefone: rede social ${s.redeSocial}`, "", "", "", ""]),
+    // o que o gerador recusaria de qualquer jeito (telefone inventado, repetido na planilha, sem telefone nem rede)
     ...erros.map((e) => [e.aba, e.linha, "", "", "", `fora: ${e.motivo}`]),
   ].sort((a, b) => String(a[0]).localeCompare(String(b[0])) || Number(a[1]) - Number(b[1]));
   const csv = [["aba", "linha", "nome", "telefone", "cidade", "situacao", "slug_existente", "site_existente", "estagio", "no_ar"], ...saida]
@@ -83,7 +85,7 @@ if (process.argv[2] === "comparar") {
   const destino = resolve(PASTA, `comparacao-${basename(planilha).replace(/\.[^.]+$/, "")}.csv`);
   writeFileSync(destino, `﻿${csv}\r\n`); // BOM: o Excel abre com acento certo
   const conta = (p: string) => saida.filter((l) => String(l[5]).startsWith(p)).length;
-  console.log(`${saida.length} linhas — ${conta("novo")} novas, ${conta("duplicado")} duplicadas, ${conta("conferir")} a conferir, ${conta("fora")} fora na leitura\n${destino}`);
+  console.log(`${saida.length} linhas — ${conta("novo")} novas, ${conta("duplicado")} duplicadas, ${conta("conferir")} a conferir, ${conta("sem telefone")} sem telefone com rede social, ${conta("fora")} fora na leitura\n${destino}`);
   process.exit(0);
 }
 

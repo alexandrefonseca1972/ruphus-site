@@ -3,7 +3,7 @@
 // public/s/assets/gerado/beleza.css; cada nicho traz o seu Estilo (os de beleza
 // estão aqui, os demais em src/lib/nichos) e os seus kits de fotos.
 import {
-  AVISO, cabecaComum, type Capa, type DadosSite, esc, faixaProposta, foneBR, jsonLdNegocio, lugar, mapa, notaBR, type Sub, variante, zap,
+  AVISO, cabecaComum, type Capa, type DadosSite, type Escolha, esc, faixaProposta, foneBR, jsonLdNegocio, lugar, mapa, notaBR, type Sub, variante, zap,
 } from "@/lib/gerador";
 import { AUTOMOTIVO } from "@/lib/nichos/automotivo";
 import { FITNESS } from "@/lib/nichos/fitness";
@@ -142,22 +142,30 @@ const ESTILOS: Partial<Record<Sub, Estilo>> = {
 };
 const estiloDe = (sub: Sub) => ESTILOS[sub] ?? ESTILOS.salao!;
 
+/** Quantos kits e paletas o estilo tem, e o que o slug sorteia quando o site não tem escolha. */
+export const combinacoesEditorial = (sub: Sub) => ({ kits: estiloDe(sub).kits.length, cores: estiloDe(sub).paletas.length });
+export const escolhaEditorial = (sub: Sub, slug: string): Required<Escolha> => ({
+  kit: variante(slug, estiloDe(sub).kits.length, "kit"),
+  cor: variante(slug, estiloDe(sub).paletas.length, "cor"),
+});
+
 /** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. */
-export function visualEditorial(slug: string, sub: Sub) {
+export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha) {
   const e = estiloDe(sub);
-  const [ink, acc, deep, tint] = e.paletas[variante(slug, e.paletas.length, "cor")];
-  const kit = e.kits[variante(slug, e.kits.length, "kit")];
+  const padrao = escolhaEditorial(sub, slug);
+  const [ink, acc, deep, tint] = e.paletas[escolha?.cor ?? padrao.cor];
+  const kit = e.kits[escolha?.kit ?? padrao.kit];
   return { e, ink, acc, deep, tint, kit, cor: acc, foto: `${kit}/hero.jpg`, fonte: FONTES[variante(slug, FONTES.length, "fonte")] };
 }
 
 /** A imagem de compartilhamento: a foto do topo do kit e a fonte de título do próprio site. */
 export function capaEditorial(d: DadosSite): Capa {
-  const { e, kit, cor, fonte } = visualEditorial(d.slug, d.sub);
+  const { e, kit, cor, fonte } = visualEditorial(d.slug, d.sub, d.escolha);
   return { foto: `${kit}/hero.jpg`, cor, fonte: fonte[0], linha: [e.rotulo, d.cidade].filter(Boolean).join(" em ") };
 }
 
 export function renderEditorial(d: DadosSite): string {
-  const { e, ink, acc, deep, tint, kit, fonte } = visualEditorial(d.slug, d.sub);
+  const { e, ink, acc, deep, tint, kit, fonte } = visualEditorial(d.slug, d.sub, d.escolha);
   const onde = lugar(d);
   const rotulo = e.rotulo;
   const tag = [rotulo, [d.cidade, d.uf].filter(Boolean).join("/")].filter(Boolean).join(" · ");

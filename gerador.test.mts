@@ -90,7 +90,7 @@ assert.match(lerPlanilha([["a", "b"], [1, 2]]).erros[0].motivo, /cabeçalho/);
 // o levantamento do Piauí: "Nota geral", "Nº de avaliações", "Score de oportunidade",
 // sem coluna UF e com "não verificado" onde não achou o dado
 {
-  const { leads, erros } = lerPlanilha([
+  const { leads, erros, semTelefone } = lerPlanilha([
     ["Nome", "Categoria(s)", "Endereço completo", "Bairro", "Nota geral", "Nº de avaliações", "Horário de funcionamento (S/N)", "Rede social principal", "Telefone / WhatsApp", "Score de oportunidade", "Cidade"],
     ["Alan Barbearia", "Barbearia", "Ao lado da antiga Panificadora", "não verificado", "5.0", "107.0", "Sim", "não verificado", "(89) 99999-1234", "Alta", "Floriano"],
     ["Yalodê Studio", "Salão de Beleza", "R. São João, 811", "Não visível", "4.8", "26.0", "não verificado", "@yalode", "não verificado", "Média", "Piripiri"],
@@ -124,7 +124,9 @@ assert.match(lerPlanilha([["a", "b"], [1, 2]]).erros[0].motivo, /cabeçalho/);
   assert.equal(l.instagram, "");
   assert.equal(l.horario, "", "Horário (S/N) responde sim/não, não é horário");
   assert.equal(l.uf, "PI", "UF pelo DDD quando a planilha não tem a coluna");
-  assert.deepEqual(erros.map((e) => e.motivo), ["Telefone ausente ou inválido.", "Telefone ausente ou inválido."], "\"não verificado\" e (86) 3XXX-XXXX são sem telefone");
+  // Yalodê tem @yalode na rede social: sem telefone, mas fica na lista de contato pela rede
+  assert.deepEqual(erros.map((e) => e.motivo), ["Telefone ausente ou inválido."], "(86) 3XXX-XXXX sem rede social é sem telefone");
+  assert.deepEqual(semTelefone.map((s) => s.nome), ["Yalodê Studio"]);
 }
 // telefone inventado não vira site; número real com dígito repetido passa
 {
@@ -307,5 +309,48 @@ console.log("gerador: ok");
   assert.deepEqual([a.instagram, a.nota, a.avaliacoes], ["mariabonita", 4.8, 120]);
   assert.deepEqual([b.cidade, b.uf, b.bairro, b.telefone], ["Ananindeua", "PA", "Umarizal", "5591986156886"]);
   assert.equal(c.telefone, "559132418661", "sem celular, vale o fixo");
+  // sem WhatsApp, mas com perfil: não vira site, fica como "sem telefone" (não é erro)
+  const semZap = lerPlanilha([
+    ["Nome", "Telefone", "Categoria", "Instagram", "Cidade"],
+    ["Studio Sem Zap", "", "Salão de Beleza", "@studiosemzap", "Belém/PA"],
+    ["Sem Nada", "", "Salão de Beleza", "", "Belém/PA"],
+  ]);
+  assert.deepEqual([semZap.leads.length, semZap.semTelefone.map((s) => [s.nome, s.redeSocial]), semZap.erros.length], [0, [["Studio Sem Zap", "@studiosemzap"]], 1]);
+  assert.equal(semZap.erros[0].motivo, "Telefone ausente ou inválido.");
   console.log("levantamento de Belém: ok");
+}
+
+// escolha de kit e paleta por região: o menos repetido na cidade, e sites antigos saem como antes
+{
+  const { sortearVisual } = await import("@/lib/gerador");
+  const { visualEditorial, escolhaEditorial } = await import("@/lib/site-editorial");
+  const dim = { kits: 4, cores: 6 };
+  const pick = sortearVisual("novo-site", [{ kit: 0, cor: 0 }, { kit: 0, cor: 1 }, { kit: 1, cor: 0 }], dim);
+  assert.notEqual(pick.kit, 0, "kit mais usado na cidade fica de fora");
+  assert.ok(pick.cor >= 0 && pick.cor < 6);
+  // doze sites seguidos na mesma cidade: cada kit entra três vezes
+  const usos: { kit: number; cor: number }[] = [];
+  for (let i = 0; i < 12; i++) usos.push(sortearVisual(`estetica-${i}`, usos, dim));
+  const porKit = [0, 1, 2, 3].map((k) => usos.filter((u) => u.kit === k).length);
+  assert.deepEqual(porKit, [3, 3, 3, 3], `kits espalhados: ${porKit}`);
+  // sem escolha, o site sai como sempre saiu
+  const padrao = escolhaEditorial("barbearia", "salao-antigo");
+  assert.deepEqual(visualEditorial("salao-antigo", "barbearia").foto, visualEditorial("salao-antigo", "barbearia", padrao).foto);
+  assert.notEqual(visualEditorial("salao-antigo", "barbearia", { kit: (padrao.kit + 1) % 4 }).foto, visualEditorial("salao-antigo", "barbearia").foto);
+  console.log("escolha por região: ok");
+}
+
+// levantamento de Manaus: "Não identificado" é dado faltando, em qualquer coluna
+{
+  const { leads, erros, semTelefone } = lerPlanilha([
+    ["Nome do negócio", "Nicho / Segmento", "Cidade/UF", "Telefone / WhatsApp", "E-mail", "Instagram / Redes sociais"],
+    ["Com Fone", "Salão de beleza", "Manaus/AM", "(92) 98194-3667", "Não identificado", "Não identificado"],
+    ["Com Fone Dois", "Salão de beleza", "Manaus/AM", "(92) 99490-8306 / (92) 99312-1156", "Não identificado (site)", "Não identificado (Instagram)"],
+    ["Sem Fone Sem Rede", "Salão de beleza", "Manaus/AM", "Não identificado", "Não identificado", "Não identificado"],
+    ["Sem Fone Com Rede", "Salão de beleza", "Manaus/AM", "Não identificado", "Não identificado", "@semfonecomrede"],
+  ]);
+  assert.deepEqual(leads.map((x) => [x.lead.nome, x.lead.email, x.lead.instagram]), [["Com Fone", "", ""], ["Com Fone Dois", "", ""]], "e-mail e rede 'não identificado' viram vazio");
+  assert.deepEqual(semTelefone.map((s) => [s.nome, s.redeSocial]), [["Sem Fone Com Rede", "@semfonecomrede"]], "só rede de verdade conta como sem telefone");
+  assert.deepEqual(erros.map((e) => [e.linha, e.motivo]), [[4, "Telefone ausente ou inválido."]]);
+  console.log("não identificado: ok");
 }

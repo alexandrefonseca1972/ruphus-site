@@ -4,8 +4,8 @@
     --radius: 20px;
     --radius-sm: 12px;
     --shadow: 0 14px 40px -18px rgba(0,0,0,.35);
-    --font-display: 'Fraunces', 'Georgia', serif;
-    --font-body: 'Inter', -apple-system, sans-serif;
+    --font-display: 'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif;
+    --font-body: 'Figtree', -apple-system, 'Helvetica Neue', Arial, sans-serif;
     color-scheme: light dark;
   }
 
