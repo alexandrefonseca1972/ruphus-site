@@ -23,7 +23,7 @@ const Zap = () => (
   </svg>
 );
 
-type Negocio = { slug: string; nome: string; telefone: string | null };
+type Negocio = { slug: string; nome: string; telefone: string | null; nota?: number | null; avaliacoes?: number | null };
 
 /** Quem decide. O telefone do site é o da recepção: proposta e cobrança vão para o dono. */
 export function ContatoDono({ negocio, crm, salvar }: { negocio: Negocio; crm: Crm; salvar: (dados: Partial<Crm>) => void }) {
@@ -259,6 +259,9 @@ export function Destaque({ crm, hoje, salvar }: { crm: Crm; hoje: string; salvar
 const MODELOS = ["Primeiro contato", "Lembrete", "Última tentativa", "Proposta", "Boas-vindas"] as const;
 type Modelo = (typeof MODELOS)[number];
 
+/** Mesmo valor de DIAS_PROPOSTA (proposta.server.ts, só servidor): a mensagem fala do prazo. */
+const PRAZO_PROPOSTA_DIAS = 7;
+
 /** Quem assina as mensagens: definido uma vez pelo admin da plataforma (config/crm). */
 export const MARCA_NOME = "[SEU NOME]";
 
@@ -271,26 +274,32 @@ const QUANDO: Record<Modelo, string> = {
   "Boas-vindas": "ao fechar",
 };
 
-export function mensagem(modelo: Modelo, negocio: Negocio, crm: Crm, vendedor?: string) {
+export function mensagem(modelo: Modelo, negocio: Negocio, crm: Crm, vendedor?: string, linkProposta?: string | null) {
   const quem = vendedor?.trim() || MARCA_NOME;
   const oi = `Oi${crm.donoNome ? `, ${crm.donoNome.split(" ")[0]}` : ""}! Aqui é o ${quem}, da Ruphus.`;
   const site = `${negocio.slug}.ruphus.site`;
   const entrada = formatBRL(crm.entradaCents ?? PRECO_PADRAO.entradaCents);
   const mensal = formatBRL(crm.mensalCents ?? PRECO_PADRAO.mensalCents);
-  const comoChegou = crm.origem === "indicacao" && crm.indicadoPor ? `${crm.indicadoPor} me passou seu contato.` : "Achei o seu perfil procurando negócios da região.";
   switch (modelo) {
     // Curta, sem link e sem preço, com saída no fim: é o que responde e é o que a
     // Meta exige de quem manda mensagem não pedida. O link vai depois do sim.
-    case "Primeiro contato":
-      return `${oi} ${comoChegou}\n\nMontei a agenda online do ${negocio.nome} e queria te mostrar: o cliente escolhe um horário livre e marca sozinho, sem tirar você do atendimento.\n\nPosso te mandar a prévia? Se não fizer sentido, me avisa que eu tiro.`;
+    // Só para quem nunca recebeu contato (ver MensagensProntas). Cita um dado real do
+    // Google quando há, e termina com saída explícita: PARE é o que a política do WhatsApp exige.
+    case "Primeiro contato": {
+      const prova = negocio.nota && negocio.avaliacoes
+        ? `Vi o ${negocio.nome} no Google, com ${negocio.nota.toFixed(1).replace(".", ",")} ★ e ${negocio.avaliacoes} avaliações.`
+        : `Vi o perfil do ${negocio.nome}.`;
+      const origem = crm.origem === "indicacao" && crm.indicadoPor ? `${crm.indicadoPor} me passou seu contato.` : prova;
+      return `${oi} ${origem} Estou montando agendas online para negócios da região, onde o cliente marca sozinho. Posso mandar um exemplo do ${negocio.nome}? Se não fizer sentido, responda PARE e não escrevo mais.`;
+    }
     case "Lembrete":
-      return `${oi}\n\nUma coisa que costuma pesar: cliente que manda mensagem de noite e fica sem resposta até o dia seguinte. Com a agenda no ar ele marca na hora, sozinho.\n\nQuer ver como ficaria com os seus serviços?`;
+      return `${oi} A prévia do ${negocio.nome} está pronta: ${site}. Ela mostra serviços, preço e horários. Quer que eu ajuste algo?`;
     case "Última tentativa":
-      return `${oi}\n\nImagino que a correria esteja grande, então não vou insistir.\n\nDeixo a agenda do ${negocio.nome} guardada aqui por enquanto. Se quiser ver depois, é só me chamar que eu abro para você.`;
+      return `${oi} Não vou insistir. A prévia fica no ar em ${site}. Se quiser ver depois, é só responder.`;
     case "Proposta":
-      return `${oi}\n\nComo combinamos, a agenda do ${negocio.nome} está no ar: ${site}\n\nCada profissional com o horário dele, os serviços com preço e duração, a ficha de cada cliente e o link para a bio do Instagram.\n\n${entrada} para publicar e ${mensal} por mês, com implantação e manutenção. Sem instalar nada e sem taxa por agendamento.\n\nLibero seu acesso hoje para você testar com um cliente de verdade?`;
+      return `${oi} Combinado: o ${negocio.nome} em ${site}.\n\nInclui serviços com preço e duração, horário de cada profissional e link na bio do Instagram.\n\nValores: ${entrada} para publicar e ${mensal} por mês, sem taxa por agendamento.${linkProposta ? `\n\nProposta completa, válida por ${PRAZO_PROPOSTA_DIAS} dias: ${linkProposta}` : ""}\n\nPosso liberar seu acesso para testar com um cliente hoje?`;
     case "Boas-vindas":
-      return `${oi}\n\nQue bom ter você com a gente! A agenda do ${negocio.nome} já está recebendo marcação em ${site}.\n\nEm 10 minutos deixamos tudo pronto:\n1) seus serviços, com preço e duração\n2) quem atende e o horário de cada um\n3) o link na bio do Instagram e no WhatsApp\n\nMe chama aqui que eu faço junto com você.`;
+      return `${oi} Que bom. A agenda do ${negocio.nome} está em ${site}.\n\nVamos finalizar juntos: serviços, horários da equipe e link na bio. Qual horário funciona para você hoje ou amanhã?`;
   }
 }
 
@@ -347,6 +356,7 @@ export function MensagensProntas({
   onEnviar,
   onCopiar,
   onPronto,
+  linkProposta,
 }: {
   negocio: Negocio;
   crm: Crm;
@@ -355,10 +365,15 @@ export function MensagensProntas({
   onCopiar: (texto: string) => void;
   /** Avisa a gaveta do que está pronto para enviar: é o que alimenta a barra fixa */
   onPronto?: (m: { modelo: Modelo; texto: string; link: string | null; para: string }) => void;
+  /** Link da proposta já gerado para este negócio; sem ele, o modelo Proposta não leva link */
+  linkProposta?: string | null;
 }) {
-  const [modelo, setModelo] = useState<Modelo>(crm.estagio === "fechado" ? "Boas-vindas" : crm.estagio === "novo" ? "Primeiro contato" : "Proposta");
+  // "Primeiro contato" é mensagem fria: só para quem nunca recebeu contato
+  const jaContatado = !!crm.ultimoContatoEm;
+  const modelos = MODELOS.filter((m) => m !== "Primeiro contato" || !jaContatado);
+  const [modelo, setModelo] = useState<Modelo>(crm.estagio === "fechado" ? "Boas-vindas" : crm.estagio === "novo" ? (jaContatado ? "Lembrete" : "Primeiro contato") : "Proposta");
   const [texto, setTexto] = useState<{ para: Modelo; valor: string } | null>(null);
-  const atual = texto?.para === modelo ? texto.valor : mensagem(modelo, negocio, crm, assinatura);
+  const atual = texto?.para === modelo ? texto.valor : mensagem(modelo, negocio, crm, assinatura, linkProposta);
   const numero = crm.donoWhatsapp ?? negocio.telefone;
   // Mandar "[SEU NOME]" para o cliente é pior do que não mandar nada
   const faltaNome = atual.includes(MARCA_NOME);
@@ -378,7 +393,7 @@ export function MensagensProntas({
         </span>
       </div>
       <div role="group" aria-label="Modelo" className="flex flex-wrap gap-2">
-        {MODELOS.map((m) => (
+        {modelos.map((m) => (
           <button
             key={m}
             type="button"
@@ -391,6 +406,9 @@ export function MensagensProntas({
         ))}
       </div>
       <p className="text-xs text-[#6F6A5E]">Quando mandar: {QUANDO[modelo]}.</p>
+      {modelo === "Proposta" && !linkProposta && (
+        <p className="text-xs text-[#8A2F2F]">Sem link da proposta: gere-o acima para incluí-lo na mensagem.</p>
+      )}
       {faltaNome && (
         <p className="rounded-[10px] bg-[#F7EFEF] px-3 py-2.5 text-xs text-[#8A2F2F]">
           Ninguém assina as mensagens ainda: defina o nome em &quot;Quem assina&quot;, no topo do painel.
