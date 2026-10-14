@@ -11,13 +11,11 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { classificar, norm } from "@/lib/dblocal";
 import { lerPlanilha } from "@/lib/gerador";
 
 const PASTA = resolve(import.meta.dirname, "../dblocal");
 const ARQUIVO = resolve(PASTA, "ruphus.sqlite");
-
-/** Sem acento, minúsculo, só letra e número: "Salão D'Paula" e "SALAO DPAULA" são o mesmo nome. */
-const norm = (s: unknown) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
 const COLUNAS = [
   "slug", "nome", "nome_norm", "telefone", "categoria", "nicho", "sub", "endereco", "bairro", "cidade", "cidade_norm", "uf",
@@ -35,18 +33,6 @@ function criarTabela(db: DatabaseSync) {
 const inserir = (db: DatabaseSync, l: Linha) =>
   db.prepare(`INSERT INTO negocios (${COLUNAS.join(", ")}) VALUES (${COLUNAS.map(() => "?").join(", ")})`).run(...COLUNAS.map((c) => l[c]));
 
-type Existente = { slug: string; site_url: string; estagio: string; no_ar: number };
-/** Telefone é quem identifica o negócio (como no gerador); nome e cidade iguais com outro
- *  número pode ser o mesmo negócio ou outra unidade: fica para alguém olhar. */
-export function classificar(db: DatabaseSync, lead: { nome: string; telefone: string; cidade: string }) {
-  const campos = "slug, site_url, estagio, no_ar";
-  const porTelefone = db.prepare(`SELECT ${campos} FROM negocios WHERE telefone = ?`).get(lead.telefone) as Existente | undefined;
-  if (porTelefone) return { situacao: "duplicado: mesmo telefone", existente: porTelefone };
-  // planilha sem coluna de cidade: vale o nome sozinho, senão nada bateria
-  const porNome = db.prepare(`SELECT ${campos} FROM negocios WHERE nome_norm = ? AND (? = '' OR cidade_norm = ?)`).get(norm(lead.nome), norm(lead.cidade), norm(lead.cidade)) as Existente | undefined;
-  if (porNome) return { situacao: `conferir: mesmo nome${lead.cidade ? " e cidade" : ""}, outro telefone`, existente: porNome };
-  return { situacao: "novo", existente: null };
-}
 
 if (process.argv.includes("--self-check")) {
   const db = new DatabaseSync(":memory:");
