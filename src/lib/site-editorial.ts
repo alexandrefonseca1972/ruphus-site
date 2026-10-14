@@ -48,6 +48,14 @@ const TINTAS: [string, string, string, string][] = [
   ["#131110", "#B5732F", "#8F5624", "#f6eee6"],
   ["#101210", "#5F9EA0", "#447A7C", "#ebf3f3"],
 ];
+// podologia é cuidado com saúde: azul clínico, verde-água, petróleo e verde-folha
+const CLINICAS: [string, string, string, string][] = [
+  ["#101417", "#2E7D9A", "#235F75", "#e9f1f5"],
+  ["#0F1413", "#2F8F80", "#236C61", "#e8f3f0"],
+  ["#101314", "#3C7A8C", "#2B5A68", "#eaf1f4"],
+  ["#111413", "#4C8C5A", "#386845", "#ecf3ed"],
+];
+
 // os quatro pares de fonte que a família usa, todos com Archivo no texto
 const FONTES: [string, string][] = [
   ["Fraunces", "Fraunces:opsz,wght@9..144,400;9..144,600"],
@@ -77,6 +85,11 @@ const TEXTOS = {
     "Manicure, pedicure e nail art com capricho e biossegurança.",
     "Suas unhas do jeito que você imaginou, com hora marcada.",
   ],
+  podologia: [
+    "Cuidado com a saúde dos seus pés, com técnica, higiene e hora marcada.",
+    "Unha encravada, calosidade e micose tratadas com instrumental esterilizado.",
+    "Pés tratados com atenção: avaliação, procedimento e orientação para o dia a dia.",
+  ],
   tatuagem: [
     "Arte na pele com traço autoral, biossegurança e atendimento próximo.",
     "Da ideia ao desenho final, um projeto feito com você e para você.",
@@ -89,8 +102,23 @@ const PADRAO = {
   salao: ["Corte", "Escova", "Coloração", "Hidratação"],
   estetica: ["Limpeza de pele", "Design de sobrancelha", "Extensão de cílios"],
   unhas: ["Manicure", "Pedicure", "Alongamento em gel"],
+  podologia: ["Avaliação podológica", "Podologia completa", "Unha encravada", "Calosidade"],
   tatuagem: ["Tatuagem autoral", "Fine line", "Blackwork", "Cobertura e reforma", "Orçamento"],
 };
+
+// serviços de podologia: conferidos antes das regras comuns, que mandariam
+// "pedicure" e "unha" para o texto de manicure
+const PODOLOGIA: [RegExp, string | string[], string][] = [
+  [/encravad|onicocript/i, ["Correção da unha que machuca, com alívio já no atendimento."], "Alívio"],
+  [/calo|calosidade|rachadura|fissura|ressecad/i, ["Remoção de calos e cuidado das rachaduras, com orientação para não voltarem."], "Pé liso"],
+  [/micose|fungo|onicomicos/i, ["Avaliação da unha com fungo e tratamento acompanhado até o fim."], "Tratamento"],
+  [/diabet/i, ["Atendimento com cuidado redobrado para o pé diabético, sem cortes de risco."], "Pé diabético"],
+  [/verruga|olho de peixe/i, ["Tratamento da verruga plantar com acompanhamento."], "Plantar"],
+  [/esporao|fascit|dor/i, ["Avaliação da dor ao pisar e encaminhamento quando for preciso."], "Avaliação"],
+  [/reflexolog|massagem|relaxa|spa/i, ["Pés relaxados com massagem ao fim do atendimento."], "Bem-estar"],
+  [/avalia|primeira/i, ["Conversa e exame dos pés para definir o tratamento."], "Primeira visita"],
+  [/podolog|pedicure|completa|p[eé]s/i, ["Limpeza, corte, lixamento e hidratação com instrumental esterilizado."], "Esterilizado"],
+];
 
 // descrição e selo por serviço; a primeira regra que casar vence
 const DESCRICOES: [RegExp, string | string[], string][] = [
@@ -137,6 +165,7 @@ const ESTILOS: Partial<Record<Sub, Estilo>> = {
   estetica: beleza("estetica", "Estética", DELICADAS),
   unhas: beleza("unhas", "Nail designer", DELICADAS),
   tatuagem: beleza("tatuagem", "Estúdio de tatuagem", TINTAS),
+  podologia: { ...beleza("podologia", "Podologia", CLINICAS), descricoes: PODOLOGIA },
   ...FITNESS,
   ...AUTOMOTIVO,
 };

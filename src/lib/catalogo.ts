@@ -89,7 +89,7 @@ export const PADRAO: [RegExp, string[]][] = [
   [/barbearia|barber|barbeiro/i, ["Corte", "Barba", "Corte + barba"]],
   [/tattoo|tatuagem|piercing/i, ["Tatuagem autoral", "Fine line", "Blackwork", "Cobertura de tatuagem", "Orçamento"]],
   [/nail|esmalteria|manicure|unhas/i, ["Manicure", "Pedicure", "Alongamento em gel"]],
-  [/podolog/i, ["Podologia"]],
+  [/^podologia|podolog/i, ["Avaliação podológica", "Podologia completa", "Unha encravada", "Calosidade"]],
   [/depila|laser/i, ["Depilação a laser", "Avaliação"]],
   [/massag|massot|\bspa|terapi/i, ["Massagem relaxante", "Drenagem linfática"]],
   [/sobrancelha|cíli|cili|lash|micropigment/i, ["Design de sobrancelha", "Extensão de cílios"]],

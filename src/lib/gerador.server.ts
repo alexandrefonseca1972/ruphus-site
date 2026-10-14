@@ -38,7 +38,7 @@ const semAcento = (s: unknown) => String(s ?? "").normalize("NFD").replace(/[\u0
 
 // o ramo por extenso, para o catálogo sair certo quando a planilha não lista serviços
 const RAMO: Record<Sub, string> = {
-  petshop: "pet shop", vet: "veterinária", barbearia: "barbearia", salao: "salão cabelo", estetica: "estética", unhas: "unhas", tatuagem: "tatuagem",
+  petshop: "pet shop", vet: "veterinária", barbearia: "barbearia", salao: "salão cabelo", estetica: "estética", unhas: "unhas", tatuagem: "tatuagem", podologia: "podologia",
   odonto: "odontologia", fisio: "fisioterapia", psico: "psicologia", nutri: "nutrição", clinica: "clínica médica",
   idiomas: "idiomas", reforco: "reforço escolar", musica: "música", autoescola: "autoescola",
   academia: "academia", pilates: "pilates", lutas: "lutas", danca: "dança",

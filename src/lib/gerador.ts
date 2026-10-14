@@ -207,7 +207,7 @@ export const fixo = (telefone: string) => telefone.length === 12;
 
 export type Sub =
   | "petshop" | "vet"
-  | "barbearia" | "salao" | "estetica" | "unhas" | "tatuagem"
+  | "barbearia" | "salao" | "estetica" | "unhas" | "tatuagem" | "podologia"
   | "odonto" | "fisio" | "psico" | "nutri" | "clinica"
   | "idiomas" | "reforco" | "musica" | "autoescola"
   | "academia" | "pilates" | "lutas" | "danca"
@@ -225,6 +225,7 @@ export const SUBS: Record<Sub, { nicho: Nicho["nicho"]; tipo: string; rotulo: st
   estetica: { nicho: "beleza", tipo: "BeautySalon", rotulo: "Estética" },
   unhas: { nicho: "beleza", tipo: "NailSalon", rotulo: "Manicure e unhas" },
   tatuagem: { nicho: "beleza", tipo: "TattooParlor", rotulo: "Estúdio de tatuagem" },
+  podologia: { nicho: "beleza", tipo: "HealthAndBeautyBusiness", rotulo: "Podologia" },
   odonto: { nicho: "saude", tipo: "Dentist", rotulo: "Odontologia" },
   fisio: { nicho: "saude", tipo: "Physiotherapy", rotulo: "Fisioterapia" },
   psico: { nicho: "saude", tipo: "MedicalBusiness", rotulo: "Psicologia" },
@@ -268,6 +269,8 @@ const RAMOS: [RegExp, Sub][] = [
   [/oficina|mecanic|auto ?center|centro automotivo|funilaria|injecao eletronica|automotiv|retifica/, "oficina"],
   [/veterin|clinica animal|hospital animal|\bvet\b/, "vet"],
   [/\bpet|agropet|banho e tosa|\btosa|\bracao|aquario/, "petshop"],
+  // podologia antes de unhas e de estética: "podologia e manicure" e "spa dos pés" são do podólogo
+  [/podolog|podiatr|quiropod|onicomicos|unha encravada|spa dos pes|(tratamento|saude|cuidado)s? dos pes/, "podologia"],
   [/barb/, "barbearia"],
   [/unha|nail|manicure|esmalteria/, "unhas"],
   [/odonto|dentist|dental|ortodont/, "odonto"],
@@ -278,7 +281,7 @@ const RAMOS: [RegExp, Sub][] = [
   [/danca|ballet|\bbale|zumba|forro|dance/, "danca"],
   [/pilates|yoga|ioga/, "pilates"],
   [/academia|crossfit|cross ?training|musculacao|treino funcional|personal|fitness|\bgym\b/, "academia"],
-  [/estetic|sobrancel|cilio|lash|micropigment|depila|\bspa|pele|massag|massoterap|podolog|bronze|dermat|biomedic|maquiag|make/, "estetica"],
+  [/estetic|sobrancel|cilio|lash|micropigment|depila|\bspa|pele|massag|massoterap|bronze|dermat|biomedic|maquiag|make/, "estetica"],
   [/idioma|ingles|espanhol|frances|english|language/, "idiomas"],
   [/musica|violao|piano|canto|guitarra|bateria|teclado/, "musica"],
   [/reforco|aulas? particular|explicador|pre-?vestibular|preparatorio|cursinho|apoio escolar/, "reforco"],

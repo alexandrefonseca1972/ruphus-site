@@ -79,7 +79,7 @@ import { ehClaro, renderClaro, renderClaro as renderPet } from "@/lib/site-claro
   assert.match(erros[0].motivo, /Mesmo telefone da linha 2 \(Leads Qualificados\)/, "repetido entre abas aponta a aba");
 }
 // os ramos do levantamento de beleza que antes caíam fora
-for (const [categoria, sub] of [["Massoterapia", "estetica"], ["Podologia", "estetica"], ["Salão de bronzeamento", "estetica"], ["Biomedicina estética", "estetica"],
+for (const [categoria, sub] of [["Massoterapia", "estetica"], ["Podologia", "podologia"], ["Salão de bronzeamento", "estetica"], ["Biomedicina estética", "estetica"],
   ["Studio de Maquiagem / Beleza", "estetica"], ["Clínica de dermatologia", "estetica"], ["Tranças / Penteados Afro", "salao"], ["Esmalteria (shopping)", "unhas"]] as const) {
   assert.equal(nichoDe({ categoria, nome: "" })?.sub, sub, categoria);
 }
