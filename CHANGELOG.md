@@ -3,6 +3,18 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.11.0 — 17/10/2026
+
+### Sites gerados
+- **Podologia tem nicho próprio**: fotos de atendimento nos pés, paletas clínicas e serviços do ramo (unha encravada, calosidade, pé diabético) no lugar de limpeza de pele e sobrancelha. Os 138 sites já no ar foram levados para o nicho novo.
+- **Kit de fotos de depilação** para estética: entra só quando escolhido para o site, fora do sorteio por região, e não muda as fotos dos outros sites de estética.
+
+### CRM
+- **Mensagens revisadas** (#121): textos curtos, nota do Google quando existe e saída "PARE" no primeiro contato. "Primeiro contato" some para quem já foi contatado, e a "Proposta" leva o link com prazo de 7 dias.
+
+### Gerador
+- **Planilhas de prospecção no banco local**: cada linha das listagens fica na tabela `planilhas` do dblocal, com a situação que a conferência daria, em vez de arquivos .xlsx soltos em docs/.
+
 ## 0.10.0 — 11/10/2026
 
 ### Sites gerados
