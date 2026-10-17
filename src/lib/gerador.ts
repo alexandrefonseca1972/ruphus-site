@@ -371,6 +371,8 @@ export function sortearVisual(slug: string, usos: Required<Escolha>[], dim: { ki
   const porKit = Array.from({ length: dim.kits }, () => 0);
   const porPar = new Map<string, number>();
   for (const { kit, cor } of usos) {
+    // kit extra (escolhido à mão, fora do sorteio) não conta nem pode ser sorteado
+    if (kit >= dim.kits) continue;
     porKit[kit] = (porKit[kit] ?? 0) + 1;
     porPar.set(`${kit}:${cor}`, (porPar.get(`${kit}:${cor}`) ?? 0) + 1);
   }

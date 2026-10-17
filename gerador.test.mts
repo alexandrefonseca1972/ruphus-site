@@ -333,6 +333,10 @@ console.log("gerador: ok");
   for (let i = 0; i < 12; i++) usos.push(sortearVisual(`estetica-${i}`, usos, dim));
   const porKit = [0, 1, 2, 3].map((k) => usos.filter((u) => u.kit === k).length);
   assert.deepEqual(porKit, [3, 3, 3, 3], `kits espalhados: ${porKit}`);
+  // kit extra na cidade (depilação) não entra no sorteio dos outros sites
+  assert.ok(sortearVisual("vizinho", [0, 1, 2, 3].map((kit) => ({ kit, cor: 0 })).concat({ kit: 4, cor: 0 }), dim).kit < 4);
+  assert.equal(visualEditorial("segredo-do-pello", "estetica", { kit: 4 }).foto, "/assets/beleza/depilacao-1/hero.jpg");
+  assert.equal(visualEditorial("x", "salao", { kit: 4 }).kit, visualEditorial("x", "salao").kit, "índice fora do estilo cai no do slug");
   // sem escolha, o site sai como sempre saiu
   const padrao = escolhaEditorial("barbearia", "salao-antigo");
   assert.deepEqual(visualEditorial("salao-antigo", "barbearia").foto, visualEditorial("salao-antigo", "barbearia", padrao).foto);

@@ -19,6 +19,8 @@ export type Estilo = {
   paletas: [string, string, string, string][];
   /** pastas com hero.jpg e ga1..3.jpg, a partir de /assets */
   kits: string[];
+  /** kits que só entram por escolha gravada (índice depois dos `kits`), fora do sorteio */
+  extras?: string[];
   /** descrição e selo por serviço, conferidos antes das regras comuns */
   descricoes?: [RegExp, string | string[], string][];
   /** exemplo do campo de observações do formulário */
@@ -162,7 +164,8 @@ const beleza = (tipo: keyof typeof TEXTOS, rotulo: string, paletas: Estilo["pale
 const ESTILOS: Partial<Record<Sub, Estilo>> = {
   barbearia: beleza("barbearia", "Barbearia", QUENTES),
   salao: beleza("salao", "Salão de beleza", DELICADAS),
-  estetica: beleza("estetica", "Estética", DELICADAS),
+  // depilacao-1: fotos de depilação (Pexels) para quem só faz isso; escolha.kit = 4
+  estetica: { ...beleza("estetica", "Estética", DELICADAS), extras: ["/assets/beleza/depilacao-1"] },
   unhas: beleza("unhas", "Nail designer", DELICADAS),
   tatuagem: beleza("tatuagem", "Estúdio de tatuagem", TINTAS),
   podologia: { ...beleza("podologia", "Podologia", CLINICAS), descricoes: PODOLOGIA },
@@ -209,7 +212,7 @@ export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha) {
   const e = estiloDe(sub);
   const padrao = escolhaEditorial(sub, slug);
   const [ink, acc, deep, tint] = e.paletas[escolha?.cor ?? padrao.cor];
-  const kit = e.kits[escolha?.kit ?? padrao.kit];
+  const kit = [...e.kits, ...(e.extras ?? [])][escolha?.kit ?? padrao.kit] ?? e.kits[padrao.kit];
   return { e, ink, acc, deep, tint, kit, cor: acc, foto: `${kit}/hero.jpg`, fonte: FONTES[variante(slug, FONTES.length, "fonte")] };
 }
 

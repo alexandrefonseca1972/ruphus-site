@@ -1,5 +1,5 @@
 {
-  "_nota": "Fotos dos kits de podologia, do banco Pexels (uso livre). Os demais kits de beleza são ilustrações próprias.",
+  "_nota": "Fotos dos kits de podologia e depilação, do banco Pexels (uso livre). Os demais kits de beleza são ilustrações próprias.",
   "podologia-1/hero": { "alt": "Podóloga de jaleco atendendo o pé de uma cliente em cadeira própria", "pexels": "5619449" },
   "podologia-1/ga1": { "alt": "Profissional de luvas lixando o pé da cliente sobre toalha", "pexels": "31091766" },
   "podologia-1/ga2": { "alt": "Profissional secando o pé da cliente com toalha branca", "pexels": "4085445" },
@@ -15,5 +15,9 @@
   "podologia-4/hero": { "alt": "Profissional cuidando do pé da cliente com toalha", "pexels": "4085453" },
   "podologia-4/ga1": { "alt": "Massagem de relaxamento nos pés ao fim do atendimento", "pexels": "19695971" },
   "podologia-4/ga2": { "alt": "Reflexologia nos pés em maca de atendimento", "pexels": "5793888" },
-  "podologia-4/ga3": { "alt": "Poltrona e lavapés prontos para o atendimento", "pexels": "6135674" }
+  "podologia-4/ga3": { "alt": "Poltrona e lavapés prontos para o atendimento", "pexels": "6135674" },
+  "depilacao-1/hero": { "alt": "Profissional de luvas aplicando cera na perna da cliente", "pexels": "14438364" },
+  "depilacao-1/ga1": { "alt": "Depiladora de luvas rosa espalhando cera com espátula", "pexels": "35103884" },
+  "depilacao-1/ga2": { "alt": "Cera aplicada com espátula de madeira", "pexels": "18127468" },
+  "depilacao-1/ga3": { "alt": "Refis de cera roll-on sobre a bancada", "pexels": "10977289" }
 }
