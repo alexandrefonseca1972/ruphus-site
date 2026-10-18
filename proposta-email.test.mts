@@ -28,12 +28,19 @@ assert.match(e.texto, /R\$\s89,90/, "mensalidade em reais");
 assert.ok(e.texto.includes("vale até 25/10"), "validade em DD/MM");
 
 // assinatura do admin, depois da marca
-assert.ok(e.texto.endsWith("Carlos\nRuphus"), "assina com o nome definido e a marca");
+assert.ok(e.texto.includes("\n\nCarlos\nRuphus\n\n"), "assina com o nome definido e a marca");
+assert.ok(e.texto.endsWith("CNPJ 59.500.429/0001-90 · Manaus/AM"), "termina com os dados da empresa");
+
+// conteúdo comercial: dores, funcionalidades, vantagens e como começa
+assert.ok(e.texto.includes("tem horário amanhã"), "fala das dores do cliente");
+assert.ok(e.texto.includes("Agenda aberta 24 horas"), "lista as funcionalidades");
+assert.ok(e.texto.includes("Sem taxa por agendamento"), "traz a vantagem de preço");
+assert.ok(e.texto.includes("Como começa:"), "explica como começa");
 
 // sem dono cadastrado e sem assinatura: sem saudação quebrada nem linha vazia no fim
 const sem = emailDaProposta({ ...base, donoNome: null, assinatura: null });
 assert.ok(sem.texto.startsWith("Oi!"), "sem nome do dono, a saudação fica só com o oi");
-assert.ok(sem.texto.endsWith("\n\nRuphus"), "sem assinatura, fica só a marca");
+assert.ok(sem.texto.includes("\n\nRuphus\n\nRuphus ·"), "sem assinatura, fica só a marca");
 assert.ok(!sem.texto.includes("\n\n\n"), "sem linhas vazias sobrando");
 
 // texto puro: nada de tag HTML no corpo
@@ -44,7 +51,9 @@ assert.ok(e.html.includes(`href="${base.url}"`), "botão leva ao link da propost
 assert.match(e.html, /R\$\s250,00/, "entrada no HTML");
 assert.match(e.html, /R\$\s89,90/, "mensalidade no HTML");
 assert.ok(e.html.includes("Ver a proposta completa"), "tem o botão de ação");
-assert.ok(e.html.includes("vale até 25/10"), "prazo no HTML");
+assert.ok(e.html.includes("válida até 25/10"), "prazo no HTML");
+assert.ok(e.html.includes("Agenda aberta 24 horas"), "funcionalidades no HTML");
+assert.ok(e.html.includes("<meta charset=\"utf-8\">"), "HTML declara utf-8 para os acentos");
 
 // nome e assinatura digitados são escapados: não viram marcação no e-mail
 const hostil = emailDaProposta({ ...base, nome: "<script>x</script> & Cia", assinatura: "<b>Carlos</b>" });
