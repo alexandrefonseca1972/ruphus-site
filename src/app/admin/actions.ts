@@ -434,8 +434,8 @@ export const enviarPropostaPorEmail = adminAction(async (user, slug: string) => 
   const dados = await dadosDoEnvio(adminDb, slug);
   const { token, valeAte } = await gerarProposta(adminDb, slug);
   const base = process.env.SITE_URL ?? "https://www.ruphus.site";
-  const { assunto, texto } = emailDaProposta({ ...dados, url: `${base}/proposta/${slug}?t=${token}`, valeAte });
-  await enviarEmail({ para: dados.email, assunto, texto });
+  const { assunto, texto, html } = emailDaProposta({ ...dados, url: `${base}/proposta/${slug}?t=${token}`, valeAte });
+  await enviarEmail({ para: dados.email, assunto, texto, html });
   await registrarMensagem(adminDb, slug, "Proposta por e-mail", dados.email, user.email ?? user.uid);
   return { para: dados.email, eventos: await linhaDoTempo(adminDb, slug) };
 });

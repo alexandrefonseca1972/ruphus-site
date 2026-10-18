@@ -7,9 +7,9 @@ import { ErroPrevisto } from "@/lib/erro-previsto";
 // variáveis, o envio recusa com mensagem clara em vez de falhar no meio.
 export class EmailNaoConfigurado extends ErroPrevisto {}
 
-export type EmailSaida = { para: string; assunto: string; texto: string };
+export type EmailSaida = { para: string; assunto: string; texto: string; html?: string };
 
-export async function enviarEmail({ para, assunto, texto }: EmailSaida) {
+export async function enviarEmail({ para, assunto, texto, html }: EmailSaida) {
   const usuario = process.env.GMAIL_USER;
   const senha = process.env.GMAIL_APP_PASSWORD;
   if (!usuario || !senha) {
@@ -23,5 +23,6 @@ export async function enviarEmail({ para, assunto, texto }: EmailSaida) {
     secure: true,
     auth: { user: usuario, pass: senha },
   });
-  await transporte.sendMail({ from: `"Ruphus" <${usuario}>`, to: para, subject: assunto, text: texto });
+  // Com HTML, o texto puro segue junto: é ele que aparece onde o HTML não é exibido
+  await transporte.sendMail({ from: `"Ruphus" <${usuario}>`, to: para, subject: assunto, text: texto, html });
 }

@@ -38,3 +38,16 @@ assert.ok(!sem.texto.includes("\n\n\n"), "sem linhas vazias sobrando");
 
 // texto puro: nada de tag HTML no corpo
 assert.ok(!/<[a-z][\s\S]*>/i.test(e.texto), "corpo é texto puro");
+
+// HTML: botão aponta para o link da proposta, e os valores aparecem formatados
+assert.ok(e.html.includes(`href="${base.url}"`), "botão leva ao link da proposta");
+assert.match(e.html, /R\$\s250,00/, "entrada no HTML");
+assert.match(e.html, /R\$\s89,90/, "mensalidade no HTML");
+assert.ok(e.html.includes("Ver a proposta completa"), "tem o botão de ação");
+assert.ok(e.html.includes("vale até 25/10"), "prazo no HTML");
+
+// nome e assinatura digitados são escapados: não viram marcação no e-mail
+const hostil = emailDaProposta({ ...base, nome: "<script>x</script> & Cia", assinatura: "<b>Carlos</b>" });
+assert.ok(!hostil.html.includes("<script>x</script>"), "nome do negócio é escapado");
+assert.ok(hostil.html.includes("&lt;script&gt;x&lt;/script&gt; &amp; Cia"), "nome aparece como texto");
+assert.ok(hostil.html.includes("&lt;b&gt;Carlos&lt;/b&gt;"), "assinatura é escapada");
