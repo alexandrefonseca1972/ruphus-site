@@ -97,14 +97,23 @@ export async function dadosDoEnvio(db: Firestore, slug: string) {
     db.doc("config/crm").get(),
   ]);
   if (!crm.exists || !tenant.exists) throw new PropostaErro("Negócio não encontrado.");
-  const email = (crm.get("donoEmail") as string | null) ?? null;
-  if (!email) throw new PropostaErro("Cadastre o e-mail do dono na aba Venda antes de enviar a proposta.");
   return {
-    email,
+    cadastrado: (crm.get("donoEmail") as string | null) || null,
     nome: String(tenant.get("name") ?? slug),
     donoNome: (crm.get("donoNome") as string | null) ?? null,
     entradaCents: (crm.get("entradaCents") as number | null) ?? PRECO_PADRAO.entradaCents,
     mensalCents: (crm.get("mensalCents") as number | null) ?? PRECO_PADRAO.mensalCents,
     assinatura: (config.get("assinatura") as string | null) ?? null,
   };
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Para onde a proposta vai: o e-mail digitado na hora, ou o do dono cadastrado.
+ *  Digitado tem prioridade, e nunca fica vazio: sem nenhum dos dois não há envio. */
+export function destinatarioDoEnvio(digitado: string | undefined, cadastrado: string | null): string {
+  const para = (digitado ?? "").trim().toLowerCase() || cadastrado;
+  if (!para) throw new PropostaErro("Informe o e-mail para enviar, ou cadastre o e-mail do dono na aba Venda.");
+  if (!EMAIL.test(para)) throw new PropostaErro("E-mail incompleto.");
+  return para;
 }
