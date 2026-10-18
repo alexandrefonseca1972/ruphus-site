@@ -34,6 +34,7 @@
     "test:lembrete": "tsx lembrete.test.mts",
     "test:proposta-email": "tsx --conditions=react-server proposta-email.test.mts",
     "test:convite-email": "tsx --conditions=react-server convite-email.test.mts",
+    "email:teste": "tsx --conditions=react-server --env-file=.env.local scripts/email-teste.mts",
     "test:gerador-banco": "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=demo-siteflow.appspot.com firebase emulators:exec --only firestore,storage --project demo-siteflow 'tsx --conditions=react-server gerador-banco.test.mts'"
   },
   "dependencies": {
