@@ -24,6 +24,7 @@ import {
   definirPixel,
   definirLimiteStaff,
   linkDaProposta,
+  enviarPropostaPorEmail,
   liberarNegocios,
   saudeDoNegocio,
   cobrar,
@@ -461,6 +462,15 @@ export default function AdminPage() {
   async function enviouMensagem(slug: string, modelo: string, para: string) {
     const r = await registrarEnvio(await token(), slug, modelo, para);
     if (r.ok) setEventos(r.dados);
+  }
+
+  // Sai da conta da Ruphus e não tem volta: a confirmação fica aqui, não no botão.
+  async function enviarPropostaEmail(slug: string, email: string) {
+    if (!window.confirm(`Enviar a proposta por e-mail para ${email}?`)) return;
+    const r = await enviarPropostaPorEmail(await token(), slug);
+    if (!r.ok) return setAviso(r.error);
+    setEventos(r.dados.eventos);
+    setAviso(`Proposta enviada para ${r.dados.para}.`);
   }
 
   async function novaNota(slug: string, texto: string) {
@@ -1696,24 +1706,13 @@ export default function AdminPage() {
                             <span className={`${MENOR} border-dashed text-[#8B8578]`}>Sem WhatsApp do dono</span>
                           );
                         })()}
-                        {(() => {
-                          const c = crm[aberto.slug];
-                          const assunto = `Proposta da Ruphus para ${aberto.nome}`;
-                          const corpo =
-                            `Oi${c?.donoNome ? `, ${c.donoNome.split(" ")[0]}` : ""}!\n\n` +
-                            `Montei a proposta do ${aberto.nome} numa página só, com o que está incluído e os valores:\n${proposta.url}\n\n` +
-                            `Ela vale até ${diaCurto(proposta.valeAte)}. Qualquer dúvida, é só responder este e-mail.\n\n` +
-                            `${assinatura || ""}\nRuphus`;
-                          return (
-                            <a
-                              className={MENOR}
-                              href={`mailto:${c?.donoEmail ?? ""}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`}
-                              onClick={() => enviouMensagem(aberto.slug, "Proposta por e-mail", c?.donoEmail ?? "o dono")}
-                            >
-                              {crm[aberto.slug]?.donoEmail ? "Enviar por e-mail" : "Abrir e-mail"}
-                            </a>
-                          );
-                        })()}
+                        {crm[aberto.slug]?.donoEmail ? (
+                          <button type="button" className={MENOR} onClick={() => enviarPropostaEmail(aberto.slug, crm[aberto.slug]?.donoEmail ?? "")}>
+                            Enviar por e-mail
+                          </button>
+                        ) : (
+                          <span className={`${MENOR} border-dashed text-[#8B8578]`}>Sem e-mail do dono</span>
+                        )}
                         <a className={MENOR} href={proposta.url} target="_blank" rel="noreferrer">Ver como o dono vê</a>
                         {/* O PDF é a mesma proposta impressa: abre a caixa de
                             impressão para salvar o arquivo e anexar no e-mail

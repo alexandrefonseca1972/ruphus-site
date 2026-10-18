@@ -6,7 +6,9 @@ import { adminDb } from "@/lib/admin";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNegocio as salvarSite } from "@/lib/negocios.server";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX, limiteStaffDe, MINUTOS_MAX } from "@/lib/limites";
-import { gerarProposta } from "@/lib/proposta.server";
+import { dadosDoEnvio, gerarProposta } from "@/lib/proposta.server";
+import { enviarEmail } from "@/lib/email.server";
+import { emailDaProposta } from "@/lib/proposta-email";
 import { saudeDe } from "@/lib/saude.server";
 import { criarConvite } from "@/lib/convite";
 import {
@@ -421,6 +423,20 @@ export const linkDaProposta = adminAction(async (_user, slug: string, refazer?: 
   const { token, valeAte, nova } = await gerarProposta(adminDb, slug, refazer === true);
   const base = process.env.SITE_URL ?? "https://www.ruphus.site";
   return { url: `${base}/proposta/${slug}?t=${token}`, valeAte, nova };
+});
+
+/** Manda a proposta por e-mail, da conta da Ruphus, para o dono cadastrado no CRM.
+ *  O registro na linha do tempo só acontece depois do envio dar certo: envio que
+ *  falhou não pode parecer contato feito. */
+export const enviarPropostaPorEmail = adminAction(async (user, slug: string) => {
+  slugValido(slug);
+  const dados = await dadosDoEnvio(adminDb, slug);
+  const { token, valeAte } = await gerarProposta(adminDb, slug);
+  const base = process.env.SITE_URL ?? "https://www.ruphus.site";
+  const { assunto, texto } = emailDaProposta({ ...dados, url: `${base}/proposta/${slug}?t=${token}`, valeAte });
+  await enviarEmail({ para: dados.email, assunto, texto });
+  await registrarMensagem(adminDb, slug, "Proposta por e-mail", dados.email, user.email ?? user.uid);
+  return { para: dados.email, eventos: await linhaDoTempo(adminDb, slug) };
 });
 
 export const definirAssinatura = adminAction(async (_user, nome: unknown) => {

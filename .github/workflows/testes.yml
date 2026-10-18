@@ -42,6 +42,7 @@ jobs:
       - run: npm run test:admin
       - run: npm run test:gerador
       - run: npm run test:lembrete
+      - run: npm run test:proposta-email
 
       # Com emulador do Firestore (e do Auth, no booking)
       - run: npm run test:rules

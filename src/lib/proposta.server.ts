@@ -83,3 +83,28 @@ export async function abrirProposta(db: Firestore, slug: string, token: string):
     whatsapp: pix?.whatsapp ?? null,
   };
 }
+
+/** O que o e-mail da proposta precisa, com os mesmos valores que a página mostra.
+ *
+ * O destinatário sai só do CRM: o envio não aceita endereço digitado na hora. Sem
+ * e-mail do dono não há para quem mandar, então o erro vem antes de qualquer token
+ * novo ser gerado. */
+export async function dadosDoEnvio(db: Firestore, slug: string) {
+  if (!SLUG.test(slug)) throw new PropostaErro("Negócio inválido.");
+  const [crm, tenant, config] = await Promise.all([
+    db.collection(RAIZ).doc(slug).get(),
+    db.collection("tenants").doc(slug).get(),
+    db.doc("config/crm").get(),
+  ]);
+  if (!crm.exists || !tenant.exists) throw new PropostaErro("Negócio não encontrado.");
+  const email = (crm.get("donoEmail") as string | null) ?? null;
+  if (!email) throw new PropostaErro("Cadastre o e-mail do dono na aba Venda antes de enviar a proposta.");
+  return {
+    email,
+    nome: String(tenant.get("name") ?? slug),
+    donoNome: (crm.get("donoNome") as string | null) ?? null,
+    entradaCents: (crm.get("entradaCents") as number | null) ?? PRECO_PADRAO.entradaCents,
+    mensalCents: (crm.get("mensalCents") as number | null) ?? PRECO_PADRAO.mensalCents,
+    assinatura: (config.get("assinatura") as string | null) ?? null,
+  };
+}
