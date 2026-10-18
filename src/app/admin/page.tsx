@@ -41,6 +41,7 @@ import { COMMIT, VERSAO } from "@/lib/versao";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX } from "@/lib/limites";
 import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
 import { SiteDoNegocio } from "./site-gaveta";
+import { EnviarPorEmail } from "./enviar-email";
 import { Carteira } from "./carteira";
 import { Gerador } from "./gerador";
 import type { ClienteSaude } from "@/lib/saude.server";
@@ -480,7 +481,7 @@ export default function AdminPage() {
   // Sai da conta da Ruphus e não tem volta: a confirmação fica aqui, não no botão.
   async function enviarPropostaEmail(slug: string, email: string) {
     if (!window.confirm(`Enviar a proposta por e-mail para ${email}?`)) return;
-    const r = await enviarPropostaPorEmail(await token(), slug);
+    const r = await enviarPropostaPorEmail(await token(), slug, email);
     if (!r.ok) return setAviso(r.error);
     setEventos(r.dados.eventos);
     setAviso(`Proposta enviada para ${r.dados.para}.`);
@@ -1719,13 +1720,13 @@ export default function AdminPage() {
                             <span className={`${MENOR} border-dashed text-[#8B8578]`}>Sem WhatsApp do dono</span>
                           );
                         })()}
-                        {crm[aberto.slug]?.donoEmail ? (
-                          <button type="button" className={MENOR} onClick={() => enviarPropostaEmail(aberto.slug, crm[aberto.slug]?.donoEmail ?? "")}>
-                            Enviar por e-mail
-                          </button>
-                        ) : (
-                          <span className={`${MENOR} border-dashed text-[#8B8578]`}>Sem e-mail do dono</span>
-                        )}
+                        <div className="w-full">
+                          <EnviarPorEmail
+                            key={`prop-${aberto.slug}-${crm[aberto.slug]?.donoEmail ?? ""}`}
+                            cadastrado={crm[aberto.slug]?.donoEmail ?? null}
+                            onEnviar={(para) => enviarPropostaEmail(aberto.slug, para)}
+                          />
+                        </div>
                         <a className={MENOR} href={proposta.url} target="_blank" rel="noreferrer">Ver como o dono vê</a>
                         {/* O PDF é a mesma proposta impressa: abre a caixa de
                             impressão para salvar o arquivo e anexar no e-mail
@@ -1871,13 +1872,16 @@ export default function AdminPage() {
                   </div>
                 </div>
               ) : crm[aberto.slug]?.donoEmail ? (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col gap-3">
                   <button type="button" className={`${BOTAO_ESCURO} self-start`} onClick={() => convidar(aberto.slug)}>
                     Convidar {crm[aberto.slug]?.donoEmail}
                   </button>
-                  <button type="button" className={`${BOTAO} self-start border border-[#17150F] bg-white text-[#17150F] hover:bg-[#F4F2EE]`} onClick={() => enviarConviteEmail(aberto.slug, crm[aberto.slug]?.donoEmail ?? "")}>
-                    Enviar por e-mail
-                  </button>
+                  <EnviarPorEmail
+                    key={`convite-${aberto.slug}-${crm[aberto.slug]?.donoEmail ?? ""}`}
+                    cadastrado={crm[aberto.slug]?.donoEmail ?? null}
+                    fixo
+                    onEnviar={(para) => enviarConviteEmail(aberto.slug, para)}
+                  />
                 </div>
               ) : (
                 // Barrar aqui, e não na mensagem de erro depois do clique: o que

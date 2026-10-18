@@ -60,3 +60,11 @@ const hostil = emailDaProposta({ ...base, nome: "<script>x</script> & Cia", assi
 assert.ok(!hostil.html.includes("<script>x</script>"), "nome do negócio é escapado");
 assert.ok(hostil.html.includes("&lt;script&gt;x&lt;/script&gt; &amp; Cia"), "nome aparece como texto");
 assert.ok(hostil.html.includes("&lt;b&gt;Carlos&lt;/b&gt;"), "assinatura é escapada");
+
+// destinatário: o digitado vence, o cadastrado é o padrão, e nada vazio ou inválido sai
+const { destinatarioDoEnvio } = await import("@/lib/proposta.server");
+assert.equal(destinatarioDoEnvio(undefined, "dono@salao.com"), "dono@salao.com", "sem digitar, vai para o cadastrado");
+assert.equal(destinatarioDoEnvio("  Outra@Pessoa.com ", "dono@salao.com"), "outra@pessoa.com", "digitado vence e vira minúsculo");
+assert.equal(destinatarioDoEnvio("", "dono@salao.com"), "dono@salao.com", "campo vazio usa o cadastrado");
+assert.throws(() => destinatarioDoEnvio(undefined, null), /Informe o e-mail/, "sem nenhum e-mail, não envia");
+assert.throws(() => destinatarioDoEnvio("sem-arroba", "dono@salao.com"), /E-mail incompleto/, "formato inválido não envia");
