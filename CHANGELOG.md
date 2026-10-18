@@ -3,6 +3,13 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## Não lançado
+
+### Proposta por e-mail
+- **O botão "Enviar por e-mail" manda a proposta direto** da conta da Ruphus, para o e-mail do dono cadastrado na aba Venda. Antes, abria o aplicativo de e-mail do computador com o texto pronto. Pede confirmação antes de enviar e só registra o contato na linha do tempo quando o envio dá certo.
+- O e-mail sai em formato de proposta, com os valores em destaque e um botão para abrir a página. Traz os mesmos valores e o mesmo prazo da página, e o link é o mesmo que vai pelo WhatsApp. A versão em texto puro vai junto para quem não exibe HTML.
+- **Convite de acesso também sai por e-mail**: o botão "Enviar por e-mail" na aba Cliente manda o link para o dono, da conta da Ruphus. O link continua preso ao endereço do dono, e sem e-mail cadastrado não sai convite.
+
 ## 0.11.0 — 17/10/2026
 
 ### Sites gerados

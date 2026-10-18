@@ -6,7 +6,10 @@ import { adminDb } from "@/lib/admin";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNegocio as salvarSite } from "@/lib/negocios.server";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX, limiteStaffDe, MINUTOS_MAX } from "@/lib/limites";
-import { gerarProposta } from "@/lib/proposta.server";
+import { dadosDoEnvio, gerarProposta } from "@/lib/proposta.server";
+import { enviarEmail } from "@/lib/email.server";
+import { emailDaProposta } from "@/lib/proposta-email";
+import { emailDoConvite } from "@/lib/convite-email";
 import { saudeDe } from "@/lib/saude.server";
 import { criarConvite } from "@/lib/convite";
 import {
@@ -421,6 +424,44 @@ export const linkDaProposta = adminAction(async (_user, slug: string, refazer?: 
   const { token, valeAte, nova } = await gerarProposta(adminDb, slug, refazer === true);
   const base = process.env.SITE_URL ?? "https://www.ruphus.site";
   return { url: `${base}/proposta/${slug}?t=${token}`, valeAte, nova };
+});
+
+/** Manda a proposta por e-mail, da conta da Ruphus, para o dono cadastrado no CRM.
+ *  O registro na linha do tempo só acontece depois do envio dar certo: envio que
+ *  falhou não pode parecer contato feito. */
+export const enviarPropostaPorEmail = adminAction(async (user, slug: string) => {
+  slugValido(slug);
+  const dados = await dadosDoEnvio(adminDb, slug);
+  const { token, valeAte } = await gerarProposta(adminDb, slug);
+  const base = process.env.SITE_URL ?? "https://www.ruphus.site";
+  const { assunto, texto, html } = emailDaProposta({ ...dados, url: `${base}/proposta/${slug}?t=${token}`, valeAte });
+  await enviarEmail({ para: dados.email, assunto, texto, html });
+  await registrarMensagem(adminDb, slug, "Proposta por e-mail", dados.email, user.email ?? user.uid);
+  return { para: dados.email, eventos: await linhaDoTempo(adminDb, slug) };
+});
+
+/** Manda o convite de acesso por e-mail, da conta da Ruphus, para o dono do CRM. O
+ *  link já vem preso a esse endereço, então o e-mail é o canal que combina com ele.
+ *  Mesma regra de gerarConvite: sem e-mail cadastrado, não sai convite. */
+export const enviarConvitePorEmail = adminAction(async (user, slug: string) => {
+  slugValido(slug);
+  const { convites, semEmail } = await convitesPara([slug]);
+  if (semEmail.length) throw new ErroPrevisto("Cadastre o e-mail do dono na aba Venda antes de convidar: é ele que tranca o link nessa conta.");
+  const [convite] = convites;
+  if (!convite) throw new ErroPrevisto("Negócio não encontrado.");
+  const [crm, config] = await Promise.all([adminDb.collection("crm").doc(slug).get(), adminDb.doc("config/crm").get()]);
+  const { assunto, texto } = emailDoConvite({
+    nome: convite.nome,
+    slug,
+    donoNome: (crm.get("donoNome") as string | null) ?? null,
+    url: convite.url,
+    email: convite.email,
+    dias: DIAS_CONVITE,
+    assinatura: (config.get("assinatura") as string | null) ?? null,
+  });
+  await enviarEmail({ para: convite.email, assunto, texto });
+  await registrarMensagem(adminDb, slug, "Convite por e-mail", convite.email, user.email ?? user.uid);
+  return { url: convite.url, email: convite.email, eventos: await linhaDoTempo(adminDb, slug) };
 });
 
 export const definirAssinatura = adminAction(async (_user, nome: unknown) => {

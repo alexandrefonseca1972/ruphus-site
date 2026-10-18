@@ -128,6 +128,8 @@ Em `.env.local` (desenvolvimento) e no painel da Vercel (produção).
 | `OWNER_UID` | scripts | quem vira admin da plataforma no primeiro uso |
 | `SITE_URL` | servidor | origem que o proxy usa para consultar a lista de sites fechados |
 | `DESATIVADOS_TOKEN` | servidor | segredo entre o proxy e `/api/desativados`; sem ele a lista fica pública (já criado em produção) |
+| `GMAIL_USER` | servidor | conta da Ruphus que envia as propostas por e-mail (`app.ruphus@gmail.com`) |
+| `GMAIL_APP_PASSWORD` | servidor | senha de app dessa conta (exige verificação em duas etapas); sem ela o envio recusa com mensagem clara |
 
 `NEXT_PUBLIC_VERSAO` e `NEXT_PUBLIC_COMMIT` não se preenchem à mão: o `next.config.ts` injeta a versão do `package.json` e o commit da Vercel, que aparecem no rodapé do `/admin`.
 
