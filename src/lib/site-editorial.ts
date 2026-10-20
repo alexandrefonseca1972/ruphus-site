@@ -145,6 +145,7 @@ const DESCRICOES: [RegExp, string | string[], string][] = [
   [/alongamento|gel|fibra/i, ["Unhas mais longas e resistentes, com formato do seu jeito."], "Durável"],
   [/cíli|cili|lash/i, ["Fios aplicados um a um para um olhar marcante e natural."], "Olhar"],
   [/limpeza de pele|facial|peeling/i, ["Pele limpa, renovada e preparada para os próximos cuidados."], "Pele"],
+  [/bronze/i, ["Bronzeado uniforme e natural, com cuidado para a sua pele."], "Bronze"],
   [/massag|drenag/i, ["Relaxamento e bem-estar em um momento só seu."], "Bem-estar"],
   [/depila/i, ["Depilação com técnica e conforto."], "Conforto"],
 ];
@@ -165,7 +166,8 @@ const ESTILOS: Partial<Record<Sub, Estilo>> = {
   barbearia: beleza("barbearia", "Barbearia", QUENTES),
   salao: beleza("salao", "Salão de beleza", DELICADAS),
   // depilacao-1: fotos de depilação (Pexels) para quem só faz isso; escolha.kit = 4
-  estetica: { ...beleza("estetica", "Estética", DELICADAS), extras: ["/assets/beleza/depilacao-1"] },
+  // bronze-1: bronzeamento em cabine e natural (Pexels); escolha.kit = 5
+  estetica: { ...beleza("estetica", "Estética", DELICADAS), extras: ["/assets/beleza/depilacao-1", "/assets/beleza/bronze-1"] },
   unhas: beleza("unhas", "Nail designer", DELICADAS),
   tatuagem: beleza("tatuagem", "Estúdio de tatuagem", TINTAS),
   podologia: { ...beleza("podologia", "Podologia", CLINICAS), descricoes: PODOLOGIA },
