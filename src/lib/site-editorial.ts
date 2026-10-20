@@ -167,7 +167,8 @@ const ESTILOS: Partial<Record<Sub, Estilo>> = {
   salao: beleza("salao", "Salão de beleza", DELICADAS),
   // depilacao-1: fotos de depilação (Pexels) para quem só faz isso; escolha.kit = 4
   // bronze-1: bronzeamento em cabine e natural (Pexels); escolha.kit = 5
-  estetica: { ...beleza("estetica", "Estética", DELICADAS), extras: ["/assets/beleza/depilacao-1", "/assets/beleza/bronze-1"] },
+  // cilios-1: extensão de cílios (Pexels); escolha.kit = 6
+  estetica: { ...beleza("estetica", "Estética", DELICADAS), extras: ["/assets/beleza/depilacao-1", "/assets/beleza/bronze-1", "/assets/beleza/cilios-1"] },
   unhas: beleza("unhas", "Nail designer", DELICADAS),
   tatuagem: beleza("tatuagem", "Estúdio de tatuagem", TINTAS),
   podologia: { ...beleza("podologia", "Podologia", CLINICAS), descricoes: PODOLOGIA },
