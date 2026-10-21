@@ -147,6 +147,7 @@ const DESCRICOES: [RegExp, string | string[], string][] = [
   [/limpeza de pele|facial|peeling/i, ["Pele limpa, renovada e preparada para os próximos cuidados."], "Pele"],
   [/bronze/i, ["Bronzeado uniforme e natural, com cuidado para a sua pele."], "Bronze"],
   [/massag|drenag/i, ["Relaxamento e bem-estar em um momento só seu."], "Bem-estar"],
+  [/cera|roll-?on|faixa/i, ["Cera aplicada e retirada com técnica, para a pele lisa e com conforto."], "Cera"],
   [/depila/i, ["Depilação com técnica e conforto."], "Conforto"],
 ];
 const detalhe = (e: Estilo, slug: string, s: string, i: number, variantes: boolean): [string, string] => {
