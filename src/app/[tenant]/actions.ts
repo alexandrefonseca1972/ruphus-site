@@ -8,6 +8,8 @@ import { z } from "zod";
 import { PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
+import { createInstance, getQr, getStatus, logout, sendText } from "@/lib/wtsfy";
+import { aceitarTermoWhatsApp, desligarConexao, gravarConexao, lerConfigWhatsApp, lerConexao } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 
@@ -125,3 +127,101 @@ export const salvarNegocioAction = memberAction(z.object({ tenantId: docIdStaff,
   revalidatePath(`/bio/${data.tenantId}`);
   return { ok: true as const };
 });
+
+// Só dígitos, DDI+DDD+número: é o formato que o gateway (wtsfy) exige no envio.
+const FONE_INTERNACIONAL = /^\d{10,15}$/;
+
+/** Texto pelo WhatsApp que o dono conectou ao negócio (gateway wtsfy): sai do
+ *  número dele, não da Ruphus. Cai no wa.me comum quando ninguém conectou. */
+export const enviarWhatsAppAction = memberAction(
+  z.object({
+    tenantId: docIdStaff,
+    phone: z.string().regex(FONE_INTERNACIONAL, "Use só números, com DDI e DDD (ex.: 5511998887777)."),
+    message: z.string().trim().min(1, "Escreva a mensagem.").max(1000, "Mensagem longa demais (máx. 1000)."),
+  }),
+  async (data, user) => {
+    await exigeGestor(data.tenantId, user.uid);
+    const instanceId = (await adminDb.doc(`tenants/${data.tenantId}`).get()).get("whatsapp.instanceId") as string | undefined;
+    if (!instanceId) throw new UserError("O WhatsApp do negócio ainda não está conectado.");
+    const envio = await sendText(instanceId, data.phone, data.message);
+    return { ok: true as const, messageId: envio.messageId };
+  },
+);
+
+// ─── WhatsApp do negócio (painel do dono) ────────────────────────────────────
+// A mesma seção existe no /admin da plataforma, com prioridade: quando a
+// plataforma assume a conexão (ownerManaged false), aqui vira só leitura.
+
+const SoTenant = z.object({ tenantId: docIdStaff });
+
+export const lerWhatsAppDoNegocioAction = memberAction(SoTenant, async ({ tenantId }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  return lerConfigWhatsApp(adminDb, tenantId);
+});
+
+export const aceitarTermoWhatsAppAction = memberAction(SoTenant, async ({ tenantId }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  await aceitarTermoWhatsApp(adminDb, tenantId);
+  return true;
+});
+
+export const conectarWhatsAppDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  const config = await lerConfigWhatsApp(adminDb, tenantId);
+  if (config?.ownerManaged === false) {
+    throw new UserError("O WhatsApp do seu negócio é gerenciado pela plataforma. Fale com o suporte para conectar ou alterar.");
+  }
+  if (!config?.termsAcceptedAt) {
+    throw new UserError("Leia e aceite o termo sobre o WhatsApp antes de conectar.");
+  }
+  if (await lerConexao(adminDb, tenantId)) throw new UserError("Já existe um WhatsApp conectado. Desconecte antes de trocar de número.");
+  const { id } = await createInstance(`ruphus-${tenantId}`);
+  const conexao = { instanceId: id, phone: null, status: "created", updatedAt: Date.now(), ownerManaged: true };
+  await gravarConexao(adminDb, tenantId, conexao);
+  return conexao;
+});
+
+export const refreshWhatsAppStatusDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  const salva = await lerConexao(adminDb, tenantId);
+  if (!salva) return null;
+  const vivo = await getStatus(salva.instanceId);
+  const conexao = { ...salva, phone: vivo.phone ?? salva.phone, status: vivo.status, updatedAt: Date.now() };
+  await gravarConexao(adminDb, tenantId, conexao);
+  return conexao;
+});
+
+export const qrWhatsAppDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  const config = await lerConfigWhatsApp(adminDb, tenantId);
+  if (config?.ownerManaged === false) throw new UserError("Gerenciado pela plataforma — quem conecta é o suporte.");
+  const salva = await lerConexao(adminDb, tenantId);
+  if (!salva) throw new UserError("Conecte o WhatsApp antes de pedir o QR.");
+  return getQr(salva.instanceId);
+});
+
+export const desconectarWhatsAppDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  const config = await lerConfigWhatsApp(adminDb, tenantId);
+  if (config?.ownerManaged === false) throw new UserError("Gerenciado pela plataforma — quem desconecta é o suporte.");
+  const salva = await lerConexao(adminDb, tenantId);
+  if (salva) await logout(salva.instanceId).catch(() => {});
+  await desligarConexao(adminDb, tenantId);
+  return "desconectado";
+});
+
+/** Lembretes de horário: o dono liga/desliga e escolhe quantas horas antes de
+ *  cada agendamento confirmado o cliente recebe o lembrete. */
+export const configurarLembretesWhatsAppAction = memberAction(
+  z.object({
+    tenantId: docIdStaff,
+    enabled: z.boolean(),
+    hours: z.number().int().min(1, "No mínimo 1 hora antes.").max(24, "No máximo 24 horas antes."),
+  }),
+  async ({ tenantId, enabled, hours }, user) => {
+    await exigeGestor(tenantId, user.uid);
+    if (!(await lerConexao(adminDb, tenantId))) throw new UserError("Conecte o WhatsApp do negócio antes de ligar os lembretes.");
+    await adminDb.doc(`tenants/${tenantId}`).set({ whatsapp: { remindersEnabled: enabled, remindersBeforeHours: hours } }, { merge: true });
+    return { enabled, hours };
+  },
+);

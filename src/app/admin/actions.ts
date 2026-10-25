@@ -29,6 +29,11 @@ import { competenciaAtual } from "@/lib/pix";
 import { gerarNoBanco, publicarSite } from "@/lib/gerador.server";
 import { PAGINAS_DEMO } from "@/lib/demo";
 import { acessoDemo, restaurarDemo } from "@/lib/demo.server";
+import { createInstance, getQr, getStatus, logout, type QrWhatsApp } from "@/lib/wtsfy";
+import { apagarConexao, gravarConexao, gravarGestaoDono, gravarOwnerPhone, lerConexao, type ConexaoWhatsapp } from "@/lib/whatsapp.server";
+import { soDigitosComDDI } from "@/lib/telefone";
+
+export type { ConexaoWhatsapp, QrWhatsApp };
 
 export type Espaco = {
   slug: string;
@@ -586,4 +591,75 @@ export const restaurarADemo = adminAction(async (user) => {
   const r = await restaurarDemo(adminDb, { adminUid: user.uid });
   for (const p of PAGINAS_DEMO) revalidatePath(p);
   return r;
+});
+
+// ─── WhatsApp do negócio (gateway próprio, wtsfy) ────────────────────────────
+
+/** O WhatsApp que o dono conectou: o que está gravado no tenants/{slug}. */
+export const whatsappDoNegocio = adminAction(async (_user, slug: string): Promise<ConexaoWhatsapp | null> => {
+  slugValido(slug);
+  return lerConexao(adminDb, slug);
+});
+
+/** Cria a instância no gateway e prende o vínculo ao negócio. Um número por negócio.
+ *  Quem conecta pela plataforma assume a gestão: ownerManaged false trava a
+ *  edição no painel do dono (a plataforma tem prioridade). */
+export const conectarWhatsApp = adminAction(async (_user, slug: string): Promise<ConexaoWhatsapp> => {
+  slugValido(slug);
+  if (await lerConexao(adminDb, slug)) throw new ErroPrevisto("Este negócio já tem um WhatsApp conectado. Desconecte antes de trocar de número.");
+  const { id } = await createInstance(`ruphus-${slug}`);
+  const conexao: ConexaoWhatsapp = { instanceId: id, phone: null, status: "created", updatedAt: Date.now(), ownerManaged: false };
+  await gravarConexao(adminDb, slug, conexao);
+  return conexao;
+});
+
+/** Delegar (ou retomar) a gestão do WhatsApp ao painel do dono. Só a plataforma decide. */
+export const definirGestaoDonoWhatsApp = adminAction(async (_user, slug: string, permitir: unknown): Promise<boolean> => {
+  slugValido(slug);
+  const valor = permitir === true;
+  await gravarGestaoDono(adminDb, slug, valor);
+  return valor;
+});
+
+/** Pergunta ao gateway o estado de verdade e espelha no banco. É o que o polling usa. */
+export const refreshWhatsAppStatus = adminAction(async (_user, slug: string): Promise<ConexaoWhatsapp | null> => {
+  slugValido(slug);
+  const salva = await lerConexao(adminDb, slug);
+  if (!salva) return null;
+  const vivo = await getStatus(salva.instanceId);
+  const conexao: ConexaoWhatsapp = { ...salva, phone: vivo.phone ?? salva.phone, status: vivo.status, updatedAt: Date.now() };
+  await gravarConexao(adminDb, slug, conexao);
+  return conexao;
+});
+
+/** O QR de pareamento (PNG em base64), ou o estado da conexão enquanto o QR não sai. */
+export const qrWhatsApp = adminAction(async (_user, slug: string): Promise<QrWhatsApp> => {
+  slugValido(slug);
+  const salva = await lerConexao(adminDb, slug);
+  if (!salva) throw new ErroPrevisto("Conecte o WhatsApp antes de pedir o QR.");
+  return getQr(salva.instanceId);
+});
+
+/** Despareia o número do gateway e solta o vínculo com o negócio. */
+export const desconectarWhatsApp = adminAction(async (_user, slug: string) => {
+  slugValido(slug);
+  const salva = await lerConexao(adminDb, slug);
+  if (salva) await logout(salva.instanceId).catch(() => {});
+  await apagarConexao(adminDb, slug);
+  return "desconectado";
+});
+
+/** O número pessoal do dono: recebe os avisos de novo agendamento e confirma
+ *  respondendo CONFIRMADO. Precisa ser um aparelho separado do número conectado
+ *  (self-chat do dono não chega ao gateway de forma confiável). Vazio desliga. */
+export const definirOwnerPhoneWhatsApp = adminAction(async (_user, slug: string, telefone: unknown) => {
+  slugValido(slug);
+  if (!(await lerConexao(adminDb, slug))) throw new ErroPrevisto("Conecte o WhatsApp do negócio antes de cadastrar o número do dono.");
+  const limpo = String(telefone ?? "").trim();
+  const dono = limpo ? soDigitosComDDI(limpo) : null;
+  if (limpo && !dono) {
+    throw new ErroPrevisto("Número incompleto. Use DDD + número (ex.: 11 98877-7777) ou com DDI (ex.: +55 11 98877-7777).");
+  }
+  await gravarOwnerPhone(adminDb, slug, dono);
+  return dono;
 });
