@@ -26,13 +26,14 @@ import { anotar, CrmInput, lerCrm, linhaDoTempo, listarNotas, registrarMensagem,
 import { diaCurto, hojeISO } from "@/lib/crm-tipos";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import { competenciaAtual } from "@/lib/pix";
-import { gerarNoBanco, publicarSite } from "@/lib/gerador.server";
+import { gerarNoBanco, lerSite, publicarSite } from "@/lib/gerador.server";
 import { PAGINAS_DEMO } from "@/lib/demo";
 import { acessoDemo, restaurarDemo } from "@/lib/demo.server";
 import { createInstance, getQr, getStatus, logout, type QrWhatsApp } from "@/lib/wtsfy";
 import { apagarConexao, gravarConexao, gravarGestaoDono, gravarOwnerPhone, lerConexao, type ConexaoWhatsapp } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
-import { modelosDoSub, modeloDoId } from "@/lib/site-editorial";
+import { modelosDoSub, modeloDoId, renderEditorial } from "@/lib/site-editorial";
+import type { Escolha } from "@/lib/gerador";
 import { FieldValue } from "firebase-admin/firestore";
 
 export type { ConexaoWhatsapp, QrWhatsApp };
@@ -560,6 +561,22 @@ export const siteDoNegocio = adminAction(async (_user, slug: string) => {
   const casa = modelos.find((m) => m.escolha.kit === e?.kit && m.escolha.cor === e?.cor)?.id;
   const modeloAtual = casa ?? (e ? "personalizado" : null);
   return { ...site, modelos: modelos.map(({ id, rotulo }) => ({ id, rotulo })), modeloAtual };
+});
+
+/** Pré-visualização do modelo com os dados reais do negócio, sem gravar nada. O HTML
+ *  sai com <base> no domínio do site, para as fotos carregarem dentro do admin. */
+export const previewModelo = adminAction(async (_user, slug: string, id: string | null): Promise<string> => {
+  slugValido(slug);
+  const dados = await lerSite(adminDb, slug);
+  if (!dados) throw new ErroPrevisto("Este site não usa modelo.");
+  let escolha: Escolha | undefined;
+  if (id !== null) {
+    const modelo = modeloDoId(dados.sub, id);
+    if (!modelo) throw new ErroPrevisto("Este modelo não serve para o ramo do negócio.");
+    escolha = modelo.escolha;
+  }
+  const html = renderEditorial({ ...dados, escolha });
+  return html.replace("<head>", `<head><base href="https://${slug}.ruphus.site/">`);
 });
 
 /** Troca o modelo editorial do site: grava a escolha de kit e cor do modelo, ou volta ao

@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { CamposNegocio, errosDe, VAZIO, type Valores } from "@/components/campos-negocio";
 import { formatPhone } from "@/lib/datetime";
 import type { Mudanca, TipoSite } from "@/lib/negocios.server";
-import { definirModelo, montarSite, siteDoNegocio } from "./actions";
+import { definirModelo, montarSite, previewModelo, siteDoNegocio } from "./actions";
 
 // Aba "Site" da gaveta: montar ou completar o site de um negócio, sobretudo o de quem
 // se cadastrou sozinho — esse sai só com nome, ramo, WhatsApp e cidade. Os campos são
@@ -65,6 +65,8 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
   const [modeloAtual, setModeloAtual] = useState("");
   const [modelo, setModelo] = useState("");
   const [avisoModelo, setAvisoModelo] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [previaModelo, setPreviaModelo] = useState<string | null>(null);
+  const [visualizando, setVisualizando] = useState(false);
 
   async function ler() {
     return siteDoNegocio(await token(), slug).catch(() => null);
@@ -131,6 +133,16 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
     mostrar(await ler());
   }
 
+  // a prévia mostra o modelo escolhido no seletor, com os dados do negócio; não grava nada
+  async function visualizarModelo() {
+    setVisualizando(true);
+    setAvisoModelo(null);
+    const r = await previewModelo(await token(), slug, modelo || null).catch(() => null);
+    setVisualizando(false);
+    if (!r?.ok) return setAvisoModelo({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
+    setPreviaModelo(r.dados);
+  }
+
   async function aplicarModelo() {
     const nome = modelos.find((m) => m.id === modelo)?.rotulo ?? "Padrão do sistema";
     // troca o site ao vivo na hora: confirma antes de gravar
@@ -186,6 +198,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
                 onChange={(e) => {
                   setModelo(e.target.value);
                   setAvisoModelo(null);
+                  setPreviaModelo(null);
                 }}
                 className="h-11 grow rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-[15px]"
               >
@@ -195,6 +208,9 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
                 ))}
                 {modeloAtual === "personalizado" && <option value="personalizado" disabled>Personalizado</option>}
               </select>
+              <button type="button" className={BOTAO_CLARO} disabled={busy || modelo === "personalizado"} onClick={visualizarModelo}>
+                {visualizando ? "Abrindo…" : "Pré-visualizar"}
+              </button>
               <button
                 type="button"
                 className={BOTAO_ESCURO}
@@ -204,6 +220,14 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
                 {busy ? "Aplicando…" : "Aplicar modelo"}
               </button>
             </div>
+            {previaModelo !== null && (
+              <div className="flex flex-col gap-2">
+                <iframe title="Pré-visualização do modelo" srcDoc={previaModelo} sandbox="allow-scripts" className="h-[560px] w-full rounded-[10px] border border-[#D8D2C6] bg-white" />
+                <div className="flex justify-end">
+                  <button type="button" className={BOTAO_CLARO} onClick={() => setPreviaModelo(null)}>Fechar prévia</button>
+                </div>
+              </div>
+            )}
             {avisoModelo && (
               <p role={avisoModelo.ok ? "status" : "alert"} className={`text-sm ${avisoModelo.ok ? "text-[#2C6A53]" : "text-[#8A2F2F]"}`}>{avisoModelo.texto}</p>
             )}
