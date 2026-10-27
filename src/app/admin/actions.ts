@@ -33,6 +33,7 @@ import { createInstance, getQr, getStatus, logout, type QrWhatsApp } from "@/lib
 import { apagarConexao, gravarConexao, gravarGestaoDono, gravarOwnerPhone, lerConexao, type ConexaoWhatsapp } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { modelosDoSub, modeloDoId, renderEditorial } from "@/lib/site-editorial";
+import { ehClaro, renderClaro } from "@/lib/site-claro";
 import type { Escolha } from "@/lib/gerador";
 import { FieldValue } from "firebase-admin/firestore";
 
@@ -554,9 +555,8 @@ export const listarAtrasadas = adminAction(async () => enviaveis(await atrasadas
 /** A aba "Site" da gaveta: o que o negócio tem hoje. */
 export const siteDoNegocio = adminAction(async (_user, slug: string) => {
   slugValido(slug);
-  const [site, t] = await Promise.all([lerSiteDoNegocio(adminDb, slug), adminDb.collection("tenants").doc(slug).get()]);
+  const { escolha: e, ...site } = await lerSiteDoNegocio(adminDb, slug);
   const modelos = modelosDoSub(site.sub);
-  const e = t.get("gerado.escolha") as { kit?: number; cor?: number } | undefined;
   // escolha gravada que não é de nenhum modelo da lista: "personalizado", só para mostrar
   const casa = modelos.find((m) => m.escolha.kit === e?.kit && m.escolha.cor === e?.cor)?.id;
   const modeloAtual = casa ?? (e ? "personalizado" : null);
@@ -575,8 +575,10 @@ export const previewModelo = adminAction(async (_user, slug: string, id: string 
     if (!modelo) throw new ErroPrevisto("Este modelo não serve para o ramo do negócio.");
     escolha = modelo.escolha;
   }
-  const html = renderEditorial({ ...dados, escolha });
-  return html.replace("<head>", `<head><base href="https://${slug}.ruphus.site/">`);
+  const html = ehClaro(dados.sub) ? renderClaro(dados) : renderEditorial({ ...dados, escolha });
+  const comBase = html.replace("<head>", `<head><base href="https://${slug}.ruphus.site/">`);
+  if (comBase === html) throw new Error("Modelo sem <head>: não dá para montar a pré-visualização.");
+  return comBase;
 });
 
 /** Troca o modelo editorial do site: grava a escolha de kit e cor do modelo, ou volta ao

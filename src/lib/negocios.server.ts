@@ -121,7 +121,8 @@ const tipoDe = (t: DocumentSnapshot): TipoSite =>
 export async function lerSiteDoNegocio(db: Firestore, slug: string) {
   const [dados, t] = await Promise.all([lerNegocio(db, slug), db.doc(`tenants/${slug}`).get()]);
   const num = (c: string) => (typeof t.get(c) === "number" ? (t.get(c) as number) : null);
-  return { ...dados, tipo: tipoDe(t), google: { nota: num("site.rating"), avaliacoes: num("site.reviews") } };
+  const escolha = t.get("gerado.escolha") as { kit?: number; cor?: number } | undefined;
+  return { ...dados, tipo: tipoDe(t), escolha, google: { nota: num("site.rating"), avaliacoes: num("site.reviews") } };
 }
 
 export type Mudanca = { campo: string; antes: string; depois: string };
