@@ -217,6 +217,11 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
         {temSite && !fabrica && modelos.length > 0 && (
           <div className="flex flex-col gap-2 border-t border-[#EDE9E1] pt-3">
             <Label htmlFor="site-modelo">Modelo</Label>
+            <p className="text-xs text-[#6F6A5E]" aria-live="polite">
+              {modelo === modeloAtual
+                ? `Em uso: ${modelos.find((m) => m.id === modeloAtual)?.rotulo ?? (modeloAtual ? "Personalizado" : "Padrão do sistema")}`
+                : `Escolhido: ${modelos.find((m) => m.id === modelo)?.rotulo ?? "Padrão do sistema"}. Ainda não aplicado.`}
+            </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <select
                 id="site-modelo"
@@ -244,7 +249,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
                 disabled={busy || modelo === "personalizado"}
                 onClick={aplicarModelo}
               >
-                {busy ? "Aplicando…" : "Aplicar modelo"}
+                {busy ? "Aplicando…" : modelo === modeloAtual ? "Reaplicar" : "Aplicar modelo"}
               </button>
             </div>
             {previaModelo !== null && (
