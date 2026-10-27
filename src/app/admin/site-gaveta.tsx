@@ -47,6 +47,33 @@ const TIPO: Record<TipoSite, { rotulo: string; cor: string; texto: string; acao:
 
 type Dados = { name: string; tipo: TipoSite; publicado: boolean; google: { nota: number | null; avaliacoes: number | null } } & Valores;
 
+// a prévia é uma página de desktop: renderiza em 1280px e encolhe para a largura da gaveta
+const LARGURA_PREVIA = 1280;
+const ALTURA_PREVIA = 900;
+function PreviaModelo({ html }: { html: string }) {
+  const [caixa, setCaixa] = useState<HTMLDivElement | null>(null);
+  const [escala, setEscala] = useState(0.4);
+  useEffect(() => {
+    if (!caixa) return;
+    const medir = () => setEscala(caixa.clientWidth / LARGURA_PREVIA);
+    medir();
+    const obs = new ResizeObserver(medir);
+    obs.observe(caixa);
+    return () => obs.disconnect();
+  }, [caixa]);
+  return (
+    <div ref={setCaixa} className="w-full overflow-hidden rounded-[10px] border border-[#D8D2C6] bg-white" style={{ height: ALTURA_PREVIA * escala }}>
+      <iframe
+        title="Pré-visualização do modelo"
+        srcDoc={html}
+        sandbox="allow-scripts"
+        style={{ width: LARGURA_PREVIA, height: ALTURA_PREVIA, transform: `scale(${escala})`, transformOrigin: "top left" }}
+        className="border-0 bg-white"
+      />
+    </div>
+  );
+}
+
 export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Promise<string> }) {
   const [dados, setDados] = useState<Dados | null>(null);
   const [erroCarga, setErroCarga] = useState("");
@@ -222,7 +249,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
             </div>
             {previaModelo !== null && (
               <div className="flex flex-col gap-2">
-                <iframe title="Pré-visualização do modelo" srcDoc={previaModelo} sandbox="allow-scripts" className="h-[560px] w-full rounded-[10px] border border-[#D8D2C6] bg-white" />
+                <PreviaModelo html={previaModelo} />
                 <div className="flex justify-end">
                   <button type="button" className={BOTAO_CLARO} onClick={() => setPreviaModelo(null)}>Fechar prévia</button>
                 </div>
