@@ -32,6 +32,8 @@ import { acessoDemo, restaurarDemo } from "@/lib/demo.server";
 import { createInstance, getQr, getStatus, logout, type QrWhatsApp } from "@/lib/wtsfy";
 import { apagarConexao, gravarConexao, gravarGestaoDono, gravarOwnerPhone, lerConexao, type ConexaoWhatsapp } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
+import { modelosDoSub, modeloDoId } from "@/lib/site-editorial";
+import { FieldValue } from "firebase-admin/firestore";
 
 export type { ConexaoWhatsapp, QrWhatsApp };
 
@@ -551,7 +553,33 @@ export const listarAtrasadas = adminAction(async () => enviaveis(await atrasadas
 /** A aba "Site" da gaveta: o que o negócio tem hoje. */
 export const siteDoNegocio = adminAction(async (_user, slug: string) => {
   slugValido(slug);
-  return lerSiteDoNegocio(adminDb, slug);
+  const [site, t] = await Promise.all([lerSiteDoNegocio(adminDb, slug), adminDb.collection("tenants").doc(slug).get()]);
+  const modelos = modelosDoSub(site.sub);
+  const e = t.get("gerado.escolha") as { kit?: number; cor?: number } | undefined;
+  // escolha gravada que não é de nenhum modelo da lista: "personalizado", só para mostrar
+  const casa = modelos.find((m) => m.escolha.kit === e?.kit && m.escolha.cor === e?.cor)?.id;
+  const modeloAtual = casa ?? (e ? "personalizado" : null);
+  return { ...site, modelos: modelos.map(({ id, rotulo }) => ({ id, rotulo })), modeloAtual };
+});
+
+/** Troca o modelo editorial do site: grava a escolha de kit e cor do modelo, ou volta ao
+ *  padrão do sistema (id null, que sorteia pelo slug). O site da fábrica não usa modelo. */
+export const definirModelo = adminAction(async (_user, slug: string, id: string | null) => {
+  slugValido(slug);
+  const t = adminDb.collection("tenants").doc(slug);
+  const tenant = await t.get();
+  const { tipo } = await lerSiteDoNegocio(adminDb, slug);
+  if (!tenant.exists || !tenant.get("gerado.sub") || tipo === "fabrica") throw new ErroPrevisto("Este site não usa modelo.");
+  if (id === null) {
+    await t.update({ "gerado.escolha": FieldValue.delete() });
+  } else {
+    const modelo = modeloDoId(tenant.get("gerado.sub"), id);
+    if (!modelo) throw new ErroPrevisto("Este modelo não serve para o ramo do negócio.");
+    await t.update({ "gerado.escolha": modelo.escolha });
+  }
+  for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${slug}/${p}`);
+  revalidatePath(`/bio/${slug}`);
+  return true;
 });
 
 /** Monta ou completa o site de um negócio pela gaveta — o do cadastro, sobretudo, que

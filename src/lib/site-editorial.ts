@@ -169,7 +169,8 @@ const ESTILOS: Partial<Record<Sub, Estilo>> = {
   // depilacao-1: fotos de depilação (Pexels) para quem só faz isso; escolha.kit = 4
   // bronze-1: bronzeamento em cabine e natural (Pexels); escolha.kit = 5
   // cilios-1: extensão de cílios (Pexels); escolha.kit = 6
-  estetica: { ...beleza("estetica", "Estética", DELICADAS), extras: ["/assets/beleza/depilacao-1", "/assets/beleza/bronze-1", "/assets/beleza/cilios-1"] },
+  // cilios-2 e cilios-3: mais extensão de cílios (Pexels); escolha.kit = 7 e 8
+  estetica: { ...beleza("estetica", "Estética", DELICADAS), extras: ["/assets/beleza/depilacao-1", "/assets/beleza/bronze-1", "/assets/beleza/cilios-1", "/assets/beleza/cilios-2", "/assets/beleza/cilios-3"] },
   unhas: beleza("unhas", "Nail designer", DELICADAS),
   tatuagem: beleza("tatuagem", "Estúdio de tatuagem", TINTAS),
   podologia: { ...beleza("podologia", "Podologia", CLINICAS), descricoes: PODOLOGIA },
@@ -184,6 +185,30 @@ export const escolhaEditorial = (sub: Sub, slug: string): Required<Escolha> => (
   kit: variante(slug, estiloDe(sub).kits.length, "kit"),
   cor: variante(slug, estiloDe(sub).paletas.length, "cor"),
 });
+
+// Três templates por nicho, cada um um par [kit, cor] do estilo do sub. Esmalteria é o
+// sub "unhas"; cílios, esteticista e maquiagem dividem "estetica" (kit 6 é cílios-1).
+// Escolha gravada (gerado.escolha) continua valendo; isto só cataloga as opções.
+export const TEMPLATES: Record<"podologia" | "esmalteria" | "cilios" | "cabeleireira" | "esteticista" | "maquiagem" | "tatuador", { sub: Sub; escolhas: Required<Escolha>[] }> = {
+  podologia: { sub: "podologia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 1 }, { kit: 2, cor: 2 }] },
+  esmalteria: { sub: "unhas", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
+  cilios: { sub: "estetica", escolhas: [{ kit: 6, cor: 0 }, { kit: 7, cor: 2 }, { kit: 8, cor: 4 }] },
+  cabeleireira: { sub: "salao", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
+  esteticista: { sub: "estetica", escolhas: [{ kit: 0, cor: 1 }, { kit: 1, cor: 3 }, { kit: 3, cor: 5 }] },
+  maquiagem: { sub: "estetica", escolhas: [{ kit: 2, cor: 0 }, { kit: 0, cor: 2 }, { kit: 1, cor: 4 }] },
+  tatuador: { sub: "tatuagem", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 1 }, { kit: 2, cor: 2 }] },
+};
+const ROTULO_MODELO: Record<keyof typeof TEMPLATES, string> = {
+  podologia: "Podologia", esmalteria: "Esmalteria", cilios: "Cílios", cabeleireira: "Cabeleireira",
+  esteticista: "Esteticista", maquiagem: "Maquiagem", tatuador: "Tatuador",
+};
+
+/** Os modelos que um ramo pode usar no admin: id estável (nicho-n) e a escolha que ele grava. */
+export const modelosDoSub = (sub: string) =>
+  (Object.keys(TEMPLATES) as (keyof typeof TEMPLATES)[])
+    .filter((nicho) => TEMPLATES[nicho].sub === sub)
+    .flatMap((nicho) => TEMPLATES[nicho].escolhas.map((escolha, i) => ({ id: `${nicho}-${i + 1}`, rotulo: `${ROTULO_MODELO[nicho]} ${i + 1}`, escolha })));
+export const modeloDoId = (sub: string, id: string) => modelosDoSub(sub).find((m) => m.id === id);
 
 // Textos fixos do modelo, em variantes: cada site sorteia uma por bloco (pelo slug), para
 // que dois sites do mesmo nicho não tenham as mesmas frases de ponta a ponta.

@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { CamposNegocio, errosDe, VAZIO, type Valores } from "@/components/campos-negocio";
 import { formatPhone } from "@/lib/datetime";
 import type { Mudanca, TipoSite } from "@/lib/negocios.server";
-import { montarSite, siteDoNegocio } from "./actions";
+import { definirModelo, montarSite, siteDoNegocio } from "./actions";
 
 // Aba "Site" da gaveta: montar ou completar o site de um negócio, sobretudo o de quem
 // se cadastrou sozinho — esse sai só com nome, ramo, WhatsApp e cidade. Os campos são
@@ -60,13 +60,21 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
   // a prévia é o passo entre editar e gravar: o que o servidor diz que vai mudar
   const [previa, setPrevia] = useState<Mudanca[] | null>(null);
   const [versao, setVersao] = useState(0);
+  // modelo editorial: o da lista, o que o site usa hoje e o escolhido no seletor
+  const [modelos, setModelos] = useState<{ id: string; rotulo: string }[]>([]);
+  const [modeloAtual, setModeloAtual] = useState("");
+  const [modelo, setModelo] = useState("");
+  const [avisoModelo, setAvisoModelo] = useState<{ ok: boolean; texto: string } | null>(null);
 
   async function ler() {
     return siteDoNegocio(await token(), slug).catch(() => null);
   }
   function mostrar(r: Awaited<ReturnType<typeof ler>>) {
     if (!r?.ok) return setErroCarga(r ? r.error : "Sem conexão.");
-    const { name, tipo, google, fabrica: _f, publicado, ...resto } = r.dados;
+    const { name, tipo, google, fabrica: _f, publicado, modelos: lista, modeloAtual: atual, ...resto } = r.dados;
+    setModelos(lista);
+    setModeloAtual(atual ?? "");
+    setModelo(atual ?? "");
     setDados({ ...VAZIO, ...resto, name, tipo, google, publicado });
     setNome(name);
     setCampos({ ...VAZIO, ...resto, telefone: resto.telefone ? formatPhone(resto.telefone) : "" });
@@ -123,6 +131,20 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
     mostrar(await ler());
   }
 
+  async function aplicarModelo() {
+    const nome = modelos.find((m) => m.id === modelo)?.rotulo ?? "Padrão do sistema";
+    // troca o site ao vivo na hora: confirma antes de gravar
+    if (!window.confirm(`Trocar o modelo de ${dados?.name} para ${nome}? O site e a bio mudam na hora.`)) return;
+    setBusy(true);
+    setAvisoModelo(null);
+    const r = await definirModelo(await token(), slug, modelo || null).catch(() => null);
+    setBusy(false);
+    if (!r?.ok) return setAvisoModelo({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
+    setModeloAtual(modelo);
+    setAvisoModelo({ ok: true, texto: "Modelo aplicado. O site e a bio já mostram o novo layout." });
+    setVersao((v) => v + 1);
+  }
+
   const site = `https://${slug}.ruphus.site`;
   const temSite = dados.tipo !== "sem-site";
 
@@ -151,6 +173,40 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
           <div className="flex flex-wrap gap-2">
             <a className={BOTAO_CLARO} href={site} target="_blank" rel="noreferrer">Ver o site ↗</a>
             <a className={BOTAO_CLARO} href={`${site}/bio`} target="_blank" rel="noreferrer">Bio ↗</a>
+          </div>
+        )}
+        {temSite && !fabrica && modelos.length > 0 && (
+          <div className="flex flex-col gap-2 border-t border-[#EDE9E1] pt-3">
+            <Label htmlFor="site-modelo">Modelo</Label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <select
+                id="site-modelo"
+                value={modelo}
+                disabled={busy}
+                onChange={(e) => {
+                  setModelo(e.target.value);
+                  setAvisoModelo(null);
+                }}
+                className="h-11 grow rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-[15px]"
+              >
+                <option value="">Padrão do sistema</option>
+                {modelos.map((m) => (
+                  <option key={m.id} value={m.id}>{m.rotulo}</option>
+                ))}
+                {modeloAtual === "personalizado" && <option value="personalizado" disabled>Personalizado</option>}
+              </select>
+              <button
+                type="button"
+                className={BOTAO_ESCURO}
+                disabled={busy || modelo === modeloAtual || modelo === "personalizado"}
+                onClick={aplicarModelo}
+              >
+                {busy ? "Aplicando…" : "Aplicar modelo"}
+              </button>
+            </div>
+            {avisoModelo && (
+              <p role={avisoModelo.ok ? "status" : "alert"} className={`text-sm ${avisoModelo.ok ? "text-[#2C6A53]" : "text-[#8A2F2F]"}`}>{avisoModelo.texto}</p>
+            )}
           </div>
         )}
       </section>
