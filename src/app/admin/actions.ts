@@ -32,9 +32,9 @@ import { acessoDemo, restaurarDemo } from "@/lib/demo.server";
 import { createInstance, getQr, getStatus, logout, type QrWhatsApp } from "@/lib/wtsfy";
 import { apagarConexao, gravarConexao, gravarGestaoDono, gravarOwnerPhone, lerConexao, type ConexaoWhatsapp } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
-import { modelosDoSub, modeloDoId, renderEditorial } from "@/lib/site-editorial";
+import { MODELOS, modeloDoId, renderEditorial, visualEditorial } from "@/lib/site-editorial";
 import { ehClaro, renderClaro } from "@/lib/site-claro";
-import type { Escolha } from "@/lib/gerador";
+import type { Escolha, Sub } from "@/lib/gerador";
 import { FieldValue } from "firebase-admin/firestore";
 
 export type { ConexaoWhatsapp, QrWhatsApp };
@@ -555,10 +555,12 @@ export const listarAtrasadas = adminAction(async () => enviaveis(await atrasadas
 /** A aba "Site" da gaveta: o que o negócio tem hoje. */
 export const siteDoNegocio = adminAction(async (_user, slug: string) => {
   slugValido(slug);
-  const { escolha: e, ...site } = await lerSiteDoNegocio(adminDb, slug);
-  const modelos = modelosDoSub(site.sub);
+  const { escolha, ...site } = await lerSiteDoNegocio(adminDb, slug);
+  const e = escolha as (Escolha & { modelo?: string }) | undefined;
+  // site de ramo claro (pet, saúde, aulas) não usa modelo editorial
+  const modelos = ehClaro(site.sub as Sub) ? [] : MODELOS;
   // escolha gravada que não é de nenhum modelo da lista: "personalizado", só para mostrar
-  const casa = modelos.find((m) => m.escolha.kit === e?.kit && m.escolha.cor === e?.cor)?.id;
+  const casa = e?.modelo ? modelos.find((m) => m.id === e.modelo)?.id : modelos.find((m) => m.escolha.kit === e?.kit && m.escolha.cor === e?.cor)?.id;
   const modeloAtual = casa ?? (e ? "personalizado" : null);
   return { ...site, modelos: modelos.map(({ id, rotulo }) => ({ id, rotulo })), modeloAtual };
 });
@@ -568,14 +570,14 @@ export const siteDoNegocio = adminAction(async (_user, slug: string) => {
 export const previewModelo = adminAction(async (_user, slug: string, id: string | null): Promise<string> => {
   slugValido(slug);
   const dados = await lerSite(adminDb, slug);
-  if (!dados) throw new ErroPrevisto("Este site não usa modelo.");
+  if (!dados || ehClaro(dados.sub)) throw new ErroPrevisto("Este site não usa modelo.");
   let escolha: Escolha | undefined;
   if (id !== null) {
-    const modelo = modeloDoId(dados.sub, id);
-    if (!modelo) throw new ErroPrevisto("Este modelo não serve para o ramo do negócio.");
+    const modelo = modeloDoId(id);
+    if (!modelo) throw new ErroPrevisto("Este modelo não existe.");
     escolha = modelo.escolha;
   }
-  const html = ehClaro(dados.sub) ? renderClaro(dados) : renderEditorial({ ...dados, escolha });
+  const html = renderEditorial({ ...dados, escolha });
   const comBase = html.replace("<head>", `<head><base href="https://${slug}.ruphus.site/">`);
   if (comBase === html) throw new Error("Modelo sem <head>: não dá para montar a pré-visualização.");
   return comBase;
@@ -588,14 +590,17 @@ export const definirModelo = adminAction(async (_user, slug: string, id: string 
   const t = adminDb.collection("tenants").doc(slug);
   const tenant = await t.get();
   const { tipo } = await lerSiteDoNegocio(adminDb, slug);
-  if (!tenant.exists || !tenant.get("gerado.sub") || tipo === "fabrica") throw new ErroPrevisto("Este site não usa modelo.");
-  if (id === null) {
-    await t.update({ "gerado.escolha": FieldValue.delete() });
-  } else {
-    const modelo = modeloDoId(tenant.get("gerado.sub"), id);
-    if (!modelo) throw new ErroPrevisto("Este modelo não serve para o ramo do negócio.");
-    await t.update({ "gerado.escolha": modelo.escolha });
-  }
+  const sub = tenant.get("gerado.sub");
+  if (!tenant.exists || !sub || tipo === "fabrica" || ehClaro(sub)) throw new ErroPrevisto("Este site não usa modelo.");
+  const escolha = id === null ? undefined : modeloDoId(id)?.escolha;
+  if (id !== null && !escolha) throw new ErroPrevisto("Este modelo não existe.");
+  // a /bio lê a cor e a foto gravadas no tenant: elas trocam junto com o modelo
+  const visual = visualEditorial(slug, sub, escolha);
+  await t.update({
+    "gerado.escolha": escolha ?? FieldValue.delete(),
+    "site.color": visual.cor,
+    "site.photo": visual.foto,
+  });
   for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${slug}/${p}`);
   revalidatePath(`/bio/${slug}`);
   return true;

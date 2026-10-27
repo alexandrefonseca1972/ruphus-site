@@ -214,7 +214,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
               <button
                 type="button"
                 className={BOTAO_ESCURO}
-                disabled={busy || modelo === modeloAtual || modelo === "personalizado"}
+                disabled={busy || modelo === "personalizado"}
                 onClick={aplicarModelo}
               >
                 {busy ? "Aplicando…" : "Aplicar modelo"}

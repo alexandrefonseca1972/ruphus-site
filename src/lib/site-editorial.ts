@@ -203,12 +203,23 @@ const ROTULO_MODELO: Record<keyof typeof TEMPLATES, string> = {
   esteticista: "Esteticista", maquiagem: "Maquiagem", tatuador: "Tatuador",
 };
 
-/** Os modelos que um ramo pode usar no admin: id estável (nicho-n) e a escolha que ele grava. */
-export const modelosDoSub = (sub: string) =>
-  (Object.keys(TEMPLATES) as (keyof typeof TEMPLATES)[])
-    .filter((nicho) => TEMPLATES[nicho].sub === sub)
-    .flatMap((nicho) => TEMPLATES[nicho].escolhas.map((escolha, i) => ({ id: `${nicho}-${i + 1}`, rotulo: `${ROTULO_MODELO[nicho]} ${i + 1}`, escolha })));
-export const modeloDoId = (sub: string, id: string) => modelosDoSub(sub).find((m) => m.id === id);
+/** Todos os modelos, para qualquer ramo editorial: id estável (nicho-n), a escolha que ele
+ *  grava e a foto e a paleta do próprio ramo de origem, que vão junto com ele. */
+export const MODELOS = (Object.keys(TEMPLATES) as (keyof typeof TEMPLATES)[]).flatMap((nicho) => {
+  const { sub, escolhas } = TEMPLATES[nicho];
+  const e = estiloDe(sub);
+  return escolhas.map((escolha, i) => {
+    const id = `${nicho}-${i + 1}`;
+    return {
+      id,
+      rotulo: `${ROTULO_MODELO[nicho]} ${i + 1}`,
+      escolha: { ...escolha, modelo: id },
+      pasta: [...e.kits, ...(e.extras ?? [])][escolha.kit] ?? e.kits[0],
+      paleta: e.paletas[escolha.cor],
+    };
+  });
+});
+export const modeloDoId = (id: string) => MODELOS.find((m) => m.id === id);
 
 // Textos fixos do modelo, em variantes: cada site sorteia uma por bloco (pelo slug), para
 // que dois sites do mesmo nicho não tenham as mesmas frases de ponta a ponta.
@@ -237,11 +248,13 @@ const VARIANTES = {
 const sorteio = <T,>(lista: T[], slug: string, sal: string): T => lista[variante(slug, lista.length, sal)];
 
 /** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. */
-export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha) {
+export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha & { modelo?: string }) {
   const e = estiloDe(sub);
   const padrao = escolhaEditorial(sub, slug);
-  const [ink, acc, deep, tint] = e.paletas[escolha?.cor ?? padrao.cor];
-  const kit = [...e.kits, ...(e.extras ?? [])][escolha?.kit ?? padrao.kit] ?? e.kits[padrao.kit];
+  // modelo gravado: foto e paleta vêm dele, mesmo que o ramo do negócio seja outro
+  const doModelo = escolha?.modelo ? modeloDoId(escolha.modelo) : undefined;
+  const [ink, acc, deep, tint] = doModelo?.paleta ?? e.paletas[escolha?.cor ?? padrao.cor];
+  const kit = doModelo?.pasta ?? [...e.kits, ...(e.extras ?? [])][escolha?.kit ?? padrao.kit] ?? e.kits[padrao.kit];
   return { e, ink, acc, deep, tint, kit, cor: acc, foto: `${kit}/hero.jpg`, fonte: FONTES[variante(slug, FONTES.length, "fonte")] };
 }
 
