@@ -189,7 +189,8 @@ export const escolhaEditorial = (sub: Sub, slug: string): Required<Escolha> => (
 // Três templates por nicho, cada um um par [kit, cor] do estilo do sub. Esmalteria é o
 // sub "unhas"; cílios, esteticista e maquiagem dividem "estetica" (kit 6 é cílios-1).
 // Escolha gravada (gerado.escolha) continua valendo; isto só cataloga as opções.
-export const TEMPLATES: Record<"podologia" | "esmalteria" | "cilios" | "cabeleireira" | "esteticista" | "maquiagem" | "tatuador", { sub: Sub; escolhas: Required<Escolha>[] }> = {
+export const TEMPLATES: Record<"barbearia" | "podologia" | "esmalteria" | "cilios" | "cabeleireira" | "esteticista" | "maquiagem" | "tatuador", { sub: Sub; escolhas: Required<Escolha>[] }> = {
+  barbearia: { sub: "barbearia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
   podologia: { sub: "podologia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 1 }, { kit: 2, cor: 2 }] },
   esmalteria: { sub: "unhas", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
   cilios: { sub: "estetica", escolhas: [{ kit: 6, cor: 0 }, { kit: 7, cor: 2 }, { kit: 8, cor: 4 }] },
@@ -199,7 +200,7 @@ export const TEMPLATES: Record<"podologia" | "esmalteria" | "cilios" | "cabeleir
   tatuador: { sub: "tatuagem", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 1 }, { kit: 2, cor: 2 }] },
 };
 const ROTULO_MODELO: Record<keyof typeof TEMPLATES, string> = {
-  podologia: "Podologia", esmalteria: "Esmalteria", cilios: "Cílios", cabeleireira: "Cabeleireira",
+  barbearia: "Barbearia", podologia: "Podologia", esmalteria: "Esmalteria", cilios: "Cílios", cabeleireira: "Cabeleireira",
   esteticista: "Esteticista", maquiagem: "Maquiagem", tatuador: "Tatuador",
 };
 
