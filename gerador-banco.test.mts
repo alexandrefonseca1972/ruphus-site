@@ -106,6 +106,10 @@ assert.equal(conferido.length, 35);
 assert.deepEqual([conferido[32].acao, conferido[32].slug], ["pular", "pet-feliz"]);
 assert.equal(conferido.filter((l) => l.acao === "pular").length, 1);
 
+// o número da fábrica sem o 9 (levantamento antigo) é o mesmo negócio: pula, não cria outro site
+const [semNove] = await gerarNoBanco(db, planilha(["Pet Feliz Antigo", "(91) 8765-0123", "Pet shop", "Belém", "PA", "", "", "", "", "", ""]), false, "a");
+assert.deepEqual([semNove.acao, semNove.slug], ["pular", "pet-feliz"]);
+
 // a rota monta a página do que foi gravado; site da fábrica e slug estranho não passam por ela
 const { GET } = await import("@/app/s/[slug]/index.html/route");
 const pagina = (slug: string) => GET(new Request(`http://x/s/${slug}/index.html`), { params: Promise.resolve({ slug }) });

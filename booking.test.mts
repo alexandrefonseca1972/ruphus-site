@@ -4,7 +4,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
-import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, loadCatalog, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente } from "@/lib/booking.server";
+import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, LIMITS, loadCatalog, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
 import { addDays, agoraNaParede, customerKey, formatPhone, fusoDaUF, maskBRL, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
@@ -282,6 +282,12 @@ assert.equal((await book(db, { ...spam, customerPhone: "11 98888-2222", date: ad
 const limits = await t.collection("limits").get();
 assert.ok(limits.size >= 2);
 assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP não aparece em claro");
+// Somando todos os negócios: quem já marcou 8 vezes hoje em outros salões não dispara
+// mais recibos pelo WhatsApp de ninguém
+assert.equal((await db.doc(`limitesAgenda/phone-5511988882222-${todayIn()}`).get()).get("count"), 1, "conta também fora do negócio");
+await db.doc(`limitesAgenda/phone-5511977773333-${todayIn()}`).set({ count: LIMITS.globalPerPhone, day: todayIn() });
+const global = await book(db, { ...spam, customerPhone: "11 97777-3333", date: addDays(limDate, 14), time: "09:00" }, "198.51.100.7");
+assert.match(("error" in global && global.error) || "", /Muitos agendamentos com este WhatsApp/, "limite somado entre negócios");
 
 // Corrigir o nome do cliente: o futuro acompanha, o historico nao
 {

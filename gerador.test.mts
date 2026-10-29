@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import lerAbas from "read-excel-file/node";
 import { montar, porRamo } from "@/lib/catalogo";
-import { candidatos, type DadosSite, fixo, lerPlanilha as lerAbasDaPlanilha, nichoDe, ufDe, ufDoTelefone, variante } from "@/lib/gerador";
+import { candidatos, type DadosSite, fixo, lerPlanilha as lerAbasDaPlanilha, nichoDe, outraForma, ufDe, ufDoTelefone, variante } from "@/lib/gerador";
 
 // uma aba só, como a maioria das planilhas
 const lerPlanilha = (linhas: unknown[][]) => lerAbasDaPlanilha([{ aba: "Leads", linhas }]);
@@ -387,3 +387,7 @@ console.log("gerador: ok");
 // UF por extenso: as duas primeiras letras davam a UF errada ("Paraíba" → PA)
 assert.deepEqual(["PB", "pb", "Paraíba", "Paraná", "Minas Gerais", "São Paulo", "Xx"].map(ufDe), ["PB", "PB", "PB", "PR", "MG", "SP", ""]);
 console.log("uf por extenso: ok");
+
+// o mesmo celular com e sem o 9; fixo não tem outra forma
+assert.deepEqual(["5591993721156", "559193721156", "559632178751", "14155550100"].map(outraForma), ["559193721156", "5591993721156", null, null]);
+console.log("nono dígito: ok");
