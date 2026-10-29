@@ -214,6 +214,16 @@ export function lerPlanilha(abas: { aba: string; linhas: unknown[][] }[]): Leitu
   return { leads, erros, semTelefone, ignoradas: [...ignoradas] };
 }
 
+/** O mesmo celular na outra forma: com o 9 na frente, sem ele, e vice-versa
+ *  ("5591993721156" ⇄ "559193721156"). Fixo (começa com 2 a 5) não tem outra forma. */
+export function outraForma(telefone: string) {
+  const [ddi, ddd, resto] = [telefone.slice(0, 2), telefone.slice(2, 4), telefone.slice(4)];
+  if (ddi !== "55") return null;
+  if (resto.length === 9 && resto[0] === "9") return ddi + ddd + resto.slice(1);
+  if (resto.length === 8 && /^[6-9]/.test(resto)) return `${ddi}${ddd}9${resto}`;
+  return null;
+}
+
 /** Telefone fixo (8 dígitos depois do DDD): o site sai, mas o WhatsApp não atende. */
 export const fixo = (telefone: string) => telefone.length === 12;
 

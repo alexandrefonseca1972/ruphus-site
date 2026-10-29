@@ -270,7 +270,7 @@ export async function agendaDias(db: Firestore, q: AgendaQuery, dias: string[]) 
 type Actor = { uid: string; email?: string };
 
 // Trava simples contra reservas em massa pela página pública (sem captcha nem serviço externo)
-export const LIMITS = { activePerPhone: 3, dailyPerPhone: 5, dailyPerDevice: 20 };
+export const LIMITS = { activePerPhone: 3, dailyPerPhone: 5, dailyPerDevice: 20, globalPerPhone: 8, globalPerDevice: 30 };
 const deviceId = (ip: string) => createHash("sha256").update(`siteflow:${ip}`).digest("hex").slice(0, 16);
 
 /** Conta e valida limites do dia. Devolve a mensagem quando estourou. */
@@ -284,14 +284,19 @@ async function limitError(
   const day = todayIn();
   const phoneRef = t.collection("limits").doc(`phone-${key}-${day}`);
   const deviceRef = ip ? t.collection("limits").doc(`device-${deviceId(ip)}-${day}`) : null;
+  // Os mesmos contadores somando todos os negócios: cada reserva manda recibo pelo
+  // WhatsApp do salão para o telefone digitado, e por negócio o limite deixava um
+  // script passar de salão em salão disparando mensagens para qualquer número.
+  const global = t.firestore.collection("limitesAgenda");
+  const phoneGlobal = global.doc(`phone-${key}-${day}`);
+  const deviceGlobal = ip ? global.doc(`device-${deviceId(ip)}-${day}`) : null;
   const contar = () => {
-    tx.set(phoneRef, { count: FieldValue.increment(1), day }, { merge: true });
-    if (deviceRef) tx.set(deviceRef, { count: FieldValue.increment(1), day }, { merge: true });
+    for (const ref of [phoneRef, deviceRef, phoneGlobal, deviceGlobal]) if (ref) tx.set(ref, { count: FieldValue.increment(1), day }, { merge: true });
   };
   // trava desligada durante testes manuais (AGENDAMENTO_SEM_LIMITE=1 no ambiente):
   // a contagem segue normal para conferência; só o bloqueio sai
   if (process.env.AGENDAMENTO_SEM_LIMITE === "1") return { bump: contar };
-  const [phoneDoc, deviceDoc] = await tx.getAll(phoneRef, ...(deviceRef ? [deviceRef] : []));
+  const [phoneDoc, phoneGlobalDoc, deviceDoc, deviceGlobalDoc] = await tx.getAll(phoneRef, phoneGlobal, ...(deviceRef && deviceGlobal ? [deviceRef, deviceGlobal] : []));
   const future = await tx.get(
     t.collection("appointments").where("customerKey", "==", key).where("start", ">", new Date()),
   );
@@ -302,6 +307,12 @@ async function limitError(
   }
   if ((phoneDoc.get("count") ?? 0) >= LIMITS.dailyPerPhone) {
     return { error: "Muitos agendamentos com este WhatsApp hoje. Tente amanhã ou fale direto com o negócio." };
+  }
+  if ((phoneGlobalDoc.get("count") ?? 0) >= LIMITS.globalPerPhone) {
+    return { error: "Muitos agendamentos com este WhatsApp hoje. Tente amanhã ou fale direto com o negócio." };
+  }
+  if (deviceGlobalDoc && (deviceGlobalDoc.get("count") ?? 0) >= LIMITS.globalPerDevice) {
+    return { error: "Muitos agendamentos deste dispositivo hoje. Tente amanhã ou fale direto com o negócio." };
   }
   if (deviceDoc && (deviceDoc.get("count") ?? 0) >= LIMITS.dailyPerDevice) {
     return { error: "Muitos agendamentos deste dispositivo hoje. Tente amanhã ou fale direto com o negócio." };

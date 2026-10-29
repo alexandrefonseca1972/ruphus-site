@@ -4,7 +4,7 @@ import { z } from "zod";
 import { EQUIPE, montar, porRamo } from "@/lib/catalogo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { AUTOR_LEVANTAMENTO } from "@/lib/crm-tipos";
-import { candidatos, type DadosSite, type Escolha, fixo, Lead, type Nicho, nichoDe, type Sub, sortearVisual } from "@/lib/gerador";
+import { candidatos, type DadosSite, type Escolha, fixo, Lead, type Nicho, nichoDe, outraForma, type Sub, sortearVisual } from "@/lib/gerador";
 import type { Utm } from "@/lib/crm-tipos";
 import { dateIn } from "@/lib/datetime";
 import { combinacoesEditorial, escolhaEditorial, visualEditorial } from "@/lib/site-editorial";
@@ -125,15 +125,19 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   // O telefone identifica o negócio. Já com site gerado: é o mesmo lead, atualiza
   // (mesmo que o nome tenha mudado na planilha). Com site da fábrica ou conta
   // real: o negócio já existe, a linha fica de fora.
-  const telefones = [...new Set(lida.data.map(({ lead }) => lead.telefone))];
+  // O mesmo celular aparece com e sem o 9 (levantamento antigo, número salvo antes da
+  // mudança): procura as duas formas e guarda o achado nas duas, para casar com a planilha.
+  const telefones = [...new Set(lida.data.flatMap(({ lead }) => [lead.telefone, outraForma(lead.telefone)].filter((t): t is string => !!t)))];
   const porTelefone = new Map<string, { slug: string; gerado: boolean; cadastro: boolean; publicado: boolean; escolha?: Escolha }>();
   for (let i = 0; i < telefones.length; i += 30) { // o "in" do Firestore aceita até 30
     const achados = await tenants.where("site.phone", "in", telefones.slice(i, i + 30)).select("site.phone", "gerado").get();
     for (const d of achados.docs) {
-      const t = String(d.get("site.phone"));
-      // entre um gerado e outro qualquer com o mesmo número, o que não é gerado decide: não duplicar
-      if (!porTelefone.has(t) || !d.get("gerado")) {
-        porTelefone.set(t, { slug: d.id, gerado: !!d.get("gerado"), cadastro: d.get("gerado.origem") === "cadastro", publicado: !!d.get("gerado.publicadoEm"), escolha: d.get("gerado.escolha") });
+      const achado = String(d.get("site.phone"));
+      for (const t of [achado, outraForma(achado)].filter((t): t is string => !!t)) {
+        // entre um gerado e outro qualquer com o mesmo número, o que não é gerado decide: não duplicar
+        if (!porTelefone.has(t) || !d.get("gerado")) {
+          porTelefone.set(t, { slug: d.id, gerado: !!d.get("gerado"), cadastro: d.get("gerado.origem") === "cadastro", publicado: !!d.get("gerado.publicadoEm"), escolha: d.get("gerado.escolha") });
+        }
       }
     }
   }
