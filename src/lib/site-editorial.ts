@@ -145,7 +145,9 @@ const DESCRICOES: [RegExp, string | string[], string][] = [
   [/alongamento|gel|fibra/i, ["Unhas mais longas e resistentes, com formato do seu jeito."], "Durável"],
   [/cíli|cili|lash/i, ["Fios aplicados um a um para um olhar marcante e natural."], "Olhar"],
   [/limpeza de pele|facial|peeling/i, ["Pele limpa, renovada e preparada para os próximos cuidados."], "Pele"],
+  [/bronze/i, ["Bronzeado uniforme e natural, com cuidado para a sua pele."], "Bronze"],
   [/massag|drenag/i, ["Relaxamento e bem-estar em um momento só seu."], "Bem-estar"],
+  [/cera|roll-?on|faixa/i, ["Cera aplicada e retirada com técnica, para a pele lisa e com conforto."], "Cera"],
   [/depila/i, ["Depilação com técnica e conforto."], "Conforto"],
 ];
 const detalhe = (e: Estilo, slug: string, s: string, i: number, variantes: boolean): [string, string] => {
@@ -165,7 +167,11 @@ const ESTILOS: Partial<Record<Sub, Estilo>> = {
   barbearia: beleza("barbearia", "Barbearia", QUENTES),
   salao: beleza("salao", "Salão de beleza", DELICADAS),
   // depilacao-1: fotos de depilação (Pexels) para quem só faz isso; escolha.kit = 4
-  estetica: { ...beleza("estetica", "Estética", DELICADAS), extras: ["/assets/beleza/depilacao-1"] },
+  // bronze-1: bronzeamento em cabine e natural (Pexels); escolha.kit = 5
+  // cilios-1: extensão de cílios (Pexels); escolha.kit = 6
+  // cilios-2 e cilios-3: mais extensão de cílios (Pexels); escolha.kit = 7 e 8
+  // bronze-2: cabine/solário; bronze-3: bronzeamento natural na praia (Pexels); escolha.kit = 9 e 10
+  estetica: { ...beleza("estetica", "Estética", DELICADAS), extras: ["/assets/beleza/depilacao-1", "/assets/beleza/bronze-1", "/assets/beleza/cilios-1", "/assets/beleza/cilios-2", "/assets/beleza/cilios-3", "/assets/beleza/bronze-2", "/assets/beleza/bronze-3"] },
   unhas: beleza("unhas", "Nail designer", DELICADAS),
   tatuagem: beleza("tatuagem", "Estúdio de tatuagem", TINTAS),
   podologia: { ...beleza("podologia", "Podologia", CLINICAS), descricoes: PODOLOGIA },
@@ -180,6 +186,45 @@ export const escolhaEditorial = (sub: Sub, slug: string): Required<Escolha> => (
   kit: variante(slug, estiloDe(sub).kits.length, "kit"),
   cor: variante(slug, estiloDe(sub).paletas.length, "cor"),
 });
+
+// Três templates por nicho, cada um um par [kit, cor] do estilo do sub. Esmalteria é o
+// sub "unhas"; cílios, bronzeamento, esteticista e maquiagem dividem "estetica" (kit 6 é
+// cílios-1, kit 5 é bronze-1). Escolha gravada (gerado.escolha) continua valendo; isto só
+// cataloga as opções.
+export const TEMPLATES: Record<"barbearia" | "podologia" | "esmalteria" | "cilios" | "bronzeamento" | "cabeleireira" | "esteticista" | "maquiagem" | "tatuador", { sub: Sub; escolhas: Required<Escolha>[] }> = {
+  barbearia: { sub: "barbearia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
+  podologia: { sub: "podologia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 1 }, { kit: 2, cor: 2 }] },
+  esmalteria: { sub: "unhas", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
+  cilios: { sub: "estetica", escolhas: [{ kit: 6, cor: 0 }, { kit: 7, cor: 2 }, { kit: 8, cor: 4 }] },
+  // paletas quentes do DELICADAS: dourado, terracota, coral
+  bronzeamento: { sub: "estetica", escolhas: [{ kit: 5, cor: 5 }, { kit: 9, cor: 4 }, { kit: 10, cor: 1 }] },
+  cabeleireira: { sub: "salao", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
+  esteticista: { sub: "estetica", escolhas: [{ kit: 0, cor: 1 }, { kit: 1, cor: 3 }, { kit: 3, cor: 5 }] },
+  maquiagem: { sub: "estetica", escolhas: [{ kit: 2, cor: 0 }, { kit: 0, cor: 2 }, { kit: 1, cor: 4 }] },
+  tatuador: { sub: "tatuagem", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 1 }, { kit: 2, cor: 2 }] },
+};
+const ROTULO_MODELO: Record<keyof typeof TEMPLATES, string> = {
+  barbearia: "Barbearia", podologia: "Podologia", esmalteria: "Esmalteria", cilios: "Cílios", bronzeamento: "Bronzeamento", cabeleireira: "Cabeleireira",
+  esteticista: "Esteticista", maquiagem: "Maquiagem", tatuador: "Tatuador",
+};
+
+/** Todos os modelos, para qualquer ramo editorial: id estável (nicho-n), a escolha que ele
+ *  grava e a foto e a paleta do próprio ramo de origem, que vão junto com ele. */
+export const MODELOS = (Object.keys(TEMPLATES) as (keyof typeof TEMPLATES)[]).flatMap((nicho) => {
+  const { sub, escolhas } = TEMPLATES[nicho];
+  const e = estiloDe(sub);
+  return escolhas.map((escolha, i) => {
+    const id = `${nicho}-${i + 1}`;
+    return {
+      id,
+      rotulo: `${ROTULO_MODELO[nicho]} ${i + 1}`,
+      escolha: { ...escolha, modelo: id },
+      pasta: [...e.kits, ...(e.extras ?? [])][escolha.kit] ?? e.kits[0],
+      paleta: e.paletas[escolha.cor],
+    };
+  });
+});
+export const modeloDoId = (id: string) => MODELOS.find((m) => m.id === id);
 
 // Textos fixos do modelo, em variantes: cada site sorteia uma por bloco (pelo slug), para
 // que dois sites do mesmo nicho não tenham as mesmas frases de ponta a ponta.
@@ -208,11 +253,13 @@ const VARIANTES = {
 const sorteio = <T,>(lista: T[], slug: string, sal: string): T => lista[variante(slug, lista.length, sal)];
 
 /** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. */
-export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha) {
+export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha & { modelo?: string }) {
   const e = estiloDe(sub);
   const padrao = escolhaEditorial(sub, slug);
-  const [ink, acc, deep, tint] = e.paletas[escolha?.cor ?? padrao.cor];
-  const kit = [...e.kits, ...(e.extras ?? [])][escolha?.kit ?? padrao.kit] ?? e.kits[padrao.kit];
+  // modelo gravado: foto e paleta vêm dele, mesmo que o ramo do negócio seja outro
+  const doModelo = escolha?.modelo ? modeloDoId(escolha.modelo) : undefined;
+  const [ink, acc, deep, tint] = doModelo?.paleta ?? e.paletas[escolha?.cor ?? padrao.cor];
+  const kit = doModelo?.pasta ?? [...e.kits, ...(e.extras ?? [])][escolha?.kit ?? padrao.kit] ?? e.kits[padrao.kit];
   return { e, ink, acc, deep, tint, kit, cor: acc, foto: `${kit}/hero.jpg`, fonte: FONTES[variante(slug, FONTES.length, "fonte")] };
 }
 

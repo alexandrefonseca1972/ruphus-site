@@ -26,9 +26,18 @@ import { anotar, CrmInput, lerCrm, linhaDoTempo, listarNotas, registrarMensagem,
 import { diaCurto, hojeISO } from "@/lib/crm-tipos";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import { competenciaAtual } from "@/lib/pix";
-import { gerarNoBanco, publicarSite } from "@/lib/gerador.server";
+import { gerarNoBanco, lerSite, publicarSite } from "@/lib/gerador.server";
 import { PAGINAS_DEMO } from "@/lib/demo";
 import { acessoDemo, restaurarDemo } from "@/lib/demo.server";
+import { createInstance, getQr, getStatus, logout, type QrWhatsApp } from "@/lib/wtsfy";
+import { apagarConexao, gravarConexao, gravarGestaoDono, gravarOwnerPhone, lerConexao, type ConexaoWhatsapp } from "@/lib/whatsapp.server";
+import { soDigitosComDDI } from "@/lib/telefone";
+import { MODELOS, modeloDoId, renderEditorial, visualEditorial } from "@/lib/site-editorial";
+import { ehClaro, renderClaro } from "@/lib/site-claro";
+import type { Escolha, Sub } from "@/lib/gerador";
+import { FieldValue } from "firebase-admin/firestore";
+
+export type { ConexaoWhatsapp, QrWhatsApp };
 
 export type Espaco = {
   slug: string;
@@ -546,7 +555,55 @@ export const listarAtrasadas = adminAction(async () => enviaveis(await atrasadas
 /** A aba "Site" da gaveta: o que o negócio tem hoje. */
 export const siteDoNegocio = adminAction(async (_user, slug: string) => {
   slugValido(slug);
-  return lerSiteDoNegocio(adminDb, slug);
+  const { escolha, ...site } = await lerSiteDoNegocio(adminDb, slug);
+  const e = escolha as (Escolha & { modelo?: string }) | undefined;
+  // site de ramo claro (pet, saúde, aulas) não usa modelo editorial
+  const modelos = ehClaro(site.sub as Sub) ? [] : MODELOS;
+  // escolha gravada que não é de nenhum modelo da lista: "personalizado", só para mostrar
+  const casa = e?.modelo ? modelos.find((m) => m.id === e.modelo)?.id : modelos.find((m) => m.escolha.kit === e?.kit && m.escolha.cor === e?.cor)?.id;
+  const modeloAtual = casa ?? (e ? "personalizado" : null);
+  return { ...site, modelos: modelos.map(({ id, rotulo }) => ({ id, rotulo })), modeloAtual };
+});
+
+/** Pré-visualização do modelo com os dados reais do negócio, sem gravar nada. O HTML
+ *  sai com <base> no domínio do site, para as fotos carregarem dentro do admin. */
+export const previewModelo = adminAction(async (_user, slug: string, id: string | null): Promise<string> => {
+  slugValido(slug);
+  const dados = await lerSite(adminDb, slug);
+  if (!dados || ehClaro(dados.sub)) throw new ErroPrevisto("Este site não usa modelo.");
+  let escolha: Escolha | undefined;
+  if (id !== null) {
+    const modelo = modeloDoId(id);
+    if (!modelo) throw new ErroPrevisto("Este modelo não existe.");
+    escolha = modelo.escolha;
+  }
+  const html = renderEditorial({ ...dados, escolha });
+  const comBase = html.replace("<head>", `<head><base href="https://${slug}.ruphus.site/">`);
+  if (comBase === html) throw new Error("Modelo sem <head>: não dá para montar a pré-visualização.");
+  return comBase;
+});
+
+/** Troca o modelo editorial do site: grava a escolha de kit e cor do modelo, ou volta ao
+ *  padrão do sistema (id null, que sorteia pelo slug). O site da fábrica não usa modelo. */
+export const definirModelo = adminAction(async (_user, slug: string, id: string | null) => {
+  slugValido(slug);
+  const t = adminDb.collection("tenants").doc(slug);
+  const tenant = await t.get();
+  const { tipo } = await lerSiteDoNegocio(adminDb, slug);
+  const sub = tenant.get("gerado.sub");
+  if (!tenant.exists || !sub || tipo === "fabrica" || ehClaro(sub)) throw new ErroPrevisto("Este site não usa modelo.");
+  const escolha = id === null ? undefined : modeloDoId(id)?.escolha;
+  if (id !== null && !escolha) throw new ErroPrevisto("Este modelo não existe.");
+  // a /bio lê a cor e a foto gravadas no tenant: elas trocam junto com o modelo
+  const visual = visualEditorial(slug, sub, escolha);
+  await t.update({
+    "gerado.escolha": escolha ?? FieldValue.delete(),
+    "site.color": visual.cor,
+    "site.photo": visual.foto,
+  });
+  for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${slug}/${p}`);
+  revalidatePath(`/bio/${slug}`);
+  return true;
 });
 
 /** Monta ou completa o site de um negócio pela gaveta — o do cadastro, sobretudo, que
@@ -586,4 +643,75 @@ export const restaurarADemo = adminAction(async (user) => {
   const r = await restaurarDemo(adminDb, { adminUid: user.uid });
   for (const p of PAGINAS_DEMO) revalidatePath(p);
   return r;
+});
+
+// ─── WhatsApp do negócio (gateway próprio, wtsfy) ────────────────────────────
+
+/** O WhatsApp que o dono conectou: o que está gravado no tenants/{slug}. */
+export const whatsappDoNegocio = adminAction(async (_user, slug: string): Promise<ConexaoWhatsapp | null> => {
+  slugValido(slug);
+  return lerConexao(adminDb, slug);
+});
+
+/** Cria a instância no gateway e prende o vínculo ao negócio. Um número por negócio.
+ *  Quem conecta pela plataforma assume a gestão: ownerManaged false trava a
+ *  edição no painel do dono (a plataforma tem prioridade). */
+export const conectarWhatsApp = adminAction(async (_user, slug: string): Promise<ConexaoWhatsapp> => {
+  slugValido(slug);
+  if (await lerConexao(adminDb, slug)) throw new ErroPrevisto("Este negócio já tem um WhatsApp conectado. Desconecte antes de trocar de número.");
+  const { id } = await createInstance(`ruphus-${slug}`);
+  const conexao: ConexaoWhatsapp = { instanceId: id, phone: null, status: "created", updatedAt: Date.now(), ownerManaged: false };
+  await gravarConexao(adminDb, slug, conexao);
+  return conexao;
+});
+
+/** Delegar (ou retomar) a gestão do WhatsApp ao painel do dono. Só a plataforma decide. */
+export const definirGestaoDonoWhatsApp = adminAction(async (_user, slug: string, permitir: unknown): Promise<boolean> => {
+  slugValido(slug);
+  const valor = permitir === true;
+  await gravarGestaoDono(adminDb, slug, valor);
+  return valor;
+});
+
+/** Pergunta ao gateway o estado de verdade e espelha no banco. É o que o polling usa. */
+export const refreshWhatsAppStatus = adminAction(async (_user, slug: string): Promise<ConexaoWhatsapp | null> => {
+  slugValido(slug);
+  const salva = await lerConexao(adminDb, slug);
+  if (!salva) return null;
+  const vivo = await getStatus(salva.instanceId);
+  const conexao: ConexaoWhatsapp = { ...salva, phone: vivo.phone ?? salva.phone, status: vivo.status, updatedAt: Date.now() };
+  await gravarConexao(adminDb, slug, conexao);
+  return conexao;
+});
+
+/** O QR de pareamento (PNG em base64), ou o estado da conexão enquanto o QR não sai. */
+export const qrWhatsApp = adminAction(async (_user, slug: string): Promise<QrWhatsApp> => {
+  slugValido(slug);
+  const salva = await lerConexao(adminDb, slug);
+  if (!salva) throw new ErroPrevisto("Conecte o WhatsApp antes de pedir o QR.");
+  return getQr(salva.instanceId);
+});
+
+/** Despareia o número do gateway e solta o vínculo com o negócio. */
+export const desconectarWhatsApp = adminAction(async (_user, slug: string) => {
+  slugValido(slug);
+  const salva = await lerConexao(adminDb, slug);
+  if (salva) await logout(salva.instanceId).catch(() => {});
+  await apagarConexao(adminDb, slug);
+  return "desconectado";
+});
+
+/** O número pessoal do dono: recebe os avisos de novo agendamento e confirma
+ *  respondendo CONFIRMADO. Precisa ser um aparelho separado do número conectado
+ *  (self-chat do dono não chega ao gateway de forma confiável). Vazio desliga. */
+export const definirOwnerPhoneWhatsApp = adminAction(async (_user, slug: string, telefone: unknown) => {
+  slugValido(slug);
+  if (!(await lerConexao(adminDb, slug))) throw new ErroPrevisto("Conecte o WhatsApp do negócio antes de cadastrar o número do dono.");
+  const limpo = String(telefone ?? "").trim();
+  const dono = limpo ? soDigitosComDDI(limpo) : null;
+  if (limpo && !dono) {
+    throw new ErroPrevisto("Número incompleto. Use DDD + número (ex.: 11 98877-7777) ou com DDI (ex.: +55 11 98877-7777).");
+  }
+  await gravarOwnerPhone(adminDb, slug, dono);
+  return dono;
 });

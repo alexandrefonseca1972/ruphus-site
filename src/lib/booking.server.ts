@@ -284,6 +284,13 @@ async function limitError(
   const day = todayIn();
   const phoneRef = t.collection("limits").doc(`phone-${key}-${day}`);
   const deviceRef = ip ? t.collection("limits").doc(`device-${deviceId(ip)}-${day}`) : null;
+  const contar = () => {
+    tx.set(phoneRef, { count: FieldValue.increment(1), day }, { merge: true });
+    if (deviceRef) tx.set(deviceRef, { count: FieldValue.increment(1), day }, { merge: true });
+  };
+  // trava desligada durante testes manuais (AGENDAMENTO_SEM_LIMITE=1 no ambiente):
+  // a contagem segue normal para conferência; só o bloqueio sai
+  if (process.env.AGENDAMENTO_SEM_LIMITE === "1") return { bump: contar };
   const [phoneDoc, deviceDoc] = await tx.getAll(phoneRef, ...(deviceRef ? [deviceRef] : []));
   const future = await tx.get(
     t.collection("appointments").where("customerKey", "==", key).where("start", ">", new Date()),
@@ -300,10 +307,7 @@ async function limitError(
     return { error: "Muitos agendamentos deste dispositivo hoje. Tente amanhã ou fale direto com o negócio." };
   }
   // ponytail: contadores por dia ficam guardados; se incomodar, ligue TTL no campo day
-  return { bump: () => {
-    tx.set(phoneRef, { count: FieldValue.increment(1), day }, { merge: true });
-    if (deviceRef) tx.set(deviceRef, { count: FieldValue.increment(1), day }, { merge: true });
-  } };
+  return { bump: contar };
 }
 // Reservas concorrentes no mesmo profissional/dia disputam a mesma transação: mais tentativas antes de desistir
 const TX = { maxAttempts: 10 };

@@ -99,6 +99,11 @@ export async function lerNegocio(db: Firestore, slug: string) {
     fabrica: !t.get("gerado") && !!t.get("site.url"),
     /** entrada paga: sem faixa de proposta e no Google */
     publicado: !!t.get("gerado.publicadoEm"),
+    /** WhatsApp que o dono conectou (gateway wtsfy); null = nunca conectou */
+    whatsapp: ((): { status: string; phone: string | null } | null => {
+      const w = t.get("whatsapp") as { instanceId?: string; status?: string; phone?: string | null } | undefined;
+      return w?.instanceId ? { status: String(w.status ?? "created"), phone: w.phone ?? null } : null;
+    })(),
   };
 }
 
@@ -116,7 +121,8 @@ const tipoDe = (t: DocumentSnapshot): TipoSite =>
 export async function lerSiteDoNegocio(db: Firestore, slug: string) {
   const [dados, t] = await Promise.all([lerNegocio(db, slug), db.doc(`tenants/${slug}`).get()]);
   const num = (c: string) => (typeof t.get(c) === "number" ? (t.get(c) as number) : null);
-  return { ...dados, tipo: tipoDe(t), google: { nota: num("site.rating"), avaliacoes: num("site.reviews") } };
+  const escolha = t.get("gerado.escolha") as { kit?: number; cor?: number } | undefined;
+  return { ...dados, tipo: tipoDe(t), escolha, google: { nota: num("site.rating"), avaliacoes: num("site.reviews") } };
 }
 
 export type Mudanca = { campo: string; antes: string; depois: string };

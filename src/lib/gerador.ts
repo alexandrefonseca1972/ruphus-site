@@ -246,7 +246,7 @@ export const SUBS: Record<Sub, { nicho: Nicho["nicho"]; tipo: string; rotulo: st
 
 /** Os nichos em grupos, na ordem em que o dono os procura na lista. */
 export const GRUPOS: [string, Sub[]][] = [
-  ["Beleza", ["barbearia", "salao", "estetica", "unhas", "tatuagem"]],
+  ["Beleza", ["barbearia", "salao", "estetica", "unhas", "podologia", "tatuagem"]],
   ["Saúde", ["odonto", "fisio", "psico", "nutri", "clinica"]],
   ["Pet", ["petshop", "vet"]],
   ["Fitness", ["academia", "pilates", "lutas", "danca"]],
