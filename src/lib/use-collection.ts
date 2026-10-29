@@ -6,7 +6,8 @@ import type { z } from "zod";
 import { errorMessage } from "@/lib/auth-errors";
 import { db } from "@/lib/firebase-db";
 
-/** Coleção do tenant em tempo real; documentos fora do schema são ignorados. */
+/** Coleção do tenant em tempo real; documentos fora do schema são ignorados.
+ *  tenantId vazio não consulta: fica em "carregando" (null). */
 export function useCollection<S extends z.ZodType>(
   tenantId: string,
   name: string,
@@ -20,6 +21,7 @@ export function useCollection<S extends z.ZodType>(
   const [result, setResult] = useState<{ for: string; items: Item[]; error?: string } | null>(null);
 
   useEffect(() => {
+    if (!tenantId) return; // sem tenant, sem consulta (ex.: módulo desligado)
     return onSnapshot(
       query(collection(db, "tenants", tenantId, name), ...constraints),
       (snap) =>

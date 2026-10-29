@@ -1,27 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { collection, doc, orderBy, serverTimestamp, Timestamp, where, writeBatch } from "firebase/firestore";
+import { orderBy, Timestamp, where } from "firebase/firestore";
 import { Fragment, useEffect, useState } from "react";
 import { z } from "zod";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
-import { auth } from "@/lib/firebase";
-import { db } from "@/lib/firebase-db";
 import { addDays, customerKey, dateIn, formatBRL, formatLongDate, formatTime, todayIn, weekday, WEEKDAYS, whatsappLink, zonedTime, precoDe } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { cn, openExternal } from "@/lib/utils";
 import { ConfirmDialog } from "./confirm-dialog";
 import { History } from "./history";
+import { type Folha, LancamentoFolha } from "./lancamento-folha";
+import { idDaBaixa, Lancamento } from "@/lib/financeiro";
 import { useTenant } from "./layout";
 import { PageTitle } from "./page-title";
 import { Reschedule } from "./reschedule";
 import { RowMenu } from "./row-menu";
 import { ShareLink } from "./share-link";
-import { STATUS } from "./status";
+import { mudarStatus, STATUS } from "./status";
 
 const Appointment = z.object({
   serviceName: z.string(),
@@ -89,25 +89,27 @@ export default function AgendaPage() {
     semana,
   );
   const items = daSemana?.filter((a) => dateIn(a.start.toDate()) === date) ?? null;
+  // Caixa ligado: o que já foi recebido na semana (só quem gere lê dinheiro)
+  const caixa = tenant.podeGerir && tenant.modulos?.financeiro === true;
+  const [recebidosDaSemana] = useCollection(
+    caixa ? tenant.id : "",
+    "lancamentos",
+    Lancamento,
+    [where("data", ">=", semana), where("data", "<", addDays(semana, 7))],
+    semana,
+  );
+  const recebidos = new Set(recebidosDaSemana?.map((l) => l.id));
+  const [folha, setFolha] = useState<Folha | null>(null);
 
   // Toda mudança de status grava um registro no histórico no mesmo batch (exigido pelas regras)
   /** Devolve true quando gravou; só então o cliente pode ser avisado. */
   async function changeStatus(a: Appointment, status: "confirmed" | "cancelled" | "no_show") {
     setError("");
-    const user = auth.currentUser;
-    if (!user) {
-      setError("Sessão expirada. Entre novamente.");
-      return false;
-    }
-    const entry = doc(collection(db, "tenants", tenant.id, "history"));
-    const batch = writeBatch(db);
-    batch.set(entry, { appointmentId: a.id, type: status, at: serverTimestamp(), by: user.uid, byName: user.email });
-    batch.update(doc(db, "tenants", tenant.id, "appointments", a.id), { status, lastHistoryId: entry.id });
     try {
-      await batch.commit();
+      await mudarStatus(tenant.id, a.id, status);
       return true;
     } catch (err) {
-      setError(errorMessage(err));
+      setError(err instanceof Error && err.message.startsWith("Sessão") ? err.message : errorMessage(err));
       return false;
     }
   }
@@ -265,6 +267,7 @@ export default function AgendaPage() {
                     </Link>
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS[a.status].className}`}>{STATUS[a.status].label}</span>
                     {a.planId && <span className="rounded-full border px-2.5 py-0.5 text-xs">Recorrente</span>}
+                    {recebidos.has(idDaBaixa(a.id)) && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">Recebido</span>}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {[a.serviceName, `com ${a.staffName}`, precoDe({ priceCents: a.priceCents, tipoPreco: a.precoAberto ? "aPartir" : "fixo" })].filter(Boolean).join(" · ")} ·{" "}
@@ -288,7 +291,11 @@ export default function AgendaPage() {
                   <RowMenu
                     label={`Mais ações: ${a.customerName} às ${formatTime(a.start.toDate())}`}
                     actions={[
-                      ...(ATIVO(a) && a.start.toMillis() <= now ? [{ label: "Faltou", onClick: () => setConfirming({ id: a.id, kind: "no_show" as const }) }] : []),
+                      ...(caixa && recebidosDaSemana && ATIVO(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id))
+                        ? [{ label: "Recebido", onClick: () => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, serviceName: a.serviceName, priceCents: a.priceCents } }) }]
+                        : []),
+                      // recebido no Caixa não vira falta: a entrada contaria um atendimento que não houve
+                      ...(ATIVO(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Faltou", onClick: () => setConfirming({ id: a.id, kind: "no_show" as const }) }] : []),
                       ...(ATIVO(a) ? [{ label: "Cancelar horário", danger: true, onClick: () => setConfirming({ id: a.id, kind: "cancel" as const }) }] : []),
                       { label: showHistory === a.id ? "Esconder histórico" : "Histórico", onClick: () => setShowHistory(showHistory === a.id ? null : a.id) },
                     ]}
@@ -339,6 +346,14 @@ export default function AgendaPage() {
         </ul>
           )}
         </section>
+      )}
+      {folha && (
+        <LancamentoFolha
+          tenantId={tenant.id}
+          nicho={tenant.gerado?.nicho}
+          folha={folha}
+          onClose={() => setFolha(null)} // o "Recebido" aparece na linha: não precisa de aviso
+        />
       )}
     </>
   );

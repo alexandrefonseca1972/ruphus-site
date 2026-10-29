@@ -19,6 +19,7 @@ export default function ManualDoUsuario() {
           ["profissionais", "Profissionais"],
           ["clientes", "Clientes"],
           ["planos", "Planos recorrentes"],
+          ["caixa", "Caixa"],
           ["divulgar", "Divulgar o link"],
           ["acesso", "Quem pode o quê"],
           ["duvidas", "Dúvidas frequentes"],
@@ -164,6 +165,28 @@ export default function ManualDoUsuario() {
           Para excluir um cliente é preciso não haver horário marcado nem plano ativo. Cancele ou encerre antes. O que
           já foi atendido continua no histórico.
         </Atencao>
+      </Secao>
+
+      <Secao id="caixa" titulo="Caixa">
+        <P>
+          O Caixa responde três perguntas do mês: <Termo>quanto entrou</Termo>, <Termo>quanto saiu</Termo> e{" "}
+          <Termo>quanto sobrou</Termo>. Ele aparece no menu quando a Ruphus ativa o módulo para o seu negócio, e só
+          o dono e os administradores veem — quem só atende não vê dinheiro.
+        </P>
+        <Lista
+          itens={[
+            <>
+              <Termo>Fechar o dia</Termo>: os atendimentos que já passaram aparecem com o valor da agenda. Toque em{" "}
+              <Termo>Recebi</Termo>, escolha Pix, dinheiro ou cartão, e a entrada está lançada. Se a pessoa não veio,{" "}
+              <Termo>Não veio</Termo> registra a falta.
+            </>,
+            <>
+              <Termo>+ Entrada</Termo> e <Termo>− Saída</Termo> lançam o resto: venda de produto, aluguel, conta de luz,
+              compra de material.
+            </>,
+            <>Errou? Toque no lançamento para corrigir ou apagar.</>,
+          ]}
+        />
       </Secao>
 
       <Secao id="planos" titulo="Planos recorrentes">

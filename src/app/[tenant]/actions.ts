@@ -12,6 +12,8 @@ import { createInstance, getQr, getStatus, logout, sendText } from "@/lib/wtsfy"
 import { aceitarTermoWhatsApp, desligarConexao, gravarConexao, lerConfigWhatsApp, lerConexao } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
+import { BaixaInput, LancamentoInput } from "@/lib/financeiro";
+import { baixarAgendamento, editar, excluir, lancar } from "@/lib/financeiro.server";
 
 // Chamáveis por POST direto: valida entrada e membro do tenant em toda chamada
 const SlotsInput = RescheduleInput.omit({ time: true });
@@ -225,3 +227,27 @@ export const configurarLembretesWhatsAppAction = memberAction(
     return { enabled, hours };
   },
 );
+
+// Caixa: dinheiro só para quem gere, e só com o módulo ligado (conferido em financeiro.server)
+export const lancarAction = memberAction(z.object({ tenantId: docIdStaff, lancamento: LancamentoInput }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  return { ok: true as const, id: await lancar(adminDb, data.tenantId, data.lancamento, user) };
+});
+
+export const editarLancamentoAction = memberAction(z.object({ tenantId: docIdStaff, id: docId, lancamento: LancamentoInput }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  await editar(adminDb, data.tenantId, data.id, data.lancamento, user);
+  return { ok: true as const };
+});
+
+export const excluirLancamentoAction = memberAction(z.object({ tenantId: docIdStaff, id: docId }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  await excluir(adminDb, data.tenantId, data.id);
+  return { ok: true as const };
+});
+
+export const baixarAgendamentoAction = memberAction(z.object({ tenantId: docIdStaff, baixa: BaixaInput }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  await baixarAgendamento(adminDb, data.tenantId, data.baixa, user);
+  return { ok: true as const };
+});

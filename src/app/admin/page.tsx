@@ -22,6 +22,7 @@ import {
   encerrarSessoes,
   definirMinutosInativo,
   definirPixel,
+  definirCaixa,
   definirLimiteStaff,
   linkDaProposta,
   enviarPropostaPorEmail,
@@ -358,6 +359,14 @@ export default function AdminPage() {
     if (!r.ok) return setAviso(r.error);
     setProposta({ slug, url: r.dados.url, valeAte: r.dados.valeAte });
     setAviso(r.dados.nova ? `Proposta válida até ${diaCurto(r.dados.valeAte)}.` : "");
+  }
+
+  async function mudarCaixa(slug: string, ligado: boolean) {
+    const r = await definirCaixa(await token(), slug, ligado);
+    if (!r.ok) return setAviso(r.error);
+    setAviso(r.dados ? "Caixa ligado: aparece no painel do negócio" : "Caixa desligado: os lançamentos ficam guardados");
+    setEspacos((e) => e.map((x) => (x.slug === slug ? { ...x, caixa: r.dados } : x)));
+    setAberto((x) => (x && x.slug === slug ? { ...x, caixa: r.dados } : x));
   }
 
   async function mudarLimiteStaff(slug: string, profissionais: number) {
@@ -1922,6 +1931,14 @@ export default function AdminPage() {
                 </button>
               </span>
             </section>
+
+            {/* Módulo opcional por cliente: desligar só esconde, os lançamentos ficam */}
+            <label className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-[#E2DDD3] p-4 text-xs text-[#6F6A5E]">
+              <span>
+                <b className="font-semibold text-[#17150F]">Caixa (financeiro)</b> · entradas, saídas e fechamento do dia no painel do dono
+              </span>
+              <input type="checkbox" className="size-5 accent-[#17150F]" checked={aberto.caixa} onChange={(e) => mudarCaixa(aberto.slug, e.target.checked)} />
+            </label>
 
             <section aria-label="Quem tem acesso" className="flex flex-col gap-2.5">
               <div className="flex items-baseline gap-2">

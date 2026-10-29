@@ -158,7 +158,7 @@ O proxy (`src/proxy.ts`) resolve `{slug}.ruphus.site` para `/s/{slug}/` (site no
 ## Como os dados são organizados
 
 ```
-tenants/{slug}                  negócio: nome, ownerId, limiteStaff
+tenants/{slug}                  negócio: nome, ownerId, limiteStaff, modulos.financeiro
   members/{uid}                 acesso: role owner | admin | member, email, nome, viaConvite
   services/{id}                 serviço: nome, duração, preço, ativo
   staff/{id}                    profissional: nome, serviços, horário por dia
@@ -166,6 +166,7 @@ tenants/{slug}                  negócio: nome, ownerId, limiteStaff
   customers/{telefone}          cliente do negócio, com etiquetas
     notas/{id}                  anotações da ficha
   plans/{id}                    plano/pacote do cliente
+  lancamentos/{id}              Caixa: entrada/saída do mês (ag-{agendamento} = recebimento da agenda)
 crm/{slug}                      funil: etapa, preço, dono, origem, datas, destaque
   eventos/{id}                  linha do tempo (etapa, mensagem)
   notas/{id}                    anotações do vendedor
@@ -189,6 +190,7 @@ Estas são as decisões que se perdem se ficarem só na cabeça de alguém:
 
 - **Cota de negócios** (`src/lib/negocios.server.ts`): 1 por conta. Conta quem é `owner`, e o `admin` só quando entrou por convite (`viaConvite`) — sem isso, o dono de um negócio poderia gastar a cota alheia. A criação roda numa transação: dois cliques não passam juntos. A regra impede o cliente de gravar `viaConvite`, senão daria para queimar a cota de quem tem o uid conhecido.
 - **Limite de profissionais** (`src/lib/limites.ts`, `criarProfissional`): 5 por negócio, ajustável pelo admin da plataforma. Criar passa pelo servidor, que conta a equipe numa transação — a regra do Firestore nega `create` no cliente e impede que o negócio aumente o próprio limite.
+- **Caixa** (`src/lib/financeiro*.ts`): módulo que o admin da plataforma liga por cliente (`modulos.financeiro`, aba Cliente da gaveta). Só dono e admin do negócio leem — o funcionário não vê dinheiro —, e só o servidor grava. Desligar esconde, não apaga. `data` e `mes` são texto na hora de parede do negócio. O recebimento de um atendimento tem o id `ag-{agendamento}`: um por atendimento, e só depois de ele começar. As categorias vêm da família do nicho.
 - **Saúde do cliente** (`src/lib/saude.ts`): _risco_ com cobrança atrasada ou 21 dias sem agendar; _atenção_ com implantação incompleta ou cobrança vencendo em 5 dias. Sem data de fechamento, não se acusa inatividade.
 - **Alertas do CRM** (`src/lib/alertas.ts`): negociação sem próximo passo, parada há 7+ dias, venda fechada sem o dono entrar em 7 dias, destaque vencendo hoje.
 - **Dinheiro digitado à mão** (`src/lib/dinheiro.ts`): `59,90`, `59.90` e `1.250,00` querem dizer o que parecem.

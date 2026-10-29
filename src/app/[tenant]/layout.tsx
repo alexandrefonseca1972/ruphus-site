@@ -66,12 +66,14 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   if (state === "loading") return <p className="p-8">Carregando…</p>;
   if (state === "denied") return <p className="p-8">Negócio não encontrado, ou você não tem acesso a ele.</p>;
 
-  // curto: o rótulo da barra de baixo no celular, onde cinco cabem lado a lado
+  // curto: o rótulo da barra de baixo no celular, onde seis cabem lado a lado (360px)
   const links = [
     { href: `/${slug}`, label: "Agenda", curto: "Agenda", icone: ICONES.agenda },
     { href: `/${slug}/servicos`, label: "Serviços", curto: "Serviços", icone: ICONES.servicos },
     { href: `/${slug}/profissionais`, label: "Profissionais", curto: "Equipe", icone: ICONES.equipe },
     { href: `/${slug}/clientes`, label: "Clientes", curto: "Clientes", icone: ICONES.clientes },
+    // dinheiro só para quem gere, e só com o Caixa ligado pelo admin da plataforma
+    ...(state.podeGerir && state.modulos?.financeiro ? [{ href: `/${slug}/caixa`, label: "Caixa", curto: "Caixa", icone: ICONES.caixa }] : []),
     // os dados do negócio (site, bio, WhatsApp) só para quem gere
     ...(state.podeGerir ? [{ href: `/${slug}/negocio`, label: "Meu negócio", curto: "Negócio", icone: ICONES.negocio }] : []),
   ];
@@ -153,4 +155,5 @@ const ICONES = {
   equipe: icone(<><circle cx="12" cy="7.5" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></>),
   clientes: icone(<><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6" /></>),
   negocio: icone(<><path d="M4 10.5 12 4l8 6.5V20H4z" /><path d="M9.5 20v-5h5v5" /></>),
+  caixa: icone(<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h3" /></>),
 };

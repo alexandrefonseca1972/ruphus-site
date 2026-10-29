@@ -185,5 +185,24 @@ await assertFails(setDoc(doc(alice, "tenants/acme/members/vitima"), { uid: "viti
 await assertSucceeds(setDoc(doc(alice, "tenants/acme/members/vitima"), { uid: "vitima", role: "admin" }));
 await assertFails(setDoc(doc(alice, "tenants/acme/members/vitima"), { uid: "vitima", role: "admin", viaConvite: true }));
 
+// Caixa: só quem gere lê, só com o módulo ligado, e ninguém grava pelo app
+await env.withSecurityRulesDisabled(async (ctx) => {
+  await setDoc(doc(ctx.firestore(), "tenants/acme/members/carla"), { uid: "carla", role: "member" });
+  await setDoc(doc(ctx.firestore(), "tenants/acme/lancamentos/l1"), { tipo: "entrada", valorCents: 5000, mes: "2026-10" });
+});
+const carla = as("carla");
+const lanc = (db) => doc(db, "tenants/acme/lancamentos/l1");
+await assertFails(getDoc(lanc(alice)), "modulo desligado: nem o dono le");
+await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), "tenants/acme"), { "modulos.financeiro": true }));
+await assertSucceeds(getDoc(lanc(alice)));
+await assertSucceeds(getDoc(lanc(bob)), "admin do negocio le");
+await assertSucceeds(getDoc(lanc(suporte)), "admin da plataforma le");
+await assertFails(getDoc(lanc(carla)), "funcionario nao ve dinheiro");
+await assertFails(getDoc(lanc(mallory)));
+await assertFails(setDoc(doc(alice, "tenants/acme/lancamentos/l2"), { tipo: "entrada", valorCents: 1, mes: "2026-10" }), "so o servidor grava");
+await assertFails(updateDoc(lanc(alice), { valorCents: 1 }));
+await assertFails(deleteDoc(lanc(alice)));
+await assertFails(updateDoc(doc(alice, "tenants/acme"), { "modulos.financeiro": false }), "o dono nao liga nem desliga o modulo");
+
 await env.cleanup();
 console.log("rules ok");
