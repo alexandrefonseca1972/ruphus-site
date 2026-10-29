@@ -12,5 +12,8 @@ console.log("quando ok");
 const boa = { endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "B".repeat(87), auth: "a".repeat(22) } };
 assert.equal(Inscricao.safeParse(boa).success, true);
 assert.equal(Inscricao.safeParse({ ...boa, endpoint: "http://fcm.googleapis.com/x" }).success, false);
+assert.equal(Inscricao.safeParse({ ...boa, endpoint: "https://169.254.169.254/latest" }).success, false, "so servico de push");
+assert.equal(Inscricao.safeParse({ ...boa, endpoint: "https://fcm.googleapis.com.evil.io/x" }).success, false);
+assert.equal(Inscricao.safeParse({ ...boa, endpoint: "https://web.push.apple.com/abc" }).success, true);
 assert.equal(Inscricao.safeParse({ ...boa, keys: { p256dh: boa.keys.p256dh } }).success, false);
 console.log("inscrição ok");

@@ -52,9 +52,9 @@ async function chamar<T>(metodo: string, caminho: string, corpo?: unknown): Prom
     });
   } catch (e) {
     if (e instanceof DOMException && e.name === "TimeoutError") {
-      throw new ErroPrevisto(`O gateway WhatsApp (${url}) demorou mais de ${Math.round(TIMEOUT_MS / 1000)}s para responder. Tente de novo.`);
+      throw new ErroPrevisto(`O gateway WhatsApp demorou mais de ${Math.round(TIMEOUT_MS / 1000)}s para responder. Tente de novo.`);
     }
-    throw new ErroPrevisto(`O gateway WhatsApp (${BASE()}) não respondeu. Verifique se o wtsfy está no ar.`);
+    throw new ErroPrevisto("O gateway WhatsApp não respondeu. Verifique se o wtsfy está no ar.");
   }
   if (!res.ok) {
     const detalhe = await res.text().catch(() => "");

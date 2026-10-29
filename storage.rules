@@ -1,20 +1,9 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Mesmo vínculo do Firestore: só membros do tenant acessam tenants/{t}/...
-    function isMember(t) {
-      return request.auth != null
-        && firestore.exists(/databases/(default)/documents/tenants/$(t)/members/$(request.auth.uid));
+    // O painel não usa o Storage pelo cliente: sites e imagens passam pelo servidor (Admin SDK)
+    match /{path=**} {
+      allow read, write: if false;
     }
-
-    match /tenants/{t}/{path=**} {
-      allow read, delete: if isMember(t);
-      // Só imagem, e até 10 MB: o que o painel envia é foto. Sem o filtro de tipo,
-      // um membro guardaria HTML no bucket e teria uma página no domínio do Storage.
-      allow create, update: if isMember(t)
-        && request.resource.size < 10 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
-    }
-    // Qualquer outro caminho: negado
   }
 }

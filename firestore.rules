@@ -42,18 +42,8 @@ service cloud.firestore {
 
       match /members/{uid} {
         allow read: if isMember(t);
-        // "viaConvite" é o que faz o negócio contar na cota da conta: só o
-        // servidor escreve, senão dá para gastar a cota de quem tem o uid conhecido
-        allow create: if hasRole(t, ['owner', 'admin'])
-          && request.resource.data.uid == uid
-          && request.resource.data.role in ['admin', 'member']
-          && !('viaConvite' in request.resource.data);
-        allow update: if hasRole(t, ['owner', 'admin'])
-          && resource.data.role != 'owner'
-          && request.resource.data.uid == uid
-          && request.resource.data.role in ['admin', 'member']
-          && request.resource.data.get('viaConvite', false) == resource.data.get('viaConvite', false);
-        allow delete: if hasRole(t, ['owner', 'admin']) && resource.data.role != 'owner';
+        // Convite, papel e saída passam pelo servidor (Admin SDK); o painel não grava aqui
+        allow write: if false;
       }
 
       // Agendamentos são criados e remarcados só pelo servidor (Admin SDK).

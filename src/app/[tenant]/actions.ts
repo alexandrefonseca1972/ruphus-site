@@ -54,7 +54,10 @@ function memberAction<S extends z.ZodType<{ tenantId: string }>, R>(
 /** Profissional novo passa pelo servidor: as regras não deixam o cliente criar. */
 export const criarProfissionalAction = memberAction(
   z.object({ tenantId: docIdStaff, dados: Staff }),
-  async (data) => ({ ok: true as const, id: await criarProfissional(adminDb, data.tenantId, data.dados) }),
+  async (data, user) => {
+    await exigeGestor(data.tenantId, user.uid);
+    return { ok: true as const, id: await criarProfissional(adminDb, data.tenantId, data.dados) };
+  },
 );
 
 export const rescheduleAppointment = memberAction(RescheduleInput, (data, user) => reschedule(adminDb, data, user));

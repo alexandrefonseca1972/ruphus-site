@@ -9,9 +9,13 @@ import { addDays, todayIn, WEEKDAYS, weekday } from "@/lib/datetime";
 // Cada aparelho inscrito é um documento em tenants/{t}/avisos/{hash do endpoint}:
 // só o servidor lê e grava (as regras não liberam a subcoleção).
 
+// Chrome/Android (FCM), Firefox (Mozilla), Safari/iOS (Apple) e Edge (Windows)
+const PUSH_HOST = /^(fcm\.googleapis\.com|updates\.push\.services\.mozilla\.com|([a-z0-9-]+\.)*push\.apple\.com|([a-z0-9-]+\.)*notify\.windows\.com)$/;
+
 /** O que o navegador entrega em PushSubscription.toJSON(). */
 export const Inscricao = z.object({
-  endpoint: z.url().max(2048).startsWith("https://"),
+  // só os serviços de push dos navegadores: o servidor faz POST nesse endereço
+  endpoint: z.url().max(2048).startsWith("https://").refine((u) => PUSH_HOST.test(new URL(u).hostname), "Serviço de push desconhecido"),
   keys: z.object({ p256dh: z.string().min(16).max(256), auth: z.string().min(8).max(128) }),
 });
 export type Inscricao = z.infer<typeof Inscricao>;
