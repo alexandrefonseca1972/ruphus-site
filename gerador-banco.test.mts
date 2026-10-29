@@ -90,6 +90,14 @@ assert.deepEqual([renomeado.slug, renomeado.acao], ["pet-feliz-belem", "atualiza
 assert.equal((await db.doc("tenants/pet-feliz-nazare").get()).exists, false);
 assert.equal((await db.doc("tenants/pet-feliz-belem").get()).get("name"), "Pet Feliz Nazaré", "o nome novo vale");
 
+// o dono entrou pelo convite e editou o negócio: o reenvio pula, para não apagar o que ele fez
+await db.doc("tenants/pet-feliz-belem/members/dono-real").set({ uid: "dono-real", role: "admin", viaConvite: true });
+await db.doc("tenants/pet-feliz-belem").update({ "site.instagram": "petfelizreal" });
+const [assumido] = await gerarNoBanco(db, planilha(["Pet Feliz Outro Nome", "91993721156", "Pet shop", "Belém", "PA", 4.9, 80, "", "", "", ""]), true, "a");
+assert.deepEqual([assumido.slug, assumido.acao], ["pet-feliz-belem", "pular"]);
+assert.equal((await db.doc("tenants/pet-feliz-belem").get()).get("site.instagram"), "petfelizreal", "edição do dono fica");
+await db.doc("tenants/pet-feliz-belem/members/dono-real").delete();
+
 // mais de 30 telefones: o "in" do Firestore vai em blocos, e o 33º ainda é conferido
 const grande = planilha(...Array.from({ length: 35 }, (_, i) =>
   [`Loja ${i}`, i === 32 ? "91987650123" : `(96) 99${String(i).padStart(3, "0")}-0000`, "Barbearia", "Macapá", "AP", "", "", "", "", "", ""]));

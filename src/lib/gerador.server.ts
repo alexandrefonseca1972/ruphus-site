@@ -138,13 +138,13 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
     }
   }
 
-  // Site de prospecção que o negócio já assumiu (entrada paga, dono entrou pelo convite
-  // ou conversa andando no funil) não volta a ser da planilha: regravar apagaria o que
-  // o dono editou. Esses ficam de fora, como o site do cadastro.
+  // Site de prospecção que o dono já assumiu (entrou pelo convite ou pagou a entrada)
+  // não volta a ser da planilha: regravar nome, endereço e Instagram apagaria o que
+  // ele editou. Esses ficam de fora, como o site do cadastro. Só o funil andando não
+  // basta: aí o reenvio ainda atualiza os dados do Google.
   const geradosJa = [...porTelefone.values()].filter((v) => v.gerado && !v.cadastro && !v.publicado).map((v) => v.slug);
-  const crms = geradosJa.length ? await db.getAll(...geradosJa.map((s) => db.doc(`crm/${s}`))) : [];
   const conviteAceito = await Promise.all(geradosJa.map((s) => tenants.doc(s).collection("members").where("viaConvite", "==", true).limit(1).get()));
-  const assumidos = new Set(geradosJa.filter((s, i) => !conviteAceito[i].empty || (crms[i].exists && (crms[i].get("estagio") ?? "novo") !== "novo")));
+  const assumidos = new Set(geradosJa.filter((_, i) => !conviteAceito[i].empty));
   for (const v of porTelefone.values()) if (v.publicado) assumidos.add(v.slug);
 
   // Kits e paletas já usados no mesmo estado e nicho. Um site novo sorteia o menos repetido
@@ -187,7 +187,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
       continue;
     }
     if (ja && assumidos.has(ja.slug)) {
-      saida.push({ ...base, slug: ja.slug, acao: "pular", motivo: `negócio já assumido pelo dono ou em negociação (${ja.slug}): edite pela gaveta, aba Site` });
+      saida.push({ ...base, slug: ja.slug, acao: "pular", motivo: `negócio já assumido pelo dono (${ja.slug}): edite pela gaveta, aba Site` });
       continue;
     }
     if (ja) {
