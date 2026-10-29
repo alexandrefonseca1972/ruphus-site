@@ -163,11 +163,12 @@ await assertFails(updateDoc(doc(notas(alice), "n1"), { texto: "reescrito" }), "a
 await assertSucceeds(deleteDoc(doc(notas(alice), "n1")));
 await assertFails(getDocs(notas(mallory)));
 
-// Limite de profissionais: o dono muda o nome do negócio, mas não o próprio limite
+// O doc do negócio só muda pelo servidor: nem o dono grava site.*, gerado.*, whatsapp.* ou o limite
 await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme"), { name: "acme", ownerId: "alice", limiteStaff: 5 }));
-await assertSucceeds(setDoc(doc(alice, "tenants/acme"), { name: "Acme Salão", ownerId: "alice", limiteStaff: 5 }));
+await assertFails(setDoc(doc(alice, "tenants/acme"), { name: "Acme Salão", ownerId: "alice", limiteStaff: 5 }));
 await assertFails(setDoc(doc(alice, "tenants/acme"), { name: "Acme Salão", ownerId: "alice", limiteStaff: 50 }));
-await assertFails(setDoc(doc(alice, "tenants/acme"), { name: "Acme Salão", ownerId: "alice" })); // apagar também é mudar
+await assertFails(updateDoc(doc(alice, "tenants/acme"), { "site.phone": '55"><img src=x onerror=alert(1)>' }));
+await assertFails(updateDoc(doc(alice, "tenants/acme"), { "whatsapp.instanceId": "outro" }));
 
 // Profissional novo só pelo servidor (é lá que o limite do plano é contado)
 await assertFails(setDoc(doc(alice, "tenants/acme/staff/novo"), { name: "Bia", active: true }));

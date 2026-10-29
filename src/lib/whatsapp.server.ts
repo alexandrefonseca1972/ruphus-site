@@ -1,7 +1,7 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { quando } from "@/lib/avisos.server";
-import { dateIn, formatTime, fusoDaUF } from "@/lib/datetime";
+import { dateIn, formatTime } from "@/lib/datetime";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { getStatus, sendText } from "@/lib/wtsfy";
 
@@ -168,11 +168,9 @@ export async function espelharStatusDaInstancia(
   );
 }
 
-const millisDe = (v: unknown): number => {
-  if (v instanceof Date) return v.getTime();
-  const t = v as { toMillis?: () => number } | undefined;
-  return typeof t?.toMillis === "function" ? t.toMillis() : 0;
-};
+/** Código curto do agendamento no aviso ao salão ("CONFIRMADO AB12"): é ele que diz a
+ *  qual aviso o dono respondeu quando há mais de um pendente. */
+export const codigoDoAgendamento = (id: string) => id.slice(0, 4).toUpperCase();
 
 /** O salão respondeu ao aviso de agendamento no próprio WhatsApp: CONFIRMADO
  *  confirma o agendamento pendente mais recente; RECUSAR cancela. Em ambos os
@@ -203,34 +201,55 @@ export async function processarComandoAgendamento(
   const texto = String((msg.data as { text?: unknown } | undefined)?.text ?? "").trim();
   // "recusar" é o verbo de recusa: "cancelar" fica de fora de propósito — é
   // stop word do gateway (opt-out de cliente) e colidiria com o comando
-  const confirmar = /^confirmado\b/i.test(texto);
-  const recusar = /^(recusar|recuso|recusado)\b/i.test(texto);
-  if (!confirmar && !recusar) return "ignorado";
+  const comando = /^(confirmado|recusar|recuso|recusado)\b(?:\s+([a-z0-9]{4})\b)?/i.exec(texto);
+  if (!comando) return "ignorado";
+  const recusar = comando[1].toLowerCase() !== "confirmado";
+  const codigo = comando[2]?.toUpperCase();
 
-  // sem índice composto (status+createdAt): o mais recente é escolhido aqui, entre poucos
-  const pendentes = await db.collection(`tenants/${slug}/appointments`).where("status", "==", "booked").get();
-  let alvo: FirebaseFirestore.QueryDocumentSnapshot | null = null;
-  for (const d of pendentes.docs) {
-    if (!alvo || millisDe(d.get("createdAt")) > millisDe(alvo.get("createdAt"))) alvo = d;
-  }
-  if (!alvo) {
-    await sendText(conexao.instanceId, respostaPara, "Não encontrei agendamento aguardando confirmação.");
+  // só os que ainda vão acontecer; com código, o do aviso respondido. Sem código vale
+  // só quando há um pendente: com mais de um, adivinhar confirmaria o cliente errado
+  const agora = Date.now();
+  const startDe = (d: FirebaseFirestore.DocumentSnapshot): Date =>
+    d.get("start") instanceof Date ? d.get("start") : (d.get("start") as FirebaseFirestore.Timestamp).toDate();
+  const pendentes = (await db.collection(`tenants/${slug}/appointments`).where("status", "==", "booked").get()).docs
+    .filter((d) => startDe(d).getTime() > agora)
+    .filter((d) => !codigo || codigoDoAgendamento(d.id) === codigo);
+  if (pendentes.length === 0) {
+    await sendText(conexao.instanceId, respostaPara, codigo ? `Não encontrei agendamento aguardando confirmação com o código ${codigo}.` : "Não encontrei agendamento aguardando confirmação.");
     return "sem pendente";
   }
-  const a = alvo;
-  const start: Date = a.get("start") instanceof Date ? a.get("start") : (a.get("start") as FirebaseFirestore.Timestamp).toDate();
-  // rótulo do dia ("hoje/amanhã") no fuso do endereço do negócio
-  const tz = fusoDaUF((await db.doc(`tenants/${slug}`).get()).get("site.uf") as string | undefined);
+  if (pendentes.length > 1) {
+    const lista = pendentes
+      .sort((x, y) => startDe(x).getTime() - startDe(y).getTime())
+      .map((d) => `${codigoDoAgendamento(d.id)}: ${String(d.get("customerName") ?? "").trim()} · ${d.get("serviceName")} · ${quando(dateIn(startDe(d)), formatTime(startDe(d)))}`)
+      .join("\n");
+    await sendText(conexao.instanceId, respostaPara, `Há mais de um agendamento aguardando. Responda com o código, por exemplo ${comando[1].toUpperCase()} ${codigoDoAgendamento(pendentes[0].id)}:\n${lista}`);
+    return "sem pendente";
+  }
+  const a = pendentes[0];
+  const start = startDe(a);
   const nome = String(a.get("customerName") ?? "").trim().split(/\s+/)[0] ?? "";
-  const quandoVai = quando(dateIn(start, tz), formatTime(start, tz));
+  // start é gravado no fuso de referência (como em reservaDe), então formata sem fuso local
+  const quandoVai = quando(dateIn(start), formatTime(start));
   const servico = `${a.get("serviceName")} · ${quandoVai}`;
 
-  if (recusar) {
+  // relê dentro da transação: o cliente ou o painel podem ter mudado o status entre a consulta e aqui
+  const aplicar = async (status: "confirmed" | "cancelled", extra: Record<string, unknown>) => {
     const history = db.collection(`tenants/${slug}/history`).doc();
-    await db.runTransaction(async (tx) => {
-      tx.create(history, { appointmentId: a.id, type: "cancelled", reason: "whatsapp_rejected", at: FieldValue.serverTimestamp(), by: "whatsapp", byName: "WhatsApp do salão" });
-      tx.update(a.ref, { status: "cancelled", lastHistoryId: history.id });
+    return db.runTransaction(async (tx) => {
+      if ((await tx.get(a.ref)).get("status") !== "booked") return false;
+      tx.create(history, { appointmentId: a.id, type: status, ...extra, at: FieldValue.serverTimestamp(), by: "whatsapp", byName: "WhatsApp do salão" });
+      tx.update(a.ref, { status, lastHistoryId: history.id });
+      return true;
     });
+  };
+  const mudou = async (ok: boolean) => {
+    if (!ok) await sendText(conexao.instanceId, respostaPara, `O agendamento de ${nome} (${servico}) já não estava aguardando confirmação. Nada foi alterado.`).catch(() => {});
+    return ok;
+  };
+
+  if (recusar) {
+    if (!(await mudou(await aplicar("cancelled", { reason: "whatsapp_rejected" })))) return "sem pendente";
     const cliente = soDigitosComDDI(String(a.get("customerPhone") ?? ""));
     if (cliente) {
       try {
@@ -247,11 +266,7 @@ export async function processarComandoAgendamento(
     return "recusado";
   }
 
-  const history = db.collection(`tenants/${slug}/history`).doc();
-  await db.runTransaction(async (tx) => {
-    tx.create(history, { appointmentId: a.id, type: "confirmed", at: FieldValue.serverTimestamp(), by: "whatsapp", byName: "WhatsApp do salão" });
-    tx.update(a.ref, { status: "confirmed", lastHistoryId: history.id });
-  });
+  if (!(await mudou(await aplicar("confirmed", {})))) return "sem pendente";
 
   const cliente = soDigitosComDDI(String(a.get("customerPhone") ?? ""));
   if (cliente) {

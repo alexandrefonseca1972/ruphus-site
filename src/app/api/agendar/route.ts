@@ -4,7 +4,7 @@ import { adminDb } from "@/lib/admin";
 import { book } from "@/lib/booking.server";
 import { MAX_DAYS_AHEAD, dentroDaJanela } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
-import { lerConexao, registrarErroNotificacao } from "@/lib/whatsapp.server";
+import { codigoDoAgendamento, lerConexao, registrarErroNotificacao } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { getStatus, sendText } from "@/lib/wtsfy";
 
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
             await sendText(
               conn.instanceId,
               avisoPara,
-              `Novo agendamento: ${customerName.trim()} · ${partes.join(" · ")} · tel ${b.data.customerPhone}. Responda CONFIRMADO para confirmar ou RECUSAR para recusar.`,
+              `Novo agendamento (código ${codigoDoAgendamento(nova.id)}): ${customerName.trim()} · ${partes.join(" · ")} · tel ${b.data.customerPhone}. Responda CONFIRMADO ${codigoDoAgendamento(nova.id)} para confirmar ou RECUSAR ${codigoDoAgendamento(nova.id)} para recusar.`,
             );
           } catch (e) {
             falhas.push(`aviso ao salão não chegou: ${e instanceof Error ? e.message : String(e)}`);

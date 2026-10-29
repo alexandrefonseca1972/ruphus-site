@@ -538,7 +538,8 @@ export default function AdminPage() {
 
   async function marcarEmLote(estagio: Estagio) {
     setAviso("");
-    const lista = [...marcados];
+    // o servidor não desfaz fechado/perdido em lote; a tela acompanha
+    const lista = [...marcados].filter((s) => crm[s]?.estagio !== "fechado" && crm[s]?.estagio !== "perdido");
     const antes = new Map(lista.map((s) => [s, crm[s]]));
     setCrm((c) => {
       const novo = { ...c };

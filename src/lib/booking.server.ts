@@ -613,6 +613,7 @@ export async function reschedule(db: Firestore, input: RescheduleInput, actor: A
       precoAberto: ctx.svc.some((s) => (s.tipoPreco ?? "fixo") !== "fixo"),
       status: "booked", // precisa de nova confirmação
       rescheduledAt: FieldValue.serverTimestamp(),
+      whatsappReminderSentAt: FieldValue.delete(), // o lembrete do horário antigo não vale para o novo
     });
     return { ok: true as const };
   }, TX));

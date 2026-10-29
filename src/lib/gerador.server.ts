@@ -126,17 +126,26 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   // (mesmo que o nome tenha mudado na planilha). Com site da fábrica ou conta
   // real: o negócio já existe, a linha fica de fora.
   const telefones = [...new Set(lida.data.map(({ lead }) => lead.telefone))];
-  const porTelefone = new Map<string, { slug: string; gerado: boolean; cadastro: boolean; escolha?: Escolha }>();
+  const porTelefone = new Map<string, { slug: string; gerado: boolean; cadastro: boolean; publicado: boolean; escolha?: Escolha }>();
   for (let i = 0; i < telefones.length; i += 30) { // o "in" do Firestore aceita até 30
     const achados = await tenants.where("site.phone", "in", telefones.slice(i, i + 30)).select("site.phone", "gerado").get();
     for (const d of achados.docs) {
       const t = String(d.get("site.phone"));
       // entre um gerado e outro qualquer com o mesmo número, o que não é gerado decide: não duplicar
       if (!porTelefone.has(t) || !d.get("gerado")) {
-        porTelefone.set(t, { slug: d.id, gerado: !!d.get("gerado"), cadastro: d.get("gerado.origem") === "cadastro", escolha: d.get("gerado.escolha") });
+        porTelefone.set(t, { slug: d.id, gerado: !!d.get("gerado"), cadastro: d.get("gerado.origem") === "cadastro", publicado: !!d.get("gerado.publicadoEm"), escolha: d.get("gerado.escolha") });
       }
     }
   }
+
+  // Site de prospecção que o negócio já assumiu (entrada paga, dono entrou pelo convite
+  // ou conversa andando no funil) não volta a ser da planilha: regravar apagaria o que
+  // o dono editou. Esses ficam de fora, como o site do cadastro.
+  const geradosJa = [...porTelefone.values()].filter((v) => v.gerado && !v.cadastro && !v.publicado).map((v) => v.slug);
+  const crms = geradosJa.length ? await db.getAll(...geradosJa.map((s) => db.doc(`crm/${s}`))) : [];
+  const conviteAceito = await Promise.all(geradosJa.map((s) => tenants.doc(s).collection("members").where("viaConvite", "==", true).limit(1).get()));
+  const assumidos = new Set(geradosJa.filter((s, i) => !conviteAceito[i].empty || (crms[i].exists && (crms[i].get("estagio") ?? "novo") !== "novo")));
+  for (const v of porTelefone.values()) if (v.publicado) assumidos.add(v.slug);
 
   // Kits e paletas já usados no mesmo estado e nicho. Um site novo sorteia o menos repetido
   // ali; os sites que não têm escolha gravada contam pelo que o slug sorteia (o que já sai).
@@ -175,6 +184,10 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
     // proposta e apagaria o que ele editou. Completar esse site é pela gaveta, aba "Site".
     if (ja?.cadastro) {
       saida.push({ ...base, slug: ja.slug, acao: "pular", motivo: `cliente do cadastro (${ja.slug}): complete o site pela gaveta, aba Site` });
+      continue;
+    }
+    if (ja && assumidos.has(ja.slug)) {
+      saida.push({ ...base, slug: ja.slug, acao: "pular", motivo: `negócio já assumido pelo dono ou em negociação (${ja.slug}): edite pela gaveta, aba Site` });
       continue;
     }
     if (ja) {
@@ -250,7 +263,8 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
   return {
     slug,
     nome: String(tenant.get("name")),
-    telefone: s("phone"),
+    // só dígitos: o telefone entra cru em atributos e href do HTML (data-wa, tel:)
+    telefone: s("phone").replace(/\D/g, ""),
     sub: gerado.sub,
     tipo: s("category"),
     endereco: s("address"),

@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/demo",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/lembretes",
+      "schedule": "*/10 * * * *"
     }
   ]
 }
