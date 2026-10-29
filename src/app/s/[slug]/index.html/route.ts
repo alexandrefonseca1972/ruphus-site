@@ -1,4 +1,5 @@
 import { adminDb } from "@/lib/admin";
+import { foraDoAr } from "@/lib/booking.server";
 import { lerSite } from "@/lib/gerador.server";
 import { doStorage } from "@/lib/site-arquivo.server";
 import { renderEditorial } from "@/lib/site-editorial";
@@ -18,6 +19,10 @@ export function generateStaticParams() {
 
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const slug = (await params).slug;
+  // tirado do ar (cobrança): o proxy barra o subdomínio, e isto barra www.ruphus.site/s/{slug}
+  if (/^[a-z0-9-]{1,63}$/.test(slug) && (await foraDoAr(adminDb, slug))) {
+    return new Response("Página não encontrada", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
+  }
   const publicado = await doStorage(slug, ["index.html"]);
   if (publicado) return publicado;
   const dados = await lerSite(adminDb, slug);

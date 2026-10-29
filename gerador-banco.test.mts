@@ -177,6 +177,15 @@ assert.equal((await pagina("../etc")).status, 404);
   assert.equal((await db.doc("tenants/sorriso-leve/services/limpeza").get()).get("priceCents"), 12000, "o preço que o dono pôs fica");
   assert.equal((await lerNegocio(db, "sorriso-leve")).instagram, "sorrisoleve");
   await assert.rejects(salvarNegocio(db, "sorriso-leve", { name: "X" }), /nome|ramo/);
+
+  // trocar o ramo com um modelo de outro ramo (Bronzeamento 1: kit 5, cor 5) não trava
+  // o salvamento: o visual volta ao padrão do ramo novo
+  await db.doc("tenants/sorriso-leve").update({ "gerado.sub": "estetica", "gerado.escolha": { kit: 5, cor: 5, modelo: "bronzeamento-1" } });
+  await salvarNegocio(db, "sorriso-leve", { name: "Sorriso Leve", sub: "barbearia", telefone: "96991113333", cidade: "Macapá", uf: "AP" });
+  const t3 = (await db.doc("tenants/sorriso-leve").get()).data()!;
+  assert.deepEqual([t3.gerado.sub, t3.gerado.escolha], ["barbearia", undefined]);
+  // volta ao que os testes de baixo esperam
+  await salvarNegocio(db, "sorriso-leve", { name: "Sorriso Leve Odonto", sub: "odonto", telefone: "96991113333", cidade: "Macapá", uf: "AP", instagram: "@sorrisoleve", horario: "Seg a sex, 8h às 18h" });
 }
 // negócio criado antes do site automático ganha o site ao escolher o ramo
 {

@@ -225,13 +225,19 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   if (!aplicar) return resposta;
 
   const writer = db.bulkWriter();
+  // close() nunca rejeita: a falha de cada escrita só aparece na promessa dela
+  const falharam = new Set<string>();
   for (const { slug, acao, lead } of saida) {
     if (acao === "pular") continue;
     for (const e of registrosDoSite(db, slug, lead, nichoDe(lead)!, { novo: acao === "criar", ownerId, origem: "prospeccao", escolha: escolhas.get(slug) })) {
-      void writer.set(e.ref, e.dados, { merge: true });
+      writer.set(e.ref, e.dados, { merge: true }).catch((err) => {
+        falharam.add(slug);
+        console.error(`[gerador] escrita de ${slug} falhou`, err);
+      });
     }
   }
   await writer.close();
+  if (falharam.size) throw new ErroPrevisto(`Não consegui gravar tudo de ${[...falharam].join(", ")}. Confira esses sites antes de enviar de novo.`);
   return resposta;
 }
 

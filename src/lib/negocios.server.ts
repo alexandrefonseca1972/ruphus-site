@@ -173,11 +173,15 @@ export async function salvarNegocio(db: Firestore, slug: string, input: unknown,
     return;
   }
   const origem = t.get("gerado.origem") === "cadastro" || !t.get("gerado") ? "cadastro" : "prospeccao";
+  // o modelo (kit e cor) é de um ramo: noutro ramo os índices apontam para fotos e
+  // paletas que não existem. Trocou o ramo, volta ao visual padrão do ramo novo.
+  const mudouRamo = t.get("gerado.sub") !== d.sub;
   const [negocio] = registrosDoSite(db, slug, { ...leadDoDono(d), ...google }, { nicho: SUBS[d.sub].nicho, sub: d.sub, tipo: SUBS[d.sub].tipo }, {
-    novo: false, ownerId: String(t.get("ownerId")), origem, escolha: t.get("gerado.escolha"),
+    novo: false, ownerId: String(t.get("ownerId")), origem, escolha: mudouRamo ? undefined : t.get("gerado.escolha"),
   });
   const { rating: _nota, reviews: _avaliacoes, ...site } = negocio.dados.site as Record<string, unknown>;
   await ref.set({ ...negocio.dados, site: google ? negocio.dados.site : site }, { merge: true });
+  if (mudouRamo && t.get("gerado.escolha")) await ref.update({ "gerado.escolha": FieldValue.delete() });
 }
 
 /** O admin da plataforma libera (ou reduz) quantos negócios uma conta pode ter. */

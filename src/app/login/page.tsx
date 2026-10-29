@@ -79,8 +79,14 @@ function Login() {
   // Quem administra a plataforma trabalha no /admin; quem é dono de um negócio,
   // no /painel. O convite, quando existe, vence os dois.
   async function paraOnde() {
-    // "//evil.com" e "/\\evil.com" também começam com "/" e levam para fora do site
-    if (proximo && /^\/(?![/\\])/.test(proximo)) return proximo;
+    // só caminho deste site: "//evil.com", "/\\evil.com" e "/<TAB>/evil.com" começam com "/"
+    // e levam para fora, então quem decide é o próprio parser de URL
+    if (proximo) {
+      try {
+        const u = new URL(proximo, location.origin);
+        if (u.origin === location.origin && proximo.startsWith("/")) return u.pathname + u.search + u.hash;
+      } catch {}
+    }
     const user = auth.currentUser;
     if (!user) return "/painel";
     const r = await ehAdminDaPlataforma(await user.getIdToken()).catch(() => ({ ok: false as const }));
