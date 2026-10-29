@@ -50,12 +50,15 @@ await assertFails(getDoc(doc(mallory, "tenants/acme/sites/s1")));
 await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), "tenants/acme")));
 
 // Papéis
-await assertSucceeds(setDoc(doc(alice, "tenants/acme/members/bob"), { uid: "bob", role: "member" }));
+await assertFails(setDoc(doc(alice, "tenants/acme/members/bob"), { uid: "bob", role: "member" }), "membro so pelo servidor");
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/members/bob"), { uid: "bob", role: "member" }));
 await assertSucceeds(getDoc(doc(bob, "tenants/acme/sites/s1")));
 await assertFails(setDoc(doc(bob, "tenants/acme/members/mallory"), { uid: "mallory", role: "member" }));
 await assertFails(updateDoc(doc(bob, "tenants/acme/members/bob"), { role: "admin" })); // auto-promoção
 await assertFails(setDoc(doc(alice, "tenants/acme/members/bob"), { uid: "bob", role: "owner" }));
-await assertSucceeds(updateDoc(doc(alice, "tenants/acme/members/bob"), { role: "admin" }));
+await assertFails(updateDoc(doc(alice, "tenants/acme/members/bob"), { role: "admin" }));
+await assertFails(deleteDoc(doc(alice, "tenants/acme/members/bob")));
+await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), "tenants/acme/members/bob"), { role: "admin" }));
 await assertFails(updateDoc(doc(bob, "tenants/acme/members/alice"), { role: "member" })); // admin não rebaixa owner
 await assertFails(updateDoc(doc(bob, "tenants/acme"), { ownerId: "bob" }));
 
@@ -113,19 +116,12 @@ await assertFails(setDoc(doc(alice, "tenants/acme/customers/5511912345678"), { n
 await assertFails(setDoc(doc(alice, "tenants/acme/plans/p1"), { status: "active" }));
 await assertSucceeds(getDocs(collection(bob, "tenants/acme/plans")));
 
-// Storage (bob é admin de acme, mallory não é membro)
+// Storage: nada pelo cliente, nem para membro
 const file = (uid, path) => ref(env.authenticatedContext(uid).storage(), path);
-const bytes = (n) => new Uint8Array(n);
 const imagem = { contentType: "image/png" };
-await assertSucceeds(uploadBytes(file("bob", "tenants/acme/logo.png"), bytes(10), imagem));
-// só imagem: HTML no bucket viraria página no domínio do Storage
-await assertFails(uploadBytes(file("bob", "tenants/acme/pagina.html"), bytes(10), { contentType: "text/html" }));
-await assertSucceeds(getBytes(file("alice", "tenants/acme/logo.png")));
-await assertFails(getBytes(file("mallory", "tenants/acme/logo.png")));
-await assertFails(uploadBytes(file("mallory", "tenants/acme/x.png"), bytes(10), imagem));
+await assertFails(uploadBytes(file("bob", "tenants/acme/logo.png"), new Uint8Array(10), imagem));
+await assertFails(getBytes(file("alice", "tenants/acme/logo.png")));
 await assertFails(getBytes(ref(env.unauthenticatedContext().storage(), "tenants/acme/logo.png")));
-await assertFails(uploadBytes(file("alice", "tenants/acme/big.png"), bytes(10 * 1024 * 1024), imagem));
-await assertFails(uploadBytes(file("alice", "outro/lugar.png"), bytes(10), imagem));
 
 // Clientes: o que o dono escreve sobre o cliente e dele; nome e telefone nao
 await env.withSecurityRulesDisabled((ctx) =>
@@ -181,8 +177,6 @@ await assertFails(setDoc(doc(alice, "tenants/acme/inventada/x"), { a: 1 }));
 await assertFails(getDoc(doc(alice, "tenants/acme/inventada/x")));
 
 // "viaConvite" é do servidor: sem isto dá para queimar a cota de outra conta
-await assertFails(setDoc(doc(alice, "tenants/acme/members/vitima"), { uid: "vitima", role: "admin", viaConvite: true }));
-await assertSucceeds(setDoc(doc(alice, "tenants/acme/members/vitima"), { uid: "vitima", role: "admin" }));
 await assertFails(setDoc(doc(alice, "tenants/acme/members/vitima"), { uid: "vitima", role: "admin", viaConvite: true }));
 
 // Caixa: só quem gere lê, só com o módulo ligado, e ninguém grava pelo app
