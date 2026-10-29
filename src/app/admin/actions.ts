@@ -185,7 +185,12 @@ export const gerarConvites = adminAction(async (_user, slugs: string[]) => convi
 
 /** Move vários negócios de estágio de uma vez, sem abrir um a um. */
 export const marcarEstagio = adminAction(async (user, slugs: string[], estagio: string) => {
-  const alvos = limpar(slugs);
+  // fechado e perdido são desfechos: o lote não os desfaz (sair de "fechado" tira o
+  // negócio da cobrança do mês). Mudar um desfecho é pela gaveta, um a um.
+  const pedidos = limpar(slugs);
+  if (!pedidos.length) return 0;
+  const crms = await adminDb.getAll(...pedidos.map((s) => adminDb.collection("crm").doc(s)));
+  const alvos = crms.filter((d) => !["fechado", "perdido"].includes(d.get("estagio"))).map((d) => d.id);
   for (const slug of alvos) await salvarCrm(adminDb, slug, { estagio: estagio as CrmInput["estagio"] }, user.email ?? user.uid);
   return alvos.length;
 });

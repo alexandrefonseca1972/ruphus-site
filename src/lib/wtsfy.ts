@@ -29,6 +29,14 @@ export type QrWhatsApp = { status: "qr"; base64: string } | { status: "connectin
 
 export type EnvioTexto = { messageId: string; status: string };
 
+// o id vem do documento do tenant: entra no caminho da API, chamada com a chave da plataforma
+const inst = (id: string) => {
+  if (!id || id.length > 128 || /[/\\?#%\s]/.test(id) || id === "." || id === "..") {
+    throw new ErroPrevisto("Conexão do WhatsApp inválida. Reconecte pelo painel.");
+  }
+  return encodeURIComponent(id);
+};
+
 async function chamar<T>(metodo: string, caminho: string, corpo?: unknown): Promise<T> {
   if (!KEY()) {
     throw new ErroPrevisto("O gateway WhatsApp não está configurado neste ambiente (falta a variável WTSFY_API_KEY).");
@@ -62,11 +70,11 @@ export function createInstance(name: string) {
 }
 
 export function getStatus(instanceId: string) {
-  return chamar<Instancia>("GET", `/instances/${instanceId}`);
+  return chamar<Instancia>("GET", `/instances/${inst(instanceId)}`);
 }
 
 export function getQr(instanceId: string) {
-  return chamar<QrWhatsApp>("GET", `/instances/${instanceId}/qr`);
+  return chamar<QrWhatsApp>("GET", `/instances/${inst(instanceId)}/qr`);
 }
 
 /** Texto simples para um cliente: phone só dígitos, DDI+DDD+número (ex.: 5511998887777).
@@ -78,14 +86,14 @@ export function sendText(
   message: string,
   prioridade: "transacional" | "campanha" = "transacional",
 ) {
-  return chamar<EnvioTexto>("POST", `/instances/${instanceId}/send/text`, { phone, message, prioridade });
+  return chamar<EnvioTexto>("POST", `/instances/${inst(instanceId)}/send/text`, { phone, message, prioridade });
 }
 
 export function checkInstance(instanceId: string) {
-  return chamar<{ dbStatus: string; alive: boolean; action: string }>("POST", `/instances/${instanceId}/check`);
+  return chamar<{ dbStatus: string; alive: boolean; action: string }>("POST", `/instances/${inst(instanceId)}/check`);
 }
 
 /** Desliga o número (despareia a sessão); a instância continua no gateway. */
 export function logout(instanceId: string) {
-  return chamar<{ ok: boolean }>("POST", `/instances/${instanceId}/logout`);
+  return chamar<{ ok: boolean }>("POST", `/instances/${inst(instanceId)}/logout`);
 }

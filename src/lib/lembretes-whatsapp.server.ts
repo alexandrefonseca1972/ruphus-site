@@ -1,4 +1,5 @@
 import "server-only";
+import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
 import { agoraNaParede, dateIn, formatTime, fusoDaUF, todayIn, zonedTime } from "@/lib/datetime";
 import { getStatus, sendText } from "@/lib/wtsfy";
@@ -11,22 +12,15 @@ import { soDigitosComDDI } from "@/lib/whatsapp.server";
 // (whatsappReminderSentAt) para nunca repetir. Nada de mensagem entre 22h e 7h30
 // (fuso do negócio): o que vencer na janela de silêncio espera as 7h30.
 //
-// O job roda dentro do processo do Next (instrumentation.register). Bom para o
-// volume atual; com muitos tenants, vale um Cloud Scheduler chamando uma rota.
+// Roda pela Vercel Cron (/api/cron/lembretes, a cada 10 min). Cada agendamento é
+// reservado numa transação antes do envio: duas execuções simultâneas não mandam
+// o mesmo lembrete duas vezes.
+//
+// Fuso: "start" é gravado no fuso de referência com a hora de parede do negócio
+// (como em reservaDe). Por isso "agora" e o dia entram na mesma representação, pela
+// hora de parede do fuso do endereço (agoraNaParede), e não pelo instante real.
 
-const INTERVALO_MS = 10 * 60_000; // confere de 10 em 10 minutos
 const SILENCIO = { inicioMin: 22 * 60, fimMin: 7 * 60 + 30 }; // 22:00 → 07:30
-
-let timer: NodeJS.Timeout | null = null;
-
-export function iniciarLembretesWhatsApp(intervaloMs = INTERVALO_MS): void {
-  if (timer) return;
-  timer = setInterval(() => {
-    void enviarLembretesDoDia().catch((e) => console.error("[wtsfy] lembretes do dia", e));
-  }, intervaloMs);
-  timer.unref();
-  console.log(`[wtsfy] lembretes armados: verificação a cada ${Math.round(intervaloMs / 60_000)} min`);
-}
 
 /** Envia os lembretes devidos agora. Devolve quantos foram enviados. */
 export async function enviarLembretesDoDia(): Promise<number> {
@@ -39,11 +33,12 @@ export async function enviarLembretesDoDia(): Promise<number> {
     // tudo no fuso do endereço do negócio — salão em Manaus não segue horário de SP
     const tz = fusoDaUF(t.get("site.uf") as string | undefined);
     const hoje = todayIn(tz);
-    const inicioDoDia = zonedTime(hoje, "00:00", tz);
-    const fimDoDia = zonedTime(hoje, "23:59", tz);
-    // janela de silêncio: quem vence entre 22h e 7h30 (no fuso dele) espera as 7h30
+    const inicioDoDia = zonedTime(hoje, "00:00");
+    const fimDoDia = zonedTime(hoje, "23:59");
     const parede = agoraNaParede(tz, agora);
-    const minutosDoDia = parede.getUTCHours() * 60 + parede.getUTCMinutes();
+    // janela de silêncio: quem vence entre 22h e 7h30 (no fuso dele) espera as 7h30
+    const [h, m] = formatTime(agora, tz).split(":").map(Number);
+    const minutosDoDia = h * 60 + m;
     if (minutosDoDia >= SILENCIO.inicioMin || minutosDoDia < SILENCIO.fimMin) continue;
     const w = t.data().whatsapp as
       | { instanceId?: string; remindersEnabled?: boolean; remindersBeforeHours?: number }
@@ -66,23 +61,30 @@ export async function enviarLembretesDoDia(): Promise<number> {
       if (a.get("whatsappReminderSentAt")) continue; // já avisado este agendamento
       const start: Date = a.get("start") instanceof Date ? a.get("start") : (a.get("start") as FirebaseFirestore.Timestamp).toDate();
       // devido: chegou a hora (início - Xh) e o horário ainda não começou
-      if (agora < new Date(start.getTime() - antesMs) || agora >= start) continue;
+      if (parede < new Date(start.getTime() - antesMs) || parede >= start) continue;
       const cliente = soDigitosComDDI(String(a.get("customerPhone") ?? ""));
       if (!cliente) continue;
       const nome = String(a.get("customerName") ?? "").trim().split(/\s+/)[0] ?? "";
       // "hoje" ou "amanhã" conforme o dia do horário no fuso do negócio — lembrete
       // de horário madrugador pode sair na noite anterior
-      const dia = dateIn(start, tz) === hoje ? "hoje" : "amanhã";
+      const dia = dateIn(start) === hoje ? "hoje" : "amanhã";
+      // reserva antes de enviar: outra execução que leu o mesmo agendamento desiste aqui
+      const reservado = await adminDb.runTransaction(async (tx) => {
+        if ((await tx.get(a.ref)).get("whatsappReminderSentAt")) return false;
+        tx.update(a.ref, { whatsappReminderSentAt: Date.now() });
+        return true;
+      });
+      if (!reservado) continue;
       try {
         await sendText(
           w.instanceId,
           cliente,
           `Olá, ${nome}! Lembrete do seu horário ${dia} às ${formatTime(start)}: ${a.get("serviceName")} no ${nomeNegocio}. Qualquer imprevisto, responda aqui pelo WhatsApp.`,
         );
-        await a.ref.update({ whatsappReminderSentAt: Date.now() });
         enviados += 1;
       } catch (e) {
-        // sem marca: o próximo ciclo tenta de novo; o erro fica no log do servidor
+        // devolve a reserva: o próximo ciclo tenta de novo; o erro fica no log do servidor
+        await a.ref.update({ whatsappReminderSentAt: FieldValue.delete() }).catch(() => {});
         console.error(`[wtsfy] lembrete ${t.id}/${a.id}`, e);
       }
     }
