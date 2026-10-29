@@ -187,6 +187,7 @@ export default function AdminPage() {
   const [proposta, setProposta] = useState<{ slug: string; url: string; valeAte: string } | null>(null);
   const [fixados, setFixados] = useState(false);
   const [foraDoAr, setForaDoAr] = useState(false);
+  const [comCaixa, setComCaixa] = useState(false);
   const [menuFiltros, setMenuFiltros] = useState(false);
   // o painel se alinha pela direita do botão; quando a barra quebra e o botão cai à esquerda, isso o joga para fora da tela
   const [filtrosAEsquerda, setFiltrosAEsquerda] = useState(false);
@@ -250,13 +251,14 @@ export default function AdminPage() {
       estagio: (e) => !estagio || (crm[e.slug]?.estagio ?? "novo") === estagio,
       prazo: (e) => !prazo || prazoDe(crm[e.slug], dataDeHoje) === prazo,
       fora: (e) => !foraDoAr || crm[e.slug]?.publicado === false,
+      caixa: (e) => !comCaixa || e.caixa,
       contato: (e) => !contato || diaLocal(crm[e.slug]?.ultimoContatoEm ?? null) === dataDeHoje,
       fixados: (e) => !fixados || emDestaque(crm[e.slug], dataDeHoje),
       alerta: (e) => !emFoco || emFoco.has(e.slug),
     };
     return (e: Espaco, ...exceto: string[]) =>
       Object.entries(testes).every(([nome, teste]) => exceto.includes(nome) || teste(e));
-  }, [busca, uf, cidade, nicho, situacao, estagio, prazo, foraDoAr, contato, fixados, emFoco, dataDeHoje, crm]);
+  }, [busca, uf, cidade, nicho, situacao, estagio, prazo, foraDoAr, comCaixa, contato, fixados, emFoco, dataDeHoje, crm]);
 
   const ufs = useMemo(() => contar(espacos.filter((e) => passa(e, "uf")), (e) => e.uf ?? ""), [espacos, passa]);
   const cidades = useMemo(() => contar(espacos.filter((e) => passa(e, "cidade")), local), [espacos, passa]);
@@ -597,7 +599,7 @@ export default function AdminPage() {
       </main>
     );
 
-  const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), contato, String(fixados), alerta].join("|");
+  const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), String(comCaixa), contato, String(fixados), alerta].join("|");
   const contarPrazos = (base: Espaco[]) => {
     const n = { atrasada: 0, hoje: 0, futura: 0 };
     for (const e of base) {
@@ -618,8 +620,8 @@ export default function AdminPage() {
       : topoCidades;
   const quantos = pagina.chave === chave ? pagina.n : PAGINA;
   const visiveis = lista.slice(0, quantos);
-  const filtrando = busca || uf || cidade || nicho || situacao || estagio || prazo || foraDoAr;
-  const nFiltros = [uf, cidade, nicho, estagio, prazo, foraDoAr ? "x" : ""].filter(Boolean).length;
+  const filtrando = busca || uf || cidade || nicho || situacao || estagio || prazo || foraDoAr || comCaixa;
+  const nFiltros = [uf, cidade, nicho, estagio, prazo, foraDoAr ? "x" : "", comCaixa ? "x" : ""].filter(Boolean).length;
 
   // a contagem de cada aba respeita busca, cidade e nicho, e ignora as
   // dimensões que a própria aba controla — senão promete o que não entrega
@@ -662,6 +664,7 @@ export default function AdminPage() {
     setUf("");
     setCidade("");
     setNicho("");
+    setComCaixa(false);
     verVisao(VISOES.find((v) => v.id === "todos")!);   // por id: a ordem das visões muda
   }
 
@@ -1010,6 +1013,13 @@ export default function AdminPage() {
                   ))}
                 </div>
 
+                <div className="flex flex-wrap items-center gap-2 border-t border-[#EDE9E1] pt-3.5">
+                  <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Módulos</span>
+                  <Chip ativo={comCaixa} onClick={() => setComCaixa((v) => !v)}>
+                    Caixa ligado <span className={comCaixa ? "text-white/70" : "text-[#6F6A5E]"}>{espacos.filter((e) => e.caixa && passa(e, "caixa")).length}</span>
+                  </Chip>
+                </div>
+
                 <div className="flex items-center gap-3 border-t border-[#EDE9E1] pt-3.5 max-sm:sticky max-sm:bottom-0 max-sm:-mx-5 max-sm:bg-white max-sm:px-5 max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))]">
                   <button type="button" className={BOTAO_CLARO} onClick={limparTudo}>Limpar</button>
                   <div className="grow" />
@@ -1315,6 +1325,7 @@ export default function AdminPage() {
                       {crm[e.slug]?.publicado === false && (
                         <span className="ml-1 rounded-full bg-[#F1E7E7] px-2 py-0.5 text-xs font-semibold text-[#8A2F2F]">fora do ar</span>
                       )}
+                      {e.caixa && <span className="ml-1 rounded-full bg-[#E7EFE3] px-2 py-0.5 text-xs font-semibold text-[#2F5A2A]">caixa</span>}
                     </span>
                     <span className="min-w-0 xl:grow">
                       {p && p !== "futura" ? (
