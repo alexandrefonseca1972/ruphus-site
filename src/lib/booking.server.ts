@@ -12,7 +12,7 @@ const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
 /** Dados públicos da página de agendamento. Nunca inclui dados de clientes. */
 /** Tirado do ar pelo admin (cobrança): a agenda pública não abre nem reserva. O proxy
  *  só barra o subdomínio; o link que o painel divulga é www.ruphus.site/agendar/{slug}. */
-async function foraDoAr(db: Firestore, tenantId: string) {
+export async function foraDoAr(db: Firestore, tenantId: string) {
   return (await db.doc(`crm/${tenantId}`).get()).get("publicado") === false;
 }
 const FORA_DO_AR = "Este negócio não está recebendo agendamentos online agora.";

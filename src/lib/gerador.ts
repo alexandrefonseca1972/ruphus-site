@@ -101,6 +101,20 @@ const UF_DO_DDD: Record<string, string> = Object.fromEntries(
 );
 /** "5586999990000" → "PI"; sem DDD conhecido, "". */
 /** As 27 UFs, na ordem em que o seletor mostra. */
+const NOMES_UF: Record<string, (typeof UFS)[number]> = {
+  ACRE: "AC", ALAGOAS: "AL", AMAPA: "AP", AMAZONAS: "AM", BAHIA: "BA", CEARA: "CE", "DISTRITO FEDERAL": "DF", "ESPIRITO SANTO": "ES",
+  GOIAS: "GO", MARANHAO: "MA", "MATO GROSSO": "MT", "MATO GROSSO DO SUL": "MS", "MINAS GERAIS": "MG", PARA: "PA", PARAIBA: "PB",
+  PARANA: "PR", PERNAMBUCO: "PE", PIAUI: "PI", "RIO DE JANEIRO": "RJ", "RIO GRANDE DO NORTE": "RN", "RIO GRANDE DO SUL": "RS",
+  RONDONIA: "RO", RORAIMA: "RR", "SANTA CATARINA": "SC", "SAO PAULO": "SP", SERGIPE: "SE", TOCANTINS: "TO",
+};
+/** "PB", "pb" ou "Paraíba" viram "PB". As duas primeiras letras de "Paraíba" davam PA e as
+ *  de "Minas Gerais" davam MI; o que não for UF fica vazio, e a do DDD entra no lugar. */
+export function ufDe(t: string) {
+  const u = t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+  if ((UFS as readonly string[]).includes(u)) return u;
+  return NOMES_UF[u] ?? "";
+}
+
 export const UFS = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"] as const;
 export const ufDoTelefone = (telefone: string) => UF_DO_DDD[telefone.replace(/^55/, "").slice(0, 2)] ?? "";
 // O levantamento marca estimativa com "~4.4" ou "aprox. 120": vale o número (decisão de
@@ -161,7 +175,7 @@ export function lerPlanilha(abas: { aba: string; linhas: unknown[][] }[]): Leitu
         endereco: texto(v("endereco")),
         bairro: texto(v("bairro")) || distrito,
         cidade: cidadeSemUf,
-        uf: (texto(v("uf")) || ufDaCidade).toUpperCase().slice(0, 2),
+        uf: ufDe(texto(v("uf")) || ufDaCidade),
         nota: notaDe(v("nota")),
         avaliacoes: numero(v("avaliacoes")),
         instagram: perfil(v("instagram")),

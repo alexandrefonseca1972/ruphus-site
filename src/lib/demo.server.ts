@@ -118,7 +118,7 @@ export function montarAgenda(hoje: string) {
 
 /** Chama a API de contas do Firebase Auth pelo REST: o firebase-admin/auth não carrega nas
  *  funções da Vercel (ver verify-token.ts). No emulador, o token "owner" basta. */
-async function contas(acao: string, corpo: object) {
+export async function contas(acao: string, corpo: object) {
   const projeto = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   const emulador = process.env.FIREBASE_AUTH_EMULATOR_HOST;
   const base = emulador ? `http://${emulador}/identitytoolkit.googleapis.com` : "https://identitytoolkit.googleapis.com";

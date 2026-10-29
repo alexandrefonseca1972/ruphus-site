@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { diaCurto, hojeISO } from "@/lib/crm-tipos";
 import { formatBRL } from "@/lib/datetime";
+import { cents, emReais } from "@/lib/dinheiro";
 import {
   cancelarCobranca,
   cobrar,
@@ -73,10 +74,11 @@ export function Cobrancas({ slug, idToken, aviso }: { slug: string; idToken: str
 
   async function darBaixa() {
     if (!baixando) return;
-    const cents = Math.round(Number(baixando.valor) * 100);
-    if (!cents || !baixando.data) return aviso("Informe o valor recebido e a data.");
+    // "89,90" é como se digita: Number() daria NaN
+    const centavos = cents(baixando.valor);
+    if (!centavos || !baixando.data) return aviso("Informe o valor recebido e a data.");
     setOcupado(baixando.id);
-    const r = await marcarPaga(idToken, baixando.id, cents, baixando.data).finally(() => setOcupado(""));
+    const r = await marcarPaga(idToken, baixando.id, centavos, baixando.data).finally(() => setOcupado(""));
     if (!r.ok) return aviso(r.error);
     setBaixando(null);
     const nova = await listarCobrancasDo(idToken, slug);
@@ -128,7 +130,7 @@ export function Cobrancas({ slug, idToken, aviso }: { slug: string; idToken: str
                   <button
                     type="button"
                     className={MENOR}
-                    onClick={() => setBaixando({ id: c.id, valor: (c.valorCents / 100).toString(), data: hojeISO() })}
+                    onClick={() => setBaixando({ id: c.id, valor: emReais(c.valorCents), data: hojeISO() })}
                   >
                     Marcar paga
                   </button>

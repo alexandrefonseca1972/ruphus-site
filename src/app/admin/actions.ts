@@ -28,7 +28,7 @@ import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import { competenciaAtual } from "@/lib/pix";
 import { gerarNoBanco, lerSite, publicarSite } from "@/lib/gerador.server";
 import { PAGINAS_DEMO } from "@/lib/demo";
-import { acessoDemo, restaurarDemo } from "@/lib/demo.server";
+import { acessoDemo, contas, restaurarDemo } from "@/lib/demo.server";
 import { createInstance, getQr, getStatus, logout, type QrWhatsApp } from "@/lib/wtsfy";
 import { apagarConexao, gravarConexao, gravarGestaoDono, gravarOwnerPhone, lerConexao, type ConexaoWhatsapp } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
@@ -254,6 +254,9 @@ export const definirCaixa = adminAction(async (_user, slug: string, ligado: bool
 export const encerrarSessoes = adminAction(async (_user, uid: string) => {
   if (!UID.test(uid)) throw new ErroPrevisto("Conta inválida.");
   await adminDb.doc("config/admin").set({ revogados: { [uid]: Date.now() } }, { merge: true });
+  // a marca acima só vale nas Server Actions; validSince derruba também o refresh token,
+  // e o SDK do navegador (que fala direto com o Firestore) perde a sessão quando renovar
+  await contas(":update", { localId: uid, validSince: String(Math.floor(Date.now() / 1000)) });
 });
 
 /** Tira o acesso de alguém. O dono do espaço não pode ser removido. */

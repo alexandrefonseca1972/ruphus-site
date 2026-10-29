@@ -47,9 +47,13 @@ assert.deepEqual([paga.status, paga.pagoEm, paga.recebidoCents], ["paga", "2026-
 assert.equal((await abrirCobranca(db, um.id, um.token))?.brCode, null, "paga não mostra Pix");
 assert.equal((await gerarCobranca(db, { slug: "acme", tipo: "mensal", competencia: "2026-10", valorCents: 5990 })).nova, false);
 await assert.rejects(baixar(db, "nao-existe", { recebidoCents: 1, pagoEm: "2026-10-12", por: "x" }));
+await assert.rejects(baixar(db, um.id, { recebidoCents: 5990, pagoEm: "2026-10-13", por: "x" }), /já foi paga/, "segunda baixa não apaga a primeira");
+await assert.rejects(cancelar(db, um.id, "x"), /paga não se cancela/);
+assert.equal((await listarCobrancas(db, "acme"))[0].pagoEm, "2026-10-12");
 
 // Cancelar libera a competência com sufixo — é como se corrige um valor errado
 const nov = await gerarCobranca(db, { slug: "acme", tipo: "mensal", competencia: "2026-11", valorCents: 5990 });
+await assert.rejects(baixar(db, nov.id, { recebidoCents: 5000, pagoEm: "2026-11-05", por: "x" }), /menor/, "Pix parcial não quita");
 await cancelar(db, nov.id, "admin@ruphus.app");
 const cancelada = (await abrirCobranca(db, nov.id, nov.token))!;
 assert.deepEqual([cancelada.status, cancelada.brCode], ["cancelada", null], "cancelada responde, sem Pix");

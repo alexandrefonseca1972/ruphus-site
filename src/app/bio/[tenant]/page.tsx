@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { adminDb } from "@/lib/admin";
-import { availableSlots } from "@/lib/booking.server";
+import { availableSlots, foraDoAr } from "@/lib/booking.server";
 import { addDays, formatBRL, linkWhatsApp, todayIn, weekday, WEEKDAYS, precoDe, type TipoPreco } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 
@@ -31,6 +31,8 @@ type Bio = {
 const carregar = cache(async (slug: string): Promise<Bio | null> => {
   if (!SLUG.test(slug)) return null;
   const t = adminDb.collection("tenants").doc(slug);
+  // tirado do ar (cobrança): a bio sai junto com o site
+  if (await foraDoAr(adminDb, slug)) return null;
   const [tenant, servicos, equipe] = await Promise.all([
     t.get(),
     t.collection("services").where("active", "==", true).get(),

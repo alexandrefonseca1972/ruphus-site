@@ -567,7 +567,12 @@ export default function AdminPage() {
 
   /** A planilha dos convites em lote: é o único download que sobrou no painel. */
   function baixar(nome: string, linhas: (string | number)[][]) {
-    const csv = linhas.map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    // célula que começa com = + - @ vira fórmula no Excel/Sheets: o nome do negócio é o dono quem escreve
+    const celula = (c: string | number) => {
+      const t = String(c);
+      return `"${(/^[=+\-@\t\r]/.test(t) ? `'${t}` : t).replace(/"/g, '""')}"`;
+    };
+    const csv = linhas.map((l) => l.map(celula).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
@@ -2049,7 +2054,7 @@ export default function AdminPage() {
                 </a>
                 {/* eslint-disable-next-line @next/next/no-img-element -- QR em SVG gerado pela própria rota */}
                 <img
-                  src={`/admin/qr?url=${encodeURIComponent(`https://${aberto.slug}.ruphus.site/`)}&t=${encodeURIComponent(idToken)}`}
+                  src={`/admin/qr?url=${encodeURIComponent(`https://${aberto.slug}.ruphus.site/`)}`}
                   alt={`QR code do site de ${aberto.nome}`}
                   className="size-[132px] shrink-0 rounded-xl border border-[#E2DDD3] bg-white p-1.5"
                 />

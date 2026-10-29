@@ -165,16 +165,18 @@ export async function baixar(db: Firestore, id: string, b: { recebidoCents: numb
   if (!Number.isInteger(b.recebidoCents) || b.recebidoCents <= 0) throw new CobrancaErro("Valor recebido inválido.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(b.pagoEm)) throw new CobrancaErro("Data de pagamento inválida.");
   const ref = db.collection(RAIZ).doc(id);
-  const atual = await ref.get();
-  if (!atual.exists) throw new CobrancaErro("Cobrança não encontrada.");
-  // dar baixa no que foi cancelado esconde o cancelamento e bagunça a conciliação
-  if (atual.get("status") === "cancelada") throw new CobrancaErro("Cobrança cancelada não recebe baixa.");
-  await ref.update({
-    status: "paga",
-    recebidoCents: b.recebidoCents,
-    pagoEm: b.pagoEm,
-    baixaPor: b.por,
-    atualizadoEm: FieldValue.serverTimestamp(),
+  // transação: dois cliques não dão duas baixas (nem publicam o site duas vezes)
+  const atual = await db.runTransaction(async (tx) => {
+    const atual = await tx.get(ref);
+    if (!atual.exists) throw new CobrancaErro("Cobrança não encontrada.");
+    // dar baixa no que foi cancelado esconde o cancelamento e bagunça a conciliação
+    if (atual.get("status") === "cancelada") throw new CobrancaErro("Cobrança cancelada não recebe baixa.");
+    // a segunda baixa apagaria o registro da primeira
+    if (atual.get("status") === "paga") throw new CobrancaErro("Esta cobrança já foi paga.");
+    // Pix parcial não quita: a entrada publicaria o site sem o valor todo
+    if (b.recebidoCents < Number(atual.get("valorCents"))) throw new CobrancaErro("Valor recebido menor que o da cobrança.");
+    tx.update(ref, { status: "paga", recebidoCents: b.recebidoCents, pagoEm: b.pagoEm, baixaPor: b.por, atualizadoEm: FieldValue.serverTimestamp() });
+    return atual;
   });
   // quem chamou decide o que a baixa desencadeia: a entrada publica o site
   return { slug: String(atual.get("slug") ?? ""), tipo: (atual.get("tipo") === "entrada" ? "entrada" : "mensal") as Tipo };
@@ -182,8 +184,13 @@ export async function baixar(db: Firestore, id: string, b: { recebidoCents: numb
 
 export async function cancelar(db: Firestore, id: string, por: string) {
   const ref = db.collection(RAIZ).doc(id);
-  if (!(await ref.get()).exists) throw new Error("Cobrança não encontrada");
-  await ref.update({ status: "cancelada", baixaPor: por, atualizadoEm: FieldValue.serverTimestamp() });
+  await db.runTransaction(async (tx) => {
+    const atual = await tx.get(ref);
+    if (!atual.exists) throw new CobrancaErro("Cobrança não encontrada.");
+    // cancelar a paga apagaria o recebimento e liberaria cobrar o mês de novo
+    if (atual.get("status") === "paga") throw new CobrancaErro("Cobrança paga não se cancela.");
+    tx.update(ref, { status: "cancelada", baixaPor: por, atualizadoEm: FieldValue.serverTimestamp() });
+  });
 }
 
 /** Abertas com vencimento no passado. O corte do site continua sendo clique humano. */
