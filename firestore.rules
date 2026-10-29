@@ -119,6 +119,13 @@ service cloud.firestore {
       match /plans/{p} {
         allow read: if isMember(t);
       }
+      // Caixa: dinheiro só para quem gere (o funcionário não vê) e só com o módulo
+      // ligado pelo admin da plataforma. Gravar, só o servidor (financeiro.server).
+      match /lancamentos/{l} {
+        allow read: if (ehAdminPlataforma() || hasRole(t, ['owner', 'admin']))
+          && get(/databases/$(database)/documents/tenants/$(t)).data.get('modulos', {}).get('financeiro', false) == true;
+        allow write: if false;
+      }
 
       // Lista fechada, não pega-tudo: coleção nova nasce negada e só entra aqui
       // quando alguém decidir que o funcionário pode mesmo ler e escrever nela.

@@ -49,6 +49,7 @@ jobs:
       - run: npm run test:rules
       - run: npm run test:convite
       - run: npm run test:cobranca
+      - run: npm run test:financeiro
       - run: npm run test:gerador-banco
       - run: npm run test:booking
       - run: npm run test:scale

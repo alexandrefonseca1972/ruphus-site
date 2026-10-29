@@ -14,7 +14,15 @@ import { db } from "@/lib/firebase-db";
 export * from "./tenant-input";
 import { Role } from "./tenant-input";
 
-export const Tenant = z.object({ name: z.string(), ownerId: z.string(), limiteStaff: z.number().int().positive().optional() });
+export const Tenant = z.object({
+  name: z.string(),
+  ownerId: z.string(),
+  limiteStaff: z.number().int().positive().optional(),
+  // módulos que o admin da plataforma liga por cliente; o nicho escolhe as categorias do Caixa
+  // .catch: um campo fora do formato não pode derrubar o painel inteiro
+  modulos: z.object({ financeiro: z.boolean().optional() }).optional().catch(undefined),
+  gerado: z.object({ nicho: z.string().optional() }).optional().catch(undefined),
+});
 export type Tenant = z.infer<typeof Tenant> & { id: string };
 
 function uid() {

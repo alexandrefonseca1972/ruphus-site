@@ -50,6 +50,7 @@ export type Espaco = {
   avaliacoes: number | null;
   acessos: number;        // quantas pessoas entram no painel deste espaço
   limiteStaff: number;    // profissionais que o negócio pode cadastrar
+  caixa: boolean;         // módulo Caixa (financeiro) ligado para este cliente
 };
 
 // os tipos do schema.org viram nichos que a gente reconhece (e junta variações)
@@ -91,7 +92,7 @@ export const ehAdminDaPlataforma = adminAction(async () => true);
 
 // Só o que a lista mostra. O documento inteiro do tenant traz endereço, foto,
 // cor e url: 271 KB para 677 negócios, quando o painel usa dez campos curtos.
-const CAMPOS_DA_LISTA = ["name", "site.phone", "site.category", "site.city", "site.uf", "site.rating", "site.reviews", "limiteStaff"] as const;
+const CAMPOS_DA_LISTA = ["name", "site.phone", "site.category", "site.city", "site.uf", "site.rating", "site.reviews", "limiteStaff", "modulos.financeiro"] as const;
 
 /** Lista os espaços com quantas pessoas têm acesso a cada um. */
 async function espacosComAcessos() {
@@ -116,6 +117,7 @@ async function espacosComAcessos() {
       avaliacoes: d.get("site.reviews") ?? null,
       acessos: porEspaco.get(d.id) ?? 0,
       limiteStaff: limiteStaffDe(d.get("limiteStaff") as number | undefined),
+      caixa: d.get("modulos.financeiro") === true,
     }))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
@@ -236,6 +238,15 @@ export const definirLimiteStaff = adminAction(async (_user, slug: string, profis
   }
   await adminDb.doc(`tenants/${slug}`).set({ limiteStaff: profissionais }, { merge: true });
   return profissionais;
+});
+
+/** Liga ou desliga o Caixa (financeiro) de um negócio. Desligar só esconde: os lançamentos ficam. */
+export const definirCaixa = adminAction(async (_user, slug: string, ligado: boolean) => {
+  slugValido(slug);
+  const t = adminDb.doc(`tenants/${slug}`);
+  if (!(await t.get()).exists) throw new ErroPrevisto("Negócio não encontrado.");
+  await t.update({ "modulos.financeiro": ligado === true });
+  return ligado === true;
 });
 
 /** Encerra as sessões abertas de uma conta: o token continua válido até expirar,
