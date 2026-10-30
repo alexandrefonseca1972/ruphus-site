@@ -105,6 +105,13 @@ export function diaNoMes(mes: string, dia: number) {
   return `${mes}-${String(Math.min(dia, ultimo)).padStart(2, "0")}`;
 }
 
+/** % digitado, com a vírgula do teclado brasileiro. Vazio ou texto vira null: não grava nada. */
+export function pctDoTexto(s: string) {
+  const t = s.trim();
+  const n = Number(t.replace(",", "."));
+  return !t || Number.isNaN(n) ? null : Math.min(100, Math.max(0, Math.round(n * 100) / 100));
+}
+
 /** Comissão de cada profissional: o que ele faturou pela agenda vezes o percentual. */
 export function comissoesDoMes(itens: Pick<Lancamento, "tipo" | "valorCents" | "staffId" | "staffName">[], pct: Record<string, number>) {
   const m = new Map<string, { staffId: string; nome: string; faturado: number }>();

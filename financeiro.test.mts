@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { addDays, todayIn, zonedTime } from "@/lib/datetime";
-import { categorias, comissoesDoMes, csvDoMes, diaNoMes, idDaBaixa, idDoPagamento, resumoDoMes } from "@/lib/financeiro";
+import { categorias, comissoesDoMes, csvDoMes, diaNoMes, pctDoTexto, idDaBaixa, idDoPagamento, resumoDoMes } from "@/lib/financeiro";
 import { adicionarFixa, baixarAgendamento, definirComissao, editar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
 const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
@@ -59,6 +59,7 @@ const corrigida = (await db.doc(`tenants/salao/lancamentos/${idDaBaixa("passado"
 assert.deepEqual([corrigida.valorCents, corrigida.data, corrigida.mes], [4200, addDays(hoje, -1), addDays(hoje, -1).slice(0, 7)]);
 
 // fase 2, sem banco: dia da conta no mês, comissão e planilha
+assert.deepEqual(["40,5", "30", " 12.25 ", "", "abc", "150", "-3"].map(pctDoTexto), [40.5, 30, 12.25, null, null, 100, 0], "vírgula vale; vazio e texto não gravam");
 assert.equal(diaNoMes("2026-02", 31), "2026-02-28");
 assert.equal(diaNoMes("2028-02", 30), "2028-02-29");
 assert.equal(diaNoMes("2026-10", 5), "2026-10-05");

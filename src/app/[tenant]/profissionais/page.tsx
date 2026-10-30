@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
 import { idToken } from "@/lib/firebase";
 import { db } from "@/lib/firebase-db";
-import { criarProfissionalAction } from "../actions";
+import { criarProfissionalAction, definirComissaoAction } from "../actions";
+import { CaixaConfig, pctDoTexto } from "@/lib/financeiro";
 import { WEEKDAYS } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
@@ -35,6 +36,12 @@ export default function StaffPage() {
   const tenant = useTenant();
   const [staff, staffError] = useCollection(tenant.id, "staff", Staff, [orderBy("name")]);
   const [services] = useCollection(tenant.id, "services", Service, [orderBy("name")]);
+  // comissão: só o gestor, com o Caixa ligado; o % mora no Caixa (caixa/config), não no
+  // cadastro, que a equipe inteira lê
+  const comCaixa = tenant.podeGerir && tenant.modulos?.financeiro === true;
+  const [configs] = useCollection(comCaixa ? tenant.id : "", "caixa", CaixaConfig);
+  const comissoes = configs ? (configs.find((c) => c.id === "config")?.comissoes ?? {}) : null;
+  const pctDe = (staffId: string) => comissoes?.[staffId] ?? 0;
   const [editing, setEditing] = useState<(Staff & { id: string }) | null>(null);
   const [salvos, setSalvos] = useState(0);
   const [excluindo, setExcluindo] = useState<(Staff & { id: string }) | null>(null);
@@ -55,15 +62,27 @@ export default function StaffPage() {
       });
       // Criar passa pelo servidor, que conta a equipe numa transação; as regras
       // não deixam o cliente criar profissional. Editar segue direto.
+      let staffId: string;
       if (editing) {
         await setDoc(doc(col, editing.id), data);
+        staffId = editing.id;
       } else {
         const r = await criarProfissionalAction(await idToken(), { tenantId: tenant.id, dados: data });
         if (!r.ok) throw new Error(r.error);
+        staffId = r.id;
       }
+      // o profissional já está salvo: se o % falhar, avisa sem desfazer nem duplicar
+      const pct = comissoes ? pctDoTexto(String(form.get("comissao") ?? "")) : null;
+      const erroPct =
+        pct !== null && pct !== pctDe(staffId)
+          ? await definirComissaoAction(await idToken(), { tenantId: tenant.id, staffId, pct })
+              .then((r) => (r.ok ? "" : r.error))
+              .catch(() => "Sem conexão.")
+          : "";
       el.reset();
       setEditing(null);
       setSalvos((n) => n + 1); // formulário novo, zerado (os serviços são controlados e o reset não os alcança)
+      if (erroPct) setError(`Profissional salvo, mas a comissão não: ${erroPct}`);
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -117,6 +136,7 @@ export default function StaffPage() {
                   </h2>
                   <span className="text-[13px] text-muted-foreground">
                     {p.serviceIds.length} serviço(s) · {DAYS.filter((d) => p.hours[d]).length} dia(s) na semana
+                    {pctDe(p.id) > 0 && ` · comissão ${String(pctDe(p.id)).replace(".", ",")}%`}
                   </span>
                 </div>
                 <Button variant="outline" className="h-10 px-4" onClick={() => { setEditing(p); document.getElementById("form-prof")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Editar</Button>
@@ -186,6 +206,24 @@ export default function StaffPage() {
                   Repetir o horário de segunda nos outros dias marcados
                 </button>
               </fieldset>
+
+              {comissoes && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="comissao">Comissão (%)</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="comissao"
+                      name="comissao"
+                      inputMode="decimal"
+                      defaultValue={editing && pctDe(editing.id) ? String(pctDe(editing.id)).replace(".", ",") : ""}
+                      placeholder="0"
+                      className="h-11 w-24 bg-card px-3.5 text-right text-[15px] tabular-nums"
+                    />
+                    <span className="text-sm">%</span>
+                  </div>
+                  <p className="text-[13px] text-muted-foreground">Só você vê. O Caixa usa para calcular a comissão do mês.</p>
+                </div>
+              )}
 
               <div className="flex gap-2">
                 <Button type="submit" className="h-11 flex-1 px-4">{editing ? "Salvar alterações" : "Adicionar profissional"}</Button>

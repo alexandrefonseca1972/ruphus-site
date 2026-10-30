@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { errorMessage } from "@/lib/auth-errors";
 import { formatBRL, formatLongDate, formatTime, todayIn, zonedTime } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
-import { CaixaConfig, comissoesDoMes, csvDoMes, idDaBaixa, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
+import { CaixaConfig, comissoesDoMes, pctDoTexto, csvDoMes, idDaBaixa, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
 import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
 import { definirComissaoAction } from "../actions";
@@ -313,10 +313,9 @@ export default function CaixaPage() {
                       aria-label={`Comissão de ${c.nome} em %`}
                       onBlur={(e) => {
                         // vírgula do teclado brasileiro; vazio ou texto não zera o que estava
-                        const pct = Number(e.target.value.trim().replace(",", "."));
-                        if (!e.target.value.trim() || Number.isNaN(pct)) return void (e.target.value = c.pct ? String(c.pct).replace(".", ",") : "");
-                        const certo = Math.min(100, Math.max(0, Math.round(pct * 100) / 100));
-                        if (certo !== c.pct) mudarPct(c.staffId, certo);
+                        const pct = pctDoTexto(e.target.value);
+                        if (pct === null) return void (e.target.value = c.pct ? String(c.pct).replace(".", ",") : "");
+                        if (pct !== c.pct) mudarPct(c.staffId, pct);
                       }}
                       className="h-10 w-20 text-right tabular-nums"
                     />
