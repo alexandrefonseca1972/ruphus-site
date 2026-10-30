@@ -13,6 +13,7 @@ import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
 import { definirComissaoAction } from "../actions";
 import { ConfirmDialog } from "../confirm-dialog";
+import { ComissoesHistorico } from "../comissoes-historico";
 import { ContasFixas } from "../contas-fixas";
 import { type Folha, LancamentoFolha } from "../lancamento-folha";
 import { useTenant } from "../layout";
@@ -47,6 +48,7 @@ export default function CaixaPage() {
   const [erro, setErro] = useState("");
   const [faltou, setFaltou] = useState<{ id: string; nome: string } | null>(null);
   const [verFixas, setVerFixas] = useState(false);
+  const [historico, setHistorico] = useState<{ staffId: string; nome: string } | null>(null);
   // o % digitado vale na hora, só enquanto a gravação dele está a caminho: "Pagar" logo depois
   // usa o novo. Voltou do servidor, sai daqui e vale o da configuração, mude ela onde mudar.
   // ponytail: entre a resposta e o snapshot pode piscar o % velho; esperar o snapshot se incomodar
@@ -313,8 +315,21 @@ export default function CaixaPage() {
         <section aria-labelledby="comissoes" className="overflow-hidden rounded-2xl border bg-card">
           <div className="grid gap-0.5 px-4 py-4 sm:px-6">
             <h2 id="comissoes" className="font-semibold">Comissões</h2>
-            <p className="text-sm text-muted-foreground">Sobre o que cada profissional recebeu pela agenda neste mês. Só você vê.</p>
+            <p className="text-sm text-muted-foreground">Sobre o que cada profissional recebeu pela agenda neste mês. Toque no nome para ver os meses anteriores. Só você vê.</p>
           </div>
+          {/* o mês de relance: o pago é o que saiu; o que falta, o que ainda não foi pago */}
+          <dl className="grid grid-cols-3 border-t text-sm">
+            {[
+              { label: "Comissões do mês", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? c.valor), 0) },
+              { label: "Pago", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? 0), 0) },
+              { label: "Falta pagar", valor: comissoes.reduce((t, c) => t + (pagas.has(idDoPagamento("comissao", c.staffId, mes)) ? 0 : c.valor), 0) },
+            ].map((t) => (
+              <div key={t.label} className="grid gap-0.5 border-l px-4 py-3 first:border-l-0 sm:px-6">
+                <dt className="text-[13px] text-muted-foreground">{t.label}</dt>
+                <dd className="font-serifa text-lg tabular-nums">{formatBRL(t.valor)}</dd>
+              </div>
+            ))}
+          </dl>
           <ul>
             {comissoes.map((c) => {
               const paga = pagas.get(idDoPagamento("comissao", c.staffId, mes));
@@ -325,7 +340,9 @@ export default function CaixaPage() {
               return (
                 <li key={c.staffId} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t px-4 py-3 sm:px-6">
                   <span className="grid min-w-0 flex-1 basis-60 gap-0.5">
-                    <span className="truncate font-medium">{c.nome}</span>
+                    <button type="button" onClick={() => setHistorico({ staffId: c.staffId, nome: c.nome })} className="w-fit max-w-full truncate text-left font-medium underline-offset-4 hover:underline">
+                      {c.nome}
+                    </button>
                     <span className="text-[13px] text-muted-foreground tabular-nums">
                       faturou {formatBRL(c.faturado)}
                       {!paga && c.abatido > 0 && ` · menos ${formatBRL(c.abatido)} de estorno`}
@@ -383,6 +400,16 @@ export default function CaixaPage() {
         </section>
       )}
 
+      {historico && (
+        <ComissoesHistorico
+          tenantId={tenant.id}
+          staffId={historico.staffId}
+          nome={historico.nome}
+          pct={config.comissoes[historico.staffId] ?? 0}
+          guardado={config.descontos[historico.staffId] ?? 0}
+          onClose={() => setHistorico(null)}
+        />
+      )}
       {verFixas && <ContasFixas tenantId={tenant.id} nicho={tenant.gerado?.nicho} fixas={config.fixas} onClose={() => setVerFixas(false)} />}
       {folha && <LancamentoFolha tenantId={tenant.id} nicho={tenant.gerado?.nicho} folha={folha} estornado={folha.modo === "editar" && recebidos.has(idDoEstorno(folha.lancamento.id))} onClose={fechar} />}
       {faltou && (
