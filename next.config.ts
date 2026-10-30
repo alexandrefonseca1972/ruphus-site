@@ -18,6 +18,10 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // O cache do Turbopack no build (ligado por padrão desde o 16.3, restaurado pela Vercel)
+  // deixava o CSS do Tailwind velho: classes de componentes novos não entravam e o modal
+  // do Caixa abria sem posição no computador. Build frio custa ~1 min a mais.
+  experimental: { turbopackFileSystemCacheForBuild: false },
   env: {
     NEXT_PUBLIC_VERSAO: version,
     NEXT_PUBLIC_COMMIT: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
