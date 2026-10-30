@@ -18,8 +18,8 @@ import { AppInstalado } from "./app-instalado";
 import { cn } from "@/lib/utils";
 
 // podeGerir: dono ou admin do negócio, ou admin da plataforma. Só esconde botões —
-// quem decide de verdade é o servidor/as regras.
-type TenantCtx = Tenant & { podeGerir: boolean };
+// quem decide de verdade é o servidor/as regras. adminPlataforma: entrou sem ser da equipe.
+type TenantCtx = Tenant & { podeGerir: boolean; adminPlataforma: boolean };
 const TenantContext = createContext<TenantCtx | null>(null);
 
 export function useTenant() {
@@ -27,6 +27,9 @@ export function useTenant() {
   if (!tenant) throw new Error("useTenant fora de /[tenant]");
   return tenant;
 }
+
+/** Fora de /[tenant] (o /painel usa o mesmo menu da conta) devolve null. */
+export const useTenantSeHouver = () => use(TenantContext);
 
 export default function TenantLayout({ children }: { children: React.ReactNode }) {
   const { tenant: slug } = useParams<{ tenant: string }>();
@@ -48,10 +51,9 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
         // As regras negam a leitura para quem não é membro
         const [snap, member] = await Promise.all([getDoc(doc(db, "tenants", slug)), getDoc(doc(db, "tenants", slug, "members", user.uid))]);
         // sem documento de membro e mesmo assim lendo: é o admin da plataforma (config/admin só o servidor lê)
-        const podeGerir = member.exists()
-          ? ["owner", "admin"].includes(member.get("role"))
-          : (await ehAdminDaPlataforma(await user.getIdToken()).catch(() => ({ ok: false }))).ok;
-        value = snap.exists() ? { id: snap.id, ...Tenant.parse(snap.data()), podeGerir } : "denied";
+        const adminPlataforma = !member.exists() && (await ehAdminDaPlataforma(await user.getIdToken()).catch(() => ({ ok: false }))).ok;
+        const podeGerir = adminPlataforma || ["owner", "admin"].includes(member.get("role"));
+        value = snap.exists() ? { id: snap.id, ...Tenant.parse(snap.data()), podeGerir, adminPlataforma } : "denied";
       } catch {
         value = "denied";
       }
@@ -86,7 +88,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
           {/* O nome era o unico link que parecia subir um nivel, e levava para "/",
               que e a landing page da Ruphus. Vai para /painel, que lista os
               negocios de quem entrou — ate aqui nao havia caminho de volta. */}
-          <Link href="/painel" className="flex h-14 min-w-0 flex-1 items-center gap-2.5 sm:h-16 sm:flex-none">
+          <Link href={state.adminPlataforma ? "/admin" : "/painel"} className="flex h-14 min-w-0 flex-1 items-center gap-2.5 sm:h-16 sm:flex-none">
             <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary font-serifa text-xl text-primary-foreground">
               {state.name.charAt(0)}
             </span>
