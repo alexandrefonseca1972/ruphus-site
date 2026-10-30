@@ -53,6 +53,8 @@ export const BaixaInput = z.object({
 
 /** O documento como o painel lê (tenants/{t}/lancamentos). */
 export const Lancamento = LancamentoInput.extend({
+  // comissão toda abatida por estorno fica registrada com R$ 0
+  valorCents: z.number().int().min(0),
   mes: z.string(),
   appointmentId: z.string().optional(),
   staffId: z.string().nullish(),
@@ -60,6 +62,8 @@ export const Lancamento = LancamentoInput.extend({
   customerName: z.string().nullish(),
   /** estorno: o id da entrada que ele devolve */
   estornoDe: z.string().optional(),
+  /** pagamento de comissão: quanto de estorno ele abateu (negativo: devolveu ao profissional) */
+  descontoCents: z.number().int().optional(),
 });
 export type Lancamento = z.infer<typeof Lancamento> & { id: string };
 
@@ -91,6 +95,9 @@ export type Fixa = z.infer<typeof Fixa>;
 export const CaixaConfig = z.object({
   fixas: z.array(Fixa).max(30, "No máximo 30 contas fixas.").default([]),
   comissoes: z.record(z.string().max(128), z.number().min(0).max(100)).default({}),
+  /** estorno ainda não abatido da comissão de cada profissional, em centavos: sai do próximo
+   *  pagamento, e o que não couber nele passa para o seguinte. Negativo: a devolver a ele. */
+  descontos: z.record(z.string().max(128), z.number().int()).default({}),
 });
 export type CaixaConfig = z.infer<typeof CaixaConfig>;
 
@@ -99,8 +106,11 @@ export const PagamentoInput = z.object({
   tipo: z.enum(["fixa", "comissao"]),
   alvoId: docId,
   mes: z.string().regex(MES),
-  valorCents: valor,
+  // R$ 0 só na comissão toda abatida por estorno (o servidor confere)
+  valorCents: z.number().int().min(0).max(99_999_99, "Valor alto demais."),
   forma: z.enum(FORMAS),
+  /** comissão: o estorno que este pagamento abate */
+  descontoCents: z.number().int().optional(),
 });
 /** Devolver ao cliente, no todo ou em parte, o que entrou. */
 export const EstornoInput = z.object({
@@ -125,18 +135,25 @@ export function pctDoTexto(s: string) {
   return !t || Number.isNaN(n) ? null : Math.min(100, Math.max(0, Math.round(n * 100) / 100));
 }
 
-/** Comissão de cada profissional: o que ele faturou pela agenda, menos o estornado, vezes o percentual. */
-export function comissoesDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "staffId" | "staffName"> & { estornoDe?: string })[], pct: Record<string, number>) {
+/** Comissão de cada profissional: o que ele faturou pela agenda vezes o percentual (bruto),
+ *  menos o estorno guardado para abater (descontos), até zerar; o resto fica para o próximo. */
+// ponytail: quem tem desconto guardado mas não atendeu no mês não aparece; ele espera o próximo
+// mês com atendimento. Listar essas linhas se um profissional sair da equipe devendo estorno.
+export function comissoesDoMes(itens: Pick<Lancamento, "tipo" | "valorCents" | "staffId" | "staffName">[], pct: Record<string, number>, descontos: Record<string, number> = {}) {
   const m = new Map<string, { staffId: string; nome: string; faturado: number }>();
   for (const l of itens) {
-    if ((l.tipo !== "entrada" && !l.estornoDe) || !l.staffId) continue;
+    if (l.tipo !== "entrada" || !l.staffId) continue;
     const p = m.get(l.staffId) ?? { staffId: l.staffId, nome: l.staffName ?? "Profissional", faturado: 0 };
-    p.faturado += l.tipo === "entrada" ? l.valorCents : -l.valorCents;
+    p.faturado += l.valorCents;
     m.set(l.staffId, p);
   }
   return [...m.values()]
-    // estorno de um mês sem atendimento não vira comissão negativa
-    .map((p) => ({ ...p, pct: pct[p.staffId] ?? 0, valor: Math.max(0, Math.round((p.faturado * (pct[p.staffId] ?? 0)) / 100)) }))
+    .map((p) => {
+      const bruto = Math.round((p.faturado * (pct[p.staffId] ?? 0)) / 100);
+      const desconto = descontos[p.staffId] ?? 0;
+      const abatido = desconto > 0 ? Math.min(desconto, bruto) : desconto;
+      return { ...p, pct: pct[p.staffId] ?? 0, bruto, desconto, abatido, valor: bruto - abatido };
+    })
     .sort((a, b) => b.faturado - a.faturado);
 }
 

@@ -17,7 +17,7 @@ export type Folha =
   | { modo: "novo"; tipo: "entrada" | "saida"; data: string }
   | { modo: "editar"; lancamento: Lancamento }
   | { modo: "baixa"; atendimento: { id: string; customerName: string; serviceName: string; priceCents: number } }
-  | { modo: "pagar"; titulo: string; detalhe: string; valorCents: number; pagamento: { tipo: "fixa" | "comissao"; alvoId: string; mes: string } };
+  | { modo: "pagar"; titulo: string; detalhe: string; valorCents: number; pagamento: { tipo: "fixa" | "comissao"; alvoId: string; mes: string; descontoCents?: number } };
 
 const Chip = ({ ativo, onClick, children }: { ativo: boolean; onClick: () => void; children: React.ReactNode }) => (
   <button
@@ -70,7 +70,9 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose }: 
   }
 
   function salvar() {
-    if (!centavos) return setErro("Informe o valor.");
+    // comissão toda abatida por estorno: R$ 0 registra o acerto do mês
+    const zeroPorEstorno = folha.modo === "pagar" && folha.valorCents === 0 && (folha.pagamento.descontoCents ?? 0) > 0;
+    if (!centavos && !zeroPorEstorno) return setErro("Informe o valor.");
     if (estornando && base) {
       if (centavos > base.valorCents) return setErro(`O estorno vai até ${formatBRL(base.valorCents)}, o valor recebido.`);
       return setConfirmarEstorno(true);
@@ -201,13 +203,13 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose }: 
           {confirmarEstorno && base && (
             <ConfirmDialog
               title={`Estornar ${formatBRL(centavos)} de ${deQuem}?`}
-              description={`Entra como saída de hoje no Caixa${base.staffName ? ` e desconta da comissão de ${base.staffName}` : ""}. O recebimento continua no histórico, marcado como estornado. Só dá para estornar uma vez.`}
+              description={`Entra como saída de hoje no Caixa${base.staffName ? `. A comissão de ${base.staffName} sobre esse valor sai do próximo pagamento de comissão` : ""}. O recebimento continua no histórico, marcado como estornado. Só dá para estornar uma vez.`}
               confirmLabel="Sim, estornar"
               onConfirm={async () => {
                 setConfirmarEstorno(false);
                 await rodar(
                   async () => estornarAction(await idToken(), { tenantId, estorno: { lancamentoId: base.id, valorCents: centavos, forma } }),
-                  `Estorno de ${formatBRL(centavos)} lançado${base.staffName ? `: a comissão de ${base.staffName} já desconta` : ""}.`,
+                  `Estorno de ${formatBRL(centavos)} lançado${base.staffName ? `: a comissão de ${base.staffName} desconta no próximo pagamento` : ""}.`,
                 );
               }}
               onCancel={() => setConfirmarEstorno(false)}

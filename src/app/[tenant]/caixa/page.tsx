@@ -83,7 +83,7 @@ export default function CaixaPage() {
   const lido = CaixaConfig.safeParse(configs?.find((c) => c.id === "config") ?? {});
   // sem a configuração lida não se mexe nela: mostrar vazio e deixar editar enganaria o dono
   const configPronta = configs !== null && !erroConfig && lido.success;
-  const config = lido.success ? lido.data : { fixas: [], comissoes: {} };
+  const config = lido.success ? lido.data : CaixaConfig.parse({});
   const configQuebrada = configs !== null && !lido.success;
 
   if (!ligado) {
@@ -109,10 +109,10 @@ export default function CaixaPage() {
   const doMesFixas = config.fixas.filter((f) => !f.desde || f.desde <= mes);
   const contas = (lancamentos ? doMesFixas : []).filter((f) => !recebidos.has(idDoPagamento("fixa", f.id, mes))).sort((a, b) => a.dia - b.dia);
   const pctsPendentes = Object.fromEntries(Object.entries(pcts).map(([k, o]) => [k, o.pct]));
-  const comissoes = comissoesDoMes(lancamentos ?? [], { ...config.comissoes, ...pctsPendentes });
+  const comissoes = comissoesDoMes(lancamentos ?? [], { ...config.comissoes, ...pctsPendentes }, config.descontos);
   // lançamento novo cai no mês da tela: hoje, ou o último dia de um mês passado
   const diaNovo = mes === hoje.slice(0, 7) ? hoje : diaNoMes(mes, mes < hoje ? 31 : 1);
-  const pagas = new Map(lancamentos?.filter((l) => l.id.startsWith("cm-")).map((l) => [l.id, l.valorCents]));
+  const pagas = new Map(lancamentos?.filter((l) => l.id.startsWith("cm-")).map((l) => [l.id, l]));
   const porDia = Object.entries(
     [...(lancamentos ?? [])].sort((a, b) => b.data.localeCompare(a.data)).reduce<Record<string, Lancamento[]>>((g, l) => ((g[l.data] ??= []).push(l), g), {}),
   );
@@ -318,14 +318,22 @@ export default function CaixaPage() {
           <ul>
             {comissoes.map((c) => {
               const paga = pagas.get(idDoPagamento("comissao", c.staffId, mes));
+              // paga: a conta é a do dia do pagamento, com o estorno que ele abateu; o estorno de
+              // depois fica guardado para o próximo
+              const devido = paga ? c.bruto - (paga.descontoCents ?? 0) : c.valor;
+              const fica = paga ? c.desconto : c.desconto - c.abatido;
               return (
                 <li key={c.staffId} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t px-4 py-3 sm:px-6">
                   <span className="grid min-w-0 flex-1 basis-60 gap-0.5">
                     <span className="truncate font-medium">{c.nome}</span>
                     <span className="text-[13px] text-muted-foreground tabular-nums">
                       faturou {formatBRL(c.faturado)}
+                      {!paga && c.abatido > 0 && ` · menos ${formatBRL(c.abatido)} de estorno`}
+                      {!paga && c.abatido < 0 && ` · mais ${formatBRL(-c.abatido)} de estorno desfeito`}
                       {/* paga antes de novos recebimentos ou de mudar o %: o dono vê a diferença */}
-                      {paga !== undefined && paga !== c.valor && ` · pago ${formatBRL(paga)}, a conta dá ${formatBRL(c.valor)}`}
+                      {paga && paga.valorCents !== devido && ` · pago ${formatBRL(paga.valorCents)}, a conta dá ${formatBRL(devido)}`}
+                      {fica > 0 && ` · ${formatBRL(fica)} de estorno a descontar no próximo pagamento`}
+                      {fica < 0 && ` · ${formatBRL(-fica)} de estorno desfeito a devolver no próximo pagamento`}
                     </span>
                   </span>
                   <label className="flex items-center gap-1.5 text-sm max-sm:mr-auto">
@@ -346,15 +354,24 @@ export default function CaixaPage() {
                     />
                     %
                   </label>
-                  <span className="text-right font-serifa text-lg tabular-nums sm:w-24">{formatBRL(c.valor)}</span>
-                  {paga !== undefined ? (
+                  <span className="text-right font-serifa text-lg tabular-nums sm:w-24">{formatBRL(paga ? paga.valorCents : c.valor)}</span>
+                  {paga ? (
                     <span className="text-center text-sm text-emerald-800 sm:w-24 dark:text-emerald-300">Paga</span>
                   ) : (
                     <Button
                       variant="outline"
                       className="h-10 px-4 sm:w-24"
-                      disabled={!c.valor}
-                      onClick={() => setFolha({ modo: "pagar", titulo: `Pagar comissão de ${c.nome}`, detalhe: `${c.pct}% de ${formatBRL(c.faturado)} · ${nomeDoMes(mes)}`, valorCents: c.valor, pagamento: { tipo: "comissao", alvoId: c.staffId, mes } })}
+                      // o estorno que zera a comissão também se registra: o mês fica acertado e o desconto, usado
+                      disabled={!c.valor && !(c.abatido > 0)}
+                      onClick={() =>
+                        setFolha({
+                          modo: "pagar",
+                          titulo: `Pagar comissão de ${c.nome}`,
+                          detalhe: `${c.pct}% de ${formatBRL(c.faturado)}${c.abatido > 0 ? ` − ${formatBRL(c.abatido)} de estorno` : c.abatido < 0 ? ` + ${formatBRL(-c.abatido)} de estorno desfeito` : ""} · ${nomeDoMes(mes)}`,
+                          valorCents: c.valor,
+                          pagamento: { tipo: "comissao", alvoId: c.staffId, mes, descontoCents: c.abatido },
+                        })
+                      }
                     >
                       Pagar
                     </Button>
