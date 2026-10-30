@@ -128,6 +128,8 @@ export async function pagar(db: Firestore, tenantId: string, p: z.infer<typeof P
     if (p.tipo === "fixa") {
       const fixa = CaixaConfig.parse(cfg.data() ?? {}).fixas.find((f) => f.id === p.alvoId);
       if (!fixa) throw new UserError("Conta fixa não encontrada.");
+      // a mesma regra da tela: antes de cadastrada, a conta não existia para pagar
+      if (fixa.desde && p.mes < fixa.desde) throw new UserError("Esta conta ainda não existia neste mês.");
       campos = { categoria: fixa.categoria, descricao: fixa.nome, fixaId: fixa.id, data: mesDe(hoje) === p.mes ? hoje : diaNoMes(p.mes, fixa.dia) };
     } else {
       // quem saiu da equipe no meio do mês ainda recebe: basta ter atendido no mês

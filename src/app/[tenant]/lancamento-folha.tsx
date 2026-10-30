@@ -9,11 +9,12 @@ import { idToken } from "@/lib/firebase";
 import { categorias, FORMAS, ROTULO_FORMA, type Lancamento } from "@/lib/financeiro";
 import { cn } from "@/lib/utils";
 import { baixarAgendamentoAction, editarLancamentoAction, excluirLancamentoAction, lancarAction, pagarAction } from "./actions";
+import { ConfirmDialog } from "./confirm-dialog";
 
 /** O que a folha faz: entrada/saída nova, corrigir uma que existe, receber um atendimento
  *  ou pagar a conta fixa / a comissão do mês. */
 export type Folha =
-  | { modo: "novo"; tipo: "entrada" | "saida" }
+  | { modo: "novo"; tipo: "entrada" | "saida"; data: string }
   | { modo: "editar"; lancamento: Lancamento }
   | { modo: "baixa"; atendimento: { id: string; customerName: string; serviceName: string; priceCents: number } }
   | { modo: "pagar"; titulo: string; detalhe: string; valorCents: number; pagamento: { tipo: "fixa" | "comissao"; alvoId: string; mes: string } };
@@ -37,10 +38,12 @@ export function LancamentoFolha({ tenantId, nicho, folha, onClose }: { tenantId:
   const [valor, setValor] = useState(valorInicial ? formatBRL(valorInicial) : "");
   const [categoria, setCategoria] = useState(base?.categoria ?? (folha.modo === "baixa" ? "Atendimento" : ""));
   const [forma, setForma] = useState<(typeof FORMAS)[number]>(base?.forma ?? "pix");
-  const [data, setData] = useState(base?.data ?? todayIn());
+  // lançamento novo nasce no mês que está na tela, não no de hoje
+  const [data, setData] = useState(base?.data ?? (folha.modo === "novo" ? folha.data : todayIn()));
   const [descricao, setDescricao] = useState(base?.descricao ?? "");
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  const [apagar, setApagar] = useState(false);
   const centavos = Number(valor.replace(/\D/g, "")) || 0;
   const daAgenda = folha.modo === "baixa" || !!base?.appointmentId;
   // conta fixa e comissão: categoria e mês vêm de onde nasceram
@@ -142,7 +145,7 @@ export function LancamentoFolha({ tenantId, nicho, folha, onClose }: { tenantId:
                 variant="ghost"
                 className="h-11 px-4 text-destructive"
                 disabled={ocupado}
-                onClick={() => rodar(async () => excluirLancamentoAction(await idToken(), { tenantId, id: folha.lancamento.id }), daAgenda ? "Recebimento apagado: o atendimento voltou para o fechamento do dia." : ePagamento ? "Pagamento apagado: voltou para as contas do mês." : "Lançamento apagado.")}
+                onClick={() => setApagar(true)}
               >
                 Apagar
               </Button>
@@ -155,6 +158,19 @@ export function LancamentoFolha({ tenantId, nicho, folha, onClose }: { tenantId:
             </div>
           </div>
           </form>
+          {/* apagar não tem volta: um toque errado no celular não pode sumir com dinheiro */}
+          {apagar && folha.modo === "editar" && (
+            <ConfirmDialog
+              title={`Apagar ${folha.lancamento.tipo === "entrada" ? "entrada" : "saída"} de ${formatBRL(folha.lancamento.valorCents)}?`}
+              description={daAgenda ? "O atendimento volta para o fechamento do dia." : ePagamento ? "O pagamento volta a aparecer para pagar neste mês." : "O lançamento sai do Caixa e não dá para desfazer."}
+              confirmLabel="Sim, apagar"
+              onConfirm={async () => {
+                setApagar(false);
+                await rodar(async () => excluirLancamentoAction(await idToken(), { tenantId, id: folha.lancamento.id }), daAgenda ? "Recebimento apagado: o atendimento voltou para o fechamento do dia." : ePagamento ? "Pagamento apagado: voltou para as contas do mês." : "Lançamento apagado.");
+              }}
+              onCancel={() => setApagar(false)}
+            />
+          )}
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

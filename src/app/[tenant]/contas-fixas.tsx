@@ -9,6 +9,7 @@ import { idToken } from "@/lib/firebase";
 import { categorias, type Fixa } from "@/lib/financeiro";
 import { cn } from "@/lib/utils";
 import { adicionarFixaAction, removerFixaAction } from "./actions";
+import { ConfirmDialog } from "./confirm-dialog";
 
 /** Cadastro das contas que se repetem todo mês. Cada mudança grava na hora, uma de cada vez. */
 export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: string; nicho?: string; fixas: Fixa[]; onClose: () => void }) {
@@ -18,6 +19,7 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
   const [categoria, setCategoria] = useState("Aluguel");
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  const [tirar, setTirar] = useState<Fixa | null>(null);
 
   async function gravar(f: () => Promise<{ ok: boolean; error?: string }>) {
     setErro("");
@@ -61,7 +63,7 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
                     <span className="text-[13px] text-muted-foreground">dia {f.dia} · {f.categoria}</span>
                   </span>
                   <span className="tabular-nums">{formatBRL(f.valorCents)}</span>
-                  <Button type="button" variant="ghost" size="sm" className="h-10 text-destructive" disabled={ocupado} onClick={() => gravar(async () => removerFixaAction(await idToken(), { tenantId, fixaId: f.id }))} aria-label={`Tirar ${f.nome}`}>
+                  <Button type="button" variant="ghost" size="sm" className="h-10 text-destructive" disabled={ocupado} onClick={() => setTirar(f)} aria-label={`Tirar ${f.nome}`}>
                     Tirar
                   </Button>
                 </li>
@@ -104,6 +106,19 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
             <Button type="submit" className="h-11 px-5" disabled={ocupado}>{ocupado ? "Salvando…" : "Adicionar conta"}</Button>
           </div>
           </form>
+          {tirar && (
+            <ConfirmDialog
+              title={`Tirar ${tirar.nome}?`}
+              description="A conta deixa de aparecer nos próximos meses. O que já foi pago continua no Caixa."
+              confirmLabel="Sim, tirar"
+              onConfirm={async () => {
+                const id = tirar.id;
+                setTirar(null);
+                await gravar(async () => removerFixaAction(await idToken(), { tenantId, fixaId: id }));
+              }}
+              onCancel={() => setTirar(null)}
+            />
+          )}
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

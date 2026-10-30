@@ -102,7 +102,10 @@ const fx = (await db.doc(`tenants/salao/lancamentos/${idDoPagamento("fixa", alug
 assert.deepEqual([fx.tipo, fx.valorCents, fx.categoria, fx.descricao, fx.mes, fx.data], ["saida", 119000, "Aluguel", "Aluguel", mes, hoje]);
 await assert.rejects(pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes, valorCents: 120000, forma: "pix" }, quem), /já foi paga/);
 await assert.rejects(editar(db, "salao", idDoPagamento("fixa", aluguel, mes), { ...entrada, tipo: "entrada" }, quem), /sempre saída/);
-// conta de um mês passado cai no dia dela
+// antes de cadastrada, a conta não se paga
+await assert.rejects(pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes: "2026-02", valorCents: 120000, forma: "pix" }, quem), /ainda não existia/);
+// conta de um mês passado cai no dia dela (cadastrada antes daquele mês)
+await db.doc("tenants/salao/caixa/config").update({ fixas: (await db.doc("tenants/salao/caixa/config").get()).get("fixas").map((f: object) => ({ ...f, desde: "2026-01" })) });
 await pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes: "2026-02", valorCents: 120000, forma: "pix" }, quem);
 assert.equal((await db.doc(`tenants/salao/lancamentos/${idDoPagamento("fixa", aluguel, "2026-02")}`).get()).get("data"), "2026-02-05");
 await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "ninguem", mes, valorCents: 1680, forma: "pix" }, quem), /Profissional não encontrado/);
