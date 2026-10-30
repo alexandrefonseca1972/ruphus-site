@@ -23,7 +23,7 @@ import {
   salvarPix,
 } from "@/lib/cobranca";
 import { anotar, CrmInput, lerCrm, linhaDoTempo, listarNotas, registrarMensagem, salvarCrm } from "@/lib/crm";
-import { diaCurto, hojeISO } from "@/lib/crm-tipos";
+import { diaCurto, hojeISO, mensalidadeDe } from "@/lib/crm-tipos";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import { competenciaAtual } from "@/lib/pix";
 import { gerarNoBanco, lerSite, publicarSite } from "@/lib/gerador.server";
@@ -527,11 +527,17 @@ export const listarCobrancasDo = adminAction(async (_user, slug: string) =>
   enviaveis(await listarCobrancas(adminDb, slug)),
 );
 
+/** Negócios com o Caixa ligado: o valor do módulo entra na mensalidade deles. */
+async function comCaixa() {
+  const snap = await adminDb.collection("tenants").where("modulos.financeiro", "==", true).select().get();
+  return new Set(snap.docs.map((d) => d.id));
+}
+
 /** Uma cobrança avulsa: entrada ou mensalidade de uma competência. */
 export const cobrar = adminAction(async (_user, slug: string, tipo: "entrada" | "mensal", competencia: string | null) => {
   if (!SLUG.test(slug)) throw new Error("negócio inválido");
-  const negocios = await lerCrm(adminDb);
-  const valorCents = tipo === "entrada" ? negocios[slug]?.entradaCents : negocios[slug]?.mensalCents;
+  const [negocios, caixa] = await Promise.all([lerCrm(adminDb), comCaixa()]);
+  const valorCents = tipo === "entrada" ? negocios[slug]?.entradaCents : mensalidadeDe(negocios[slug], caixa.has(slug));
   if (!valorCents) throw new Error("cadastre o valor no bloco Negócio antes de cobrar");
   const mes = tipo === "entrada" ? null : (competencia ?? competenciaAtual());
   await gerarCobranca(adminDb, { slug, tipo, competencia: mes, valorCents });
@@ -541,11 +547,11 @@ export const cobrar = adminAction(async (_user, slug: string, tipo: "entrada" | 
 /** A mensalidade do mês para todos os negócios fechados, de uma vez. */
 export const cobrarMes = adminAction(async (_user, competencia?: string) => {
   const mes = competencia ?? competenciaAtual();
-  const negocios = await lerCrm(adminDb);
-  const alvos = Object.entries(negocios).filter(([, n]) => n.estagio === "fechado" && (n.mensalCents ?? 0) > 0);
+  const [negocios, caixa] = await Promise.all([lerCrm(adminDb), comCaixa()]);
+  const alvos = Object.entries(negocios).filter(([slug, n]) => n.estagio === "fechado" && mensalidadeDe(n, caixa.has(slug)) > 0);
   const geradas: Cobranca[] = [];
   for (const [slug, n] of alvos) {
-    const { id } = await gerarCobranca(adminDb, { slug, tipo: "mensal", competencia: mes, valorCents: n.mensalCents! });
+    const { id } = await gerarCobranca(adminDb, { slug, tipo: "mensal", competencia: mes, valorCents: mensalidadeDe(n, caixa.has(slug)) });
     const c = (await listarCobrancas(adminDb, slug)).find((x) => x.id === id);
     // a do mês que já existia e foi paga não volta para a lista de envio
     if (c?.status === "aberta") geradas.push(c);

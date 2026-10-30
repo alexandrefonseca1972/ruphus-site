@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { negocio } from "@/lib/crm";
-import { diaCurto, hojeISO, prazoDe } from "@/lib/crm-tipos";
+import { diaCurto, hojeISO, mensalidadeDe, prazoDe } from "@/lib/crm-tipos";
 
 // Um Timestamp do Firestore é uma classe. Se ele escapar para a tela, o React
 // derruba o painel inteiro com "Only plain objects... can be passed to Client
@@ -48,6 +48,7 @@ assert.deepEqual(magro, {
   estagio: "novo",
   entradaCents: null,
   mensalCents: null,
+  caixaCents: null,
   fechadoEm: null,
   proximaAcao: null,
   proximaData: null,
@@ -196,3 +197,10 @@ console.log("revogacao: ok");
   assert.deepEqual(negocio(doc({})).outrosContatos, [], "documento antigo lê lista vazia");
 }
 console.log("outros contatos: ok");
+
+// Caixa: o valor acertado só entra na mensalidade com o módulo ligado
+assert.equal(mensalidadeDe({ mensalCents: 8990, caixaCents: 1990 }, true), 10980);
+assert.equal(mensalidadeDe({ mensalCents: 8990, caixaCents: 1990 }, false), 8990);
+assert.equal(mensalidadeDe({ mensalCents: 8990, caixaCents: null }, true), 8990);
+assert.equal(mensalidadeDe(undefined, true), 0);
+console.log("caixa na mensalidade ok");

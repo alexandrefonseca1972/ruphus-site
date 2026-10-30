@@ -49,11 +49,11 @@ import { Gerador } from "./gerador";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
 import { DemoMenu } from "./demo-menu";
-import { AUTOR_LEVANTAMENTO, COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, campanhaDe, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
+import { AUTOR_LEVANTAMENTO, COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, mensalidadeDe, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, campanhaDe, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
 
 const PAGINA = 40;
 const VAZIO: Crm = {
-  estagio: "novo", entradaCents: null, mensalCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
+  estagio: "novo", entradaCents: null, mensalCents: null, caixaCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
   donoNome: null, donoPapel: null, donoWhatsapp: null, donoEmail: null, outrosContatos: [], motivoPerda: null, detalhePerda: null,
   origem: null, indicadoPor: null, entrouEm: null, perdidoEm: null, ultimoContatoEm: null, fixadoAte: null,
   utm: null,
@@ -1227,7 +1227,7 @@ export default function AdminPage() {
                 "contratados" conta a vitória e esconde o trabalho em aberto. */}
             <span className="text-[13px] text-[#6F6A5E]">
               {hoje ? `${hoje.agendamentosHoje} agendamento(s) hoje` : "carregando agenda"} ·{" "}
-              {formatBRL(espacos.reduce((t, e) => t + (crm[e.slug]?.estagio === "fechado" ? crm[e.slug]?.mensalCents ?? 0 : 0), 0))}/mês contratados
+              {formatBRL(espacos.reduce((t, e) => t + (crm[e.slug]?.estagio === "fechado" ? mensalidadeDe(crm[e.slug], e.caixa) : 0), 0))}/mês contratados
               {(() => {
                 const aberto = espacos.reduce(
                   (t, e) =>
@@ -1959,6 +1959,34 @@ export default function AdminPage() {
               </span>
               <input type="checkbox" className="size-5 accent-[#17150F]" checked={aberto.caixa} onChange={(e) => mudarCaixa(aberto.slug, aberto.nome, e.target.checked)} />
             </label>
+            {aberto.caixa && (
+              <label htmlFor="caixa-valor" className="-mt-1.5 flex flex-col gap-1 text-xs text-[#6F6A5E]">
+                Valor do Caixa, somado à mensalidade
+                <span className="flex h-11 items-center rounded-[10px] border border-[#D8D2C6] bg-white focus-within:border-[#17150F]">
+                  <span className="pl-3 pr-1.5 text-sm text-[#8B8578]">R$</span>
+                  <input
+                    key={`caixa-${aberto.slug}`}
+                    id="caixa-valor"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    defaultValue={crm[aberto.slug]?.caixaCents ? emReais(crm[aberto.slug]!.caixaCents!) : ""}
+                    onBlur={(ev) => {
+                      const valor = cents(ev.target.value);
+                      if (ev.target.value.trim() && (Number.isNaN(valor) || valor < 0)) {
+                        ev.target.value = crm[aberto.slug]?.caixaCents ? emReais(crm[aberto.slug]!.caixaCents!) : "";
+                        return setAviso("Valor inválido. Use 19,90.");
+                      }
+                      const novo = ev.target.value.trim() ? valor : null;
+                      ev.target.value = novo === null ? "" : emReais(novo);
+                      if (novo !== (crm[aberto.slug]?.caixaCents ?? null)) mudarNegocio(aberto.slug, { caixaCents: novo });
+                    }}
+                    className="h-full min-w-0 grow bg-transparent text-sm tabular-nums text-[#17150F] outline-none"
+                  />
+                  <span className="pr-3 text-xs text-[#8B8578]">/mês</span>
+                </span>
+              </label>
+            )}
 
             <section aria-label="Quem tem acesso" className="flex flex-col gap-2.5">
               <div className="flex items-baseline gap-2">

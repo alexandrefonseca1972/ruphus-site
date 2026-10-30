@@ -28,6 +28,10 @@ export const COR: Record<Estagio, string> = {
  *  no cartao, e so se digita quando o acerto sai do padrao. */
 export const PRECO_PADRAO = { entradaCents: 250_00, mensalCents: 89_90 } as const;
 
+/** O que se cobra por mês: a mensalidade mais o Caixa, quando o módulo está ligado no negócio. */
+export const mensalidadeDe = (c: Pick<Crm, "mensalCents" | "caixaCents"> | undefined, caixaLigado: boolean) =>
+  (c?.mensalCents ?? 0) + (caixaLigado ? (c?.caixaCents ?? 0) : 0);
+
 /** Por que um negócio saiu do funil sem fechar. Obrigatório ao marcar "perdido". */
 export const MOTIVOS_PERDA = {
   preco: "Preço",
@@ -57,6 +61,8 @@ export type Crm = {
   entradaCents: number | null;
   /** Mensalidade: e ela que se acumula, e por isso manda nos totais */
   mensalCents: number | null;
+  /** Valor do Caixa por mês, acertado com o cliente; só soma com o módulo ligado */
+  caixaCents: number | null;
   fechadoEm: string | null;
   proximaAcao: string | null;
   proximaData: string | null;
