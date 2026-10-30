@@ -1,7 +1,7 @@
 "use client";
 
 import { orderBy, Timestamp, where } from "firebase/firestore";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,8 +49,12 @@ export default function CaixaPage() {
   const [verFixas, setVerFixas] = useState(false);
   // o % digitado vale na hora, antes de o servidor devolver: "Pagar" logo depois usa o novo
   const [pcts, setPcts] = useState<Record<string, number>>({});
-  // o relógio de quando a página abriu: o que começou depois entra ao trocar de mês ou recarregar
-  const [agora] = useState(Date.now);
+  // o relógio anda a cada minuto: com o Caixa aberto, o horário que passa entra no "Fechar o dia" sem recarregar
+  const [agora, setAgora] = useState(Date.now);
+  useEffect(() => {
+    const t = setInterval(() => setAgora(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
   const ligado = tenant.podeGerir && tenant.modulos?.financeiro === true;
 
   // as consultas só sobem com o Caixa ligado: desligado, a regra negaria a leitura
