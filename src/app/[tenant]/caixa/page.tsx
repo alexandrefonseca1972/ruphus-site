@@ -1,6 +1,7 @@
 "use client";
 
 import { orderBy, Timestamp, where } from "firebase/firestore";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -111,7 +112,11 @@ export default function CaixaPage() {
   const doMesFixas = config.fixas.filter((f) => !f.desde || f.desde <= mes);
   const contas = (lancamentos ? doMesFixas : []).filter((f) => !recebidos.has(idDoPagamento("fixa", f.id, mes))).sort((a, b) => a.dia - b.dia);
   const pctsPendentes = Object.fromEntries(Object.entries(pcts).map(([k, o]) => [k, o.pct]));
-  const comissoes = comissoesDoMes(lancamentos ?? [], { ...config.comissoes, ...pctsPendentes }, config.descontos);
+  const todasComissoes = comissoesDoMes(lancamentos ?? [], { ...config.comissoes, ...pctsPendentes }, config.descontos);
+  // sem % no cadastro, sem comissão: fica fora da lista e do total. Só fica quem, mesmo sem %,
+  // ainda tem algo a acertar no mês (comissão já paga ou estorno guardado)
+  const comissoes = todasComissoes.filter((c) => c.pct > 0 || c.desconto !== 0 || lancamentos?.some((l) => l.id === idDoPagamento("comissao", c.staffId, mes)));
+  const semPct = todasComissoes.length - comissoes.length;
   // lançamento novo cai no mês da tela: hoje, ou o último dia de um mês passado
   const diaNovo = mes === hoje.slice(0, 7) ? hoje : diaNoMes(mes, mes < hoje ? 31 : 1);
   const pagas = new Map(lancamentos?.filter((l) => l.id.startsWith("cm-")).map((l) => [l.id, l]));
@@ -311,25 +316,33 @@ export default function CaixaPage() {
         </details>
       )}
 
-      {!configQuebrada && comissoes.length > 0 && (
+      {!configQuebrada && todasComissoes.length > 0 && (
         <section aria-labelledby="comissoes" className="overflow-hidden rounded-2xl border bg-card">
           <div className="grid gap-0.5 px-4 py-4 sm:px-6">
             <h2 id="comissoes" className="font-semibold">Comissões</h2>
             <p className="text-sm text-muted-foreground">Sobre o que cada profissional recebeu pela agenda neste mês. Toque no nome para ver os meses anteriores. Só você vê.</p>
+            {semPct > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {semPct === 1 ? "1 profissional sem % de comissão fica fora." : `${semPct} profissionais sem % de comissão ficam fora.`}{" "}
+                <Link href={`/${tenant.id}/profissionais`} className="underline underline-offset-4">Definir em Profissionais</Link>
+              </p>
+            )}
           </div>
           {/* o mês de relance: o pago é o que saiu; o que falta, o que ainda não foi pago */}
-          <dl className="grid grid-cols-3 border-t text-sm">
-            {[
-              { label: "Comissões do mês", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? c.valor), 0) },
-              { label: "Pago", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? 0), 0) },
-              { label: "Falta pagar", valor: comissoes.reduce((t, c) => t + (pagas.has(idDoPagamento("comissao", c.staffId, mes)) ? 0 : c.valor), 0) },
-            ].map((t) => (
-              <div key={t.label} className="grid gap-0.5 border-l px-4 py-3 first:border-l-0 sm:px-6">
-                <dt className="text-[13px] text-muted-foreground">{t.label}</dt>
-                <dd className="font-serifa text-lg tabular-nums">{formatBRL(t.valor)}</dd>
-              </div>
-            ))}
-          </dl>
+          {comissoes.length > 0 && (
+            <dl className="grid grid-cols-3 border-t text-sm">
+              {[
+                { label: "Comissões do mês", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? c.valor), 0) },
+                { label: "Pago", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? 0), 0) },
+                { label: "Falta pagar", valor: comissoes.reduce((t, c) => t + (pagas.has(idDoPagamento("comissao", c.staffId, mes)) ? 0 : c.valor), 0) },
+              ].map((t) => (
+                <div key={t.label} className="grid gap-0.5 border-l px-4 py-3 first:border-l-0 sm:px-6">
+                  <dt className="text-[13px] text-muted-foreground">{t.label}</dt>
+                  <dd className="font-serifa text-lg tabular-nums">{formatBRL(t.valor)}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
           <ul>
             {comissoes.map((c) => {
               const paga = pagas.get(idDoPagamento("comissao", c.staffId, mes));
