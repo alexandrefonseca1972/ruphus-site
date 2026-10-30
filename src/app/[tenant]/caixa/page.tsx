@@ -174,14 +174,14 @@ export default function CaixaPage() {
           </div>
           <ul>
             {pendentes.map((a) => (
-              <li key={a.id} className="flex flex-wrap items-center gap-3 border-t px-4 py-3.5 sm:px-6">
-                <div className="grid min-w-0 flex-1 gap-0.5">
+              <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t px-4 py-3.5 sm:px-6">
+                <div className="grid min-w-0 flex-1 basis-60 gap-0.5">
                   <span className="font-semibold">{a.customerName}</span>
                   <span className="text-sm text-muted-foreground">
-                    {formatLongDate(a.start.toDate()).split(",")[0]}, {formatTime(a.start.toDate())} · {a.serviceName} · {a.staffName}
+                    {formatLongDate(a.start.toDate())}, {formatTime(a.start.toDate())} · {a.serviceName} · {a.staffName}
                   </span>
                 </div>
-                <span className="font-serifa text-xl tabular-nums">{formatBRL(a.priceCents)}</span>
+                <span className="font-serifa text-xl tabular-nums max-sm:mr-auto">{formatBRL(a.priceCents)}</span>
                 <div className="flex gap-2">
                   <Button className="h-10 px-4" onClick={() => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, serviceName: a.serviceName, priceCents: a.priceCents } })}>Recebi</Button>
                   <Button variant="outline" className="h-10 px-4" onClick={() => setFaltou({ id: a.id, nome: a.customerName })}>Não veio</Button>
@@ -294,8 +294,8 @@ export default function CaixaPage() {
             {comissoes.map((c) => {
               const paga = pagas.get(idDoPagamento("comissao", c.staffId, mes));
               return (
-                <li key={c.staffId} className="flex flex-wrap items-center gap-3 border-t px-4 py-3 sm:px-6">
-                  <span className="grid min-w-0 flex-1 gap-0.5">
+                <li key={c.staffId} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t px-4 py-3 sm:px-6">
+                  <span className="grid min-w-0 flex-1 basis-60 gap-0.5">
                     <span className="truncate font-medium">{c.nome}</span>
                     <span className="text-[13px] text-muted-foreground tabular-nums">
                       faturou {formatBRL(c.faturado)}
@@ -303,7 +303,7 @@ export default function CaixaPage() {
                       {paga !== undefined && paga !== c.valor && ` · pago ${formatBRL(paga)}, a conta dá ${formatBRL(c.valor)}`}
                     </span>
                   </span>
-                  <label className="flex items-center gap-1.5 text-sm">
+                  <label className="flex items-center gap-1.5 text-sm max-sm:mr-auto">
                     <Input
                       key={`${c.staffId}-${c.pct}`}
                       inputMode="decimal"
