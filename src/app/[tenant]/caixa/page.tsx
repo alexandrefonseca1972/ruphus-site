@@ -4,12 +4,16 @@ import { orderBy, Timestamp, where } from "firebase/firestore";
 import { useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { errorMessage } from "@/lib/auth-errors";
 import { formatBRL, formatLongDate, formatTime, todayIn, zonedTime } from "@/lib/datetime";
-import { idDaBaixa, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
+import { idToken } from "@/lib/firebase";
+import { CaixaConfig, comissoesDoMes, csvDoMes, idDaBaixa, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
 import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
+import { definirComissaoAction } from "../actions";
 import { ConfirmDialog } from "../confirm-dialog";
+import { ContasFixas } from "../contas-fixas";
 import { type Folha, LancamentoFolha } from "../lancamento-folha";
 import { useTenant } from "../layout";
 import { PageTitle } from "../page-title";
@@ -42,6 +46,9 @@ export default function CaixaPage() {
   const [aviso, setAviso] = useState("");
   const [erro, setErro] = useState("");
   const [faltou, setFaltou] = useState<{ id: string; nome: string } | null>(null);
+  const [verFixas, setVerFixas] = useState(false);
+  // o % digitado vale na hora, antes de o servidor devolver: "Pagar" logo depois usa o novo
+  const [pcts, setPcts] = useState<Record<string, number>>({});
   // o relógio de quando a página abriu: o que começou depois entra ao trocar de mês ou recarregar
   const [agora] = useState(Date.now);
   const ligado = tenant.podeGerir && tenant.modulos?.financeiro === true;
@@ -55,6 +62,10 @@ export default function CaixaPage() {
     [where("start", ">=", zonedTime(`${mes}-01`, "00:00")), where("start", "<", zonedTime(`${mesSeguinte(mes, 1)}-01`, "00:00")), orderBy("start")],
     mes,
   );
+  const [configs, erroConfig] = useCollection(ligado ? tenant.id : "", "caixa", CaixaConfig);
+  // sem a configuração lida não se mexe nela: mostrar vazio e deixar editar enganaria o dono
+  const configPronta = configs !== null && !erroConfig;
+  const config = configs?.find((c) => c.id === "config") ?? { fixas: [], comissoes: {} };
 
   if (!ligado) {
     return (
@@ -74,6 +85,12 @@ export default function CaixaPage() {
   );
   const aReceber = pendentes.reduce((t, a) => t + a.priceCents, 0);
   const r = resumoDoMes(lancamentos ?? []);
+  // contas fixas ainda não pagas no mês, pela ordem do vencimento
+  const contas = (lancamentos ? config.fixas : [])
+    .filter((f) => (!f.desde || f.desde <= mes) && !recebidos.has(idDoPagamento("fixa", f.id, mes)))
+    .sort((a, b) => a.dia - b.dia);
+  const comissoes = comissoesDoMes(lancamentos ?? [], { ...config.comissoes, ...pcts });
+  const pagas = new Map(lancamentos?.filter((l) => l.id.startsWith("cm-")).map((l) => [l.id, l.valorCents]));
   const porDia = Object.entries(
     [...(lancamentos ?? [])].sort((a, b) => b.data.localeCompare(a.data)).reduce<Record<string, Lancamento[]>>((g, l) => ((g[l.data] ??= []).push(l), g), {}),
   );
@@ -81,6 +98,23 @@ export default function CaixaPage() {
   function fechar(msg?: string) {
     setFolha(null);
     if (msg) setAviso(msg);
+  }
+
+  async function mudarPct(staffId: string, pct: number) {
+    setErro("");
+    setPcts((p) => ({ ...p, [staffId]: pct }));
+    const r = await definirComissaoAction(await idToken(), { tenantId: tenant.id, staffId, pct }).catch(() => ({ ok: false as const, error: "Sem conexão. Tente de novo." }));
+    if (!r.ok) {
+      setErro(r.error ?? "Não foi possível salvar.");
+      setPcts(({ [staffId]: _, ...resto }) => resto);
+    }
+  }
+
+  function baixarCsv() {
+    const url = URL.createObjectURL(new Blob(["\uFEFF" + csvDoMes(lancamentos ?? [])], { type: "text/csv;charset=utf-8" }));
+    const a = Object.assign(document.createElement("a"), { href: url, download: `caixa-${tenant.id}-${mes}.csv` });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async function registrarFalta(id: string) {
@@ -158,8 +192,46 @@ export default function CaixaPage() {
         </section>
       )}
 
+      <section aria-labelledby="contas" className="overflow-hidden rounded-2xl border bg-card">
+        <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
+          <div className="grid gap-0.5">
+            <h2 id="contas" className="font-semibold">Contas do mês</h2>
+            <p className="text-sm text-muted-foreground">
+              {config.fixas.length === 0
+                ? "Cadastre aluguel, internet e o que se repete todo mês."
+                : contas.length === 0
+                  ? "Tudo pago neste mês."
+                  : `${contas.length} a pagar · ${formatBRL(contas.reduce((t, f) => t + f.valorCents, 0))}`}
+            </p>
+          </div>
+          <Button variant="outline" className="h-10 px-3 max-sm:h-11" disabled={!configPronta} onClick={() => setVerFixas(true)}>Contas fixas</Button>
+        </div>
+        {contas.length > 0 && (
+          <ul>
+            {contas.map((f) => (
+              <li key={f.id} className="flex items-center gap-3 border-t px-4 py-3 sm:px-6">
+                <span className="grid min-w-0 flex-1 gap-0.5">
+                  <span className="truncate font-medium">{f.nome}</span>
+                  <span className="text-[13px] text-muted-foreground">vence dia {f.dia} · {f.categoria}</span>
+                </span>
+                <span className="font-serifa text-lg tabular-nums">{formatBRL(f.valorCents)}</span>
+                <Button
+                  className="h-10 px-4"
+                  onClick={() => setFolha({ modo: "pagar", titulo: `Pagar ${f.nome}`, detalhe: `${f.categoria} · ${nomeDoMes(mes)}`, valorCents: f.valorCents, pagamento: { tipo: "fixa", alvoId: f.id, mes } })}
+                >
+                  Paguei
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section aria-labelledby="lancamentos" className="overflow-hidden rounded-2xl border bg-card">
-        <h2 id="lancamentos" className="px-4 py-4 font-semibold sm:px-6">Lançamentos do mês</h2>
+        <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
+          <h2 id="lancamentos" className="font-semibold">Lançamentos do mês</h2>
+          {!!lancamentos?.length && <Button variant="ghost" className="h-10 px-3 max-sm:h-11" onClick={baixarCsv}>Exportar planilha</Button>}
+        </div>
         {!lancamentos ? (
           <p className="border-t px-6 py-8 text-sm text-muted-foreground">Carregando…</p>
         ) : porDia.length === 0 ? (
@@ -212,6 +284,65 @@ export default function CaixaPage() {
         </details>
       )}
 
+      {comissoes.length > 0 && (
+        <section aria-labelledby="comissoes" className="overflow-hidden rounded-2xl border bg-card">
+          <div className="grid gap-0.5 px-4 py-4 sm:px-6">
+            <h2 id="comissoes" className="font-semibold">Comissões</h2>
+            <p className="text-sm text-muted-foreground">Sobre o que cada profissional recebeu pela agenda neste mês. Só você vê.</p>
+          </div>
+          <ul>
+            {comissoes.map((c) => {
+              const paga = pagas.get(idDoPagamento("comissao", c.staffId, mes));
+              return (
+                <li key={c.staffId} className="flex flex-wrap items-center gap-3 border-t px-4 py-3 sm:px-6">
+                  <span className="grid min-w-0 flex-1 gap-0.5">
+                    <span className="truncate font-medium">{c.nome}</span>
+                    <span className="text-[13px] text-muted-foreground tabular-nums">
+                      faturou {formatBRL(c.faturado)}
+                      {/* paga antes de novos recebimentos ou de mudar o %: o dono vê a diferença */}
+                      {paga !== undefined && paga !== c.valor && ` · pago ${formatBRL(paga)}, a conta dá ${formatBRL(c.valor)}`}
+                    </span>
+                  </span>
+                  <label className="flex items-center gap-1.5 text-sm">
+                    <Input
+                      key={`${c.staffId}-${c.pct}`}
+                      inputMode="decimal"
+                      disabled={!configPronta}
+                      defaultValue={c.pct ? String(c.pct).replace(".", ",") : ""}
+                      placeholder="0"
+                      aria-label={`Comissão de ${c.nome} em %`}
+                      onBlur={(e) => {
+                        // vírgula do teclado brasileiro; vazio ou texto não zera o que estava
+                        const pct = Number(e.target.value.trim().replace(",", "."));
+                        if (!e.target.value.trim() || Number.isNaN(pct)) return void (e.target.value = c.pct ? String(c.pct).replace(".", ",") : "");
+                        const certo = Math.min(100, Math.max(0, Math.round(pct * 100) / 100));
+                        if (certo !== c.pct) mudarPct(c.staffId, certo);
+                      }}
+                      className="h-10 w-20 text-right tabular-nums"
+                    />
+                    %
+                  </label>
+                  <span className="w-24 text-right font-serifa text-lg tabular-nums">{formatBRL(c.valor)}</span>
+                  {paga !== undefined ? (
+                    <span className="w-24 text-center text-sm text-emerald-800 dark:text-emerald-300">Paga</span>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      className="h-10 w-24"
+                      disabled={!c.valor}
+                      onClick={() => setFolha({ modo: "pagar", titulo: `Pagar comissão de ${c.nome}`, detalhe: `${c.pct}% de ${formatBRL(c.faturado)} · ${nomeDoMes(mes)}`, valorCents: c.valor, pagamento: { tipo: "comissao", alvoId: c.staffId, mes } })}
+                    >
+                      Pagar
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {verFixas && <ContasFixas tenantId={tenant.id} nicho={tenant.gerado?.nicho} fixas={config.fixas} onClose={() => setVerFixas(false)} />}
       {folha && <LancamentoFolha tenantId={tenant.id} nicho={tenant.gerado?.nicho} folha={folha} onClose={fechar} />}
       {faltou && (
         <ConfirmDialog

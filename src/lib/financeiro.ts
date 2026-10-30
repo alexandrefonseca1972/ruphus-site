@@ -55,6 +55,7 @@ export const BaixaInput = z.object({
 export const Lancamento = LancamentoInput.extend({
   mes: z.string(),
   appointmentId: z.string().optional(),
+  staffId: z.string().nullish(),
   staffName: z.string().nullish(),
   customerName: z.string().nullish(),
 });
@@ -63,6 +64,86 @@ export type Lancamento = z.infer<typeof Lancamento> & { id: string };
 export const mesDe = (data: string) => data.slice(0, 7);
 /** Uma baixa por atendimento: o id é o do agendamento, e o segundo toque não duplica. */
 export const idDaBaixa = (appointmentId: string) => `ag-${appointmentId}`;
+
+const valor = z.number().int().positive("Informe o valor.").max(99_999_99, "Valor alto demais.");
+
+/** Conta que se repete todo mês (aluguel, internet). Vira saída só quando o dono paga. */
+const MES = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** O que o dono digita para uma conta nova. */
+export const FixaInput = z.object({
+  nome: z.string().trim().min(1, "Dê um nome à conta.").max(40),
+  valorCents: valor,
+  dia: z.number().int().min(1, "O dia vai de 1 a 31.").max(31, "O dia vai de 1 a 31."),
+  categoria: z.string().trim().min(1).max(40),
+});
+/** Guardada com id e o mês em que foi criada: antes dele, a conta não aparece para pagar. */
+export const Fixa = FixaInput.extend({ id: z.string().regex(/^[a-z0-9]{1,20}$/), desde: z.string().regex(MES).optional() });
+export type Fixa = z.infer<typeof Fixa>;
+
+/** tenants/{t}/caixa/config: as contas fixas e a comissão (%) de cada profissional. */
+export const CaixaConfig = z.object({
+  fixas: z.array(Fixa).max(30, "No máximo 30 contas fixas.").default([]),
+  comissoes: z.record(z.string().max(128), z.number().min(0).max(100)).default({}),
+});
+export type CaixaConfig = z.infer<typeof CaixaConfig>;
+
+/** Pagar uma conta fixa ou a comissão do mês: o id é fixo, o segundo toque não duplica. */
+export const PagamentoInput = z.object({
+  tipo: z.enum(["fixa", "comissao"]),
+  alvoId: docId,
+  mes: z.string().regex(MES),
+  valorCents: valor,
+  forma: z.enum(FORMAS),
+});
+export const idDoPagamento = (tipo: "fixa" | "comissao", alvoId: string, mes: string) => `${tipo === "fixa" ? "fx" : "cm"}-${alvoId}-${mes}`;
+
+/** O dia da conta dentro do mês: dia 31 em fevereiro cai no último dia. */
+export function diaNoMes(mes: string, dia: number) {
+  const [a, m] = mes.split("-").map(Number);
+  const ultimo = new Date(Date.UTC(a, m, 0)).getUTCDate();
+  return `${mes}-${String(Math.min(dia, ultimo)).padStart(2, "0")}`;
+}
+
+/** Comissão de cada profissional: o que ele faturou pela agenda vezes o percentual. */
+export function comissoesDoMes(itens: Pick<Lancamento, "tipo" | "valorCents" | "staffId" | "staffName">[], pct: Record<string, number>) {
+  const m = new Map<string, { staffId: string; nome: string; faturado: number }>();
+  for (const l of itens) {
+    if (l.tipo !== "entrada" || !l.staffId) continue;
+    const p = m.get(l.staffId) ?? { staffId: l.staffId, nome: l.staffName ?? "Profissional", faturado: 0 };
+    p.faturado += l.valorCents;
+    m.set(l.staffId, p);
+  }
+  return [...m.values()]
+    .map((p) => ({ ...p, pct: pct[p.staffId] ?? 0, valor: Math.round((p.faturado * (pct[p.staffId] ?? 0)) / 100) }))
+    .sort((a, b) => b.faturado - a.faturado);
+}
+
+/** Planilha do mês para o contador: ; e vírgula decimal, como o Excel em português abre. */
+export function csvDoMes(itens: Pick<Lancamento, "data" | "tipo" | "categoria" | "descricao" | "customerName" | "staffName" | "forma" | "valorCents">[]) {
+  const cel = (v: string) => {
+    const s = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+    return /[;"\r\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+  };
+  const linhas = [...itens]
+    .sort((a, b) => a.data.localeCompare(b.data))
+    .map((l) =>
+      [
+        l.data.split("-").reverse().join("/"),
+        l.tipo === "entrada" ? "Entrada" : "Saída",
+        l.categoria,
+        l.descricao ?? "",
+        l.customerName ?? "",
+        l.staffName ?? "",
+        ROTULO_FORMA[l.forma],
+      ]
+        .map(cel)
+        // o valor é número nosso, sem a proteção de fórmula: "-1200,00" tem que somar no Excel
+        .concat(((l.tipo === "saida" ? -l.valorCents : l.valorCents) / 100).toFixed(2).replace(".", ","))
+        .join(";"),
+    );
+  return ["Data;Tipo;Categoria;Descrição;Cliente;Profissional;Forma;Valor", ...linhas].join("\r\n");
+}
 
 /** Os três números do topo e os agrupamentos do resumo. */
 export function resumoDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "categoria" | "forma"> & { staffName?: string | null })[]) {

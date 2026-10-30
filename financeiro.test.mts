@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { addDays, todayIn, zonedTime } from "@/lib/datetime";
-import { categorias, idDaBaixa, resumoDoMes } from "@/lib/financeiro";
-import { baixarAgendamento, editar, excluir, lancar } from "@/lib/financeiro.server";
+import { categorias, comissoesDoMes, csvDoMes, diaNoMes, idDaBaixa, idDoPagamento, resumoDoMes } from "@/lib/financeiro";
+import { adicionarFixa, baixarAgendamento, definirComissao, editar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
 const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
 const quem = { uid: "dona", email: "dona@teste.dev" };
@@ -58,9 +58,64 @@ await editar(db, "salao", idDaBaixa("passado"), { ...entrada, valorCents: 4200, 
 const corrigida = (await db.doc(`tenants/salao/lancamentos/${idDaBaixa("passado")}`).get()).data()!;
 assert.deepEqual([corrigida.valorCents, corrigida.data, corrigida.mes], [4200, addDays(hoje, -1), addDays(hoje, -1).slice(0, 7)]);
 
+// fase 2, sem banco: dia da conta no mês, comissão e planilha
+assert.equal(diaNoMes("2026-02", 31), "2026-02-28");
+assert.equal(diaNoMes("2028-02", 30), "2028-02-29");
+assert.equal(diaNoMes("2026-10", 5), "2026-10-05");
+const cs = comissoesDoMes(
+  [
+    { tipo: "entrada", valorCents: 10000, staffId: "bia", staffName: "Bia" },
+    { tipo: "entrada", valorCents: 5050, staffId: "bia", staffName: "Bia" },
+    { tipo: "entrada", valorCents: 2000, staffId: "leo", staffName: "Léo" },
+    { tipo: "entrada", valorCents: 9999 },
+    { tipo: "saida", valorCents: 3000, staffId: "bia", staffName: "Bia" },
+  ],
+  { bia: 40 },
+);
+assert.deepEqual(cs.map((c) => [c.staffId, c.faturado, c.pct, c.valor]), [["bia", 15050, 40, 6020], ["leo", 2000, 0, 0]], "só entradas com profissional; sem % não paga");
+const csv = csvDoMes([
+  { data: "2026-10-02", tipo: "saida", categoria: "Aluguel", descricao: "Sala; 2º andar", forma: "pix", valorCents: 120000 },
+  { data: "2026-10-01", tipo: "entrada", categoria: "Atendimento", descricao: "=HYPERLINK()", customerName: "Ana", staffName: "Bia", forma: "cartao", valorCents: 4550 },
+]).split("\r\n");
+assert.equal(csv[0], "Data;Tipo;Categoria;Descrição;Cliente;Profissional;Forma;Valor");
+assert.equal(csv[1], "01/10/2026;Entrada;Atendimento;'=HYPERLINK();Ana;Bia;Cartão;45,50", "por data; fórmula vira texto");
+assert.equal(csv[2], '02/10/2026;Saída;Aluguel;"Sala; 2º andar";;;Pix;-1200,00');
+
+// conta fixa paga uma vez por mês; comissão também
+const mes = hoje.slice(0, 7);
+await assert.rejects(pagar(db, "salao", { tipo: "fixa", alvoId: "naoexiste", mes, valorCents: 120000, forma: "pix" }, quem), /não encontrada/);
+// uma mudança por vez: a comissão de um não apaga as contas nem a comissão do outro
+await adicionarFixa(db, "salao", { nome: "Aluguel", valorCents: 120000, dia: 5, categoria: "Aluguel" });
+await adicionarFixa(db, "salao", { nome: "Internet", valorCents: 9990, dia: 10, categoria: "Contas (luz, água, internet)" });
+await definirComissao(db, "salao", "bia", 40);
+await definirComissao(db, "salao", "leo", 30);
+const cfg = (await db.doc("tenants/salao/caixa/config").get()).data()!;
+assert.deepEqual([cfg.fixas.map((f: { nome: string }) => f.nome), cfg.comissoes], [["Aluguel", "Internet"], { bia: 40, leo: 30 }]);
+assert.equal(cfg.fixas[0].desde, mes, "a conta nasce no mês em que foi criada");
+const aluguel = cfg.fixas[0].id as string;
+await removerFixa(db, "salao", cfg.fixas[1].id);
+assert.equal((await db.doc("tenants/salao/caixa/config").get()).get("fixas").length, 1);
+assert.deepEqual((await db.doc("tenants/salao/caixa/config").get()).get("comissoes"), { bia: 40, leo: 30 }, "tirar conta não mexe na comissão");
+await pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes, valorCents: 119000, forma: "pix" }, quem);
+const fx = (await db.doc(`tenants/salao/lancamentos/${idDoPagamento("fixa", aluguel, mes)}`).get()).data()!;
+assert.deepEqual([fx.tipo, fx.valorCents, fx.categoria, fx.descricao, fx.mes, fx.data], ["saida", 119000, "Aluguel", "Aluguel", mes, hoje]);
+await assert.rejects(pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes, valorCents: 120000, forma: "pix" }, quem), /já foi paga/);
+await assert.rejects(editar(db, "salao", idDoPagamento("fixa", aluguel, mes), { ...entrada, tipo: "entrada" }, quem), /sempre saída/);
+// conta de um mês passado cai no dia dela
+await pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes: "2026-02", valorCents: 120000, forma: "pix" }, quem);
+assert.equal((await db.doc(`tenants/salao/lancamentos/${idDoPagamento("fixa", aluguel, "2026-02")}`).get()).get("data"), "2026-02-05");
+await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "ninguem", mes, valorCents: 1680, forma: "pix" }, quem), /Profissional não encontrado/);
+// a Bia saiu da equipe (sem staff/bia), mas atendeu no mês: a comissão sai com o nome da baixa
+const mesBia = addDays(hoje, -1).slice(0, 7); // o mês do atendimento "passado"
+await pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: mesBia, valorCents: 1680, forma: "dinheiro" }, quem);
+const cm = (await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "bia", mesBia)}`).get()).data()!;
+assert.deepEqual([cm.tipo, cm.categoria, cm.descricao, cm.staffId], ["saida", "Comissão/salário", "Comissão Bia", "bia"]);
+await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: mesBia, valorCents: 1680, forma: "pix" }, quem), /já foi paga/);
+
 // desligar não apaga: o histórico volta quando religar
 await db.doc("tenants/salao").update({ "modulos.financeiro": false });
 await assert.rejects(excluir(db, "salao", idDaBaixa("passado")), /não está ativo/);
+await assert.rejects(definirComissao(db, "salao", "bia", 10), /não está ativo/);
 assert.equal((await db.doc(`tenants/salao/lancamentos/${idDaBaixa("passado")}`).get()).exists, true);
 
 console.log("financeiro ok");

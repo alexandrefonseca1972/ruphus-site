@@ -197,6 +197,11 @@ await assertFails(setDoc(doc(alice, "tenants/acme/lancamentos/l2"), { tipo: "ent
 await assertFails(updateDoc(lanc(alice), { valorCents: 1 }));
 await assertFails(deleteDoc(lanc(alice)));
 await assertFails(updateDoc(doc(alice, "tenants/acme"), { "modulos.financeiro": false }), "o dono nao liga nem desliga o modulo");
+// contas fixas e comissões: a mesma porta dos lançamentos
+const cfg = (db) => doc(db, "tenants/acme/caixa/config");
+await assertSucceeds(getDoc(cfg(alice)));
+await assertFails(getDoc(cfg(carla)), "funcionario nao ve a comissao");
+await assertFails(setDoc(cfg(alice), { fixas: [], comissoes: {} }), "so o servidor grava");
 
 await env.cleanup();
 console.log("rules ok");
