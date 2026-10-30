@@ -50,6 +50,13 @@ await baixarAgendamento(db, "salao", { appointmentId: "passado", valorCents: 400
 const b = (await db.doc(`tenants/salao/lancamentos/${idDaBaixa("passado")}`).get()).data()!;
 assert.deepEqual([b.tipo, b.categoria, b.staffName, b.customerName, b.data, b.forma], ["entrada", "Atendimento", "Bia", "Ana", addDays(hoje, -1), "cartao"]);
 await assert.rejects(baixarAgendamento(db, "salao", { appointmentId: "passado", valorCents: 4000, forma: "pix" }, quem), /já foi recebido/, "o segundo toque não duplica");
+// recebido é atendido: o que aguardava confirmação fica confirmado, com o registro no histórico
+await ag("aguardando", zonedTime(addDays(hoje, -1), "12:00"), "booked");
+await baixarAgendamento(db, "salao", { appointmentId: "aguardando", valorCents: 4000, forma: "pix" }, quem);
+const confirmado = await db.doc("tenants/salao/appointments/aguardando").get();
+const registro = (await db.doc(`tenants/salao/history/${confirmado.get("lastHistoryId")}`).get()).data()!;
+assert.deepEqual([confirmado.get("status"), registro.type, registro.reason, registro.appointmentId, registro.by], ["confirmed", "confirmed", "caixa_recebido", "aguardando", "dona"]);
+await db.doc(`tenants/salao/lancamentos/${idDaBaixa("aguardando")}`).delete();
 await assert.rejects(baixarAgendamento(db, "salao", { appointmentId: "futuro", valorCents: 4000, forma: "pix" }, quem), /ainda não começou/);
 await assert.rejects(baixarAgendamento(db, "salao", { appointmentId: "cancelado", valorCents: 4000, forma: "pix" }, quem), /aconteceu/);
 await assert.rejects(editar(db, "salao", idDaBaixa("passado"), { ...entrada, tipo: "saida" }, quem), /sempre entrada/);
