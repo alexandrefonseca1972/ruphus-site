@@ -27,7 +27,7 @@ function describe(e: Entry) {
     case "created":
       return e.planId ? `Agendado pelo plano recorrente por ${who}` : `Agendado online por ${who}`;
     case "confirmed":
-      return `Confirmado pelo WhatsApp por ${who}`;
+      return e.reason === "caixa_recebido" ? `Confirmado ao receber no Caixa, por ${who}` : `Confirmado pelo WhatsApp por ${who}`;
     case "rescheduled":
       return e.from && e.to
         ? `Remarcado de ${when(e.from.start.toDate())} para ${when(e.to.start.toDate())} por ${who}`
