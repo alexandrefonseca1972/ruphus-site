@@ -137,7 +137,7 @@ export async function pagar(db: Firestore, tenantId: string, p: z.infer<typeof P
       ]);
       if (!staff.exists && atendeu.empty) throw new UserError("Profissional não encontrado.");
       const nome = String(staff.get("name") ?? atendeu.docs[0]?.get("staffName") ?? "").slice(0, 60);
-      campos = { categoria: "Comissão/salário", descricao: `Comissão ${nome}`.slice(0, 80), staffId: p.alvoId, data: mesDe(hoje) === p.mes ? hoje : diaNoMes(p.mes, 31) };
+      campos = { categoria: "Comissão/salário", descricao: `Comissão ${nome}`.slice(0, 80), staffId: p.alvoId, staffName: nome || null, data: mesDe(hoje) === p.mes ? hoje : diaNoMes(p.mes, 31) };
     }
     tx.create(ref, { tipo: "saida", valorCents: p.valorCents, forma: p.forma, ...campos, mes: p.mes, criadoPor: quem.email ?? quem.uid, criadoEm: FieldValue.serverTimestamp() });
   });

@@ -110,7 +110,7 @@ await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "ninguem", m
 const mesBia = addDays(hoje, -1).slice(0, 7); // o mês do atendimento "passado"
 await pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: mesBia, valorCents: 1680, forma: "dinheiro" }, quem);
 const cm = (await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "bia", mesBia)}`).get()).data()!;
-assert.deepEqual([cm.tipo, cm.categoria, cm.descricao, cm.staffId], ["saida", "Comissão/salário", "Comissão Bia", "bia"]);
+assert.deepEqual([cm.tipo, cm.categoria, cm.descricao, cm.staffId, cm.staffName], ["saida", "Comissão/salário", "Comissão Bia", "bia", "Bia"], "o nome vai para a coluna Profissional da planilha");
 await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: mesBia, valorCents: 1680, forma: "pix" }, quem), /já foi paga/);
 
 // desligar não apaga: o histórico volta quando religar

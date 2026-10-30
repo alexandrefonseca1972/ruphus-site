@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { errorMessage } from "@/lib/auth-errors";
 import { formatBRL, formatLongDate, formatTime, todayIn, zonedTime } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
-import { CaixaConfig, comissoesDoMes, pctDoTexto, csvDoMes, idDaBaixa, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
+import { CaixaConfig, comissoesDoMes, diaNoMes, pctDoTexto, csvDoMes, idDaBaixa, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
 import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
 import { definirComissaoAction } from "../actions";
@@ -86,9 +86,9 @@ export default function CaixaPage() {
   const aReceber = pendentes.reduce((t, a) => t + a.priceCents, 0);
   const r = resumoDoMes(lancamentos ?? []);
   // contas fixas ainda não pagas no mês, pela ordem do vencimento
-  const contas = (lancamentos ? config.fixas : [])
-    .filter((f) => (!f.desde || f.desde <= mes) && !recebidos.has(idDoPagamento("fixa", f.id, mes)))
-    .sort((a, b) => a.dia - b.dia);
+  // antes de a conta existir, ela não conta: nem a pagar, nem "tudo pago"
+  const doMesFixas = config.fixas.filter((f) => !f.desde || f.desde <= mes);
+  const contas = (lancamentos ? doMesFixas : []).filter((f) => !recebidos.has(idDoPagamento("fixa", f.id, mes))).sort((a, b) => a.dia - b.dia);
   const comissoes = comissoesDoMes(lancamentos ?? [], { ...config.comissoes, ...pcts });
   const pagas = new Map(lancamentos?.filter((l) => l.id.startsWith("cm-")).map((l) => [l.id, l.valorCents]));
   const porDia = Object.entries(
@@ -199,8 +199,10 @@ export default function CaixaPage() {
             <p className="text-sm text-muted-foreground">
               {config.fixas.length === 0
                 ? "Cadastre aluguel, internet e o que se repete todo mês."
-                : contas.length === 0
-                  ? "Tudo pago neste mês."
+                : doMesFixas.length === 0
+                  ? "Nenhuma conta fixa neste mês."
+                  : contas.length === 0
+                    ? "Tudo pago neste mês."
                   : `${contas.length} a pagar · ${formatBRL(contas.reduce((t, f) => t + f.valorCents, 0))}`}
             </p>
           </div>
@@ -212,7 +214,7 @@ export default function CaixaPage() {
               <li key={f.id} className="flex items-center gap-3 border-t px-4 py-3 sm:px-6">
                 <span className="grid min-w-0 flex-1 gap-0.5">
                   <span className="truncate font-medium">{f.nome}</span>
-                  <span className="text-[13px] text-muted-foreground">vence dia {f.dia} · {f.categoria}</span>
+                  <span className="text-[13px] text-muted-foreground">vence dia {Number(diaNoMes(mes, f.dia).slice(8))} · {f.categoria}</span>
                 </span>
                 <span className="font-serifa text-lg tabular-nums">{formatBRL(f.valorCents)}</span>
                 <Button
