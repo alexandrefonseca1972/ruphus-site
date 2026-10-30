@@ -363,7 +363,11 @@ export default function AdminPage() {
     setAviso(r.dados.nova ? `Proposta válida até ${diaCurto(r.dados.valeAte)}.` : "");
   }
 
-  async function mudarCaixa(slug: string, ligado: boolean) {
+  async function mudarCaixa(slug: string, nome: string, ligado: boolean) {
+    const pergunta = ligado
+      ? `Ligar o Caixa para ${nome}? O link aparece no painel do dono.`
+      : `Desligar o Caixa de ${nome}? O link some do painel; os lançamentos ficam guardados.`;
+    if (!window.confirm(pergunta)) return;
     const r = await definirCaixa(await token(), slug, ligado);
     if (!r.ok) return setAviso(r.error);
     setAviso(r.dados ? "Caixa ligado: aparece no painel do negócio" : "Caixa desligado: os lançamentos ficam guardados");
@@ -1953,7 +1957,7 @@ export default function AdminPage() {
               <span>
                 <b className="font-semibold text-[#17150F]">Caixa (financeiro)</b> · entradas, saídas e fechamento do dia no painel do dono
               </span>
-              <input type="checkbox" className="size-5 accent-[#17150F]" checked={aberto.caixa} onChange={(e) => mudarCaixa(aberto.slug, e.target.checked)} />
+              <input type="checkbox" className="size-5 accent-[#17150F]" checked={aberto.caixa} onChange={(e) => mudarCaixa(aberto.slug, aberto.nome, e.target.checked)} />
             </label>
 
             <section aria-label="Quem tem acesso" className="flex flex-col gap-2.5">
