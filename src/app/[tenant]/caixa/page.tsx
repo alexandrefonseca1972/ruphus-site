@@ -49,6 +49,8 @@ export default function CaixaPage() {
   const [erro, setErro] = useState("");
   const [faltou, setFaltou] = useState<{ id: string; nome: string } | null>(null);
   const [verFixas, setVerFixas] = useState(false);
+  // o "Fechar o dia" mostra os mais recentes; a lista toda só quando o dono pede
+  const [verTodos, setVerTodos] = useState(false);
   const [historico, setHistorico] = useState<{ staffId: string; nome: string } | null>(null);
   // o % digitado vale na hora, só enquanto a gravação dele está a caminho: "Pagar" logo depois
   // usa o novo. Voltou do servidor, sai daqui e vale o da configuração, mude ela onde mudar.
@@ -106,6 +108,9 @@ export default function CaixaPage() {
     (a) => (a.status === "booked" || a.status === "confirmed") && a.start.toMillis() <= agora && !recebidos.has(idDaBaixa(a.id)),
   );
   const aReceber = pendentes.reduce((t, a) => t + a.priceCents, 0);
+  // o de hoje primeiro: é o que o dono está fechando; os antigos esperam no "ver todos"
+  const PRIMEIROS = 3;
+  const visiveis = [...pendentes].reverse().slice(0, verTodos ? undefined : PRIMEIROS);
   const r = resumoDoMes(lancamentos ?? []);
   // contas fixas ainda não pagas no mês, pela ordem do vencimento
   // antes de a conta existir, ela não conta: nem a pagar, nem "tudo pago"
@@ -203,7 +208,7 @@ export default function CaixaPage() {
             </p>
           </div>
           <ul>
-            {pendentes.map((a) => (
+            {visiveis.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t px-4 py-3.5 sm:px-6">
                 <div className="grid min-w-0 flex-1 basis-60 gap-0.5">
                   <span className="font-semibold">{a.customerName}</span>
@@ -219,6 +224,16 @@ export default function CaixaPage() {
               </li>
             ))}
           </ul>
+          {pendentes.length > PRIMEIROS && (
+            <button
+              type="button"
+              aria-expanded={verTodos}
+              onClick={() => setVerTodos(!verTodos)}
+              className="flex min-h-12 w-full items-center justify-center border-t px-4 text-sm font-medium hover:bg-muted/50"
+            >
+              {verTodos ? "Mostrar só os mais recentes" : `Ver os outros ${pendentes.length - PRIMEIROS}, mais antigos`}
+            </button>
+          )}
         </section>
       )}
 
@@ -332,7 +347,7 @@ export default function CaixaPage() {
           {comissoes.length > 0 && (
             <dl className="grid grid-cols-3 border-t text-sm">
               {[
-                { label: "Comissões do mês", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? c.valor), 0) },
+                { label: "Total", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? c.valor), 0) },
                 { label: "Pago", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? 0), 0) },
                 { label: "Falta pagar", valor: comissoes.reduce((t, c) => t + (pagas.has(idDoPagamento("comissao", c.staffId, mes)) ? 0 : c.valor), 0) },
               ].map((t) => (
