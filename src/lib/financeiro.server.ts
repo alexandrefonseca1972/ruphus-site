@@ -1,9 +1,9 @@
 import "server-only";
 import { FieldValue, type Firestore, Timestamp } from "firebase-admin/firestore";
 import { UserError } from "@/lib/booking.server";
-import { dateIn, todayIn } from "@/lib/datetime";
+import { dateIn, formatBRL, todayIn } from "@/lib/datetime";
 import { randomBytes } from "node:crypto";
-import { BaixaInput, CaixaConfig, diaNoMes, FixaInput, idDaBaixa, idDoPagamento, LancamentoInput, mesDe, PagamentoInput } from "@/lib/financeiro";
+import { BaixaInput, CaixaConfig, diaNoMes, EstornoInput, ehVinculado, FixaInput, idDaBaixa, idDoEstorno, idDoPagamento, LancamentoInput, mesDe, PagamentoInput } from "@/lib/financeiro";
 import type { z } from "zod";
 
 // Escritas do Caixa: só pelo servidor, e só com o módulo ligado pelo admin da plataforma
@@ -34,13 +34,21 @@ export async function editar(db: Firestore, tenantId: string, id: string, l: Lan
   await exigeCaixa(db, tenantId);
   const ref = col(db, tenantId).doc(id);
   await db.runTransaction(async (tx) => {
-    const atual = await tx.get(ref);
+    const [atual, estorno] = await Promise.all([tx.get(ref), tx.get(col(db, tenantId).doc(idDoEstorno(id)))]);
     if (!atual.exists) throw new UserError("Lançamento não encontrado.");
+    // entrada estornada continua entrada, e não fica menor que o que já foi devolvido
+    if (estorno.exists && l.tipo !== "entrada") throw new UserError("Este recebimento tem estorno: continua entrada.");
+    if (estorno.exists && l.valorCents < Number(estorno.get("valorCents"))) throw new UserError(`Já foram estornados ${formatBRL(Number(estorno.get("valorCents")))}: o recebimento não fica menor que isso.`);
     // a baixa de um atendimento continua entrada: virar saída quebraria o "fechar o dia"
     if (atual.get("appointmentId") && l.tipo !== "entrada") throw new UserError("O recebimento de um atendimento é sempre entrada.");
-    // conta fixa e comissão pagas continuam saída
-    const pagamento = /^(fx|cm)-/.test(id);
+    // conta fixa, comissão e estorno continuam saída
+    const pagamento = ehVinculado(id);
     if (pagamento && l.tipo !== "saida") throw new UserError("Um pagamento é sempre saída.");
+    // estorno não devolve mais do que entrou
+    if (atual.get("estornoDe")) {
+      const origem = await tx.get(col(db, tenantId).doc(String(atual.get("estornoDe"))));
+      if (origem.exists && l.valorCents > Number(origem.get("valorCents"))) throw new UserError("O estorno não pode passar do valor recebido.");
+    }
     // e todos ficam no dia de origem: noutro mês, a agenda e o Caixa deixariam de achá-los
     const data = atual.get("appointmentId") || pagamento ? String(atual.get("data")) : l.data;
     tx.update(ref, { ...l, data, descricao: l.descricao ?? FieldValue.delete(), mes: mesDe(data), editadoPor: quem.email ?? quem.uid, editadoEm: FieldValue.serverTimestamp() });
@@ -50,7 +58,44 @@ export async function editar(db: Firestore, tenantId: string, id: string, l: Lan
 /** Apagar a baixa de um atendimento devolve ele ao "fechar o dia". */
 export async function excluir(db: Firestore, tenantId: string, id: string) {
   await exigeCaixa(db, tenantId);
-  await col(db, tenantId).doc(id).delete();
+  // a entrada estornada não some sozinha: o estorno ficaria devolvendo um dinheiro que não entrou
+  await db.runTransaction(async (tx) => {
+    if ((await tx.get(col(db, tenantId).doc(idDoEstorno(id)))).exists) throw new UserError("Este recebimento tem estorno. Apague o estorno antes.");
+    tx.delete(col(db, tenantId).doc(id));
+  });
+}
+
+/** "Estornar": devolve ao cliente, no todo ou em parte, uma entrada. Vira saída de hoje, com o
+ *  profissional e o cliente dela: a comissão do mês desconta. Uma vez só por entrada. */
+export async function estornar(db: Firestore, tenantId: string, e: z.infer<typeof EstornoInput>, quem: Quem) {
+  await exigeCaixa(db, tenantId);
+  const origem = col(db, tenantId).doc(e.lancamentoId);
+  const ref = col(db, tenantId).doc(idDoEstorno(e.lancamentoId));
+  await db.runTransaction(async (tx) => {
+    const [o, ja] = await Promise.all([tx.get(origem), tx.get(ref)]);
+    if (!o.exists) throw new UserError("Lançamento não encontrado.");
+    if (o.get("tipo") !== "entrada") throw new UserError("Só dá para estornar uma entrada.");
+    if (ja.exists) throw new UserError("Este recebimento já foi estornado.");
+    if (e.valorCents > Number(o.get("valorCents"))) throw new UserError("O estorno não pode passar do valor recebido.");
+    const hoje = todayIn();
+    const quemPagou = o.get("customerName") ?? o.get("descricao") ?? o.get("categoria");
+    tx.create(ref, {
+      tipo: "saida",
+      valorCents: e.valorCents,
+      forma: e.forma,
+      categoria: "Estorno",
+      descricao: `Estorno ${quemPagou ?? ""}`.trim().slice(0, 80),
+      data: hoje,
+      mes: mesDe(hoje),
+      estornoDe: e.lancamentoId,
+      staffId: o.get("staffId") ?? null,
+      staffName: o.get("staffName") ?? null,
+      customerKey: o.get("customerKey") ?? null,
+      customerName: o.get("customerName") ?? null,
+      criadoPor: quem.email ?? quem.uid,
+      criadoEm: FieldValue.serverTimestamp(),
+    });
+  });
 }
 
 /** "Recebi": a entrada nasce do atendimento, com o valor, o profissional e o cliente dele. */

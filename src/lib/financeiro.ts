@@ -58,12 +58,18 @@ export const Lancamento = LancamentoInput.extend({
   staffId: z.string().nullish(),
   staffName: z.string().nullish(),
   customerName: z.string().nullish(),
+  /** estorno: o id da entrada que ele devolve */
+  estornoDe: z.string().optional(),
 });
 export type Lancamento = z.infer<typeof Lancamento> & { id: string };
 
 export const mesDe = (data: string) => data.slice(0, 7);
 /** Uma baixa por atendimento: o id é o do agendamento, e o segundo toque não duplica. */
 export const idDaBaixa = (appointmentId: string) => `ag-${appointmentId}`;
+/** Um estorno por entrada: o segundo toque não devolve duas vezes. */
+export const idDoEstorno = (lancamentoId: string) => `es-${lancamentoId}`;
+/** Conta fixa, comissão e estorno: nascem de outro registro, tipo e data não mudam. */
+export const ehVinculado = (id: string) => /^(fx|cm|es)-/.test(id);
 
 const valor = z.number().int().positive("Informe o valor.").max(99_999_99, "Valor alto demais.");
 
@@ -96,6 +102,12 @@ export const PagamentoInput = z.object({
   valorCents: valor,
   forma: z.enum(FORMAS),
 });
+/** Devolver ao cliente, no todo ou em parte, o que entrou. */
+export const EstornoInput = z.object({
+  lancamentoId: docId,
+  valorCents: valor,
+  forma: z.enum(FORMAS),
+});
 export const idDoPagamento = (tipo: "fixa" | "comissao", alvoId: string, mes: string) => `${tipo === "fixa" ? "fx" : "cm"}-${alvoId}-${mes}`;
 
 /** O dia da conta dentro do mês: dia 31 em fevereiro cai no último dia. */
@@ -113,17 +125,18 @@ export function pctDoTexto(s: string) {
   return !t || Number.isNaN(n) ? null : Math.min(100, Math.max(0, Math.round(n * 100) / 100));
 }
 
-/** Comissão de cada profissional: o que ele faturou pela agenda vezes o percentual. */
-export function comissoesDoMes(itens: Pick<Lancamento, "tipo" | "valorCents" | "staffId" | "staffName">[], pct: Record<string, number>) {
+/** Comissão de cada profissional: o que ele faturou pela agenda, menos o estornado, vezes o percentual. */
+export function comissoesDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "staffId" | "staffName"> & { estornoDe?: string })[], pct: Record<string, number>) {
   const m = new Map<string, { staffId: string; nome: string; faturado: number }>();
   for (const l of itens) {
-    if (l.tipo !== "entrada" || !l.staffId) continue;
+    if ((l.tipo !== "entrada" && !l.estornoDe) || !l.staffId) continue;
     const p = m.get(l.staffId) ?? { staffId: l.staffId, nome: l.staffName ?? "Profissional", faturado: 0 };
-    p.faturado += l.valorCents;
+    p.faturado += l.tipo === "entrada" ? l.valorCents : -l.valorCents;
     m.set(l.staffId, p);
   }
   return [...m.values()]
-    .map((p) => ({ ...p, pct: pct[p.staffId] ?? 0, valor: Math.round((p.faturado * (pct[p.staffId] ?? 0)) / 100) }))
+    // estorno de um mês sem atendimento não vira comissão negativa
+    .map((p) => ({ ...p, pct: pct[p.staffId] ?? 0, valor: Math.max(0, Math.round((p.faturado * (pct[p.staffId] ?? 0)) / 100)) }))
     .sort((a, b) => b.faturado - a.faturado);
 }
 
@@ -154,7 +167,7 @@ export function csvDoMes(itens: Pick<Lancamento, "data" | "tipo" | "categoria" |
 }
 
 /** Os três números do topo e os agrupamentos do resumo. */
-export function resumoDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "categoria" | "forma"> & { staffName?: string | null })[]) {
+export function resumoDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "categoria" | "forma"> & { staffName?: string | null; estornoDe?: string })[]) {
   const soma = (f: (l: (typeof itens)[number]) => boolean) => itens.filter(f).reduce((t, l) => t + l.valorCents, 0);
   const agrupa = (chave: (l: (typeof itens)[number]) => string | null | undefined, tipo: "entrada" | "saida") => {
     const m = new Map<string, number>();
@@ -164,6 +177,11 @@ export function resumoDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "ca
     }
     return [...m].sort((a, b) => b[1] - a[1]);
   };
+  // faturamento por profissional já sem o que foi estornado
+  const porProfissional = new Map<string, number>();
+  for (const l of itens) {
+    if (l.staffName && (l.tipo === "entrada" || l.estornoDe)) porProfissional.set(l.staffName, (porProfissional.get(l.staffName) ?? 0) + (l.tipo === "entrada" ? l.valorCents : -l.valorCents));
+  }
   const entrou = soma((l) => l.tipo === "entrada");
   const saiu = soma((l) => l.tipo === "saida");
   return {
@@ -173,6 +191,6 @@ export function resumoDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "ca
     porForma: agrupa((l) => ROTULO_FORMA[l.forma], "entrada"),
     entradasPorCategoria: agrupa((l) => l.categoria, "entrada"),
     saidasPorCategoria: agrupa((l) => l.categoria, "saida"),
-    porProfissional: agrupa((l) => l.staffName, "entrada"),
+    porProfissional: [...porProfissional].filter(([, v]) => v !== 0).sort((a, b) => b[1] - a[1]),
   };
 }

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { errorMessage } from "@/lib/auth-errors";
 import { formatBRL, formatLongDate, formatTime, todayIn, zonedTime } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
-import { CaixaConfig, comissoesDoMes, diaNoMes, pctDoTexto, csvDoMes, idDaBaixa, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
+import { CaixaConfig, comissoesDoMes, diaNoMes, pctDoTexto, csvDoMes, idDaBaixa, idDoEstorno, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
 import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
 import { definirComissaoAction } from "../actions";
@@ -64,8 +64,11 @@ export default function CaixaPage() {
   // dia 31 não some na virada do mês. Os lançamentos de lá só servem para saber o que já foi recebido.
   // ponytail: só um mês para trás; o que ficou de antes, o dono acha voltando o mês
   const desde = mes === hoje.slice(0, 7) ? mesSeguinte(mes, -1) : mes;
+  // num mês passado, o seguinte também: o estorno nasce no dia em que foi feito, e a entrada
+  // daqui precisa saber que já foi estornada. ponytail: estorno 2+ meses depois, só o servidor barra
+  const ate = mes < hoje.slice(0, 7) ? mesSeguinte(mes, 1) : mes;
   // as consultas só sobem com o Caixa ligado: desligado, a regra negaria a leitura
-  const [comAnterior, erroLeitura] = useCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mes", "in", [...new Set([desde, mes])])], `${desde}/${mes}`);
+  const [comAnterior, erroLeitura] = useCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mes", "in", [...new Set([desde, mes, ate])])], `${desde}/${mes}/${ate}`);
   const lancamentos = comAnterior && comAnterior.filter((l) => l.mes === mes);
   const [doMes] = useCollection(
     ligado ? tenant.id : "",
@@ -278,7 +281,7 @@ export default function CaixaPage() {
                         <span className="grid min-w-0 flex-1 gap-0.5">
                           <span className="truncate font-medium">{l.customerName ?? l.descricao ?? l.categoria}</span>
                           <span className="truncate text-[13px] text-muted-foreground">
-                            {[l.categoria, l.customerName && l.descricao, l.staffName, ROTULO_FORMA[l.forma]].filter(Boolean).join(" · ")}
+                            {[recebidos.has(idDoEstorno(l.id)) && "Estornado", l.categoria, l.customerName && l.descricao, l.staffName, ROTULO_FORMA[l.forma]].filter(Boolean).join(" · ")}
                           </span>
                         </span>
                         <span className={cn("tabular-nums font-semibold", l.tipo === "saida" ? "text-red-800 dark:text-red-300" : "text-emerald-800 dark:text-emerald-300")}>
@@ -364,7 +367,7 @@ export default function CaixaPage() {
       )}
 
       {verFixas && <ContasFixas tenantId={tenant.id} nicho={tenant.gerado?.nicho} fixas={config.fixas} onClose={() => setVerFixas(false)} />}
-      {folha && <LancamentoFolha tenantId={tenant.id} nicho={tenant.gerado?.nicho} folha={folha} onClose={fechar} />}
+      {folha && <LancamentoFolha tenantId={tenant.id} nicho={tenant.gerado?.nicho} folha={folha} estornado={folha.modo === "editar" && recebidos.has(idDoEstorno(folha.lancamento.id))} onClose={fechar} />}
       {faltou && (
         <ConfirmDialog
           title={`Registrar que ${faltou.nome} faltou?`}

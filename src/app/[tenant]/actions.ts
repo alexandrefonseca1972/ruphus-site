@@ -12,8 +12,8 @@ import { createInstance, getQr, getStatus, logout, sendText } from "@/lib/wtsfy"
 import { aceitarTermoWhatsApp, desligarConexao, gravarConexao, lerConfigWhatsApp, lerConexao } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
-import { BaixaInput, FixaInput, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
-import { adicionarFixa, baixarAgendamento, definirComissao, editar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
+import { BaixaInput, EstornoInput, FixaInput, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
+import { adicionarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
 // Chamáveis por POST direto: valida entrada e membro do tenant em toda chamada
 const SlotsInput = RescheduleInput.omit({ time: true });
@@ -276,5 +276,11 @@ export const definirComissaoAction = memberAction(z.object({ tenantId: docIdStaf
 export const pagarAction = memberAction(z.object({ tenantId: docIdStaff, pagamento: PagamentoInput }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid);
   await pagar(adminDb, data.tenantId, data.pagamento, user);
+  return { ok: true as const };
+});
+
+export const estornarAction = memberAction(z.object({ tenantId: docIdStaff, estorno: EstornoInput }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  await estornar(adminDb, data.tenantId, data.estorno, user);
   return { ok: true as const };
 });
