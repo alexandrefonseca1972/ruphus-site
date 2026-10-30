@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { addDays, todayIn, zonedTime } from "@/lib/datetime";
-import { categorias, comissoesDoMes, csvDoMes, diaNoMes, pctDoTexto, idDaBaixa, idDoPagamento, resumoDoMes } from "@/lib/financeiro";
-import { adicionarFixa, baixarAgendamento, definirComissao, editar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
+import { categorias, comissoesDoMes, csvDoMes, diaNoMes, pctDoTexto, idDaBaixa, idDoEstorno, idDoPagamento, resumoDoMes } from "@/lib/financeiro";
+import { adicionarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
 const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
 const quem = { uid: "dona", email: "dona@teste.dev" };
@@ -102,7 +102,10 @@ const fx = (await db.doc(`tenants/salao/lancamentos/${idDoPagamento("fixa", alug
 assert.deepEqual([fx.tipo, fx.valorCents, fx.categoria, fx.descricao, fx.mes, fx.data], ["saida", 119000, "Aluguel", "Aluguel", mes, hoje]);
 await assert.rejects(pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes, valorCents: 120000, forma: "pix" }, quem), /já foi paga/);
 await assert.rejects(editar(db, "salao", idDoPagamento("fixa", aluguel, mes), { ...entrada, tipo: "entrada" }, quem), /sempre saída/);
-// conta de um mês passado cai no dia dela
+// antes de cadastrada, a conta não se paga
+await assert.rejects(pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes: "2026-02", valorCents: 120000, forma: "pix" }, quem), /ainda não existia/);
+// conta de um mês passado cai no dia dela (cadastrada antes daquele mês)
+await db.doc("tenants/salao/caixa/config").update({ fixas: (await db.doc("tenants/salao/caixa/config").get()).get("fixas").map((f: object) => ({ ...f, desde: "2026-01" })) });
 await pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes: "2026-02", valorCents: 120000, forma: "pix" }, quem);
 assert.equal((await db.doc(`tenants/salao/lancamentos/${idDoPagamento("fixa", aluguel, "2026-02")}`).get()).get("data"), "2026-02-05");
 await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "ninguem", mes, valorCents: 1680, forma: "pix" }, quem), /Profissional não encontrado/);
@@ -112,6 +115,74 @@ await pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: mesBia, valorCe
 const cm = (await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "bia", mesBia)}`).get()).data()!;
 assert.deepEqual([cm.tipo, cm.categoria, cm.descricao, cm.staffId, cm.staffName], ["saida", "Comissão/salário", "Comissão Bia", "bia", "Bia"], "o nome vai para a coluna Profissional da planilha");
 await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: mesBia, valorCents: 1680, forma: "pix" }, quem), /já foi paga/);
+
+// estorno: saída de hoje ligada à entrada, com o profissional dela, uma vez só e até o valor recebido
+const recebido = idDaBaixa("passado"); // R$ 42,00, da Bia, cliente Ana
+const es = idDoEstorno(recebido);
+await assert.rejects(estornar(db, "salao", { lancamentoId: recebido, valorCents: 4201, forma: "pix" }, quem), /não pode passar/);
+await estornar(db, "salao", { lancamentoId: recebido, valorCents: 1200, forma: "pix" }, quem);
+const e = (await db.doc(`tenants/salao/lancamentos/${es}`).get()).data()!;
+assert.deepEqual([e.tipo, e.valorCents, e.categoria, e.descricao, e.data, e.mes, e.estornoDe, e.staffId, e.staffName, e.customerName], ["saida", 1200, "Estorno", "Estorno Ana", hoje, hoje.slice(0, 7), recebido, "bia", "Bia", "Ana"]);
+await assert.rejects(estornar(db, "salao", { lancamentoId: recebido, valorCents: 100, forma: "pix" }, quem), /já foi estornado/, "o segundo toque não devolve de novo");
+await assert.rejects(estornar(db, "salao", { lancamentoId: es, valorCents: 100, forma: "pix" }, quem), /Só dá para estornar uma entrada/);
+await assert.rejects(estornar(db, "salao", { lancamentoId: "naoexiste", valorCents: 100, forma: "pix" }, quem), /não encontrado/);
+await assert.rejects(excluir(db, "salao", recebido), /tem estorno/, "a entrada estornada não some deixando o estorno órfão");
+await assert.rejects(editar(db, "salao", es, { ...entrada, tipo: "saida", valorCents: 5000 }, quem), /não pode passar/);
+await assert.rejects(editar(db, "salao", es, { ...entrada, tipo: "entrada" }, quem), /sempre saída/);
+await assert.rejects(editar(db, "salao", recebido, { ...entrada, valorCents: 1000 }, quem), /não fica menor/, "a entrada não fica abaixo do estornado");
+await editar(db, "salao", es, { ...entrada, tipo: "saida", valorCents: 4200, categoria: "Estorno", data: "2020-01-01" }, quem);
+assert.deepEqual(Object.values((({ valorCents, data }) => ({ valorCents, data }))((await db.doc(`tenants/salao/lancamentos/${es}`).get()).data()!)), [4200, hoje], "estorno corrigido fica no dia dele");
+// a comissão sobre o estornado (pelo % do dia) fica guardada para abater; corrigir o estorno acompanha
+const descontoBia = async () => (await db.doc("tenants/salao/caixa/config").get()).get("descontos.bia");
+assert.deepEqual([e.pctComissao, e.descontoComissao], [40, 480]);
+assert.equal(await descontoBia(), 1680, "1200 viraram 4200: 40% de 4200");
+// o faturamento por profissional desconta o estorno; a comissão abate o guardado até zerar, e o resto fica
+const ce = comissoesDoMes(
+  [
+    { tipo: "entrada", valorCents: 10000, staffId: "bia", staffName: "Bia" },
+    { tipo: "saida", valorCents: 3000, staffId: "bia", staffName: "Bia" },
+    { tipo: "entrada", valorCents: 2000, staffId: "leo", staffName: "Léo" },
+    { tipo: "entrada", valorCents: 1000, staffId: "ana", staffName: "Ana" },
+  ],
+  { bia: 40, leo: 50, ana: 10 },
+  { bia: 1500, leo: 3000, ana: -500 },
+);
+assert.deepEqual(ce.map((c) => [c.staffId, c.bruto, c.abatido, c.valor]), [["bia", 4000, 1500, 2500], ["leo", 1000, 1000, 0], ["ana", 100, -500, 600]]);
+assert.deepEqual(
+  resumoDoMes([
+    { tipo: "entrada", valorCents: 10000, categoria: "Atendimento", forma: "pix", staffName: "Bia" },
+    { tipo: "saida", valorCents: 3000, categoria: "Estorno", forma: "pix", staffName: "Bia", estornoDe: "ag-x" },
+  ]).porProfissional,
+  [["Bia", 7000]],
+);
+// pagar a comissão abate o guardado, nunca mais do que há; R$ 0 só quando o estorno zerou a comissão
+await db.doc("tenants/salao/staff/bia").set({ name: "Bia" });
+// atendimentos da Bia: 2027-01 rende R$ 10 de comissão (40% de 25), 2027-03 rende R$ 20
+const atendimento = (id: string, mes: string, valorCents: number) =>
+  db.doc(`tenants/salao/lancamentos/${id}`).set({ tipo: "entrada", valorCents, mes, data: `${mes}-10`, categoria: "Atendimento", forma: "pix", staffId: "bia", staffName: "Bia" });
+await atendimento("t1", "2027-01", 2500);
+await atendimento("t3", "2027-03", 5000);
+await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2027-02", valorCents: 0, forma: "pix" }, quem), /Informe o valor/);
+await pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2027-01", valorCents: 0, forma: "pix", descontoCents: 1000 }, quem);
+assert.equal((await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "bia", "2027-01")}`).get()).get("descontoCents"), 1000);
+assert.equal(await descontoBia(), 680, "o resto fica para o próximo");
+await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2027-03", valorCents: 0, forma: "pix", descontoCents: 680 }, quem), /Informe o valor/, "R$ 0 só quando o estorno cobre a comissão toda");
+await pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2027-03", valorCents: 100, forma: "pix", descontoCents: 99999 }, quem);
+assert.equal(await descontoBia(), 0, "não abate mais do que está guardado");
+// apagar o pagamento devolve o que ele abateu; apagar o estorno tira o desconto dele (o já abatido volta ao profissional)
+await excluir(db, "salao", idDoPagamento("comissao", "bia", "2027-03"));
+assert.equal(await descontoBia(), 680);
+// apagar o estorno: o recebimento volta a valer e pode ser estornado de novo
+await excluir(db, "salao", es);
+assert.equal(await descontoBia(), -1000, "1000 já abatidos de um estorno desfeito: a devolver à Bia");
+await estornar(db, "salao", { lancamentoId: recebido, valorCents: 4200, forma: "dinheiro" }, quem);
+assert.equal(await descontoBia(), 680);
+await excluir(db, "salao", es);
+await excluir(db, "salao", idDoPagamento("comissao", "bia", "2027-01"));
+assert.equal(await descontoBia(), 0);
+await db.doc("tenants/salao/staff/bia").delete();
+await db.doc("tenants/salao/lancamentos/t1").delete();
+await db.doc("tenants/salao/lancamentos/t3").delete();
 
 // desligar não apaga: o histórico volta quando religar
 await db.doc("tenants/salao").update({ "modulos.financeiro": false });

@@ -53,17 +53,27 @@ export const BaixaInput = z.object({
 
 /** O documento como o painel lê (tenants/{t}/lancamentos). */
 export const Lancamento = LancamentoInput.extend({
+  // comissão toda abatida por estorno fica registrada com R$ 0
+  valorCents: z.number().int().min(0),
   mes: z.string(),
   appointmentId: z.string().optional(),
   staffId: z.string().nullish(),
   staffName: z.string().nullish(),
   customerName: z.string().nullish(),
+  /** estorno: o id da entrada que ele devolve */
+  estornoDe: z.string().optional(),
+  /** pagamento de comissão: quanto de estorno ele abateu (negativo: devolveu ao profissional) */
+  descontoCents: z.number().int().optional(),
 });
 export type Lancamento = z.infer<typeof Lancamento> & { id: string };
 
 export const mesDe = (data: string) => data.slice(0, 7);
 /** Uma baixa por atendimento: o id é o do agendamento, e o segundo toque não duplica. */
 export const idDaBaixa = (appointmentId: string) => `ag-${appointmentId}`;
+/** Um estorno por entrada: o segundo toque não devolve duas vezes. */
+export const idDoEstorno = (lancamentoId: string) => `es-${lancamentoId}`;
+/** Conta fixa, comissão e estorno: nascem de outro registro, tipo e data não mudam. */
+export const ehVinculado = (id: string) => /^(fx|cm|es)-/.test(id);
 
 const valor = z.number().int().positive("Informe o valor.").max(99_999_99, "Valor alto demais.");
 
@@ -85,6 +95,9 @@ export type Fixa = z.infer<typeof Fixa>;
 export const CaixaConfig = z.object({
   fixas: z.array(Fixa).max(30, "No máximo 30 contas fixas.").default([]),
   comissoes: z.record(z.string().max(128), z.number().min(0).max(100)).default({}),
+  /** estorno ainda não abatido da comissão de cada profissional, em centavos: sai do próximo
+   *  pagamento, e o que não couber nele passa para o seguinte. Negativo: a devolver a ele. */
+  descontos: z.record(z.string().max(128), z.number().int()).default({}),
 });
 export type CaixaConfig = z.infer<typeof CaixaConfig>;
 
@@ -93,6 +106,15 @@ export const PagamentoInput = z.object({
   tipo: z.enum(["fixa", "comissao"]),
   alvoId: docId,
   mes: z.string().regex(MES),
+  // R$ 0 só na comissão toda abatida por estorno (o servidor confere)
+  valorCents: z.number().int().min(0).max(99_999_99, "Valor alto demais."),
+  forma: z.enum(FORMAS),
+  /** comissão: o estorno que este pagamento abate */
+  descontoCents: z.number().int().optional(),
+});
+/** Devolver ao cliente, no todo ou em parte, o que entrou. */
+export const EstornoInput = z.object({
+  lancamentoId: docId,
   valorCents: valor,
   forma: z.enum(FORMAS),
 });
@@ -113,8 +135,11 @@ export function pctDoTexto(s: string) {
   return !t || Number.isNaN(n) ? null : Math.min(100, Math.max(0, Math.round(n * 100) / 100));
 }
 
-/** Comissão de cada profissional: o que ele faturou pela agenda vezes o percentual. */
-export function comissoesDoMes(itens: Pick<Lancamento, "tipo" | "valorCents" | "staffId" | "staffName">[], pct: Record<string, number>) {
+/** Comissão de cada profissional: o que ele faturou pela agenda vezes o percentual (bruto),
+ *  menos o estorno guardado para abater (descontos), até zerar; o resto fica para o próximo. */
+// ponytail: quem tem desconto guardado mas não atendeu no mês não aparece; ele espera o próximo
+// mês com atendimento. Listar essas linhas se um profissional sair da equipe devendo estorno.
+export function comissoesDoMes(itens: Pick<Lancamento, "tipo" | "valorCents" | "staffId" | "staffName">[], pct: Record<string, number>, descontos: Record<string, number> = {}) {
   const m = new Map<string, { staffId: string; nome: string; faturado: number }>();
   for (const l of itens) {
     if (l.tipo !== "entrada" || !l.staffId) continue;
@@ -123,7 +148,12 @@ export function comissoesDoMes(itens: Pick<Lancamento, "tipo" | "valorCents" | "
     m.set(l.staffId, p);
   }
   return [...m.values()]
-    .map((p) => ({ ...p, pct: pct[p.staffId] ?? 0, valor: Math.round((p.faturado * (pct[p.staffId] ?? 0)) / 100) }))
+    .map((p) => {
+      const bruto = Math.round((p.faturado * (pct[p.staffId] ?? 0)) / 100);
+      const desconto = descontos[p.staffId] ?? 0;
+      const abatido = desconto > 0 ? Math.min(desconto, bruto) : desconto;
+      return { ...p, pct: pct[p.staffId] ?? 0, bruto, desconto, abatido, valor: bruto - abatido };
+    })
     .sort((a, b) => b.faturado - a.faturado);
 }
 
@@ -154,7 +184,7 @@ export function csvDoMes(itens: Pick<Lancamento, "data" | "tipo" | "categoria" |
 }
 
 /** Os três números do topo e os agrupamentos do resumo. */
-export function resumoDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "categoria" | "forma"> & { staffName?: string | null })[]) {
+export function resumoDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "categoria" | "forma"> & { staffName?: string | null; estornoDe?: string })[]) {
   const soma = (f: (l: (typeof itens)[number]) => boolean) => itens.filter(f).reduce((t, l) => t + l.valorCents, 0);
   const agrupa = (chave: (l: (typeof itens)[number]) => string | null | undefined, tipo: "entrada" | "saida") => {
     const m = new Map<string, number>();
@@ -164,6 +194,11 @@ export function resumoDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "ca
     }
     return [...m].sort((a, b) => b[1] - a[1]);
   };
+  // faturamento por profissional já sem o que foi estornado
+  const porProfissional = new Map<string, number>();
+  for (const l of itens) {
+    if (l.staffName && (l.tipo === "entrada" || l.estornoDe)) porProfissional.set(l.staffName, (porProfissional.get(l.staffName) ?? 0) + (l.tipo === "entrada" ? l.valorCents : -l.valorCents));
+  }
   const entrou = soma((l) => l.tipo === "entrada");
   const saiu = soma((l) => l.tipo === "saida");
   return {
@@ -173,6 +208,6 @@ export function resumoDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "ca
     porForma: agrupa((l) => ROTULO_FORMA[l.forma], "entrada"),
     entradasPorCategoria: agrupa((l) => l.categoria, "entrada"),
     saidasPorCategoria: agrupa((l) => l.categoria, "saida"),
-    porProfissional: agrupa((l) => l.staffName, "entrada"),
+    porProfissional: [...porProfissional].filter(([, v]) => v !== 0).sort((a, b) => b[1] - a[1]),
   };
 }

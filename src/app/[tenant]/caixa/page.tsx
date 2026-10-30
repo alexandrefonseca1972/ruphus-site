@@ -8,11 +8,12 @@ import { Input } from "@/components/ui/input";
 import { errorMessage } from "@/lib/auth-errors";
 import { formatBRL, formatLongDate, formatTime, todayIn, zonedTime } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
-import { CaixaConfig, comissoesDoMes, diaNoMes, pctDoTexto, csvDoMes, idDaBaixa, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
+import { CaixaConfig, comissoesDoMes, diaNoMes, pctDoTexto, csvDoMes, idDaBaixa, idDoEstorno, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
 import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
 import { definirComissaoAction } from "../actions";
 import { ConfirmDialog } from "../confirm-dialog";
+import { ComissoesHistorico } from "../comissoes-historico";
 import { ContasFixas } from "../contas-fixas";
 import { type Folha, LancamentoFolha } from "../lancamento-folha";
 import { useTenant } from "../layout";
@@ -47,8 +48,11 @@ export default function CaixaPage() {
   const [erro, setErro] = useState("");
   const [faltou, setFaltou] = useState<{ id: string; nome: string } | null>(null);
   const [verFixas, setVerFixas] = useState(false);
-  // o % digitado vale na hora, antes de o servidor devolver: "Pagar" logo depois usa o novo
-  const [pcts, setPcts] = useState<Record<string, number>>({});
+  const [historico, setHistorico] = useState<{ staffId: string; nome: string } | null>(null);
+  // o % digitado vale na hora, só enquanto a gravação dele está a caminho: "Pagar" logo depois
+  // usa o novo. Voltou do servidor, sai daqui e vale o da configuração, mude ela onde mudar.
+  // ponytail: entre a resposta e o snapshot pode piscar o % velho; esperar o snapshot se incomodar
+  const [pcts, setPcts] = useState<Record<string, { pct: number; vez: number }>>({});
   // o relógio anda a cada minuto: com o Caixa aberto, o horário que passa entra no "Fechar o dia" sem recarregar
   const [agora, setAgora] = useState(Date.now);
   useEffect(() => {
@@ -57,19 +61,32 @@ export default function CaixaPage() {
   }, []);
   const ligado = tenant.podeGerir && tenant.modulos?.financeiro === true;
 
+  const hoje = todayIn();
+  // no mês corrente, o "Fechar o dia" também olha o mês anterior: o atendimento das 19h do
+  // dia 31 não some na virada do mês. Os lançamentos de lá só servem para saber o que já foi recebido.
+  // ponytail: só um mês para trás; o que ficou de antes, o dono acha voltando o mês
+  const desde = mes === hoje.slice(0, 7) ? mesSeguinte(mes, -1) : mes;
+  // num mês passado, o seguinte também: o estorno nasce no dia em que foi feito, e a entrada
+  // daqui precisa saber que já foi estornada. ponytail: estorno 2+ meses depois, só o servidor barra
+  const ate = mes < hoje.slice(0, 7) ? mesSeguinte(mes, 1) : mes;
   // as consultas só sobem com o Caixa ligado: desligado, a regra negaria a leitura
-  const [lancamentos, erroLeitura] = useCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mes", "==", mes)], mes);
+  const [comAnterior, erroLeitura] = useCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mes", "in", [...new Set([desde, mes, ate])])], `${desde}/${mes}/${ate}`);
+  const lancamentos = comAnterior && comAnterior.filter((l) => l.mes === mes);
   const [doMes] = useCollection(
     ligado ? tenant.id : "",
     "appointments",
     Atendimento,
-    [where("start", ">=", zonedTime(`${mes}-01`, "00:00")), where("start", "<", zonedTime(`${mesSeguinte(mes, 1)}-01`, "00:00")), orderBy("start")],
-    mes,
+    [where("start", ">=", zonedTime(`${desde}-01`, "00:00")), where("start", "<", zonedTime(`${mesSeguinte(mes, 1)}-01`, "00:00")), orderBy("start")],
+    `${desde}/${mes}`,
   );
-  const [configs, erroConfig] = useCollection(ligado ? tenant.id : "", "caixa", CaixaConfig);
+  // lido solto e conferido aqui: o useCollection descartaria em silêncio um documento fora do
+  // esquema, e o Caixa mostraria contas e comissões zeradas como se fossem verdade
+  const [configs, erroConfig] = useCollection(ligado ? tenant.id : "", "caixa", z.record(z.string(), z.unknown()));
+  const lido = CaixaConfig.safeParse(configs?.find((c) => c.id === "config") ?? {});
   // sem a configuração lida não se mexe nela: mostrar vazio e deixar editar enganaria o dono
-  const configPronta = configs !== null && !erroConfig;
-  const config = configs?.find((c) => c.id === "config") ?? { fixas: [], comissoes: {} };
+  const configPronta = configs !== null && !erroConfig && lido.success;
+  const config = lido.success ? lido.data : CaixaConfig.parse({});
+  const configQuebrada = configs !== null && !lido.success;
 
   if (!ligado) {
     return (
@@ -82,9 +99,9 @@ export default function CaixaPage() {
     );
   }
 
-  const recebidos = new Set(lancamentos?.map((l) => l.id));
+  const recebidos = new Set(comAnterior?.map((l) => l.id));
   // sem os lançamentos carregados não dá para saber o que já foi recebido
-  const pendentes = (lancamentos ? (doMes ?? []) : []).filter(
+  const pendentes = (comAnterior ? (doMes ?? []) : []).filter(
     (a) => (a.status === "booked" || a.status === "confirmed") && a.start.toMillis() <= agora && !recebidos.has(idDaBaixa(a.id)),
   );
   const aReceber = pendentes.reduce((t, a) => t + a.priceCents, 0);
@@ -93,8 +110,11 @@ export default function CaixaPage() {
   // antes de a conta existir, ela não conta: nem a pagar, nem "tudo pago"
   const doMesFixas = config.fixas.filter((f) => !f.desde || f.desde <= mes);
   const contas = (lancamentos ? doMesFixas : []).filter((f) => !recebidos.has(idDoPagamento("fixa", f.id, mes))).sort((a, b) => a.dia - b.dia);
-  const comissoes = comissoesDoMes(lancamentos ?? [], { ...config.comissoes, ...pcts });
-  const pagas = new Map(lancamentos?.filter((l) => l.id.startsWith("cm-")).map((l) => [l.id, l.valorCents]));
+  const pctsPendentes = Object.fromEntries(Object.entries(pcts).map(([k, o]) => [k, o.pct]));
+  const comissoes = comissoesDoMes(lancamentos ?? [], { ...config.comissoes, ...pctsPendentes }, config.descontos);
+  // lançamento novo cai no mês da tela: hoje, ou o último dia de um mês passado
+  const diaNovo = mes === hoje.slice(0, 7) ? hoje : diaNoMes(mes, mes < hoje ? 31 : 1);
+  const pagas = new Map(lancamentos?.filter((l) => l.id.startsWith("cm-")).map((l) => [l.id, l]));
   const porDia = Object.entries(
     [...(lancamentos ?? [])].sort((a, b) => b.data.localeCompare(a.data)).reduce<Record<string, Lancamento[]>>((g, l) => ((g[l.data] ??= []).push(l), g), {}),
   );
@@ -106,12 +126,12 @@ export default function CaixaPage() {
 
   async function mudarPct(staffId: string, pct: number) {
     setErro("");
-    setPcts((p) => ({ ...p, [staffId]: pct }));
+    const vez = Date.now() + Math.random();
+    setPcts((p) => ({ ...p, [staffId]: { pct, vez } }));
     const r = await definirComissaoAction(await idToken(), { tenantId: tenant.id, staffId, pct }).catch(() => ({ ok: false as const, error: "Sem conexão. Tente de novo." }));
-    if (!r.ok) {
-      setErro(r.error ?? "Não foi possível salvar.");
-      setPcts(({ [staffId]: _, ...resto }) => resto);
-    }
+    if (!r.ok) setErro(r.error ?? "Não foi possível salvar.");
+    // tira só este %: um digitado depois, ainda a caminho, fica
+    setPcts(({ [staffId]: o, ...resto }) => (o?.vez === vez ? resto : { ...resto, ...(o && { [staffId]: o }) }));
   }
 
   function baixarCsv() {
@@ -138,7 +158,7 @@ export default function CaixaPage() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon-lg" className="size-10 max-sm:size-11" onClick={() => setMes(mesSeguinte(mes, -1))} aria-label="Mês anterior">‹</Button>
           <Button variant="outline" size="icon-lg" className="size-10 max-sm:size-11" onClick={() => setMes(mesSeguinte(mes, 1))} aria-label="Próximo mês">›</Button>
-          <Button variant="ghost" className="h-10 px-3 max-sm:h-11" disabled={mes === todayIn().slice(0, 7)} onClick={() => setMes(todayIn().slice(0, 7))}>Este mês</Button>
+          <Button variant="ghost" className="h-10 px-3 max-sm:h-11" disabled={mes === hoje.slice(0, 7)} onClick={() => setMes(hoje.slice(0, 7))}>Este mês</Button>
         </div>
       </PageTitle>
 
@@ -156,8 +176,8 @@ export default function CaixaPage() {
       </dl>
 
       <div className="grid grid-cols-2 gap-3">
-        <Button className="h-12 text-base" onClick={() => setFolha({ modo: "novo", tipo: "entrada" })}>+ Entrada</Button>
-        <Button variant="outline" className="h-12 text-base" onClick={() => setFolha({ modo: "novo", tipo: "saida" })}>− Saída</Button>
+        <Button className="h-12 text-base" onClick={() => setFolha({ modo: "novo", tipo: "entrada", data: diaNovo })}>+ Entrada</Button>
+        <Button variant="outline" className="h-12 text-base" onClick={() => setFolha({ modo: "novo", tipo: "saida", data: diaNovo })}>− Saída</Button>
       </div>
 
       {aviso && (
@@ -167,6 +187,7 @@ export default function CaixaPage() {
         </p>
       )}
       {(erro || erroLeitura) && <p role="alert" className="text-sm text-destructive">{erro || erroLeitura}</p>}
+      {configQuebrada && <p role="alert" className="text-sm text-destructive">Não foi possível ler as contas fixas e as comissões. Fale com a Ruphus antes de mexer nelas.</p>}
 
       {pendentes.length > 0 && (
         <section aria-labelledby="fechar" className="overflow-hidden rounded-2xl border bg-card">
@@ -196,7 +217,7 @@ export default function CaixaPage() {
         </section>
       )}
 
-      <section aria-labelledby="contas" className="overflow-hidden rounded-2xl border bg-card">
+      {!configQuebrada && <section aria-labelledby="contas" className="overflow-hidden rounded-2xl border bg-card">
         <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
           <div className="grid gap-0.5">
             <h2 id="contas" className="font-semibold">Contas do mês</h2>
@@ -231,7 +252,7 @@ export default function CaixaPage() {
             ))}
           </ul>
         )}
-      </section>
+      </section>}
 
       <section aria-labelledby="lancamentos" className="overflow-hidden rounded-2xl border bg-card">
         <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
@@ -248,7 +269,7 @@ export default function CaixaPage() {
             return (
               <div key={dia} className="border-t">
                 <div className="flex justify-between bg-muted/40 px-4 py-2 text-[13px] text-muted-foreground sm:px-6">
-                  <span>{formatLongDate(zonedTime(dia, "12:00"))}{dia === todayIn() ? " · hoje" : ""}</span>
+                  <span>{formatLongDate(zonedTime(dia, "12:00"))}{dia === hoje ? " · hoje" : ""}</span>
                   <span className="tabular-nums">{saldo >= 0 ? "+" : "−"} {formatBRL(Math.abs(saldo))}</span>
                 </div>
                 <ul>
@@ -262,7 +283,7 @@ export default function CaixaPage() {
                         <span className="grid min-w-0 flex-1 gap-0.5">
                           <span className="truncate font-medium">{l.customerName ?? l.descricao ?? l.categoria}</span>
                           <span className="truncate text-[13px] text-muted-foreground">
-                            {[l.categoria, l.customerName && l.descricao, l.staffName, ROTULO_FORMA[l.forma]].filter(Boolean).join(" · ")}
+                            {[recebidos.has(idDoEstorno(l.id)) && "Estornado", l.categoria, l.customerName && l.descricao, l.staffName, ROTULO_FORMA[l.forma]].filter(Boolean).join(" · ")}
                           </span>
                         </span>
                         <span className={cn("tabular-nums font-semibold", l.tipo === "saida" ? "text-red-800 dark:text-red-300" : "text-emerald-800 dark:text-emerald-300")}>
@@ -290,23 +311,46 @@ export default function CaixaPage() {
         </details>
       )}
 
-      {comissoes.length > 0 && (
+      {!configQuebrada && comissoes.length > 0 && (
         <section aria-labelledby="comissoes" className="overflow-hidden rounded-2xl border bg-card">
           <div className="grid gap-0.5 px-4 py-4 sm:px-6">
             <h2 id="comissoes" className="font-semibold">Comissões</h2>
-            <p className="text-sm text-muted-foreground">Sobre o que cada profissional recebeu pela agenda neste mês. Só você vê.</p>
+            <p className="text-sm text-muted-foreground">Sobre o que cada profissional recebeu pela agenda neste mês. Toque no nome para ver os meses anteriores. Só você vê.</p>
           </div>
+          {/* o mês de relance: o pago é o que saiu; o que falta, o que ainda não foi pago */}
+          <dl className="grid grid-cols-3 border-t text-sm">
+            {[
+              { label: "Comissões do mês", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? c.valor), 0) },
+              { label: "Pago", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? 0), 0) },
+              { label: "Falta pagar", valor: comissoes.reduce((t, c) => t + (pagas.has(idDoPagamento("comissao", c.staffId, mes)) ? 0 : c.valor), 0) },
+            ].map((t) => (
+              <div key={t.label} className="grid gap-0.5 border-l px-4 py-3 first:border-l-0 sm:px-6">
+                <dt className="text-[13px] text-muted-foreground">{t.label}</dt>
+                <dd className="font-serifa text-lg tabular-nums">{formatBRL(t.valor)}</dd>
+              </div>
+            ))}
+          </dl>
           <ul>
             {comissoes.map((c) => {
               const paga = pagas.get(idDoPagamento("comissao", c.staffId, mes));
+              // paga: a conta é a do dia do pagamento, com o estorno que ele abateu; o estorno de
+              // depois fica guardado para o próximo
+              const devido = paga ? c.bruto - (paga.descontoCents ?? 0) : c.valor;
+              const fica = paga ? c.desconto : c.desconto - c.abatido;
               return (
                 <li key={c.staffId} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t px-4 py-3 sm:px-6">
                   <span className="grid min-w-0 flex-1 basis-60 gap-0.5">
-                    <span className="truncate font-medium">{c.nome}</span>
+                    <button type="button" onClick={() => setHistorico({ staffId: c.staffId, nome: c.nome })} className="w-fit max-w-full truncate text-left font-medium underline-offset-4 hover:underline">
+                      {c.nome}
+                    </button>
                     <span className="text-[13px] text-muted-foreground tabular-nums">
                       faturou {formatBRL(c.faturado)}
+                      {!paga && c.abatido > 0 && ` · menos ${formatBRL(c.abatido)} de estorno`}
+                      {!paga && c.abatido < 0 && ` · mais ${formatBRL(-c.abatido)} de estorno desfeito`}
                       {/* paga antes de novos recebimentos ou de mudar o %: o dono vê a diferença */}
-                      {paga !== undefined && paga !== c.valor && ` · pago ${formatBRL(paga)}, a conta dá ${formatBRL(c.valor)}`}
+                      {paga && paga.valorCents !== devido && ` · pago ${formatBRL(paga.valorCents)}, a conta dá ${formatBRL(devido)}`}
+                      {fica > 0 && ` · ${formatBRL(fica)} de estorno a descontar no próximo pagamento`}
+                      {fica < 0 && ` · ${formatBRL(-fica)} de estorno desfeito a devolver no próximo pagamento`}
                     </span>
                   </span>
                   <label className="flex items-center gap-1.5 text-sm max-sm:mr-auto">
@@ -327,15 +371,24 @@ export default function CaixaPage() {
                     />
                     %
                   </label>
-                  <span className="text-right font-serifa text-lg tabular-nums sm:w-24">{formatBRL(c.valor)}</span>
-                  {paga !== undefined ? (
+                  <span className="text-right font-serifa text-lg tabular-nums sm:w-24">{formatBRL(paga ? paga.valorCents : c.valor)}</span>
+                  {paga ? (
                     <span className="text-center text-sm text-emerald-800 sm:w-24 dark:text-emerald-300">Paga</span>
                   ) : (
                     <Button
                       variant="outline"
                       className="h-10 px-4 sm:w-24"
-                      disabled={!c.valor}
-                      onClick={() => setFolha({ modo: "pagar", titulo: `Pagar comissão de ${c.nome}`, detalhe: `${c.pct}% de ${formatBRL(c.faturado)} · ${nomeDoMes(mes)}`, valorCents: c.valor, pagamento: { tipo: "comissao", alvoId: c.staffId, mes } })}
+                      // o estorno que zera a comissão também se registra: o mês fica acertado e o desconto, usado
+                      disabled={!c.valor && !(c.abatido > 0)}
+                      onClick={() =>
+                        setFolha({
+                          modo: "pagar",
+                          titulo: `Pagar comissão de ${c.nome}`,
+                          detalhe: `${c.pct}% de ${formatBRL(c.faturado)}${c.abatido > 0 ? ` − ${formatBRL(c.abatido)} de estorno` : c.abatido < 0 ? ` + ${formatBRL(-c.abatido)} de estorno desfeito` : ""} · ${nomeDoMes(mes)}`,
+                          valorCents: c.valor,
+                          pagamento: { tipo: "comissao", alvoId: c.staffId, mes, descontoCents: c.abatido },
+                        })
+                      }
                     >
                       Pagar
                     </Button>
@@ -347,8 +400,18 @@ export default function CaixaPage() {
         </section>
       )}
 
+      {historico && (
+        <ComissoesHistorico
+          tenantId={tenant.id}
+          staffId={historico.staffId}
+          nome={historico.nome}
+          pct={config.comissoes[historico.staffId] ?? 0}
+          guardado={config.descontos[historico.staffId] ?? 0}
+          onClose={() => setHistorico(null)}
+        />
+      )}
       {verFixas && <ContasFixas tenantId={tenant.id} nicho={tenant.gerado?.nicho} fixas={config.fixas} onClose={() => setVerFixas(false)} />}
-      {folha && <LancamentoFolha tenantId={tenant.id} nicho={tenant.gerado?.nicho} folha={folha} onClose={fechar} />}
+      {folha && <LancamentoFolha tenantId={tenant.id} nicho={tenant.gerado?.nicho} folha={folha} estornado={folha.modo === "editar" && recebidos.has(idDoEstorno(folha.lancamento.id))} onClose={fechar} />}
       {faltou && (
         <ConfirmDialog
           title={`Registrar que ${faltou.nome} faltou?`}
