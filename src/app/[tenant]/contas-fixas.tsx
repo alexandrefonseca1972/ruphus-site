@@ -45,6 +45,8 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40" />
         <Dialog.Popup className="fixed inset-x-0 bottom-0 z-50 grid max-h-[92dvh] gap-5 overflow-y-auto rounded-t-2xl border bg-popover p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-popover-foreground shadow-xl outline-none sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-full sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:p-6">
+          {/* Enter em qualquer campo adiciona a conta */}
+          <form className="contents" onSubmit={(e) => (e.preventDefault(), void adicionar())}>
           <div className="grid gap-1">
             <Dialog.Title className="font-serifa text-2xl leading-tight">Contas fixas</Dialog.Title>
             <Dialog.Description className="text-sm text-muted-foreground">Aparecem todo mês em “Contas do mês”. Só viram saída quando você toca em Paguei.</Dialog.Description>
@@ -59,7 +61,7 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
                     <span className="text-[13px] text-muted-foreground">dia {f.dia} · {f.categoria}</span>
                   </span>
                   <span className="tabular-nums">{formatBRL(f.valorCents)}</span>
-                  <Button variant="ghost" size="sm" className="h-10 text-destructive" disabled={ocupado} onClick={() => gravar(async () => removerFixaAction(await idToken(), { tenantId, fixaId: f.id }))} aria-label={`Tirar ${f.nome}`}>
+                  <Button type="button" variant="ghost" size="sm" className="h-10 text-destructive" disabled={ocupado} onClick={() => gravar(async () => removerFixaAction(await idToken(), { tenantId, fixaId: f.id }))} aria-label={`Tirar ${f.nome}`}>
                     Tirar
                   </Button>
                 </li>
@@ -71,8 +73,14 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
             <legend className="mb-1 text-sm font-medium">Nova conta</legend>
             <Input value={nome} maxLength={40} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Aluguel da sala" className="h-11" />
             <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-3">
-              <Input inputMode="numeric" placeholder="R$ 0,00" value={valor} onChange={(e) => setValor(maskBRL(e.target.value))} className="h-11 tabular-nums" aria-label="Valor" />
-              <Input type="number" min={1} max={31} value={dia} onChange={(e) => setDia(e.target.value)} className="h-11" aria-label="Dia do vencimento" />
+              <label className="grid gap-1.5 text-sm text-muted-foreground">
+                Valor
+                <Input inputMode="numeric" placeholder="R$ 0,00" value={valor} onChange={(e) => setValor(maskBRL(e.target.value))} className="h-11 tabular-nums text-foreground" />
+              </label>
+              <label className="grid gap-1.5 text-sm text-muted-foreground">
+                Vence dia
+                <Input type="number" min={1} max={31} value={dia} onChange={(e) => setDia(e.target.value)} className="h-11 text-foreground" />
+              </label>
             </div>
             <div className="flex flex-wrap gap-2">
               {categorias("saida", nicho).map((c) => (
@@ -92,9 +100,10 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
           {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" className="h-11 px-4" disabled={ocupado} onClick={onClose}>Fechar</Button>
-            <Button className="h-11 px-5" disabled={ocupado} onClick={adicionar}>{ocupado ? "Salvando…" : "Adicionar conta"}</Button>
+            <Button type="button" variant="outline" className="h-11 px-4" disabled={ocupado} onClick={onClose}>Fechar</Button>
+            <Button type="submit" className="h-11 px-5" disabled={ocupado}>{ocupado ? "Salvando…" : "Adicionar conta"}</Button>
           </div>
+          </form>
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

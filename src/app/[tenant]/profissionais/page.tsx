@@ -172,14 +172,14 @@ export default function StaffPage() {
               <fieldset className="grid gap-1">
                 <legend className="mb-2 text-sm font-medium">Horário de atendimento</legend>
                 {DAYS.map((d) => (
-                  <div key={d} className="group grid grid-cols-[5.5rem_1fr_1fr] items-center gap-2 text-sm">
+                  <div key={d} className="group grid grid-cols-[4rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 text-sm sm:grid-cols-[5.5rem_1fr_1fr]">
                     <label className="flex min-h-11 items-center gap-2">
                       <input type="checkbox" name={`on-${d}`} defaultChecked={!!hours[d]} className="size-4 accent-primary" />
                       {WEEKDAYS[Number(d)].slice(0, 3)}
                     </label>
                     {/* desmarcado = folga: os campos ficam, apagados, para voltar com o mesmo horário */}
-                    <Input type="time" name={`start-${d}`} aria-label={`Início ${WEEKDAYS[Number(d)]}`} defaultValue={hours[d]?.start ?? "09:00"} step={900} className="h-10 bg-card group-has-[input[type=checkbox]:not(:checked)]:opacity-40" />
-                    <Input type="time" name={`end-${d}`} aria-label={`Fim ${WEEKDAYS[Number(d)]}`} defaultValue={hours[d]?.end ?? "18:00"} step={900} className="h-10 bg-card group-has-[input[type=checkbox]:not(:checked)]:opacity-40" />
+                    <Input type="time" name={`start-${d}`} aria-label={`Início ${WEEKDAYS[Number(d)]}`} defaultValue={hours[d]?.start ?? "09:00"} step={900} className="h-10 bg-card px-2 tabular-nums group-has-[input[type=checkbox]:not(:checked)]:opacity-40" />
+                    <Input type="time" name={`end-${d}`} aria-label={`Fim ${WEEKDAYS[Number(d)]}`} defaultValue={hours[d]?.end ?? "18:00"} step={900} className="h-10 bg-card px-2 tabular-nums group-has-[input[type=checkbox]:not(:checked)]:opacity-40" />
                   </div>
                 ))}
                 <button type="button" onClick={repetirSegunda} className="mt-1 min-h-9 justify-self-start text-[13px] underline underline-offset-4 hover:text-muted-foreground">
