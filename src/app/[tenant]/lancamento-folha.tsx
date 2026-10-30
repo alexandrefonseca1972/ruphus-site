@@ -79,7 +79,9 @@ export function LancamentoFolha({ tenantId, nicho, folha, onClose }: { tenantId:
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40" />
         {/* no celular sobe de baixo, no alcance do polegar; no computador fica no meio */}
-        <Dialog.Popup className="fixed inset-x-0 bottom-0 z-50 grid max-h-[92dvh] gap-5 overflow-y-auto rounded-t-2xl border bg-popover p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-popover-foreground shadow-xl outline-none sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-full sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:p-6">
+        <Dialog.Popup className="fixed inset-x-0 bottom-0 z-50 grid max-h-[92dvh] gap-5 overflow-y-auto rounded-t-2xl border bg-popover p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-popover-foreground shadow-xl outline-none sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:p-6">
+          {/* formulário: Enter no valor já salva, sem caçar o botão */}
+          <form className="contents" onSubmit={(e) => (e.preventDefault(), void salvar())}>
           <div className="grid gap-1">
             <Dialog.Title className="font-serifa text-2xl leading-tight">{titulo}</Dialog.Title>
             {(folha.modo === "baixa" || folha.modo === "pagar") && <Dialog.Description className="text-sm text-muted-foreground">{folha.modo === "baixa" ? folha.atendimento.serviceName : folha.detalhe}</Dialog.Description>}
@@ -93,7 +95,7 @@ export function LancamentoFolha({ tenantId, nicho, folha, onClose }: { tenantId:
               placeholder="R$ 0,00"
               value={valor}
               onChange={(e) => setValor(maskBRL(e.target.value))}
-              className={cn("h-14 font-serifa text-3xl tabular-nums", tipo === "saida" && "text-red-700 dark:text-red-300")}
+              className={cn("h-14 font-serifa text-3xl tabular-nums md:text-3xl", tipo === "saida" && "text-red-700 dark:text-red-300")}
             />
           </label>
 
@@ -136,6 +138,7 @@ export function LancamentoFolha({ tenantId, nicho, folha, onClose }: { tenantId:
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
             {folha.modo === "editar" ? (
               <Button
+                type="button"
                 variant="ghost"
                 className="h-11 px-4 text-destructive"
                 disabled={ocupado}
@@ -145,10 +148,13 @@ export function LancamentoFolha({ tenantId, nicho, folha, onClose }: { tenantId:
               </Button>
             ) : <span />}
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
-              <Button variant="outline" className="h-11 px-4" disabled={ocupado} onClick={() => onClose()}>Voltar</Button>
-              <Button className="h-11 px-5" disabled={ocupado} onClick={salvar}>{ocupado ? "Salvando…" : folha.modo === "baixa" ? "Recebi" : folha.modo === "pagar" ? "Paguei" : "Salvar"}</Button>
+              <Button type="button" variant="outline" className="h-11 px-4" disabled={ocupado} onClick={() => onClose()}>Voltar</Button>
+              <Button type="submit" className="h-11 px-5" disabled={ocupado}>
+                {ocupado ? "Salvando…" : folha.modo === "baixa" ? "Recebi" : folha.modo === "pagar" ? "Paguei" : folha.modo === "novo" ? `Lançar ${tipo === "entrada" ? "entrada" : "saída"}` : "Salvar"}
+              </Button>
             </div>
           </div>
+          </form>
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
