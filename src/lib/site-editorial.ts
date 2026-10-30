@@ -171,7 +171,8 @@ const ESTILOS: Partial<Record<Sub, Estilo>> = {
   // cilios-1: extensão de cílios (Pexels); escolha.kit = 6
   // cilios-2 e cilios-3: mais extensão de cílios (Pexels); escolha.kit = 7 e 8
   // bronze-2: cabine/solário; bronze-3: bronzeamento natural na praia (Pexels); escolha.kit = 9 e 10
-  estetica: { ...beleza("estetica", "Estética", DELICADAS), extras: ["/assets/beleza/depilacao-1", "/assets/beleza/bronze-1", "/assets/beleza/cilios-1", "/assets/beleza/cilios-2", "/assets/beleza/cilios-3", "/assets/beleza/bronze-2", "/assets/beleza/bronze-3"] },
+  // depilacao-2: cera em faixa; depilacao-3: depilação a laser (Pexels); escolha.kit = 11 e 12
+  estetica: { ...beleza("estetica", "Estética", DELICADAS), extras: ["/assets/beleza/depilacao-1", "/assets/beleza/bronze-1", "/assets/beleza/cilios-1", "/assets/beleza/cilios-2", "/assets/beleza/cilios-3", "/assets/beleza/bronze-2", "/assets/beleza/bronze-3", "/assets/beleza/depilacao-2", "/assets/beleza/depilacao-3"] },
   unhas: beleza("unhas", "Nail designer", DELICADAS),
   tatuagem: beleza("tatuagem", "Estúdio de tatuagem", TINTAS),
   podologia: { ...beleza("podologia", "Podologia", CLINICAS), descricoes: PODOLOGIA },
@@ -188,23 +189,24 @@ export const escolhaEditorial = (sub: Sub, slug: string): Required<Escolha> => (
 });
 
 // Três templates por nicho, cada um um par [kit, cor] do estilo do sub. Esmalteria é o
-// sub "unhas"; cílios, bronzeamento, esteticista e maquiagem dividem "estetica" (kit 6 é
-// cílios-1, kit 5 é bronze-1). Escolha gravada (gerado.escolha) continua valendo; isto só
+// sub "unhas"; cílios, bronzeamento, depilação, esteticista e maquiagem dividem "estetica"
+// (kit 6 é cílios-1, kit 5 é bronze-1, kit 4 é depilação-1). Escolha gravada (gerado.escolha) continua valendo; isto só
 // cataloga as opções.
-export const TEMPLATES: Record<"barbearia" | "podologia" | "esmalteria" | "cilios" | "bronzeamento" | "cabeleireira" | "esteticista" | "maquiagem" | "tatuador", { sub: Sub; escolhas: Required<Escolha>[] }> = {
+export const TEMPLATES: Record<"barbearia" | "podologia" | "esmalteria" | "cilios" | "bronzeamento" | "depilacao" | "cabeleireira" | "esteticista" | "maquiagem" | "tatuador", { sub: Sub; escolhas: Required<Escolha>[] }> = {
   barbearia: { sub: "barbearia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
   podologia: { sub: "podologia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 1 }, { kit: 2, cor: 2 }] },
   esmalteria: { sub: "unhas", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
   cilios: { sub: "estetica", escolhas: [{ kit: 6, cor: 0 }, { kit: 7, cor: 2 }, { kit: 8, cor: 4 }] },
   // paletas quentes do DELICADAS: dourado, terracota, coral
   bronzeamento: { sub: "estetica", escolhas: [{ kit: 5, cor: 5 }, { kit: 9, cor: 4 }, { kit: 10, cor: 1 }] },
+  depilacao: { sub: "estetica", escolhas: [{ kit: 4, cor: 1 }, { kit: 11, cor: 3 }, { kit: 12, cor: 5 }] },
   cabeleireira: { sub: "salao", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
   esteticista: { sub: "estetica", escolhas: [{ kit: 0, cor: 1 }, { kit: 1, cor: 3 }, { kit: 3, cor: 5 }] },
   maquiagem: { sub: "estetica", escolhas: [{ kit: 2, cor: 0 }, { kit: 0, cor: 2 }, { kit: 1, cor: 4 }] },
   tatuador: { sub: "tatuagem", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 1 }, { kit: 2, cor: 2 }] },
 };
 const ROTULO_MODELO: Record<keyof typeof TEMPLATES, string> = {
-  barbearia: "Barbearia", podologia: "Podologia", esmalteria: "Esmalteria", cilios: "Cílios", bronzeamento: "Bronzeamento", cabeleireira: "Cabeleireira",
+  barbearia: "Barbearia", podologia: "Podologia", esmalteria: "Esmalteria", cilios: "Cílios", bronzeamento: "Bronzeamento", depilacao: "Depilação", cabeleireira: "Cabeleireira",
   esteticista: "Esteticista", maquiagem: "Maquiagem", tatuador: "Tatuador",
 };
 
