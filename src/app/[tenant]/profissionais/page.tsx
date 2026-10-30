@@ -39,8 +39,9 @@ export default function StaffPage() {
   // comissão: só o gestor, com o Caixa ligado; o % mora no Caixa (caixa/config), não no
   // cadastro, que a equipe inteira lê
   const comCaixa = tenant.podeGerir && tenant.modulos?.financeiro === true;
-  const [configs] = useCollection(comCaixa ? tenant.id : "", "caixa", CaixaConfig);
-  const comissoes = configs ? (configs.find((c) => c.id === "config")?.comissoes ?? {}) : null;
+  const [configs, erroConfig] = useCollection(comCaixa ? tenant.id : "", "caixa", CaixaConfig);
+  // sem ler a configuração, o campo some: mostrar vazio faria o dono achar que não há comissão
+  const comissoes = configs && !erroConfig ? (configs.find((c) => c.id === "config")?.comissoes ?? {}) : null;
   const pctDe = (staffId: string) => comissoes?.[staffId] ?? 0;
   const [editing, setEditing] = useState<(Staff & { id: string }) | null>(null);
   const [salvos, setSalvos] = useState(0);
@@ -60,6 +61,12 @@ export default function StaffPage() {
         ),
         active: editing?.active ?? true,
       });
+      // a comissão é conferida antes de salvar o profissional: erro de digitação não deixa meio salvo
+      const texto = String(form.get("comissao") ?? "").trim();
+      const inicial = Number(form.get("comissaoInicial") ?? 0); // o % de quando o formulário abriu
+      let pct = comissoes ? pctDoTexto(texto) : null;
+      if (comissoes && texto && pct === null) throw new Error("Comissão inválida. Use um número, como 40 ou 12,5.");
+      if (comissoes && !texto && inicial) pct = 0; // esvaziar o campo tira a comissão
       // Criar passa pelo servidor, que conta a equipe numa transação; as regras
       // não deixam o cliente criar profissional. Editar segue direto.
       let staffId: string;
@@ -71,11 +78,11 @@ export default function StaffPage() {
         if (!r.ok) throw new Error(r.error);
         staffId = r.id;
       }
-      // o profissional já está salvo: se o % falhar, avisa sem desfazer nem duplicar
-      const pct = comissoes ? pctDoTexto(String(form.get("comissao") ?? "")) : null;
+      // o profissional já está salvo: se o % falhar, avisa sem desfazer nem duplicar.
+      // Compara com o % de quando abriu: mudança feita no Caixa enquanto isso não é desfeita.
       const erroPct =
-        pct !== null && pct !== pctDe(staffId)
-          ? await definirComissaoAction(await idToken(), { tenantId: tenant.id, staffId, pct })
+        pct !== null && pct !== inicial
+          ? await (async () => definirComissaoAction(await idToken(), { tenantId: tenant.id, staffId, pct }))()
               .then((r) => (r.ok ? "" : r.error))
               .catch(() => "Sem conexão.")
           : "";
@@ -211,6 +218,7 @@ export default function StaffPage() {
                 <div className="grid gap-1.5">
                   <Label htmlFor="comissao">Comissão (%)</Label>
                   <div className="flex items-center gap-2">
+                    <input type="hidden" name="comissaoInicial" value={editing ? pctDe(editing.id) : 0} />
                     <Input
                       id="comissao"
                       name="comissao"
@@ -221,7 +229,7 @@ export default function StaffPage() {
                     />
                     <span className="text-sm">%</span>
                   </div>
-                  <p className="text-[13px] text-muted-foreground">Só você vê. O Caixa usa para calcular a comissão do mês.</p>
+                  <p className="text-[13px] text-muted-foreground">Só você vê. O Caixa usa para calcular a comissão do mês. Em branco, sem comissão.</p>
                 </div>
               )}
 

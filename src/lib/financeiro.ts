@@ -105,9 +105,10 @@ export function diaNoMes(mes: string, dia: number) {
   return `${mes}-${String(Math.min(dia, ultimo)).padStart(2, "0")}`;
 }
 
-/** % digitado, com a vírgula do teclado brasileiro. Vazio ou texto vira null: não grava nada. */
+/** % digitado, com a vírgula do teclado brasileiro (e o "%" que o dono digita junto).
+ *  Vazio ou texto vira null: não grava nada. */
 export function pctDoTexto(s: string) {
-  const t = s.trim();
+  const t = s.replace("%", "").trim();
   const n = Number(t.replace(",", "."));
   return !t || Number.isNaN(n) ? null : Math.min(100, Math.max(0, Math.round(n * 100) / 100));
 }

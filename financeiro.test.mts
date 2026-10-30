@@ -59,7 +59,7 @@ const corrigida = (await db.doc(`tenants/salao/lancamentos/${idDaBaixa("passado"
 assert.deepEqual([corrigida.valorCents, corrigida.data, corrigida.mes], [4200, addDays(hoje, -1), addDays(hoje, -1).slice(0, 7)]);
 
 // fase 2, sem banco: dia da conta no mês, comissão e planilha
-assert.deepEqual(["40,5", "30", " 12.25 ", "", "abc", "150", "-3"].map(pctDoTexto), [40.5, 30, 12.25, null, null, 100, 0], "vírgula vale; vazio e texto não gravam");
+assert.deepEqual(["40,5", "30", " 12.25 ", "10%", "", "abc", "150", "-3"].map(pctDoTexto), [40.5, 30, 12.25, 10, null, null, 100, 0], "vírgula e % valem; vazio e texto não gravam");
 assert.equal(diaNoMes("2026-02", 31), "2026-02-28");
 assert.equal(diaNoMes("2028-02", 30), "2028-02-29");
 assert.equal(diaNoMes("2026-10", 5), "2026-10-05");
