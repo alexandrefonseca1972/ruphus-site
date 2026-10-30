@@ -319,17 +319,17 @@ export default function CaixaPage() {
                         if (pct === null) return void (e.target.value = c.pct ? String(c.pct).replace(".", ",") : "");
                         if (pct !== c.pct) mudarPct(c.staffId, pct);
                       }}
-                      className="h-10 w-20 text-right tabular-nums"
+                      className="h-10 w-16 text-right tabular-nums sm:w-20"
                     />
                     %
                   </label>
-                  <span className="w-24 text-right font-serifa text-lg tabular-nums">{formatBRL(c.valor)}</span>
+                  <span className="text-right font-serifa text-lg tabular-nums sm:w-24">{formatBRL(c.valor)}</span>
                   {paga !== undefined ? (
-                    <span className="w-24 text-center text-sm text-emerald-800 dark:text-emerald-300">Paga</span>
+                    <span className="text-center text-sm text-emerald-800 sm:w-24 dark:text-emerald-300">Paga</span>
                   ) : (
                     <Button
                       variant="outline"
-                      className="h-10 w-24"
+                      className="h-10 px-4 sm:w-24"
                       disabled={!c.valor}
                       onClick={() => setFolha({ modo: "pagar", titulo: `Pagar comissão de ${c.nome}`, detalhe: `${c.pct}% de ${formatBRL(c.faturado)} · ${nomeDoMes(mes)}`, valorCents: c.valor, pagamento: { tipo: "comissao", alvoId: c.staffId, mes } })}
                     >
