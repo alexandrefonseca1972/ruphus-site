@@ -12,8 +12,8 @@ import { createInstance, getQr, getStatus, logout, sendText } from "@/lib/wtsfy"
 import { aceitarTermoWhatsApp, desligarConexao, gravarConexao, lerConfigWhatsApp, lerConexao } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
-import { BaixaInput, LancamentoInput } from "@/lib/financeiro";
-import { baixarAgendamento, editar, excluir, lancar } from "@/lib/financeiro.server";
+import { BaixaInput, FixaInput, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
+import { adicionarFixa, baixarAgendamento, definirComissao, editar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
 // Chamáveis por POST direto: valida entrada e membro do tenant em toda chamada
 const SlotsInput = RescheduleInput.omit({ time: true });
@@ -252,5 +252,29 @@ export const excluirLancamentoAction = memberAction(z.object({ tenantId: docIdSt
 export const baixarAgendamentoAction = memberAction(z.object({ tenantId: docIdStaff, baixa: BaixaInput }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid);
   await baixarAgendamento(adminDb, data.tenantId, data.baixa, user);
+  return { ok: true as const };
+});
+
+export const adicionarFixaAction = memberAction(z.object({ tenantId: docIdStaff, fixa: FixaInput }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  await adicionarFixa(adminDb, data.tenantId, data.fixa);
+  return { ok: true as const };
+});
+
+export const removerFixaAction = memberAction(z.object({ tenantId: docIdStaff, fixaId: docId }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  await removerFixa(adminDb, data.tenantId, data.fixaId);
+  return { ok: true as const };
+});
+
+export const definirComissaoAction = memberAction(z.object({ tenantId: docIdStaff, staffId: docId, pct: z.number().min(0).max(100) }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  await definirComissao(adminDb, data.tenantId, data.staffId, data.pct);
+  return { ok: true as const };
+});
+
+export const pagarAction = memberAction(z.object({ tenantId: docIdStaff, pagamento: PagamentoInput }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  await pagar(adminDb, data.tenantId, data.pagamento, user);
   return { ok: true as const };
 });

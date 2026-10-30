@@ -8,13 +8,15 @@ import { formatBRL, maskBRL, todayIn } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
 import { categorias, FORMAS, ROTULO_FORMA, type Lancamento } from "@/lib/financeiro";
 import { cn } from "@/lib/utils";
-import { baixarAgendamentoAction, editarLancamentoAction, excluirLancamentoAction, lancarAction } from "./actions";
+import { baixarAgendamentoAction, editarLancamentoAction, excluirLancamentoAction, lancarAction, pagarAction } from "./actions";
 
-/** O que a folha faz: entrada/saída nova, corrigir uma que existe ou receber um atendimento. */
+/** O que a folha faz: entrada/saída nova, corrigir uma que existe, receber um atendimento
+ *  ou pagar a conta fixa / a comissão do mês. */
 export type Folha =
   | { modo: "novo"; tipo: "entrada" | "saida" }
   | { modo: "editar"; lancamento: Lancamento }
-  | { modo: "baixa"; atendimento: { id: string; customerName: string; serviceName: string; priceCents: number } };
+  | { modo: "baixa"; atendimento: { id: string; customerName: string; serviceName: string; priceCents: number } }
+  | { modo: "pagar"; titulo: string; detalhe: string; valorCents: number; pagamento: { tipo: "fixa" | "comissao"; alvoId: string; mes: string } };
 
 const Chip = ({ ativo, onClick, children }: { ativo: boolean; onClick: () => void; children: React.ReactNode }) => (
   <button
@@ -30,8 +32,8 @@ const Chip = ({ ativo, onClick, children }: { ativo: boolean; onClick: () => voi
 /** Folha curta do Caixa: valor primeiro, o resto em toques. Fecha sozinha ao salvar. */
 export function LancamentoFolha({ tenantId, nicho, folha, onClose }: { tenantId: string; nicho?: string; folha: Folha; onClose: (aviso?: string) => void }) {
   const base = folha.modo === "editar" ? folha.lancamento : null;
-  const tipo = folha.modo === "novo" ? folha.tipo : folha.modo === "baixa" ? "entrada" : folha.lancamento.tipo;
-  const valorInicial = base?.valorCents ?? (folha.modo === "baixa" ? folha.atendimento.priceCents : 0);
+  const tipo = folha.modo === "novo" ? folha.tipo : folha.modo === "baixa" ? "entrada" : folha.modo === "pagar" ? "saida" : folha.lancamento.tipo;
+  const valorInicial = base?.valorCents ?? (folha.modo === "baixa" ? folha.atendimento.priceCents : folha.modo === "pagar" ? folha.valorCents : 0);
   const [valor, setValor] = useState(valorInicial ? formatBRL(valorInicial) : "");
   const [categoria, setCategoria] = useState(base?.categoria ?? (folha.modo === "baixa" ? "Atendimento" : ""));
   const [forma, setForma] = useState<(typeof FORMAS)[number]>(base?.forma ?? "pix");
@@ -41,9 +43,12 @@ export function LancamentoFolha({ tenantId, nicho, folha, onClose }: { tenantId:
   const [ocupado, setOcupado] = useState(false);
   const centavos = Number(valor.replace(/\D/g, "")) || 0;
   const daAgenda = folha.modo === "baixa" || !!base?.appointmentId;
+  // conta fixa e comissão: categoria e mês vêm de onde nasceram
+  const ePagamento = folha.modo === "pagar" || /^(fx|cm)-/.test(base?.id ?? "");
+  const vinculado = daAgenda || ePagamento;
 
   const titulo =
-    folha.modo === "baixa" ? `Receber de ${folha.atendimento.customerName}` : folha.modo === "editar" ? "Corrigir lançamento" : tipo === "entrada" ? "Nova entrada" : "Nova saída";
+    folha.modo === "baixa" ? `Receber de ${folha.atendimento.customerName}` : folha.modo === "pagar" ? folha.titulo : folha.modo === "editar" ? "Corrigir lançamento" : tipo === "entrada" ? "Nova entrada" : "Nova saída";
 
   async function rodar(f: () => Promise<{ ok: boolean; error?: string }>, aviso: string) {
     setErro("");
@@ -58,6 +63,9 @@ export function LancamentoFolha({ tenantId, nicho, folha, onClose }: { tenantId:
     if (!centavos) return setErro("Informe o valor.");
     if (folha.modo === "baixa") {
       return rodar(async () => baixarAgendamentoAction(await idToken(), { tenantId, baixa: { appointmentId: folha.atendimento.id, valorCents: centavos, forma } }), `Recebido: ${formatBRL(centavos)}.`);
+    }
+    if (folha.modo === "pagar") {
+      return rodar(async () => pagarAction(await idToken(), { tenantId, pagamento: { ...folha.pagamento, valorCents: centavos, forma } }), `Pago: ${formatBRL(centavos)}.`);
     }
     if (!categoria) return setErro("Escolha a categoria.");
     const lancamento = { tipo, valorCents: centavos, data, categoria, forma, descricao: descricao.trim() || undefined };
@@ -74,7 +82,7 @@ export function LancamentoFolha({ tenantId, nicho, folha, onClose }: { tenantId:
         <Dialog.Popup className="fixed inset-x-0 bottom-0 z-50 grid max-h-[92dvh] gap-5 overflow-y-auto rounded-t-2xl border bg-popover p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-popover-foreground shadow-xl outline-none sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-full sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:p-6">
           <div className="grid gap-1">
             <Dialog.Title className="font-serifa text-2xl leading-tight">{titulo}</Dialog.Title>
-            {folha.modo === "baixa" && <Dialog.Description className="text-sm text-muted-foreground">{folha.atendimento.serviceName}</Dialog.Description>}
+            {(folha.modo === "baixa" || folha.modo === "pagar") && <Dialog.Description className="text-sm text-muted-foreground">{folha.modo === "baixa" ? folha.atendimento.serviceName : folha.detalhe}</Dialog.Description>}
           </div>
 
           <label className="grid gap-1.5">
@@ -89,7 +97,7 @@ export function LancamentoFolha({ tenantId, nicho, folha, onClose }: { tenantId:
             />
           </label>
 
-          {!daAgenda && (
+          {!vinculado && (
             <fieldset className="grid gap-2">
               <legend className="mb-2 text-sm font-medium">Categoria</legend>
               <div className="flex flex-wrap gap-2">
@@ -109,10 +117,10 @@ export function LancamentoFolha({ tenantId, nicho, folha, onClose }: { tenantId:
             </div>
           </fieldset>
 
-          {folha.modo !== "baixa" && (
-            <div className={cn("grid gap-3", !daAgenda && "sm:grid-cols-[10rem_minmax(0,1fr)]")}>
-              {/* o recebimento da agenda fica no dia do atendimento */}
-              {!daAgenda && <label className="grid gap-1.5">
+          {folha.modo !== "baixa" && folha.modo !== "pagar" && (
+            <div className={cn("grid gap-3", !vinculado && "sm:grid-cols-[10rem_minmax(0,1fr)]")}>
+              {/* o recebimento da agenda fica no dia do atendimento; o pagamento, no mês dele */}
+              {!vinculado && <label className="grid gap-1.5">
                 <span className="text-sm font-medium">Data</span>
                 <Input type="date" value={data} onChange={(e) => e.target.value && setData(e.target.value)} className="h-11" />
               </label>}
@@ -131,14 +139,14 @@ export function LancamentoFolha({ tenantId, nicho, folha, onClose }: { tenantId:
                 variant="ghost"
                 className="h-11 px-4 text-destructive"
                 disabled={ocupado}
-                onClick={() => rodar(async () => excluirLancamentoAction(await idToken(), { tenantId, id: folha.lancamento.id }), daAgenda ? "Recebimento apagado: o atendimento voltou para o fechamento do dia." : "Lançamento apagado.")}
+                onClick={() => rodar(async () => excluirLancamentoAction(await idToken(), { tenantId, id: folha.lancamento.id }), daAgenda ? "Recebimento apagado: o atendimento voltou para o fechamento do dia." : ePagamento ? "Pagamento apagado: voltou para as contas do mês." : "Lançamento apagado.")}
               >
                 Apagar
               </Button>
             ) : <span />}
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
               <Button variant="outline" className="h-11 px-4" disabled={ocupado} onClick={() => onClose()}>Voltar</Button>
-              <Button className="h-11 px-5" disabled={ocupado} onClick={salvar}>{ocupado ? "Salvando…" : folha.modo === "baixa" ? "Recebi" : "Salvar"}</Button>
+              <Button className="h-11 px-5" disabled={ocupado} onClick={salvar}>{ocupado ? "Salvando…" : folha.modo === "baixa" ? "Recebi" : folha.modo === "pagar" ? "Paguei" : "Salvar"}</Button>
             </div>
           </div>
         </Dialog.Popup>

@@ -184,6 +184,17 @@ export default function ManualDoUsuario() {
               <Termo>+ Entrada</Termo> e <Termo>− Saída</Termo> lançam o resto: venda de produto, aluguel, conta de luz,
               compra de material.
             </>,
+            <>
+              <Termo>Contas do mês</Termo>: cadastre uma vez em <Termo>Contas fixas</Termo> o aluguel, a internet e o
+              que se repete. Todo mês elas aparecem para pagar; <Termo>Paguei</Termo> lança a saída.
+            </>,
+            <>
+              <Termo>Comissões</Termo>: digite o percentual de cada profissional e o Caixa calcula sobre o que ele
+              recebeu pela agenda no mês. <Termo>Pagar</Termo> lança a saída. Só o dono e os administradores veem.
+            </>,
+            <>
+              <Termo>Exportar planilha</Termo> baixa os lançamentos do mês para o contador; abre no Excel.
+            </>,
             <>Errou? Toque no lançamento para corrigir ou apagar.</>,
           ]}
         />

@@ -116,6 +116,12 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/tenants/$(t)).data.get('modulos', {}).get('financeiro', false) == true;
         allow write: if false;
       }
+      // contas fixas e comissões (%) do Caixa: mesma porta dos lançamentos
+      match /caixa/{c} {
+        allow read: if (ehAdminPlataforma() || hasRole(t, ['owner', 'admin']))
+          && get(/databases/$(database)/documents/tenants/$(t)).data.get('modulos', {}).get('financeiro', false) == true;
+        allow write: if false;
+      }
 
       // Lista fechada, não pega-tudo: coleção nova nasce negada e só entra aqui
       // quando alguém decidir que o funcionário pode mesmo ler e escrever nela.
