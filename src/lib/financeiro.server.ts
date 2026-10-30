@@ -123,7 +123,8 @@ export async function estornar(db: Firestore, tenantId: string, e: z.infer<typeo
   });
 }
 
-/** "Recebi": a entrada nasce do atendimento, com o valor, o profissional e o cliente dele. */
+/** "Recebi": a entrada nasce do atendimento, com o valor, o profissional e o cliente dele.
+ *  Recebido é atendido: o que ainda aguardava confirmação fica confirmado, com registro no histórico. */
 export async function baixarAgendamento(db: Firestore, tenantId: string, b: z.infer<typeof BaixaInput>, quem: Quem) {
   await exigeCaixa(db, tenantId);
   const agendamento = db.doc(`tenants/${tenantId}/appointments/${b.appointmentId}`);
@@ -138,6 +139,12 @@ export async function baixarAgendamento(db: Firestore, tenantId: string, b: z.in
     // o mesmo relógio da agenda e do Caixa (start.toMillis() <= agora): o que o painel oferece, o servidor aceita
     if (start.getTime() > Date.now()) throw new UserError("Este atendimento ainda não começou.");
     const data = dateIn(start);
+    // sem WhatsApp ao cliente: o atendimento já aconteceu, só a agenda fica em dia
+    if (a.get("status") === "booked") {
+      const historico = db.collection(`tenants/${tenantId}/history`).doc();
+      tx.create(historico, { appointmentId: b.appointmentId, type: "confirmed", reason: "caixa_recebido", at: FieldValue.serverTimestamp(), by: quem.uid, byName: quem.email ?? null });
+      tx.update(agendamento, { status: "confirmed", lastHistoryId: historico.id });
+    }
     tx.create(baixa, {
       tipo: "entrada",
       valorCents: b.valorCents,
