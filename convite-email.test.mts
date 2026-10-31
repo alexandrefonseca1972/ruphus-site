@@ -39,3 +39,11 @@ assert.ok(!sem.texto.includes("\n\n\n"), "sem linhas vazias sobrando");
 
 // texto puro: nada de tag HTML no corpo
 assert.ok(!/<[a-z][\s\S]*>/i.test(e.texto), "corpo é texto puro");
+
+// HTML: o mesmo link, o e-mail que abre e nada digitado entra cru
+assert.ok(e.html.includes(base.url), "o botão leva o link do convite");
+assert.ok(e.html.includes(base.email), "o HTML diz qual e-mail abre o link");
+const perigo = emailDoConvite({ ...base, nome: "<script>x</script> & Cia" });
+assert.ok(!perigo.html.includes("<script>x"), "nome do negócio escapado no HTML");
+assert.ok(perigo.html.includes("&lt;script&gt;x&lt;/script&gt; &amp; Cia"));
+console.log("convite-email html: ok");
