@@ -1,0 +1,24 @@
+[Unit]
+Description=ruphus-site - Next.js
+After=network-online.target wtsfy.service
+Wants=network-online.target
+
+[Service]
+User=ruphus
+Group=ruphus
+WorkingDirectory=/opt/ruphus-site/app
+ExecStart=/opt/ruphus-site/app/node_modules/.bin/next start -H 127.0.0.1 -p 3001
+Environment=NODE_ENV=production
+Environment=NEXT_TELEMETRY_DISABLED=1
+Environment=TZ=America/Sao_Paulo
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/ruphus-site/app/.next
+
+[Install]
+WantedBy=multi-user.target

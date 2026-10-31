@@ -8,7 +8,7 @@ export const revalidate = 30;
 
 export async function GET(request: NextRequest) {
   const segredo = process.env.DESATIVADOS_TOKEN;
-  if (!segredo && process.env.VERCEL_ENV === "production") return new NextResponse("nao encontrado", { status: 404 });
+  if (!segredo && process.env.NODE_ENV === "production") return new NextResponse("nao encontrado", { status: 404 });
   if (segredo && request.headers.get("x-ruphus") !== segredo) return new NextResponse("nao encontrado", { status: 404 });
   const mapa = await mapaDominios(adminDb).catch(() => ({ hosts: {}, porSlug: {} }));
   return NextResponse.json(mapa, {
