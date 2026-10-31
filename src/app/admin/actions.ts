@@ -98,10 +98,12 @@ const CAMPOS_DA_LISTA = ["name", "site.phone", "site.category", "site.city", "si
 async function espacosComAcessos() {
   const [tenants, membros] = await Promise.all([
     adminDb.collection("tenants").select(...CAMPOS_DA_LISTA).get(),
-    adminDb.collectionGroup("members").select().get(),   // só os caminhos: a contagem é por documento
+    adminDb.collectionGroup("members").select("role").get(),
   ]);
+  // conta só quem gere (Ruphus e cliente): a equipe do cliente não diz que ele entrou
   const porEspaco = new Map<string, number>();
   for (const m of membros.docs) {
+    if (m.get("role") === "member") continue;
     const espaco = m.ref.parent.parent;
     if (espaco?.parent.id === "tenants") porEspaco.set(espaco.id, (porEspaco.get(espaco.id) ?? 0) + 1);
   }
@@ -272,9 +274,28 @@ export const revogarAcesso = adminAction(async (_user, slug: string, uid: string
   if (!membro.exists) return "já não tinha acesso";
   // quem criou o negócio fica; o cliente que virou dono pelo convite sai, se a Ruphus precisar
   if (membro.get("role") === "owner" && membro.get("viaConvite") !== true) throw new ErroPrevisto("O dono não pode ser removido.");
+  if (membro.get("role") === "owner") {
+    // o negócio volta para a Ruphus: senão fica sem dono, e o próximo convite aceito
+    // não acharia a Ruphus no ownerId para passar o negócio adiante
+    await devolverParaRuphus(slug, uid);
+    return "acesso removido; o negócio voltou para a Ruphus";
+  }
   await ref.delete();
   return "acesso removido";
 });
+
+async function devolverParaRuphus(slug: string, uid: string) {
+  const tenant = adminDb.doc(`tenants/${slug}`);
+  const [config, membros] = await Promise.all([adminDb.doc("config/admin").get(), tenant.collection("members").get()]);
+  const daPlataforma = new Set((config.get("uids") as string[] | undefined) ?? []);
+  const ruphus = membros.docs.find((d) => daPlataforma.has(d.id));
+  if (!ruphus) throw new ErroPrevisto("A conta da Ruphus não está neste negócio: não há para quem devolver.");
+  const lote = adminDb.batch();
+  lote.delete(tenant.collection("members").doc(uid));
+  lote.update(ruphus.ref, { role: "owner" });
+  lote.update(tenant, { ownerId: ruphus.id });
+  await lote.commit();
+}
 
 export type Resumo = { agendamentosHoje: number; espacosComAgenda: number };
 

@@ -170,7 +170,7 @@ await assertFails(updateDoc(doc(alice, "tenants/acme"), { "whatsapp.instanceId":
 await assertFails(setDoc(doc(alice, "tenants/acme/staff/novo"), { name: "Bia", active: true }));
 await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/staff/bia"), { name: "Bia", active: true }));
 await assertSucceeds(setDoc(doc(alice, "tenants/acme/staff/bia"), { name: "Bia Souza", active: true }));
-await assertSucceeds(deleteDoc(doc(alice, "tenants/acme/staff/bia")));
+await assertFails(deleteDoc(doc(alice, "tenants/acme/staff/bia")), "excluir profissional e pelo servidor: leva junto o acesso dele");
 
 // Coleção que ninguém liberou nasce negada (antes o coringa abria tudo)
 await assertFails(setDoc(doc(alice, "tenants/acme/inventada/x"), { a: 1 }));
@@ -202,6 +202,20 @@ const cfg = (db) => doc(db, "tenants/acme/caixa/config");
 await assertSucceeds(getDoc(cfg(alice)));
 await assertFails(getDoc(cfg(carla)), "funcionario nao ve a comissao");
 await assertFails(setDoc(cfg(alice), { fixas: [], comissoes: {} }), "so o servidor grava");
+
+// Funcionário (convite da equipe): lê a agenda e o cadastro, não muda preço, equipe, site nem notas
+await assertSucceeds(getDoc(doc(carla, "tenants/acme/services/s1")));
+await assertFails(setDoc(doc(carla, "tenants/acme/services/s1"), { name: "Corte", priceCents: 1 }), "funcionario nao muda preco");
+await assertFails(deleteDoc(doc(carla, "tenants/acme/services/s1")));
+await assertFails(setDoc(doc(carla, "tenants/acme/services/novo"), { name: "Novo" }));
+await assertSucceeds(getDoc(doc(carla, "tenants/acme/staff/bia")));
+await assertFails(updateDoc(doc(carla, "tenants/acme/staff/bia"), { active: false }), "funcionario nao tira ninguem do link");
+await assertFails(setDoc(doc(carla, "tenants/acme/sites/s1"), { title: "x" }));
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(notas(ctx.firestore()), "n9"), nota()));
+await assertFails(deleteDoc(doc(notas(carla), "n9")), "funcionario nao apaga anotacao do dono");
+await assertSucceeds(getDoc(doc(carla, "tenants/acme/members/carla")), "le o proprio acesso");
+await assertFails(getDoc(doc(carla, "tenants/acme/members/alice")), "a lista da equipe e de quem gere");
+await assertSucceeds(getDoc(doc(alice, "tenants/acme/members/carla")));
 
 await env.cleanup();
 console.log("rules ok");

@@ -67,7 +67,8 @@ export async function lerConvite(db: Firestore, token: string) {
     if (!(typeof payload.t === "string" && typeof payload.jti === "string" && typeof payload.e === "string" && payload.e)) return null;
     // sem papel no token é o convite do dono (admin), como sempre foi
     const equipe = payload.r === "member" && typeof payload.p === "string" && payload.p;
-    return { tenantId: payload.t, jti: payload.jti, email: payload.e, ...(equipe ? { papel: "member" as const, staffId: payload.p as string } : { papel: "admin" as const }) };
+    // emitidoEm: o convite da equipe gerado antes de "Tirar acesso" não vale mais
+    return { tenantId: payload.t, jti: payload.jti, email: payload.e, emitidoEm: payload.iat ?? 0, ...(equipe ? { papel: "member" as const, staffId: payload.p as string } : { papel: "admin" as const }) };
   } catch {
     return null;
   }
@@ -117,7 +118,9 @@ export async function assumirNegocio(db: Firestore, tenantId: string, uid: strin
   const tenant = db.doc(`tenants/${tenantId}`);
   const membro = tenant.collection("members").doc(uid);
   await db.runTransaction(async (tx) => {
-    const [t, plataforma] = await tx.getAll(tenant, db.doc("config/admin"));
+    const [t, plataforma, ja] = await tx.getAll(tenant, db.doc("config/admin"), membro);
+    // dois convites abertos ao mesmo tempo: o segundo não rebaixa quem o primeiro fez dono
+    if (ja.exists) return;
     const dono = String(t.get("ownerId") ?? "");
     const antigo = dono ? await tx.get(tenant.collection("members").doc(dono)) : null;
     const daRuphus = !!dono && (((plataforma.get("uids") as unknown[] | undefined) ?? []).includes(dono));
@@ -126,4 +129,39 @@ export async function assumirNegocio(db: Firestore, tenantId: string, uid: strin
     tx.update(tenant, { ownerId: uid });
     if (antigo?.exists) tx.update(antigo.ref, { role: "admin" });
   });
+}
+
+// Convites da equipe cancelados: quem teve o acesso tirado (ou o profissional excluído)
+// não volta por um link antigo, ainda dentro dos 7 dias. Guarda o segundo do corte;
+// convite emitido até ele não abre. Coleção só do servidor, como convitesUsados.
+const REVOGADOS = "convitesRevogados";
+const chaveEquipe = (tenantId: string, staffId: string) => `${tenantId}__${staffId}`;
+
+export async function revogarConvitesDaEquipe(db: Firestore, tenantId: string, staffId: string) {
+  await db.doc(`${REVOGADOS}/${chaveEquipe(tenantId, staffId)}`).set({ ate: Math.floor(Date.now() / 1000) });
+}
+
+/** Por que este convite da equipe não abre, ou null se abre. O profissional tem de
+ *  existir, o link não pode ser de antes de um "Tirar acesso" e o profissional não pode
+ *  já ter alguém entrando por ele: um acesso por profissional, o que a tela mostra. */
+export async function motivoParaRecusarEquipe(db: Firestore, c: { tenantId: string; staffId: string; emitidoEm: number }) {
+  const t = db.collection("tenants").doc(c.tenantId);
+  const [prof, revogado, ocupado] = await Promise.all([
+    t.collection("staff").doc(c.staffId).get(),
+    db.doc(`${REVOGADOS}/${chaveEquipe(c.tenantId, c.staffId)}`).get(),
+    t.collection("members").where("staffId", "==", c.staffId).limit(1).get(),
+  ]);
+  if (!prof.exists) return "Esse profissional não está mais no cadastro. Peça um link novo ao dono.";
+  if (c.emitidoEm <= ((revogado.get("ate") as number | undefined) ?? 0)) return "Este link foi cancelado. Peça um link novo ao dono.";
+  if (!ocupado.empty) return "Este profissional já tem um acesso ao painel. Peça ao dono para tirar o antigo antes.";
+  return null;
+}
+
+/** Tira da equipe quem entrava como este profissional e cancela os links dele ainda não usados. */
+export async function tirarAcessosDoProfissional(db: Firestore, tenantId: string, staffId: string) {
+  const membros = await db.collection(`tenants/${tenantId}/members`).where("staffId", "==", staffId).get();
+  const lote = db.batch();
+  for (const m of membros.docs) if (m.get("role") === "member") lote.delete(m.ref);
+  await lote.commit();
+  await revogarConvitesDaEquipe(db, tenantId, staffId);
 }

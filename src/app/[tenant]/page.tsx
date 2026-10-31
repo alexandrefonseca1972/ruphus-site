@@ -133,7 +133,9 @@ export default function AgendaPage() {
       : changeStatus(a, "cancelled");
   }
 
-  const shown = items?.filter((a) => !staffFilter || a.staffId === staffFilter) ?? null;
+  // o profissional de quem entrou pela equipe pode ter sido excluído: aí abre em "Todos"
+  const filtro = staffFilter && staff && !staff.some((p) => p.id === staffFilter) ? "" : staffFilter;
+  const shown = items?.filter((a) => !filtro || a.staffId === filtro) ?? null;
   const active = shown?.filter(ATIVO) ?? [];
   const dias = Array.from({ length: 7 }, (_, i) => {
     const d = addDays(semana, i);
@@ -227,11 +229,11 @@ export default function AgendaPage() {
                     <button
                       key={p.id}
                       type="button"
-                      aria-pressed={staffFilter === p.id}
+                      aria-pressed={filtro === p.id}
                       onClick={() => setStaffFilter(p.id)}
                       className={cn(
                         "h-9 rounded-full border px-3.5 text-[13px] hover:bg-muted max-sm:h-11",
-                        staffFilter === p.id && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
+                        filtro === p.id && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
                       )}
                     >
                       {p.name}{n ? ` · ${n}` : ""}
@@ -243,7 +245,7 @@ export default function AgendaPage() {
           </div>
           {shown.length === 0 ? (
             <p className="border-t px-6 py-12 text-center text-sm text-muted-foreground">
-              {staffFilter ? "Nenhum horário para este profissional neste dia." : "Nenhum horário marcado neste dia."}
+              {filtro ? "Nenhum horário para este profissional neste dia." : "Nenhum horário marcado neste dia."}
             </p>
           ) : (
         <ul>
