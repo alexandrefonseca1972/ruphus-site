@@ -8,6 +8,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { runInNewContext } from "node:vm";
 
 const QUANTOS = 30; // 6 colunas x 5 linhas: cobre 1440x900 de folha de contato
 
@@ -20,9 +21,8 @@ const bruto = html.match(/const VITRINE = (\[[\s\S]*?\n\]);/);
 assert.ok(bruto, "VITRINE não encontrada em public/sobre/index.html");
 
 type Entrada = { s: string; n: string; d: string; t: string };
-// a VITRINE é JS com chaves sem aspas: vira JSON pondo aspas nelas e tirando a vírgula final
-const json = bruto[1].replace(/([{,]\s*)([a-z]+):/g, '$1"$2":').replace(/,(\s*\])/, "$1");
-const catalogo = JSON.parse(json) as Entrada[];
+// a VITRINE é um literal JS (chaves sem aspas): avaliado sem acesso a nada, num contexto vazio
+const catalogo = runInNewContext(bruto[1], {}) as Entrada[];
 assert.equal(catalogo.length, QUANTOS, `a VITRINE tem ${catalogo.length} sites, a folha de contato pede ${QUANTOS}`);
 
 const vitrine = catalogo.map((e) => ({

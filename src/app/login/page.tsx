@@ -166,7 +166,8 @@ function Login() {
   // A folha de contato do desktop. Falhar aqui não custa nada: a tela fica lisa.
   useEffect(() => {
     let vivo = true;
-    fetch("/_vitrine.json")
+    // pela rota, e não o arquivo direto: quem saiu do ar sai da grade
+    fetch("/api/vitrine")
       .then((r) => r.json())
       .then((d) => {
         const lida = Vitrine.safeParse(d);
