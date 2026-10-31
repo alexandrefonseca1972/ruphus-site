@@ -16,6 +16,11 @@ service cloud.firestore {
     function hasRole(t, roles) {
       return isMember(t) && get(memberPath(t)).data.role in roles;
     }
+    // Quem gere: dono, admin do negócio ou da plataforma. O funcionário ("member",
+    // convite da equipe) lê a agenda e o cadastro, mas não muda preço, equipe nem site.
+    function gere(t) {
+      return ehAdminPlataforma() || hasRole(t, ['owner', 'admin']);
+    }
 
     // Minutos de inatividade até o logout automático: qualquer pessoa logada
     // precisa ler (o painel aplica a regra), e só o servidor escreve.
@@ -41,7 +46,8 @@ service cloud.firestore {
       allow delete: if false;
 
       match /members/{uid} {
-        allow read: if isMember(t);
+        // a equipe vê só o próprio acesso: a lista (e-mails de todos) é de quem gere
+        allow read: if gere(t) || (isMember(t) && uid == request.auth.uid);
         // Convite, papel e saída passam pelo servidor (Admin SDK); o painel não grava aqui
         allow write: if false;
       }
@@ -103,7 +109,7 @@ service cloud.firestore {
             && request.resource.data.texto.size() > 0
             && request.resource.data.texto.size() <= 600;
           allow update: if false;
-          allow delete: if isMember(t);
+          allow delete: if gere(t);
         }
       }
       match /plans/{p} {
@@ -125,17 +131,22 @@ service cloud.firestore {
 
       // Lista fechada, não pega-tudo: coleção nova nasce negada e só entra aqui
       // quando alguém decidir que o funcionário pode mesmo ler e escrever nela.
+      // A equipe lê; preço, serviços e site só quem gere.
       match /services/{s} {
-        allow read, write: if isMember(t);
+        allow read: if isMember(t);
+        allow write: if gere(t);
       }
       match /sites/{s} {
-        allow read, write: if isMember(t);
+        allow read: if isMember(t);
+        allow write: if gere(t);
       }
       // Profissional novo é criado pelo servidor: é lá que o limite do plano é
-      // contado, e regra não sabe contar documentos. Editar e excluir seguem aqui.
+      // contado, e regra não sabe contar documentos. Excluir também é pelo servidor:
+      // leva junto o acesso de quem entrava como esse profissional. Editar segue aqui.
       match /staff/{s} {
-        allow read, update, delete: if isMember(t);
-        allow create: if false;
+        allow read: if isMember(t);
+        allow update: if gere(t);
+        allow create, delete: if false;
       }
     }
   }

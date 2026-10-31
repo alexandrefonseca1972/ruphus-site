@@ -12,7 +12,7 @@ import { createInstance, getQr, getStatus, logout, sendText } from "@/lib/wtsfy"
 import { aceitarTermoWhatsApp, desligarConexao, gravarConexao, lerConfigWhatsApp, lerConexao } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
-import { criarConvite } from "@/lib/convite";
+import { criarConvite, revogarConvitesDaEquipe, tirarAcessosDoProfissional } from "@/lib/convite";
 import { DIAS_CONVITE } from "@/lib/limites";
 import { BaixaInput, EstornoInput, FixaInput, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
 import { adicionarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
@@ -113,6 +113,19 @@ export const tirarAcessoEquipeAction = memberAction(z.object({ tenantId: docIdSt
   const membro = await ref.get();
   if (membro.exists && membro.get("role") !== "member") throw new UserError("Esse acesso é de quem gere o negócio. Fale com a Ruphus para mudar.");
   await ref.delete();
+  // o link que sobrou (gerado duas vezes, mandado por dois canais) não devolve o acesso
+  const staffId = membro.get("staffId") as string | undefined;
+  if (staffId) await revogarConvitesDaEquipe(adminDb, data.tenantId, staffId);
+  return { ok: true as const };
+});
+
+/** Excluir profissional é pelo servidor: leva junto o acesso de quem entrava como ele,
+ *  e os links dele ainda não usados. Sem isso a conta seguia vendo a agenda e os
+ *  clientes, e o "Tirar acesso" sumia da tela com o profissional. */
+export const excluirProfissionalAction = memberAction(z.object({ tenantId: docIdStaff, staffId: docId }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  await tirarAcessosDoProfissional(adminDb, data.tenantId, data.staffId);
+  await adminDb.doc(`tenants/${data.tenantId}/staff/${data.staffId}`).delete();
   return { ok: true as const };
 });
 

@@ -2,7 +2,7 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
-import { assumirNegocio, consumirConvite, conviteAbrePara, lerConvite } from "@/lib/convite";
+import { assumirNegocio, consumirConvite, conviteAbrePara, lerConvite, motivoParaRecusarEquipe } from "@/lib/convite";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 
 /** Aceita o convite: quem está logado vira admin do espaço do link, ou funcionário se o convite for da equipe. */
@@ -23,6 +23,10 @@ export async function aceitarConvite(idToken: string, token: string) {
   const membro = adminDb.doc(`tenants/${convite.tenantId}/members/${user.uid}`);
   // Convite não rebaixa quem já é dono: só cria o acesso de quem ainda não tem
   if (!(await membro.get()).exists) {
+    if (convite.papel === "member") {
+      const motivo = await motivoParaRecusarEquipe(adminDb, convite);
+      if (motivo) return { ok: false as const, error: motivo };
+    }
     // Uso único: quem recebeu entra; o mesmo link repassado depois não abre nada
     if (!(await consumirConvite(adminDb, convite.jti, user.uid))) {
       return { ok: false as const, error: "Este convite já foi usado. Peça um link novo." };

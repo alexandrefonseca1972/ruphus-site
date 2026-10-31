@@ -1,6 +1,6 @@
 "use client";
 
-import { collection, deleteDoc, doc, orderBy, setDoc, updateDoc } from "firebase/firestore";
+import { collection, doc, orderBy, setDoc, updateDoc } from "firebase/firestore";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
 import { idToken } from "@/lib/firebase";
 import { db } from "@/lib/firebase-db";
-import { criarProfissionalAction, definirComissaoAction } from "../actions";
+import { criarProfissionalAction, definirComissaoAction, excluirProfissionalAction } from "../actions";
 import { CaixaConfig, pctDoTexto } from "@/lib/financeiro";
 import { WEEKDAYS } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
@@ -46,7 +46,10 @@ export default function StaffPage() {
   const pctDe = (staffId: string) => comissoes?.[staffId] ?? 0;
   // quem da equipe já entra no painel, por profissional; o funcionário não gere a equipe
   const [membros] = useCollection(tenant.podeGerir ? tenant.id : "", "members", Membro);
-  const acessoDe = new Map(membros?.filter((m) => m.role === "member" && m.staffId).map((m) => [m.staffId!, m]));
+  const daEquipe = membros?.filter((m) => m.role === "member") ?? [];
+  const acessoDe = new Map(daEquipe.filter((m) => m.staffId).map((m) => [m.staffId!, m]));
+  // acesso de antes desta correção, cujo profissional já foi excluído: aparece para poder sair
+  const semProfissional = staff ? daEquipe.filter((m) => !staff.some((p) => p.id === m.staffId)) : [];
   const [editing, setEditing] = useState<(Staff & { id: string }) | null>(null);
   const [salvos, setSalvos] = useState(0);
   const [excluindo, setExcluindo] = useState<(Staff & { id: string }) | null>(null);
@@ -186,6 +189,12 @@ export default function StaffPage() {
               {membros && <AcessoProfissional tenantId={tenant.id} negocio={tenant.name} staffId={p.id} nome={p.name} membro={acessoDe.get(p.id)} />}
             </article>
           ))}
+          {semProfissional.map((m) => (
+            <article key={m.id} className="grid gap-2 rounded-2xl border border-dashed bg-card p-5 sm:p-6">
+              <h2 className="text-[15px] font-semibold">Acesso sem profissional no cadastro</h2>
+              <AcessoProfissional tenantId={tenant.id} negocio={tenant.name} staffId={m.staffId ?? ""} nome={m.email ?? "esta conta"} membro={m} />
+            </article>
+          ))}
         </div>
 
         {tenant.podeGerir && <section aria-labelledby="form-prof" className="grid gap-5 rounded-2xl border bg-card p-5 sm:p-6 lg:sticky lg:top-6">
@@ -253,10 +262,14 @@ export default function StaffPage() {
       {excluindo && (
         <ConfirmDialog
           title={`Excluir ${excluindo.name}?`}
-          description="Sai do link de agendamento. Os agendamentos já feitos continuam na agenda. Para só pausar, use “Tirar do link”."
+          description="Sai do link de agendamento e perde o acesso ao painel, se tiver. Os agendamentos já feitos continuam na agenda. Para só pausar, use “Tirar do link”."
           confirmLabel="Excluir profissional"
           onConfirm={async () => {
-            await run(deleteDoc(doc(col, excluindo.id)));
+            const id = excluindo.id;
+            await run((async () => {
+              const r = await excluirProfissionalAction(await idToken(), { tenantId: tenant.id, staffId: id });
+              if (!r.ok) throw new Error(r.error);
+            })());
             setExcluindo(null);
           }}
           onCancel={() => setExcluindo(null)}
