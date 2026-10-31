@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { SignJWT } from "jose";
-import { consumirConvite, conviteAbrePara, criarConvite, lerConvite } from "@/lib/convite";
+import { assumirNegocio, consumirConvite, conviteAbrePara, criarConvite, lerConvite } from "@/lib/convite";
 
 const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
 
@@ -96,5 +96,25 @@ assert.equal(equipe?.email, "bruna@salao.com");
 // o do dono, sem papel no token, continua admin
 assert.equal(preso?.papel, "admin", "convite sem papel é o do dono");
 await assert.rejects(() => criarConvite(db, "salao", "", { staffId: "bruna" }), /e-mail de quem vai entrar/i);
+
+// ————— O cliente assume o site da fábrica —————
+await db.doc("config/admin").set({ uids: ["ruphus"] }, { merge: true });
+await db.doc("tenants/fabrica").set({ name: "Fábrica", ownerId: "ruphus" });
+await db.doc("tenants/fabrica/members/ruphus").set({ uid: "ruphus", role: "owner" });
+await assumirNegocio(db, "fabrica", "cliente", { email: "dona@fabrica.com" });
+assert.equal((await db.doc("tenants/fabrica").get()).get("ownerId"), "cliente", "o negócio passa a ser do cliente");
+const cliente = (await db.doc("tenants/fabrica/members/cliente").get()).data();
+assert.equal(cliente?.role, "owner");
+assert.equal(cliente?.viaConvite, true, "viaConvite segue marcando o cliente (cota e gerador)");
+assert.equal(cliente?.uid, "cliente", "o uid fica no membro: é por ele que o painel acha os negócios");
+assert.equal((await db.doc("tenants/fabrica/members/ruphus").get()).get("role"), "admin", "a Ruphus fica como admin");
+
+// negócio que não é da Ruphus (criado pelo próprio dono): o convidado entra como admin, nada muda de dono
+await db.doc("tenants/proprio").set({ name: "Próprio", ownerId: "fulana" });
+await db.doc("tenants/proprio/members/fulana").set({ uid: "fulana", role: "owner" });
+await assumirNegocio(db, "proprio", "socio", {});
+assert.equal((await db.doc("tenants/proprio").get()).get("ownerId"), "fulana");
+assert.equal((await db.doc("tenants/proprio/members/socio").get()).get("role"), "admin");
+assert.equal((await db.doc("tenants/proprio/members/fulana").get()).get("role"), "owner");
 
 console.log("convite: ok");

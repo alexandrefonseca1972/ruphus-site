@@ -2,7 +2,7 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
-import { consumirConvite, conviteAbrePara, lerConvite } from "@/lib/convite";
+import { assumirNegocio, consumirConvite, conviteAbrePara, lerConvite } from "@/lib/convite";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 
 /** Aceita o convite: quem está logado vira admin do espaço do link, ou funcionário se o convite for da equipe. */
@@ -28,9 +28,13 @@ export async function aceitarConvite(idToken: string, token: string) {
       return { ok: false as const, error: "Este convite já foi usado. Peça um link novo." };
     }
     // o e-mail fica no membro para o /admin saber quem é (o Admin Auth não roda na Vercel)
-    // viaConvite marca o dono (conta na cota de negócios); o da equipe é funcionário, preso ao profissional
-    const papel = convite.papel === "member" ? { role: "member", staffId: convite.staffId } : { role: "admin", viaConvite: true };
-    await membro.set({ uid: user.uid, ...papel, ...(user.email && { email: user.email }), ...(user.name && { nome: user.name }), createdAt: FieldValue.serverTimestamp() });
+    const quem = { uid: user.uid, ...(user.email && { email: user.email }), ...(user.name && { nome: user.name }), createdAt: FieldValue.serverTimestamp() };
+    if (convite.papel === "member") {
+      // da equipe: funcionário, preso ao profissional
+      await membro.set({ ...quem, role: "member", staffId: convite.staffId });
+    } else {
+      await assumirNegocio(adminDb, convite.tenantId, user.uid, quem);
+    }
   }
   return { ok: true as const, tenantId: convite.tenantId, nome: String(tenant.get("name")) };
 }

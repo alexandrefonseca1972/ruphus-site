@@ -107,3 +107,23 @@ export async function consumirConvite(db: Firestore, jti: string, uid: string) {
     return false;
   }
 }
+
+/** O cliente entra pelo convite do dono. Site da fábrica (o dono era a conta da Ruphus):
+ *  o negócio passa a ser dele — vira "owner" e o ownerId muda —, e a Ruphus fica como
+ *  admin, para o suporte e a contagem de acessos do /admin. Em qualquer outro caso
+ *  entra como admin, como antes. viaConvite marca o cliente (conta na cota de negócios
+ *  e diz ao gerador que o site não volta a ser da planilha). */
+export async function assumirNegocio(db: Firestore, tenantId: string, uid: string, quem: Record<string, unknown>) {
+  const tenant = db.doc(`tenants/${tenantId}`);
+  const membro = tenant.collection("members").doc(uid);
+  await db.runTransaction(async (tx) => {
+    const [t, plataforma] = await tx.getAll(tenant, db.doc("config/admin"));
+    const dono = String(t.get("ownerId") ?? "");
+    const antigo = dono ? await tx.get(tenant.collection("members").doc(dono)) : null;
+    const daRuphus = !!dono && (((plataforma.get("uids") as unknown[] | undefined) ?? []).includes(dono));
+    tx.set(membro, { ...quem, uid, role: daRuphus ? "owner" : "admin", viaConvite: true });
+    if (!daRuphus) return;
+    tx.update(tenant, { ownerId: uid });
+    if (antigo?.exists) tx.update(antigo.ref, { role: "admin" });
+  });
+}

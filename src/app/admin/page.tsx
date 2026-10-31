@@ -2012,14 +2012,14 @@ export default function AdminPage() {
                           {a.desde ? `desde ${new Date(a.desde).toLocaleDateString("pt-BR")}` : "acesso antigo"}
                         </p>
                       </div>
-                      {a.papel === "owner" ? (
+                      {a.papel === "owner" && !a.viaConvite ? (
                         <span className="shrink-0 rounded-full bg-[#EFEBE2] px-2.5 py-1 text-xs font-semibold" title="O dono não pode ser removido">
                           Dono
                         </span>
                       ) : (
                         <>
                           <span className="shrink-0 rounded-full bg-[#E7EEE9] px-2.5 py-1 text-xs font-semibold text-[#2C6A53]">
-                            {a.papel === "admin" ? "Cliente" : "Equipe"}
+                            {a.plataforma ? "Ruphus" : a.papel === "owner" ? "Cliente (dono)" : a.papel === "admin" ? "Cliente" : "Equipe"}
                           </span>
                           {/* Token roubado vale até expirar: isto o recusa antes disso */}
                           <button

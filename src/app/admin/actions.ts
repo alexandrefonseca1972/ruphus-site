@@ -207,16 +207,20 @@ export const gerarConvite = adminAction(async (_user, slug: string) => {
   return { url: convite.url, email: convite.email };
 });
 
-export type Acesso = { uid: string; papel: string; desde: string | null; nome: string | null; email: string | null; limite: number | null; usados: number };
+// plataforma: a conta da Ruphus; viaConvite: o cliente que entrou pelo convite (pode ser dono)
+export type Acesso = { uid: string; papel: string; plataforma: boolean; viaConvite: boolean; desde: string | null; nome: string | null; email: string | null; limite: number | null; usados: number };
 
 export const listarAcessos = adminAction(async (_user, slug: string) => {
   slugValido(slug);
-  const snap = await adminDb.collection(`tenants/${slug}/members`).get();
+  const [snap, config] = await Promise.all([adminDb.collection(`tenants/${slug}/members`).get(), adminDb.doc("config/admin").get()]);
+  const daPlataforma = new Set((config.get("uids") as string[] | undefined) ?? []);
   // A cota de cada pessoa: é por aqui que o admin libera mais negócios para um cliente
   const cotas = await Promise.all(snap.docs.map((d) => cotaDe(adminDb, d.id)));
   return snap.docs.map((d, i): Acesso => ({
     uid: d.id,
     papel: String(d.get("role") ?? "member"),
+    plataforma: daPlataforma.has(d.id),
+    viaConvite: d.get("viaConvite") === true,
     desde: d.get("createdAt")?.toDate?.().toISOString() ?? null,
     nome: (d.get("nome") as string | undefined) ?? null,
     email: (d.get("email") as string | undefined) ?? null,
@@ -266,7 +270,8 @@ export const revogarAcesso = adminAction(async (_user, slug: string, uid: string
   const ref = adminDb.doc(`tenants/${slug}/members/${uid}`);
   const membro = await ref.get();
   if (!membro.exists) return "já não tinha acesso";
-  if (membro.get("role") === "owner") throw new ErroPrevisto("O dono não pode ser removido.");
+  // quem criou o negócio fica; o cliente que virou dono pelo convite sai, se a Ruphus precisar
+  if (membro.get("role") === "owner" && membro.get("viaConvite") !== true) throw new ErroPrevisto("O dono não pode ser removido.");
   await ref.delete();
   return "acesso removido";
 });
