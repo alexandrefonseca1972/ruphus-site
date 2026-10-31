@@ -68,7 +68,8 @@ export default function AgendaPage() {
   const [showHistory, setShowHistory] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<{ id: string; kind: "cancel" | "no_show" } | null>(null);
   const [pending, setPending] = useState<string | null>(null);
-  const [staffFilter, setStaffFilter] = useState("");
+  // quem é da equipe abre na própria agenda; "Todos" continua a um toque
+  const [staffFilter, setStaffFilter] = useState(tenant.staffId ?? "");
   const [staff] = useCollection(tenant.id, "staff", Staff, [orderBy("name")]);
   const [notice, setNotice] = useState<{ text: string; link: string } | null>(null);
   // O relógio anda a cada minuto: com a agenda aberta o dia todo, o horário que passa perde

@@ -19,7 +19,8 @@ import { cn } from "@/lib/utils";
 
 // podeGerir: dono ou admin do negócio, ou admin da plataforma. Só esconde botões —
 // quem decide de verdade é o servidor/as regras. adminPlataforma: entrou sem ser da equipe.
-type TenantCtx = Tenant & { podeGerir: boolean; adminPlataforma: boolean };
+// staffId: o profissional de quem entrou pelo convite da equipe (a agenda abre na dele)
+type TenantCtx = Tenant & { podeGerir: boolean; adminPlataforma: boolean; staffId?: string };
 const TenantContext = createContext<TenantCtx | null>(null);
 
 export function useTenant() {
@@ -53,7 +54,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
         // sem documento de membro e mesmo assim lendo: é o admin da plataforma (config/admin só o servidor lê)
         const adminPlataforma = !member.exists() && (await ehAdminDaPlataforma(await user.getIdToken()).catch(() => ({ ok: false }))).ok;
         const podeGerir = adminPlataforma || ["owner", "admin"].includes(member.get("role"));
-        value = snap.exists() ? { id: snap.id, ...Tenant.parse(snap.data()), podeGerir, adminPlataforma } : "denied";
+        value = snap.exists() ? { id: snap.id, ...Tenant.parse(snap.data()), podeGerir, adminPlataforma, staffId: (member.get("staffId") as string | undefined) || undefined } : "denied";
       } catch {
         value = "denied";
       }

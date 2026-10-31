@@ -12,6 +12,8 @@ import { createInstance, getQr, getStatus, logout, sendText } from "@/lib/wtsfy"
 import { aceitarTermoWhatsApp, desligarConexao, gravarConexao, lerConfigWhatsApp, lerConexao } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
+import { criarConvite } from "@/lib/convite";
+import { DIAS_CONVITE } from "@/lib/limites";
 import { BaixaInput, EstornoInput, FixaInput, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
 import { adicionarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
@@ -88,6 +90,31 @@ export const deleteCustomerAction = memberAction(
   z.object({ tenantId: docId, customerId: docId }),
   (data, user) => deleteCustomer(adminDb, data, user),
 );
+
+/** Link de acesso ao painel para alguém da equipe: entra como funcionário, preso ao
+ *  profissional (a agenda abre na dele) e sem Caixa nem dados do negócio. O dono manda
+ *  o link; só a conta com este e-mail, confirmado, abre. */
+export const convidarEquipeAction = memberAction(
+  z.object({ tenantId: docIdStaff, staffId: docId, email: z.string().trim().email("E-mail inválido.").max(254) }),
+  async (data, user) => {
+    await exigeGestor(data.tenantId, user.uid);
+    const prof = await adminDb.doc(`tenants/${data.tenantId}/staff/${data.staffId}`).get();
+    if (!prof.exists) throw new UserError("Esse profissional não existe mais.");
+    const base = process.env.SITE_URL ?? "https://www.ruphus.site";
+    const url = `${base}/convite?c=${await criarConvite(adminDb, data.tenantId, data.email, { staffId: data.staffId })}`;
+    return { ok: true as const, url, dias: DIAS_CONVITE };
+  },
+);
+
+/** Tira o acesso de alguém da equipe. Dono e admin ficam: esses só o admin da plataforma tira. */
+export const tirarAcessoEquipeAction = memberAction(z.object({ tenantId: docIdStaff, uid: docId }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  const ref = adminDb.doc(`tenants/${data.tenantId}/members/${data.uid}`);
+  const membro = await ref.get();
+  if (membro.exists && membro.get("role") !== "member") throw new UserError("Esse acesso é de quem gere o negócio. Fale com a Ruphus para mudar.");
+  await ref.delete();
+  return { ok: true as const };
+});
 
 /** Dados do negócio só para quem gere: dono, admin do negócio ou da plataforma. */
 async function exigeGestor(tenantId: string, uid: string) {

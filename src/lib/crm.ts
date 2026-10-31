@@ -186,7 +186,8 @@ export async function linhaDoTempo(db: Firestore, slug: string): Promise<Evento[
       const quando = iso(d.get("createdAt"));
       if (daPlataforma.has(d.id)) return [];
       const quem = (d.get("nome") as string | undefined) ?? (d.get("email") as string | undefined) ?? "o dono";
-      const criou = d.get("role") === "owner";
+      // dono pelo convite (site da fábrica que o cliente assumiu) não criou o negócio
+      const criou = d.get("role") === "owner" && d.get("viaConvite") !== true;
       return quando ? [{ id: `convite-${d.id}`, tipo: "convite" as const, titulo: criou ? "Negócio criado" : "Convite aceito", detalhe: criou ? `${quem} criou o negócio pelo painel` : `${quem} entrou no painel`, autor: (d.get("email") as string | undefined) ?? "", quando }] : [];
     }),
     ...primeiro.docs.flatMap((d) => {
