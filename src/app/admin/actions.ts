@@ -11,7 +11,7 @@ import { enviarEmail } from "@/lib/email.server";
 import { emailDaProposta } from "@/lib/proposta-email";
 import { emailDoConvite } from "@/lib/convite-email";
 import { saudeDe } from "@/lib/saude.server";
-import { criarConvite } from "@/lib/convite";
+import { criarConvite, revogarConvitesDaEquipe, revogarConvitesDoNegocio } from "@/lib/convite";
 import {
   atrasadas,
   baixar,
@@ -270,17 +270,22 @@ export const revogarAcesso = adminAction(async (_user, slug: string, uid: string
   slugValido(slug);
   if (!UID.test(uid)) throw new ErroPrevisto("Conta inválida.");
   const ref = adminDb.doc(`tenants/${slug}/members/${uid}`);
-  const membro = await ref.get();
+  const [membro, config] = await Promise.all([ref.get(), adminDb.doc("config/admin").get()]);
   if (!membro.exists) return "já não tinha acesso";
+  // a conta da Ruphus fica: é para ela que o negócio volta quando o cliente sai
+  if (((config.get("uids") as string[] | undefined) ?? []).includes(uid)) throw new ErroPrevisto("A conta da Ruphus não sai do negócio.");
   // quem criou o negócio fica; o cliente que virou dono pelo convite sai, se a Ruphus precisar
   if (membro.get("role") === "owner" && membro.get("viaConvite") !== true) throw new ErroPrevisto("O dono não pode ser removido.");
   if (membro.get("role") === "owner") {
     // o negócio volta para a Ruphus: senão fica sem dono, e o próximo convite aceito
     // não acharia a Ruphus no ownerId para passar o negócio adiante
     await devolverParaRuphus(slug, uid);
-    return "acesso removido; o negócio voltou para a Ruphus";
+    return "acesso removido; o negócio voltou para a Ruphus, sem a equipe do cliente";
   }
   await ref.delete();
+  // o link que sobrou não devolve o acesso de quem era da equipe
+  const staffId = membro.get("staffId") as string | undefined;
+  if (membro.get("role") === "member" && staffId) await revogarConvitesDaEquipe(adminDb, slug, staffId);
   return "acesso removido";
 });
 
@@ -290,8 +295,12 @@ async function devolverParaRuphus(slug: string, uid: string) {
   const daPlataforma = new Set((config.get("uids") as string[] | undefined) ?? []);
   const ruphus = membros.docs.find((d) => daPlataforma.has(d.id));
   if (!ruphus) throw new ErroPrevisto("A conta da Ruphus não está neste negócio: não há para quem devolver.");
+  // o cliente sai com a equipe que ele convidou, e nenhum link antigo (dele ou da equipe)
+  // o traz de volta: o próximo cliente entra por um convite novo
+  await revogarConvitesDoNegocio(adminDb, slug);
   const lote = adminDb.batch();
   lote.delete(tenant.collection("members").doc(uid));
+  for (const m of membros.docs) if (m.get("role") === "member") lote.delete(m.ref);
   lote.update(ruphus.ref, { role: "owner" });
   lote.update(tenant, { ownerId: ruphus.id });
   await lote.commit();

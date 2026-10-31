@@ -50,9 +50,14 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
       let value: TenantCtx | "denied";
       try {
         // As regras negam a leitura para quem não é membro
-        const [snap, member] = await Promise.all([getDoc(doc(db, "tenants", slug)), getDoc(doc(db, "tenants", slug, "members", user.uid))]);
-        // sem documento de membro e mesmo assim lendo: é o admin da plataforma (config/admin só o servidor lê)
-        const adminPlataforma = !member.exists() && (await ehAdminDaPlataforma(await user.getIdToken()).catch(() => ({ ok: false }))).ok;
+        // O admin da plataforma pode ser membro (é dono dos sites da fábrica até o cliente
+        // entrar) ou não: só o servidor sabe (config/admin), e pergunta junto com as leituras
+        const [snap, member, plataforma] = await Promise.all([
+          getDoc(doc(db, "tenants", slug)),
+          getDoc(doc(db, "tenants", slug, "members", user.uid)),
+          user.getIdToken().then(ehAdminDaPlataforma).catch(() => ({ ok: false })),
+        ]);
+        const adminPlataforma = plataforma.ok;
         const podeGerir = adminPlataforma || ["owner", "admin"].includes(member.get("role"));
         value = snap.exists() ? { id: snap.id, ...Tenant.parse(snap.data()), podeGerir, adminPlataforma, staffId: (member.get("staffId") as string | undefined) || undefined } : "denied";
       } catch {

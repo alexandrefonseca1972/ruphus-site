@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { SignJWT } from "jose";
-import { assumirNegocio, consumirConvite, conviteAbrePara, criarConvite, lerConvite, motivoParaRecusarEquipe, tirarAcessosDoProfissional } from "@/lib/convite";
+import { assumirNegocio, consumirConvite, conviteAbrePara, criarConvite, lerConvite, entrarNaEquipe, revogarConvitesDaEquipe, revogarConvitesDoNegocio, tirarAcessosDoProfissional } from "@/lib/convite";
 
 const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
 
@@ -98,48 +98,73 @@ assert.equal(preso?.papel, "admin", "convite sem papel é o do dono");
 await assert.rejects(() => criarConvite(db, "salao", "", { staffId: "bruna" }), /e-mail de quem vai entrar/i);
 
 // ————— O cliente assume o site da fábrica —————
+const seg = () => Date.now();
+let n = 0;
+const aceite = (tenantId: string, extra: object = {}) => ({ tenantId, jti: `jti-${++n}`, emitidoEm: seg() + 1000, ...extra });
 await db.doc("config/admin").set({ uids: ["ruphus"] }, { merge: true });
 await db.doc("tenants/fabrica").set({ name: "Fábrica", ownerId: "ruphus" });
 await db.doc("tenants/fabrica/members/ruphus").set({ uid: "ruphus", role: "owner" });
-await assumirNegocio(db, "fabrica", "cliente", { email: "dona@fabrica.com" });
+const doCliente = aceite("fabrica");
+assert.equal(await assumirNegocio(db, doCliente, "cliente", { email: "dona@fabrica.com" }), null);
 assert.equal((await db.doc("tenants/fabrica").get()).get("ownerId"), "cliente", "o negócio passa a ser do cliente");
 const cliente = (await db.doc("tenants/fabrica/members/cliente").get()).data();
 assert.equal(cliente?.role, "owner");
 assert.equal(cliente?.viaConvite, true, "viaConvite segue marcando o cliente (cota e gerador)");
 assert.equal(cliente?.uid, "cliente", "o uid fica no membro: é por ele que o painel acha os negócios");
 assert.equal((await db.doc("tenants/fabrica/members/ruphus").get()).get("role"), "admin", "a Ruphus fica como admin");
+assert.equal((await db.doc(`convitesUsados/${doCliente.jti}`).get()).exists, true, "o link é queimado junto com a entrada");
+// o mesmo cliente abre outro link ao mesmo tempo: não o rebaixa a admin
+assert.equal(await assumirNegocio(db, aceite("fabrica"), "cliente", {}), null);
+assert.equal((await db.doc("tenants/fabrica/members/cliente").get()).get("role"), "owner", "segundo aceite não rebaixa o dono");
+// link já usado não abre para outra conta
+assert.match(String(await assumirNegocio(db, doCliente, "outra", {})), /já foi usado/);
 
 // negócio que não é da Ruphus (criado pelo próprio dono): o convidado entra como admin, nada muda de dono
 await db.doc("tenants/proprio").set({ name: "Próprio", ownerId: "fulana" });
 await db.doc("tenants/proprio/members/fulana").set({ uid: "fulana", role: "owner" });
-await assumirNegocio(db, "proprio", "socio", {});
+assert.equal(await assumirNegocio(db, aceite("proprio"), "socio", {}), null);
 assert.equal((await db.doc("tenants/proprio").get()).get("ownerId"), "fulana");
 assert.equal((await db.doc("tenants/proprio/members/socio").get()).get("role"), "admin");
 assert.equal((await db.doc("tenants/proprio/members/fulana").get()).get("role"), "owner");
-
-// o mesmo cliente abre dois convites ao mesmo tempo: o segundo não o rebaixa a admin
-await assumirNegocio(db, "fabrica", "cliente", {});
-assert.equal((await db.doc("tenants/fabrica/members/cliente").get()).get("role"), "owner", "segundo aceite não rebaixa o dono");
 
 // ————— Convite da equipe amarrado ao profissional —————
 await db.doc("tenants/salao/staff/bruna").set({ name: "Bruna", active: true });
 const cBruna = (await lerConvite(db, await criarConvite(db, "salao", "bruna@salao.com", { staffId: "bruna" })))!;
 assert.ok(cBruna.papel === "member" && cBruna.emitidoEm > 0);
-const doBruna = { tenantId: "salao", staffId: "bruna", emitidoEm: cBruna.emitidoEm };
-assert.equal(await motivoParaRecusarEquipe(db, doBruna), null, "profissional existe, link novo, ninguém dentro: abre");
-assert.match(String(await motivoParaRecusarEquipe(db, { ...doBruna, staffId: "fantasma" })), /não está mais no cadastro/);
+const daBruna = () => aceite("salao", { staffId: "bruna" }) as ReturnType<typeof aceite> & { staffId: string };
+assert.match(String(await entrarNaEquipe(db, { ...daBruna(), staffId: "fantasma" }, "x", {})), /não está mais no cadastro/);
+assert.equal(await entrarNaEquipe(db, daBruna(), "bruna-uid", {}), null, "profissional existe, link novo, ninguém dentro: entra");
+const bruna = (await db.doc("tenants/salao/members/bruna-uid").get()).data();
+assert.equal(bruna?.role, "member");
+assert.equal(bruna?.staffId, "bruna");
 // um acesso por profissional
-await db.doc("tenants/salao/members/bruna-uid").set({ uid: "bruna-uid", role: "member", staffId: "bruna" });
-assert.match(String(await motivoParaRecusarEquipe(db, doBruna)), /já tem um acesso/);
+assert.match(String(await entrarNaEquipe(db, daBruna(), "outra-uid", {})), /já tem um acesso/);
+// quem já é membro entra sem mudar de papel
+assert.equal(await entrarNaEquipe(db, daBruna(), "bruna-uid", {}), null);
 // tirar o acesso leva a conta e cancela o link que sobrou
+const sobrou = { ...daBruna(), emitidoEm: seg() - 1000 };
 await tirarAcessosDoProfissional(db, "salao", "bruna");
 assert.equal((await db.doc("tenants/salao/members/bruna-uid").get()).exists, false, "a conta sai junto");
-assert.match(String(await motivoParaRecusarEquipe(db, doBruna)), /cancelado/, "link de antes do corte não abre");
-// link gerado depois do corte abre de novo
-assert.equal(await motivoParaRecusarEquipe(db, { ...doBruna, emitidoEm: Math.floor(Date.now() / 1000) + 5 }), null);
+assert.match(String(await entrarNaEquipe(db, sobrou, "bruna-uid", {})), /cancelado/, "link de antes do corte não abre");
+assert.equal(await entrarNaEquipe(db, daBruna(), "bruna-uid", {}), null, "link gerado depois do corte abre de novo");
 // tirar não leva dono nem admin, mesmo com staffId
 await db.doc("tenants/salao/members/gerente").set({ uid: "gerente", role: "admin", staffId: "bruna" });
 await tirarAcessosDoProfissional(db, "salao", "bruna");
 assert.equal((await db.doc("tenants/salao/members/gerente").get()).exists, true);
+
+// link gerado logo depois de "Tirar acesso", no mesmo segundo, abre: o corte é por ms
+await db.doc("tenants/salao/staff/carla").set({ name: "Carla", active: true });
+await revogarConvitesDaEquipe(db, "salao", "carla");
+const logoDepois = (await lerConvite(db, await criarConvite(db, "salao", "carla@salao.com", { staffId: "carla" })))!;
+assert.equal(await entrarNaEquipe(db, { ...logoDepois, staffId: "carla" }, "carla-uid", {}), null, "link novo logo após o corte vale");
+
+// ————— Corte do negócio inteiro (a Ruphus tirou o cliente) —————
+const antigoDono = { ...aceite("fabrica"), emitidoEm: seg() - 1000 };
+const antigoEquipe = { ...aceite("salao", { staffId: "bruna" }), emitidoEm: seg() - 1000 } as ReturnType<typeof daBruna>;
+await revogarConvitesDoNegocio(db, "fabrica");
+await revogarConvitesDoNegocio(db, "salao");
+assert.match(String(await assumirNegocio(db, antigoDono, "volta", {})), /cancelado/, "link de dono anterior ao corte não abre");
+assert.match(String(await entrarNaEquipe(db, antigoEquipe, "volta", {})), /cancelado/, "nem link da equipe");
+assert.equal(await assumirNegocio(db, aceite("fabrica"), "novo-cliente", {}), null, "convite novo, depois do corte, abre");
 
 console.log("convite: ok");

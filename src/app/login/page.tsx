@@ -59,7 +59,10 @@ const erroDe = (campo: z.ZodType, v: string) => {
   return r.success ? "" : r.error.issues[0].message;
 };
 
-const Vitrine = z.array(z.object({ slug: z.string(), nome: z.string(), sobre: z.string(), capa: z.string() }));
+const Vitrine = z.object({
+  sites: z.array(z.object({ slug: z.string(), nome: z.string(), sobre: z.string(), capa: z.string() })),
+  total: z.number().int().nonnegative(),
+});
 type Vitrine = z.infer<typeof Vitrine>;
 
 const ROTULO = "font-[family-name:var(--font-geist-mono)] text-[9px] font-medium tracking-[0.14em] text-[#6B6555] uppercase";
@@ -109,7 +112,8 @@ function Login() {
   const [vistos, setVistos] = useState<ReadonlySet<string>>(new Set());
   const ver = (campo: string) => setVistos((v) => new Set(v).add(campo));
   const [capsLock, setCapsLock] = useState(false);
-  const [vitrine, setVitrine] = useState<Vitrine>([]);
+  const [vitrine, setVitrine] = useState<Vitrine["sites"]>([]);
+  const [noAr, setNoAr] = useState(0);
 
   // De quem é o convite: o nome do negócio é o que a pessoa reconhece, e ela
   // chegou aqui por um link no WhatsApp, não procurando a Ruphus.
@@ -166,11 +170,15 @@ function Login() {
   // A folha de contato do desktop. Falhar aqui não custa nada: a tela fica lisa.
   useEffect(() => {
     let vivo = true;
-    fetch("/_vitrine.json")
+    // pela rota, e não o arquivo direto: quem saiu do ar sai da grade
+    fetch("/api/vitrine")
       .then((r) => r.json())
       .then((d) => {
         const lida = Vitrine.safeParse(d);
-        if (vivo && lida.success) setVitrine(lida.data);
+        if (vivo && lida.success) {
+          setVitrine(lida.data.sites);
+          setNoAr(lida.data.total);
+        }
       })
       .catch(() => {});
     return () => {
@@ -250,7 +258,7 @@ function Login() {
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 hidden select-none auto-rows-[158px] grid-cols-6 content-center gap-3 p-7 lg:grid">
           {vitrine.map((v) => (
             <div key={v.slug} className="flex flex-col gap-2 overflow-hidden rounded-xl border border-[#E4E1D5] bg-[#F8F6EF] p-3.5">
-              {/* eslint-disable-next-line @next/next/no-img-element -- capa já gerada de cada site (/s/{slug}/og.jpg), servida estática */}
+              {/* eslint-disable-next-line @next/next/no-img-element -- miniatura já gerada (npm run vitrine -- --miniaturas), servida estática */}
               <img src={v.capa} alt="" width={260} height={150} loading="lazy" decoding="async" className="h-[62px] w-full rounded-lg object-cover object-top opacity-70" />
               <span className="truncate text-xs font-semibold text-[#3F3B2F]">{v.nome}</span>
             </div>
@@ -522,9 +530,9 @@ function Login() {
         </div>
       </section>
 
-      {vitrine.length > 0 && (
+      {noAr > 0 && (
         <span className="absolute bottom-7 left-7 hidden items-center gap-3 rounded-full border border-[#E0DCCE] bg-[#FAF9F5] px-4 py-2.5 lg:flex">
-          <span className="font-[family-name:var(--font-geist-mono)] text-[13px] font-medium">+6 mil</span>
+          <span className="font-[family-name:var(--font-geist-mono)] text-[13px] font-medium">{noAr >= 1000 ? `+${Math.floor(noAr / 1000)} mil` : noAr}</span>
           <span className="h-3.5 w-px bg-[#E0DCCE]" />
           <span className="font-[family-name:var(--font-geist-mono)] text-[10px] tracking-[0.12em] text-[#6B6555] uppercase">sites no ar atrás desta tela</span>
         </span>

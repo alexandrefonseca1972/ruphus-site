@@ -33,6 +33,8 @@ jobs:
 
       # Sem emulador
       - run: npm run test:proxy
+      # a grade do /login sai da VITRINE da landing: as duas não podem divergir
+      - run: npm run vitrine -- --check
       - run: npm run test:site-arquivo
       - run: npm run test:avisos
       - run: npm run test:clientes
