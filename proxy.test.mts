@@ -45,6 +45,7 @@ assert.equal(paginaEstatica("/s/barbaros-barbearia/"), "/s/barbaros-barbearia/in
 assert.equal(paginaEstatica("/s/barbaros-barbearia/agendar"), null, "outros caminhos do site seguem diretos");
 assert.equal(paginaEstatica("/s/_p/foto.webp"), null);
 assert.equal(paginaEstatica("/s/../etc/passwd"), null);
+assert.equal(paginaEstatica("/assets/pet/vt-1.jpg"), "/s/assets/pet/vt-1.jpg", "foto da vitrine em www");
 console.log("paginas ok");
 
 // agendamento no próprio subdomínio do site
