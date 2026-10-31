@@ -100,3 +100,32 @@ import { proxy } from "@/proxy";
   assert.equal(r.headers.get("x-middleware-rewrite"), null);
   console.log("lista de fechados no subdomínio ok");
 }
+
+// ————— Domínio próprio do cliente —————
+import { normalizarHost, raizDe, resolverDominio, urlDoSite } from "@/lib/dominio";
+assert.equal(normalizarHost(" https://WWW.SalaoDaAna.com.br/agendar "), "www.salaodaana.com.br");
+assert.equal(normalizarHost("salaodaana.com.br."), "salaodaana.com.br");
+assert.equal(normalizarHost("barbearia-force.ruphus.site"), null, "endereço da Ruphus não é domínio de cliente");
+assert.equal(normalizarHost("x.vercel.app"), null);
+assert.equal(normalizarHost("nao é dominio"), null);
+assert.equal(normalizarHost("localhost"), null);
+assert.equal(raizDe("www.salao.com.br"), "salao.com.br");
+assert.equal(raizDe("agenda.salao.com.br"), null);
+assert.equal(urlDoSite("salao", { host: "www.salao.com.br", status: "ativo" }), "https://www.salao.com.br/");
+assert.equal(urlDoSite("salao", { host: "www.salao.com.br", status: "pendente" }), "https://salao.ruphus.site/");
+assert.equal(urlDoSite("salao", null), "https://salao.ruphus.site/");
+const mapa = { hosts: { "www.salao.com.br": "salao", "salao.com.br": "salao" }, porSlug: { salao: "www.salao.com.br" } };
+assert.deepEqual(resolverDominio("www.salao.com.br", mapa), { slug: "salao" });
+assert.deepEqual(resolverDominio("WWW.SALAO.COM.BR:443", mapa), { slug: "salao" }, "porta e maiúscula não atrapalham");
+assert.deepEqual(resolverDominio("salao.com.br", mapa), { redirecionar: "www.salao.com.br" }, "raiz leva ao www");
+assert.equal(resolverDominio("outro.com.br", mapa), null, "domínio desconhecido segue o app");
+console.log("domínio próprio ok");
+
+{
+  // as listas internas passam direto também no domínio do cliente (o proxy as pede no host visitado)
+  for (const caminho of ["/api/dominios", "/api/desativados"]) {
+    const r = await proxy(new NextRequest(`https://www.salao.com.br${caminho}`, { headers: { host: "www.salao.com.br" } }));
+    assert.equal(r.headers.get("x-middleware-next"), "1", `${caminho} no domínio do cliente chega à rota`);
+  }
+  console.log("listas no domínio do cliente ok");
+}

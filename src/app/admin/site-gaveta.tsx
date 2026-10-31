@@ -7,6 +7,7 @@ import { CamposNegocio, errosDe, VAZIO, type Valores } from "@/components/campos
 import { formatPhone } from "@/lib/datetime";
 import type { Mudanca, TipoSite } from "@/lib/negocios.server";
 import { definirModelo, montarSite, previewModelo, siteDoNegocio } from "./actions";
+import { DominioDoSite } from "./dominio-gaveta";
 
 // Aba "Site" da gaveta: montar ou completar o site de um negócio, sobretudo o de quem
 // se cadastrou sozinho — esse sai só com nome, ramo, WhatsApp e cidade. Os campos são
@@ -266,6 +267,9 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
           </div>
         )}
       </section>
+
+      {/* sites da fábrica têm o endereço escrito no próprio HTML: domínio próprio só no gerador */}
+      {!fabrica && <DominioDoSite key={slug} slug={slug} publicado={!!dados.publicado} token={token} />}
 
       {previa ? (
         <section aria-labelledby="previa-t" className="flex flex-col gap-3 rounded-2xl border border-[#17150F] p-4">

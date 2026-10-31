@@ -207,6 +207,15 @@ for (const [nome, html] of [
   assert.ok(!html.includes("undefined") && !html.includes("null"), `${nome}: nenhum campo vazio vazou`);
   assert.ok(/getElementById\('(wf-dia|agData)'\)\.min=new Date/.test(html), `${nome}: data do formulário a partir de hoje`);
 }
+// domínio próprio ativo vira o endereço oficial; pendente, segue o subdomínio
+{
+  const ativo = renderBeleza({ ...base, sub: "barbearia", tipo: "BarberShop", dominio: { host: "www.petfeliz.com.br", status: "ativo" } });
+  assert.ok(ativo.includes('<link rel="canonical" href="https://www.petfeliz.com.br/">'), "canonical no domínio do cliente");
+  assert.ok(ativo.includes('<meta property="og:image" content="https://www.petfeliz.com.br/og.jpg">'), "og.jpg no domínio do cliente");
+  assert.ok(ativo.includes('"url":"https://www.petfeliz.com.br/"') && !ativo.includes("pet-feliz.ruphus.site"), "JSON-LD no domínio e nada do subdomínio");
+  const pendente = renderBeleza({ ...base, sub: "barbearia", tipo: "BarberShop", dominio: { host: "www.petfeliz.com.br", status: "pendente" } });
+  assert.ok(pendente.includes('<link rel="canonical" href="https://pet-feliz.ruphus.site/">'), "domínio pendente não muda o endereço");
+}
 // JSON-LD não fecha a tag com "</script>" no nome
 assert.ok(renderPet({ ...base, nome: "A</script><b>" }).includes("A\\u003c/script>\\u003cb>"));
 // tatuagem: fotos, rótulo e textos do estúdio, não os de salão

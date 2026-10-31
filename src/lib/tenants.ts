@@ -22,6 +22,8 @@ export const Tenant = z.object({
   // .catch: um campo fora do formato não pode derrubar o painel inteiro
   modulos: z.object({ financeiro: z.boolean().optional() }).optional().catch(undefined),
   gerado: z.object({ nicho: z.string().optional() }).optional().catch(undefined),
+  // domínio próprio do cliente (www.salao.com.br): ativo, é o endereço do site
+  dominio: z.object({ host: z.string(), status: z.enum(["pendente", "ativo"]) }).optional().catch(undefined),
 });
 export type Tenant = z.infer<typeof Tenant> & { id: string };
 
