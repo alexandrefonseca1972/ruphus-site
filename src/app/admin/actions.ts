@@ -505,7 +505,7 @@ export const enviarConvitePorEmail = adminAction(async (user, slug: string) => {
   const [convite] = convites;
   if (!convite) throw new ErroPrevisto("Negócio não encontrado.");
   const [crm, config] = await Promise.all([adminDb.collection("crm").doc(slug).get(), adminDb.doc("config/crm").get()]);
-  const { assunto, texto } = emailDoConvite({
+  const { assunto, texto, html } = emailDoConvite({
     nome: convite.nome,
     slug,
     donoNome: (crm.get("donoNome") as string | null) ?? null,
@@ -514,7 +514,7 @@ export const enviarConvitePorEmail = adminAction(async (user, slug: string) => {
     dias: DIAS_CONVITE,
     assinatura: (config.get("assinatura") as string | null) ?? null,
   });
-  await enviarEmail({ para: convite.email, assunto, texto });
+  await enviarEmail({ para: convite.email, assunto, texto, html });
   await registrarMensagem(adminDb, slug, "Convite por e-mail", convite.email, user.email ?? user.uid);
   return { url: convite.url, email: convite.email, eventos: await linhaDoTempo(adminDb, slug) };
 });
