@@ -1,4 +1,5 @@
 import "server-only";
+import { resolve4 } from "node:dns/promises";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { type Dominio, type MapaDominios, normalizarHost, raizDe } from "@/lib/dominio";
@@ -6,12 +7,17 @@ import { type Dominio, type MapaDominios, normalizarHost, raizDe } from "@/lib/d
 // O domínio do cliente entra no projeto da Vercel pela API REST: é lá que ele vira
 // endereço do app e ganha certificado. VERCEL_TOKEN (token da conta, escopo do time)
 // e VERCEL_PROJECT_ID ficam só no servidor; VERCEL_TEAM_ID quando o projeto é de time.
+//
+// Na VPS (DOMINIO_IP = IP do servidor) não há API: o cliente aponta o DNS direto para o
+// IP, e o Caddy emite o certificado na primeira visita (on-demand TLS, que pergunta a
+// /api/dominios/tls se o domínio é de algum site). DOMINIO_IP vale sobre a Vercel.
+const ipDaVps = () => process.env.DOMINIO_IP;
 const API = "https://api.vercel.com";
 
 function credenciais() {
   const token = process.env.VERCEL_TOKEN;
   const projeto = process.env.VERCEL_PROJECT_ID;
-  if (!token || !projeto) throw new ErroPrevisto("Domínio próprio não configurado: faltam VERCEL_TOKEN e VERCEL_PROJECT_ID no ambiente.");
+  if (!token || !projeto) throw new ErroPrevisto("Domínio próprio não configurado: defina DOMINIO_IP (VPS) ou VERCEL_TOKEN e VERCEL_PROJECT_ID no ambiente.");
   return { token, projeto: encodeURIComponent(projeto) };
 }
 
@@ -38,6 +44,7 @@ export type RegistroDns = { tipo: "CNAME" | "A" | "TXT"; nome: string; valor: st
 export type SituacaoDominio = { dominio: Dominio; pronto: boolean; registros: RegistroDns[] };
 
 async function adicionar(nome: string, redirecionar?: string) {
+  if (ipDaVps()) return;
   const { projeto } = credenciais();
   const r = await vercel<DominioVercel>("POST", `/v10/projects/${projeto}/domains`, { name: nome, ...(redirecionar && { redirect: redirecionar, redirectStatusCode: 308 }) });
   // já estar no projeto não é erro: conectar de novo só confere
@@ -47,13 +54,22 @@ async function adicionar(nome: string, redirecionar?: string) {
 }
 
 async function remover(nome: string) {
+  if (ipDaVps()) return;
   const { projeto } = credenciais();
   const r = await vercel<DominioVercel>("DELETE", `/v9/projects/${projeto}/domains/${encodeURIComponent(nome)}`);
   if (r.status >= 400 && r.status !== 404) throw new ErroPrevisto(`A Vercel não removeu ${nome}: ${r.dados.error?.message ?? r.status}`);
 }
 
 /** Verificado no projeto e com o DNS apontando certo; e, se não, o que criar no DNS. */
-async function conferir(nome: string): Promise<{ pronto: boolean; registros: RegistroDns[] }> {
+async function conferir(nome: string, ehRaiz = false): Promise<{ pronto: boolean; registros: RegistroDns[] }> {
+  const ip = ipDaVps();
+  if (ip) {
+    // todos os A no IP da VPS: um A antigo esquecido mandaria parte das visitas para outro lugar
+    const ips = await resolve4(nome).catch(() => [] as string[]);
+    const pronto = ips.length > 0 && ips.every((i) => i === ip);
+    const rotulo = ehRaiz ? "@" : nome.startsWith("www.") ? "www" : nome;
+    return { pronto, registros: pronto ? [] : [{ tipo: "A", nome: rotulo, valor: ip }] };
+  }
   const { projeto } = credenciais();
   const [d, c] = await Promise.all([
     vercel<DominioVercel>("GET", `/v9/projects/${projeto}/domains/${encodeURIComponent(nome)}`),
@@ -99,7 +115,7 @@ export async function verificarDominio(db: Firestore, slug: string): Promise<Sit
   if (!dominio) throw new ErroPrevisto("Nenhum domínio ligado a este site.");
   const [principal, daRaiz] = await Promise.all([
     conferir(dominio.host),
-    dominio.raiz ? conferir(dominio.raiz) : Promise.resolve({ pronto: true, registros: [] as RegistroDns[] }),
+    dominio.raiz ? conferir(dominio.raiz, true) : Promise.resolve({ pronto: true, registros: [] as RegistroDns[] }),
   ]);
   // o www basta para ativar: a raiz é conveniência, e o site já abre pelo endereço que se divulga
   const status = principal.pronto ? "ativo" : "pendente";

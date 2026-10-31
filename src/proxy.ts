@@ -110,7 +110,7 @@ export async function proxy(request: NextRequest) {
   const caminho = request.nextUrl.pathname;
   // as listas que o próprio proxy pede, em qualquer host: sem SITE_URL elas são buscadas no
   // host visitado (subdomínio ou domínio do cliente), e reescritas para o site davam 404
-  if (caminho === "/api/desativados" || caminho === "/api/dominios") return NextResponse.next();
+  if (caminho === "/api/desativados" || caminho.startsWith("/api/dominios")) return NextResponse.next();
   let slug = siteSlug(host);
   const paraOutroHost = (destino: string) => {
     const url = request.nextUrl.clone();
