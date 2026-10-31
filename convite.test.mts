@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { SignJWT } from "jose";
-import { assumirNegocio, consumirConvite, conviteAbrePara, criarConvite, lerConvite, entrarNaEquipe, revogarConvitesDoNegocio, tirarAcessosDoProfissional } from "@/lib/convite";
+import { assumirNegocio, consumirConvite, conviteAbrePara, criarConvite, lerConvite, entrarNaEquipe, revogarConvitesDaEquipe, revogarConvitesDoNegocio, tirarAcessosDoProfissional } from "@/lib/convite";
 
 const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
 
@@ -98,9 +98,9 @@ assert.equal(preso?.papel, "admin", "convite sem papel é o do dono");
 await assert.rejects(() => criarConvite(db, "salao", "", { staffId: "bruna" }), /e-mail de quem vai entrar/i);
 
 // ————— O cliente assume o site da fábrica —————
-const seg = () => Math.floor(Date.now() / 1000);
+const seg = () => Date.now();
 let n = 0;
-const aceite = (tenantId: string, extra: object = {}) => ({ tenantId, jti: `jti-${++n}`, emitidoEm: seg() + 1, ...extra });
+const aceite = (tenantId: string, extra: object = {}) => ({ tenantId, jti: `jti-${++n}`, emitidoEm: seg() + 1000, ...extra });
 await db.doc("config/admin").set({ uids: ["ruphus"] }, { merge: true });
 await db.doc("tenants/fabrica").set({ name: "Fábrica", ownerId: "ruphus" });
 await db.doc("tenants/fabrica/members/ruphus").set({ uid: "ruphus", role: "owner" });
@@ -142,7 +142,7 @@ assert.match(String(await entrarNaEquipe(db, daBruna(), "outra-uid", {})), /já 
 // quem já é membro entra sem mudar de papel
 assert.equal(await entrarNaEquipe(db, daBruna(), "bruna-uid", {}), null);
 // tirar o acesso leva a conta e cancela o link que sobrou
-const sobrou = { ...daBruna(), emitidoEm: seg() - 1 };
+const sobrou = { ...daBruna(), emitidoEm: seg() - 1000 };
 await tirarAcessosDoProfissional(db, "salao", "bruna");
 assert.equal((await db.doc("tenants/salao/members/bruna-uid").get()).exists, false, "a conta sai junto");
 assert.match(String(await entrarNaEquipe(db, sobrou, "bruna-uid", {})), /cancelado/, "link de antes do corte não abre");
@@ -152,9 +152,15 @@ await db.doc("tenants/salao/members/gerente").set({ uid: "gerente", role: "admin
 await tirarAcessosDoProfissional(db, "salao", "bruna");
 assert.equal((await db.doc("tenants/salao/members/gerente").get()).exists, true);
 
+// link gerado logo depois de "Tirar acesso", no mesmo segundo, abre: o corte é por ms
+await db.doc("tenants/salao/staff/carla").set({ name: "Carla", active: true });
+await revogarConvitesDaEquipe(db, "salao", "carla");
+const logoDepois = (await lerConvite(db, await criarConvite(db, "salao", "carla@salao.com", { staffId: "carla" })))!;
+assert.equal(await entrarNaEquipe(db, { ...logoDepois, staffId: "carla" }, "carla-uid", {}), null, "link novo logo após o corte vale");
+
 // ————— Corte do negócio inteiro (a Ruphus tirou o cliente) —————
-const antigoDono = { ...aceite("fabrica"), emitidoEm: seg() - 1 };
-const antigoEquipe = { ...aceite("salao", { staffId: "bruna" }), emitidoEm: seg() - 1 } as ReturnType<typeof daBruna>;
+const antigoDono = { ...aceite("fabrica"), emitidoEm: seg() - 1000 };
+const antigoEquipe = { ...aceite("salao", { staffId: "bruna" }), emitidoEm: seg() - 1000 } as ReturnType<typeof daBruna>;
 await revogarConvitesDoNegocio(db, "fabrica");
 await revogarConvitesDoNegocio(db, "salao");
 assert.match(String(await assumirNegocio(db, antigoDono, "volta", {})), /cancelado/, "link de dono anterior ao corte não abre");

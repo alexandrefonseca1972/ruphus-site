@@ -48,7 +48,8 @@ export async function criarConvite(db: Firestore, tenantId: string, email: strin
   const para = mesmoEmail(email ?? "");
   if (!para) throw new SemDestinatario(equipe ? "Informe o e-mail de quem vai entrar." : "Cadastre o e-mail do dono antes de convidar.");
   // convite da equipe: entra como funcionário ("member"), preso ao profissional da agenda
-  return new SignJWT({ t: tenantId, e: para, ...(equipe && { r: "member", p: equipe.staffId }) })
+  // ms: o instante exato da emissão, para o corte de "Tirar acesso" (o iat do JWT é por segundo)
+  return new SignJWT({ t: tenantId, e: para, ms: Date.now(), ...(equipe && { r: "member", p: equipe.staffId }) })
     .setProtectedHeader({ alg: "HS256" })
     .setJti(randomBytes(16).toString("hex"))
     .setIssuedAt()
@@ -67,8 +68,9 @@ export async function lerConvite(db: Firestore, token: string) {
     if (!(typeof payload.t === "string" && typeof payload.jti === "string" && typeof payload.e === "string" && payload.e)) return null;
     // sem papel no token é o convite do dono (admin), como sempre foi
     const equipe = payload.r === "member" && typeof payload.p === "string" && payload.p;
-    // emitidoEm: o convite da equipe gerado antes de "Tirar acesso" não vale mais
-    return { tenantId: payload.t, jti: payload.jti, email: payload.e, emitidoEm: payload.iat ?? 0, ...(equipe ? { papel: "member" as const, staffId: payload.p as string } : { papel: "admin" as const }) };
+    // emitidoEm (ms): o convite gerado antes de um corte ("Tirar acesso") não vale mais
+    const emitidoEm = typeof payload.ms === "number" ? payload.ms : (payload.iat ?? 0) * 1000;
+    return { tenantId: payload.t, jti: payload.jti, email: payload.e, emitidoEm, ...(equipe ? { papel: "member" as const, staffId: payload.p as string } : { papel: "admin" as const }) };
   } catch {
     return null;
   }
@@ -110,13 +112,12 @@ export async function consumirConvite(db: Firestore, jti: string, uid: string) {
 }
 
 // Convites cancelados: quem teve o acesso tirado não volta por um link antigo, ainda
-// dentro dos 7 dias. Guarda o segundo do corte; convite emitido até ele não abre.
+// dentro dos 7 dias. Guarda o instante do corte (ms); convite emitido até ele não abre.
 // {tenant}__{staffId} vale para os links de um profissional; {tenant} sozinho, para
 // todos os links do negócio (quando a Ruphus tira o cliente). Coleção só do servidor.
-// ponytail: corte por segundo; um link gerado no mesmo segundo do corte também cai.
 const REVOGADOS = "convitesRevogados";
 const chaveEquipe = (tenantId: string, staffId: string) => `${tenantId}__${staffId}`;
-const agora = () => Math.floor(Date.now() / 1000);
+const agora = () => Date.now();
 
 export async function revogarConvitesDaEquipe(db: Firestore, tenantId: string, staffId: string) {
   await db.doc(`${REVOGADOS}/${chaveEquipe(tenantId, staffId)}`).set({ ate: agora() });

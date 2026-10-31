@@ -918,7 +918,7 @@ numeros();
 document.getElementById('n-cidades').textContent = CIDADES;
 
 /* ——— esteira: os sites do gerador, espalhados para as cidades se misturarem ——— */
-// abre com a VITRINE e, quando /api/catalogo chega, passa a amostrar o catálogo inteiro
+// amostra o catálogo inteiro; sem ele (falhou), a VITRINE
 const esteira = document.getElementById('esteira');
 function montarEsteira(){
   const gerados = SITES.filter(o => o.t && o.t.endsWith('/og.jpg'));
@@ -928,7 +928,7 @@ function montarEsteira(){
   const faixa = amostra.map(o => '<span><b>' + esc(o.n) + '</b>' + (o.d ? ' · ' + esc(o.d) : '') + '</span>').join('');
   esteira.innerHTML = faixa + faixa;   // duas voltas: a animação anda metade e recomeça sem emenda
 }
-montarEsteira();
+// montada uma vez, quando o catálogo chega (ou falha): remontar com a faixa andando dava um salto
 
 /* ——— grade ——— */
 const grade = document.getElementById('grade');
@@ -1004,13 +1004,13 @@ fetch('/api/catalogo').then(r => r.ok ? r.json() : []).then(novos => {
   }
   const tem = new Set(SITES.map(o => o.s));
   novos = novos.filter(o => !tem.has(o.s));
-  if (!novos.length){ render(); montarEsteira(); return; }
+  if (!novos.length){ render(); return; }
   novos.forEach(o => { o.k = norm(o.n + ' ' + o.d + ' ' + o.s + ' ' + o.c); SITES.push(o); });
   CIDADES = new Set([...CIDADES_FABRICA, ...SITES.map(o => o.c)].filter(Boolean).map(norm)).size;
   document.getElementById('n-cidades').textContent = CIDADES;
-  numeros(); render(); montarEsteira();
+  numeros(); render();
   document.getElementById('barra-n').textContent = SITES.length + ' sites no ar, com agenda aberta';
-}).catch(() => {}).finally(iniciarPalco);
+}).catch(() => {}).finally(() => { montarEsteira(); iniciarPalco(); });
 
 /* ——— barra de ação: aparece quando o hero sai de vista ——— */
 const barra = document.getElementById('barra');
