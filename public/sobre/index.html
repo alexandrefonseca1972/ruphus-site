@@ -1070,6 +1070,13 @@ function mostrar(i){
   const o = PALCO[i], destino = telas[1 - frente];
   destino.src = '/s/' + o.s;
   destino.addEventListener('load', () => {
+    // a faixa "proposta da Ruphus" é do site de verdade, não da vitrine: some só aqui,
+    // junto com o recuo que o script dela dá ao menu fixo (mesma origem, dá para mexer)
+    try {
+      const d = destino.contentDocument;
+      d.querySelector('aside[data-ysis=proposta]')?.remove();
+      d.querySelectorAll('header,nav,.site-header,.nav,.topo').forEach(el => el.style.top = '');
+    } catch (e) {}
     destino.classList.add('ativa');
     telas[frente].classList.remove('ativa');
     frente = 1 - frente;
