@@ -1007,7 +1007,16 @@ fetch('/api/marketing').then(r => r.ok ? r.json() : {}).then(({ metaPixel }) => 
 }).catch(() => {});
 
 /* ——— vitrine: prévia ao vivo no telefone ——— */
-const PALCO = DESTAQUE.slice(0, 6).map(s => SITES.find(o => o.s === s)).filter(Boolean);
+// sites do gerador atual (o mesmo padrão de quem fecha hoje), um por ramo de beleza;
+// fora do catálogo da busca porque ainda não têm miniatura
+const PALCO = [
+  {s: "itamara-hair-expert", n: "Itamara Hair Expert"},
+  {s: "sky-barbearia-especialista-em-visagismo-pb", n: "SKY Barbearia"},
+  {s: "chale-das-unhas-esmalteria", n: "Chalé das Unhas"},
+  {s: "go-laser-taguatinga", n: "Go Laser"},
+  {s: "spa-brasilia", n: "Spa Brasília"},
+  {s: "podologa-alessandra-moura", n: "Podóloga Alessandra"},
+];
 const telas = [document.getElementById('tela-a'), document.getElementById('tela-b')];
 const lista = document.getElementById('escolha');
 const abrir = document.getElementById('abrir');
