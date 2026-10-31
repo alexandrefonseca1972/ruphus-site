@@ -289,14 +289,15 @@ export default function CustomerPage() {
                 </span>
                 <p className="grow whitespace-pre-line">{n.texto}</p>
                 <span className="shrink-0 text-xs text-muted-foreground">{n.porNome?.split("@")[0]}</span>
-                <button
+                {/* apagar anotação é de quem gere (regra do banco): a equipe só anota */}
+                {tenant.podeGerir && <button
                   type="button"
                   aria-label="Apagar anotação"
-                  onClick={() => deleteDoc(doc(db, "tenants", tenant.id, "customers", key, "notas", n.id))}
+                  onClick={() => deleteDoc(doc(db, "tenants", tenant.id, "customers", key, "notas", n.id)).catch((err) => console.error("[cliente] não apagou a anotação", err))}
                   className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
                 >
                   apagar
-                </button>
+                </button>}
               </li>
             ))}
           </ul>

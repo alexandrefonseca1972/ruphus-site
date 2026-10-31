@@ -345,9 +345,14 @@ export default function AdminPage() {
     const r = await revogarAcesso(await token(), slug, uid);
     setAviso(r.ok ? r.dados : r.error);
     if (!r.ok) return;
-    setAcessos((a) => a?.filter((x) => x.uid !== uid) ?? null);
-    setEspacos((e) => e.map((x) => (x.slug === slug ? { ...x, acessos: x.acessos - 1 } : x)));
-    setAberto((x) => (x && x.slug === slug ? { ...x, acessos: x.acessos - 1 } : x));
+    // a contagem do /admin ignora a equipe; e tirar o cliente-dono muda o papel da Ruphus
+    // e leva a equipe junto: a lista é relida do servidor em vez de remendada aqui
+    const saiu = acessos?.find((x) => x.uid === uid);
+    const menos = saiu && saiu.papel !== "member" ? 1 : 0;
+    setEspacos((e) => e.map((x) => (x.slug === slug ? { ...x, acessos: x.acessos - menos } : x)));
+    setAberto((x) => (x && x.slug === slug ? { ...x, acessos: x.acessos - menos } : x));
+    const lida = await listarAcessos(await token(), slug);
+    setAcessos(lida.ok ? lida.dados : (a) => a?.filter((x) => x.uid !== uid) ?? null);
   }
 
   async function mudarLimite(uid: string, negocios: number) {
@@ -2033,14 +2038,14 @@ export default function AdminPage() {
                           >
                             Encerrar sessões
                           </button>
-                          <button
+                          {!a.plataforma && <button
                             type="button"
                             onClick={() => revogar(aberto.slug, a.uid)}
                             aria-label={`Remover o acesso de ${a.nome ?? a.email ?? a.uid}`}
                             className="h-11 shrink-0 rounded-[10px] border border-[#D8D2C6] px-3.5 text-[13px] font-semibold text-[#8A2F2F] hover:border-[#8A2F2F]"
                           >
                             Remover
-                          </button>
+                          </button>}
                         </>
                       )}
                     </div>

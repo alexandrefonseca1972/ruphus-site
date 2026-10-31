@@ -13,8 +13,15 @@ export type EmailSaida = { para: string; assunto: string; texto: string; html?: 
 const REMETENTE = "Ruphus <noreply@ruphus.site>";
 
 export async function enviarEmail(email: EmailSaida) {
-  if (process.env.RESEND_API_KEY) return pelaResend(process.env.RESEND_API_KEY, email);
-  return peloGmail(email);
+  if (!process.env.RESEND_API_KEY) return peloGmail(email);
+  try {
+    await pelaResend(process.env.RESEND_API_KEY, email);
+  } catch (err) {
+    // Resend fora do ar ou lento: o Gmail, se configurado, leva o e-mail
+    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) throw err;
+    console.error("[email] Resend falhou, enviando pelo Gmail", err);
+    await peloGmail(email);
+  }
 }
 
 async function pelaResend(chave: string, { para, assunto, texto, html }: EmailSaida) {
@@ -22,6 +29,7 @@ async function pelaResend(chave: string, { para, assunto, texto, html }: EmailSa
     method: "POST",
     headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
     // noreply não lê resposta: quem responder fala com a conta da Ruphus, se houver
+    signal: AbortSignal.timeout(10_000),
     body: JSON.stringify({ from: REMETENTE, to: [para], subject: assunto, text: texto, html, ...(process.env.GMAIL_USER && { reply_to: process.env.GMAIL_USER }) }),
   });
   if (!r.ok) throw new Error(`Resend recusou o e-mail (${r.status}): ${(await r.text()).slice(0, 300)}`);

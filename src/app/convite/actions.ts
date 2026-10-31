@@ -2,7 +2,7 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
-import { assumirNegocio, consumirConvite, conviteAbrePara, lerConvite, motivoParaRecusarEquipe } from "@/lib/convite";
+import { assumirNegocio, conviteAbrePara, entrarNaEquipe, lerConvite } from "@/lib/convite";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 
 /** Aceita o convite: quem está logado vira admin do espaço do link, ou funcionário se o convite for da equipe. */
@@ -20,26 +20,14 @@ export async function aceitarConvite(idToken: string, token: string) {
   const permissao = conviteAbrePara(convite, user);
   if (!permissao.ok) return { ok: false as const, error: permissao.error };
 
-  const membro = adminDb.doc(`tenants/${convite.tenantId}/members/${user.uid}`);
-  // Convite não rebaixa quem já é dono: só cria o acesso de quem ainda não tem
-  if (!(await membro.get()).exists) {
-    if (convite.papel === "member") {
-      const motivo = await motivoParaRecusarEquipe(adminDb, convite);
-      if (motivo) return { ok: false as const, error: motivo };
-    }
-    // Uso único: quem recebeu entra; o mesmo link repassado depois não abre nada
-    if (!(await consumirConvite(adminDb, convite.jti, user.uid))) {
-      return { ok: false as const, error: "Este convite já foi usado. Peça um link novo." };
-    }
-    // o e-mail fica no membro para o /admin saber quem é (o Admin Auth não roda na Vercel)
-    const quem = { uid: user.uid, ...(user.email && { email: user.email }), ...(user.name && { nome: user.name }), createdAt: FieldValue.serverTimestamp() };
-    if (convite.papel === "member") {
-      // da equipe: funcionário, preso ao profissional
-      await membro.set({ ...quem, role: "member", staffId: convite.staffId });
-    } else {
-      await assumirNegocio(adminDb, convite.tenantId, user.uid, quem);
-    }
-  }
+  // o e-mail fica no membro para o /admin saber quem é (o Admin Auth não roda na Vercel)
+  const quem = { ...(user.email && { email: user.email }), ...(user.name && { nome: user.name }), createdAt: FieldValue.serverTimestamp() };
+  // Quem já tem acesso entra sem mudar de papel. Senão: uso único, corte do dono ou da
+  // equipe e o resto da checagem acontecem na mesma transação que grava o acesso
+  const recusa = convite.papel === "member"
+    ? await entrarNaEquipe(adminDb, convite, user.uid, quem)
+    : await assumirNegocio(adminDb, convite, user.uid, quem);
+  if (recusa) return { ok: false as const, error: recusa };
   return { ok: true as const, tenantId: convite.tenantId, nome: String(tenant.get("name")) };
 }
 

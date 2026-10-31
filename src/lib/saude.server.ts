@@ -38,10 +38,11 @@ export async function saudeDe(db: Firestore, slug: string, hoje: string, agora =
   ]);
 
   // O dono é quem entrou pelo convite (sites importados) ou quem criou o próprio negócio;
-  // o admin da plataforma, dono dos importados, não conta
+  // a conta da plataforma (dona dos importados até o cliente entrar, admin depois) não conta
   const daPlataforma = new Set((admins.get("uids") as string[] | undefined) ?? []);
   const donos = membros.docs.filter((d) => !daPlataforma.has(d.id));
-  const dono = donos.find((d) => d.get("role") === "admin") ?? donos[0];
+  // depois do convite o cliente é "owner" (antes, "admin"): quem entrou pelo convite vem primeiro
+  const dono = donos.find((d) => d.get("viaConvite") === true) ?? donos.find((d) => d.get("role") === "owner") ?? donos[0];
   const validos = recentes.docs.filter((d) => d.get("status") !== "cancelled");
   const semanas = [0, 0, 0, 0];
   for (const d of validos) {
