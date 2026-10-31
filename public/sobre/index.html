@@ -862,6 +862,24 @@ const VITRINE = [
   {s: "depil-soft-centro-de-depilacao", n: "Depil Soft Centro de Depilação", d: "Estética · Batista Campos", c: "Belém", t: "/s/depil-soft-centro-de-depilacao/og.jpg"},
   {s: "katiuscia-hair-club", n: "Katiúscia Hair Club", d: "Salão de beleza · Santa Rita", c: "Macapá", t: "/s/katiuscia-hair-club/og.jpg"},
   {s: "clinica-de-podologia-podotop", n: "Clínica de Podologia: Podotop", d: "Podologia · Marco", c: "Belém", t: "/s/clinica-de-podologia-podotop/og.jpg"},
+  {s: "fascinos-corpo-cabelo", n: "Fascino's Corpo & Cabelo", d: "Salão de beleza · Centro", c: "Parnaíba", t: "/s/fascinos-corpo-cabelo/og.jpg"},
+  {s: "rr-barber-shop", n: "RR BARBER SHOP", d: "Barbearia", c: "Campina Grande", t: "/s/rr-barber-shop/og.jpg"},
+  {s: "luna-esmalteria", n: "Luna Esmalteria", d: "Manicure e unhas · Águas Claras", c: "Brasília", t: "/s/luna-esmalteria/og.jpg"},
+  {s: "depil-soft-umarizal", n: "Depil Soft Umarizal", d: "Estética · Umarizal", c: "Belém", t: "/s/depil-soft-umarizal/og.jpg"},
+  {s: "star-bem-estetica-e-podologia", n: "Star Bem Estética e Podologia", d: "Podologia · Cruzeiro", c: "Brasília", t: "/s/star-bem-estetica-e-podologia/og.jpg"},
+  {s: "oh-my-hair", n: "Oh My Hair", d: "Salão de beleza · Estados", c: "João Pessoa", t: "/s/oh-my-hair/og.jpg"},
+  {s: "barbearia-mr-alfa-umarizal", n: "Barbearia Mr Alfa Umarizal", d: "Barbearia · Umarizal", c: "Belém", t: "/s/barbearia-mr-alfa-umarizal/og.jpg"},
+  {s: "santa-cor-esmalteria", n: "Santa Cor Esmalteria", d: "Manicure e unhas", c: "João Pessoa", t: "/s/santa-cor-esmalteria/og.jpg"},
+  {s: "buddha-spa-teresina", n: "Buddha Spa Teresina", d: "Estética · Jóquei", c: "Teresina", t: "/s/buddha-spa-teresina/og.jpg"},
+  {s: "nagel-anatomia-dos-pes-podologia", n: "Nagel Anatomia dos Pés - Podologia", d: "Podologia · Asa Sul", c: "Brasília", t: "/s/nagel-anatomia-dos-pes-podologia/og.jpg"},
+  {s: "aurilene-bezerra-cabelos", n: "Aurilene Bezerra Cabelos", d: "Salão de beleza", c: "João Pessoa", t: "/s/aurilene-bezerra-cabelos/og.jpg"},
+  {s: "kapitan-barbearia", n: "Kapitan Barbearia", d: "Barbearia", c: "Ariquemes", t: "/s/kapitan-barbearia/og.jpg"},
+  {s: "studio-jessica-lima-nails-lash", n: "Studio Jéssica Lima Nails & Lash", d: "Manicure e unhas · 407 Sul", c: "Palmas", t: "/s/studio-jessica-lima-nails-lash/og.jpg"},
+  {s: "refugio-das-sobrancelhas", n: "Refúgio das Sobrancelhas", d: "Estética", c: "Porto Velho", t: "/s/refugio-das-sobrancelhas/og.jpg"},
+  {s: "rosangela-rodrigues-podologista", n: "Rosangela Rodrigues - Podologista", d: "Podologia · Umarizal", c: "Belém", t: "/s/rosangela-rodrigues-podologista/og.jpg"},
+  {s: "barba-arretada", n: "Barba arretada", d: "Barbearia", c: "João Pessoa", t: "/s/barba-arretada/og.jpg"},
+  {s: "kmilly-gomes-nail-designer-manicure", n: "Kmilly Gomes - Nail Designer & Manicure", d: "Manicure e unhas · 110 Norte", c: "Palmas", t: "/s/kmilly-gomes-nail-designer-manicure/og.jpg"},
+  {s: "nao-mais-pelo-pedreira", n: "Não Mais Pelo Pedreira", d: "Estética · Pedreira", c: "Belém", t: "/s/nao-mais-pelo-pedreira/og.jpg"},
 ];
 SITES.unshift(...VITRINE);
 const LIMITE = 24;
@@ -898,11 +916,18 @@ function numeros(){
 numeros();
 document.getElementById('n-cidades').textContent = CIDADES;
 
-/* ——— esteira: um em cada onze, para as cidades se misturarem ——— */
+/* ——— esteira: os sites do gerador, espalhados para as cidades se misturarem ——— */
+// abre com a VITRINE e, quando /api/catalogo chega, passa a amostrar o catálogo inteiro
 const esteira = document.getElementById('esteira');
-const amostra = SITES.filter((o, i) => i % 11 === 0).slice(0, 40);
-const faixa = amostra.map(o => '<span><b>' + o.n.replace(/[<>&]/g, '') + '</b>' + (o.d ? ' · ' + o.d.replace(/[<>&]/g, '') : '') + '</span>').join('');
-esteira.innerHTML = faixa + faixa;   // duas voltas: a animação anda metade e recomeça sem emenda
+function montarEsteira(){
+  const gerados = SITES.filter(o => o.t && o.t.endsWith('/og.jpg'));
+  const passo = Math.max(1, Math.floor(gerados.length / 40));
+  const amostra = gerados.filter((o, i) => i % passo === 0).slice(0, 40);
+  const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const faixa = amostra.map(o => '<span><b>' + esc(o.n) + '</b>' + (o.d ? ' · ' + esc(o.d) : '') + '</span>').join('');
+  esteira.innerHTML = faixa + faixa;   // duas voltas: a animação anda metade e recomeça sem emenda
+}
+montarEsteira();
 
 /* ——— grade ——— */
 const grade = document.getElementById('grade');
@@ -974,7 +999,7 @@ fetch('/api/catalogo').then(r => r.ok ? r.json() : []).then(novos => {
   novos.forEach(o => { o.k = norm(o.n + ' ' + o.d + ' ' + o.s + ' ' + o.c); SITES.push(o); });
   CIDADES = new Set([...CIDADES_FABRICA, ...SITES.map(o => o.c)].filter(Boolean).map(norm)).size;
   document.getElementById('n-cidades').textContent = CIDADES;
-  numeros(); render();
+  numeros(); render(); montarEsteira();
   document.getElementById('barra-n').textContent = SITES.length + ' sites no ar, com agenda aberta';
 }).catch(() => {});
 
