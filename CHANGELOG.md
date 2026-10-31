@@ -3,6 +3,32 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.13.0 — 31/10/2026
+
+### Caixa (novo)
+- **Caixa do negócio**, ligado por cliente pelo admin da plataforma (#126, #130, #131): entradas e saídas do mês, só para quem gere o negócio. O valor do Caixa é acertado por cliente no CRM e somado à mensalidade (#132).
+- **Contas do mês, comissão por profissional e planilha para o contador** (#133). O % de comissão também pode ser definido no cadastro do profissional (#136).
+- **Fechar o dia**: os atendimentos que já começaram aparecem para dar baixa; o relógio anda sozinho, sem recarregar (#139). "Recebi" também confirma o atendimento que aguardava confirmação (#142).
+- **Estornar** um recebimento, com aviso e confirmação, e acompanhamento das comissões por profissional, com histórico (#141). Profissional sem % fica fora da lista e do total (#143).
+- Ajustes para o celular: modal no centro no computador, valor grande e Enter para lançar (#134), linhas sem espremer o nome (#135, #138), "Fechar o dia" com os 3 mais recentes e o total das comissões numa linha (#145). Correções do QA em produção (#137).
+
+### Equipe e dono
+- **Login da equipe** (#153, #155): em Profissionais, o dono dá acesso ao painel para cada profissional por um link preso ao e-mail dele. O funcionário vê a agenda (aberta na dele), os clientes, os serviços e a equipe, sem Caixa, sem Meu negócio e sem poder editar preço, serviços ou equipe. Tirar o acesso ou excluir o profissional cancela os links dele.
+- **O cliente vira dono do negócio** ao aceitar o convite (#153). Se a Ruphus tirar o cliente, o negócio volta para ela, sem a equipe dele, e nenhum link antigo o traz de volta.
+- **O convite sai de noreply@ruphus.site**, num e-mail com layout próprio (#153, #154).
+
+### Landing e login
+- **"Criar minha conta" virou "Quero o meu site"**, pelo WhatsApp: o cliente entra pela venda e pelo convite (#147).
+- **Vitrine com sites do padrão atual**: o telefone, a busca vazia, a faixa de nomes e a tela de login mostram os sites do gerador, de beleza, sem a faixa de proposta na prévia (#148–#152). As fotos voltaram a aparecer na prévia. Quem sai do ar sai da vitrine.
+- **Menu da conta**: o admin da plataforma vê "Voltar ao admin" em vez de "Meus negócios" (#146).
+
+### Sites gerados
+- **Kits de beleza**: bronze, cílios e depilação com legendas conferidas (#124), e os modelos Depilação 1, 2 e 3 no seletor (#140).
+
+### Segurança e revisão
+- O negócio só é criado e alterado pelo servidor; correções de XSS no telefone, no WhatsApp e nos lembretes (#125); cobrança, redirect, sessões, site fora do ar e CSV (#127); gestor cria profissional, push só de navegador, slugs reservados (#129).
+- O limite de agendamentos é somado entre negócios, e o gerador aceita celular com e sem o 9 (#128).
+
 ## 0.12.0 — 18/10/2026
 
 ### Proposta por e-mail
