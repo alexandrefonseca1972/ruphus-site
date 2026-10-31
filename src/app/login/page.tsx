@@ -250,7 +250,7 @@ function Login() {
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 hidden select-none auto-rows-[158px] grid-cols-6 content-center gap-3 p-7 lg:grid">
           {vitrine.map((v) => (
             <div key={v.slug} className="flex flex-col gap-2 overflow-hidden rounded-xl border border-[#E4E1D5] bg-[#F8F6EF] p-3.5">
-              {/* eslint-disable-next-line @next/next/no-img-element -- captura já gerada em public/s/_p, servida estática */}
+              {/* eslint-disable-next-line @next/next/no-img-element -- capa já gerada de cada site (/s/{slug}/og.jpg), servida estática */}
               <img src={v.capa} alt="" width={260} height={150} loading="lazy" decoding="async" className="h-[62px] w-full rounded-lg object-cover object-top opacity-70" />
               <span className="truncate text-xs font-semibold text-[#3F3B2F]">{v.nome}</span>
             </div>
@@ -524,7 +524,7 @@ function Login() {
 
       {vitrine.length > 0 && (
         <span className="absolute bottom-7 left-7 hidden items-center gap-3 rounded-full border border-[#E0DCCE] bg-[#FAF9F5] px-4 py-2.5 lg:flex">
-          <span className="font-[family-name:var(--font-geist-mono)] text-[13px] font-medium">675</span>
+          <span className="font-[family-name:var(--font-geist-mono)] text-[13px] font-medium">+6 mil</span>
           <span className="h-3.5 w-px bg-[#E0DCCE]" />
           <span className="font-[family-name:var(--font-geist-mono)] text-[10px] tracking-[0.12em] text-[#6B6555] uppercase">sites no ar atrás desta tela</span>
         </span>
