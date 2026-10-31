@@ -21,7 +21,7 @@ sudo -u ruphus env SHA="$SHA" bash -c 'cd app-new && npm ci --no-audit --no-fund
 rm -rf app-prev && mv app app-prev && mv app-new app
 systemctl restart ruphus-site
 for i in $(seq 20); do
-  curl -fsS -o /dev/null -H "Host: www.ruphus.site" http://127.0.0.1:3001/ && { echo "no ar: $(cut -c1-7 <<<"$SHA")"; exit 0; }
+  curl -fsS -o /dev/null -H "Host: www.ruphus.site" http://localhost:3001/ && { echo "no ar: $(cut -c1-7 <<<"$SHA")"; exit 0; }
   sleep 2
 done
 echo "o app não respondeu; veja: journalctl -u ruphus-site -n 50" >&2

@@ -7,7 +7,7 @@ Wants=network-online.target
 User=ruphus
 Group=ruphus
 WorkingDirectory=/opt/ruphus-site/app
-ExecStart=/opt/ruphus-site/app/node_modules/.bin/next start -H 127.0.0.1 -p 3001
+ExecStart=/opt/ruphus-site/app/node_modules/.bin/next start -H localhost -p 3001
 Environment=NODE_ENV=production
 Environment=NEXT_TELEMETRY_DISABLED=1
 Environment=TZ=America/Sao_Paulo
