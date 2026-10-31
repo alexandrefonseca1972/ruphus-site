@@ -35,6 +35,8 @@ type Props = {
   address?: string | null;
   bairro?: string | null;
   temSite?: boolean;
+  /** endereço do site com barra no fim (domínio próprio ou {slug}.ruphus.site) */
+  siteUrl?: string;
   /** recado do dono para quem acabou de agendar; null = texto padrão */
   recadoDono?: string | null;
   /** Fuso real do negócio: o "Salvar na agenda" do cliente precisa do instante certo */
@@ -115,11 +117,11 @@ function Identidade({ name, rating, reviews, city }: Pick<Props, "name" | "ratin
   );
 }
 
-function Cabecalho({ tenantId, temSite, name, rating, reviews, city, phone }: Pick<Props, "tenantId" | "temSite" | "name" | "rating" | "reviews" | "city" | "phone">) {
+function Cabecalho({ tenantId, temSite, siteUrl, name, rating, reviews, city, phone }: Pick<Props, "tenantId" | "temSite" | "siteUrl" | "name" | "rating" | "reviews" | "city" | "phone">) {
   const falar = linkWhatsApp(phone, `Olá! Quero marcar um horário no ${name}.`);
   // O nome leva ao negócio: no computador, o site inteiro; no celular, a bio, que cabe na
   // tela e já tem os botões. Endereço completo: esta página também abre em www.ruphus.site.
-  const base = `https://${tenantId}.ruphus.site`;
+  const base = (siteUrl ?? `https://${tenantId}.ruphus.site/`).replace(/\/$/, "");
   const destinos = [
     { href: temSite ? `${base}/` : `${base}/bio`, className: "hidden sm:flex" },
     { href: `${base}/bio`, className: "flex sm:hidden" },
@@ -164,7 +166,7 @@ function Rodape() {
   );
 }
 
-export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, recadoDono, fuso, services, staff }: Props) {
+export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, fuso, services, staff }: Props) {
   // Nada vem marcado: quem agenda diz o que quer, e só então a agenda aparece.
   // Os serviços chegam do servidor na ordem do que mais se agenda.
   const [serviceIds, setServiceIds] = useState<string[]>([]);
@@ -414,7 +416,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     );
     return (
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col gap-4 bg-[#F2F0E7] p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-[#17150F]">
-        <Cabecalho tenantId={tenantId} temSite={temSite} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
+        <Cabecalho tenantId={tenantId} temSite={temSite} siteUrl={siteUrl} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
         <div className={cn(PAINEL, "overflow-hidden shadow-[0_28px_50px_-34px_rgba(22,21,15,0.28)]")}>
           <div className="flex flex-col gap-4 p-5">
             <p className={cn("flex items-center gap-2 text-[9px] font-medium tracking-[0.16em] text-[#2C6A53] uppercase", MONO)} role="status">
@@ -610,7 +612,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     const falar = linkWhatsApp(phone, `Olá! Quero marcar um horário no ${name}.`);
     return (
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col gap-4 bg-[#F2F0E7] p-4 py-6 text-[#17150F]">
-        <Cabecalho tenantId={tenantId} temSite={temSite} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
+        <Cabecalho tenantId={tenantId} temSite={temSite} siteUrl={siteUrl} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
         <div className={cn(PAINEL, "flex flex-col gap-4 p-5")}>
           <p className={cn("text-[9px] font-medium tracking-[0.16em] text-[#6B6555] uppercase", MONO)}>agenda online ainda fechada</p>
           <p className="text-sm leading-relaxed text-[#5C5747]">
@@ -812,7 +814,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     <main className="mx-auto min-h-dvh w-full max-w-[420px] bg-[#F2F0E7] p-4 pb-[max(6rem,env(safe-area-inset-bottom))] text-[#17150F] lg:max-w-[1120px]">
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[1fr_340px] lg:items-start lg:gap-8">
         <div className="flex flex-col gap-4">
-          <Cabecalho tenantId={tenantId} temSite={temSite} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
+          <Cabecalho tenantId={tenantId} temSite={temSite} siteUrl={siteUrl} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
 
           {slotError && (
             <p role="alert" className="rounded-[10px] border border-[#E7C9BF] bg-[#FBF1EE] p-3 text-sm text-[#B4472F]">

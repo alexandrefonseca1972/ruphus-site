@@ -147,7 +147,7 @@ export function renderClaro(d: DadosSite): string {
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Figtree:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/gerado/pet.css">
 <style>:root{${paleta[0]}}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){${paleta[1]}}}:root[data-theme="dark"]{${paleta[1]}}.hero{background:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("../assets/${c.pasta}/${topo}-800.jpg") center 38%/cover no-repeat;}@media (min-width:760px){.hero{background-image:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("../assets/${c.pasta}/${topo}.jpg");}}</style>
-${cabecaComum(d.slug, tituloPag, descr, d.publicado)}
+${cabecaComum(d, tituloPag, descr, d.publicado)}
 <meta name="theme-color" content="${cor}">
 ${d.uf ? `<meta name="geo.region" content="BR-${esc(d.uf)}">` : ""}
 ${jsonLdNegocio(d, descr, `/assets/${c.pasta}/${topo}.jpg`)}${jsonLd({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) })}

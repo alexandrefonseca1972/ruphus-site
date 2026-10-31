@@ -1,4 +1,5 @@
 import "server-only";
+import { type Dominio, urlDoSite } from "@/lib/dominio";
 import { sessaoRevogada } from "@/lib/revogacao";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { createHash } from "node:crypto";
@@ -42,6 +43,8 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
     bairro: (tenant.get("gerado.bairro") as string | null) || null,
     // tem página própria (fábrica ou gerador): o nome no topo leva a ela no computador
     temSite: !!(tenant.get("gerado.sub") || tenant.get("site.url")),
+    // o endereço do site: o domínio próprio do cliente, quando ativo, senão o subdomínio
+    siteUrl: urlDoSite(tenantId, tenant.get("dominio") as Dominio | undefined),
     // o recado do dono na confirmação; sem ele, a tela usa o texto padrão
     recadoDono: String(tenant.get("agenda.recado") ?? "").trim() || null,
     // Ordem: o que mais se agenda primeiro. Enquanto ninguém agendou, vale a

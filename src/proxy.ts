@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { type MapaDominios, resolverDominio } from "@/lib/dominio";
 
 // Lista de sites fora do ar, guardada em memória por um minuto: o proxy roda em
 // toda visita e não pode consultar o banco a cada uma.
@@ -24,6 +25,28 @@ async function foraDoAr(slug: string, origem: string) {
   }
   return fechados.slugs.has(slug);
 }
+
+// Domínios próprios ativos (www.salaodaana.com.br → site), na mesma toada: um minuto em
+// memória, e sem resposta vale o mapa anterior.
+let dominios: { mapa: MapaDominios; ate: number } = { mapa: { hosts: {}, porSlug: {} }, ate: 0 };
+
+async function mapaDominios(origem: string) {
+  if (Date.now() > dominios.ate) {
+    dominios = { mapa: dominios.mapa, ate: Date.now() + 60_000 };
+    try {
+      const r = await fetch(new URL("/api/dominios", ORIGEM || origem), {
+        cache: "no-store",
+        ...(SEGREDO && { headers: { "x-ruphus": SEGREDO } }),
+      });
+      if (r.ok) dominios = { mapa: await r.json(), ate: Date.now() + 60_000 };
+    } catch {
+      // sem resposta, vale o mapa anterior
+    }
+  }
+  return dominios.mapa;
+}
+
+const ehDaRuphus = (host: string) => /(^|\.)ruphus\.site$/.test(host.split(":")[0]);
 
 // {slug}.ruphus.site serve o site em /s/{slug}/ (Storage ou gerador; public/s, se a pasta
 // ainda existir); www e apex são o app.
@@ -84,7 +107,28 @@ export function enderecoCanonico(host: string, pathname: string) {
 
 export async function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
-  const slug = siteSlug(host);
+  const caminho = request.nextUrl.pathname;
+  // as listas que o próprio proxy pede, em qualquer host: sem SITE_URL elas são buscadas no
+  // host visitado (subdomínio ou domínio do cliente), e reescritas para o site davam 404
+  if (caminho === "/api/desativados" || caminho === "/api/dominios") return NextResponse.next();
+  let slug = siteSlug(host);
+  const paraOutroHost = (destino: string) => {
+    const url = request.nextUrl.clone();
+    url.host = destino;
+    url.port = "";
+    url.protocol = "https:";
+    return NextResponse.redirect(url, 308);
+  };
+  if (slug) {
+    // site com domínio próprio ativo: o subdomínio leva para lá, links antigos e QR inclusive.
+    // A reserva fica: a página já aberta no subdomínio ainda confirma o horário
+    const proprio = caminho === "/api/agendar" ? null : (await mapaDominios(request.url)).porSlug[slug];
+    if (proprio) return paraOutroHost(proprio);
+  } else if (!ehDaRuphus(host)) {
+    const r = resolverDominio(host, await mapaDominios(request.url));
+    if (r && "redirecionar" in r) return paraOutroHost(r.redirecionar);
+    if (r) slug = r.slug;
+  }
   const canonico = slug ? null : enderecoCanonico(host, request.nextUrl.pathname);
   if (canonico) {
     const url = request.nextUrl.clone();
@@ -106,9 +150,6 @@ export async function proxy(request: NextRequest) {
   // a reserva da página de agendamento, pedida do próprio subdomínio: vai direto para a rota
   // (e antes do "fora do ar": quem já reservou e repete a confirmação ainda recebe a reserva)
   if (request.nextUrl.pathname === "/api/agendar") return NextResponse.next();
-  // a lista de fechados que o próprio proxy pede: sem SITE_URL ela é buscada no subdomínio
-  // visitado, e virando /s/{slug}/api/… dava 404 e nenhum site saía do ar
-  if (request.nextUrl.pathname === "/api/desativados") return NextResponse.next();
   const url = request.nextUrl.clone();
   if (await foraDoAr(slug, request.url)) {
     url.pathname = "/indisponivel";
