@@ -46,6 +46,9 @@ export function paginaEstatica(pathname: string) {
   // A prévia da landing aponta para /s/{slug}: em produção o servidor estático
   // acha o index sozinho, o next dev não — e a vitrine aparecia 404 na máquina
   // de quem desenvolve. Apontar para o arquivo resolve nos dois.
+  // As páginas pedem "../assets/…": em /s/{slug} (sem barra no fim) isso vira /assets/…,
+  // e a vitrine da landing abria sem nenhuma foto. É a pasta compartilhada, como no subdomínio.
+  if (pathname.startsWith("/assets/")) return `/s${pathname}`;
   const site = /^\/s\/([a-z0-9][a-z0-9-]*)\/?$/.exec(pathname);
   return site ? `/s/${site[1]}/index.html` : null;
 }
