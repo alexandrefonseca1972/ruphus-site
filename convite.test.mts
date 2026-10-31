@@ -87,4 +87,14 @@ const recusa = conviteAbrePara({ email: "dona@salao.com" }, { emailPendente: "do
 assert.equal(recusa.ok, false);
 assert.ok(recusa.ok === false && recusa.error.includes("dona@salao.com"), "a recusa diz qual e-mail confirmar");
 
+// ————— Convite da equipe —————
+// o dono convida o profissional: o token diz que é funcionário e de qual profissional
+const equipe = await lerConvite(db, await criarConvite(db, "salao", "Bruna@Salao.com", { staffId: "bruna" }));
+assert.equal(equipe?.papel, "member", "convite da equipe entra como funcionário");
+assert.equal(equipe?.papel === "member" && equipe.staffId, "bruna");
+assert.equal(equipe?.email, "bruna@salao.com");
+// o do dono, sem papel no token, continua admin
+assert.equal(preso?.papel, "admin", "convite sem papel é o do dono");
+await assert.rejects(() => criarConvite(db, "salao", "", { staffId: "bruna" }), /e-mail de quem vai entrar/i);
+
 console.log("convite: ok");

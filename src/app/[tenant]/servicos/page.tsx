@@ -190,7 +190,8 @@ export default function ServicesPage() {
         title="Serviços"
         sub={items && (items.length ? `${ativos} no link de agendamento${items.length > ativos ? ` · ${items.length - ativos} oculto(s)` : ""}` : "O que os clientes podem agendar")}
       />
-      <section aria-labelledby="form-servico" className="grid gap-5 rounded-2xl border bg-card p-5 sm:px-7 sm:py-6">
+      {/* preço e o que entra no link são do dono: o funcionário só consulta */}
+      {tenant.podeGerir && <section aria-labelledby="form-servico" className="grid gap-5 rounded-2xl border bg-card p-5 sm:px-7 sm:py-6">
         <h2 id="form-servico" className="font-semibold">{editing ? `Editar “${editing.name}”` : "Novo serviço"}</h2>
         {/* key recria o formulário com os valores do item em edição */}
         <ServiceForm
@@ -201,7 +202,7 @@ export default function ServicesPage() {
           onSave={save}
           onCancel={() => setEditing(null)}
         />
-      </section>
+      </section>}
 
       {(error || loadError) && <p role="alert" className="text-sm text-destructive">{error || loadError}</p>}
       {items?.length === 0 && (
@@ -251,6 +252,7 @@ export default function ServicesPage() {
                       type="checkbox"
                       role="switch"
                       checked={s.active}
+                      disabled={!tenant.podeGerir}
                       onChange={() => run(updateDoc(doc(col, s.id), { active: !s.active }))}
                       aria-label={`${s.name} aparece no link de agendamento`}
                       className="peer sr-only"
@@ -258,7 +260,7 @@ export default function ServicesPage() {
                     <span aria-hidden="true" className="relative h-6 w-11 shrink-0 rounded-full bg-input transition-colors peer-checked:bg-primary peer-focus-visible:ring-3 peer-focus-visible:ring-ring/50 after:absolute after:top-0.5 after:left-0.5 after:size-5 after:rounded-full after:bg-card after:transition-transform peer-checked:after:translate-x-5" />
                     {s.active ? "No link" : "Oculto"}
                   </label>
-                  <div className="flex items-center justify-end gap-1">
+                  {tenant.podeGerir && <div className="flex items-center justify-end gap-1">
                     <Button variant="ghost" className="h-10 px-3" onClick={() => setEditing(s)}>Editar</Button>
                     <RowMenu
                       label={`Mais ações: ${s.name}`}
@@ -270,7 +272,7 @@ export default function ServicesPage() {
                         },
                       ]}
                     />
-                  </div>
+                  </div>}
                 </li>
               );
             })}

@@ -19,6 +19,7 @@ import { PageTitle } from "../page-title";
 import { ConfirmDialog } from "../confirm-dialog";
 import { RowMenu } from "../row-menu";
 import { cn, handleSubmit } from "@/lib/utils";
+import { AcessoProfissional, Membro } from "./acesso";
 
 type Day = keyof Staff["hours"];
 const DAYS = ["1", "2", "3", "4", "5", "6", "0"] as Day[]; // segunda primeiro
@@ -43,6 +44,9 @@ export default function StaffPage() {
   // sem ler a configuração, o campo some: mostrar vazio faria o dono achar que não há comissão
   const comissoes = configs && !erroConfig ? (configs.find((c) => c.id === "config")?.comissoes ?? {}) : null;
   const pctDe = (staffId: string) => comissoes?.[staffId] ?? 0;
+  // quem da equipe já entra no painel, por profissional; o funcionário não gere a equipe
+  const [membros] = useCollection(tenant.podeGerir ? tenant.id : "", "members", Membro);
+  const acessoDe = new Map(membros?.filter((m) => m.role === "member" && m.staffId).map((m) => [m.staffId!, m]));
   const [editing, setEditing] = useState<(Staff & { id: string }) | null>(null);
   const [salvos, setSalvos] = useState(0);
   const [excluindo, setExcluindo] = useState<(Staff & { id: string }) | null>(null);
@@ -146,14 +150,18 @@ export default function StaffPage() {
                     {pctDe(p.id) > 0 && ` · comissão ${String(pctDe(p.id)).replace(".", ",")}%`}
                   </span>
                 </div>
-                <Button variant="outline" className="h-10 px-4" onClick={() => { setEditing(p); document.getElementById("form-prof")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Editar</Button>
-                <RowMenu
-                  label={`Mais ações: ${p.name}`}
-                  actions={[
-                    { label: p.active ? "Tirar do link" : "Voltar para o link", onClick: () => run(updateDoc(doc(col, p.id), { active: !p.active })) },
-                    { label: "Excluir", danger: true, onClick: () => setExcluindo(p) },
-                  ]}
-                />
+                {tenant.podeGerir && (
+                  <>
+                    <Button variant="outline" className="h-10 px-4" onClick={() => { setEditing(p); document.getElementById("form-prof")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Editar</Button>
+                    <RowMenu
+                      label={`Mais ações: ${p.name}`}
+                      actions={[
+                        { label: p.active ? "Tirar do link" : "Voltar para o link", onClick: () => run(updateDoc(doc(col, p.id), { active: !p.active })) },
+                        { label: "Excluir", danger: true, onClick: () => setExcluindo(p) },
+                      ]}
+                    />
+                  </>
+                )}
               </div>
               {!!p.serviceIds.length && (
                 <ul className="flex flex-wrap gap-2" aria-label="Serviços">
@@ -175,11 +183,12 @@ export default function StaffPage() {
                   );
                 })}
               </dl>
+              {membros && <AcessoProfissional tenantId={tenant.id} negocio={tenant.name} staffId={p.id} nome={p.name} membro={acessoDe.get(p.id)} />}
             </article>
           ))}
         </div>
 
-        <section aria-labelledby="form-prof" className="grid gap-5 rounded-2xl border bg-card p-5 sm:p-6 lg:sticky lg:top-6">
+        {tenant.podeGerir && <section aria-labelledby="form-prof" className="grid gap-5 rounded-2xl border bg-card p-5 sm:p-6 lg:sticky lg:top-6">
           <h2 id="form-prof" className="font-semibold">{editing ? `Editar ${editing.name}` : "Novo profissional"}</h2>
           {lotado ? (
             <p className="text-sm text-muted-foreground">
@@ -239,7 +248,7 @@ export default function StaffPage() {
               </div>
             </form>
           )}
-        </section>
+        </section>}
       </div>
       {excluindo && (
         <ConfirmDialog

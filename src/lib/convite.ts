@@ -8,7 +8,8 @@ import { ErroPrevisto } from "@/lib/erro-previsto";
 /** Falta o e-mail do dono. Erro previsto: a mensagem chega à tela como está. */
 export class SemDestinatario extends ErroPrevisto {}
 
-// O convite é um link: quem abrir e entrar com a conta dele vira admin do espaço.
+// O convite é um link: quem abrir e entrar com a conta dele vira admin do espaço
+// (o dono) ou funcionário ("member", convite da equipe, feito pelo próprio dono).
 // O segredo mora no Firestore (só o Admin SDK lê), então não precisa de variável
 // de ambiente nova nem de deploy para começar a convidar.
 //
@@ -43,10 +44,11 @@ export const mesmoEmail = (e: string) => e.trim().toLowerCase();
  *
  * O e-mail vai assinado dentro do token, não na URL: mudar o endereço no link
  * quebra a assinatura em vez de trocar o destinatário. */
-export async function criarConvite(db: Firestore, tenantId: string, email: string) {
+export async function criarConvite(db: Firestore, tenantId: string, email: string, equipe?: { staffId: string }) {
   const para = mesmoEmail(email ?? "");
-  if (!para) throw new SemDestinatario("Cadastre o e-mail do dono antes de convidar.");
-  return new SignJWT({ t: tenantId, e: para })
+  if (!para) throw new SemDestinatario(equipe ? "Informe o e-mail de quem vai entrar." : "Cadastre o e-mail do dono antes de convidar.");
+  // convite da equipe: entra como funcionário ("member"), preso ao profissional da agenda
+  return new SignJWT({ t: tenantId, e: para, ...(equipe && { r: "member", p: equipe.staffId }) })
     .setProtectedHeader({ alg: "HS256" })
     .setJti(randomBytes(16).toString("hex"))
     .setIssuedAt()
@@ -62,9 +64,10 @@ export async function criarConvite(db: Firestore, tenantId: string, email: strin
 export async function lerConvite(db: Firestore, token: string) {
   try {
     const { payload } = await jwtVerify(token, await segredo(db), { algorithms: ["HS256"] });
-    return typeof payload.t === "string" && typeof payload.jti === "string" && typeof payload.e === "string" && payload.e
-      ? { tenantId: payload.t, jti: payload.jti, email: payload.e }
-      : null;
+    if (!(typeof payload.t === "string" && typeof payload.jti === "string" && typeof payload.e === "string" && payload.e)) return null;
+    // sem papel no token é o convite do dono (admin), como sempre foi
+    const equipe = payload.r === "member" && typeof payload.p === "string" && payload.p;
+    return { tenantId: payload.t, jti: payload.jti, email: payload.e, ...(equipe ? { papel: "member" as const, staffId: payload.p as string } : { papel: "admin" as const }) };
   } catch {
     return null;
   }
