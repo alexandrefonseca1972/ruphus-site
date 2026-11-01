@@ -5,6 +5,7 @@ import { doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, use, useEffect, useState } from "react";
+import { MonitorConexao } from "@/components/monitor-conexao";
 import { auth } from "@/lib/firebase";
 import { db } from "@/lib/firebase-db";
 import { Tenant } from "@/lib/tenants";
@@ -90,6 +91,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   return (
     <TenantContext value={{ ...state, atualizar: (parcial) => setLoaded({ slug, value: { ...state, ...parcial } }) }}>
       <div className={`painel ${serifa.variable} flex min-h-dvh flex-col bg-background`}>
+        <MonitorConexao />
       <header className="sticky top-0 z-10 border-b bg-card pt-[env(safe-area-inset-top)] sm:static">
         <div className="mx-auto flex max-w-6xl items-center gap-x-6 px-4">
           {/* O nome era o unico link que parecia subir um nivel, e levava para "/",
