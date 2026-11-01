@@ -86,6 +86,20 @@ duas correções de desempenho que não mudam o resultado:
   comparação: ordenar 15 mil nomes cai de 87 ms para 29 ms (medido), e a ordem
   base fica em cache por `versao`.
 
+Medido na fase 1 (20 mil negócios sintéticos, Mac de desenvolvimento): a primeira
+versão levava 431 ms. As correções que levaram a ~45–60 ms (a variação é a carga da
+máquina) e ~30 ms na busca:
+
+- `diaLocal` com um `Intl.DateTimeFormat` por fuso, reaproveitado: o
+  `toLocaleDateString` com fuso monta um formatador a cada chamada (~105 µs);
+- posição alfabética calculada uma vez por lista, e a ordenação compara números;
+- relevância calculada uma vez por negócio, não a cada comparação;
+- destacados separados no laço, em vez de recalcular o destaque a cada comparação;
+- texto de busca sem acento guardado por negócio.
+
+A primeira consulta depois de uma lista nova (cache frio) leva ~160 ms. A medição que
+vale para a meta de 50 ms é a da fase 2, na VPS.
+
 ### 3.3 O endpoint (`src/app/api/admin/painel/route.ts`)
 
 Rota `GET` com o token em `Authorization: Bearer`, em vez de server action: o Next
@@ -186,8 +200,11 @@ Cada `tenant` e cada `crm` passa por um schema zod tolerante antes de entrar no
 
 - `nome`: texto, sem caracteres de controle, até 120 caracteres; vazio usa o slug.
 - `telefone`: só dígitos, de 10 a 13; fora disso, `null`.
-- `uf`: uma das 27 siglas (`UFS` de `src/lib/coleta.ts`); fora disso, `null`.
-- `cidade`: texto até 80 caracteres, sem caracteres de controle.
+- `uf`: uma das 27 siglas (`UFS` de `src/lib/coleta.ts`); fora disso, `null`. Em
+  01/11 nenhum dos 14.937 negócios tinha UF fora das 27 siglas, mas o campo do
+  cadastro é texto livre.
+- `cidade`: `limparTexto` de `painel-tipos.ts` (a mesma da consulta), até 80 caracteres.
+- `estagio`: fora da lista, "novo" (o `negocio()` já faz; não pode haver outro caminho).
 - `nota`: número de 0 a 5; `avaliacoes`: inteiro ≥ 0; fora disso, `null`.
 - `crm`: passa pelo `negocio()` que já existe em `src/lib/crm.ts`, que converte
   `Timestamp` em ISO e já é testado.
@@ -202,15 +219,19 @@ Schema estrito (`z.strictObject`): parâmetro desconhecido é recusado.
 
 | Parâmetro | Regra |
 |---|---|
-| `busca` | `trim`, `normalize("NFC")`, sem caracteres de controle, até 100 caracteres |
+| `busca` | teto bruto de 400 caracteres antes da limpeza; `normalize("NFC")`, sem controles C0/C1 nem de direção (bidi), `trim`; até 100 caracteres |
 | `uf` | uma das 27 siglas ou vazio |
-| `cidade` | formato "Cidade/UF", até 100 caracteres, ou vazio |
-| `nicho` | um dos nichos conhecidos (`NICHOS` de `actions.ts`) ou vazio |
-| `situacao`, `estagio`, `prazo`, `ordem`, `visao`, `alerta` | enums fechados |
+| `cidade` | o rótulo do chip ("Cidade/UF", ou só "Cidade" quando o negócio não tem UF), mesma limpeza da busca, até 100 caracteres. O índice limpa a cidade gravada com a mesma função (6.3), senão as duas formas não casam |
+| `nicho` | um dos nichos conhecidos (`nichoDe` em `painel-tipos.ts`) ou vazio |
+| `situacao`, `estagio`, `prazo`, `ordem`, `alerta` | enums fechados. Não há `visao`: a visão é um preset dos filtros e se deduz deles (`visaoDe`) |
 | `fora`, `caixa`, `fixados`, `contato` | booleanos (`z.stringbool()`, zod 4.6) |
-| `n` | inteiro de 1 a 2.000 |
+| `n` | só dígitos (`"0x28"`, `"4e1"` e `" 40 "` são recusados), de 1 a 2.000 |
 | `hoje` | AAAA-MM-DD, a até 1 dia da data do servidor |
-| `tz` | nome IANA aceito por `Intl.DateTimeFormat`, até 64 caracteres |
+| `tz` | nome IANA aceito por `Intl.DateTimeFormat`, até 64 caracteres, guardado na grafia canônica |
+
+Dentro da consulta (`Filtros`), a UF é texto: o chip vem do valor gravado, e quem
+confere a sigla é esta fronteira e a limpeza do índice. Assim um valor fora do
+padrão no Firestore continua filtrando, como antes.
 
 Os mesmos schemas valem para as server actions novas ou alteradas (por exemplo,
 `espacosGerados` já valida slug e tamanho).

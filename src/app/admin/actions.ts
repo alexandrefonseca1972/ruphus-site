@@ -5,6 +5,7 @@ import { conectarDominio, desconectarDominio, verificarDominio } from "@/lib/dom
 import type { Dominio } from "@/lib/dominio";
 import { z } from "zod";
 import { adminDb } from "@/lib/admin";
+import { nichoDe, type Espaco } from "@/lib/painel-tipos";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNegocio as salvarSite } from "@/lib/negocios.server";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX, limiteStaffDe, MINUTOS_MAX } from "@/lib/limites";
@@ -41,48 +42,8 @@ import { FieldValue } from "firebase-admin/firestore";
 
 export type { ConexaoWhatsapp, QrWhatsApp };
 
-export type Espaco = {
-  slug: string;
-  nome: string;
-  telefone: string | null;
-  nicho: string;          // rótulo em português, já agrupado
-  cidade: string | null;
-  uf: string | null;
-  nota: number | null;    // estrelas no Google
-  avaliacoes: number | null;
-  acessos: number;        // quantas pessoas entram no painel deste espaço
-  limiteStaff: number;    // profissionais que o negócio pode cadastrar
-  caixa: boolean;         // módulo Caixa (financeiro) ligado para este cliente
-};
+export type { Espaco };
 
-// os tipos do schema.org viram nichos que a gente reconhece (e junta variações)
-const NICHOS: Record<string, string> = {
-  petstore: "Pet shop",
-  veterinarycare: "Veterinária",
-  beautysalon: "Estética e beleza",
-  healthandbeautybusiness: "Estética e beleza",
-  hairsalon: "Cabeleireiro",
-  barbershop: "Barbearia",
-  nailsalon: "Unhas",
-  dayspa: "Spa e massagem",
-  tattooparlor: "Tatuagem",
-  medicalclinic: "Saúde",
-  dentist: "Odontologia",
-  physician: "Saúde",
-  healthclub: "Fitness",
-  podiatric: "Podologia",
-  // os do gerador de sites
-  physiotherapy: "Fisioterapia",
-  medicalbusiness: "Saúde",
-  educationalorganization: "Aulas e cursos",
-  drivingschool: "Autoescola",
-  exercisegym: "Fitness",
-  sportsactivitylocation: "Fitness",
-  autorepair: "Automotivo",
-  autowash: "Automotivo",
-  tireshop: "Automotivo",
-};
-const nicho = (tipo: unknown) => NICHOS[String(tipo ?? "").toLowerCase()] ?? "Outros";
 
 /** Se quem entrou administra a plataforma.
  *
@@ -136,7 +97,7 @@ async function espacosComAcessos(slugs?: string[]) {
       slug: d.id,
       nome: String(d.get("name") ?? d.id),
       telefone: d.get("site.phone") ?? null,
-      nicho: nicho(d.get("site.category")),
+      nicho: nichoDe(d.get("site.category")),
       cidade: d.get("site.city") ?? null,
       uf: d.get("site.uf") ?? null,
       nota: d.get("site.rating") ?? null,
