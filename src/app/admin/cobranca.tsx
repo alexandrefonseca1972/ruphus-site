@@ -1,5 +1,6 @@
 "use client";
 
+import { idToken as tokenAtual } from "@/lib/firebase";
 import { useEffect, useRef, useState } from "react";
 import { diaCurto, hojeISO } from "@/lib/crm-tipos";
 import { formatBRL } from "@/lib/datetime";
@@ -58,7 +59,7 @@ export function Cobrancas({ slug, idToken, aviso }: { slug: string; idToken: str
 
   useEffect(() => {
     let vivo = true;
-    listarCobrancasDo(idToken, slug).then((r) => vivo && setBuscado({ para: slug, lista: r.ok ? r.dados : [] }), () => {});
+    tokenAtual().then((tk) => listarCobrancasDo(tk, slug)).then((r) => vivo && setBuscado({ para: slug, lista: r.ok ? r.dados : [] }), () => {});
     return () => {
       vivo = false;
     };
@@ -66,7 +67,7 @@ export function Cobrancas({ slug, idToken, aviso }: { slug: string; idToken: str
 
   async function gerar(tipo: "entrada" | "mensal") {
     setOcupado(tipo);
-    const r = await cobrar(idToken, slug, tipo, null).finally(() => setOcupado(""));
+    const r = await cobrar(await tokenAtual(), slug, tipo, null).finally(() => setOcupado(""));
     if (!r.ok) return aviso(r.error);
     setLista(r.dados);
     aviso(tipo === "entrada" ? "Cobrança da entrada pronta." : "Cobrança do mês pronta.");
@@ -78,10 +79,10 @@ export function Cobrancas({ slug, idToken, aviso }: { slug: string; idToken: str
     const centavos = cents(baixando.valor);
     if (!centavos || !baixando.data) return aviso("Informe o valor recebido e a data.");
     setOcupado(baixando.id);
-    const r = await marcarPaga(idToken, baixando.id, centavos, baixando.data).finally(() => setOcupado(""));
+    const r = await marcarPaga(await tokenAtual(), baixando.id, centavos, baixando.data).finally(() => setOcupado(""));
     if (!r.ok) return aviso(r.error);
     setBaixando(null);
-    const nova = await listarCobrancasDo(idToken, slug);
+    const nova = await listarCobrancasDo(await tokenAtual(), slug);
     if (nova.ok) setLista(nova.dados);
     aviso("Baixa registrada.");
   }
@@ -140,9 +141,9 @@ export function Cobrancas({ slug, idToken, aviso }: { slug: string; idToken: str
                     disabled={ocupado === c.id}
                     onClick={async () => {
                       setOcupado(c.id);
-                      const r = await cancelarCobranca(idToken, c.id).finally(() => setOcupado(""));
+                      const r = await cancelarCobranca(await tokenAtual(), c.id).finally(() => setOcupado(""));
                       if (!r.ok) return aviso(r.error);
-                      const nova = await listarCobrancasDo(idToken, slug);
+                      const nova = await listarCobrancasDo(await tokenAtual(), slug);
                       if (nova.ok) setLista(nova.dados);
                       aviso("Cobrança cancelada.");
                     }}
@@ -219,12 +220,12 @@ export function Atrasadas({
 
   useEffect(() => {
     if (!idToken) return;
-    listarAtrasadas(idToken).then((r) => {
+    tokenAtual().then((tk) => listarAtrasadas(tk)).then((r) => {
       if (!r.ok) return;
       setLista(r.dados);
       contar.current?.(r.dados.length);
     }, () => {});
-    lerPixConfig(idToken).then((r) => {
+    tokenAtual().then((tk) => lerPixConfig(tk)).then((r) => {
       if (!r.ok) return;
       setSemPix(!r.dados);
       if (r.dados) {
@@ -254,7 +255,7 @@ export function Atrasadas({
           title={COBRAR_MES_LIGADO ? undefined : "Desativado por enquanto"}
           onClick={async () => {
             setOcupado("mes");
-            const r = await cobrarMes(idToken).finally(() => setOcupado(""));
+            const r = await cobrarMes(await tokenAtual()).finally(() => setOcupado(""));
             if (!r.ok) return aviso(r.error);
             setEnviadas(new Set());
             setLote({ mes: r.dados.mes, lista: r.dados.lista });
@@ -271,7 +272,7 @@ export function Atrasadas({
           enviadas={enviadas}
           enviou={(c) => {
             setEnviadas((e) => new Set(e).add(c.id));
-            registrarEnvio(idToken, c.slug, `Cobrança de ${lote.mes}`, c.nome).catch(() => {});
+            tokenAtual().then((tk) => registrarEnvio(tk, c.slug, `Cobrança de ${lote.mes}`, c.nome)).catch(() => {});
           }}
           fechar={() => setLote(null)}
         />
@@ -337,7 +338,7 @@ export function Atrasadas({
             disabled={ocupado === "pix"}
             onClick={async () => {
               setOcupado("pix");
-              const r = await salvarPixConfig(idToken, rascunho).finally(() => setOcupado(""));
+              const r = await salvarPixConfig(await tokenAtual(), rascunho).finally(() => setOcupado(""));
               if (!r.ok) return aviso(r.error);
               setPix(rascunho);
               setSemPix(false);

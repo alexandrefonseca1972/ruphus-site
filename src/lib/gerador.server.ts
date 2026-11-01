@@ -204,7 +204,12 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
       continue;
     }
     const slug = lista.find((s) => !usados.has(s) && !existentes.has(s));
-    if (!slug) throw new ErroPrevisto(`Linha ${linha}: não achei endereço livre para “${lead.nome}”. Preencha a coluna slug.`);
+    // uma linha sem endereço possível (nome só de símbolos, como "***", ou todos os candidatos
+    // tomados) fica de fora com o motivo, em vez de parar o lote inteiro da coleta ou da planilha
+    if (!slug) {
+      saida.push({ ...base, slug: "", acao: "pular", motivo: lista.length ? `nenhum endereço livre para “${lead.nome}”: preencha a coluna slug` : `nome “${lead.nome}” sem letras ou números: não dá endereço de site` });
+      continue;
+    }
     usados.add(slug);
     // nome (e nome + cidade) já tomados na mesma cidade, com outro telefone: pode ser
     // o mesmo negócio com outro número — ou outra unidade de uma rede

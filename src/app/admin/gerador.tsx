@@ -1,5 +1,6 @@
 "use client";
 
+import { idToken as tokenAtual } from "@/lib/firebase";
 import { useState } from "react";
 import { type Leitura, lerPlanilha } from "@/lib/gerador";
 import type { LinhaGerada } from "@/lib/gerador.server";
@@ -11,7 +12,7 @@ import { gerarSites } from "./actions";
 
 const BOTAO = "h-10 rounded-[10px] px-4 text-[13px] font-semibold";
 
-export function Gerador({ idToken, aoGerar }: { idToken: string; aoGerar: () => void }) {
+export function Gerador({ aoGerar }: { aoGerar: () => void }) {
   const [arquivo, setArquivo] = useState("");
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [previa, setPrevia] = useState<LinhaGerada[] | null>(null);
@@ -32,7 +33,7 @@ export function Gerador({ idToken, aoGerar }: { idToken: string; aoGerar: () => 
       const lida = lerPlanilha((await lerAbas(f)).map(({ sheet, data }) => ({ aba: sheet, linhas: data as unknown[][] })));
       setLeitura(lida);
       if (!lida.leads.length) return;
-      const r = await gerarSites(idToken, lida.leads, false);
+      const r = await gerarSites(await tokenAtual(), lida.leads, false);
       if (r.ok) setPrevia(r.dados);
       else setErro(r.error);
     } catch {
@@ -46,7 +47,7 @@ export function Gerador({ idToken, aoGerar }: { idToken: string; aoGerar: () => 
     if (!leitura) return;
     setOcupado(true);
     setErro("");
-    const r = await gerarSites(idToken, leitura.leads, true).catch(() => null);
+    const r = await gerarSites(await tokenAtual(), leitura.leads, true).catch(() => null);
     setOcupado(false);
     if (!r) return setErro("Não foi possível gerar agora. Tente de novo.");
     if (!r.ok) return setErro(r.error);

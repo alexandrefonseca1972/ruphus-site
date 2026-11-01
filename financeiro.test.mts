@@ -197,5 +197,34 @@ await assert.rejects(excluir(db, "salao", idDaBaixa("passado")), /não está ati
 await assert.rejects(definirComissao(db, "salao", "bia", 10), /não está ativo/);
 assert.equal((await db.doc(`tenants/salao/lancamentos/${idDaBaixa("passado")}`).get()).exists, true);
 
+await db.doc("tenants/salao").update({ "modulos.financeiro": true });
+// avulso com id da tela: o reenvio (resposta perdida) devolve o mesmo e não duplica
+const idTela = "mn-0123456789abcdef0123";
+assert.equal(await lancar(db, "salao", entrada, quem, idTela), idTela);
+assert.equal(await lancar(db, "salao", entrada, quem, idTela), idTela);
+assert.equal((await db.collection("tenants/salao/lancamentos").where("valorCents", "==", 4500).get()).size, 1, "um só");
+await assert.rejects(lancar(db, "salao", entrada, quem, "ag-qualquer"), /inválido/, "id da tela não ocupa o de outro registro");
+await excluir(db, "salao", idTela);
+
+// sinal pago: no balcão só o restante; o Caixa fica com o preço inteiro, sem contar o sinal duas vezes
+const comSinal = (id: string) =>
+  db.doc(`tenants/salao/appointments/${id}`).set({ status: "confirmed", start: zonedTime(addDays(hoje, -1), "15:00"), serviceName: "Mechas", priceCents: 10000, staffId: "bia", staffName: "Bia", customerName: "Lia", sinal: { cents: 3000, status: "pago" } });
+// sinal no Caixa (sn-): a baixa grava só o restante
+await comSinal("sinal-no-caixa");
+await db.doc("tenants/salao/lancamentos/sn-sinal-no-caixa").set({ tipo: "entrada", valorCents: 3000, data: hoje, mes: hoje.slice(0, 7), categoria: "Atendimento", forma: "pix" });
+await assert.rejects(baixarAgendamento(db, "salao", { appointmentId: "sinal-no-caixa", valorCents: 10000, forma: "pix", sinalCents: 0 }, quem), /sinal deste atendimento mudou/, "tela aberta antes da confirmação do sinal");
+await baixarAgendamento(db, "salao", { appointmentId: "sinal-no-caixa", valorCents: 7000, forma: "pix", sinalCents: 3000 }, quem);
+assert.equal((await db.doc(`tenants/salao/lancamentos/${idDaBaixa("sinal-no-caixa")}`).get()).get("valorCents"), 7000);
+// sinal fora do Caixa (confirmado com ele desligado): entra junto na baixa
+await comSinal("sinal-fora");
+await baixarAgendamento(db, "salao", { appointmentId: "sinal-fora", valorCents: 7000, forma: "dinheiro", sinalCents: 3000 }, quem);
+const fora = (await db.doc(`tenants/salao/lancamentos/${idDaBaixa("sinal-fora")}`).get()).data()!;
+assert.equal(fora.valorCents, 10000);
+assert.match(fora.descricao, /com sinal de R\$\s?30,00/);
+// o lançamento do sinal fica preso ao atendimento: entrada, no dia dele
+await assert.rejects(editar(db, "salao", "sn-sinal-no-caixa", { tipo: "saida", valorCents: 3000, data: hoje, categoria: "Atendimento", forma: "pix" }, quem), /sempre entrada/);
+await editar(db, "salao", "sn-sinal-no-caixa", { tipo: "entrada", valorCents: 3000, data: addDays(hoje, -40), categoria: "Atendimento", forma: "pix" }, quem);
+assert.equal((await db.doc("tenants/salao/lancamentos/sn-sinal-no-caixa").get()).get("data"), hoje, "a data não muda");
+
 console.log("financeiro ok");
 process.exit(0);

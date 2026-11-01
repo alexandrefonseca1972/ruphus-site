@@ -1,5 +1,6 @@
 "use client";
 
+import { idToken as tokenAtual } from "@/lib/firebase";
 import { onAuthStateChanged, onIdTokenChanged, signOut } from "firebase/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -176,7 +177,7 @@ export default function AdminPage() {
   const ferramenta = tela === "gerador" || tela === "coleta";
   // os sites novos (do Gerador ou da Coleta) entram na lista e no funil sem recarregar a página
   async function recarregarPainel() {
-    const r = await abrirPainel(idToken);
+    const r = await abrirPainel(await tokenAtual());
     if (!r.ok) return;
     setEspacos(r.dados.espacos);
     setCrm(r.dados.crm);
@@ -216,7 +217,7 @@ export default function AdminPage() {
         setIdToken(idToken);
         // Uma viagem só: o Next despacha Server Action por vez, então pedir as
         // partes em paralelo daqui era pedir em fila. O paralelo mora no servidor.
-        const r = await abrirPainel(idToken);
+        const r = await abrirPainel(await tokenAtual());
         if (!r.ok) return setEstado("negado");
         setEspacos(r.dados.espacos);
         setHoje(r.dados.hoje);
@@ -431,7 +432,7 @@ export default function AdminPage() {
     if (aba !== "cliente" || !slugAberto || !clienteAberto || !idToken) return;
     let atual = true;
     setSaude(null); // eslint-disable-line react-hooks/set-state-in-effect -- troca de negócio
-    saudeDoNegocio(idToken, slugAberto, dataDeHoje).then((r) => atual && r.ok && setSaude(r.dados), () => {});
+    tokenAtual().then((tk) => saudeDoNegocio(tk, slugAberto, dataDeHoje)).then((r) => atual && r.ok && setSaude(r.dados), () => {});
     return () => {
       atual = false;
     };
@@ -1180,7 +1181,7 @@ export default function AdminPage() {
         </div>
 
         {tela === "cobranca" ? null : tela === "gerador" ? (
-          <Gerador idToken={idToken} aoGerar={recarregarPainel} />
+          <Gerador aoGerar={recarregarPainel} />
         ) : tela === "coleta" ? (
           <ColetaMaps idToken={idToken} aoGerar={recarregarPainel} />
         ) : tela === "clientes" ? (

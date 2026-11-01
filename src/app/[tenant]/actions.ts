@@ -18,7 +18,7 @@ import { recebedorDe } from "@/lib/pix";
 import { ConfigSinal } from "@/lib/sinal";
 import { confirmarSinal } from "@/lib/sinal.server";
 import { FieldValue } from "firebase-admin/firestore";
-import { BaixaInput, EstornoInput, FixaInput, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
+import { BaixaInput, EstornoInput, FixaInput, ID_AVULSO, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
 import { adicionarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
 // Chamáveis por POST direto: valida entrada e membro do tenant em toda chamada
@@ -310,9 +310,9 @@ export const configurarLembretesWhatsAppAction = memberAction(
 );
 
 // Caixa: dinheiro só para quem gere, e só com o módulo ligado (conferido em financeiro.server)
-export const lancarAction = memberAction(z.object({ tenantId: docIdStaff, lancamento: LancamentoInput }), async (data, user) => {
+export const lancarAction = memberAction(z.object({ tenantId: docIdStaff, lancamento: LancamentoInput, id: z.string().regex(ID_AVULSO).optional() }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid);
-  return { ok: true as const, id: await lancar(adminDb, data.tenantId, data.lancamento, user) };
+  return { ok: true as const, id: await lancar(adminDb, data.tenantId, data.lancamento, user, data.id) };
 });
 
 export const editarLancamentoAction = memberAction(z.object({ tenantId: docIdStaff, id: docId, lancamento: LancamentoInput }), async (data, user) => {

@@ -9,6 +9,12 @@ VPS=${VPS:-root@179.197.81.188}
 BASE=/opt/ruphus-site
 SHA=$(git rev-parse HEAD)
 
+# Um deploy por vez: dois ao mesmo tempo apagam o app-new um do outro (e o segundo
+# troca a pasta no meio do build do primeiro). A trava é um diretório (mkdir é atômico);
+# deploy que morreu no meio deixa a trava: apague /opt/ruphus-site/.deploy.trava à mão.
+ssh "$VPS" "mkdir $BASE/.deploy.trava 2>/dev/null" || { echo "outro deploy em andamento na VPS (ou trava velha em $BASE/.deploy.trava)" >&2; exit 1; }
+trap 'ssh "$VPS" "rmdir $BASE/.deploy.trava" 2>/dev/null' EXIT
+
 echo "enviando $(git rev-parse --short HEAD)…"
 git archive --format=tar HEAD | ssh "$VPS" "rm -rf $BASE/app-new && mkdir $BASE/app-new && tar -x -C $BASE/app-new"
 
