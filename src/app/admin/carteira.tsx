@@ -1,5 +1,6 @@
 "use client";
 
+import { idToken as tokenAtual } from "@/lib/firebase";
 import { useEffect, useState } from "react";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { carteira } from "./actions";
@@ -29,7 +30,7 @@ export function Carteira({ idToken, hoje, espacos, abrir }: { idToken: string; h
   useEffect(() => {
     if (!idToken) return;
     let atual = true;
-    carteira(idToken, hoje).then(
+    tokenAtual().then((tk) => carteira(tk, hoje)).then(
       (r) => atual && (r.ok ? setLista(r.dados) : setErro(r.error)),
       () => atual && setErro("Não foi possível carregar a carteira."),
     );
