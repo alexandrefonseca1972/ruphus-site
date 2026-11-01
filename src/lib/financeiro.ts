@@ -49,6 +49,9 @@ export const BaixaInput = z.object({
   appointmentId: docId,
   valorCents: z.number().int().positive("Informe o valor.").max(99_999_99, "Valor alto demais."),
   forma: z.enum(FORMAS),
+  // o sinal que a tela descontou do preço ao abrir: se mudou desde então (confirmado em outra
+  // tela), o servidor recusa em vez de contar o sinal duas vezes
+  sinalCents: z.number().int().min(0).max(99_999_99).optional(),
 });
 
 /** O documento como o painel lê (tenants/{t}/lancamentos). */
@@ -74,6 +77,10 @@ export const idDaBaixa = (appointmentId: string) => `ag-${appointmentId}`;
 export const idDoEstorno = (lancamentoId: string) => `es-${lancamentoId}`;
 /** Conta fixa, comissão e estorno: nascem de outro registro, tipo e data não mudam. */
 export const ehVinculado = (id: string) => /^(fx|cm|es)-/.test(id);
+/** Sinal do agendamento no Caixa (criado ao confirmar o sinal): entrada presa ao atendimento. */
+export const ehSinal = (id: string) => id.startsWith("sn-");
+/** Id de uma entrada ou saída avulsa, gerado na tela: repetir o envio não duplica o dinheiro. */
+export const ID_AVULSO = /^mn-[A-Za-z0-9]{16,32}$/;
 
 const valor = z.number().int().positive("Informe o valor.").max(99_999_99, "Valor alto demais.");
 

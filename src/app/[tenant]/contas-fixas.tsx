@@ -73,7 +73,7 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
 
           <fieldset className="grid gap-3">
             <legend className="mb-1 text-sm font-medium">Nova conta</legend>
-            <Input value={nome} maxLength={40} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Aluguel da sala" className="h-11" />
+            <Input aria-label="Nome da conta" value={nome} maxLength={40} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Aluguel da sala" className="h-11" />
             <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-3">
               <label className="grid gap-1.5 text-sm text-muted-foreground">
                 Valor
@@ -84,6 +84,7 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
                 <Input type="number" min={1} max={31} value={dia} onChange={(e) => setDia(e.target.value)} className="h-11 text-foreground" />
               </label>
             </div>
+            <span className="text-xs text-muted-foreground">Só números, com os centavos: 150000 = R$ 1.500,00</span>
             <div className="flex flex-wrap gap-2">
               {categorias("saida", nicho).map((c) => (
                 <button
