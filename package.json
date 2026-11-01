@@ -33,6 +33,7 @@
     "test:pix": "tsx pix.test.mts",
     "test:whatsapp": "tsx whatsapp.test.mts",
     "test:admin": "tsx admin.test.mts",
+    "test:painel": "tsx painel-tipos.test.mts && tsx painel-consulta.test.mts",
     "test:gerador": "tsx gerador.test.mts",
     "test:coleta": "tsx coleta.test.mts",
     "test:lembrete": "tsx lembrete.test.mts",

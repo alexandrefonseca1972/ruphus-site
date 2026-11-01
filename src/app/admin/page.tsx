@@ -37,7 +37,8 @@ import {
   type Espaco,
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
-import { alertas as calcularAlertas } from "@/lib/alertas";
+import { consultar, emDestaque, local, VISOES, visaoDe, type Visao } from "@/lib/painel-consulta";
+import { ehOrdem, PAGINA, type Filtros, type Ordem } from "@/lib/painel-tipos";
 import { cents, emReais } from "@/lib/dinheiro";
 import { loginComMotivo, MINUTOS_MAX, useAutoLogout } from "@/lib/sessao";
 import { COMMIT, VERSAO } from "@/lib/versao";
@@ -53,9 +54,8 @@ import { ColetaMaps } from "./coleta";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
 import { DemoMenu } from "./demo-menu";
-import { AUTOR_LEVANTAMENTO, COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, mensalidadeDe, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, campanhaDe, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
+import { AUTOR_LEVANTAMENTO, COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, campanhaDe, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
 
-const PAGINA = 40;
 const VAZIO: Crm = {
   estagio: "novo", entradaCents: null, mensalCents: null, caixaCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
   donoNome: null, donoPapel: null, donoWhatsapp: null, donoEmail: null, outrosContatos: [], motivoPerda: null, detalhePerda: null,
@@ -64,39 +64,6 @@ const VAZIO: Crm = {
 };
 const CIDADES_VISIVEIS = 5;
 const ITEM_MENU = "flex h-11 items-center rounded-lg px-2.5 text-left text-[13px] text-[#17150F] hover:bg-[#F4F2EE]";
-
-// "sv-SE" formata como AAAA-MM-DD, e no fuso de quem está olhando
-const diaLocal = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("sv-SE") : "");
-const emDestaque = (c: Crm | undefined, hoje: string) => !!c?.fixadoAte && c.fixadoAte >= hoje;
-
-const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-// relevância: a nota pesa, mas um 5,0 de três pessoas não passa na frente de um 4,7 de quinhentas
-const relevancia = (e: Espaco) => (e.nota ?? 0) * Math.log10((e.avaliacoes ?? 0) + 1);
-const local = (e: Espaco) => (e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ""}` : "");
-
-// As visões são combinações de filtro que se repetem todo dia. Viram aba para
-// ninguém ter de remontá-las de manhã — e cada uma é só um preset dos mesmos
-// filtros, não um caminho paralelo.
-type Visao = { id: string; rotulo: string; urgente?: boolean; separa?: boolean; prazo: "" | Prazo; situacao: string; estagio: string; fora: boolean; contato?: "" | "hoje"; fixados?: boolean };
-const VISOES: Visao[] = [
-  { id: "atrasados", rotulo: "Atrasados", urgente: true, prazo: "atrasada", situacao: "", estagio: "", fora: false },
-  { id: "hoje", rotulo: "Para hoje", prazo: "hoje", situacao: "", estagio: "", fora: false },
-  { id: "falei", rotulo: "Falei hoje", prazo: "", situacao: "", estagio: "", fora: false, contato: "hoje" },
-  { id: "fixados", rotulo: "Em destaque", prazo: "", situacao: "", estagio: "", fora: false, fixados: true },
-  { id: "todos", rotulo: "Todos", separa: true, prazo: "", situacao: "", estagio: "", fora: false },
-  { id: "pendentes", rotulo: "Sem cliente dentro", prazo: "", situacao: "pendente", estagio: "", fora: false },
-  { id: "negociando", rotulo: "Em negociação", prazo: "", situacao: "", estagio: "negociando", fora: false },
-  { id: "foradoar", rotulo: "Fora do ar", prazo: "", situacao: "", estagio: "", fora: true },
-];
-
-function contar(espacos: Espaco[], campo: (e: Espaco) => string) {
-  const m = new Map<string, number>();
-  for (const e of espacos) {
-    const v = campo(e);
-    if (v) m.set(v, (m.get(v) ?? 0) + 1);
-  }
-  return [...m.entries()].sort((a, b) => b[1] - a[1]);
-}
 
 async function token() {
   const user = auth.currentUser;
@@ -152,8 +119,8 @@ export default function AdminPage() {
   const [uf, setUf] = useState("");
   const [cidade, setCidade] = useState("");
   const [nicho, setNicho] = useState("");
-  const [situacao, setSituacao] = useState("");
-  const [ordem, setOrdem] = useState("relevancia");
+  const [situacao, setSituacao] = useState<Filtros["situacao"]>("");
+  const [ordem, setOrdem] = useState<Ordem>("relevancia");
   const [todasCidades, setTodasCidades] = useState(false);
   const [pagina, setPagina] = useState({ chave: "", n: PAGINA });
   const [aberto, setAberto] = useState<Espaco | null>(null);
@@ -191,10 +158,10 @@ export default function AdminPage() {
   const [saude, setSaude] = useState<ClienteSaude | null>(null);
   // A aba escolhida vale para o próximo negócio aberto: quem está cobrando segue cobrando
   const [aba, setAba] = useState<"venda" | "ficha" | "historico" | "cliente" | "site" | "whatsapp" | "cobranca">("venda");
-  const [estagio, setEstagio] = useState("");
+  const [estagio, setEstagio] = useState<Filtros["estagio"]>("");
   const [prazo, setPrazo] = useState<"" | Prazo>("");
   const [contato, setContato] = useState<"" | "hoje">("");   // "falei hoje"
-  const [alerta, setAlerta] = useState("");                  // id do alerta em foco
+  const [alerta, setAlerta] = useState<Filtros["alerta"]>(""); // id do alerta em foco
   const [menuAjustes, setMenuAjustes] = useState(false);     // engrenagem: o que é da plataforma
   const [menuNegocio, setMenuNegocio] = useState(false);     // "…" da gaveta: atalhos e tirar do ar
   // a mensagem escolhida no bloco, para a barra fixa do rodapé da gaveta
@@ -250,60 +217,15 @@ export default function AdminPage() {
     return () => removeEventListener("keydown", atalho);
   }, []);
 
-  const avisos = useMemo(() => calcularAlertas(espacos, crm, dataDeHoje), [espacos, crm, dataDeHoje]);
-  const emFoco = useMemo(() => {
-    const a = avisos.find((x) => x.id === alerta);
-    return a ? new Set(a.slugs) : null;
-  }, [avisos, alerta]);
-
-  // Cada filtro isolado, para a contagem de um chip poder ignorar a própria
-  // dimensão: o número ao lado de "Barbearia" diz quantas barbearias sobram
-  // com os OUTROS filtros ligados. Somando tudo, um chip prometia 115 e
-  // entregava lista vazia, porque contava o banco inteiro.
-  const passa = useMemo(() => {
-    const termo = semAcento(busca.trim());
-    const testes: Record<string, (e: Espaco) => boolean> = {
-      busca: (e) => !termo || semAcento(`${e.nome} ${e.slug} ${e.cidade ?? ""} ${e.telefone ?? ""}`).includes(termo),
-      uf: (e) => !uf || e.uf === uf,
-      cidade: (e) => !cidade || local(e) === cidade,
-      nicho: (e) => !nicho || e.nicho === nicho,
-      situacao: (e) => !situacao || (situacao === "ativo" ? e.acessos > 1 : e.acessos <= 1),
-      estagio: (e) => !estagio || (crm[e.slug]?.estagio ?? "novo") === estagio,
-      prazo: (e) => !prazo || prazoDe(crm[e.slug], dataDeHoje) === prazo,
-      fora: (e) => !foraDoAr || crm[e.slug]?.publicado === false,
-      caixa: (e) => !comCaixa || e.caixa,
-      contato: (e) => !contato || diaLocal(crm[e.slug]?.ultimoContatoEm ?? null) === dataDeHoje,
-      fixados: (e) => !fixados || emDestaque(crm[e.slug], dataDeHoje),
-      alerta: (e) => !emFoco || emFoco.has(e.slug),
+  // a consulta inteira numa passada (src/lib/painel-consulta.ts): lista, chips, visões, alertas e totais
+  const consulta = useMemo(() => {
+    const filtros: Filtros = {
+      busca, uf, cidade, nicho, situacao, estagio, prazo, alerta,
+      fora: foraDoAr, caixa: comCaixa, contato: contato === "hoje", fixados, ordem,
     };
-    return (e: Espaco, ...exceto: string[]) =>
-      Object.entries(testes).every(([nome, teste]) => exceto.includes(nome) || teste(e));
-  }, [busca, uf, cidade, nicho, situacao, estagio, prazo, foraDoAr, comCaixa, contato, fixados, emFoco, dataDeHoje, crm]);
-
-  const ufs = useMemo(() => contar(espacos.filter((e) => passa(e, "uf")), (e) => e.uf ?? ""), [espacos, passa]);
-  const cidades = useMemo(() => contar(espacos.filter((e) => passa(e, "cidade")), local), [espacos, passa]);
-  const nichos = useMemo(() => contar(espacos.filter((e) => passa(e, "nicho")), (e) => e.nicho), [espacos, passa]);
-
-  const lista = useMemo(() => {
-    const filtrada = espacos.filter((e) => passa(e));
-    const por: Record<string, (a: Espaco, b: Espaco) => number> = {
-      relevancia: (a, b) => relevancia(b) - relevancia(a) || a.nome.localeCompare(b.nome, "pt-BR"),
-      nota: (a, b) => (b.nota ?? 0) - (a.nota ?? 0) || (b.avaliacoes ?? 0) - (a.avaliacoes ?? 0),
-      avaliacoes: (a, b) => (b.avaliacoes ?? 0) - (a.avaliacoes ?? 0),
-      nome: (a, b) => a.nome.localeCompare(b.nome, "pt-BR"),
-      // quem foi prometido primeiro aparece primeiro; sem data combinada, vai para o fim
-      compromisso: (a, b) =>
-        (crm[a.slug]?.proximaData ?? "9999").localeCompare(crm[b.slug]?.proximaData ?? "9999") ||
-        a.nome.localeCompare(b.nome, "pt-BR"),
-      // a ordem em que se falou: o mais recente primeiro; quem nunca foi contatado fica no fim
-      contato: (a, b) =>
-        (crm[b.slug]?.ultimoContatoEm ?? "").localeCompare(crm[a.slug]?.ultimoContatoEm ?? "") ||
-        a.nome.localeCompare(b.nome, "pt-BR"),
-    };
-    // Fixado fica no topo de qualquer ordenação: é para isso que serve o destaque
-    const destaque = (e: Espaco) => (emDestaque(crm[e.slug], dataDeHoje) ? 0 : 1);
-    return [...filtrada].sort((a, b) => destaque(a) - destaque(b) || por[ordem](a, b));
-  }, [espacos, passa, ordem, crm, dataDeHoje]);
+    return consultar(espacos, filtros, { crm, hoje: dataDeHoje });
+  }, [espacos, crm, dataDeHoje, busca, uf, cidade, nicho, situacao, estagio, prazo, alerta, foraDoAr, comCaixa, contato, fixados, ordem]);
+  const { lista, ufs, cidades, nichos, avisos } = consulta;
 
   // o último negócio aberto: resposta lenta de um anterior não pode pintar a gaveta do atual
   const abertoRef = useRef("");
@@ -629,16 +551,6 @@ export default function AdminPage() {
     );
 
   const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), String(comCaixa), contato, String(fixados), alerta].join("|");
-  const contarPrazos = (base: Espaco[]) => {
-    const n = { atrasada: 0, hoje: 0, futura: 0 };
-    for (const e of base) {
-      const p = prazoDe(crm[e.slug], dataDeHoje);
-      if (p) n[p] += 1;
-    }
-    return n;
-  };
-  const compromissosNosChips = contarPrazos(espacos.filter((e) => passa(e, "prazo")));
-  const noFunil = espacos.filter((e) => passa(e, "estagio"));
   // a cidade escolhida acompanha a lista recolhida: fora das cinco primeiras,
   // ela sumia da tela com o filtro ainda ligado e sem chip para desligar
   const topoCidades = cidades.slice(0, CIDADES_VISIVEIS);
@@ -652,34 +564,13 @@ export default function AdminPage() {
   const filtrando = busca || uf || cidade || nicho || situacao || estagio || prazo || foraDoAr || comCaixa;
   const nFiltros = [uf, cidade, nicho, estagio, prazo, foraDoAr ? "x" : "", comCaixa ? "x" : ""].filter(Boolean).length;
 
-  // a contagem de cada aba respeita busca, cidade e nicho, e ignora as
-  // dimensões que a própria aba controla — senão promete o que não entrega
-  const contaVisao = (v: Visao) =>
-    espacos.filter(
-      (e) =>
-        passa(e, "prazo", "situacao", "estagio", "fora") &&
-        (!v.prazo || prazoDe(crm[e.slug], dataDeHoje) === v.prazo) &&
-        (!v.situacao || (v.situacao === "ativo" ? e.acessos > 1 : e.acessos <= 1)) &&
-        (!v.estagio || (crm[e.slug]?.estagio ?? "novo") === v.estagio) &&
-        (!v.fora || crm[e.slug]?.publicado === false) &&
-        (!v.contato || diaLocal(crm[e.slug]?.ultimoContatoEm ?? null) === dataDeHoje) &&
-        (!v.fixados || emDestaque(crm[e.slug], dataDeHoje)),
-    ).length;
-  const visaoAtiva = VISOES.find(
-    (v) =>
-      v.prazo === prazo &&
-      v.situacao === situacao &&
-      v.estagio === estagio &&
-      v.fora === foraDoAr &&
-      (v.contato ?? "") === contato &&
-      (v.fixados ?? false) === fixados,
-  );
+  const visaoAtiva = visaoDe({ prazo, situacao, estagio, fora: foraDoAr, contato: contato === "hoje", fixados });
   function verVisao(v: Visao) {
     setPrazo(v.prazo);
     setSituacao(v.situacao);
     setEstagio(v.estagio);
     setForaDoAr(v.fora);
-    setContato(v.contato ?? "");
+    setContato(v.contato ? "hoje" : "");
     setFixados(v.fixados ?? false);
     setAlerta("");
   }
@@ -908,7 +799,7 @@ export default function AdminPage() {
         {/* no celular as oito visões quebravam em até quatro linhas: viram uma faixa que rola */}
         <div className="-mx-4 flex w-[calc(100%+2rem)] overflow-x-auto px-4 [scrollbar-width:none] sm:contents [&::-webkit-scrollbar]:hidden">
         {VISOES.map((v) => {
-          const n = contaVisao(v);
+          const n = consulta.visoes[v.id];
           const ativa = visaoAtiva?.id === v.id;
           return (
             <span key={v.id} className="flex items-center">
@@ -1017,7 +908,7 @@ export default function AdminPage() {
                   <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Funil</span>
                   <Chip ativo={!estagio} onClick={() => setEstagio("")}>Todos</Chip>
                   {ESTAGIOS.map((e) => {
-                    const n = noFunil.filter((x) => (crm[x.slug]?.estagio ?? "novo") === e).length;
+                    const n = consulta.estagios[e];
                     // oferecer um chip que dá lista vazia é oferecer um beco sem saída
                     return (
                       <Chip key={e} ativo={estagio === e} disabled={!n && estagio !== e} onClick={() => setEstagio(estagio === e ? "" : e)}>
@@ -1034,10 +925,10 @@ export default function AdminPage() {
                     <Chip
                       key={v}
                       ativo={prazo === v}
-                      disabled={!compromissosNosChips[v] && prazo !== v}
+                      disabled={!consulta.prazos[v] && prazo !== v}
                       onClick={() => setPrazo(prazo === v ? "" : v)}
                     >
-                      {r} <span className={prazo === v ? "text-white/70" : "text-[#6F6A5E]"}>{compromissosNosChips[v]}</span>
+                      {r} <span className={prazo === v ? "text-white/70" : "text-[#6F6A5E]"}>{consulta.prazos[v]}</span>
                     </Chip>
                   ))}
                 </div>
@@ -1045,7 +936,7 @@ export default function AdminPage() {
                 <div className="flex flex-wrap items-center gap-2 border-t border-[#EDE9E1] pt-3.5">
                   <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Módulos</span>
                   <Chip ativo={comCaixa} onClick={() => setComCaixa((v) => !v)}>
-                    Caixa ligado <span className={comCaixa ? "text-white/70" : "text-[#6F6A5E]"}>{espacos.filter((e) => e.caixa && passa(e, "caixa")).length}</span>
+                    Caixa ligado <span className={comCaixa ? "text-white/70" : "text-[#6F6A5E]"}>{consulta.caixa}</span>
                   </Chip>
                 </div>
 
@@ -1067,7 +958,7 @@ export default function AdminPage() {
         <select
           id="ordem"
           value={ordem}
-          onChange={(e) => setOrdem(e.target.value)}
+          onChange={(e) => ehOrdem(e.target.value) && setOrdem(e.target.value)}
           className="h-9 rounded-lg border border-[#D8D2C6] bg-white px-2.5 text-[13px]"
         >
           <option value="relevancia">Mais relevantes</option>
@@ -1245,15 +1136,8 @@ export default function AdminPage() {
                 "contratados" conta a vitória e esconde o trabalho em aberto. */}
             <span className="text-[13px] text-[#6F6A5E]">
               {hoje ? `${hoje.agendamentosHoje} agendamento(s) hoje` : "carregando agenda"} ·{" "}
-              {formatBRL(espacos.reduce((t, e) => t + (crm[e.slug]?.estagio === "fechado" ? mensalidadeDe(crm[e.slug], e.caixa) : 0), 0))}/mês contratados
-              {(() => {
-                const aberto = espacos.reduce(
-                  (t, e) =>
-                    t + ((ETAPAS as readonly string[]).includes(crm[e.slug]?.estagio ?? "novo") ? crm[e.slug]?.mensalCents ?? 0 : 0),
-                  0,
-                );
-                return aberto > 0 ? ` · ${formatBRL(aberto)}/mês em negociação` : "";
-              })()}
+              {formatBRL(consulta.totais.contratadoCents)}/mês contratados
+              {consulta.totais.negociacaoCents > 0 && ` · ${formatBRL(consulta.totais.negociacaoCents)}/mês em negociação`}
             </span>
           </div>
 
@@ -1401,12 +1285,12 @@ export default function AdminPage() {
                 <div className={`flex-wrap justify-center gap-2 ${espacos.length ? "flex" : "hidden"}`}>
                   {cidade && (
                     <button type="button" className={BOTAO_CLARO} onClick={() => setCidade("")}>
-                      Tirar {cidade} → {espacos.filter((x) => passa(x, "cidade")).length}
+                      Tirar {cidade} → {consulta.tirando.cidade}
                     </button>
                   )}
                   {nicho && (
                     <button type="button" className={BOTAO_CLARO} onClick={() => setNicho("")}>
-                      Tirar {nicho} → {espacos.filter((x) => passa(x, "nicho")).length}
+                      Tirar {nicho} → {consulta.tirando.nicho}
                     </button>
                   )}
                   <button type="button" className={BOTAO_ESCURO} onClick={limparTudo}>
