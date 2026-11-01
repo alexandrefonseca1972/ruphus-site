@@ -14,8 +14,10 @@ export function ConfirmDialog(props: {
   notifyLabel?: string;
   onConfirm: (notify: boolean) => unknown | Promise<unknown>;
   onCancel: () => void;
+  /** "normal": a ação confirma algo bom (ex.: dinheiro recebido), sem o vermelho de perigo */
+  tom?: "perigo" | "normal";
 }) {
-  const { title, description, confirmLabel, notifyLabel, onConfirm, onCancel } = props;
+  const { title, description, confirmLabel, notifyLabel, onConfirm, onCancel, tom = "perigo" } = props;
   const [notify, setNotify] = useState(true);
   const [busy, setBusy] = useState(false);
   const voltar = useRef<HTMLButtonElement>(null);
@@ -43,7 +45,7 @@ export function ConfirmDialog(props: {
               Voltar
             </Button>
             <Button
-              className="h-11 bg-destructive px-4 text-white hover:bg-destructive/90"
+              className={tom === "perigo" ? "h-11 bg-destructive px-4 text-white hover:bg-destructive/90" : "h-11 px-4"}
               disabled={busy}
               onClick={async () => {
                 setBusy(true);

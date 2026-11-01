@@ -191,7 +191,8 @@ export const salvarPixAction = memberAction(
 export const salvarSinalAction = memberAction(z.object({ tenantId: docIdStaff, sinal: ConfigSinal }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid);
   const t = adminDb.doc(`tenants/${data.tenantId}`);
-  if (data.sinal.ativo && !(await t.get()).get("pix.chave")) throw new UserError("Cadastre a chave Pix antes de ligar o sinal.");
+  const pix = (await t.get()).get("pix");
+  if (data.sinal.ativo && (!pix || typeof recebedorDe(pix) === "string")) throw new UserError("Cadastre uma chave Pix válida antes de ligar o sinal.");
   await t.update({ sinal: data.sinal });
   revalidatePath(`/agendar/${data.tenantId}`);
   return { ok: true as const, sinal: data.sinal };

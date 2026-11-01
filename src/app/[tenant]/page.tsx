@@ -39,7 +39,7 @@ const Appointment = z.object({
   planId: z.string().optional(),
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
   // sinal do agendamento online (Pix na chave do salão); só o servidor grava
-  sinal: z.object({ cents: z.number(), status: z.enum(["pendente", "pago", "vencido", "dispensado"]), hora: z.string() }).optional().catch(undefined),
+  sinal: z.object({ cents: z.number(), status: z.enum(["pendente", "pago", "vencido", "dispensado", "erro"]), hora: z.string() }).optional().catch(undefined),
 });
 export type Appointment = z.infer<typeof Appointment> & { id: string };
 
@@ -71,7 +71,7 @@ export default function AgendaPage() {
   const [error, setError] = useState("");
   const [rescheduling, setRescheduling] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState<{ id: string; kind: "cancel" | "no_show" } | null>(null);
+  const [confirming, setConfirming] = useState<{ id: string; kind: "cancel" | "no_show" | "sinal" } | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   // quem é da equipe abre na própria agenda; "Todos" continua a um toque
   const [staffFilter, setStaffFilter] = useState(tenant.staffId ?? "");
@@ -301,7 +301,7 @@ export default function AgendaPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   {/* o salão conferiu no banco: confirma o horário e lança o sinal no Caixa */}
                   {a.sinal?.status === "pendente" && ATIVO(a) && tenant.podeGerir && (
-                    <Button className="h-10 px-4" disabled={pending === a.id} onClick={() => sinalRecebido(a)}>
+                    <Button className="h-10 px-4" disabled={pending === a.id} onClick={() => setConfirming({ id: a.id, kind: "sinal" })}>
                       {pending === a.id ? "Confirmando…" : "Sinal recebido"}
                     </Button>
                   )}
@@ -337,6 +337,20 @@ export default function AgendaPage() {
                   notifyLabel="Avisar o cliente pelo WhatsApp"
                   confirmLabel="Sim, cancelar"
                   onConfirm={(notify) => cancel(a, notify)}
+                  onCancel={() => setConfirming(null)}
+                />
+              )}
+              {/* marcar dinheiro como recebido não tem volta pelo painel: confere antes */}
+              {confirming?.id === a.id && confirming.kind === "sinal" && a.sinal && (
+                <ConfirmDialog
+                  title={`O sinal de ${formatBRL(a.sinal.cents)} caiu na sua conta?`}
+                  description={`Confira no app do banco o Pix de ${a.customerName}. Confirmando, o horário fica confirmado${caixa ? " e o sinal entra no Caixa" : ""}.`}
+                  confirmLabel="Sim, recebi"
+                  tom="normal"
+                  onConfirm={() => {
+                    setConfirming(null);
+                    return sinalRecebido(a);
+                  }}
                   onCancel={() => setConfirming(null)}
                 />
               )}

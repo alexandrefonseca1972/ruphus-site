@@ -6,23 +6,45 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatBRL, maskBRL } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
-import { ConfigSinal, SINAL_PADRAO } from "@/lib/sinal";
-import { tipoDaChave } from "@/lib/pix";
+import { ConfigSinal, SINAL_PADRAO, valorDoSinal } from "@/lib/sinal";
+import { ERRO_CHAVE, ERRO_CIDADE, ERRO_NOME, legivel, normalizarChave, tipoDaChave } from "@/lib/pix";
+import { ConfirmDialog } from "./confirm-dialog";
+import { cn } from "@/lib/utils";
 import { salvarPixAction, salvarSinalAction } from "./actions";
 import { useTenant } from "./layout";
 
 /** A chave Pix do salão: com ela, o Caixa mostra o QR com o valor na hora de receber. */
-export function PixNegocio() {
+export function PixNegocio({ cidadeSugerida = "" }: { cidadeSugerida?: string }) {
   const tenant = useTenant();
   const inicial = { chave: tenant.pix?.chave ?? "", nome: tenant.pix?.nome ?? "", cidade: tenant.pix?.cidade ?? "" };
-  const [pix, setPix] = useState(inicial);
+  // sem chave ainda: a cidade do negócio já vem preenchida
+  const [pix, setPix] = useState(tenant.pix ? inicial : { ...inicial, cidade: cidadeSugerida });
+  const [tentou, setTentou] = useState(false);
   const [salvo, setSalvo] = useState(inicial);
   const [busy, setBusy] = useState(false);
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const mudou = pix.chave !== salvo.chave || pix.nome !== salvo.nome || pix.cidade !== salvo.cidade;
+  // validação na tela, a mesma do servidor: o dono vê o tipo entendido antes de salvar
+  const removendo = !pix.chave.trim();
+  const chaveLida = removendo ? null : normalizarChave(pix.chave);
+  const erros = removendo
+    ? {}
+    : {
+        chave: chaveLida ? "" : ERRO_CHAVE,
+        nome: legivel(pix.nome, 25) ? "" : ERRO_NOME,
+        cidade: legivel(pix.cidade, 15) ? "" : ERRO_CIDADE,
+      };
+  const temErro = Object.values(erros).some(Boolean);
+  // chave gravada antes de uma regra nova (ex.: CNPJ com dígito errado): o dono vê já, sem tentar salvar
+  const mostrar = tentou || (!!salvo.chave && pix.chave === salvo.chave);
+  const [confirmarRemocao, setConfirmarRemocao] = useState(false);
   const campo = (k: keyof typeof pix) => (e: React.ChangeEvent<HTMLInputElement>) => (setPix({ ...pix, [k]: e.target.value }), setAviso(null));
 
-  async function salvar() {
+  async function salvar(confirmado = false) {
+    setTentou(true);
+    if (temErro) return;
+    // tirar a chave também desliga o sinal do agendamento online: pergunta antes
+    if (removendo && !confirmado) return setConfirmarRemocao(true);
     setBusy(true);
     setAviso(null);
     const r = await salvarPixAction(await idToken(), { tenantId: tenant.id, pix }).catch(() => null);
@@ -55,17 +77,22 @@ export function PixNegocio() {
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="pix-chave">Chave Pix</Label>
-        <Input id="pix-chave" value={pix.chave} maxLength={100} onChange={campo("chave")} placeholder="CPF, CNPJ, e-mail, celular ou chave aleatória" className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]" />
-        <p className="text-xs text-muted-foreground">Celular que também é um CPF válido? Escreva com +55 na frente.</p>
+        <Input id="pix-chave" value={pix.chave} maxLength={100} onChange={campo("chave")} autoComplete="off" spellCheck={false} placeholder="CPF, CNPJ, e-mail, celular ou chave aleatória" aria-invalid={mostrar && !!erros.chave} aria-describedby="pix-chave-msg" className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]" />
+        {/* a dica muda a cada tecla: sem aria-live, senão o leitor de tela repete tudo */}
+        <p id="pix-chave-msg" className={cn("text-xs", mostrar && erros.chave ? "text-destructive" : "text-muted-foreground")}>
+          {chaveLida ? `Entendida como ${tipoDaChave(chaveLida)}: ${chaveLida}` : mostrar && erros.chave ? erros.chave : "Celular que também é um CPF válido? Escreva com (DDD) ou +55."}
+        </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="grid gap-1.5">
           <Label htmlFor="pix-nome">Nome de quem recebe</Label>
-          <Input id="pix-nome" value={pix.nome} maxLength={100} onChange={campo("nome")} placeholder="Como está no banco" className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]" />
+          <Input id="pix-nome" value={pix.nome} maxLength={100} onChange={campo("nome")} autoComplete="name" placeholder="Como está no banco" aria-invalid={mostrar && !!erros.nome} aria-describedby="pix-nome-msg" className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]" />
+          <p id="pix-nome-msg" aria-live="polite" className="min-h-4 text-xs text-destructive">{mostrar ? erros.nome : ""}</p>
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="pix-cidade">Cidade</Label>
-          <Input id="pix-cidade" value={pix.cidade} maxLength={60} onChange={campo("cidade")} className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]" />
+          <Input id="pix-cidade" value={pix.cidade} maxLength={60} onChange={campo("cidade")} autoComplete="address-level2" aria-invalid={mostrar && !!erros.cidade} aria-describedby="pix-cidade-msg" className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]" />
+          <p id="pix-cidade-msg" aria-live="polite" className="min-h-4 text-xs text-destructive">{mostrar ? erros.cidade : ""}</p>
         </div>
       </div>
       {aviso && (
@@ -75,8 +102,21 @@ export function PixNegocio() {
       )}
       <div className="flex items-center justify-end gap-3">
         {mudou && !busy && <span className="text-xs text-muted-foreground">Alterações não salvas</span>}
-        <Button type="submit" disabled={busy || !mudou} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busy ? "Salvando…" : "Salvar Pix"}</Button>
+        {/* sem chave salva, campo vazio não tem o que remover */}
+        <Button type="submit" disabled={busy || !mudou || (removendo && !salvo.chave)} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busy ? "Salvando…" : removendo ? "Remover chave" : "Salvar Pix"}</Button>
       </div>
+      {confirmarRemocao && (
+        <ConfirmDialog
+          title="Remover a chave Pix?"
+          description={`O Caixa deixa de mostrar o QR${tenant.sinal?.ativo ? ", e o agendamento online para de pedir sinal" : ""}. Dá para cadastrar de novo quando quiser.`}
+          confirmLabel="Sim, remover"
+          onConfirm={() => {
+            setConfirmarRemocao(false);
+            return salvar(true);
+          }}
+          onCancel={() => setConfirmarRemocao(false)}
+        />
+      )}
     </form>
   );
 }
@@ -133,6 +173,11 @@ export function SinalNegocio() {
         <input type="checkbox" checked={sinal.ativo} onChange={(e) => muda({ ativo: e.target.checked })} className="size-5 accent-primary" />
         Pedir sinal para reservar
       </label>
+      {sinal.ativo && numero > 0 && ConfigSinal.safeParse(atual).success && (
+        <p className="text-sm text-muted-foreground">
+          Exemplo: num serviço de R$ 50,00, o cliente paga {formatBRL(valorDoSinal(atual, 5000))} por Pix ao agendar e o resto no local.
+        </p>
+      )}
       {sinal.ativo && (
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-1.5">

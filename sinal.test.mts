@@ -100,5 +100,36 @@ const semChave = await book(db, { ...base, time: "11:30", customerPhone: "11 955
 assert.ok(semChave.ok && semChave.sinal === null);
 assert.equal((await loadCatalog(db, "sinal-salao"))?.sinal, null);
 
+// dado corrompido no banco não derruba nada
+// chave gravada fora do formato: a reserva sai sem sinal (não vira QR que o banco recusa)
+await t.update({ pix: { chave: "nao-e-chave", nome: "Ana", cidade: "Belem" } });
+const chaveRuim = await book(db, { ...base, date: addDays(date, 1), time: "09:00", customerPhone: "11 91212-1212" });
+assert.ok(chaveRuim.ok && chaveRuim.sinal === null, "chave inválida: sem sinal");
+assert.equal((await loadCatalog(db, "sinal-salao"))?.sinal, null, "e a página não anuncia o sinal");
+await t.update({ pix });
+
+// sinal sem prazo ou sem valor: a resposta não quebra (reserva repetida pelo pedido)
+const comPedido = await book(db, { ...base, date: addDays(date, 1), time: "09:30", customerPhone: "11 91313-1313", pedido: "pedido-quebrado" });
+assert.ok(comPedido.ok && comPedido.sinal);
+await t.collection("appointments").doc(comPedido.id!).update({ "sinal.ate": null });
+const repetida = await book(db, { ...base, date: addDays(date, 1), time: "09:30", customerPhone: "11 91313-1313", pedido: "pedido-quebrado" });
+assert.ok(repetida.ok && repetida.sinal === null, "sem prazo: sem QR, sem erro");
+
+// valor do sinal corrompido: confirmar recusa com mensagem, sem lançar no Caixa
+const r6 = await book(db, { ...base, date: addDays(date, 1), time: "10:00", customerPhone: "11 91414-1414" });
+assert.ok(r6.ok);
+await t.collection("appointments").doc(r6.id!).update({ "sinal.cents": "abc" });
+await assert.rejects(confirmarSinal(db, "sinal-salao", r6.id!, { uid: "owner" }), /inválido/);
+assert.equal((await t.collection("lancamentos").doc(idDoSinal(r6.id!)).get()).exists, false);
+await assert.rejects(confirmarSinal(db, "sinal-salao", "nao-existe", { uid: "owner" }), /não encontrado/);
+
+// cancelado antes do prazo: confirmar avisa para combinar a devolução; o cron tira da consulta
+const r7 = await book(db, { ...base, date: addDays(date, 1), time: "10:30", customerPhone: "11 91515-1515" });
+assert.ok(r7.ok);
+await t.collection("appointments").doc(r7.id!).update({ status: "cancelled" });
+await assert.rejects(confirmarSinal(db, "sinal-salao", r7.id!, { uid: "owner" }), /devolução/);
+await expirarSinais(db, depois);
+assert.equal((await t.collection("appointments").doc(r7.id!).get()).get("sinal.status"), "vencido");
+
 console.log("sinal ok");
 process.exit(0);

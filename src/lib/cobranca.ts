@@ -3,7 +3,19 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { ErroPrevisto } from "@/lib/erro-previsto";
-import { brCode, competenciaAtual, txidDe, vencimentoDe } from "@/lib/pix";
+import { brCode, competenciaAtual, PixInvalido, txidDe, vencimentoDe } from "@/lib/pix";
+
+/** Configuração do Pix fora do formato: a página mostra a cobrança sem QR (e o log avisa),
+ *  em vez de cair inteira ou entregar um código que o banco recusa. */
+function codigoOuNada(p: Parameters<typeof brCode>[0]) {
+  try {
+    return brCode(p);
+  } catch (e) {
+    if (!(e instanceof PixInvalido)) throw e;
+    console.error("[cobranca] Pix inválido", e.message);
+    return null;
+  }
+}
 
 /** Erro que a tela mostra como está: valor inválido, cobrança já cancelada. */
 export class CobrancaErro extends ErroPrevisto {}
@@ -64,6 +76,13 @@ export async function pixCadastrado(db: Firestore) {
 
 export async function salvarPix(db: Firestore, entrada: unknown) {
   const dados = PixInput.parse(entrada);
+  // monta um Pix de teste: o que o banco recusaria é recusado aqui, não em cada cobrança
+  try {
+    brCode({ chave: dados.chave, nome: dados.nome, cidade: dados.cidade, valorCents: 100, txid: "TESTE" });
+  } catch (e) {
+    if (e instanceof PixInvalido) throw new CobrancaErro(`Pix da Ruphus inválido: ${e.message}`);
+    throw e;
+  }
   await db.doc(PIX).set({ ...dados, atualizadoEm: FieldValue.serverTimestamp() }, { merge: true });
 }
 
@@ -157,7 +176,7 @@ export async function abrirCobranca(db: Firestore, id: string, token: string): P
     status: c.status,
     txid: String(snap.get("txid") ?? ""),
     // Cobrança paga ou cancelada não mostra Pix: ninguém deve pagar de novo
-    brCode: c.status === "aberta" && pix ? brCode({ ...pix, valorCents: c.valorCents, txid: String(snap.get("txid") ?? "") }) : null,
+    brCode: c.status === "aberta" && pix ? codigoOuNada({ ...pix, valorCents: c.valorCents, txid: String(snap.get("txid") ?? "") }) : null,
   };
 }
 

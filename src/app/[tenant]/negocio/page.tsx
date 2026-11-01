@@ -233,7 +233,7 @@ export default function MeuNegocio() {
         </div>
       </form>
 
-      <PixNegocio />
+      <PixNegocio cidadeSugerida={salvo?.campos.cidade ?? ""} />
       <SinalNegocio />
     </div>
   );
