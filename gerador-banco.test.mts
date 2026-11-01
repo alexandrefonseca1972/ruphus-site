@@ -289,6 +289,20 @@ assert.equal((await pagina("../etc")).status, 404);
   assert.equal((await db.doc("tenants/fabrica-x").get()).get("gerado"), undefined);
 }
 
+// nome só de símbolos (veio "***" do Maps): a linha fica de fora com o motivo, e o resto do
+// lote vira site normalmente (antes, um erro parava a geração inteira da cidade)
+{
+  const misto = planilha(
+    ["***", "(91) 98888-0001", "Salão de beleza", "Belém", "PA", "", "", "", "", "", ""],
+    ["Studio Bela Unha", "(91) 98888-0002", "Manicure", "Belém", "PA", "", "", "", "", "", ""],
+  );
+  const r = await gerarNoBanco(db, misto, true, "dono-plataforma");
+  assert.equal(r[0].acao, "pular");
+  assert.match(r[0].motivo ?? "", /sem letras ou números/);
+  assert.equal(r[1].acao, "criar", "a linha boa do mesmo lote é gerada");
+  assert.ok((await db.collection("tenants").doc(r[1].slug).get()).exists);
+}
+
 // entrada adulterada no navegador não passa
 await assert.rejects(gerarNoBanco(db, [{ linha: 1, lead: { nome: "x" } }], true, "a"), /Planilha inválida/);
 await assert.rejects(gerarNoBanco(db, Array(301).fill(lote[0]), false, "a"), /300/);

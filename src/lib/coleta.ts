@@ -138,6 +138,8 @@ export function separar(fichas: Ficha[], base: Base, padrao: { cidade: string; u
     const mesmoNome = base.nomeCidade.get(`${norm(l.nome)}|${norm(l.cidade)}`);
     if (f.fechado) s.fora.push({ ...l, motivo: "fechado no Maps" });
     else if (!l.telefone) s.fora.push({ ...l, motivo: "sem telefone no Maps" });
+    // "***" e afins: nome sem letra nem número não vira endereço de site
+    else if (!/[\p{L}\d]/u.test(l.nome)) s.fora.push({ ...l, motivo: "nome sem letras no Maps" });
     else if (base.tel.has(fim8(l.telefone))) s.fora.push({ ...l, motivo: `já temos: ${base.tel.get(fim8(l.telefone))}` });
     else if (mesmoNome) s.conferir.push({ ...l, motivo: `mesmo nome e cidade: ${mesmoNome}` });
     else s.novos.push(l);
