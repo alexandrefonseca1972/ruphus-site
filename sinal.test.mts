@@ -70,6 +70,7 @@ assert.equal(await expirarSinais(db, depois), 1, "a reserva nova (também com si
 
 // confirmado na mão sem o sinal: no prazo vencido, o sinal é dispensado (não cancela, sai da consulta)
 const r3 = await book(db, { ...base, time: "11:00", customerPhone: "11 96666-6666" });
+assert.ok(r3.ok);
 await t.collection("appointments").doc(r3.id!).update({ status: "confirmed" });
 assert.equal(await expirarSinais(db, depois), 0);
 const dispensado = await t.collection("appointments").doc(r3.id!).get();
@@ -78,6 +79,7 @@ assert.equal(dispensado.get("sinal.status"), "dispensado");
 
 // recebido no Caixa antes do sinal: "Sinal recebido" não lança de novo
 const r4 = await book(db, { ...base, time: "09:30", customerPhone: "11 97777-7777" });
+assert.ok(r4.ok);
 await t.collection("lancamentos").doc(`ag-${r4.id}`).set({ tipo: "entrada", valorCents: 5000 });
 await confirmarSinal(db, "sinal-salao", r4.id!, { uid: "owner" });
 assert.equal((await t.collection("lancamentos").doc(idDoSinal(r4.id!)).get()).exists, false, "não conta duas vezes");
@@ -86,6 +88,7 @@ assert.equal((await t.collection("appointments").doc(r4.id!).get()).get("sinal.s
 // fuso do negócio: o teto do prazo é o início real (Manaus), e a hora mostrada é a de lá
 await t.update({ "site.uf": "AM" });
 const r5 = await book(db, { ...base, time: "10:30", customerPhone: "11 98888-8888" });
+assert.ok(r5.ok);
 const s5 = (await t.collection("appointments").doc(r5.id!).get()).get("sinal");
 assert.ok(s5.ate.toDate() > new Date(), "prazo no futuro");
 assert.match(s5.hora, /^\d{2}:\d{2}$/);
