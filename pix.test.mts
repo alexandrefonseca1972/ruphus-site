@@ -55,3 +55,20 @@ assert.equal(vencimentoDe("2026-10"), "2026-10-10");
 assert.equal(vencimentoDe("2027-01"), "2027-01-10");
 
 console.log("pix ok");
+
+// Chave do salão: cada tipo vira o formato que o banco aceita
+import { normalizarChave, recebedorDe, txidLivre } from "@/lib/pix";
+assert.equal(normalizarChave("529.982.247-25"), "52998224725", "CPF válido");
+assert.equal(normalizarChave("(11) 99888-7777"), "+5511998887777", "11 dígitos sem CPF válido é celular");
+assert.equal(normalizarChave("+55 96 99123-4567"), "+5596991234567");
+assert.equal(normalizarChave("12.345.678/0001-95"), "12345678000195", "CNPJ");
+assert.equal(normalizarChave(" Salao@Exemplo.com "), "salao@exemplo.com");
+assert.equal(normalizarChave("123E4567-E89B-12D3-A456-426614174000"), "123e4567-e89b-12d3-a456-426614174000");
+assert.equal(normalizarChave("abc"), null);
+assert.equal(normalizarChave("12345"), null);
+assert.equal(normalizarChave("+1 202 555 0100"), null, "só Brasil");
+assert.equal(typeof recebedorDe({ chave: "x", nome: "Ana", cidade: "Belém" }), "string");
+assert.deepEqual(recebedorDe({ chave: "52998224725", nome: " Ana ", cidade: "Belém" }), { chave: "52998224725", nome: "Ana", cidade: "Belém" });
+const tx = txidLivre("salao-da-ana");
+assert.match(tx, /^[A-Z0-9]{1,25}$/);
+console.log("chave do salão ok");
