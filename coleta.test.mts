@@ -43,10 +43,11 @@ const s = separar([
   ficha({ nome: "Sem Fone", telefone: "" }),
   ficha({ nome: "Fechou", telefone: "31 97777-3333", fechado: true }),
   ficha({ nome: "" }), // página que não carregou
+  ficha({ nome: "***", telefone: "31 96666-4444" }), // nome que não vira endereço de site
 ], base, padrao);
 assert.deepEqual(s.novos.map((x) => x.nome), ["Nail Ana"]);
 assert.deepEqual(s.conferir.map((x) => x.nome), ["Barbearia do Zé"]);
-assert.deepEqual(s.fora.map((x) => x.motivo), ["já temos: Studio X (site studio-x)", "sem telefone no Maps", "fechado no Maps"]);
+assert.deepEqual(s.fora.map((x) => x.motivo), ["já temos: Studio X (site studio-x)", "sem telefone no Maps", "fechado no Maps", "nome sem letras no Maps"]);
 
 assert.deepEqual(lotes([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]]);
 assert.deepEqual(lotes([]), [[]]); // sem novos ainda sai uma planilha (com conferir e fora)
