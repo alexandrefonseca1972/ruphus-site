@@ -1,5 +1,5 @@
 import "server-only";
-import { type DocumentData, type DocumentReference, FieldValue, type Firestore } from "firebase-admin/firestore";
+import { type DocumentData, type DocumentReference, FieldValue, type Firestore, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { z } from "zod";
 import { EQUIPE, montar, porRamo } from "@/lib/catalogo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
@@ -157,12 +157,15 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   // Kits e paletas já usados no mesmo estado e nicho. Um site novo sorteia o menos repetido
   // ali; os sites que não têm escolha gravada contam pelo que o slug sorteia (o que já sai).
   const usosDaRegiao = new Map<string, Required<Escolha>[]>();
+  // o estado é lido uma vez para todos os ramos: uma leitura por ramo eram até 62 mil por lote em MG (4.447 × 14)
+  const doEstado = new Map<string, Promise<QueryDocumentSnapshot[]>>();
   const usosDe = async (uf: string, sub: Sub) => {
     const chave = `${uf}|${sub}`;
     if (!usosDaRegiao.has(chave)) {
       const { padrao } = familiaVisual(sub);
-      const achados = await tenants.where("site.uf", "==", uf).select("gerado").get();
-      usosDaRegiao.set(chave, achados.docs
+      if (!doEstado.has(uf)) doEstado.set(uf, tenants.where("site.uf", "==", uf).select("gerado.sub", "gerado.escolha").get().then((q) => q.docs));
+      const achados = await doEstado.get(uf)!;
+      usosDaRegiao.set(chave, achados
         .filter((d) => d.get("gerado.sub") === sub)
         .map((d) => ({ ...padrao(d.id), ...(d.get("gerado.escolha") as Escolha | undefined) } as Required<Escolha>)));
     }
