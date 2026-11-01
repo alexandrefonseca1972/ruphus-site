@@ -25,5 +25,9 @@ export const auth = getAuth(app);
 // `db` mora em @/lib/firebase-db: aqui ele faria todo mundo que precisa só de
 // login baixar 1 MB do SDK do Firestore junto.
 
-export const idToken = () =>
-  auth.currentUser?.getIdToken() ?? Promise.reject(new Error("Sessão expirada. Entre novamente."));
+// Nunca rejeita: sem sessão (ou sem conseguir renovar o token, offline) devolve "", e o
+// servidor responde "Sessão expirada. Entre novamente." pelo caminho de erro de cada tela.
+// Rejeitar aqui estourava antes do .catch de quem chama (acao(await idToken(), …).catch)
+// e deixava a tela presa em "Carregando…" ou "Salvando…".
+export const idToken = (): Promise<string> =>
+  (auth.currentUser?.getIdToken() ?? Promise.resolve("")).catch(() => "");
