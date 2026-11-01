@@ -31,8 +31,8 @@ import { competenciaAtual } from "@/lib/pix";
 import { gerarNoBanco, lerSite, publicarSite } from "@/lib/gerador.server";
 import { PAGINAS_DEMO } from "@/lib/demo";
 import { acessoDemo, contas, restaurarDemo } from "@/lib/demo.server";
-import { createInstance, getQr, getStatus, logout, type QrWhatsApp } from "@/lib/wtsfy";
-import { apagarConexao, gravarConexao, gravarGestaoDono, gravarOwnerPhone, lerConexao, type ConexaoWhatsapp } from "@/lib/whatsapp.server";
+import { deslogarInstancia, qrDaConexao, statusDaConexao, type SituacaoQr as QrWhatsApp } from "@/lib/atendys";
+import { apagarConexao, conectarNegocio, gravarGestaoDono, gravarOwnerPhone, lerConexao, type ConexaoWhatsapp, gravarConexao } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { MODELOS, modeloDoId, renderEditorial, visualEditorial } from "@/lib/site-editorial";
 import { ehClaro, renderClaro } from "@/lib/site-claro";
@@ -757,10 +757,7 @@ export const whatsappDoNegocio = adminAction(async (_user, slug: string): Promis
 export const conectarWhatsApp = adminAction(async (_user, slug: string): Promise<ConexaoWhatsapp> => {
   slugValido(slug);
   if (await lerConexao(adminDb, slug)) throw new ErroPrevisto("Este negócio já tem um WhatsApp conectado. Desconecte antes de trocar de número.");
-  const { id } = await createInstance(`ruphus-${slug}`);
-  const conexao: ConexaoWhatsapp = { instanceId: id, phone: null, status: "created", updatedAt: Date.now(), ownerManaged: false };
-  await gravarConexao(adminDb, slug, conexao);
-  return conexao;
+  return conectarNegocio(adminDb, slug, slug, false);
 });
 
 /** Delegar (ou retomar) a gestão do WhatsApp ao painel do dono. Só a plataforma decide. */
@@ -776,7 +773,7 @@ export const refreshWhatsAppStatus = adminAction(async (_user, slug: string): Pr
   slugValido(slug);
   const salva = await lerConexao(adminDb, slug);
   if (!salva) return null;
-  const vivo = await getStatus(salva.instanceId);
+  const vivo = await statusDaConexao(salva);
   const conexao: ConexaoWhatsapp = { ...salva, phone: vivo.phone ?? salva.phone, status: vivo.status, updatedAt: Date.now() };
   await gravarConexao(adminDb, slug, conexao);
   return conexao;
@@ -787,14 +784,14 @@ export const qrWhatsApp = adminAction(async (_user, slug: string): Promise<QrWha
   slugValido(slug);
   const salva = await lerConexao(adminDb, slug);
   if (!salva) throw new ErroPrevisto("Conecte o WhatsApp antes de pedir o QR.");
-  return getQr(salva.instanceId);
+  return qrDaConexao(salva);
 });
 
 /** Despareia o número do gateway e solta o vínculo com o negócio. */
 export const desconectarWhatsApp = adminAction(async (_user, slug: string) => {
   slugValido(slug);
   const salva = await lerConexao(adminDb, slug);
-  if (salva) await logout(salva.instanceId).catch(() => {});
+  if (salva) await deslogarInstancia(salva.instanceId).catch(() => {});
   await apagarConexao(adminDb, slug);
   return "desconectado";
 });
