@@ -166,17 +166,24 @@ export async function entrarNaEquipe(db: Firestore, c: Aceite & { staffId: strin
  *  e diz ao gerador que o site não volta a ser da planilha). Tudo numa transação, com
  *  o link queimado junto: se a gravação falhar, o link segue valendo.
  *  Devolve o motivo da recusa, ou null se entrou. */
-export async function assumirNegocio(db: Firestore, c: Aceite, uid: string, quem: Record<string, unknown>) {
+export async function assumirNegocio(db: Firestore, c: Aceite, uid: string, quem: Record<string, unknown>, aceiteContrato?: Record<string, unknown>) {
   const tenant = db.doc(`tenants/${c.tenantId}`);
   const membro = tenant.collection("members").doc(uid);
   return db.runTransaction(async (tx) => {
     const [t, plataforma, ja, usado, corte] = await tx.getAll(tenant, db.doc("config/admin"), membro, db.doc(`${USADOS}/${c.jti}`), db.doc(`${REVOGADOS}/${c.tenantId}`));
+    // o aceite dos Termos só fica gravado junto do acesso: convite recusado não deixa registro.
+    // Vai depois de todas as leituras: a transação não aceita ler depois de escrever
+    const gravarAceite = () => aceiteContrato && tx.set(db.collection("aceites").doc(), { ...aceiteContrato, slug: c.tenantId });
     // dois convites abertos ao mesmo tempo: o segundo não rebaixa quem o primeiro fez dono
-    if (ja.exists) return null;
+    if (ja.exists) {
+      gravarAceite();
+      return null;
+    }
     if (c.emitidoEm <= Number(corte.get("ate") ?? 0)) return CANCELADO;
     if (usado.exists) return USADO;
     const dono = String(t.get("ownerId") ?? "");
     const antigo = dono ? await tx.get(tenant.collection("members").doc(dono)) : null;
+    gravarAceite();
     const daRuphus = !!dono && (((plataforma.get("uids") as unknown[] | undefined) ?? []).includes(dono));
     tx.create(usado.ref, { uid, at: FieldValue.serverTimestamp() });
     tx.set(membro, { ...quem, uid, role: daRuphus ? "owner" : "admin", viaConvite: true });

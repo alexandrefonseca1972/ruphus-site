@@ -105,7 +105,10 @@ await db.doc("config/admin").set({ uids: ["ruphus"] }, { merge: true });
 await db.doc("tenants/fabrica").set({ name: "Fábrica", ownerId: "ruphus" });
 await db.doc("tenants/fabrica/members/ruphus").set({ uid: "ruphus", role: "owner" });
 const doCliente = aceite("fabrica");
-assert.equal(await assumirNegocio(db, doCliente, "cliente", { email: "dona@fabrica.com" }), null);
+assert.equal(await assumirNegocio(db, doCliente, "cliente", { email: "dona@fabrica.com" }, { versao: "1.0", uid: "cliente" }), null);
+// o aceite dos Termos fica gravado na mesma transação do acesso
+const aceitesDaFabrica = async () => (await db.collection("aceites").where("slug", "==", "fabrica").get()).size;
+assert.equal(await aceitesDaFabrica(), 1);
 assert.equal((await db.doc("tenants/fabrica").get()).get("ownerId"), "cliente", "o negócio passa a ser do cliente");
 const cliente = (await db.doc("tenants/fabrica/members/cliente").get()).data();
 assert.equal(cliente?.role, "owner");
@@ -117,7 +120,8 @@ assert.equal((await db.doc(`convitesUsados/${doCliente.jti}`).get()).exists, tru
 assert.equal(await assumirNegocio(db, aceite("fabrica"), "cliente", {}), null);
 assert.equal((await db.doc("tenants/fabrica/members/cliente").get()).get("role"), "owner", "segundo aceite não rebaixa o dono");
 // link já usado não abre para outra conta
-assert.match(String(await assumirNegocio(db, doCliente, "outra", {})), /já foi usado/);
+assert.match(String(await assumirNegocio(db, doCliente, "outra", {}, { versao: "1.0", uid: "outra" })), /já foi usado/);
+assert.equal(await aceitesDaFabrica(), 1, "convite recusado não deixa aceite gravado");
 
 // negócio que não é da Ruphus (criado pelo próprio dono): o convidado entra como admin, nada muda de dono
 await db.doc("tenants/proprio").set({ name: "Próprio", ownerId: "fulana" });

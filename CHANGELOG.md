@@ -5,6 +5,17 @@ o PR, onde está o porquê.
 
 ## 0.14.0 — WhatsApp na plataforma atendys
 
+### Contrato
+- **Termos de Contratação** publicados em `/termos`, e cada versão em endereço
+  fixo (`/termos/1.0`) que não muda depois de publicado. Quem cadastra um negócio
+  e quem abre o convite de dono vê o resumo das cláusulas essenciais e marca "Li e
+  aceito" antes de seguir; o servidor recusa sem o aceite e grava em `aceites/` a
+  versão, a data, o e-mail, o IP e o navegador. Logo depois sai um e-mail de
+  confirmação com o link da versão aceita. O convite da equipe não pede aceite.
+- A proposta (página e e-mail) aponta para os Termos, e "Manutenção incluída"
+  passa a dizer que vale nos limites deles.
+- Sede da Ruphus agora em Ananindeua/PA (também na página de privacidade).
+
 ### Infraestrutura
 - **O WhatsApp do negócio mudou de gateway**: em vez do protótipo próprio, cada
   negócio é um tenant na plataforma **atendys** (instância por cliente, filas,

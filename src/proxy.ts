@@ -59,13 +59,15 @@ export function siteSlug(host: string) {
 }
 
 // páginas estáticas da marca em public/: public/ não serve índice de diretório
-const PAGINAS = ["sobre", "privacidade"];
+const PAGINAS = ["sobre", "privacidade", "termos"];
 
 export function paginaEstatica(pathname: string) {
   // a raiz do domínio é a landing; o painel de quem tem negócio fica em /painel
   if (pathname === "/") return "/sobre/index.html";
   const nome = pathname.replace(/^\/|\/$/g, "");
   if (PAGINAS.includes(nome)) return `/${nome}/index.html`;
+  // cada versão dos Termos tem endereço próprio: é o link que o aceite guarda
+  if (/^termos\/\d+(\.\d+)*$/.test(nome)) return `/${nome}/index.html`;
   // A prévia da landing aponta para /s/{slug}: em produção o servidor estático
   // acha o index sozinho, o next dev não — e a vitrine aparecia 404 na máquina
   // de quem desenvolve. Apontar para o arquivo resolve nos dois.

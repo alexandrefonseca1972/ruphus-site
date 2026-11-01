@@ -37,7 +37,7 @@ export async function cotaDe(db: Firestore, uid: string) {
  *
  * Numa transação: dois cliques (ou duas abas) ao mesmo tempo não passam juntos
  * pela contagem, e o endereço já tomado falha antes de gravar qualquer coisa. */
-export async function criarNegocio(db: Firestore, user: { uid: string; email?: string; name?: string }, input: unknown, utmBruta?: unknown) {
+export async function criarNegocio(db: Firestore, user: { uid: string; email?: string; name?: string }, input: unknown, utmBruta?: unknown, aceite?: Record<string, unknown>) {
   const parsed = NegocioInput.safeParse(input);
   if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
   // a origem do anúncio é informação a mais: se vier estranha, o cadastro segue sem ela
@@ -74,6 +74,9 @@ export async function criarNegocio(db: Firestore, user: { uid: string; email?: s
       ...(user.email && { email: user.email }),
       ...(user.name && { nome: user.name }),
     }, { merge: true });
+    // o aceite dos Termos (exigido por criarNegocioAction) entra na mesma transação:
+    // se o negócio não for criado, o aceite também não fica gravado
+    if (aceite) tx.set(db.collection("aceites").doc(), { ...aceite, slug });
   });
   return slug;
 }

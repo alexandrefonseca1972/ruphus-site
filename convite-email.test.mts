@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { emailDoConvite } from "@/lib/convite-email";
+import { emailDoAceite } from "@/lib/contrato";
 
 const base = {
   nome: "Salão Bela Vista",
@@ -47,3 +48,13 @@ const perigo = emailDoConvite({ ...base, nome: "<script>x</script> & Cia" });
 assert.ok(!perigo.html.includes("<script>x"), "nome do negócio escapado no HTML");
 assert.ok(perigo.html.includes("&lt;script&gt;x&lt;/script&gt; &amp; Cia"));
 console.log("convite-email html: ok");
+
+// confirmação do aceite dos Termos: versão, negócio, horário de Brasília e o link fixo da versão
+{
+  const a = emailDoAceite({ slug: "bela-vista", versao: "1.0", quando: new Date("2026-11-01T15:30:00Z"), site: "https://www.ruphus.site/" });
+  assert.ok(a.assunto.includes("versão 1.0"));
+  assert.ok(a.texto.includes("https://www.ruphus.site/termos/1.0"), "link da versão aceita, sem barra dobrada");
+  assert.ok(a.texto.includes("bela-vista.ruphus.site"));
+  assert.ok(a.texto.includes("12:30"), "horário de Brasília, não UTC");
+  assert.ok(a.texto.includes("7 dias"), "lembra o direito de desistência");
+}

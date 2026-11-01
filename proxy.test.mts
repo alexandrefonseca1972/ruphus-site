@@ -37,6 +37,9 @@ import { paginaEstatica } from "@/proxy";
 assert.equal(paginaEstatica("/sobre"), "/sobre/index.html");
 assert.equal(paginaEstatica("/sobre/"), "/sobre/index.html");
 assert.equal(paginaEstatica("/privacidade/"), "/privacidade/index.html");
+assert.equal(paginaEstatica("/termos"), "/termos/index.html");
+assert.equal(paginaEstatica("/termos/1.0"), "/termos/1.0/index.html");
+assert.equal(paginaEstatica("/termos/../admin"), null);
 assert.equal(paginaEstatica("/login"), null);
 assert.equal(paginaEstatica("/sobre/x"), null);
 // A prévia da landing pede /s/{slug}; só o next dev precisa desta ajuda
