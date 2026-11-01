@@ -2,7 +2,7 @@ import "server-only";
 import { FieldValue, type Firestore, Timestamp } from "firebase-admin/firestore";
 import { UserError } from "@/lib/booking.server";
 import { todayIn } from "@/lib/datetime";
-import { mesDe } from "@/lib/financeiro";
+import { idDaBaixa, mesDe } from "@/lib/financeiro";
 
 type Quem = { uid: string; email?: string };
 
@@ -15,7 +15,7 @@ export async function confirmarSinal(db: Firestore, tenantId: string, appointmen
   const t = db.doc(`tenants/${tenantId}`);
   const agendamento = t.collection("appointments").doc(appointmentId);
   await db.runTransaction(async (tx) => {
-    const [a, tenant] = await Promise.all([tx.get(agendamento), tx.get(t)]);
+    const [a, tenant, baixa] = await Promise.all([tx.get(agendamento), tx.get(t), tx.get(t.collection("lancamentos").doc(idDaBaixa(appointmentId)))]);
     if (!a.exists) throw new UserError("Agendamento não encontrado.");
     if (a.get("sinal.status") !== "pendente") throw new UserError("Este agendamento não tem sinal a confirmar.");
     if (!["booked", "confirmed"].includes(a.get("status"))) throw new UserError("Este horário já foi cancelado. Combine a devolução do sinal com o cliente.");
@@ -27,7 +27,8 @@ export async function confirmarSinal(db: Firestore, tenantId: string, appointmen
       Object.assign(mudanca, { status: "confirmed", lastHistoryId: historico.id });
     }
     tx.update(agendamento, mudanca);
-    if (tenant.get("modulos.financeiro") === true) {
+    // recebido no Caixa antes de confirmar o sinal: o valor já entrou lá, não conta duas vezes
+    if (tenant.get("modulos.financeiro") === true && !baixa.exists) {
       const data = todayIn();
       tx.create(t.collection("lancamentos").doc(idDoSinal(appointmentId)), {
         tipo: "entrada",
@@ -51,13 +52,19 @@ export async function confirmarSinal(db: Firestore, tenantId: string, appointmen
 /** O cron (a cada 10 min) libera o horário de quem não pagou o sinal no prazo. Só o que
  *  ainda aguarda confirmação: o que o salão confirmou na mão fica, mesmo sem sinal. */
 export async function expirarSinais(db: Firestore, agora = new Date()) {
-  const vencidos = await db.collectionGroup("appointments").where("sinal.status", "==", "pendente").where("sinal.ate", "<=", Timestamp.fromDate(agora)).get();
+  // ponytail: 200 por rodada; o cron roda de 10 em 10 min
+  const vencidos = await db.collectionGroup("appointments").where("sinal.status", "==", "pendente").where("sinal.ate", "<=", Timestamp.fromDate(agora)).limit(200).get();
   let liberados = 0;
   for (const d of vencidos.docs) {
     if (d.ref.parent.parent?.parent.id !== "tenants") continue;
     const ok = await db.runTransaction(async (tx) => {
       const a = await tx.get(d.ref);
-      if (a.get("status") !== "booked" || a.get("sinal.status") !== "pendente") return false;
+      if (a.get("sinal.status") !== "pendente") return false;
+      // confirmado na mão, cancelado ou faltou: o sinal deixa de ser esperado e sai da consulta
+      if (a.get("status") !== "booked") {
+        tx.update(d.ref, { "sinal.status": a.get("status") === "confirmed" ? "dispensado" : "vencido" });
+        return false;
+      }
       const historico = d.ref.parent.parent!.collection("history").doc();
       tx.create(historico, { appointmentId: d.id, type: "cancelled", reason: "sinal_nao_pago", at: FieldValue.serverTimestamp(), by: "sistema", byName: "Sinal não pago no prazo" });
       tx.update(d.ref, { status: "cancelled", lastHistoryId: historico.id, "sinal.status": "vencido" });

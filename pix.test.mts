@@ -57,7 +57,7 @@ assert.equal(vencimentoDe("2027-01"), "2027-01-10");
 console.log("pix ok");
 
 // Chave do salão: cada tipo vira o formato que o banco aceita
-import { normalizarChave, recebedorDe, txidLivre } from "@/lib/pix";
+import { normalizarChave, recebedorDe, tipoDaChave, txidLivre } from "@/lib/pix";
 assert.equal(normalizarChave("529.982.247-25"), "52998224725", "CPF válido");
 assert.equal(normalizarChave("(11) 99888-7777"), "+5511998887777", "11 dígitos sem CPF válido é celular");
 assert.equal(normalizarChave("+55 96 99123-4567"), "+5596991234567");
@@ -67,6 +67,10 @@ assert.equal(normalizarChave("123E4567-E89B-12D3-A456-426614174000"), "123e4567-
 assert.equal(normalizarChave("abc"), null);
 assert.equal(normalizarChave("12345"), null);
 assert.equal(normalizarChave("+1 202 555 0100"), null, "só Brasil");
+assert.equal(normalizarChave("52998224725"), "52998224725", "dígitos soltos com CPF válido: CPF");
+assert.equal(normalizarChave("(52) 99822-4725"), "+5552998224725", "com parênteses é celular, mesmo formando CPF válido");
+assert.equal(typeof recebedorDe({ chave: "52998224725", nome: "李明", cidade: "Belém" }), "string", "nome que o banco não lê");
+assert.deepEqual([tipoDaChave("52998224725"), tipoDaChave("+5511998887777"), tipoDaChave("a@b.co"), tipoDaChave("12345678000195")], ["CPF", "celular", "e-mail", "CNPJ"]);
 assert.equal(typeof recebedorDe({ chave: "x", nome: "Ana", cidade: "Belém" }), "string");
 assert.deepEqual(recebedorDe({ chave: "52998224725", nome: " Ana ", cidade: "Belém" }), { chave: "52998224725", nome: "Ana", cidade: "Belém" });
 const tx = txidLivre("salao-da-ana");

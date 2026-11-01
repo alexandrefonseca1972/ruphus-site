@@ -177,6 +177,7 @@ export const salvarPixAction = memberAction(
     const t = adminDb.doc(`tenants/${data.tenantId}`);
     if (!data.pix.chave.trim()) {
       await t.update({ pix: FieldValue.delete(), "sinal.ativo": false });
+      revalidatePath(`/agendar/${data.tenantId}`);
       return { ok: true as const, pix: null };
     }
     const pix = recebedorDe(data.pix);

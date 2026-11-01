@@ -92,11 +92,17 @@ export function normalizarChave(entrada: string): string | null {
   if (v.includes("@")) return EMAIL.test(v) && v.length <= 77 ? v.toLowerCase() : null;
   if (/[^\d\s.()/+-]/.test(v)) return null;
   const d = v.replace(/\D/g, "");
-  if (!v.startsWith("+") && d.length === 11 && cpfValido(d)) return d;
+  // "(11) 98765-4321" é celular mesmo quando os dígitos formam um CPF válido
+  const comCaraDeFone = v.startsWith("+") || v.includes("(");
+  if (!comCaraDeFone && d.length === 11 && cpfValido(d)) return d;
   if (!v.startsWith("+") && d.length === 14) return d;
   const fone = v.startsWith("+") ? d : d.length <= 11 ? `55${d}` : d;
   return /^55\d{10,11}$/.test(fone) ? `+${fone}` : null;
 }
+
+/** Como a tela mostra a chave salva, para o dono conferir o tipo que o sistema entendeu. */
+export const tipoDaChave = (chave: string) =>
+  chave.includes("@") ? "e-mail" : chave.startsWith("+") ? "celular" : UUID.test(chave) ? "chave aleatória" : chave.length === 11 ? "CPF" : "CNPJ";
 
 /** O que o salão cadastra para receber; o servidor grava em tenants/{slug}.pix. */
 export function recebedorDe(entrada: { chave: string; nome: string; cidade: string }): Recebedor | string {
@@ -104,7 +110,8 @@ export function recebedorDe(entrada: { chave: string; nome: string; cidade: stri
   if (!chave) return "Chave Pix inválida. Use CPF, CNPJ, e-mail, celular ou a chave aleatória.";
   const nome = entrada.nome.trim();
   const cidade = entrada.cidade.trim();
-  if (nome.length < 2) return "Informe o nome de quem recebe, como está no banco.";
-  if (cidade.length < 2) return "Informe a cidade.";
+  // o BR Code só leva letras sem acento e números: nome só com outros caracteres sairia vazio
+  if (texto(nome, 25).replace(/[^A-Z0-9]/g, "").length < 2) return "Informe o nome de quem recebe, como está no banco.";
+  if (texto(cidade, 15).replace(/[^A-Z0-9]/g, "").length < 2) return "Informe a cidade.";
   return { chave, nome: nome.slice(0, 60), cidade: cidade.slice(0, 40) };
 }

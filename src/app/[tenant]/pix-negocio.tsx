@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { formatBRL, maskBRL } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
 import { ConfigSinal, SINAL_PADRAO } from "@/lib/sinal";
+import { tipoDaChave } from "@/lib/pix";
 import { salvarPixAction, salvarSinalAction } from "./actions";
 import { useTenant } from "./layout";
 
@@ -32,8 +33,9 @@ export function PixNegocio() {
     const gravado = r.pix ?? { chave: "", nome: "", cidade: "" };
     setPix(gravado);
     setSalvo(gravado);
-    tenant.atualizar?.({ pix: r.pix ?? undefined });
-    setAviso({ ok: true, texto: r.pix ? "Salvo. No Caixa, escolha Pix ao receber e toque em \"Mostrar QR do Pix\"." : "Chave removida." });
+    // sem chave, o servidor desliga o sinal: a tela do sinal tem que saber
+    tenant.atualizar?.({ pix: r.pix ?? undefined, ...(!r.pix && tenant.sinal && { sinal: { ...tenant.sinal, ativo: false } }) });
+    setAviso({ ok: true, texto: r.pix ? `Salvo como ${tipoDaChave(r.pix.chave)}. No Caixa, escolha Pix ao receber e toque em "Mostrar QR do Pix".` : "Chave removida. O sinal do agendamento online foi desligado." });
   }
 
   return (

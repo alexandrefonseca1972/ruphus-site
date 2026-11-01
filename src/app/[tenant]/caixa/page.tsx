@@ -108,7 +108,7 @@ export default function CaixaPage() {
   const recebidos = new Set(comAnterior?.map((l) => l.id));
   // sem os lançamentos carregados não dá para saber o que já foi recebido
   const pendentes = (comAnterior ? (doMes ?? []) : []).filter(
-    (a) => (a.status === "booked" || a.status === "confirmed") && a.start.toMillis() <= agora && !recebidos.has(idDaBaixa(a.id)),
+    (a) => (a.status === "booked" || a.status === "confirmed") && a.start.toMillis() <= agora && !recebidos.has(idDaBaixa(a.id)) && restanteDe(a) > 0,
   );
   const aReceber = pendentes.reduce((t, a) => t + restanteDe(a), 0);
   // o de hoje primeiro: é o que o dono está fechando; os antigos esperam no "ver todos"

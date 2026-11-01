@@ -39,7 +39,7 @@ const Appointment = z.object({
   planId: z.string().optional(),
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
   // sinal do agendamento online (Pix na chave do salão); só o servidor grava
-  sinal: z.object({ cents: z.number(), status: z.enum(["pendente", "pago", "vencido"]), ate: z.instanceof(Timestamp) }).optional().catch(undefined),
+  sinal: z.object({ cents: z.number(), status: z.enum(["pendente", "pago", "vencido", "dispensado"]), hora: z.string() }).optional().catch(undefined),
 });
 export type Appointment = z.infer<typeof Appointment> & { id: string };
 
@@ -285,7 +285,7 @@ export default function AgendaPage() {
                     {a.planId && <span className="rounded-full border px-2.5 py-0.5 text-xs">Recorrente</span>}
                     {a.sinal?.status === "pendente" && ATIVO(a) && (
                       <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                        Sinal de {formatBRL(a.sinal.cents)} até {formatTime(a.sinal.ate.toDate())}
+                        Sinal de {formatBRL(a.sinal.cents)} até {a.sinal.hora}
                       </span>
                     )}
                     {a.sinal?.status === "pago" && <span className="rounded-full border px-2.5 py-0.5 text-xs">Sinal pago · {formatBRL(a.sinal.cents)}</span>}
@@ -319,7 +319,7 @@ export default function AgendaPage() {
                   <RowMenu
                     label={`Mais ações: ${a.customerName} às ${formatTime(a.start.toDate())}`}
                     actions={[
-                      ...(caixa && recebidosDaSemana && ATIVO(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id))
+                      ...(caixa && recebidosDaSemana && ATIVO(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) && restanteDe(a) > 0
                         ? [{ label: "Recebido", onClick: () => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, serviceName: a.serviceName, priceCents: restanteDe(a) } }) }]
                         : []),
                       // recebido no Caixa não vira falta: a entrada contaria um atendimento que não houve

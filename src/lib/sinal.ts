@@ -26,7 +26,9 @@ export function valorDoSinal(cfg: Pick<ConfigSinal, "tipo" | "valor">, precoCent
 export const prazoDoSinal = (agora: Date, prazoMin: number, inicio: Date) => new Date(Math.min(agora.getTime() + prazoMin * 60_000, inicio.getTime()));
 
 /** O que fica no agendamento (appointments/{id}.sinal); só o servidor grava. */
-export type SinalDoAgendamento = { cents: number; status: "pendente" | "pago" | "vencido"; ate: Date; txid: string; pix: { chave: string; nome: string; cidade: string } };
+// ate: instante real; hora: o mesmo prazo no relógio do negócio, para a agenda mostrar
+// dispensado: o salão confirmou ou remarcou sem o sinal
+export type SinalDoAgendamento = { cents: number; status: "pendente" | "pago" | "vencido" | "dispensado"; ate: Date; hora: string; txid: string; pix: { chave: string; nome: string; cidade: string } };
 
 /** "30% do valor" / "R$ 20,00": como a página de agendamento anuncia. */
 export const textoDoSinal = (cfg: Pick<ConfigSinal, "tipo" | "valor">) =>

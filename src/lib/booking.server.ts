@@ -231,7 +231,7 @@ async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery, exclude
     now: agoraNaParede(fusoDaUF(tenantSnap.get("site.uf") as string | undefined)),
   });
   // a chave Pix e o sinal do negócio: a reserva online cobra o sinal quando os dois existem
-  const cfg = { pix: tenantSnap.get("pix") as SinalDoAgendamento["pix"] | undefined, sinal: ConfigSinal.safeParse(tenantSnap.get("sinal")).data };
+  const cfg = { pix: tenantSnap.get("pix") as SinalDoAgendamento["pix"] | undefined, sinal: ConfigSinal.safeParse(tenantSnap.get("sinal")).data, fuso: fusoDaUF(tenantSnap.get("site.uf") as string | undefined) };
   return { t, svc, durationMin, staff: staff.data, slots, cfg };
 }
 
@@ -492,12 +492,14 @@ export async function book(db: Firestore, input: BookingInput, ip?: string, aoCr
 }
 
 /** O sinal da reserva online: só com o sinal ligado, chave Pix cadastrada e preço no serviço. */
-function sinalDaReserva(ctx: { cfg: { pix?: SinalDoAgendamento["pix"]; sinal?: ConfigSinal }; svc: { priceCents: number }[] }, input: BookingInput): SinalDoAgendamento | undefined {
-  const { pix, sinal } = ctx.cfg;
+function sinalDaReserva(ctx: { cfg: { pix?: SinalDoAgendamento["pix"]; sinal?: ConfigSinal; fuso: string }; svc: { priceCents: number }[] }, input: BookingInput): SinalDoAgendamento | undefined {
+  const { pix, sinal, fuso } = ctx.cfg;
   if (!pix?.chave || !sinal?.ativo) return undefined;
   const cents = valorDoSinal(sinal, ctx.svc.reduce((soma, s) => soma + s.priceCents, 0));
   if (!cents) return undefined;
-  return { cents, status: "pendente", ate: prazoDoSinal(new Date(), sinal.prazoMin, zonedTime(input.date, input.time)), txid: txidLivre(`S${input.tenantId}`), pix };
+  // "start" é hora de parede de Brasília; o prazo é instante real, então o teto é o início real no fuso do negócio
+  const ate = prazoDoSinal(new Date(), sinal.prazoMin, zonedTime(input.date, input.time, fuso));
+  return { cents, status: "pendente", ate, hora: formatTime(ate, fuso), txid: txidLivre(`S${input.tenantId}`), pix };
 }
 
 /** Popularidade (ordena a página pública). Fora da transação da reserva: dentro, toda
@@ -654,6 +656,8 @@ export async function reschedule(db: Firestore, input: RescheduleInput, actor: A
       status: "booked", // precisa de nova confirmação
       rescheduledAt: FieldValue.serverTimestamp(),
       whatsappReminderSentAt: FieldValue.delete(), // o lembrete do horário antigo não vale para o novo
+      // quem remarca é o salão: o sinal ainda por pagar fica dispensado, senão o prazo antigo cancelaria o horário novo
+      ...(ctx.appt.get("sinal.status") === "pendente" && { "sinal.status": "dispensado" }),
     });
     return { ok: true as const };
   }, TX));
