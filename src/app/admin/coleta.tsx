@@ -1,6 +1,12 @@
 "use client";
 
 import { ehVersaoAntiga, esperaDe, RECONECTOU, recarregarUmaVez } from "@/lib/conexao";
+import { idToken as tokenAtual } from "@/lib/firebase";
+
+/** O token na hora de cada chamada: o SDK devolve um válido e renova sozinho se venceu.
+ *  Guardado num estado, ele vencia em 1 h com a aba em segundo plano ou o computador
+ *  dormindo, e a lista passava a dar "Sessão expirada" (e "Nenhum worker no ar"). */
+const tokenFresco = () => tokenAtual();
 
 /** Falha de uma ação: aba de versão anterior recarrega; o resto vira null (a tela diz que falhou). */
 const versaoOuNada = (e: unknown) => {
@@ -8,6 +14,9 @@ const versaoOuNada = (e: unknown) => {
   return null;
 };
 import { useEffect, useState } from "react";
+import { NumeroVivo } from "@/components/numero-vivo";
+import { type Amostra, anotar, duracao, faltam, porcentagem, ritmo } from "@/lib/coleta-tempo";
+import { desmarcar, marcarTodas, sortear } from "@/lib/coleta-selecao";
 import { CAPITAIS, LIMITES, problemaNoPedido, TERMOS_PADRAO, UFS, type Uf } from "@/lib/coleta";
 import type { LinhaGerada } from "@/lib/gerador.server";
 import { cancelarColeta, type Coleta, desligarWorker, excluirColeta, gerarLoteDaColeta, ligarWorker, type WorkerLocal, jaTemosNaCidade, municipios, painelColeta, pedirColeta, previaDaColeta, recolocarColeta, type Worker } from "./coleta-actions";
@@ -18,6 +27,7 @@ import { cancelarColeta, type Coleta, desligarWorker, excluirColeta, gerarLoteDa
 
 const BOTAO = "h-10 rounded-[10px] px-4 text-[13px] font-semibold";
 const CAMPO = "h-10 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-[13px] outline-none focus:border-[#17150F]";
+const MINI = "h-8 rounded-lg border border-[#D8D2C6] bg-white px-2.5 font-semibold hover:border-[#17150F] disabled:opacity-40 disabled:hover:border-[#D8D2C6]";
 const SEM_SINAL_MS = 3 * 60_000; // o worker dá sinal a cada 20 s enquanto coleta e a cada 30 s parado
 
 const ESTADOS: Record<Coleta["estado"], [string, string]> = {
@@ -71,6 +81,7 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
   const [cidades, setCidades] = useState<string[]>([]);
   const [busca, setBusca] = useState("");
   const [escolhidas, setEscolhidas] = useState<string[]>([]);
+  const [sorteio, setSorteio] = useState(5);
   const [jaTemos, setJaTemos] = useState<Record<string, number>>({});
   const [bairros, setBairros] = useState("");
   const [termos, setTermos] = useState(TERMOS_PADRAO.join(", "));
@@ -94,7 +105,7 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
       t = setTimeout(carregar, ms);
     };
     function carregar() {
-      painelColeta(idToken).then(
+      tokenFresco().then((tk) => painelColeta(tk)).then(
         (r) => {
           if (!atual) return;
           falhas = 0;
@@ -130,7 +141,7 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
   async function ligarOuDesligar() {
     setErro("");
     setLigando(true);
-    const r = await (local?.ligado ? desligarWorker(idToken) : ligarWorker(idToken)).catch(versaoOuNada);
+    const r = await (local?.ligado ? desligarWorker(await tokenFresco()) : ligarWorker(await tokenFresco())).catch(versaoOuNada);
     setLigando(false);
     if (!r) return setErro("A conexão falhou. Tente de novo.");
     if (!r.ok) return setErro(r.error);
@@ -148,18 +159,38 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
     setEscolhidas([]);
     setCidades([]);
     if (!v) return;
-    const r = await municipios(idToken, v).catch(versaoOuNada);
+    const r = await tokenFresco().then((tk) => municipios(tk, v)).catch(versaoOuNada);
     if (r?.ok) setCidades(r.dados);
     else setErro(r?.error ?? "Não consegui carregar as cidades. Escolha o estado de novo para tentar outra vez.");
+  }
+
+  /** Quantos negócios já temos em cada cidade nova: de 5 em 5, para marcar 50 de uma vez não
+   *  disparar 50 consultas juntas. */
+  async function contar(novas: string[]) {
+    if (!uf) return;
+    const faltam = novas.filter((c) => !(c in jaTemos));
+    for (let i = 0; i < faltam.length; i += 5) {
+      const lote = faltam.slice(i, i + 5);
+      const tk = await tokenFresco().catch(() => "");
+      const rs = await Promise.all(lote.map((c) => jaTemosNaCidade(tk, c, uf).catch(versaoOuNada)));
+      setJaTemos((j) => ({ ...j, ...Object.fromEntries(lote.flatMap((c, k) => (rs[k]?.ok ? [[c, rs[k].dados]] : []))) }));
+    }
   }
 
   async function alternar(cidade: string) {
     setAviso("");
     if (escolhidas.includes(cidade)) return setEscolhidas((xs) => xs.filter((x) => x !== cidade));
+    if (escolhidas.length >= LIMITES.cidades) return setAlerta(`Cabem ${LIMITES.cidades} cidades por pedido. Ponha estas na fila e peça as outras depois.`);
     setEscolhidas((xs) => [...xs, cidade]);
-    if (!uf || cidade in jaTemos) return;
-    const r = await jaTemosNaCidade(idToken, cidade, uf).catch(versaoOuNada);
-    if (r?.ok) setJaTemos((j) => ({ ...j, [cidade]: r.dados }));
+    await contar([cidade]);
+  }
+
+  /** Marcar todas, desmarcar ou sortear: sempre sobre as cidades visíveis (a busca filtra). */
+  function emMassa(nova: string[], aviso = "") {
+    setAviso("");
+    setAlerta(aviso);
+    setEscolhidas(nova);
+    void contar(nova.filter((c) => !escolhidas.includes(c)));
   }
 
   async function pedir() {
@@ -168,7 +199,7 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
     setErro("");
     setAviso("");
     setAlerta("");
-    const r = await pedirColeta(idToken, { uf, ...pedido }).catch(versaoOuNada);
+    const r = await tokenFresco().then((tk) => pedirColeta(tk, { uf, ...pedido })).catch(versaoOuNada);
     setEnviando(false);
     if (!r) return setErro("A conexão falhou e o pedido não foi enviado. Confira a internet e tente de novo.");
     if (!r.ok) return setErro(r.error);
@@ -271,6 +302,47 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
               onChange={(e) => setBusca(e.currentTarget.value)}
             />
             {cidades.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 text-[12px]" role="group" aria-label="Seleção em massa">
+                {(() => {
+                  const faltam = visiveis.filter((c) => !escolhidas.includes(c)).length;
+                  const marcadasVisiveis = visiveis.length - faltam;
+                  const cheio = escolhidas.length >= LIMITES.cidades;
+                  const filtro = busca.trim() ? " visíveis" : "";
+                  return (
+                    <>
+                      <button
+                        type="button"
+                        disabled={!faltam || cheio}
+                        onClick={() => {
+                          const { lista, cortadas } = marcarTodas(escolhidas, visiveis, LIMITES.cidades);
+                          emMassa(lista, cortadas ? `Cabem ${LIMITES.cidades} cidades por pedido: ${qtd(cortadas, "ficou de fora", "ficaram de fora")}. Ponha estas na fila e peça as outras depois.` : "");
+                        }}
+                        className={MINI}
+                      >
+                        Marcar {faltam === visiveis.length ? "todas" : `as ${faltam} restantes`}{filtro}
+                      </button>
+                      <button type="button" disabled={!marcadasVisiveis} onClick={() => emMassa(desmarcar(escolhidas, visiveis))} className={MINI}>
+                        Desmarcar{filtro ? `${filtro}` : " todas"}
+                      </button>
+                      <span className="flex items-center gap-1.5">
+                        <button type="button" disabled={!faltam || cheio} onClick={() => emMassa(sortear(escolhidas, visiveis, sorteio, LIMITES.cidades))} className={MINI}>
+                          Sortear
+                        </button>
+                        <select aria-label="Quantas cidades sortear" value={sorteio} onChange={(e) => setSorteio(Number(e.target.value))} className="h-8 rounded-lg border border-[#D8D2C6] bg-white px-1.5">
+                          {[1, 3, 5, 10, 20].map((n) => (
+                            <option key={n} value={n}>{n}</option>
+                          ))}
+                        </select>
+                      </span>
+                      <span className="ml-auto tabular-nums text-[#8B8578]" aria-live="polite">
+                        {escolhidas.length} de {LIMITES.cidades} marcadas
+                      </span>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+            {cidades.length > 0 && (
               <ul aria-label="Cidades do estado" className="max-h-60 overflow-y-auto rounded-[10px] border border-[#E2DDD3]">
                 {visiveis.length === 0 && <li className="px-3 py-2 text-[12.5px] text-[#8B8578]">Nenhuma cidade com esse nome.</li>}
                 {visiveis.map((c) => (
@@ -336,14 +408,14 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
         ) : coletas.length === 0 ? (
           <p className="text-[13px] text-[#6F6A5E]">Nenhuma coleta ainda.</p>
         ) : (
-          coletas.map((c) => <Cartao key={c.id} c={c} agora={agora} semWorker={!vivos.length} idToken={idToken} aoMudar={atualizar} aoGerar={aoGerar} />)
+          coletas.map((c) => <Cartao key={c.id} c={c} agora={agora} semWorker={!vivos.length} aoMudar={atualizar} aoGerar={aoGerar} />)
         )}
       </section>
     </div>
   );
 }
 
-function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta; agora: number; semWorker: boolean; idToken: string; aoMudar: () => void; aoGerar: () => void }) {
+function Cartao({ c, agora, semWorker, aoMudar, aoGerar }: { c: Coleta; agora: number; semWorker: boolean; aoMudar: () => void; aoGerar: () => void }) {
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState("");
   const [previa, setPrevia] = useState<LinhaGerada[] | null>(null);
@@ -352,7 +424,25 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
   const [rotulo, cor] = ESTADOS[c.estado];
   const semSinal = c.estado === "coletando" && (!c.batidaEm || agora - c.batidaEm > SEM_SINAL_MS);
   const p = c.progresso;
-  const faltamMin = p && p.etapa === "fichas" ? Math.ceil(((p.total - p.feitas) * SEG_POR_FICHA) / 60) : null;
+  // relógio próprio do cartão: o cronômetro anda de segundo em segundo, sem esperar a lista
+  const [tique, setTique] = useState(() => Date.now());
+  useEffect(() => {
+    if (c.estado !== "coletando") return;
+    const id = setInterval(() => setTique(Date.now()), 1_000);
+    return () => clearInterval(id);
+  }, [c.estado]);
+  // ritmo medido: uma amostra a cada atualização que chega do worker
+  // (ajustada no render quando chega batida nova: é o padrão do React para estado que segue a prop)
+  const [amostras, setAmostras] = useState<Amostra[]>([]);
+  const [batidaVista, setBatidaVista] = useState<number | null>(null);
+  if (p && c.batidaEm && c.batidaEm !== batidaVista) {
+    setBatidaVista(c.batidaEm);
+    setAmostras(anotar(amostras, p, c.batidaEm));
+  }
+  const porSegundo = ritmo(amostras, Math.max(tique, agora));
+  const restaSeg = p ? faltam(p, porSegundo, p.etapa === "fichas" ? SEG_POR_FICHA : undefined) : null;
+  const decorrido = c.iniciadaEm ? Math.max(tique, agora) - c.iniciadaEm : null;
+  const pct = p ? porcentagem(p) : 0;
 
   async function acao<T>(fn: () => Promise<{ ok: true; dados: T } | { ok: false; error: string }>, depois?: (d: T) => void) {
     setOcupado(true);
@@ -371,7 +461,7 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
     setErro("");
     let feitos = 0;
     for (;;) {
-      const r = await gerarLoteDaColeta(idToken, c.id).catch(versaoOuNada);
+      const r = await tokenFresco().then((tk) => gerarLoteDaColeta(tk, c.id)).catch(versaoOuNada);
       if (!r || !r.ok) {
         setOcupado(false);
         setGerando(null);
@@ -412,17 +502,63 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
       )}
 
       {c.estado === "coletando" && (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <span className="font-semibold text-[#17150F]">
+              {p ? `Etapa ${p.etapa === "busca" ? 1 : 2} de 2 · ${p.etapa === "busca" ? "Buscando no Maps" : "Lendo as fichas"}` : "Começando…"}
+            </span>
+            {/* cronômetro desde que o worker pegou a coleta */}
+            {decorrido !== null && (
+              <span className="flex items-center gap-1.5 tabular-nums text-[#6F6A5E]" aria-label={`Coletando há ${duracao(decorrido)}`}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="13" r="8" />
+                  <path d="M12 9v4l2.5 2.5M9.5 2h5" />
+                </svg>
+                {duracao(decorrido)}
+              </span>
+            )}
+          </div>
           {p && p.total > 0 && (
-            <div className="h-1.5 overflow-hidden rounded-full bg-[#F1EEE7]" role="progressbar" aria-label="Andamento da etapa" aria-valuemin={0} aria-valuemax={p.total} aria-valuenow={p.feitas}>
-              <div className="h-full bg-[#2F4E73] transition-[width] duration-500" style={{ width: `${Math.round((p.feitas / p.total) * 100)}%` }} />
+            <div className="flex items-center gap-3">
+              <div
+                className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-[#F1EEE7]"
+                role="progressbar"
+                aria-label={`Etapa ${p.etapa === "busca" ? 1 : 2} de 2`}
+                aria-valuemin={0}
+                aria-valuemax={p.total}
+                aria-valuenow={p.feitas}
+                aria-valuetext={`${pct}%: ${p.feitas} de ${p.total}`}
+              >
+                <div className="h-full rounded-full bg-[#2F4E73] transition-[width] duration-700 ease-out" style={{ width: `${pct}%` }} />
+                {/* brilho correndo enquanto o worker trabalha (some sem sinal ou com menos movimento) */}
+                {!semSinal && <div className="absolute inset-y-0 w-1/4 animate-[coleta-brilho_1.8s_linear_infinite] bg-gradient-to-r from-transparent via-white/40 to-transparent motion-reduce:hidden" />}
+              </div>
+              <span className="w-10 text-right font-semibold tabular-nums text-[#17150F]">{pct}%</span>
             </div>
           )}
-          <span className="text-[#6F6A5E]">
-            {p
-              ? `${p.etapa === "busca" ? "Buscando no Maps" : "Lendo as fichas"}: ${p.feitas.toLocaleString("pt-BR")} de ${p.total.toLocaleString("pt-BR")}${faltamMin ? ` (faltam ~${faltamMin < 90 ? `${faltamMin} min` : `${Math.round(faltamMin / 60)} h`})` : ""} · ${qtd(p.lugares, "lugar achado", "lugares achados")} · ${qtd(p.fichas, "ficha lida", "fichas lidas")}${p.falhas ? ` · ${qtd(p.falhas, "falha", "falhas")}` : ""}`
-              : "Começando…"}
-          </span>
+          {p && (
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+              <div>
+                <dt className="text-[11px] text-[#8B8578]">{p.etapa === "busca" ? "buscas" : "fichas"}</dt>
+                <dd className="text-[15px]"><NumeroVivo valor={p.feitas} className="font-semibold" /> <span className="text-[#8B8578]">de {p.total.toLocaleString("pt-BR")}</span></dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-[#8B8578]">lugares achados</dt>
+                <dd className="text-[15px]"><NumeroVivo valor={p.lugares} className="font-semibold" /></dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-[#8B8578]">fichas lidas</dt>
+                <dd className="text-[15px]"><NumeroVivo valor={p.fichas} className="font-semibold" />{p.falhas ? <span className="text-[#8A3A22]"> · {qtd(p.falhas, "falha", "falhas")}</span> : null}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-[#8B8578]">falta na etapa</dt>
+                <dd className="text-[15px] tabular-nums">
+                  {restaSeg === null ? <span className="text-[#8B8578]">medindo…</span> : <span className="font-semibold">~{duracao(restaSeg * 1000)}</span>}
+                  {porSegundo ? <span className="block text-[11px] text-[#8B8578]">{(porSegundo * 60).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por min</span> : null}
+                </dd>
+              </div>
+            </dl>
+          )}
           <span className="text-[11.5px] text-[#8B8578]">{c.worker} · último sinal {haQuanto(c.batidaEm, agora)}</span>
           {semSinal && <span className="text-[#8A3A22]">O worker parou de dar sinal. Se ele não voltar, recoloque na fila para outro worker continuar.</span>}
         </div>
@@ -436,6 +572,7 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
 
       {c.resumo && (
         <p className="text-[#6F6A5E]">
+          {c.iniciadaEm && c.terminadaEm && c.terminadaEm > c.iniciadaEm && <span className="block text-[11.5px] text-[#8B8578]">coletada em {duracao(c.terminadaEm - c.iniciadaEm)}</span>}
           <span className="font-semibold text-[#17150F]">{qtd(c.resumo.novos, "novo", "novos")}</span>, {c.resumo.conferir} para conferir, {c.resumo.fora} fora
           {Object.keys(c.resumo.motivos).length > 0 && ` (${Object.entries(c.resumo.motivos).sort((a, b) => b[1] - a[1]).map(([m, n]) => `${n} ${m}`).join(", ")})`}
           {c.estado === "concluida" && c.gerados !== null && <> · <span className="font-semibold text-[#235B45]">{qtd(c.gerados, "site gerado", "sites gerados")}</span></>}
@@ -459,17 +596,17 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
 
       <div className="flex flex-wrap items-center gap-2">
         {(c.estado === "fila" || c.estado === "coletando") && (
-          <button type="button" disabled={ocupado} onClick={() => confirm(`Cancelar a coleta de ${c.cidade}? O que já foi coletado fica guardado se ela for recolocada na fila.`) && acao(() => cancelarColeta(idToken, c.id), aoMudar)} className={`${BOTAO} border border-[#D8D2C6] bg-white hover:border-[#17150F] disabled:opacity-50`}>
+          <button type="button" disabled={ocupado} onClick={() => confirm(`Cancelar a coleta de ${c.cidade}? O que já foi coletado fica guardado se ela for recolocada na fila.`) && acao(async () => cancelarColeta(await tokenFresco(), c.id), aoMudar)} className={`${BOTAO} border border-[#D8D2C6] bg-white hover:border-[#17150F] disabled:opacity-50`}>
             Cancelar
           </button>
         )}
         {(c.estado === "erro" || c.estado === "cancelada" || semSinal) && (
-          <button type="button" disabled={ocupado} onClick={() => acao(() => recolocarColeta(idToken, c.id), aoMudar)} className={`${BOTAO} border border-[#D8D2C6] bg-white hover:border-[#17150F] disabled:opacity-50`}>
+          <button type="button" disabled={ocupado} onClick={() => acao(async () => recolocarColeta(await tokenFresco(), c.id), aoMudar)} className={`${BOTAO} border border-[#D8D2C6] bg-white hover:border-[#17150F] disabled:opacity-50`}>
             Recolocar na fila
           </button>
         )}
         {c.estado === "pronta" && !previa && totalNovos > 0 && (
-          <button type="button" disabled={ocupado} onClick={() => acao(() => previaDaColeta(idToken, c.id), setPrevia)} className={`${BOTAO} bg-[#17150F] text-white disabled:opacity-50`}>
+          <button type="button" disabled={ocupado} onClick={() => acao(async () => previaDaColeta(await tokenFresco(), c.id), setPrevia)} className={`${BOTAO} bg-[#17150F] text-white disabled:opacity-50`}>
             {ocupado ? "Conferindo…" : "Ver prévia dos sites"}
           </button>
         )}
@@ -485,7 +622,7 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
                     : c.estado === "concluida"
                       ? "Os sites gerados continuam no ar; só este registro some."
                       : "O registro e o que foi coletado somem."),
-              ) && acao(() => excluirColeta(idToken, c.id), aoMudar)
+              ) && acao(async () => excluirColeta(await tokenFresco(), c.id), aoMudar)
             }
             className={`${BOTAO} ml-auto text-[#8A3A22] hover:bg-[#FBEFEB] disabled:opacity-50`}
           >

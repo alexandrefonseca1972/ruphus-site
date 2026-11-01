@@ -19,7 +19,7 @@ import { gerarNoBanco, TETO_LOTE } from "@/lib/gerador.server";
 export type Coleta = {
   id: string; uf: string; cidade: string; bairros: string[]; termos: string[]; estado: EstadoColeta;
   worker: string | null; progresso: Progresso | null; resumo: Resumo | null; erro: string | null; gerados: number | null; geradosAte: number;
-  criadaEm: number | null; batidaEm: number | null; terminadaEm: number | null;
+  criadaEm: number | null; iniciadaEm: number | null; batidaEm: number | null; terminadaEm: number | null;
 };
 export type Worker = { nome: string; batidaEm: number | null; ocupado: string | null };
 /** O worker daqui: só dá para ligar pelo admin quando o servidor roda na máquina do navegador. */
@@ -109,7 +109,7 @@ export const painelColeta = adminAction(async () => {
     coletas: lista.docs.map((d): Coleta => ({
       id: d.id, uf: d.get("uf"), cidade: d.get("cidade"), bairros: d.get("bairros") ?? [], termos: d.get("termos") ?? [], estado: d.get("estado"),
       worker: d.get("worker") ?? null, progresso: d.get("progresso") ?? null, resumo: d.get("resumo") ?? null, erro: d.get("erro") ?? null,
-      gerados: d.get("gerados") ?? null, geradosAte: d.get("geradosAte") ?? 0, criadaEm: ms(d.get("criadaEm")), batidaEm: ms(d.get("batidaEm")), terminadaEm: ms(d.get("terminadaEm")),
+      gerados: d.get("gerados") ?? null, geradosAte: d.get("geradosAte") ?? 0, criadaEm: ms(d.get("criadaEm")), iniciadaEm: ms(d.get("iniciadaEm")), batidaEm: ms(d.get("batidaEm")), terminadaEm: ms(d.get("terminadaEm")),
     })),
     workers: workers.docs.map((d): Worker => ({ nome: d.id, batidaEm: ms(d.get("batidaEm")), ocupado: d.get("ocupado") ?? null })),
     local: local(),
