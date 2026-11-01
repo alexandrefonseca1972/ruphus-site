@@ -1,6 +1,6 @@
 "use client";
 
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged, onIdTokenChanged, signOut } from "firebase/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -46,6 +46,7 @@ import { WhatsAppDoNegocio } from "./whatsapp-gaveta";
 import { EnviarPorEmail } from "./enviar-email";
 import { Carteira } from "./carteira";
 import { Gerador } from "./gerador";
+import { ColetaMaps } from "./coleta";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
 import { DemoMenu } from "./demo-menu";
@@ -169,7 +170,16 @@ export default function AdminPage() {
   const levantamento = eventos?.find(doLevantamento)?.detalhe ?? null;
   // qual negócio está sendo marcado como perdido (pela gaveta ou soltando no funil)
   const [perdendo, setPerdendo] = useState<string | null>(null);
-  const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca" | "gerador">("lista");
+  const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca" | "gerador" | "coleta">("lista");
+  // Gerador e Coleta são ferramentas, não recortes da lista: sem visões, filtros nem alertas do funil
+  const ferramenta = tela === "gerador" || tela === "coleta";
+  // os sites novos (do Gerador ou da Coleta) entram na lista e no funil sem recarregar a página
+  async function recarregarPainel() {
+    const r = await abrirPainel(idToken);
+    if (!r.ok) return;
+    setEspacos(r.dados.espacos);
+    setCrm(r.dados.crm);
+  }
   // qual negócio está sendo marcado como fechado (confirma valores e já faz o pós-venda)
   const [fechando, setFechando] = useState<string | null>(null);
   const [saude, setSaude] = useState<ClienteSaude | null>(null);
@@ -217,6 +227,10 @@ export default function AdminPage() {
       }),
     [router],
   );
+
+  // o token vence em 1 h; com o admin aberto a tarde toda (acompanhando a coleta), toda ação
+  // passava a dar "Sessão expirada". O SDK renova sozinho e avisa aqui.
+  useEffect(() => onIdTokenChanged(auth, async (user) => user && setIdToken(await user.getIdToken())), []);
 
   // "/" põe o cursor na busca, como em toda lista que se usa o dia inteiro
   useEffect(() => {
@@ -692,7 +706,7 @@ export default function AdminPage() {
         </span>
 
         <div role="group" aria-label="Visão" className="hidden rounded-[10px] bg-[#EFEBE2] p-[3px] sm:flex">
-          {(["lista", "funil", "clientes", "cobranca", "gerador"] as const).map((v) => (
+          {(["lista", "funil", "clientes", "cobranca", "gerador", "coleta"] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -700,7 +714,7 @@ export default function AdminPage() {
               onClick={() => setTela(v)}
               className={`h-8 rounded-lg px-3 text-[12px] ${tela === v ? "bg-white font-semibold shadow-[0_1px_2px_rgba(23,21,15,.12)]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
             >
-              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : v === "clientes" ? "Clientes" : v === "cobranca" ? "Cobrança" : "Gerador"}
+              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : v === "clientes" ? "Clientes" : v === "cobranca" ? "Cobrança" : v === "gerador" ? "Gerador" : "Coleta"}
               {v === "cobranca" && atrasadas > 0 && (
                 <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${tela === v ? "bg-[#FBF0EE] text-[#8A2F2F]" : "bg-[#F1E7E7] text-[#8A2F2F]"}`}>
                   {atrasadas}
@@ -884,7 +898,7 @@ export default function AdminPage() {
       </header>
 
       {/* As visões viram abas: o que se repete todo dia vira lugar fixo */}
-      <div className="flex flex-wrap items-center gap-1 border-b border-[#E2DDD3] bg-white px-4 sm:px-5">
+      <div className={`flex flex-wrap items-center gap-1 border-b border-[#E2DDD3] bg-white px-4 sm:px-5 ${ferramenta ? "hidden" : ""}`}>
         {/* no celular as oito visões quebravam em até quatro linhas: viram uma faixa que rola */}
         <div className="-mx-4 flex w-[calc(100%+2rem)] overflow-x-auto px-4 [scrollbar-width:none] sm:contents [&::-webkit-scrollbar]:hidden">
         {VISOES.map((v) => {
@@ -1104,7 +1118,7 @@ export default function AdminPage() {
         {aviso && <p className="text-sm text-[#6F6A5E]">{aviso}</p>}
 
         {/* O que passou do ponto e ninguém viu: some da tela quando não há nada */}
-        {!!avisos.length && (
+        {!!avisos.length && !ferramenta && (
           <section aria-label="Alertas" className="flex flex-col gap-2 rounded-2xl border border-[#E2DDD3] bg-white p-3.5">
             <div className="flex flex-wrap gap-2">
               {avisos.map((a) => {
@@ -1165,16 +1179,9 @@ export default function AdminPage() {
         </div>
 
         {tela === "cobranca" ? null : tela === "gerador" ? (
-          <Gerador
-            idToken={idToken}
-            aoGerar={async () => {
-              // os sites novos entram na lista e no funil sem recarregar a página
-              const r = await abrirPainel(idToken);
-              if (!r.ok) return;
-              setEspacos(r.dados.espacos);
-              setCrm(r.dados.crm);
-            }}
-          />
+          <Gerador idToken={idToken} aoGerar={recarregarPainel} />
+        ) : tela === "coleta" ? (
+          <ColetaMaps idToken={idToken} aoGerar={recarregarPainel} />
         ) : tela === "clientes" ? (
           <Carteira idToken={idToken} hoje={dataDeHoje} espacos={espacos} abrir={abrir} />
         ) : tela === "funil" ? (
@@ -1426,7 +1433,7 @@ export default function AdminPage() {
       </main>
 
       {/* No celular as telas moram embaixo, ao alcance do polegar: no topo não cabiam */}
-      <nav aria-label="Telas do admin" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-[#E2DDD3] bg-white pb-[env(safe-area-inset-bottom)] sm:hidden">
+      <nav aria-label="Telas do admin" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-6 border-t border-[#E2DDD3] bg-white pb-[env(safe-area-inset-bottom)] sm:hidden">
         {(
           [
             ["lista", "Lista", <path key="l" d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />],
@@ -1434,6 +1441,7 @@ export default function AdminPage() {
             ["clientes", "Clientes", <><circle key="c" cx="12" cy="8" r="3.5" /><path key="p" d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" /></>],
             ["cobranca", "Cobrança", <><rect key="r" x="3" y="6" width="18" height="12" rx="2" /><path key="p" d="M3 10h18M7 15h3" /></>],
             ["gerador", "Gerador", <path key="g" d="M12 3v18M3 12h18" />],
+            ["coleta", "Coleta", <><path key="p" d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" /><circle key="c" cx="12" cy="10" r="2.3" /></>],
           ] as const
         ).map(([v, rotulo, icone]) => (
           <button
