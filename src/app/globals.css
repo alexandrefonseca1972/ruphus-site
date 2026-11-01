@@ -182,3 +182,9 @@ body:has(.painel) {
     font-size: 16px !important;
   }
 }
+
+/* Coleta: brilho que corre na barra enquanto o worker trabalha */
+@keyframes coleta-brilho {
+  from { left: -25%; }
+  to { left: 100%; }
+}

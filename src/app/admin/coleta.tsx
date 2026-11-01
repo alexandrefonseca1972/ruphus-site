@@ -8,6 +8,8 @@ const versaoOuNada = (e: unknown) => {
   return null;
 };
 import { useEffect, useState } from "react";
+import { NumeroVivo } from "@/components/numero-vivo";
+import { type Amostra, anotar, duracao, faltam, porcentagem, ritmo } from "@/lib/coleta-tempo";
 import { CAPITAIS, LIMITES, problemaNoPedido, TERMOS_PADRAO, UFS, type Uf } from "@/lib/coleta";
 import type { LinhaGerada } from "@/lib/gerador.server";
 import { cancelarColeta, type Coleta, desligarWorker, excluirColeta, gerarLoteDaColeta, ligarWorker, type WorkerLocal, jaTemosNaCidade, municipios, painelColeta, pedirColeta, previaDaColeta, recolocarColeta, type Worker } from "./coleta-actions";
@@ -352,7 +354,25 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
   const [rotulo, cor] = ESTADOS[c.estado];
   const semSinal = c.estado === "coletando" && (!c.batidaEm || agora - c.batidaEm > SEM_SINAL_MS);
   const p = c.progresso;
-  const faltamMin = p && p.etapa === "fichas" ? Math.ceil(((p.total - p.feitas) * SEG_POR_FICHA) / 60) : null;
+  // relógio próprio do cartão: o cronômetro anda de segundo em segundo, sem esperar a lista
+  const [tique, setTique] = useState(() => Date.now());
+  useEffect(() => {
+    if (c.estado !== "coletando") return;
+    const id = setInterval(() => setTique(Date.now()), 1_000);
+    return () => clearInterval(id);
+  }, [c.estado]);
+  // ritmo medido: uma amostra a cada atualização que chega do worker
+  // (ajustada no render quando chega batida nova: é o padrão do React para estado que segue a prop)
+  const [amostras, setAmostras] = useState<Amostra[]>([]);
+  const [batidaVista, setBatidaVista] = useState<number | null>(null);
+  if (p && c.batidaEm && c.batidaEm !== batidaVista) {
+    setBatidaVista(c.batidaEm);
+    setAmostras(anotar(amostras, p, c.batidaEm));
+  }
+  const porSegundo = ritmo(amostras, Math.max(tique, agora));
+  const restaSeg = p ? faltam(p, porSegundo, p.etapa === "fichas" ? SEG_POR_FICHA : undefined) : null;
+  const decorrido = c.iniciadaEm ? Math.max(tique, agora) - c.iniciadaEm : null;
+  const pct = p ? porcentagem(p) : 0;
 
   async function acao<T>(fn: () => Promise<{ ok: true; dados: T } | { ok: false; error: string }>, depois?: (d: T) => void) {
     setOcupado(true);
@@ -412,17 +432,59 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
       )}
 
       {c.estado === "coletando" && (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <span className="font-semibold text-[#17150F]">
+              {p ? `Etapa ${p.etapa === "busca" ? 1 : 2} de 2 · ${p.etapa === "busca" ? "Buscando no Maps" : "Lendo as fichas"}` : "Começando…"}
+            </span>
+            {/* cronômetro desde que o worker pegou a coleta */}
+            {decorrido !== null && (
+              <span className="tabular-nums text-[#6F6A5E]" aria-label={`Coletando há ${duracao(decorrido)}`}>
+                ⏱ {duracao(decorrido)}
+              </span>
+            )}
+          </div>
           {p && p.total > 0 && (
-            <div className="h-1.5 overflow-hidden rounded-full bg-[#F1EEE7]" role="progressbar" aria-label="Andamento da etapa" aria-valuemin={0} aria-valuemax={p.total} aria-valuenow={p.feitas}>
-              <div className="h-full bg-[#2F4E73] transition-[width] duration-500" style={{ width: `${Math.round((p.feitas / p.total) * 100)}%` }} />
+            <div className="flex items-center gap-3">
+              <div
+                className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-[#F1EEE7]"
+                role="progressbar"
+                aria-label={`Etapa ${p.etapa === "busca" ? 1 : 2} de 2`}
+                aria-valuemin={0}
+                aria-valuemax={p.total}
+                aria-valuenow={p.feitas}
+                aria-valuetext={`${pct}%: ${p.feitas} de ${p.total}`}
+              >
+                <div className="h-full rounded-full bg-[#2F4E73] transition-[width] duration-700 ease-out" style={{ width: `${pct}%` }} />
+                {/* brilho correndo enquanto o worker trabalha (some sem sinal ou com menos movimento) */}
+                {!semSinal && <div className="absolute inset-y-0 w-1/4 animate-[coleta-brilho_1.8s_linear_infinite] bg-gradient-to-r from-transparent via-white/40 to-transparent motion-reduce:hidden" />}
+              </div>
+              <span className="w-10 text-right font-semibold tabular-nums text-[#17150F]">{pct}%</span>
             </div>
           )}
-          <span className="text-[#6F6A5E]">
-            {p
-              ? `${p.etapa === "busca" ? "Buscando no Maps" : "Lendo as fichas"}: ${p.feitas.toLocaleString("pt-BR")} de ${p.total.toLocaleString("pt-BR")}${faltamMin ? ` (faltam ~${faltamMin < 90 ? `${faltamMin} min` : `${Math.round(faltamMin / 60)} h`})` : ""} · ${qtd(p.lugares, "lugar achado", "lugares achados")} · ${qtd(p.fichas, "ficha lida", "fichas lidas")}${p.falhas ? ` · ${qtd(p.falhas, "falha", "falhas")}` : ""}`
-              : "Começando…"}
-          </span>
+          {p && (
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+              <div>
+                <dt className="text-[11px] text-[#8B8578]">{p.etapa === "busca" ? "buscas" : "fichas"}</dt>
+                <dd className="text-[15px]"><NumeroVivo valor={p.feitas} className="font-semibold" /> <span className="text-[#8B8578]">de {p.total.toLocaleString("pt-BR")}</span></dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-[#8B8578]">lugares achados</dt>
+                <dd className="text-[15px]"><NumeroVivo valor={p.lugares} className="font-semibold" /></dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-[#8B8578]">fichas lidas</dt>
+                <dd className="text-[15px]"><NumeroVivo valor={p.fichas} className="font-semibold" />{p.falhas ? <span className="text-[#8A3A22]"> · {qtd(p.falhas, "falha", "falhas")}</span> : null}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-[#8B8578]">falta na etapa</dt>
+                <dd className="text-[15px] tabular-nums">
+                  {restaSeg === null ? <span className="text-[#8B8578]">medindo…</span> : <span className="font-semibold">~{duracao(restaSeg * 1000)}</span>}
+                  {porSegundo ? <span className="block text-[11px] text-[#8B8578]">{(porSegundo * 60).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por min</span> : null}
+                </dd>
+              </div>
+            </dl>
+          )}
           <span className="text-[11.5px] text-[#8B8578]">{c.worker} · último sinal {haQuanto(c.batidaEm, agora)}</span>
           {semSinal && <span className="text-[#8A3A22]">O worker parou de dar sinal. Se ele não voltar, recoloque na fila para outro worker continuar.</span>}
         </div>
@@ -436,6 +498,7 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
 
       {c.resumo && (
         <p className="text-[#6F6A5E]">
+          {c.iniciadaEm && c.terminadaEm && c.terminadaEm > c.iniciadaEm && <span className="block text-[11.5px] text-[#8B8578]">coletada em {duracao(c.terminadaEm - c.iniciadaEm)}</span>}
           <span className="font-semibold text-[#17150F]">{qtd(c.resumo.novos, "novo", "novos")}</span>, {c.resumo.conferir} para conferir, {c.resumo.fora} fora
           {Object.keys(c.resumo.motivos).length > 0 && ` (${Object.entries(c.resumo.motivos).sort((a, b) => b[1] - a[1]).map(([m, n]) => `${n} ${m}`).join(", ")})`}
           {c.estado === "concluida" && c.gerados !== null && <> · <span className="font-semibold text-[#235B45]">{qtd(c.gerados, "site gerado", "sites gerados")}</span></>}
