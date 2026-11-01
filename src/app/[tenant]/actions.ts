@@ -14,6 +14,10 @@ import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { criarConvite, revogarConvitesDaEquipe, tirarAcessosDoProfissional } from "@/lib/convite";
 import { DIAS_CONVITE } from "@/lib/limites";
+import { recebedorDe } from "@/lib/pix";
+import { ConfigSinal } from "@/lib/sinal";
+import { confirmarSinal } from "@/lib/sinal.server";
+import { FieldValue } from "firebase-admin/firestore";
 import { BaixaInput, EstornoInput, FixaInput, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
 import { adicionarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
@@ -161,6 +165,42 @@ export const salvarRecadoAction = memberAction(z.object({ tenantId: docIdStaff, 
   await exigeGestor(data.tenantId, user.uid);
   await adminDb.doc(`tenants/${data.tenantId}`).update({ "agenda.recado": data.recado });
   revalidatePath(`/agendar/${data.tenantId}`);
+  return { ok: true as const };
+});
+
+// A chave Pix do salão: o QR do balcão e do sinal sai dela, e o dinheiro cai na conta dele.
+// Só quem gere troca; chave vazia tira o Pix do negócio.
+export const salvarPixAction = memberAction(
+  z.object({ tenantId: docIdStaff, pix: z.object({ chave: z.string().max(100), nome: z.string().max(100), cidade: z.string().max(60) }) }),
+  async (data, user) => {
+    await exigeGestor(data.tenantId, user.uid);
+    const t = adminDb.doc(`tenants/${data.tenantId}`);
+    if (!data.pix.chave.trim()) {
+      await t.update({ pix: FieldValue.delete(), "sinal.ativo": false });
+      revalidatePath(`/agendar/${data.tenantId}`);
+      return { ok: true as const, pix: null };
+    }
+    const pix = recebedorDe(data.pix);
+    if (typeof pix === "string") throw new UserError(pix);
+    await t.update({ pix });
+    return { ok: true as const, pix };
+  },
+);
+
+// Sinal do agendamento online: só com a chave Pix cadastrada (o QR sai dela)
+export const salvarSinalAction = memberAction(z.object({ tenantId: docIdStaff, sinal: ConfigSinal }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  const t = adminDb.doc(`tenants/${data.tenantId}`);
+  if (data.sinal.ativo && !(await t.get()).get("pix.chave")) throw new UserError("Cadastre a chave Pix antes de ligar o sinal.");
+  await t.update({ sinal: data.sinal });
+  revalidatePath(`/agendar/${data.tenantId}`);
+  return { ok: true as const, sinal: data.sinal };
+});
+
+/** O salão conferiu no banco que o sinal caiu. */
+export const confirmarSinalAction = memberAction(z.object({ tenantId: docIdStaff, appointmentId: docId }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  await confirmarSinal(adminDb, data.tenantId, data.appointmentId, user);
   return { ok: true as const };
 });
 

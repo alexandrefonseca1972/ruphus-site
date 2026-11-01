@@ -1,0 +1,180 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { formatBRL, maskBRL } from "@/lib/datetime";
+import { idToken } from "@/lib/firebase";
+import { ConfigSinal, SINAL_PADRAO } from "@/lib/sinal";
+import { tipoDaChave } from "@/lib/pix";
+import { salvarPixAction, salvarSinalAction } from "./actions";
+import { useTenant } from "./layout";
+
+/** A chave Pix do salão: com ela, o Caixa mostra o QR com o valor na hora de receber. */
+export function PixNegocio() {
+  const tenant = useTenant();
+  const inicial = { chave: tenant.pix?.chave ?? "", nome: tenant.pix?.nome ?? "", cidade: tenant.pix?.cidade ?? "" };
+  const [pix, setPix] = useState(inicial);
+  const [salvo, setSalvo] = useState(inicial);
+  const [busy, setBusy] = useState(false);
+  const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
+  const mudou = pix.chave !== salvo.chave || pix.nome !== salvo.nome || pix.cidade !== salvo.cidade;
+  const campo = (k: keyof typeof pix) => (e: React.ChangeEvent<HTMLInputElement>) => (setPix({ ...pix, [k]: e.target.value }), setAviso(null));
+
+  async function salvar() {
+    setBusy(true);
+    setAviso(null);
+    const r = await salvarPixAction(await idToken(), { tenantId: tenant.id, pix }).catch(() => null);
+    setBusy(false);
+    if (!r) return setAviso({ ok: false, texto: "Não foi possível salvar. Verifique a conexão e tente de novo." });
+    if (!r.ok) return setAviso({ ok: false, texto: r.error });
+    // a chave volta como o banco espera (ex.: celular com +55): é a que o QR usa
+    const gravado = r.pix ?? { chave: "", nome: "", cidade: "" };
+    setPix(gravado);
+    setSalvo(gravado);
+    // sem chave, o servidor desliga o sinal: a tela do sinal tem que saber
+    tenant.atualizar?.({ pix: r.pix ?? undefined, ...(!r.pix && tenant.sinal && { sinal: { ...tenant.sinal, ativo: false } }) });
+    setAviso({ ok: true, texto: r.pix ? `Salvo como ${tipoDaChave(r.pix.chave)}. No Caixa, escolha Pix ao receber e toque em "Mostrar QR do Pix".` : "Chave removida. O sinal do agendamento online foi desligado." });
+  }
+
+  return (
+    <form
+      noValidate
+      className="grid gap-4 rounded-2xl border bg-card p-5 sm:p-7 lg:max-w-[calc(100%-24rem)]"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void salvar();
+      }}
+    >
+      <div className="grid gap-1">
+        <h2 className="text-[15px] font-semibold">Pix para receber</h2>
+        <p className="text-sm text-muted-foreground">
+          Opcional. Com a sua chave, o Caixa mostra o QR com o valor para o cliente pagar na hora. O dinheiro cai direto na sua conta: confira no app do banco antes de dar baixa.
+        </p>
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="pix-chave">Chave Pix</Label>
+        <Input id="pix-chave" value={pix.chave} maxLength={100} onChange={campo("chave")} placeholder="CPF, CNPJ, e-mail, celular ou chave aleatória" className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]" />
+        <p className="text-xs text-muted-foreground">Celular que também é um CPF válido? Escreva com +55 na frente.</p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-1.5">
+          <Label htmlFor="pix-nome">Nome de quem recebe</Label>
+          <Input id="pix-nome" value={pix.nome} maxLength={100} onChange={campo("nome")} placeholder="Como está no banco" className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]" />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="pix-cidade">Cidade</Label>
+          <Input id="pix-cidade" value={pix.cidade} maxLength={60} onChange={campo("cidade")} className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]" />
+        </div>
+      </div>
+      {aviso && (
+        <p role={aviso.ok ? "status" : "alert"} className={aviso.ok ? "text-sm text-emerald-700 dark:text-emerald-300" : "text-sm text-destructive"}>
+          {aviso.texto}
+        </p>
+      )}
+      <div className="flex items-center justify-end gap-3">
+        {mudou && !busy && <span className="text-xs text-muted-foreground">Alterações não salvas</span>}
+        <Button type="submit" disabled={busy || !mudou} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busy ? "Salvando…" : "Salvar Pix"}</Button>
+      </div>
+    </form>
+  );
+}
+
+const PRAZOS = [15, 30, 60, 120, 24 * 60];
+const rotuloPrazo = (min: number) => (min >= 60 ? `${min / 60} h` : `${min} min`);
+
+/** Sinal no agendamento online: o cliente paga parte por Pix para garantir o horário. */
+export function SinalNegocio() {
+  const tenant = useTenant();
+  const inicial = { ...SINAL_PADRAO, ...ConfigSinal.safeParse(tenant.sinal).data };
+  const [sinal, setSinal] = useState(inicial);
+  const [valor, setValor] = useState(inicial.tipo === "fixo" ? formatBRL(inicial.valor) : String(inicial.valor));
+  const [salvo, setSalvo] = useState(JSON.stringify(inicial));
+  const [busy, setBusy] = useState(false);
+  const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
+  const numero = Number(valor.replace(/\D/g, "")) || 0;
+  const atual = { ...sinal, valor: numero };
+  const mudou = JSON.stringify(atual) !== salvo;
+  const muda = (p: Partial<typeof sinal>) => (setSinal({ ...sinal, ...p }), setAviso(null));
+
+  if (!tenant.pix) return null;
+
+  async function salvar() {
+    setAviso(null);
+    const ok = ConfigSinal.safeParse(atual);
+    if (!ok.success) return setAviso({ ok: false, texto: numero ? ok.error.issues[0].message : "Informe o valor do sinal." });
+    setBusy(true);
+    const r = await salvarSinalAction(await idToken(), { tenantId: tenant.id, sinal: ok.data }).catch(() => null);
+    setBusy(false);
+    if (!r) return setAviso({ ok: false, texto: "Não foi possível salvar. Verifique a conexão e tente de novo." });
+    if (!r.ok) return setAviso({ ok: false, texto: r.error });
+    setSalvo(JSON.stringify(r.sinal));
+    tenant.atualizar?.({ sinal: r.sinal });
+    setAviso({ ok: true, texto: r.sinal.ativo ? "Salvo. Quem agendar online já vê o sinal e o QR do Pix." : "Salvo. O agendamento online não pede sinal." });
+  }
+
+  return (
+    <form
+      noValidate
+      className="grid gap-4 rounded-2xl border bg-card p-5 sm:p-7 lg:max-w-[calc(100%-24rem)]"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void salvar();
+      }}
+    >
+      <div className="grid gap-1">
+        <h2 className="text-[15px] font-semibold">Sinal no agendamento online</h2>
+        <p className="text-sm text-muted-foreground">
+          Opcional. Quem agenda pelo link paga uma parte por Pix para garantir o horário. Sem o sinal no prazo, o horário é liberado sozinho. Quando cair na sua conta, toque em &ldquo;Sinal recebido&rdquo; na agenda.
+        </p>
+      </div>
+      <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+        <input type="checkbox" checked={sinal.ativo} onChange={(e) => muda({ ativo: e.target.checked })} className="size-5 accent-primary" />
+        Pedir sinal para reservar
+      </label>
+      {sinal.ativo && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-1.5">
+            <Label htmlFor="sinal-valor">{sinal.tipo === "percentual" ? "Percentual do valor" : "Valor fixo"}</Label>
+            <div className="flex gap-2">
+              <Input
+                id="sinal-valor"
+                inputMode="numeric"
+                value={valor}
+                onChange={(e) => (setValor(sinal.tipo === "fixo" ? maskBRL(e.target.value) : e.target.value.replace(/\D/g, "").slice(0, 3)), setAviso(null))}
+                className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]"
+              />
+              <select
+                aria-label="Tipo de sinal"
+                value={sinal.tipo}
+                onChange={(e) => (muda({ tipo: e.target.value as "percentual" | "fixo" }), setValor(""))}
+                className="h-12 rounded-lg border border-input bg-card px-2 text-sm sm:h-11"
+              >
+                <option value="percentual">%</option>
+                <option value="fixo">R$</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="sinal-prazo">Prazo para pagar</Label>
+            <select id="sinal-prazo" value={sinal.prazoMin} onChange={(e) => muda({ prazoMin: Number(e.target.value) })} className="h-12 rounded-lg border border-input bg-card px-3 text-base sm:h-11 sm:text-[15px]">
+              {PRAZOS.map((p) => (
+                <option key={p} value={p}>{rotuloPrazo(p)}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+      {aviso && (
+        <p role={aviso.ok ? "status" : "alert"} className={aviso.ok ? "text-sm text-emerald-700 dark:text-emerald-300" : "text-sm text-destructive"}>
+          {aviso.texto}
+        </p>
+      )}
+      <div className="flex items-center justify-end gap-3">
+        {mudou && !busy && <span className="text-xs text-muted-foreground">Alterações não salvas</span>}
+        <Button type="submit" disabled={busy || !mudou} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busy ? "Salvando…" : "Salvar sinal"}</Button>
+      </div>
+    </form>
+  );
+}

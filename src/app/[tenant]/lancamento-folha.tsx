@@ -10,6 +10,9 @@ import { categorias, ehVinculado, FORMAS, ROTULO_FORMA, type Lancamento } from "
 import { cn } from "@/lib/utils";
 import { baixarAgendamentoAction, editarLancamentoAction, estornarAction, excluirLancamentoAction, lancarAction, pagarAction } from "./actions";
 import { ConfirmDialog } from "./confirm-dialog";
+import { PixQr } from "@/components/pix-qr";
+import { txidLivre } from "@/lib/pix";
+import { useTenant } from "./layout";
 
 /** O que a folha faz: entrada/saída nova, corrigir uma que existe, receber um atendimento
  *  ou pagar a conta fixa / a comissão do mês. */
@@ -55,6 +58,11 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose }: 
   const vinculado = daAgenda || ePagamento;
   const podeEstornar = !!base && base.tipo === "entrada" && !estornado;
   const deQuem = base?.customerName ?? base?.descricao ?? base?.categoria ?? "";
+  // receber por Pix na hora: o QR com o valor, na chave do salão
+  const { pix, id: slug } = useTenant();
+  const [mostrarPix, setMostrarPix] = useState(false);
+  const [txid] = useState(() => txidLivre(slug));
+  const podePix = !!pix && forma === "pix" && !estornando && (folha.modo === "baixa" || (folha.modo === "novo" && tipo === "entrada"));
 
   const titulo = estornando
     ? `Estornar ${deQuem}`
@@ -136,6 +144,16 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose }: 
               ))}
             </div>
           </fieldset>
+
+          {podePix && pix && (
+            mostrarPix && centavos ? (
+              <PixQr recebedor={pix} valorCents={centavos} txid={txid} />
+            ) : (
+              <Button type="button" variant="outline" className="h-11" disabled={!centavos} onClick={() => setMostrarPix(true)}>
+                Mostrar QR do Pix
+              </Button>
+            )
+          )}
 
           {folha.modo !== "baixa" && folha.modo !== "pagar" && !estornando && (
             <div className={cn("grid gap-3", !vinculado && "sm:grid-cols-[10rem_minmax(0,1fr)]")}>

@@ -14,6 +14,7 @@ import { InstalarPainel } from "../app-instalado";
 import { useTenant } from "../layout";
 import { PageTitle } from "../page-title";
 import { WhatsAppNegocio } from "../whatsapp-negocio";
+import { PixNegocio, SinalNegocio } from "../pix-negocio";
 
 // O que o cliente vê do negócio: o site, a bio e o WhatsApp do agendamento saem daqui.
 // Salvar publica na hora (o servidor limpa o cache do site, da imagem e da bio).
@@ -231,6 +232,9 @@ export default function MeuNegocio() {
           <Button type="submit" disabled={busyRecado || !mudouRecado} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busyRecado ? "Salvando…" : "Salvar recado"}</Button>
         </div>
       </form>
+
+      <PixNegocio />
+      <SinalNegocio />
     </div>
   );
 }

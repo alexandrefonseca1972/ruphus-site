@@ -96,7 +96,7 @@ assert.equal((await availableSlots(db, { ...base, serviceIds: ["corte"] })).leng
 const primeira = await book(db, { ...base, serviceIds: ["corte"], time: "09:00", pedido: "p1" });
 const primeiraId = (await t.collection("appointments").limit(1).get()).docs[0]?.id ?? assert.fail();
 // a confirmação mostra o que ficou gravado
-assert.deepEqual(primeira, { ok: true, id: primeiraId, staffName: "Ana", serviceName: "Corte", durationMin: 30, priceCents: 5000, precoAberto: false, date, time: "09:00" });
+assert.deepEqual(primeira, { ok: true, id: primeiraId, staffName: "Ana", serviceName: "Corte", durationMin: 30, priceCents: 5000, precoAberto: false, date, time: "09:00", sinal: null });
 // o mesmo cliente confirmando de novo (resposta perdida na rede) recebe a mesma reserva, sem duplicar
 assert.deepEqual(await book(db, { ...base, serviceIds: ["corte"], time: "09:00", pedido: "p1" }), primeira, "confirmar de novo é seguro");
 // a resposta se perdeu e o cliente mudou a escolha: recebe o que ficou marcado, não um segundo horário

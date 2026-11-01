@@ -65,3 +65,53 @@ export function txidDe(slug: string, tipo: "entrada" | "mensal", competencia: st
 export const competenciaAtual = (agora = new Date()) => dateIn(agora, TIMEZONE).slice(0, 7);
 
 export const vencimentoDe = (competencia: string) => `${competencia}-${String(DIA_VENCIMENTO).padStart(2, "0")}`;
+
+/** Identificador livre para a cobrança do salão (no balcão ou sinal): o que o extrato mostra. */
+export const txidLivre = (prefixo: string) =>
+  `${prefixo.toUpperCase().replace(/[^A-Z0-9]/g, "")}${Date.now().toString(36).toUpperCase()}`.slice(-25);
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function cpfValido(d: string) {
+  if (!/^\d{11}$/.test(d) || /^(\d)\1+$/.test(d)) return false;
+  const dv = (n: number) => {
+    let s = 0;
+    for (let i = 0; i < n; i++) s += Number(d[i]) * (n + 1 - i);
+    return ((s * 10) % 11) % 10;
+  };
+  return dv(9) === Number(d[9]) && dv(10) === Number(d[10]);
+}
+
+/** A chave Pix como o banco espera: e-mail em minúsculas, aleatória como veio,
+ *  CPF/CNPJ só dígitos, telefone +55DDNNNNNNNNN. null quando não é chave.
+ *  11 dígitos são CPF se os dígitos verificadores batem; senão, celular. */
+export function normalizarChave(entrada: string): string | null {
+  const v = entrada.trim();
+  if (UUID.test(v.toLowerCase())) return v.toLowerCase();
+  if (v.includes("@")) return EMAIL.test(v) && v.length <= 77 ? v.toLowerCase() : null;
+  if (/[^\d\s.()/+-]/.test(v)) return null;
+  const d = v.replace(/\D/g, "");
+  // "(11) 98765-4321" é celular mesmo quando os dígitos formam um CPF válido
+  const comCaraDeFone = v.startsWith("+") || v.includes("(");
+  if (!comCaraDeFone && d.length === 11 && cpfValido(d)) return d;
+  if (!v.startsWith("+") && d.length === 14) return d;
+  const fone = v.startsWith("+") ? d : d.length <= 11 ? `55${d}` : d;
+  return /^55\d{10,11}$/.test(fone) ? `+${fone}` : null;
+}
+
+/** Como a tela mostra a chave salva, para o dono conferir o tipo que o sistema entendeu. */
+export const tipoDaChave = (chave: string) =>
+  chave.includes("@") ? "e-mail" : chave.startsWith("+") ? "celular" : UUID.test(chave) ? "chave aleatória" : chave.length === 11 ? "CPF" : "CNPJ";
+
+/** O que o salão cadastra para receber; o servidor grava em tenants/{slug}.pix. */
+export function recebedorDe(entrada: { chave: string; nome: string; cidade: string }): Recebedor | string {
+  const chave = normalizarChave(entrada.chave);
+  if (!chave) return "Chave Pix inválida. Use CPF, CNPJ, e-mail, celular ou a chave aleatória.";
+  const nome = entrada.nome.trim();
+  const cidade = entrada.cidade.trim();
+  // o BR Code só leva letras sem acento e números: nome só com outros caracteres sairia vazio
+  if (texto(nome, 25).replace(/[^A-Z0-9]/g, "").length < 2) return "Informe o nome de quem recebe, como está no banco.";
+  if (texto(cidade, 15).replace(/[^A-Z0-9]/g, "").length < 2) return "Informe a cidade.";
+  return { chave, nome: nome.slice(0, 60), cidade: cidade.slice(0, 40) };
+}
