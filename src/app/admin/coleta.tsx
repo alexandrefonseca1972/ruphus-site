@@ -502,8 +502,12 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
             </span>
             {/* cronômetro desde que o worker pegou a coleta */}
             {decorrido !== null && (
-              <span className="tabular-nums text-[#6F6A5E]" aria-label={`Coletando há ${duracao(decorrido)}`}>
-                ⏱ {duracao(decorrido)}
+              <span className="flex items-center gap-1.5 tabular-nums text-[#6F6A5E]" aria-label={`Coletando há ${duracao(decorrido)}`}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="13" r="8" />
+                  <path d="M12 9v4l2.5 2.5M9.5 2h5" />
+                </svg>
+                {duracao(decorrido)}
               </span>
             )}
           </div>
