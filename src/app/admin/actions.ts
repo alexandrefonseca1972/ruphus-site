@@ -663,6 +663,26 @@ export const siteDoNegocio = adminAction(async (_user, slug: string) => {
   return { ...site, modelos: modelos.map(({ id, rotulo }) => ({ id, rotulo })), modeloAtual };
 });
 
+/** Aba "Ficha" da gaveta: tudo o que se sabe do negócio, para o vendedor avaliar antes do contato. */
+export const fichaDoNegocio = adminAction(async (_user, slug: string) => {
+  slugValido(slug);
+  const t = adminDb.doc(`tenants/${slug}`);
+  const [{ escolha: _e, ...site }, doc, servicos] = await Promise.all([lerSiteDoNegocio(adminDb, slug), t.get(), t.collection("services").get()]);
+  const s = (campo: string) => String(doc.get(campo) ?? "");
+  return {
+    ...site,
+    slug,
+    url: s("site.url"),
+    maps: s("site.maps"),
+    categoria: s("gerado.categoria"),
+    criadoEm: (doc.get("createdAt") as FirebaseFirestore.Timestamp | undefined)?.toDate().toISOString() ?? null,
+    atualizadoEm: (doc.get("gerado.atualizadoEm") as FirebaseFirestore.Timestamp | undefined)?.toDate().toISOString() ?? null,
+    servicos: servicos.docs
+      .sort((a, b) => Number(a.get("ordem") ?? 99) - Number(b.get("ordem") ?? 99))
+      .map((d) => ({ nome: String(d.get("name") ?? ""), precoCents: Number(d.get("priceCents") ?? 0), minutos: Number(d.get("durationMin") ?? 0) })),
+  };
+});
+
 /** Pré-visualização do modelo com os dados reais do negócio, sem gravar nada. O HTML
  *  sai com <base> no domínio do site, para as fotos carregarem dentro do admin. */
 export const previewModelo = adminAction(async (_user, slug: string, id: string | null): Promise<string> => {

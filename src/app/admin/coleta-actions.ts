@@ -187,7 +187,8 @@ export const excluirColeta = adminAction(async (_user, id: string) => {
 async function novosDa(ref: FirebaseFirestore.DocumentReference) {
   // sem orderBy: igualdade devolve em ordem de id, a mesma em toda chamada (o cursor depende disso)
   const novos = await ref.collection("leads").where("situacao", "==", "novo").get();
-  return novos.docs.map((d, i) => ({ aba: "coleta", linha: i + 1, lead: d.get("lead") }));
+  // o link da ficha fica fora do lead nas coletas gravadas antes do campo maps
+  return novos.docs.map((d, i) => ({ aba: "coleta", linha: i + 1, lead: { maps: String(d.get("link_maps") ?? ""), ...d.get("lead") } }));
 }
 
 /** O que gerar os novos faria, sem gravar nada. */

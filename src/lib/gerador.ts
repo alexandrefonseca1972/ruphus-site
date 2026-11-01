@@ -24,6 +24,8 @@ const COLUNAS = {
   avaliacoes: ["avaliacoes", "navaliacoes", "ndeavaliacoes", "numeroavaliacoes", "numerodeavaliacoes", "totalavaliacoes", "totaldeavaliacoes", "qtdavaliacoes", "reviews"],
   instagram: ["instagram", "insta", "ig", "redesocial", "redesocialprincipal", "redesocialprincipalfrequencia", "instagramredessociais"],
   horario: ["horario", "horarios", "funcionamento", "horariodefuncionamento", "workinghours"],
+  // link_maps da coleta: a ficha do Maps, que o vendedor abre antes de falar com o negócio
+  maps: ["linkmaps", "linkdomaps", "googlemaps", "maps"],
   servicos: ["servicos", "services"],
   email: ["email", "emaildodono", "emaildono"],
   slug: ["slug", "subdominio", "endereco do site"],
@@ -58,6 +60,8 @@ export const Lead = z.object({
   slug: z.string().max(63),
   score: z.string().max(40),
   abordagem: z.string().max(500),
+  // default: leads gravados antes do campo (coletas antigas no Firestore) continuam válidos
+  maps: z.string().regex(/^(https:\/\/www\.google\.com\/maps\/\S{1,480})?$/).default(""),
 });
 export type Lead = z.infer<typeof Lead>;
 
@@ -187,6 +191,8 @@ export function lerPlanilha(abas: { aba: string; linhas: unknown[][] }[]): Leitu
         slug: texto(v("slug")),
         score: texto(v("score")).slice(0, 40),
         abordagem: texto(v("abordagem")).slice(0, 500),
+        // o resto do link (?authuser, &hl) muda a cada busca e não identifica nada
+        maps: /^https:\/\/www\.google\.com\/maps\/\S+$/.test(texto(v("maps"))) ? texto(v("maps")).split("?")[0].slice(0, 500) : "",
       };
       const erro = (motivo: string) => void erros.push({ aba, linha, motivo });
       if (!bruto.nome) return erro("Sem nome.");
@@ -345,7 +351,7 @@ export const NegocioInput = DadosNegocio.extend({ slug: TenantInput.shape.slug }
 /** Os dados do dono no formato que o gerador grava (o mesmo de uma linha da planilha). */
 export const leadDoDono = (d: DadosNegocio, email = ""): Lead => ({
   nome: d.name, telefone: d.telefone, categoria: "", endereco: d.endereco, bairro: d.bairro, cidade: d.cidade, uf: d.uf,
-  nota: null, avaliacoes: null, instagram: d.instagram, horario: d.horario, servicos: [], email, slug: "", score: "", abordagem: "",
+  nota: null, avaliacoes: null, instagram: d.instagram, horario: d.horario, servicos: [], email, slug: "", score: "", abordagem: "", maps: "",
 });
 
 // ─── Endereço do site ────────────────────────────────────────────────────────

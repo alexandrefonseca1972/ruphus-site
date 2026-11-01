@@ -71,6 +71,7 @@ assert.equal(b.tel.get("87654321"), "Studio X (site studio-x)");
 const g = paraGerador(separar([ficha({ nome: "Nail Ana", telefone: "31 99164-3827" }), ficha({ nome: "Bar do Zé", categoria: "Lounge bar", telefone: "31 99520-1178" })], { tel: new Map(), nomeCidade: new Map() }, padrao));
 assert.deepEqual(g.novos.map((n) => n.lead.nome), ["Nail Ana"]);
 assert.equal(g.novos[0].link_maps, link.split("?")[0]);
+assert.equal(g.novos[0].lead.maps, link.split("?")[0], "o link da ficha segue no lead até o site gerado");
 assert.equal(g.fora.length, 1);
 assert.match(g.fora[0].motivo, /^gerador: Não reconheci o nicho/);
 assert.equal(motivoCurto(g.fora[0].motivo), "Não reconheci o nicho");
