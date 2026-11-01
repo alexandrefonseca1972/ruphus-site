@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   addDays,
+  formatBRL,
   formatDuration,
   formatLongDate,
+  formatTime,
   formatPhone,
   linkWhatsApp,
   MAX_DAYS_AHEAD,
@@ -20,6 +22,8 @@ import { erroNome, mascaraNome } from "@/lib/nome";
 import { cn } from "@/lib/utils";
 import type { book } from "@/lib/booking.server";
 import { getAgenda } from "./actions";
+import { PixQr } from "@/components/pix-qr";
+import { type ConfigSinal, textoDoSinal } from "@/lib/sinal";
 
 type Resposta = Awaited<ReturnType<typeof book>>;
 
@@ -39,6 +43,8 @@ type Props = {
   siteUrl?: string;
   /** recado do dono para quem acabou de agendar; null = texto padrão */
   recadoDono?: string | null;
+  /** sinal por Pix para reservar; null = paga tudo no local */
+  sinal?: Pick<ConfigSinal, "tipo" | "valor" | "prazoMin"> | null;
   /** Fuso real do negócio: o "Salvar na agenda" do cliente precisa do instante certo */
   fuso?: string;
   services: { id: string; name: string; durationMin: number; priceCents: number; tipoPreco?: TipoPreco }[];
@@ -166,7 +172,7 @@ function Rodape() {
   );
 }
 
-export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, fuso, services, staff }: Props) {
+export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, sinal, fuso, services, staff }: Props) {
   // Nada vem marcado: quem agenda diz o que quer, e só então a agenda aparece.
   // Os serviços chegam do servidor na ordem do que mais se agenda.
   const [serviceIds, setServiceIds] = useState<string[]>([]);
@@ -450,7 +456,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 <dd>
                   {total ? (
                     <>
-                      <span className={MONO}>{total}</span> <span className="text-[#5C5747]">· pago no local</span>
+                      <span className={MONO}>{total}</span> <span className="text-[#5C5747]">· {reserva.sinal ? `sinal de ${formatBRL(reserva.sinal.cents)} por Pix, o resto no local` : "pago no local"}</span>
                     </>
                   ) : (
                     <span className="text-[#5C5747]">a combinar com {name}</span>
@@ -467,6 +473,25 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           </div>
           <div className="h-px bg-[repeating-linear-gradient(to_right,#D5D0C1_0_6px,transparent_6px_12px)]" />
           <div className="flex flex-col gap-3.5 p-5">
+            {reserva.sinal && (
+              // o horário fica segurado até o prazo; o salão confere no banco e confirma
+              <div className="flex flex-col gap-2.5">
+                <p className="text-[15px] leading-relaxed">
+                  Pague o sinal até <strong className={MONO}>{formatTime(new Date(reserva.sinal.ate), fuso)}</strong> para garantir o horário. Sem o sinal, o horário é liberado.
+                </p>
+                <PixQr recebedor={reserva.sinal.pix} valorCents={reserva.sinal.cents} txid={reserva.sinal.txid} mensagem={`Sinal do horário de ${longDate(date)}, às ${hora}, em ${name}`} />
+                {phone && (
+                  <a
+                    href={linkWhatsApp(phone, `Olá! Paguei o sinal de ${formatBRL(reserva.sinal.cents)} do meu horário de ${longDate(date)}, às ${hora} (${servicos}). Meu nome é ${customerName.trim()}. Segue o comprovante.`) ?? undefined}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex h-11 items-center justify-center rounded-lg bg-[#17150F] text-sm font-semibold text-[#FAF9F5]"
+                  >
+                    Enviar comprovante para {name}
+                  </a>
+                )}
+              </div>
+            )}
             {/* Quem confirma é o negócio, no número que o cliente deu: "seu" deixa claro que
                 o número mostrado é o dele, não o do negócio. Falar com ele é a ação da tela. */}
             {recadoDono ? (
@@ -678,6 +703,12 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           Voltar aos horários
         </button>
         {resumo}
+
+        {sinal && (
+          <p className="rounded-xl border border-[#E4E1D5] bg-[#F6F4EB] p-3.5 text-[13px] leading-relaxed">
+            Para garantir o horário, {name} pede um <strong>sinal de {textoDoSinal(sinal)}</strong> por Pix, pago em até {sinal.prazoMin >= 60 ? `${Math.round(sinal.prazoMin / 60)} h` : `${sinal.prazoMin} min`} depois de reservar. O resto é pago no local.
+          </p>
+        )}
 
         {lembrado ? (
           <div className="flex items-center gap-3 rounded-xl border border-[#E4E1D5] bg-[#F6F4EB] p-3.5">

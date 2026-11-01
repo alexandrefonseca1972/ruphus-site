@@ -22,6 +22,9 @@ import { Reschedule } from "./reschedule";
 import { RowMenu } from "./row-menu";
 import { ShareLink } from "./share-link";
 import { mudarStatus, STATUS } from "./status";
+import { confirmarSinalAction } from "./actions";
+import { idToken } from "@/lib/firebase";
+import { restanteDe } from "@/lib/sinal";
 
 const Appointment = z.object({
   serviceName: z.string(),
@@ -35,6 +38,8 @@ const Appointment = z.object({
   customerPhone: z.string(),
   planId: z.string().optional(),
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
+  // sinal do agendamento online (Pix na chave do salão); só o servidor grava
+  sinal: z.object({ cents: z.number(), status: z.enum(["pendente", "pago", "vencido"]), ate: z.instanceof(Timestamp) }).optional().catch(undefined),
 });
 export type Appointment = z.infer<typeof Appointment> & { id: string };
 
@@ -123,6 +128,14 @@ export default function AgendaPage() {
     if (!saved) return;
     const link = whatsappLink(a.customerPhone, message);
     if (!openExternal(link)) location.assign(link); // webview bloqueou a aba nova
+  }
+
+  async function sinalRecebido(a: Appointment) {
+    setError("");
+    setPending(a.id);
+    const r = await confirmarSinalAction(await idToken(), { tenantId: tenant.id, appointmentId: a.id }).catch(() => null);
+    setPending(null);
+    if (!r?.ok) setError(r ? r.error : "Sem conexão. Tente de novo.");
   }
 
   function cancel(a: Appointment, notify: boolean) {
@@ -270,6 +283,12 @@ export default function AgendaPage() {
                     </Link>
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS[a.status].className}`}>{STATUS[a.status].label}</span>
                     {a.planId && <span className="rounded-full border px-2.5 py-0.5 text-xs">Recorrente</span>}
+                    {a.sinal?.status === "pendente" && ATIVO(a) && (
+                      <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                        Sinal de {formatBRL(a.sinal.cents)} até {formatTime(a.sinal.ate.toDate())}
+                      </span>
+                    )}
+                    {a.sinal?.status === "pago" && <span className="rounded-full border px-2.5 py-0.5 text-xs">Sinal pago · {formatBRL(a.sinal.cents)}</span>}
                     {recebidos.has(idDaBaixa(a.id)) && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">Recebido</span>}
                   </p>
                   <p className="text-sm text-muted-foreground">
@@ -280,6 +299,12 @@ export default function AgendaPage() {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {/* o salão conferiu no banco: confirma o horário e lança o sinal no Caixa */}
+                  {a.sinal?.status === "pendente" && ATIVO(a) && tenant.podeGerir && (
+                    <Button className="h-10 px-4" disabled={pending === a.id} onClick={() => sinalRecebido(a)}>
+                      {pending === a.id ? "Confirmando…" : "Sinal recebido"}
+                    </Button>
+                  )}
                   {/* Confirmar só antes do horário: depois dele já não há o que combinar com o cliente */}
                   {a.status === "booked" && a.start.toMillis() > now && (
                     <Button className="h-10 px-4" disabled={pending === a.id} onClick={() => notifyAndChange(a, "confirmed", confirmationText(a, tenant.name))}>
@@ -295,7 +320,7 @@ export default function AgendaPage() {
                     label={`Mais ações: ${a.customerName} às ${formatTime(a.start.toDate())}`}
                     actions={[
                       ...(caixa && recebidosDaSemana && ATIVO(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id))
-                        ? [{ label: "Recebido", onClick: () => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, serviceName: a.serviceName, priceCents: a.priceCents } }) }]
+                        ? [{ label: "Recebido", onClick: () => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, serviceName: a.serviceName, priceCents: restanteDe(a) } }) }]
                         : []),
                       // recebido no Caixa não vira falta: a entrada contaria um atendimento que não houve
                       ...(ATIVO(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Faltou", onClick: () => setConfirming({ id: a.id, kind: "no_show" as const }) }] : []),
@@ -308,7 +333,7 @@ export default function AgendaPage() {
               {confirming?.id === a.id && confirming.kind === "cancel" && (
                 <ConfirmDialog
                   title={`Cancelar o agendamento de ${a.customerName}?`}
-                  description={`${formatLongDate(a.start.toDate())} às ${formatTime(a.start.toDate())} · ${a.serviceName} com ${a.staffName}. O horário volta a ficar livre.`}
+                  description={`${formatLongDate(a.start.toDate())} às ${formatTime(a.start.toDate())} · ${a.serviceName} com ${a.staffName}. O horário volta a ficar livre.${a.sinal?.status === "pago" ? ` O sinal de ${formatBRL(a.sinal.cents)} foi pago: combine a devolução com o cliente.` : ""}`}
                   notifyLabel="Avisar o cliente pelo WhatsApp"
                   confirmLabel="Sim, cancelar"
                   onConfirm={(notify) => cancel(a, notify)}

@@ -15,6 +15,8 @@ import { verifyFirebaseToken } from "@/lib/verify-token";
 import { criarConvite, revogarConvitesDaEquipe, tirarAcessosDoProfissional } from "@/lib/convite";
 import { DIAS_CONVITE } from "@/lib/limites";
 import { recebedorDe } from "@/lib/pix";
+import { ConfigSinal } from "@/lib/sinal";
+import { confirmarSinal } from "@/lib/sinal.server";
 import { FieldValue } from "firebase-admin/firestore";
 import { BaixaInput, EstornoInput, FixaInput, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
 import { adicionarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
@@ -174,7 +176,7 @@ export const salvarPixAction = memberAction(
     await exigeGestor(data.tenantId, user.uid);
     const t = adminDb.doc(`tenants/${data.tenantId}`);
     if (!data.pix.chave.trim()) {
-      await t.update({ pix: FieldValue.delete() });
+      await t.update({ pix: FieldValue.delete(), "sinal.ativo": false });
       return { ok: true as const, pix: null };
     }
     const pix = recebedorDe(data.pix);
@@ -183,6 +185,23 @@ export const salvarPixAction = memberAction(
     return { ok: true as const, pix };
   },
 );
+
+// Sinal do agendamento online: só com a chave Pix cadastrada (o QR sai dela)
+export const salvarSinalAction = memberAction(z.object({ tenantId: docIdStaff, sinal: ConfigSinal }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  const t = adminDb.doc(`tenants/${data.tenantId}`);
+  if (data.sinal.ativo && !(await t.get()).get("pix.chave")) throw new UserError("Cadastre a chave Pix antes de ligar o sinal.");
+  await t.update({ sinal: data.sinal });
+  revalidatePath(`/agendar/${data.tenantId}`);
+  return { ok: true as const, sinal: data.sinal };
+});
+
+/** O salão conferiu no banco que o sinal caiu. */
+export const confirmarSinalAction = memberAction(z.object({ tenantId: docIdStaff, appointmentId: docId }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  await confirmarSinal(adminDb, data.tenantId, data.appointmentId, user);
+  return { ok: true as const };
+});
 
 export const salvarNegocioAction = memberAction(z.object({ tenantId: docIdStaff, dados: z.unknown() }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid);

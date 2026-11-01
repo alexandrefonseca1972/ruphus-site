@@ -6,6 +6,8 @@ import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
 import { addDays, agoraNaParede, customerKey, dateIn, formatTime, freeSlots, fusoDaUF, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import type { DadosCliente } from "@/lib/cliente-dados";
+import { ConfigSinal, prazoDoSinal, type SinalDoAgendamento, valorDoSinal } from "@/lib/sinal";
+import { txidLivre } from "@/lib/pix";
 import { Service, Staff, type AgendaQuery, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
@@ -47,6 +49,11 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
     siteUrl: urlDoSite(tenantId, tenant.get("dominio") as Dominio | undefined),
     // o recado do dono na confirmação; sem ele, a tela usa o texto padrão
     recadoDono: String(tenant.get("agenda.recado") ?? "").trim() || null,
+    // sinal por Pix para reservar: a página avisa antes de o cliente confirmar
+    sinal: ((): Pick<ConfigSinal, "tipo" | "valor" | "prazoMin"> | null => {
+      const c = ConfigSinal.safeParse(tenant.get("sinal")).data;
+      return c?.ativo && tenant.get("pix.chave") ? { tipo: c.tipo, valor: c.valor, prazoMin: c.prazoMin } : null;
+    })(),
     // Ordem: o que mais se agenda primeiro. Enquanto ninguém agendou, vale a
     // ordem em que o site lista os serviços (ordem), que é a do próprio negócio.
     services: services.docs
@@ -223,7 +230,9 @@ async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery, exclude
     // o que já passou é pela hora local do negócio (Manaus está 1h atrás de Brasília)
     now: agoraNaParede(fusoDaUF(tenantSnap.get("site.uf") as string | undefined)),
   });
-  return { t, svc, durationMin, staff: staff.data, slots };
+  // a chave Pix e o sinal do negócio: a reserva online cobra o sinal quando os dois existem
+  const cfg = { pix: tenantSnap.get("pix") as SinalDoAgendamento["pix"] | undefined, sinal: ConfigSinal.safeParse(tenantSnap.get("sinal")).data };
+  return { t, svc, durationMin, staff: staff.data, slots, cfg };
 }
 
 export async function availableSlots(db: Firestore, q: SlotQuery) {
@@ -351,7 +360,7 @@ function writeAppointment(
   ctx: WriteContext,
   a: { serviceIds: string[]; staffId: string; date: string; time: string; customerName: string; customerPhone: string },
   by: { by: string; byName: string },
-  opts: { planId?: string; renameCustomer: boolean },
+  opts: { planId?: string; renameCustomer: boolean; sinal?: SinalDoAgendamento },
 ) {
   const { planId } = opts;
   const start = zonedTime(a.date, a.time);
@@ -377,6 +386,7 @@ function writeAppointment(
     status: "booked",
     createdAt: FieldValue.serverTimestamp(),
     ...(planId && { planId }),
+    ...(opts.sinal && { sinal: opts.sinal }),
   };
   tx.create(ref, dados);
   // Reserva anônima não troca o nome de um cliente já cadastrado (qualquer um pode digitar o telefone de outro)
@@ -401,6 +411,13 @@ function reservaDe(id: string, a: FirebaseFirestore.DocumentData) {
     precoAberto: !!a.precoAberto,
     date: dateIn(start),
     time: formatTime(start),
+    // sinal ainda por pagar: a tela de confirmado mostra o QR até o prazo
+    sinal: ((): { cents: number; ate: string; txid: string; pix: SinalDoAgendamento["pix"] } | null => {
+      const x = a.sinal as (Omit<SinalDoAgendamento, "ate"> & { ate: Date | Timestamp }) | undefined;
+      if (x?.status !== "pendente") return null;
+      const ate = x.ate instanceof Date ? x.ate : x.ate.toDate();
+      return { cents: x.cents, ate: ate.toISOString(), txid: x.txid, pix: x.pix };
+    })(),
   };
 }
 
@@ -460,7 +477,7 @@ export async function book(db: Firestore, input: BookingInput, ip?: string, aoCr
     const limit = await limitError(tx, livre.ctx.t, input, ip);
     if (limit.error) return { ok: false as const, error: limit.error, field: true as const };
     const customer = await tx.get(t.collection("customers").doc(customerKey(input.customerPhone)));
-    const { id, dados } = writeAppointment(tx, livre.ctx, { ...input, staffId: livre.staffId }, { by: "cliente", byName: input.customerName }, { renameCustomer: !customer.exists });
+    const { id, dados } = writeAppointment(tx, livre.ctx, { ...input, staffId: livre.staffId }, { by: "cliente", byName: input.customerName }, { renameCustomer: !customer.exists, sinal: sinalDaReserva(livre.ctx, input) });
     if (input.pedido) tx.set(t.collection("pedidos").doc(input.pedido), { appointmentId: id, createdAt: FieldValue.serverTimestamp() });
     limit.bump!();
     return { ok: true as const, ...reservaDe(id, dados), novo: true };
@@ -472,6 +489,15 @@ export async function book(db: Firestore, input: BookingInput, ip?: string, aoCr
     aoCriar?.(reserva);
   }
   return reserva;
+}
+
+/** O sinal da reserva online: só com o sinal ligado, chave Pix cadastrada e preço no serviço. */
+function sinalDaReserva(ctx: { cfg: { pix?: SinalDoAgendamento["pix"]; sinal?: ConfigSinal }; svc: { priceCents: number }[] }, input: BookingInput): SinalDoAgendamento | undefined {
+  const { pix, sinal } = ctx.cfg;
+  if (!pix?.chave || !sinal?.ativo) return undefined;
+  const cents = valorDoSinal(sinal, ctx.svc.reduce((soma, s) => soma + s.priceCents, 0));
+  if (!cents) return undefined;
+  return { cents, status: "pendente", ate: prazoDoSinal(new Date(), sinal.prazoMin, zonedTime(input.date, input.time)), txid: txidLivre(`S${input.tenantId}`), pix };
 }
 
 /** Popularidade (ordena a página pública). Fora da transação da reserva: dentro, toda

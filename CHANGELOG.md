@@ -5,6 +5,10 @@ o PR, onde está o porquê.
 
 ## 0.13.0 — 31/10/2026
 
+### Pix do salão (novo)
+- **Chave Pix do salão** em Meu negócio, e **QR com o valor no Caixa** na hora de receber: o cliente paga no balcão ou recebe o código pelo WhatsApp. O dinheiro cai direto na conta do salão (#160).
+- **Sinal no agendamento online** (#160): o salão escolhe % ou valor fixo e o prazo. Quem agenda vê o QR do sinal; o horário fica segurado, o salão toca "Sinal recebido" (confirma o horário e lança no Caixa), e sem pagamento no prazo o horário é liberado sozinho. Ao receber o atendimento, o Caixa já desconta o sinal.
+
 ### Infraestrutura
 - **O Ruphus saiu da Vercel para a VPS própria**, atrás da Cloudflare: o app roda com systemd e Caddy, e os crons (lembretes, demo) ficam no crontab do servidor. A publicação passa a ser `./scripts/deploy-vps.sh` (#158).
 - **Domínio próprio do cliente** (#157): no /admin, a Ruphus liga www.salaodocliente.com.br ao site; o cliente aponta o DNS, e o site, a agenda e a bio passam a abrir nesse endereço, com o antigo {slug}.ruphus.site redirecionando para lá. Funciona na VPS (DNS direto no IP, certificado emitido pelo Caddy) e na Vercel.

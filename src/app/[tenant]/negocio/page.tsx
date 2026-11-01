@@ -14,7 +14,7 @@ import { InstalarPainel } from "../app-instalado";
 import { useTenant } from "../layout";
 import { PageTitle } from "../page-title";
 import { WhatsAppNegocio } from "../whatsapp-negocio";
-import { PixNegocio } from "../pix-negocio";
+import { PixNegocio, SinalNegocio } from "../pix-negocio";
 
 // O que o cliente vê do negócio: o site, a bio e o WhatsApp do agendamento saem daqui.
 // Salvar publica na hora (o servidor limpa o cache do site, da imagem e da bio).
@@ -234,6 +234,7 @@ export default function MeuNegocio() {
       </form>
 
       <PixNegocio />
+      <SinalNegocio />
     </div>
   );
 }
