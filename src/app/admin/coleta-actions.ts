@@ -55,7 +55,8 @@ const SEM_SINAL_MS = 3 * 60_000;
 
 let temNavegador: boolean | undefined;
 function podeLigarAqui() {
-  if (process.env.VERCEL) return false;
+  // COLETA_SERVICO: o worker é um serviço da máquina (systemd na VPS), não um processo do admin
+  if (process.env.VERCEL || process.env.COLETA_SERVICO) return false;
   temNavegador ??= spawnSync("agent-browser", ["--version"], { timeout: 10_000, stdio: "ignore" }).status === 0;
   return temNavegador;
 }
