@@ -1,4 +1,5 @@
 import { diaCurto } from "@/lib/crm-tipos";
+import { CONTRATO_URL } from "@/lib/contrato";
 import { formatBRL } from "@/lib/datetime";
 
 // Quem lê o e-mail é o dono, e o nome do negócio e o da assinatura vêm de campo
@@ -19,7 +20,7 @@ const FUNCIONALIDADES = [
   ["Serviços com preço e duração", "O encaixe é calculado na hora: serviço de uma hora reserva uma hora."],
   ["Ficha de cada cliente", "Histórico, etiquetas e anotações: alergias, preferências, o que foi combinado."],
   ["Seu endereço na internet", "Site com seus serviços e o link de agendamento pronto para a bio do Instagram."],
-  ["Manutenção incluída", "Mudou horário, preço ou telefone? A gente atualiza. A mensalidade cobre isso."],
+  ["Manutenção incluída", "Mudou horário, preço ou telefone? A gente atualiza. A mensalidade cobre isso, dentro dos limites dos Termos de Contratação."],
 ] as const;
 
 const VANTAGENS = [
@@ -127,7 +128,7 @@ ${VANTAGENS.map((v) => `<li style="margin:0 0 4px;">${esc(v)}</li>`).join("\n")}
 </td>
 </tr>
 </table>
-<p style="margin:10px 0 0;font-size:13px;color:#6F6A5E;">Sem taxa por agendamento e sem fidelidade.</p>
+<p style="margin:10px 0 0;font-size:13px;color:#6F6A5E;">Sem taxa por agendamento e sem fidelidade. Condições completas nos <a href="https://www.ruphus.site${CONTRATO_URL}" style="color:#6F6A5E;">Termos de Contratação</a>.</p>
 </td></tr>
 
 <tr><td style="padding:28px 32px 0;">

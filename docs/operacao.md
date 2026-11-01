@@ -193,6 +193,22 @@ Conserte na frente: branch, correção, PR, CI verde **no commit final**, merge.
 
 ---
 
+## Mudar os Termos de Contratação
+
+Versão publicada não muda: quem aceitou leu aquele texto, e o e-mail de
+confirmação aponta para `/termos/{versão}`.
+
+1. Edite `docs/contrato-prestacao-servico.md` e suba a versão no topo.
+2. Suba `CONTRATO_VERSAO` em `src/lib/contrato.ts` para o mesmo número. Se o
+   resumo mudou, atualize `RESUMO_CONTRATO` no mesmo arquivo.
+3. `npm run termos` gera `public/termos/{versão}/` e atualiza `/termos`. O script
+   recusa campo `[[...]]` pendente, versão diferente entre o contrato e o código,
+   e texto novo numa versão já publicada.
+4. Mudança que afete direitos do cliente só vale com novo aceite (cláusula 15.3).
+   **O painel ainda não pede o aceite de novo a quem já é cliente**: faça isso
+   antes de publicar a versão 1.1.
+5. Quem aceitou: coleção `aceites` no Firestore (só pelo console ou Admin SDK).
+
 ## Rotinas com script
 
 Todo script que grava tem modo de simulação — rode sem `--aplicar` primeiro.

@@ -256,7 +256,11 @@ assert.equal((await pagina("../etc")).status, 404);
 {
   const base = { sub: "barbearia", telefone: "(96) 99222-0000", cidade: "Macapá", uf: "AP" };
   await criarNegocio(db, { uid: "via-anuncio", email: "a@b.com" }, { ...base, name: "Corte Fino", slug: "corte-fino" },
-    { source: "instagram", medium: "pago", campaign: "setembro", term: "" });
+    { source: "instagram", medium: "pago", campaign: "setembro", term: "" }, { versao: "1.0", origem: "cadastro", uid: "via-anuncio" });
+  // o aceite dos Termos fica gravado junto, com o slug do negócio criado
+  const aceites = await db.collection("aceites").where("slug", "==", "corte-fino").get();
+  assert.equal(aceites.size, 1);
+  assert.equal(aceites.docs[0].get("versao"), "1.0");
   assert.deepEqual((await db.doc("crm/corte-fino").get()).get("utm"), { source: "instagram", medium: "pago", campaign: "setembro" }, "campo vazio não entra");
   // UTM adulterada ou grande demais: o cadastro passa, sem a origem
   await criarNegocio(db, { uid: "utm-estranha" }, { ...base, name: "Corte Grosso", slug: "corte-grosso" }, { campaign: "x".repeat(500) });
