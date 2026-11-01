@@ -5,6 +5,10 @@ o PR, onde está o porquê.
 
 ## 0.13.0 — 31/10/2026
 
+### Infraestrutura
+- **O Ruphus saiu da Vercel para a VPS própria**, atrás da Cloudflare: o app roda com systemd e Caddy, e os crons (lembretes, demo) ficam no crontab do servidor. A publicação passa a ser `./scripts/deploy-vps.sh` (#158).
+- **Domínio próprio do cliente** (#157): no /admin, a Ruphus liga www.salaodocliente.com.br ao site; o cliente aponta o DNS, e o site, a agenda e a bio passam a abrir nesse endereço, com o antigo {slug}.ruphus.site redirecionando para lá. Funciona na VPS (DNS direto no IP, certificado emitido pelo Caddy) e na Vercel.
+
 ### Caixa (novo)
 - **Caixa do negócio**, ligado por cliente pelo admin da plataforma (#126, #130, #131): entradas e saídas do mês, só para quem gere o negócio. O valor do Caixa é acertado por cliente no CRM e somado à mensalidade (#132).
 - **Contas do mês, comissão por profissional e planilha para o contador** (#133). O % de comissão também pode ser definido no cadastro do profissional (#136).

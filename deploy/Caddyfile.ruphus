@@ -1,0 +1,31 @@
+# Trecho do /etc/caddy/Caddyfile da VPS para o ruphus-site (o app escuta em localhost:3001).
+# O bloco de opções globais vai no TOPO do Caddyfile (junte com o que já existir lá).
+# Depois de editar: caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy
+
+{
+	# domínio próprio de cliente: certificado só para o que o app aprovar
+	on_demand_tls {
+		ask http://localhost:3001/api/dominios/tls
+	}
+}
+
+# ruphus.site e {slug}.ruphus.site atrás da Cloudflare (laranja, SSL Full Strict),
+# com o Origin Certificate wildcard emitido no painel da Cloudflare
+ruphus.site, *.ruphus.site {
+	tls /etc/caddy/origin-ruphus.pem /etc/caddy/origin-ruphus.key
+	encode gzip
+	reverse_proxy localhost:3001 {
+		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+	}
+}
+
+# domínio próprio de cliente (DNS direto no IP da VPS, sem Cloudflare)
+https:// {
+	tls {
+		on_demand
+	}
+	encode gzip
+	reverse_proxy localhost:3001 {
+		header_up X-Real-IP {remote_host}
+	}
+}

@@ -1,0 +1,5 @@
+# crontab do usuário ruphus (crontab -u ruphus deploy/crontab.txt), no lugar dos crons do
+# vercel.json. A VPS está em America/Sao_Paulo: o demo das 06:00 UTC vira 03:00.
+# O CRON_SECRET é o mesmo do /opt/ruphus-site/app/.env.local.
+*/10 * * * * . /opt/ruphus-site/cron.env && curl -fsS -m 120 -H "Authorization: Bearer $CRON_SECRET" http://localhost:3001/api/cron/lembretes >/dev/null
+0 3 * * *    . /opt/ruphus-site/cron.env && curl -fsS -m 300 -H "Authorization: Bearer $CRON_SECRET" http://localhost:3001/api/cron/demo >/dev/null

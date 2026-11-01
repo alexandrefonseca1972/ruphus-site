@@ -5,10 +5,10 @@ import { normalizarHost } from "@/lib/dominio";
 // Na VPS, o Caddy pergunta aqui antes de emitir certificado para um host desconhecido:
 // só domínio ligado a algum site (pendente ou ativo) leva certificado. No Caddyfile:
 //
-//   { on_demand_tls { ask http://127.0.0.1:3001/api/dominios/tls } }
+//   { on_demand_tls { ask http://localhost:3001/api/dominios/tls } }
 //   https:// {
 //     tls { on_demand }
-//     reverse_proxy 127.0.0.1:3001 { header_up X-Real-IP {remote_host} }
+//     reverse_proxy localhost:3001 { header_up X-Real-IP {remote_host} }
 //   }
 //
 // Só responde a quem chama pelo próprio servidor: de fora, o Host é o domínio visitado.
