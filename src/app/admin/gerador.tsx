@@ -12,7 +12,7 @@ import { gerarSites } from "./actions";
 
 const BOTAO = "h-10 rounded-[10px] px-4 text-[13px] font-semibold";
 
-export function Gerador({ aoGerar }: { aoGerar: () => void }) {
+export function Gerador({ aoGerar }: { aoGerar: (slugs: string[]) => void }) {
   const [arquivo, setArquivo] = useState("");
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [previa, setPrevia] = useState<LinhaGerada[] | null>(null);
@@ -53,7 +53,7 @@ export function Gerador({ aoGerar }: { aoGerar: () => void }) {
     if (!r.ok) return setErro(r.error);
     setFeito(r.dados);
     setPrevia(null);
-    aoGerar();
+    aoGerar(r.dados.filter((l) => l.acao !== "pular").map((l) => l.slug));
   }
 
   const chave = (l: { aba: string; linha: number }) => `${l.aba}#${l.linha}`;

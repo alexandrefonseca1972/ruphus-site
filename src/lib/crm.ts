@@ -74,9 +74,17 @@ export function negocio(d: { get: (campo: string) => unknown }): Crm {
   };
 }
 
-export async function lerCrm(db: Firestore): Promise<Record<string, Crm>> {
-  const snap = await db.collection(RAIZ).get();
-  return Object.fromEntries(snap.docs.map((d) => [d.id, negocio(d)]));
+/** Importado que ninguém tocou: só a origem (e as notas do levantamento, cuja contagem a tela
+ *  não mostra). É igual ao vazio que a tela usa para quem não tem CRM, que já conta como
+ *  "novo" e "importado" — 12 mil dos 14 mil documentos, que não precisam ir ao navegador. */
+const trivial = (d: FirebaseFirestore.DocumentSnapshot) =>
+  Object.keys(d.data() ?? {}).every((k) => k === "origem" || k === "notas") && (d.get("origem") ?? "importado") === "importado";
+
+export async function lerCrm(db: Firestore, slugs?: string[]): Promise<Record<string, Crm>> {
+  const docs = slugs
+    ? slugs.length ? await db.getAll(...slugs.map((s) => db.collection(RAIZ).doc(s))) : []
+    : (await db.collection(RAIZ).get()).docs;
+  return Object.fromEntries(docs.filter((d) => d.exists && !trivial(d)).map((d) => [d.id, negocio(d)]));
 }
 
 export async function salvarCrm(db: Firestore, slug: string, entrada: CrmInput, autor = "sistema") {

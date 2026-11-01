@@ -96,20 +96,42 @@ export const ehAdminDaPlataforma = adminAction(async () => true);
 // cor e url: 271 KB para 677 negócios, quando o painel usa dez campos curtos.
 const CAMPOS_DA_LISTA = ["name", "site.phone", "site.category", "site.city", "site.uf", "site.rating", "site.reviews", "limiteStaff", "modulos.financeiro"] as const;
 
-/** Lista os espaços com quantas pessoas têm acesso a cada um. */
-async function espacosComAcessos() {
-  const [tenants, membros] = await Promise.all([
-    adminDb.collection("tenants").select(...CAMPOS_DA_LISTA).get(),
-    adminDb.collectionGroup("members").select("role").get(),
-  ]);
-  // conta só quem gere (Ruphus e cliente): a equipe do cliente não diz que ele entrou
+/** Quantas pessoas gerem cada espaço (Ruphus e cliente: a equipe do cliente não diz que ele
+ *  entrou). A conta da Ruphus está em quase todos os 14 mil negócios: lê só os membros de fora
+ *  da plataforma (uns poucos) e, nos espaços deles, se a Ruphus também está. Nos demais quem
+ *  gere é só a Ruphus: 1 (ou 0, sem membro nenhum), o que dá no mesmo para a tela, que só
+ *  pergunta se passa de 1. */
+async function acessosPorEspaco() {
+  const admins = ((await adminDb.doc("config/admin").get()).get("uids") as string[] | undefined) ?? [];
+  // ponytail: o not-in aceita até 10 valores; com mais contas da plataforma, volta a ler todos os membros
+  const filtrado = admins.length > 0 && admins.length <= 10;
+  const membros = await (filtrado ? adminDb.collectionGroup("members").where("uid", "not-in", admins) : adminDb.collectionGroup("members")).select("role").get();
   const porEspaco = new Map<string, number>();
-  for (const m of membros.docs) {
-    if (m.get("role") === "member") continue;
+  const somar = (m: FirebaseFirestore.DocumentSnapshot) => {
+    if (!m.exists || m.get("role") === "member") return;
     const espaco = m.ref.parent.parent;
     if (espaco?.parent.id === "tenants") porEspaco.set(espaco.id, (porEspaco.get(espaco.id) ?? 0) + 1);
+  };
+  membros.docs.forEach(somar);
+  if (!filtrado) return (slug: string) => porEspaco.get(slug) ?? 0;
+  const comCliente = [...porEspaco.keys()];
+  if (comCliente.length) {
+    const daRuphus = comCliente.flatMap((s) => admins.map((uid) => adminDb.doc(`tenants/${s}/members/${uid}`)));
+    (await adminDb.getAll(...daRuphus, { fieldMask: ["role"] })).forEach(somar);
   }
-  return tenants.docs
+  return (slug: string) => porEspaco.get(slug) ?? 1;
+}
+
+/** Lista os espaços com quantas pessoas têm acesso a cada um; com slugs, só esses. */
+async function espacosComAcessos(slugs?: string[]) {
+  const [tenants, acessos] = await Promise.all([
+    slugs
+      ? Promise.all(lotesDe(slugs, 500).map((l) => adminDb.getAll(...l.map((s) => adminDb.collection("tenants").doc(s)), { fieldMask: [...CAMPOS_DA_LISTA] }))).then((x) => x.flat())
+      : adminDb.collection("tenants").select(...CAMPOS_DA_LISTA).get().then((q) => q.docs),
+    acessosPorEspaco(),
+  ]);
+  return tenants
+    .filter((d) => d.exists)
     .map((d): Espaco => ({
       slug: d.id,
       nome: String(d.get("name") ?? d.id),
@@ -119,12 +141,13 @@ async function espacosComAcessos() {
       uf: d.get("site.uf") ?? null,
       nota: d.get("site.rating") ?? null,
       avaliacoes: d.get("site.reviews") ?? null,
-      acessos: porEspaco.get(d.id) ?? 0,
+      acessos: acessos(d.id),
       limiteStaff: limiteStaffDe(d.get("limiteStaff") as number | undefined),
       caixa: d.get("modulos.financeiro") === true,
     }))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
+const lotesDe = <T,>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
 
 // O slug vem da tela e vira caminho de documento: sem conferir, um "a/b/c"
 // escreveria fora do lugar previsto.
@@ -363,6 +386,14 @@ export const abrirPainel = adminAction(async (): Promise<Painel> => {
   };
 });
 
+/** Só os negócios que o Gerador ou a Coleta acabaram de criar ou atualizar: a tela junta à
+ *  lista que já tem, em vez de reler os 14 mil. */
+export const espacosGerados = adminAction(async (_user, slugs: string[]) => {
+  const lista = z.array(z.string().regex(SLUG)).max(5000).parse(slugs);
+  const [espacos, crm] = await Promise.all([espacosComAcessos(lista), lerCrm(adminDb, lista)]);
+  return { espacos, crm };
+});
+
 export type Detalhe = {
   servicos: number;
   profissionais: number;
@@ -573,7 +604,7 @@ async function comCaixa() {
 /** Uma cobrança avulsa: entrada ou mensalidade de uma competência. */
 export const cobrar = adminAction(async (_user, slug: string, tipo: "entrada" | "mensal", competencia: string | null) => {
   if (!SLUG.test(slug)) throw new Error("negócio inválido");
-  const [negocios, caixa] = await Promise.all([lerCrm(adminDb), comCaixa()]);
+  const [negocios, caixa] = await Promise.all([lerCrm(adminDb, [slug]), comCaixa()]);
   const valorCents = tipo === "entrada" ? negocios[slug]?.entradaCents : mensalidadeDe(negocios[slug], caixa.has(slug));
   if (!valorCents) throw new Error("cadastre o valor no bloco Negócio antes de cobrar");
   const mes = tipo === "entrada" ? null : (competencia ?? competenciaAtual());
