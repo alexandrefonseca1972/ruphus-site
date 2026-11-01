@@ -42,6 +42,7 @@ import { loginComMotivo, MINUTOS_MAX, useAutoLogout } from "@/lib/sessao";
 import { COMMIT, VERSAO } from "@/lib/versao";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX } from "@/lib/limites";
 import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
+import { FichaDoNegocio } from "./ficha-gaveta";
 import { SiteDoNegocio } from "./site-gaveta";
 import { WhatsAppDoNegocio } from "./whatsapp-gaveta";
 import { EnviarPorEmail } from "./enviar-email";
@@ -185,7 +186,7 @@ export default function AdminPage() {
   const [fechando, setFechando] = useState<string | null>(null);
   const [saude, setSaude] = useState<ClienteSaude | null>(null);
   // A aba escolhida vale para o próximo negócio aberto: quem está cobrando segue cobrando
-  const [aba, setAba] = useState<"venda" | "historico" | "cliente" | "site" | "whatsapp" | "cobranca">("venda");
+  const [aba, setAba] = useState<"venda" | "ficha" | "historico" | "cliente" | "site" | "whatsapp" | "cobranca">("venda");
   const [estagio, setEstagio] = useState("");
   const [prazo, setPrazo] = useState<"" | Prazo>("");
   const [contato, setContato] = useState<"" | "hoje">("");   // "falei hoje"
@@ -1557,6 +1558,7 @@ export default function AdminPage() {
               {(
                 [
                   ["venda", "Venda"],
+                  ["ficha", "Ficha"],
                   ["historico", `Histórico${historia ? ` · ${historia.length}` : ""}`],
                   ["cliente", "Cliente"],
                   ["site", "Site"],
@@ -1849,6 +1851,7 @@ export default function AdminPage() {
 
               </>
             )}
+            {aba === "ficha" && <FichaDoNegocio key={`ficha-${aberto.slug}`} slug={aberto.slug} token={token} />}
             {aba === "site" && <SiteDoNegocio key={`site-${aberto.slug}`} slug={aberto.slug} token={token} />}
             {aba === "whatsapp" && <WhatsAppDoNegocio key={`zap-${aberto.slug}`} slug={aberto.slug} token={token} />}
             {aba === "cliente" && (

@@ -79,8 +79,11 @@ export function registrosDoSite(
         color: visual.cor,
         instagram: lead.instagram || null,
         photo: visual.foto,
+        // só quando veio: reenviar uma planilha sem a coluna não apaga o link da coleta
+        ...(lead.maps && { maps: lead.maps }),
       },
-      gerado: { nicho: n.nicho, sub: n.sub, bairro: lead.bairro, horario: lead.horario, origem: o.origem, atualizadoEm: agora, ...(o.escolha && { escolha: o.escolha }), ...(o.novo && { variantes: true }) },
+      // a categoria como o Maps escreve ("Manicure e pedicure"), mais fina que o ramo; vai para a ficha da gaveta
+      gerado: { nicho: n.nicho, sub: n.sub, bairro: lead.bairro, horario: lead.horario, origem: o.origem, ...(lead.categoria && { categoria: lead.categoria }), atualizadoEm: agora, ...(o.escolha && { escolha: o.escolha }), ...(o.novo && { variantes: true }) },
     },
   }];
   if (!o.novo) return escritas;

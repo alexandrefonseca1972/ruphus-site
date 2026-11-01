@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 
 const env = await initializeTestEnvironment({
   projectId: "demo-siteflow",
-  firestore: { rules: readFileSync("firestore.rules", "utf8"), host: "127.0.0.1", port: 8080 },
+  firestore: { rules: readFileSync("firestore.rules", "utf8"), host: "127.0.0.1", port: 8085 },
   storage: { rules: readFileSync("storage.rules", "utf8"), host: "127.0.0.1", port: 9199 },
 });
 const as = (uid) => env.authenticatedContext(uid, { email: `${uid}@teste.dev` }).firestore();
