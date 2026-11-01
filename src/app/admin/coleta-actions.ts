@@ -14,6 +14,7 @@ import { adminDb } from "@/lib/admin";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { LIMITES, problemaNoPedido, TERMOS_PADRAO, UFS, type EstadoColeta, type Progresso, type Resumo } from "@/lib/coleta";
 import { gerarNoBanco, TETO_LOTE } from "@/lib/gerador.server";
+import MUNICIPIOS from "@/lib/municipios.json";
 
 export type Coleta = {
   id: string; uf: string; cidade: string; bairros: string[]; termos: string[]; estado: EstadoColeta;
@@ -30,11 +31,11 @@ const UF = z.enum(Object.keys(UFS) as [keyof typeof UFS, ...(keyof typeof UFS)[]
 // id de documento do Firestore: sem "/", senão "x/leads/y" apontaria para dentro de outra coleta
 const Id = z.string().regex(/^[A-Za-z0-9]{1,40}$/);
 
-/** Municípios do estado pelo IBGE (lista oficial; muda quase nunca, então fica um dia em cache). */
+/** Municípios do estado, da lista oficial do IBGE guardada em src/lib/municipios.json. A API do
+ *  IBGE recusa conexões da VPS e a lista muda quase nunca (último município novo: 2013).
+ *  Atualizar (de fora da VPS): servicodados.ibge.gov.br/api/v1/localidades/municipios?view=nivelado. */
 async function doIbge(uf: string) {
-  const r = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${UF.parse(uf)}/municipios?orderBy=nome`, { next: { revalidate: 86_400 } });
-  if (!r.ok) throw new ErroPrevisto("O IBGE não respondeu. Tente de novo em instantes.");
-  return ((await r.json()) as { nome: string }[]).map((m) => m.nome);
+  return MUNICIPIOS[UF.parse(uf)];
 }
 export const municipios = adminAction(async (_user, uf: string) => doIbge(uf));
 

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import MUNICIPIOS from "@/lib/municipios.json" with { type: "json" };
 import { abas, bairrosDe, CAPITAIS, LIMITES, problemaNoPedido, UFS, fichaParaLead, fim8, lotes, montarBase, motivoCurto, paraGerador, placeId, separar, type Base, type Ficha } from "@/lib/coleta";
 
 const link = "https://www.google.com/maps/place/Studio+X/data=!4m7!3m6!1s0xa69b5e09b276a7:0x6b9885d00aaf5340!8m2!3d-19.9?authuser=0&hl=pt-BR";
@@ -78,6 +79,8 @@ assert.equal(motivoCurto("já temos: Studio X (site studio-x)"), "já temos");
 
 // toda UF tem capital
 assert.deepEqual(Object.keys(CAPITAIS).sort(), Object.keys(UFS).sort());
+// a lista de municípios guardada cobre toda UF, e a capital está nela com a grafia do IBGE
+for (const [uf, capital] of Object.entries(CAPITAIS)) assert.ok(MUNICIPIOS[uf as keyof typeof MUNICIPIOS].includes(capital), `${capital}/${uf}`);
 
 // o pedido é conferido na tela e no servidor com as mesmas regras
 const pedido = (p: Partial<{ cidades: string[]; bairros: string[]; termos: string[] }>) => problemaNoPedido({ cidades: ["Castanhal"], bairros: [], termos: [], ...p });
