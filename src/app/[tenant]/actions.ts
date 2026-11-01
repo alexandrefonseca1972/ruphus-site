@@ -8,8 +8,8 @@ import { z } from "zod";
 import { PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
-import { createInstance, getQr, getStatus, logout, sendText } from "@/lib/wtsfy";
-import { aceitarTermoWhatsApp, desligarConexao, gravarConexao, lerConfigWhatsApp, lerConexao } from "@/lib/whatsapp.server";
+import { deslogarInstancia, enviarTexto, qrDaConexao, statusDaConexao } from "@/lib/atendys";
+import { aceitarTermoWhatsApp, conectarNegocio, desligarConexao, lerConfigWhatsApp, lerConexao, gravarConexao } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { criarConvite, revogarConvitesDaEquipe, tirarAcessosDoProfissional } from "@/lib/convite";
@@ -18,7 +18,7 @@ import { recebedorDe } from "@/lib/pix";
 import { ConfigSinal } from "@/lib/sinal";
 import { confirmarSinal } from "@/lib/sinal.server";
 import { FieldValue } from "firebase-admin/firestore";
-import { BaixaInput, EstornoInput, FixaInput, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
+import { BaixaInput, EstornoInput, FixaInput, ID_AVULSO, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
 import { adicionarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
 // Chamáveis por POST direto: valida entrada e membro do tenant em toda chamada
@@ -227,9 +227,9 @@ export const enviarWhatsAppAction = memberAction(
   }),
   async (data, user) => {
     await exigeGestor(data.tenantId, user.uid);
-    const instanceId = (await adminDb.doc(`tenants/${data.tenantId}`).get()).get("whatsapp.instanceId") as string | undefined;
-    if (!instanceId) throw new UserError("O WhatsApp do negócio ainda não está conectado.");
-    const envio = await sendText(instanceId, data.phone, data.message);
+    const conexao = await lerConexao(adminDb, data.tenantId);
+    if (!conexao) throw new UserError("O WhatsApp do negócio ainda não está conectado.");
+    const envio = await enviarTexto(conexao, data.phone, data.message);
     return { ok: true as const, messageId: envio.messageId };
   },
 );
@@ -261,17 +261,14 @@ export const conectarWhatsAppDonoAction = memberAction(SoTenant, async ({ tenant
     throw new UserError("Leia e aceite o termo sobre o WhatsApp antes de conectar.");
   }
   if (await lerConexao(adminDb, tenantId)) throw new UserError("Já existe um WhatsApp conectado. Desconecte antes de trocar de número.");
-  const { id } = await createInstance(`ruphus-${tenantId}`);
-  const conexao = { instanceId: id, phone: null, status: "created", updatedAt: Date.now(), ownerManaged: true };
-  await gravarConexao(adminDb, tenantId, conexao);
-  return conexao;
+  return conectarNegocio(adminDb, tenantId, tenantId, true);
 });
 
 export const refreshWhatsAppStatusDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
   await exigeGestor(tenantId, user.uid);
   const salva = await lerConexao(adminDb, tenantId);
   if (!salva) return null;
-  const vivo = await getStatus(salva.instanceId);
+  const vivo = await statusDaConexao(salva);
   const conexao = { ...salva, phone: vivo.phone ?? salva.phone, status: vivo.status, updatedAt: Date.now() };
   await gravarConexao(adminDb, tenantId, conexao);
   return conexao;
@@ -283,7 +280,7 @@ export const qrWhatsAppDonoAction = memberAction(SoTenant, async ({ tenantId }, 
   if (config?.ownerManaged === false) throw new UserError("Gerenciado pela plataforma — quem conecta é o suporte.");
   const salva = await lerConexao(adminDb, tenantId);
   if (!salva) throw new UserError("Conecte o WhatsApp antes de pedir o QR.");
-  return getQr(salva.instanceId);
+  return qrDaConexao(salva);
 });
 
 export const desconectarWhatsAppDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
@@ -291,7 +288,7 @@ export const desconectarWhatsAppDonoAction = memberAction(SoTenant, async ({ ten
   const config = await lerConfigWhatsApp(adminDb, tenantId);
   if (config?.ownerManaged === false) throw new UserError("Gerenciado pela plataforma — quem desconecta é o suporte.");
   const salva = await lerConexao(adminDb, tenantId);
-  if (salva) await logout(salva.instanceId).catch(() => {});
+  if (salva) await deslogarInstancia(salva.instanceId).catch(() => {});
   await desligarConexao(adminDb, tenantId);
   return "desconectado";
 });
@@ -313,9 +310,9 @@ export const configurarLembretesWhatsAppAction = memberAction(
 );
 
 // Caixa: dinheiro só para quem gere, e só com o módulo ligado (conferido em financeiro.server)
-export const lancarAction = memberAction(z.object({ tenantId: docIdStaff, lancamento: LancamentoInput }), async (data, user) => {
+export const lancarAction = memberAction(z.object({ tenantId: docIdStaff, lancamento: LancamentoInput, id: z.string().regex(ID_AVULSO).optional() }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid);
-  return { ok: true as const, id: await lancar(adminDb, data.tenantId, data.lancamento, user) };
+  return { ok: true as const, id: await lancar(adminDb, data.tenantId, data.lancamento, user, data.id) };
 });
 
 export const editarLancamentoAction = memberAction(z.object({ tenantId: docIdStaff, id: docId, lancamento: LancamentoInput }), async (data, user) => {

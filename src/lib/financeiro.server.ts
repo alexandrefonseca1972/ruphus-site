@@ -3,7 +3,7 @@ import { FieldValue, type Firestore, Timestamp } from "firebase-admin/firestore"
 import { UserError } from "@/lib/booking.server";
 import { dateIn, formatBRL, todayIn } from "@/lib/datetime";
 import { randomBytes } from "node:crypto";
-import { BaixaInput, CaixaConfig, diaNoMes, EstornoInput, ehVinculado, FixaInput, idDaBaixa, idDoEstorno, idDoPagamento, LancamentoInput, mesDe, PagamentoInput } from "@/lib/financeiro";
+import { BaixaInput, CaixaConfig, diaNoMes, EstornoInput, ehSinal, ehVinculado, FixaInput, ID_AVULSO, idDaBaixa, idDoEstorno, idDoPagamento, LancamentoInput, mesDe, PagamentoInput } from "@/lib/financeiro";
 import type { z } from "zod";
 
 // Escritas do Caixa: só pelo servidor, e só com o módulo ligado pelo admin da plataforma
@@ -25,12 +25,20 @@ const descontar = (tx: FirebaseFirestore.Transaction, db: Firestore, tenantId: s
   if (typeof staffId === "string" && staffId && centavos) tx.set(config(db, tenantId), { descontos: { [staffId]: FieldValue.increment(centavos) } }, { merge: true });
 };
 
-export async function lancar(db: Firestore, tenantId: string, l: LancamentoInput, quem: Quem) {
+/** Entrada ou saída avulsa. Com o id gerado na tela, reenviar (a resposta caiu, o dono tocou
+ *  de novo) não duplica: o segundo envio encontra o primeiro e devolve o mesmo id. */
+export async function lancar(db: Firestore, tenantId: string, l: LancamentoInput, quem: Quem, id?: string) {
   await exigeCaixa(db, tenantId);
-  const ref = col(db, tenantId).doc();
+  if (id !== undefined && !ID_AVULSO.test(id)) throw new UserError("Lançamento inválido.");
+  const ref = id ? col(db, tenantId).doc(id) : col(db, tenantId).doc();
   // o Admin SDK recusa campo undefined: descrição vazia não vai
   const { descricao, ...resto } = l;
-  await ref.create({ ...resto, ...(descricao && { descricao }), mes: mesDe(l.data), criadoPor: quem.email ?? quem.uid, criadoEm: FieldValue.serverTimestamp() });
+  try {
+    await ref.create({ ...resto, ...(descricao && { descricao }), mes: mesDe(l.data), criadoPor: quem.email ?? quem.uid, criadoEm: FieldValue.serverTimestamp() });
+  } catch (e) {
+    // 6 = ALREADY_EXISTS: o mesmo lançamento chegou duas vezes
+    if (!(id && (e as { code?: number }).code === 6)) throw e;
+  }
   return ref.id;
 }
 
@@ -44,8 +52,9 @@ export async function editar(db: Firestore, tenantId: string, id: string, l: Lan
     // entrada estornada continua entrada, e não fica menor que o que já foi devolvido
     if (estorno.exists && l.tipo !== "entrada") throw new UserError("Este recebimento tem estorno: continua entrada.");
     if (estorno.exists && l.valorCents < Number(estorno.get("valorCents"))) throw new UserError(`Já foram estornados ${formatBRL(Number(estorno.get("valorCents")))}: o recebimento não fica menor que isso.`);
-    // a baixa de um atendimento continua entrada: virar saída quebraria o "fechar o dia"
-    if (atual.get("appointmentId") && l.tipo !== "entrada") throw new UserError("O recebimento de um atendimento é sempre entrada.");
+    // a baixa e o sinal de um atendimento continuam entrada: virar saída quebraria o "fechar o dia"
+    const daAgenda = !!atual.get("appointmentId") || ehSinal(id);
+    if (daAgenda && l.tipo !== "entrada") throw new UserError("O recebimento de um atendimento é sempre entrada.");
     // conta fixa, comissão e estorno continuam saída
     const pagamento = ehVinculado(id);
     if (pagamento && l.tipo !== "saida") throw new UserError("Um pagamento é sempre saída.");
@@ -62,7 +71,7 @@ export async function editar(db: Firestore, tenantId: string, id: string, l: Lan
       desconto = { descontoComissao: novo };
     }
     // e todos ficam no dia de origem: noutro mês, a agenda e o Caixa deixariam de achá-los
-    const data = atual.get("appointmentId") || pagamento ? String(atual.get("data")) : l.data;
+    const data = daAgenda || pagamento ? String(atual.get("data")) : l.data;
     tx.update(ref, { ...l, ...desconto, data, descricao: l.descricao ?? FieldValue.delete(), mes: mesDe(data), editadoPor: quem.email ?? quem.uid, editadoEm: FieldValue.serverTimestamp() });
   });
 }
@@ -129,8 +138,9 @@ export async function baixarAgendamento(db: Firestore, tenantId: string, b: z.in
   await exigeCaixa(db, tenantId);
   const agendamento = db.doc(`tenants/${tenantId}/appointments/${b.appointmentId}`);
   const baixa = col(db, tenantId).doc(idDaBaixa(b.appointmentId));
+  const doSinal = col(db, tenantId).doc(`sn-${b.appointmentId}`);
   await db.runTransaction(async (tx) => {
-    const [a, ja] = await Promise.all([tx.get(agendamento), tx.get(baixa)]);
+    const [a, ja, sn] = await Promise.all([tx.get(agendamento), tx.get(baixa), tx.get(doSinal)]);
     if (!a.exists) throw new UserError("Agendamento não encontrado.");
     if (ja.exists) throw new UserError("Este atendimento já foi recebido.");
     if (!["booked", "confirmed"].includes(a.get("status"))) throw new UserError("Só dá para receber um atendimento que aconteceu.");
@@ -139,6 +149,12 @@ export async function baixarAgendamento(db: Firestore, tenantId: string, b: z.in
     // o mesmo relógio da agenda e do Caixa (start.toMillis() <= agora): o que o painel oferece, o servidor aceita
     if (start.getTime() > Date.now()) throw new UserError("Este atendimento ainda não começou.");
     const data = dateIn(start);
+    // O sinal pago sai do que se cobra no balcão. Se ele não está no Caixa (confirmado com o
+    // Caixa desligado, ou o lançamento dele foi apagado), entra aqui junto, senão some das contas.
+    const sinalPago = a.get("sinal.status") === "pago" ? Number(a.get("sinal.cents")) || 0 : 0;
+    // a tela abriu antes de o sinal ser confirmado: o valor dela ainda inclui o sinal
+    if ((b.sinalCents ?? 0) !== sinalPago) throw new UserError("O sinal deste atendimento mudou enquanto a tela estava aberta. Feche e abra de novo para ver o valor certo.");
+    const sinalFora = sn.exists ? 0 : sinalPago;
     // sem WhatsApp ao cliente: o atendimento já aconteceu, só a agenda fica em dia
     if (a.get("status") === "booked") {
       const historico = db.collection(`tenants/${tenantId}/history`).doc();
@@ -147,10 +163,10 @@ export async function baixarAgendamento(db: Firestore, tenantId: string, b: z.in
     }
     tx.create(baixa, {
       tipo: "entrada",
-      valorCents: b.valorCents,
+      valorCents: b.valorCents + sinalFora,
       forma: b.forma,
       categoria: "Atendimento",
-      descricao: String(a.get("serviceName") ?? "").slice(0, 80),
+      descricao: `${String(a.get("serviceName") ?? "")}${sinalFora ? ` (com sinal de ${formatBRL(sinalFora)})` : ""}`.slice(0, 80),
       data,
       mes: mesDe(data),
       appointmentId: b.appointmentId,
