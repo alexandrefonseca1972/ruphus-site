@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,10 +17,10 @@ import { useTenant } from "./layout";
 export function PixNegocio({ cidadeSugerida = "" }: { cidadeSugerida?: string }) {
   const tenant = useTenant();
   const inicial = { chave: tenant.pix?.chave ?? "", nome: tenant.pix?.nome ?? "", cidade: tenant.pix?.cidade ?? "" };
-  // sem chave ainda: a cidade do negócio já vem preenchida
+  // sem chave ainda: a cidade do negócio já vem preenchida (e isso não conta como alteração)
   const [pix, setPix] = useState(tenant.pix ? inicial : { ...inicial, cidade: cidadeSugerida });
   const [tentou, setTentou] = useState(false);
-  const [salvo, setSalvo] = useState(inicial);
+  const [salvo, setSalvo] = useState(tenant.pix ? inicial : { ...inicial, cidade: cidadeSugerida });
   const [busy, setBusy] = useState(false);
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const mudou = pix.chave !== salvo.chave || pix.nome !== salvo.nome || pix.cidade !== salvo.cidade;
@@ -38,6 +38,7 @@ export function PixNegocio({ cidadeSugerida = "" }: { cidadeSugerida?: string })
   // chave gravada antes de uma regra nova (ex.: CNPJ com dígito errado): o dono vê já, sem tentar salvar
   const mostrar = tentou || (!!salvo.chave && pix.chave === salvo.chave);
   const [confirmarRemocao, setConfirmarRemocao] = useState(false);
+  useAvisoAoSair(mudou);
   const campo = (k: keyof typeof pix) => (e: React.ChangeEvent<HTMLInputElement>) => (setPix({ ...pix, [k]: e.target.value }), setAviso(null));
 
   async function salvar(confirmado = false) {
@@ -47,7 +48,7 @@ export function PixNegocio({ cidadeSugerida = "" }: { cidadeSugerida?: string })
     if (removendo && !confirmado) return setConfirmarRemocao(true);
     setBusy(true);
     setAviso(null);
-    const r = await salvarPixAction(await idToken(), { tenantId: tenant.id, pix }).catch(() => null);
+    const r = await idToken().then((t) => salvarPixAction(t, { tenantId: tenant.id, pix })).catch(() => null);
     setBusy(false);
     if (!r) return setAviso({ ok: false, texto: "Não foi possível salvar. Verifique a conexão e tente de novo." });
     if (!r.ok) return setAviso({ ok: false, texto: r.error });
@@ -62,8 +63,9 @@ export function PixNegocio({ cidadeSugerida = "" }: { cidadeSugerida?: string })
 
   return (
     <form
+      id="pix"
       noValidate
-      className="grid gap-4 rounded-2xl border bg-card p-5 sm:p-7 lg:max-w-[calc(100%-24rem)]"
+      className="grid scroll-mt-20 gap-4 rounded-2xl border bg-card p-5 sm:p-7 lg:max-w-[calc(100%-24rem)]"
       onSubmit={(e) => {
         e.preventDefault();
         void salvar();
@@ -103,7 +105,7 @@ export function PixNegocio({ cidadeSugerida = "" }: { cidadeSugerida?: string })
       <div className="flex items-center justify-end gap-3">
         {mudou && !busy && <span className="text-xs text-muted-foreground">Alterações não salvas</span>}
         {/* sem chave salva, campo vazio não tem o que remover */}
-        <Button type="submit" disabled={busy || !mudou || (removendo && !salvo.chave)} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busy ? "Salvando…" : removendo ? "Remover chave" : "Salvar Pix"}</Button>
+        <Button type="submit" disabled={busy || !mudou || (removendo && !salvo.chave)} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busy ? "Salvando…" : removendo && salvo.chave ? "Remover chave" : "Salvar Pix"}</Button>
       </div>
       {confirmarRemocao && (
         <ConfirmDialog
@@ -119,6 +121,16 @@ export function PixNegocio({ cidadeSugerida = "" }: { cidadeSugerida?: string })
       )}
     </form>
   );
+}
+
+/** Sair da página (fechar a aba, recarregar) com alteração não salva: o navegador pergunta. */
+function useAvisoAoSair(ativo: boolean) {
+  useEffect(() => {
+    if (!ativo) return;
+    const segura = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", segura);
+    return () => window.removeEventListener("beforeunload", segura);
+  }, [ativo]);
 }
 
 const PRAZOS = [15, 30, 60, 120, 24 * 60];
@@ -137,15 +149,27 @@ export function SinalNegocio() {
   const atual = { ...sinal, valor: numero };
   const mudou = JSON.stringify(atual) !== salvo;
   const muda = (p: Partial<typeof sinal>) => (setSinal({ ...sinal, ...p }), setAviso(null));
+  useAvisoAoSair(mudou && !!tenant.pix);
 
-  if (!tenant.pix) return null;
+  // sem chave não há QR: em vez de sumir, a parte diz o que falta
+  if (!tenant.pix) {
+    return (
+      <section id="sinal" aria-labelledby="sinal-t" className="grid scroll-mt-20 gap-2 rounded-2xl border border-dashed bg-card p-5 sm:p-7 lg:max-w-[calc(100%-24rem)]">
+        <h2 id="sinal-t" className="text-[15px] font-semibold">Sinal no agendamento online</h2>
+        <p className="text-sm text-muted-foreground">
+          Para pedir um sinal por Pix a quem agenda pelo link, cadastre primeiro a sua chave em{" "}
+          <a href="#pix" className="font-medium text-foreground underline underline-offset-2">Pix para receber</a>.
+        </p>
+      </section>
+    );
+  }
 
   async function salvar() {
     setAviso(null);
     const ok = ConfigSinal.safeParse(atual);
     if (!ok.success) return setAviso({ ok: false, texto: numero ? ok.error.issues[0].message : "Informe o valor do sinal." });
     setBusy(true);
-    const r = await salvarSinalAction(await idToken(), { tenantId: tenant.id, sinal: ok.data }).catch(() => null);
+    const r = await idToken().then((t) => salvarSinalAction(t, { tenantId: tenant.id, sinal: ok.data })).catch(() => null);
     setBusy(false);
     if (!r) return setAviso({ ok: false, texto: "Não foi possível salvar. Verifique a conexão e tente de novo." });
     if (!r.ok) return setAviso({ ok: false, texto: r.error });
@@ -156,8 +180,9 @@ export function SinalNegocio() {
 
   return (
     <form
+      id="sinal"
       noValidate
-      className="grid gap-4 rounded-2xl border bg-card p-5 sm:p-7 lg:max-w-[calc(100%-24rem)]"
+      className="grid scroll-mt-20 gap-4 rounded-2xl border bg-card p-5 sm:p-7 lg:max-w-[calc(100%-24rem)]"
       onSubmit={(e) => {
         e.preventDefault();
         void salvar();
