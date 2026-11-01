@@ -11,7 +11,7 @@ o PR, onde está o porquê.
   opt-in LGPD e webhooks assinados por tenant). Conectar pelo painel (do dono ou
   do /admin) provisiona o tenant e a instância sozinho — não há mais passo manual.
 - **Webhook novo em `/api/webhooks/atendys`**, com assinatura HMAC por negócio;
-  a rota antiga `/api/webhooks/wtsfy` responde 410 (gateway desativado).
+  a rota antiga `/api/webhooks/wtsfy` responde 410 (gateway desativado) (#170).
 - Conexões feitas no protólogo antigo aparecem como desconectadas: reconectar
   provisiona tudo de novo na plataforma nova.
 
