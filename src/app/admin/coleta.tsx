@@ -1,6 +1,12 @@
 "use client";
 
 import { ehVersaoAntiga, esperaDe, RECONECTOU, recarregarUmaVez } from "@/lib/conexao";
+import { idToken as tokenAtual } from "@/lib/firebase";
+
+/** O token na hora de cada chamada: o SDK devolve um válido e renova sozinho se venceu.
+ *  Guardado num estado, ele vencia em 1 h com a aba em segundo plano ou o computador
+ *  dormindo, e a lista passava a dar "Sessão expirada" (e "Nenhum worker no ar"). */
+const tokenFresco = () => tokenAtual();
 
 /** Falha de uma ação: aba de versão anterior recarrega; o resto vira null (a tela diz que falhou). */
 const versaoOuNada = (e: unknown) => {
@@ -99,7 +105,7 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
       t = setTimeout(carregar, ms);
     };
     function carregar() {
-      painelColeta(idToken).then(
+      tokenFresco().then((tk) => painelColeta(tk)).then(
         (r) => {
           if (!atual) return;
           falhas = 0;
@@ -135,7 +141,7 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
   async function ligarOuDesligar() {
     setErro("");
     setLigando(true);
-    const r = await (local?.ligado ? desligarWorker(idToken) : ligarWorker(idToken)).catch(versaoOuNada);
+    const r = await (local?.ligado ? desligarWorker(await tokenFresco()) : ligarWorker(await tokenFresco())).catch(versaoOuNada);
     setLigando(false);
     if (!r) return setErro("A conexão falhou. Tente de novo.");
     if (!r.ok) return setErro(r.error);
@@ -153,7 +159,7 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
     setEscolhidas([]);
     setCidades([]);
     if (!v) return;
-    const r = await municipios(idToken, v).catch(versaoOuNada);
+    const r = await tokenFresco().then((tk) => municipios(tk, v)).catch(versaoOuNada);
     if (r?.ok) setCidades(r.dados);
     else setErro(r?.error ?? "Não consegui carregar as cidades. Escolha o estado de novo para tentar outra vez.");
   }
@@ -165,7 +171,8 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
     const faltam = novas.filter((c) => !(c in jaTemos));
     for (let i = 0; i < faltam.length; i += 5) {
       const lote = faltam.slice(i, i + 5);
-      const rs = await Promise.all(lote.map((c) => jaTemosNaCidade(idToken, c, uf).catch(versaoOuNada)));
+      const tk = await tokenFresco().catch(() => "");
+      const rs = await Promise.all(lote.map((c) => jaTemosNaCidade(tk, c, uf).catch(versaoOuNada)));
       setJaTemos((j) => ({ ...j, ...Object.fromEntries(lote.flatMap((c, k) => (rs[k]?.ok ? [[c, rs[k].dados]] : []))) }));
     }
   }
@@ -192,7 +199,7 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
     setErro("");
     setAviso("");
     setAlerta("");
-    const r = await pedirColeta(idToken, { uf, ...pedido }).catch(versaoOuNada);
+    const r = await tokenFresco().then((tk) => pedirColeta(tk, { uf, ...pedido })).catch(versaoOuNada);
     setEnviando(false);
     if (!r) return setErro("A conexão falhou e o pedido não foi enviado. Confira a internet e tente de novo.");
     if (!r.ok) return setErro(r.error);
@@ -401,14 +408,14 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
         ) : coletas.length === 0 ? (
           <p className="text-[13px] text-[#6F6A5E]">Nenhuma coleta ainda.</p>
         ) : (
-          coletas.map((c) => <Cartao key={c.id} c={c} agora={agora} semWorker={!vivos.length} idToken={idToken} aoMudar={atualizar} aoGerar={aoGerar} />)
+          coletas.map((c) => <Cartao key={c.id} c={c} agora={agora} semWorker={!vivos.length} aoMudar={atualizar} aoGerar={aoGerar} />)
         )}
       </section>
     </div>
   );
 }
 
-function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta; agora: number; semWorker: boolean; idToken: string; aoMudar: () => void; aoGerar: () => void }) {
+function Cartao({ c, agora, semWorker, aoMudar, aoGerar }: { c: Coleta; agora: number; semWorker: boolean; aoMudar: () => void; aoGerar: () => void }) {
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState("");
   const [previa, setPrevia] = useState<LinhaGerada[] | null>(null);
@@ -454,7 +461,7 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
     setErro("");
     let feitos = 0;
     for (;;) {
-      const r = await gerarLoteDaColeta(idToken, c.id).catch(versaoOuNada);
+      const r = await tokenFresco().then((tk) => gerarLoteDaColeta(tk, c.id)).catch(versaoOuNada);
       if (!r || !r.ok) {
         setOcupado(false);
         setGerando(null);
@@ -589,17 +596,17 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
 
       <div className="flex flex-wrap items-center gap-2">
         {(c.estado === "fila" || c.estado === "coletando") && (
-          <button type="button" disabled={ocupado} onClick={() => confirm(`Cancelar a coleta de ${c.cidade}? O que já foi coletado fica guardado se ela for recolocada na fila.`) && acao(() => cancelarColeta(idToken, c.id), aoMudar)} className={`${BOTAO} border border-[#D8D2C6] bg-white hover:border-[#17150F] disabled:opacity-50`}>
+          <button type="button" disabled={ocupado} onClick={() => confirm(`Cancelar a coleta de ${c.cidade}? O que já foi coletado fica guardado se ela for recolocada na fila.`) && acao(async () => cancelarColeta(await tokenFresco(), c.id), aoMudar)} className={`${BOTAO} border border-[#D8D2C6] bg-white hover:border-[#17150F] disabled:opacity-50`}>
             Cancelar
           </button>
         )}
         {(c.estado === "erro" || c.estado === "cancelada" || semSinal) && (
-          <button type="button" disabled={ocupado} onClick={() => acao(() => recolocarColeta(idToken, c.id), aoMudar)} className={`${BOTAO} border border-[#D8D2C6] bg-white hover:border-[#17150F] disabled:opacity-50`}>
+          <button type="button" disabled={ocupado} onClick={() => acao(async () => recolocarColeta(await tokenFresco(), c.id), aoMudar)} className={`${BOTAO} border border-[#D8D2C6] bg-white hover:border-[#17150F] disabled:opacity-50`}>
             Recolocar na fila
           </button>
         )}
         {c.estado === "pronta" && !previa && totalNovos > 0 && (
-          <button type="button" disabled={ocupado} onClick={() => acao(() => previaDaColeta(idToken, c.id), setPrevia)} className={`${BOTAO} bg-[#17150F] text-white disabled:opacity-50`}>
+          <button type="button" disabled={ocupado} onClick={() => acao(async () => previaDaColeta(await tokenFresco(), c.id), setPrevia)} className={`${BOTAO} bg-[#17150F] text-white disabled:opacity-50`}>
             {ocupado ? "Conferindo…" : "Ver prévia dos sites"}
           </button>
         )}
@@ -615,7 +622,7 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
                     : c.estado === "concluida"
                       ? "Os sites gerados continuam no ar; só este registro some."
                       : "O registro e o que foi coletado somem."),
-              ) && acao(() => excluirColeta(idToken, c.id), aoMudar)
+              ) && acao(async () => excluirColeta(await tokenFresco(), c.id), aoMudar)
             }
             className={`${BOTAO} ml-auto text-[#8A3A22] hover:bg-[#FBEFEB] disabled:opacity-50`}
           >
