@@ -9,6 +9,7 @@ import { auth } from "@/lib/firebase";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import {
   abrirPainel,
+  espacosGerados,
   anotarNegocio,
   detalhesEspaco,
   gerarConvite,
@@ -175,12 +176,15 @@ export default function AdminPage() {
   const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca" | "gerador" | "coleta">("lista");
   // Gerador e Coleta são ferramentas, não recortes da lista: sem visões, filtros nem alertas do funil
   const ferramenta = tela === "gerador" || tela === "coleta";
-  // os sites novos (do Gerador ou da Coleta) entram na lista e no funil sem recarregar a página
-  async function recarregarPainel() {
-    const r = await abrirPainel(await tokenAtual());
-    if (!r.ok) return;
-    setEspacos(r.dados.espacos);
-    setCrm(r.dados.crm);
+  // os sites novos (do Gerador ou da Coleta) entram na lista e no funil sem recarregar a página;
+  // só eles vêm do servidor: reler os 14 mil a cada geração pesava na memória da VPS
+  async function juntarGerados(slugs: string[]) {
+    if (!slugs.length) return;
+    const r = await espacosGerados(await tokenAtual(), slugs).catch(() => null);
+    if (!r?.ok) return;
+    const vindos = new Map(r.dados.espacos.map((e) => [e.slug, e]));
+    setEspacos((atual) => [...atual.filter((e) => !vindos.has(e.slug)), ...vindos.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
+    setCrm((c) => ({ ...c, ...r.dados.crm }));
   }
   // qual negócio está sendo marcado como fechado (confirma valores e já faz o pós-venda)
   const [fechando, setFechando] = useState<string | null>(null);
@@ -1181,9 +1185,9 @@ export default function AdminPage() {
         </div>
 
         {tela === "cobranca" ? null : tela === "gerador" ? (
-          <Gerador aoGerar={recarregarPainel} />
+          <Gerador aoGerar={juntarGerados} />
         ) : tela === "coleta" ? (
-          <ColetaMaps idToken={idToken} aoGerar={recarregarPainel} />
+          <ColetaMaps idToken={idToken} aoGerar={juntarGerados} />
         ) : tela === "clientes" ? (
           <Carteira idToken={idToken} hoje={dataDeHoje} espacos={espacos} abrir={abrir} />
         ) : tela === "funil" ? (

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { negocio } from "@/lib/crm";
+import { lerCrm, negocio } from "@/lib/crm";
 import { diaCurto, hojeISO, mensalidadeDe, prazoDe } from "@/lib/crm-tipos";
 
 // Um Timestamp do Firestore é uma classe. Se ele escapar para a tela, o React
@@ -204,3 +204,15 @@ assert.equal(mensalidadeDe({ mensalCents: 8990, caixaCents: 1990 }, false), 8990
 assert.equal(mensalidadeDe({ mensalCents: 8990, caixaCents: null }, true), 8990);
 assert.equal(mensalidadeDe(undefined, true), 0);
 console.log("caixa na mensalidade ok");
+
+// o importado que ninguém tocou não vai para a tela: ela já trata a falta como "novo" e "importado"
+const salvo = (id: string, campos: Record<string, unknown>) => ({ id, exists: true, data: () => campos, get: (c: string) => campos[c] });
+const banco = { collection: () => ({ get: async () => ({ docs: [
+  salvo("so-origem", { origem: "importado" }),
+  salvo("com-notas", { origem: "importado", notas: 2 }),
+  salvo("cadastro", { origem: "cadastro" }),
+  salvo("para-hoje", { origem: "cadastro", proximaData: "2026-11-01" }),
+  salvo("tocado", { origem: "importado", estagio: "conversa" }),
+] }) }) } as unknown as Parameters<typeof lerCrm>[0];
+assert.deepEqual(Object.keys(await lerCrm(banco)), ["cadastro", "para-hoje", "tocado"]);
+console.log("crm trivial fora da tela ok");

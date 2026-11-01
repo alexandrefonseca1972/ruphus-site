@@ -67,7 +67,7 @@ function Alerta({ tom, children, fechar }: { tom: keyof typeof TONS; children: R
 /** Sem acento e minúsculo: "sao cristovao" acha "São Cristóvão". */
 const chave = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
-export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () => void }) {
+export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: (slugs: string[]) => void }) {
   const [coletas, setColetas] = useState<Coleta[] | null>(null);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [local, setLocal] = useState<WorkerLocal | null>(null);
@@ -415,7 +415,7 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
   );
 }
 
-function Cartao({ c, agora, semWorker, aoMudar, aoGerar }: { c: Coleta; agora: number; semWorker: boolean; aoMudar: () => void; aoGerar: () => void }) {
+function Cartao({ c, agora, semWorker, aoMudar, aoGerar }: { c: Coleta; agora: number; semWorker: boolean; aoMudar: () => void; aoGerar: (slugs: string[]) => void }) {
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState("");
   const [previa, setPrevia] = useState<LinhaDaPrevia[] | null>(null);
@@ -488,23 +488,27 @@ function Cartao({ c, agora, semWorker, aoMudar, aoGerar }: { c: Coleta; agora: n
     setOcupado(true);
     setErro("");
     let feitos = 0;
+    const gerados: string[] = [];
     for (;;) {
       const r = await tokenFresco().then((tk) => gerarLoteDaColeta(tk, c.id)).catch(versaoOuNada);
       if (!r || !r.ok) {
         setOcupado(false);
         setGerando(null);
         setErro(`${r ? r.error : "A conexão caiu."} O que já foi gerado fica; clique em continuar para seguir do mesmo ponto.`);
+        aoGerar(gerados); // os lotes que saíram já entram na lista
         aoMudar();
         return;
       }
-      feitos += r.dados.linhas.filter((l) => l.acao !== "pular").length;
+      const lote = r.dados.linhas.filter((l) => l.acao !== "pular");
+      feitos += lote.length;
+      gerados.push(...lote.map((l) => l.slug));
       setGerando({ feitos: r.dados.geradosAte, total: r.dados.total });
       if (r.dados.concluida) break;
     }
     setOcupado(false);
     setGerando(null);
     setFeito(feitos);
-    aoGerar();
+    aoGerar(gerados);
     aoMudar();
   }
 

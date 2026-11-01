@@ -437,7 +437,8 @@ function Cartao({
             {p === "atrasada" ? `desde ${diaCurto(crm.proximaData)}` : p === "hoje" ? "hoje" : diaCurto(crm.proximaData)}
           </span>
         )}
-        {crm?.origem && <span className="rounded-full bg-[#EFEBE2] px-2 py-0.5 text-[11px] text-[#6F6A5E]">{ORIGENS[crm.origem]}</span>}
+        {/* sem CRM é o importado que ninguém tocou: o painel não manda esses documentos */}
+        <span className="rounded-full bg-[#EFEBE2] px-2 py-0.5 text-[11px] text-[#6F6A5E]">{ORIGENS[origemDe(crm)]}</span>
       </span>
     </button>
   );
