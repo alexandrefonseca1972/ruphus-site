@@ -52,3 +52,17 @@ teste-*.mts
 
 # banco local de conferência de leads (cópia do Firestore, com telefones)
 dblocal/
+
+# artefatos de ferramentas locais
+.omc/
+graphify-out/
+
+# planilhas de leads e backups (dados de negócios; ficam só nesta máquina)
+docs/*.xlsx
+docs/backup-*.json
+
+# scripts avulsos de depuração
+scripts-debug-*.ts
+scripts/diagnostico-limites.ts
+scripts/limpar-contador.ts
+scripts/limpar-testes-whatsapp.ts

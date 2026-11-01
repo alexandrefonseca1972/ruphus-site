@@ -10,6 +10,7 @@
  *
  *   npx tsx scripts/consolidar-planilhas.mts            # simula
  *   npx tsx scripts/consolidar-planilhas.mts --aplicar
+ *   npx tsx scripts/consolidar-planilhas.mts --aplicar dblocal/pesquisa/x/*.xlsx   # só estas
  */
 import { readdirSync } from "node:fs";
 import { basename, resolve } from "node:path";
@@ -33,11 +34,13 @@ const gravar = db.prepare(`INSERT OR REPLACE INTO planilhas
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 
 const agora = new Date().toISOString();
-const arquivos = readdirSync(PASTA).filter((n) => n.toLowerCase().endsWith(".xlsx")).sort();
+const pedidos = process.argv.slice(2).filter((a) => !a.startsWith("--")).map((a) => resolve(a));
+const arquivos = pedidos.length ? pedidos : readdirSync(PASTA).filter((n) => n.toLowerCase().endsWith(".xlsx")).sort().map((n) => resolve(PASTA, n));
 let total = 0;
 
-for (const arquivo of arquivos) {
-  const lidas = (await lerAbas(resolve(PASTA, arquivo))).map(({ sheet, data }) => ({ aba: sheet, linhas: data as unknown[][] }));
+for (const caminho of arquivos) {
+  const arquivo = basename(caminho);
+  const lidas = (await lerAbas(caminho)).map(({ sheet, data }) => ({ aba: sheet, linhas: data as unknown[][] }));
   // a linha crua, com o cabeçalho da aba: é o que sobra quando o .xlsx for apagado
   const cru = new Map<string, string>();
   for (const { aba, linhas } of lidas) {
