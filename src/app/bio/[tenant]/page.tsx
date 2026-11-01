@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { type Dominio, urlDoSite } from "@/lib/dominio";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { adminDb } from "@/lib/admin";
@@ -12,6 +13,7 @@ type Servico = { id: string; nome: string; duracao: number; preco: number; tipoP
 type Expediente = { dia: number; inicio: string; fim: string };
 
 type Bio = {
+  site: string;
   nome: string;
   cidade: string | null;
   uf: string | null;
@@ -43,6 +45,8 @@ const carregar = cache(async (slug: string): Promise<Bio | null> => {
   const staff = equipe.docs[0] && Staff.safeParse(equipe.docs[0].data());
   const horas = staff && staff.success ? staff.data.hours : {};
   return {
+    // o endereço do site: o domínio próprio do cliente, quando ativo, senão o subdomínio
+    site: urlDoSite(slug, tenant.get("dominio") as Dominio | undefined),
     nome: String(tenant.get("name")),
     cidade: tenant.get("site.city") ?? null,
     uf: tenant.get("site.uf") ?? null,
@@ -104,7 +108,7 @@ export async function generateMetadata({ params }: PageProps<"/bio/[tenant]">): 
     openGraph: {
       title: bio.nome,
       description: `Agende online, fale no WhatsApp e veja onde fica ${bio.nome}.`,
-      images: [`https://${tenant}.ruphus.site/og.jpg`],
+      images: [`${bio.site}og.jpg`],
       type: "website",
       locale: "pt_BR",
     },
@@ -184,7 +188,7 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
   const livres = await proximosHorarios(tenant, bio);
 
   const local = [bio.cidade, bio.uf].filter(Boolean).join("/");
-  const agendar = `https://${tenant}.ruphus.site/agendar`;
+  const agendar = `${bio.site}agendar`;
   const mapa = bio.endereco
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${bio.nome} ${bio.endereco}`)}`
     : null;
@@ -314,7 +318,7 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
       )}
 
       <a
-        href={`https://${tenant}.ruphus.site/`}
+        href={bio.site}
         className="flex min-h-13 items-center justify-between rounded-[18px] border border-dashed border-[#C8C1B3] px-4 text-sm font-semibold text-[#4A4639]"
       >
         Ver o site completo

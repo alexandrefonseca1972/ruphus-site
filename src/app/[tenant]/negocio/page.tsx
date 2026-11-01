@@ -1,5 +1,6 @@
 "use client";
 
+import { urlDoSite } from "@/lib/dominio";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,7 +111,7 @@ export default function MeuNegocio() {
   if (estado === "carregando") return <p className="text-muted-foreground">Carregando…</p>;
   if (estado === "erro") return <p role="alert" className="text-destructive">Não foi possível carregar os dados do negócio.</p>;
 
-  const site = `https://${slug}.ruphus.site`;
+  const site = urlDoSite(slug, tenant.dominio).replace(/\/$/, "");
   return (
     <div className="grid gap-8">
       <PageTitle title="Meu negócio" sub="Os dados que aparecem no seu site, na bio e no agendamento." />

@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { conectarDominio, desconectarDominio, verificarDominio } from "@/lib/dominio.server";
+import type { Dominio } from "@/lib/dominio";
 import { z } from "zod";
 import { adminDb } from "@/lib/admin";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
@@ -613,6 +615,42 @@ export const listarAtrasadas = adminAction(async () => enviaveis(await atrasadas
 // ─── Gerador de sites ────────────────────────────────────────────────────────
 
 /** A aba "Site" da gaveta: o que o negócio tem hoje. */
+/** O domínio próprio do site (ou null): o que a gaveta mostra antes de qualquer ação. */
+export const dominioDoSite = adminAction(async (_user, slug: string) => {
+  slugValido(slug);
+  return ((await adminDb.doc(`tenants/${slug}`).get()).get("dominio") as Dominio | undefined) ?? null;
+});
+
+// o site, a imagem de compartilhamento e a bio trocam de endereço junto com o domínio
+const renovarEnderecos = (slug: string) => {
+  for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${slug}/${p}`);
+  revalidatePath(`/bio/${slug}`);
+};
+
+/** Liga o domínio do cliente ao site (fica pendente até o DNS apontar) e já diz o que criar no DNS. */
+export const ligarDominio = adminAction(async (_user, slug: string, host: string) => {
+  slugValido(slug);
+  await conectarDominio(adminDb, slug, String(host ?? ""));
+  return verificarDominio(adminDb, slug);
+});
+
+/** Confere o DNS na Vercel; pronto, o domínio vira o endereço oficial do site. */
+export const conferirDominio = adminAction(async (_user, slug: string) => {
+  slugValido(slug);
+  const antes = ((await adminDb.doc(`tenants/${slug}`).get()).get("dominio") as Dominio | undefined)?.status;
+  const r = await verificarDominio(adminDb, slug);
+  if (r.dominio.status !== antes) renovarEnderecos(slug);
+  return r;
+});
+
+/** Solta o domínio: o site volta para {slug}.ruphus.site. */
+export const soltarDominio = adminAction(async (_user, slug: string) => {
+  slugValido(slug);
+  await desconectarDominio(adminDb, slug);
+  renovarEnderecos(slug);
+  return true;
+});
+
 export const siteDoNegocio = adminAction(async (_user, slug: string) => {
   slugValido(slug);
   const { escolha, ...site } = await lerSiteDoNegocio(adminDb, slug);

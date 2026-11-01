@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { normalizar, RUPHUS } from "@/lib/catalogo";
 import { slugify, TenantInput } from "@/lib/tenant-input";
+import { type Dominio, urlDoSite } from "@/lib/dominio";
 
 // ─── Planilha ────────────────────────────────────────────────────────────────
 
@@ -437,6 +438,8 @@ export type DadosSite = {
   /** a entrada foi paga: o site é oficial — sem faixa de proposta e aberto ao Google.
    *  Até lá, de prospecção ou de cadastro, ele é proposta. */
   publicado?: boolean;
+  /** domínio próprio do cliente: ativo, vira o endereço oficial (canonical, og, JSON-LD) */
+  dominio?: Pick<Dominio, "host" | "status"> | null;
 };
 
 export const lugar = (d: Pick<DadosSite, "bairro" | "cidade">) => [d.bairro, d.cidade].filter(Boolean).join(", ");
@@ -458,8 +461,8 @@ export const AVISO =
 /** O que a imagem de compartilhamento (og.jpg) mostra: cada modelo diz a sua. */
 export type Capa = { foto: string; cor: string; fonte: string; linha: string };
 
-export const cabecaComum = (slug: string, titulo: string, descricao: string, publicado = false) => {
-  const url = `https://${slug}.ruphus.site/`;
+export const cabecaComum = (d: Pick<DadosSite, "slug" | "dominio">, titulo: string, descricao: string, publicado = false) => {
+  const url = urlDoSite(d.slug, d.dominio);
   // proposta não entra no Google: só o site pago, que é o oficial
   return `<link rel="canonical" href="${url}">
 <meta name="robots" content="${publicado ? "index, follow" : "noindex, nofollow"}">
@@ -483,8 +486,8 @@ export const jsonLdNegocio = (d: DadosSite, descricao: string, imagem: string) =
     "@context": "https://schema.org",
     "@type": d.tipo,
     name: d.nome,
-    url: `https://${d.slug}.ruphus.site/`,
-    image: `https://${d.slug}.ruphus.site${imagem}`,
+    url: urlDoSite(d.slug, d.dominio),
+    image: `${urlDoSite(d.slug, d.dominio).slice(0, -1)}${imagem}`,
     description: descricao,
     telephone: `+${d.telefone}`,
     ...((d.endereco || d.cidade) && {
