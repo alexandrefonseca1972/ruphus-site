@@ -5,6 +5,7 @@ import { doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, use, useEffect, useState } from "react";
+import { MonitorConexao } from "@/components/monitor-conexao";
 import { auth } from "@/lib/firebase";
 import { db } from "@/lib/firebase-db";
 import { Tenant } from "@/lib/tenants";
@@ -20,7 +21,8 @@ import { cn } from "@/lib/utils";
 // podeGerir: dono ou admin do negócio, ou admin da plataforma. Só esconde botões —
 // quem decide de verdade é o servidor/as regras. adminPlataforma: entrou sem ser da equipe.
 // staffId: o profissional de quem entrou pelo convite da equipe (a agenda abre na dele)
-type TenantCtx = Tenant & { podeGerir: boolean; adminPlataforma: boolean; staffId?: string };
+// atualizar: o que uma tela gravou no servidor (a chave Pix) vale nas outras sem recarregar
+type TenantCtx = Tenant & { podeGerir: boolean; adminPlataforma: boolean; staffId?: string; atualizar?: (parcial: Partial<Tenant>) => void };
 const TenantContext = createContext<TenantCtx | null>(null);
 
 export function useTenant() {
@@ -87,8 +89,9 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   ];
   const isActive = (href: string) => pathname === href || (href !== `/${slug}` && pathname.startsWith(`${href}/`));
   return (
-    <TenantContext value={state}>
+    <TenantContext value={{ ...state, atualizar: (parcial) => setLoaded({ slug, value: { ...state, ...parcial } }) }}>
       <div className={`painel ${serifa.variable} flex min-h-dvh flex-col bg-background`}>
+        <MonitorConexao />
       <header className="sticky top-0 z-10 border-b bg-card pt-[env(safe-area-inset-top)] sm:static">
         <div className="mx-auto flex max-w-6xl items-center gap-x-6 px-4">
           {/* O nome era o unico link que parecia subir um nivel, e levava para "/",

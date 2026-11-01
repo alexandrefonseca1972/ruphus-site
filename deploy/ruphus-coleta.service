@@ -1,0 +1,37 @@
+# Worker da coleta no Google Maps (aba Coleta do /admin): atende a fila do Firestore.
+# Divide a VPS com o site, então tem teto de memória e prioridade baixa: se a memória
+# acabar, cai o worker (e religa, continuando de onde parou), não o site.
+# Instalar: cp deploy/ruphus-coleta.service /etc/systemd/system/ && systemctl enable --now ruphus-coleta
+# Precisa do agent-browser (npm i -g agent-browser && agent-browser install --with-deps; e
+# `sudo -u ruphus -H agent-browser install`) e do perfil AppArmor /etc/apparmor.d/ab-chrome.
+[Unit]
+Description=ruphus-site - worker da coleta no Maps
+After=network-online.target ruphus-site.service
+Wants=network-online.target
+
+[Service]
+User=ruphus
+Group=ruphus
+WorkingDirectory=/opt/ruphus-site/app
+ExecStart=/usr/local/bin/npm run coletar -- --fila
+Environment=HOME=/opt/ruphus-site
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=COLETA_WORKER=vps
+# fora de app/: o deploy troca essa pasta inteira
+Environment=COLETA_PASTA=/opt/ruphus-site/coleta
+Environment=TZ=America/Sao_Paulo
+# o worker trata SIGINT como o Ctrl+C: fecha o navegador e avisa o admin que saiu
+KillSignal=SIGINT
+TimeoutStopSec=20
+Restart=always
+RestartSec=30
+MemoryMax=1500M
+Nice=10
+CPUWeight=20
+IOWeight=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

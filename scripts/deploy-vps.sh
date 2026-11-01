@@ -9,6 +9,12 @@ VPS=${VPS:-root@179.197.81.188}
 BASE=/opt/ruphus-site
 SHA=$(git rev-parse HEAD)
 
+# Um deploy por vez: dois ao mesmo tempo apagam o app-new um do outro (e o segundo
+# troca a pasta no meio do build do primeiro). A trava é um diretório (mkdir é atômico);
+# deploy que morreu no meio deixa a trava: apague /opt/ruphus-site/.deploy.trava à mão.
+ssh "$VPS" "mkdir $BASE/.deploy.trava 2>/dev/null" || { echo "outro deploy em andamento na VPS (ou trava velha em $BASE/.deploy.trava)" >&2; exit 1; }
+trap 'ssh "$VPS" "rmdir $BASE/.deploy.trava" 2>/dev/null' EXIT
+
 echo "enviando $(git rev-parse --short HEAD)…"
 git archive --format=tar HEAD | ssh "$VPS" "rm -rf $BASE/app-new && mkdir $BASE/app-new && tar -x -C $BASE/app-new"
 
@@ -20,6 +26,8 @@ chown -R ruphus:ruphus app-new
 sudo -u ruphus env SHA="$SHA" bash -c 'cd app-new && npm ci --no-audit --no-fund --loglevel=error && GIT_COMMIT_SHA="$SHA" NEXT_TELEMETRY_DISABLED=1 npm run build'
 rm -rf app-prev && mv app app-prev && mv app-new app
 systemctl restart ruphus-site
+# o worker roda o código da app: reinicia junto (a coleta em curso continua de onde parou)
+if systemctl is-enabled --quiet ruphus-coleta 2>/dev/null; then systemctl restart ruphus-coleta; fi
 for i in $(seq 20); do
   curl -fsS -o /dev/null -H "Host: www.ruphus.site" http://localhost:3001/ && { echo "no ar: $(cut -c1-7 <<<"$SHA")"; exit 0; }
   sleep 2

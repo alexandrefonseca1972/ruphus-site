@@ -3,7 +3,34 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.14.0 — WhatsApp na plataforma atendys
+
+### Contrato
+- **Termos de Contratação** publicados em `/termos`, e cada versão em endereço
+  fixo (`/termos/1.0`) que não muda depois de publicado. Quem cadastra um negócio
+  e quem abre o convite de dono vê o resumo das cláusulas essenciais e marca "Li e
+  aceito" antes de seguir; o servidor recusa sem o aceite e grava em `aceites/` a
+  versão, a data, o e-mail, o IP e o navegador. Logo depois sai um e-mail de
+  confirmação com o link da versão aceita. O convite da equipe não pede aceite.
+- A proposta (página e e-mail) aponta para os Termos, e "Manutenção incluída"
+  passa a dizer que vale nos limites deles.
+- Sede da Ruphus agora em Ananindeua/PA (também na página de privacidade).
+
+### Infraestrutura
+- **O WhatsApp do negócio mudou de gateway**: em vez do protótipo próprio, cada
+  negócio é um tenant na plataforma **atendys** (instância por cliente, filas,
+  opt-in LGPD e webhooks assinados por tenant). Conectar pelo painel (do dono ou
+  do /admin) provisiona o tenant e a instância sozinho — não há mais passo manual.
+- **Webhook novo em `/api/webhooks/atendys`**, com assinatura HMAC por negócio;
+  a rota antiga `/api/webhooks/wtsfy` responde 410 (gateway desativado) (#170).
+- Conexões feitas no protólogo antigo aparecem como desconectadas: reconectar
+  provisiona tudo de novo na plataforma nova.
+
 ## 0.13.0 — 31/10/2026
+
+### Pix do salão (novo)
+- **Chave Pix do salão** em Meu negócio, e **QR com o valor no Caixa** na hora de receber: o cliente paga no balcão ou recebe o código pelo WhatsApp. O dinheiro cai direto na conta do salão (#160).
+- **Sinal no agendamento online** (#160): o salão escolhe % ou valor fixo e o prazo. Quem agenda vê o QR do sinal; o horário fica segurado, o salão toca "Sinal recebido" (confirma o horário e lança no Caixa), e sem pagamento no prazo o horário é liberado sozinho. Ao receber o atendimento, o Caixa já desconta o sinal.
 
 ### Infraestrutura
 - **O Ruphus saiu da Vercel para a VPS própria**, atrás da Cloudflare: o app roda com systemd e Caddy, e os crons (lembretes, demo) ficam no crontab do servidor. A publicação passa a ser `./scripts/deploy-vps.sh` (#158).

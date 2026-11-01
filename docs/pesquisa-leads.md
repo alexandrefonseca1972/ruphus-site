@@ -125,6 +125,10 @@ Nada de planilha. O worker roda numa máquina com o projeto, o `.env.local` e o 
 Com o admin rodando nessa mesma máquina (`npm run dev` no Mac, ou numa VPS), o botão **Ligar
 worker** da aba Coleta faz isso sozinho (log em `dblocal/pesquisa/worker.log`) e **Desligar
 worker** para como o Ctrl+C. No site publicado (Vercel) o botão não aparece: lá não há navegador.
+**Na VPS** o worker é o serviço `ruphus-coleta` (`deploy/ruphus-coleta.service`), sempre ligado,
+com nome `vps`, estado em `/opt/ruphus-site/coleta`, teto de 1,5 GB e prioridade baixa; o deploy
+o reinicia junto com o site. Lá não há botão de ligar: `systemctl status|restart ruphus-coleta`
+e `journalctl -u ruphus-coleta -f`. O worker do Mac pode rodar ao mesmo tempo (nomes diferentes).
 **Excluir** apaga um pedido cancelado, com erro, pronto ou concluído e os leads dele; sites já
 gerados continuam no ar.
 

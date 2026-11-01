@@ -55,3 +55,63 @@ assert.equal(vencimentoDe("2026-10"), "2026-10-10");
 assert.equal(vencimentoDe("2027-01"), "2027-01-10");
 
 console.log("pix ok");
+
+// Chave do salão: cada tipo vira o formato que o banco aceita
+import { normalizarChave, recebedorDe, tipoDaChave, txidLivre } from "@/lib/pix";
+assert.equal(normalizarChave("529.982.247-25"), "52998224725", "CPF válido");
+assert.equal(normalizarChave("(11) 99888-7777"), "+5511998887777", "11 dígitos sem CPF válido é celular");
+assert.equal(normalizarChave("+55 96 99123-4567"), "+5596991234567");
+assert.equal(normalizarChave("12.345.678/0001-95"), "12345678000195", "CNPJ");
+assert.equal(normalizarChave(" Salao@Exemplo.com "), "salao@exemplo.com");
+assert.equal(normalizarChave("123E4567-E89B-12D3-A456-426614174000"), "123e4567-e89b-12d3-a456-426614174000");
+assert.equal(normalizarChave("abc"), null);
+assert.equal(normalizarChave("12345"), null);
+assert.equal(normalizarChave("+1 202 555 0100"), null, "só Brasil");
+assert.equal(normalizarChave("52998224725"), "52998224725", "dígitos soltos com CPF válido: CPF");
+assert.equal(normalizarChave("(52) 99822-4725"), "+5552998224725", "com parênteses é celular, mesmo formando CPF válido");
+assert.equal(typeof recebedorDe({ chave: "52998224725", nome: "李明", cidade: "Belém" }), "string", "nome que o banco não lê");
+assert.deepEqual([tipoDaChave("52998224725"), tipoDaChave("+5511998887777"), tipoDaChave("a@b.co"), tipoDaChave("12345678000195")], ["CPF", "celular", "e-mail", "CNPJ"]);
+assert.equal(typeof recebedorDe({ chave: "x", nome: "Ana", cidade: "Belém" }), "string");
+assert.deepEqual(recebedorDe({ chave: "52998224725", nome: " Ana ", cidade: "Belém" }), { chave: "52998224725", nome: "Ana", cidade: "Belém" });
+const tx = txidLivre("salao-da-ana");
+assert.match(tx, /^[A-Z0-9]{1,25}$/);
+console.log("chave do salão ok");
+
+// Validação do BR Code: entrada fora do formato não vira QR que o banco recusa
+import { brCode as montar, legivel, PixInvalido } from "@/lib/pix";
+const ok = { chave: "52998224725", nome: "Ana", cidade: "Belem", valorCents: 1000, txid: "ABC123" };
+assert.doesNotThrow(() => montar(ok));
+for (const [campo, valor] of [
+  ["valorCents", 0], ["valorCents", -1], ["valorCents", 10.5], ["valorCents", Number.NaN], ["valorCents", 1e13],
+  ["txid", ""], ["txid", "COM ESPAÇO"], ["txid", "A".repeat(26)], ["txid", "acentuação"],
+  ["chave", ""], ["chave", "   "], ["chave", "x".repeat(78)],
+  ["nome", "李明"], ["cidade", "!!!"],
+] as const) {
+  assert.throws(() => montar({ ...ok, [campo]: valor }), PixInvalido, `${campo}=${String(valor)}`);
+}
+assert.ok(montar({ ...ok, valorCents: 999_999_999_999 }).includes("5413" + "9999999999.99"), "valor máximo cabe no campo 54");
+
+// CNPJ com dígito verificador, zero do DDD, chave aleatória
+assert.equal(normalizarChave("11.222.333/0001-81"), "11222333000181");
+assert.equal(normalizarChave("11.222.333/0001-82"), null, "CNPJ com dígito errado");
+assert.equal(normalizarChave("00000000000000"), null);
+assert.equal(normalizarChave("111.111.111-11"), null, "CPF repetido não é CPF, e 11 1111-1111 não é celular");
+assert.equal(normalizarChave("(11) 3333-4444"), null, "fixo não é chave Pix");
+assert.equal(normalizarChave("(11) 2888-7777 0"), null);
+assert.ok(legivel("Ana", 25) && !legivel("李明", 25) && !legivel("--", 25) && !legivel("A", 25));
+assert.equal(normalizarChave("0 (11) 98888-7777"), "+5511988887777", "zero na frente do DDD");
+assert.equal(normalizarChave("+55 (11) 98888-7777"), "+5511988887777");
+assert.equal(normalizarChave("1234"), null);
+assert.equal(normalizarChave("a@b"), null, "e-mail sem domínio");
+assert.equal(normalizarChave(`${"a".repeat(70)}@exemplo.com`), null, "e-mail acima de 77");
+assert.equal(normalizarChave("<script>@x.com"), "<script>@x.com".toLowerCase(), "e-mail é texto: o QR leva como está, a tela escapa");
+assert.equal(tipoDaChave("123e4567-e89b-12d3-a456-426614174000"), "chave aleatória");
+
+// Sanitização: controle e espaços somem antes de virar QR
+const limpo = recebedorDe({ chave: "52998224725", nome: "  Ana\u0000\n  Souza ", cidade: "Belém\t" });
+assert.deepEqual(limpo, { chave: "52998224725", nome: "Ana Souza", cidade: "Belém" });
+assert.equal(typeof recebedorDe({ chave: "52998224725", nome: "A", cidade: "Belém" }), "string", "nome curto");
+assert.equal(typeof recebedorDe({ chave: "52998224725", nome: "Ana", cidade: " " }), "string", "cidade vazia");
+// o nome guardado pode ser longo; o QR corta em 25
+assert.ok(montar({ ...ok, nome: "N".repeat(60) }).includes("5925" + "N".repeat(25)));
+console.log("validação do pix ok");

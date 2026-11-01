@@ -22,6 +22,10 @@ const nextConfig: NextConfig = {
   // deixava o CSS do Tailwind velho: classes de componentes novos não entravam e o modal
   // do Caixa abria sem posição no computador. Build frio custa ~1 min a mais.
   experimental: { turbopackFileSystemCacheForBuild: false },
+  // Na VPS, o commit do deploy identifica a versão: uma aba aberta antes da publicação
+  // recarrega sozinha na próxima navegação, em vez de chamar ações que não existem mais.
+  // (A chave fixa NEXT_SERVER_ACTIONS_ENCRYPTION_KEY no .env da VPS mantém os ids das ações.)
+  ...(process.env.GIT_COMMIT_SHA && { deploymentId: process.env.GIT_COMMIT_SHA.slice(0, 12) }),
   env: {
     NEXT_PUBLIC_VERSAO: version,
     NEXT_PUBLIC_COMMIT: (process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GIT_COMMIT_SHA)?.slice(0, 7) ?? "local",

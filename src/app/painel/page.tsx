@@ -15,6 +15,8 @@ import { auth, idToken } from "@/lib/firebase";
 import { loginComMotivo } from "@/lib/sessao";
 import { mascaraSlug, myTenants, slugify, TenantInput, type Role } from "@/lib/tenants";
 import { cn } from "@/lib/utils";
+import { AceiteContrato } from "@/components/aceite-contrato";
+import { CONTRATO_RECUSADO } from "@/lib/contrato";
 import { criarNegocioAction, minhaCota, slugLivre } from "./actions";
 import { lerUtm, pixel } from "@/lib/anuncios";
 import { CamposNegocio, errosDe, VAZIO } from "@/components/campos-negocio";
@@ -240,6 +242,7 @@ function NegocioForm({
   const [campos, setCampos] = useState(VAZIO);
   // os campos do negócio só mostram erro depois da primeira tentativa de criar
   const [tentou, setTentou] = useState(false);
+  const [aceito, setAceito] = useState(false);
   const errosCampos = errosDe(campos);
   const [disp, setDisp] = useState<{ para: string; estado: Disponibilidade }>({ para: "", estado: "" });
   const [erro, setErro] = useState("");
@@ -273,11 +276,12 @@ function NegocioForm({
     setTentou(true);
     setSlug(final);
     if (erroNome || erroSlug || estado !== "livre" || Object.keys(errosCampos).length) return;
+    if (!aceito) return setErro(CONTRATO_RECUSADO);
     setErro("");
     setBusy(true);
     // No servidor: é lá que o limite de negócios por conta é conferido
     // o anúncio que trouxe a pessoa vai junto: é o que o funil do /admin agrupa por campanha
-    const r = await criarNegocioAction(await idToken(), { name, slug: final, ...campos }, lerUtm()).catch(() => ({
+    const r = await criarNegocioAction(await idToken(), { name, slug: final, ...campos }, lerUtm(), aceito).catch(() => ({
       ok: false as const,
       error: "Não foi possível criar agora. Verifique a conexão e tente de novo.",
     }));
@@ -376,6 +380,8 @@ function NegocioForm({
         </div>
 
         <CamposNegocio valores={campos} onChange={setCampos} erros={errosCampos} mostrarTodos={tentou} />
+
+        <AceiteContrato aceito={aceito} onChange={setAceito} erro={tentou && !aceito} />
 
         {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

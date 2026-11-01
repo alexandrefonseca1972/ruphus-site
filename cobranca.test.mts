@@ -9,6 +9,7 @@ const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
 // Sem chave cadastrada a cobrança existe, mas não tem Pix para mostrar
 await assert.rejects(lerPix(db), /não cadastrada/);
 await assert.rejects(salvarPix(db, { chave: "", nome: "Ruphus", cidade: "São Paulo", whatsapp: "11999990000" }));
+await assert.rejects(salvarPix(db, { chave: "pix@ruphus.site", nome: "!!!", cidade: "São Paulo", whatsapp: "11999990000" }), /Pix da Ruphus inválido/, "nome que o banco não lê é recusado ao salvar");
 await salvarPix(db, { chave: "pix@ruphus.site", nome: "Ruphus Tecnologia", cidade: "São Paulo", whatsapp: "(11) 99999-0000" });
 assert.equal((await lerPix(db)).chave, "pix@ruphus.site");
 

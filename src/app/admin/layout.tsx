@@ -1,4 +1,5 @@
 import { Instrument_Serif, JetBrains_Mono } from "next/font/google";
+import { MonitorConexao } from "@/components/monitor-conexao";
 
 // O painel tem tipografia própria: serifa nos títulos e números, mono na interface
 const serifa = Instrument_Serif({ weight: "400", subsets: ["latin"], variable: "--fonte-serifa" });
@@ -8,6 +9,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div id="admin-raiz" className={`${serifa.variable} ${mono.variable} min-h-dvh bg-[#F4F2EE] font-[family-name:var(--fonte-mono)] text-[#17150F]`}>
       {children}
+      <MonitorConexao />
     </div>
   );
 }

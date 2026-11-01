@@ -5,6 +5,7 @@ import { conectarDominio, desconectarDominio, verificarDominio } from "@/lib/dom
 import type { Dominio } from "@/lib/dominio";
 import { z } from "zod";
 import { adminDb } from "@/lib/admin";
+import { nichoDe, type Espaco } from "@/lib/painel-tipos";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNegocio as salvarSite } from "@/lib/negocios.server";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX, limiteStaffDe, MINUTOS_MAX } from "@/lib/limites";
@@ -31,8 +32,8 @@ import { competenciaAtual } from "@/lib/pix";
 import { gerarNoBanco, lerSite, publicarSite } from "@/lib/gerador.server";
 import { PAGINAS_DEMO } from "@/lib/demo";
 import { acessoDemo, contas, restaurarDemo } from "@/lib/demo.server";
-import { createInstance, getQr, getStatus, logout, type QrWhatsApp } from "@/lib/wtsfy";
-import { apagarConexao, gravarConexao, gravarGestaoDono, gravarOwnerPhone, lerConexao, type ConexaoWhatsapp } from "@/lib/whatsapp.server";
+import { deslogarInstancia, qrDaConexao, statusDaConexao, type SituacaoQr as QrWhatsApp } from "@/lib/atendys";
+import { apagarConexao, conectarNegocio, gravarGestaoDono, gravarOwnerPhone, lerConexao, type ConexaoWhatsapp, gravarConexao } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { MODELOS, modeloDoId, renderEditorial, visualEditorial } from "@/lib/site-editorial";
 import { ehClaro, renderClaro } from "@/lib/site-claro";
@@ -41,48 +42,8 @@ import { FieldValue } from "firebase-admin/firestore";
 
 export type { ConexaoWhatsapp, QrWhatsApp };
 
-export type Espaco = {
-  slug: string;
-  nome: string;
-  telefone: string | null;
-  nicho: string;          // rótulo em português, já agrupado
-  cidade: string | null;
-  uf: string | null;
-  nota: number | null;    // estrelas no Google
-  avaliacoes: number | null;
-  acessos: number;        // quantas pessoas entram no painel deste espaço
-  limiteStaff: number;    // profissionais que o negócio pode cadastrar
-  caixa: boolean;         // módulo Caixa (financeiro) ligado para este cliente
-};
+export type { Espaco };
 
-// os tipos do schema.org viram nichos que a gente reconhece (e junta variações)
-const NICHOS: Record<string, string> = {
-  petstore: "Pet shop",
-  veterinarycare: "Veterinária",
-  beautysalon: "Estética e beleza",
-  healthandbeautybusiness: "Estética e beleza",
-  hairsalon: "Cabeleireiro",
-  barbershop: "Barbearia",
-  nailsalon: "Unhas",
-  dayspa: "Spa e massagem",
-  tattooparlor: "Tatuagem",
-  medicalclinic: "Saúde",
-  dentist: "Odontologia",
-  physician: "Saúde",
-  healthclub: "Fitness",
-  podiatric: "Podologia",
-  // os do gerador de sites
-  physiotherapy: "Fisioterapia",
-  medicalbusiness: "Saúde",
-  educationalorganization: "Aulas e cursos",
-  drivingschool: "Autoescola",
-  exercisegym: "Fitness",
-  sportsactivitylocation: "Fitness",
-  autorepair: "Automotivo",
-  autowash: "Automotivo",
-  tireshop: "Automotivo",
-};
-const nicho = (tipo: unknown) => NICHOS[String(tipo ?? "").toLowerCase()] ?? "Outros";
 
 /** Se quem entrou administra a plataforma.
  *
@@ -96,35 +57,58 @@ export const ehAdminDaPlataforma = adminAction(async () => true);
 // cor e url: 271 KB para 677 negócios, quando o painel usa dez campos curtos.
 const CAMPOS_DA_LISTA = ["name", "site.phone", "site.category", "site.city", "site.uf", "site.rating", "site.reviews", "limiteStaff", "modulos.financeiro"] as const;
 
-/** Lista os espaços com quantas pessoas têm acesso a cada um. */
-async function espacosComAcessos() {
-  const [tenants, membros] = await Promise.all([
-    adminDb.collection("tenants").select(...CAMPOS_DA_LISTA).get(),
-    adminDb.collectionGroup("members").select("role").get(),
-  ]);
-  // conta só quem gere (Ruphus e cliente): a equipe do cliente não diz que ele entrou
+/** Quantas pessoas gerem cada espaço (Ruphus e cliente: a equipe do cliente não diz que ele
+ *  entrou). A conta da Ruphus está em quase todos os 14 mil negócios: lê só os membros de fora
+ *  da plataforma (uns poucos) e, nos espaços deles, se a Ruphus também está. Nos demais quem
+ *  gere é só a Ruphus: 1 (ou 0, sem membro nenhum), o que dá no mesmo para a tela, que só
+ *  pergunta se passa de 1. */
+async function acessosPorEspaco() {
+  const admins = ((await adminDb.doc("config/admin").get()).get("uids") as string[] | undefined) ?? [];
+  // ponytail: o not-in aceita até 10 valores; com mais contas da plataforma, volta a ler todos os membros
+  const filtrado = admins.length > 0 && admins.length <= 10;
+  const membros = await (filtrado ? adminDb.collectionGroup("members").where("uid", "not-in", admins) : adminDb.collectionGroup("members")).select("role").get();
   const porEspaco = new Map<string, number>();
-  for (const m of membros.docs) {
-    if (m.get("role") === "member") continue;
+  const somar = (m: FirebaseFirestore.DocumentSnapshot) => {
+    if (!m.exists || m.get("role") === "member") return;
     const espaco = m.ref.parent.parent;
     if (espaco?.parent.id === "tenants") porEspaco.set(espaco.id, (porEspaco.get(espaco.id) ?? 0) + 1);
+  };
+  membros.docs.forEach(somar);
+  if (!filtrado) return (slug: string) => porEspaco.get(slug) ?? 0;
+  const comCliente = [...porEspaco.keys()];
+  if (comCliente.length) {
+    const daRuphus = comCliente.flatMap((s) => admins.map((uid) => adminDb.doc(`tenants/${s}/members/${uid}`)));
+    (await adminDb.getAll(...daRuphus, { fieldMask: ["role"] })).forEach(somar);
   }
-  return tenants.docs
+  return (slug: string) => porEspaco.get(slug) ?? 1;
+}
+
+/** Lista os espaços com quantas pessoas têm acesso a cada um; com slugs, só esses. */
+async function espacosComAcessos(slugs?: string[]) {
+  const [tenants, acessos] = await Promise.all([
+    slugs
+      ? Promise.all(lotesDe(slugs, 500).map((l) => adminDb.getAll(...l.map((s) => adminDb.collection("tenants").doc(s)), { fieldMask: [...CAMPOS_DA_LISTA] }))).then((x) => x.flat())
+      : adminDb.collection("tenants").select(...CAMPOS_DA_LISTA).get().then((q) => q.docs),
+    acessosPorEspaco(),
+  ]);
+  return tenants
+    .filter((d) => d.exists)
     .map((d): Espaco => ({
       slug: d.id,
       nome: String(d.get("name") ?? d.id),
       telefone: d.get("site.phone") ?? null,
-      nicho: nicho(d.get("site.category")),
+      nicho: nichoDe(d.get("site.category")),
       cidade: d.get("site.city") ?? null,
       uf: d.get("site.uf") ?? null,
       nota: d.get("site.rating") ?? null,
       avaliacoes: d.get("site.reviews") ?? null,
-      acessos: porEspaco.get(d.id) ?? 0,
+      acessos: acessos(d.id),
       limiteStaff: limiteStaffDe(d.get("limiteStaff") as number | undefined),
       caixa: d.get("modulos.financeiro") === true,
     }))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
+const lotesDe = <T,>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
 
 // O slug vem da tela e vira caminho de documento: sem conferir, um "a/b/c"
 // escreveria fora do lugar previsto.
@@ -363,6 +347,14 @@ export const abrirPainel = adminAction(async (): Promise<Painel> => {
   };
 });
 
+/** Só os negócios que o Gerador ou a Coleta acabaram de criar ou atualizar: a tela junta à
+ *  lista que já tem, em vez de reler os 14 mil. */
+export const espacosGerados = adminAction(async (_user, slugs: string[]) => {
+  const lista = z.array(z.string().regex(SLUG)).max(5000).parse(slugs);
+  const [espacos, crm] = await Promise.all([espacosComAcessos(lista), lerCrm(adminDb, lista)]);
+  return { espacos, crm };
+});
+
 export type Detalhe = {
   servicos: number;
   profissionais: number;
@@ -573,7 +565,7 @@ async function comCaixa() {
 /** Uma cobrança avulsa: entrada ou mensalidade de uma competência. */
 export const cobrar = adminAction(async (_user, slug: string, tipo: "entrada" | "mensal", competencia: string | null) => {
   if (!SLUG.test(slug)) throw new Error("negócio inválido");
-  const [negocios, caixa] = await Promise.all([lerCrm(adminDb), comCaixa()]);
+  const [negocios, caixa] = await Promise.all([lerCrm(adminDb, [slug]), comCaixa()]);
   const valorCents = tipo === "entrada" ? negocios[slug]?.entradaCents : mensalidadeDe(negocios[slug], caixa.has(slug));
   if (!valorCents) throw new Error("cadastre o valor no bloco Negócio antes de cobrar");
   const mes = tipo === "entrada" ? null : (competencia ?? competenciaAtual());
@@ -661,6 +653,26 @@ export const siteDoNegocio = adminAction(async (_user, slug: string) => {
   const casa = e?.modelo ? modelos.find((m) => m.id === e.modelo)?.id : modelos.find((m) => m.escolha.kit === e?.kit && m.escolha.cor === e?.cor)?.id;
   const modeloAtual = casa ?? (e ? "personalizado" : null);
   return { ...site, modelos: modelos.map(({ id, rotulo }) => ({ id, rotulo })), modeloAtual };
+});
+
+/** Aba "Ficha" da gaveta: tudo o que se sabe do negócio, para o vendedor avaliar antes do contato. */
+export const fichaDoNegocio = adminAction(async (_user, slug: string) => {
+  slugValido(slug);
+  const t = adminDb.doc(`tenants/${slug}`);
+  const [{ escolha: _e, ...site }, doc, servicos] = await Promise.all([lerSiteDoNegocio(adminDb, slug), t.get(), t.collection("services").get()]);
+  const s = (campo: string) => String(doc.get(campo) ?? "");
+  return {
+    ...site,
+    slug,
+    url: s("site.url"),
+    maps: s("site.maps"),
+    categoria: s("gerado.categoria"),
+    criadoEm: (doc.get("createdAt") as FirebaseFirestore.Timestamp | undefined)?.toDate().toISOString() ?? null,
+    atualizadoEm: (doc.get("gerado.atualizadoEm") as FirebaseFirestore.Timestamp | undefined)?.toDate().toISOString() ?? null,
+    servicos: servicos.docs
+      .sort((a, b) => Number(a.get("ordem") ?? 99) - Number(b.get("ordem") ?? 99))
+      .map((d) => ({ nome: String(d.get("name") ?? ""), precoCents: Number(d.get("priceCents") ?? 0), minutos: Number(d.get("durationMin") ?? 0) })),
+  };
 });
 
 /** Pré-visualização do modelo com os dados reais do negócio, sem gravar nada. O HTML
@@ -757,10 +769,7 @@ export const whatsappDoNegocio = adminAction(async (_user, slug: string): Promis
 export const conectarWhatsApp = adminAction(async (_user, slug: string): Promise<ConexaoWhatsapp> => {
   slugValido(slug);
   if (await lerConexao(adminDb, slug)) throw new ErroPrevisto("Este negócio já tem um WhatsApp conectado. Desconecte antes de trocar de número.");
-  const { id } = await createInstance(`ruphus-${slug}`);
-  const conexao: ConexaoWhatsapp = { instanceId: id, phone: null, status: "created", updatedAt: Date.now(), ownerManaged: false };
-  await gravarConexao(adminDb, slug, conexao);
-  return conexao;
+  return conectarNegocio(adminDb, slug, slug, false);
 });
 
 /** Delegar (ou retomar) a gestão do WhatsApp ao painel do dono. Só a plataforma decide. */
@@ -776,7 +785,7 @@ export const refreshWhatsAppStatus = adminAction(async (_user, slug: string): Pr
   slugValido(slug);
   const salva = await lerConexao(adminDb, slug);
   if (!salva) return null;
-  const vivo = await getStatus(salva.instanceId);
+  const vivo = await statusDaConexao(salva);
   const conexao: ConexaoWhatsapp = { ...salva, phone: vivo.phone ?? salva.phone, status: vivo.status, updatedAt: Date.now() };
   await gravarConexao(adminDb, slug, conexao);
   return conexao;
@@ -787,14 +796,14 @@ export const qrWhatsApp = adminAction(async (_user, slug: string): Promise<QrWha
   slugValido(slug);
   const salva = await lerConexao(adminDb, slug);
   if (!salva) throw new ErroPrevisto("Conecte o WhatsApp antes de pedir o QR.");
-  return getQr(salva.instanceId);
+  return qrDaConexao(salva);
 });
 
 /** Despareia o número do gateway e solta o vínculo com o negócio. */
 export const desconectarWhatsApp = adminAction(async (_user, slug: string) => {
   slugValido(slug);
   const salva = await lerConexao(adminDb, slug);
-  if (salva) await logout(salva.instanceId).catch(() => {});
+  if (salva) await deslogarInstancia(salva.instanceId).catch(() => {});
   await apagarConexao(adminDb, slug);
   return "desconectado";
 });

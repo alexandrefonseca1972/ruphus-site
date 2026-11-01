@@ -2,6 +2,8 @@
 
 import { adminDb } from "@/lib/admin";
 import { UserError } from "@/lib/booking.server";
+import { CONTRATO_RECUSADO } from "@/lib/contrato";
+import { confirmarAceite, dadosDoAceite } from "@/lib/contrato.server";
 import { cotaDe, criarNegocio } from "@/lib/negocios.server";
 import { TenantInput } from "@/lib/tenant-input";
 import { verifyFirebaseToken } from "@/lib/verify-token";
@@ -31,9 +33,13 @@ export async function minhaCota(idToken: string) {
 }
 
 /** Cria o negócio no servidor: é aqui que o limite por conta vale (as regras não contam negócios). */
-export async function criarNegocioAction(idToken: string, input: unknown, utm?: unknown) {
+export async function criarNegocioAction(idToken: string, input: unknown, utm: unknown, aceitouContrato: boolean) {
   try {
-    return { ok: true as const, slug: await criarNegocio(adminDb, await quem(idToken), input, utm) };
+    if (aceitouContrato !== true) throw new UserError(CONTRATO_RECUSADO);
+    const user = await quem(idToken);
+    const slug = await criarNegocio(adminDb, user, input, utm, await dadosDoAceite(user, "cadastro"));
+    confirmarAceite(user, slug);
+    return { ok: true as const, slug };
   } catch (err) {
     if (err instanceof UserError) return { ok: false as const, error: err.message };
     console.error("[painel] falha ao criar negócio", err);

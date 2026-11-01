@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { adminDb } from "@/lib/admin";
 import { diaCurto } from "@/lib/crm-tipos";
 import { formatBRL, formatPhone, linkWhatsApp } from "@/lib/datetime";
+import { CONTRATO_URL } from "@/lib/contrato";
 import { abrirProposta } from "@/lib/proposta.server";
 import { Imprimir } from "./imprimir";
 
@@ -20,7 +21,7 @@ const INCLUI = [
   ["Serviços com preço e duração", "O encaixe é calculado na hora: serviço de uma hora reserva uma hora."],
   ["Ficha de cada cliente", "Histórico, etiquetas e anotações — alergias, preferências, o que foi combinado."],
   ["Seu endereço na internet", "Site com seus serviços e o link de agendamento pronto para a bio do Instagram."],
-  ["Manutenção incluída", "Mudou horário, preço ou telefone? A gente atualiza. A mensalidade cobre isso."],
+  ["Manutenção incluída", "Mudou horário, preço ou telefone? A gente atualiza. A mensalidade cobre isso, dentro dos limites dos Termos de Contratação."],
 ] as const;
 
 const COMECA = [
@@ -99,6 +100,8 @@ export default async function Proposta({
           </div>
           <p className="text-[14px] leading-relaxed text-[#4A4639]">
             Sem instalar programa, sem taxa por agendamento e sem fidelidade. Se um dia não servir mais, é só avisar.
+            Condições completas nos{" "}
+            <a href={CONTRATO_URL} target="_blank" rel="noopener" className="underline underline-offset-2">Termos de Contratação</a>.
           </p>
         </section>
 

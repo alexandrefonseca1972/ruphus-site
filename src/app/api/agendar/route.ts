@@ -6,7 +6,7 @@ import { MAX_DAYS_AHEAD, dentroDaJanela } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 import { codigoDoAgendamento, lerConexao, registrarErroNotificacao } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
-import { getStatus, sendText } from "@/lib/wtsfy";
+import { enviarTexto, statusDaConexao } from "@/lib/atendys";
 
 // A reserva da página pública. Rota, não server action: o Next manda um server action
 // por vez, e com a rede travada a nova tentativa (e a agenda) ficava na fila atrás da
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
         // documento — ele pode ficar desatualizado se um webhook se perder
         let vivo;
         try {
-          vivo = await getStatus(conn.instanceId);
+          vivo = await statusDaConexao(conn);
         } catch (e) {
           const motivo = e instanceof Error ? e.message : String(e);
           await marcar(`Gateway WhatsApp sem resposta: ninguém foi avisado do agendamento de ${customerName.trim()}. Motivo: ${motivo}`);
@@ -83,8 +83,8 @@ export async function POST(req: Request) {
         const avisoPara = conn.phone ?? conn.ownerPhone;
         if (avisoPara) {
           try {
-            await sendText(
-              conn.instanceId,
+            await enviarTexto(
+              conn,
               avisoPara,
               `Novo agendamento (código ${codigoDoAgendamento(nova.id)}): ${customerName.trim()} · ${partes.join(" · ")} · tel ${b.data.customerPhone}. Responda CONFIRMADO ${codigoDoAgendamento(nova.id)} para confirmar ou RECUSAR ${codigoDoAgendamento(nova.id)} para recusar.`,
             );
@@ -99,8 +99,8 @@ export async function POST(req: Request) {
         const cliente = soDigitosComDDI(b.data.customerPhone);
         if (cliente) {
           try {
-            await sendText(
-              conn.instanceId,
+            await enviarTexto(
+              conn,
               cliente,
               recadoDono ||
                 `Olá, ${nomeCurto}! Recebemos seu pedido de agendamento: ${partes.join(" · ")}. O salão vai confirmar em breve — avisamos por aqui.`,

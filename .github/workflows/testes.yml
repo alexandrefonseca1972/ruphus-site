@@ -41,7 +41,12 @@ jobs:
       - run: npm run test:crm
       - run: npm run test:whatsapp
       - run: npm run test:pix
+      - run: npm run test:conexao
+      - run: npm run test:coleta-tempo
+      - run: npm run test:coleta-selecao
+      - run: npm run test:sinal-puro
       - run: npm run test:admin
+      - run: npm run test:painel
       - run: npm run test:gerador
       - run: npm run test:lembrete
       - run: npm run test:proposta-email
@@ -52,6 +57,7 @@ jobs:
       - run: npm run test:convite
       - run: npm run test:cobranca
       - run: npm run test:financeiro
+      - run: npm run test:sinal
       - run: npm run test:gerador-banco
       - run: npm run test:booking
       - run: npm run test:scale

@@ -2,11 +2,14 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
+import { CONTRATO_RECUSADO } from "@/lib/contrato";
+import { confirmarAceite, dadosDoAceite } from "@/lib/contrato.server";
 import { assumirNegocio, conviteAbrePara, entrarNaEquipe, lerConvite } from "@/lib/convite";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 
-/** Aceita o convite: quem está logado vira admin do espaço do link, ou funcionário se o convite for da equipe. */
-export async function aceitarConvite(idToken: string, token: string) {
+/** Aceita o convite: quem está logado vira admin do espaço do link, ou funcionário se o convite for da equipe.
+ *  O convite do dono só passa com o aceite dos Termos de Contratação; o da equipe não pede. */
+export async function aceitarConvite(idToken: string, token: string, aceitouContrato = false) {
   const user = await verifyFirebaseToken(idToken).catch(() => null);
   if (!user) return { ok: false as const, error: "Sessão expirada. Entre novamente." };
 
@@ -20,14 +23,17 @@ export async function aceitarConvite(idToken: string, token: string) {
   const permissao = conviteAbrePara(convite, user);
   if (!permissao.ok) return { ok: false as const, error: permissao.error };
 
+  if (convite.papel === "admin" && aceitouContrato !== true) return { ok: false as const, error: CONTRATO_RECUSADO };
+
   // o e-mail fica no membro para o /admin saber quem é (o Admin Auth não roda na Vercel)
   const quem = { ...(user.email && { email: user.email }), ...(user.name && { nome: user.name }), createdAt: FieldValue.serverTimestamp() };
   // Quem já tem acesso entra sem mudar de papel. Senão: uso único, corte do dono ou da
   // equipe e o resto da checagem acontecem na mesma transação que grava o acesso
   const recusa = convite.papel === "member"
     ? await entrarNaEquipe(adminDb, convite, user.uid, quem)
-    : await assumirNegocio(adminDb, convite, user.uid, quem);
+    : await assumirNegocio(adminDb, convite, user.uid, quem, await dadosDoAceite(user, "convite"));
   if (recusa) return { ok: false as const, error: recusa };
+  if (convite.papel === "admin") confirmarAceite(user, convite.tenantId);
   return { ok: true as const, tenantId: convite.tenantId, nome: String(tenant.get("name")) };
 }
 
@@ -41,5 +47,5 @@ export async function negocioDoConvite(token: string) {
   if (!convite) return { ok: false as const };
   const tenant = await adminDb.collection("tenants").doc(convite.tenantId).get();
   if (!tenant.exists) return { ok: false as const };
-  return { ok: true as const, slug: tenant.id, nome: String(tenant.get("name") ?? tenant.id) };
+  return { ok: true as const, slug: tenant.id, nome: String(tenant.get("name") ?? tenant.id), papel: convite.papel };
 }

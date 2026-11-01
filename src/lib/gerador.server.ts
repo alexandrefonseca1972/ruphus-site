@@ -1,5 +1,5 @@
 import "server-only";
-import { type DocumentData, type DocumentReference, FieldValue, type Firestore } from "firebase-admin/firestore";
+import { type DocumentData, type DocumentReference, FieldValue, type Firestore, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { z } from "zod";
 import { EQUIPE, montar, porRamo } from "@/lib/catalogo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
@@ -79,8 +79,11 @@ export function registrosDoSite(
         color: visual.cor,
         instagram: lead.instagram || null,
         photo: visual.foto,
+        // só quando veio: reenviar uma planilha sem a coluna não apaga o link da coleta
+        ...(lead.maps && { maps: lead.maps }),
       },
-      gerado: { nicho: n.nicho, sub: n.sub, bairro: lead.bairro, horario: lead.horario, origem: o.origem, atualizadoEm: agora, ...(o.escolha && { escolha: o.escolha }), ...(o.novo && { variantes: true }) },
+      // a categoria como o Maps escreve ("Manicure e pedicure"), mais fina que o ramo; vai para a ficha da gaveta
+      gerado: { nicho: n.nicho, sub: n.sub, bairro: lead.bairro, horario: lead.horario, origem: o.origem, ...(lead.categoria && { categoria: lead.categoria }), atualizadoEm: agora, ...(o.escolha && { escolha: o.escolha }), ...(o.novo && { variantes: true }) },
     },
   }];
   if (!o.novo) return escritas;
@@ -154,12 +157,15 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   // Kits e paletas já usados no mesmo estado e nicho. Um site novo sorteia o menos repetido
   // ali; os sites que não têm escolha gravada contam pelo que o slug sorteia (o que já sai).
   const usosDaRegiao = new Map<string, Required<Escolha>[]>();
+  // o estado é lido uma vez para todos os ramos: uma leitura por ramo eram até 62 mil por lote em MG (4.447 × 14)
+  const doEstado = new Map<string, Promise<QueryDocumentSnapshot[]>>();
   const usosDe = async (uf: string, sub: Sub) => {
     const chave = `${uf}|${sub}`;
     if (!usosDaRegiao.has(chave)) {
       const { padrao } = familiaVisual(sub);
-      const achados = await tenants.where("site.uf", "==", uf).select("gerado").get();
-      usosDaRegiao.set(chave, achados.docs
+      if (!doEstado.has(uf)) doEstado.set(uf, tenants.where("site.uf", "==", uf).select("gerado.sub", "gerado.escolha").get().then((q) => q.docs));
+      const achados = await doEstado.get(uf)!;
+      usosDaRegiao.set(chave, achados
         .filter((d) => d.get("gerado.sub") === sub)
         .map((d) => ({ ...padrao(d.id), ...(d.get("gerado.escolha") as Escolha | undefined) } as Required<Escolha>)));
     }
@@ -201,7 +207,12 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
       continue;
     }
     const slug = lista.find((s) => !usados.has(s) && !existentes.has(s));
-    if (!slug) throw new ErroPrevisto(`Linha ${linha}: não achei endereço livre para “${lead.nome}”. Preencha a coluna slug.`);
+    // uma linha sem endereço possível (nome só de símbolos, como "***", ou todos os candidatos
+    // tomados) fica de fora com o motivo, em vez de parar o lote inteiro da coleta ou da planilha
+    if (!slug) {
+      saida.push({ ...base, slug: "", acao: "pular", motivo: lista.length ? `nenhum endereço livre para “${lead.nome}”: preencha a coluna slug` : `nome “${lead.nome}” sem letras ou números: não dá endereço de site` });
+      continue;
+    }
     usados.add(slug);
     // nome (e nome + cidade) já tomados na mesma cidade, com outro telefone: pode ser
     // o mesmo negócio com outro número — ou outra unidade de uma rede

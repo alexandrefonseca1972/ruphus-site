@@ -12,13 +12,14 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { z } from "zod";
 import { adminDb } from "@/lib/admin";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
+import MUNICIPIOS_JSON from "@/lib/municipios.json";
 import { LIMITES, problemaNoPedido, TERMOS_PADRAO, UFS, type EstadoColeta, type Progresso, type Resumo } from "@/lib/coleta";
-import { gerarNoBanco, TETO_LOTE } from "@/lib/gerador.server";
+import { gerarNoBanco, type LinhaGerada, TETO_LOTE } from "@/lib/gerador.server";
 
 export type Coleta = {
   id: string; uf: string; cidade: string; bairros: string[]; termos: string[]; estado: EstadoColeta;
   worker: string | null; progresso: Progresso | null; resumo: Resumo | null; erro: string | null; gerados: number | null; geradosAte: number;
-  criadaEm: number | null; batidaEm: number | null; terminadaEm: number | null;
+  criadaEm: number | null; iniciadaEm: number | null; batidaEm: number | null; terminadaEm: number | null;
 };
 export type Worker = { nome: string; batidaEm: number | null; ocupado: string | null };
 /** O worker daqui: só dá para ligar pelo admin quando o servidor roda na máquina do navegador. */
@@ -26,15 +27,17 @@ export type WorkerLocal = { pode: boolean; ligado: boolean; nome: string; log: s
 
 const coletas = () => adminDb.collection("coletas");
 const ms = (t: unknown) => (t as Timestamp | undefined)?.toMillis?.() ?? null;
+const MUNICIPIOS = MUNICIPIOS_JSON as Record<string, string[]>;
 const UF = z.enum(Object.keys(UFS) as [keyof typeof UFS, ...(keyof typeof UFS)[]]);
 // id de documento do Firestore: sem "/", senão "x/leads/y" apontaria para dentro de outra coleta
 const Id = z.string().regex(/^[A-Za-z0-9]{1,40}$/);
 
-/** Municípios do estado pelo IBGE (lista oficial; muda quase nunca, então fica um dia em cache). */
+/** Municípios do estado, da lista oficial do IBGE guardada no projeto (src/lib/municipios.json).
+ *  O IBGE não responde para o IP da VPS, e a lista muda quase nunca (um município novo a cada
+ *  poucos anos). Para atualizar: baixar de novo de
+ *  https://servicodados.ibge.gov.br/api/v1/localidades/estados/{UF}/municipios?orderBy=nome */
 async function doIbge(uf: string) {
-  const r = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${UF.parse(uf)}/municipios?orderBy=nome`, { next: { revalidate: 86_400 } });
-  if (!r.ok) throw new ErroPrevisto("O IBGE não respondeu. Tente de novo em instantes.");
-  return ((await r.json()) as { nome: string }[]).map((m) => m.nome);
+  return MUNICIPIOS[UF.parse(uf)] ?? [];
 }
 export const municipios = adminAction(async (_user, uf: string) => doIbge(uf));
 
@@ -55,7 +58,8 @@ const SEM_SINAL_MS = 3 * 60_000;
 
 let temNavegador: boolean | undefined;
 function podeLigarAqui() {
-  if (process.env.VERCEL) return false;
+  // COLETA_SERVICO: o worker é um serviço da máquina (systemd na VPS), não um processo do admin
+  if (process.env.VERCEL || process.env.COLETA_SERVICO) return false;
   temNavegador ??= spawnSync("agent-browser", ["--version"], { timeout: 10_000, stdio: "ignore" }).status === 0;
   return temNavegador;
 }
@@ -105,7 +109,7 @@ export const painelColeta = adminAction(async () => {
     coletas: lista.docs.map((d): Coleta => ({
       id: d.id, uf: d.get("uf"), cidade: d.get("cidade"), bairros: d.get("bairros") ?? [], termos: d.get("termos") ?? [], estado: d.get("estado"),
       worker: d.get("worker") ?? null, progresso: d.get("progresso") ?? null, resumo: d.get("resumo") ?? null, erro: d.get("erro") ?? null,
-      gerados: d.get("gerados") ?? null, geradosAte: d.get("geradosAte") ?? 0, criadaEm: ms(d.get("criadaEm")), batidaEm: ms(d.get("batidaEm")), terminadaEm: ms(d.get("terminadaEm")),
+      gerados: d.get("gerados") ?? null, geradosAte: d.get("geradosAte") ?? 0, criadaEm: ms(d.get("criadaEm")), iniciadaEm: ms(d.get("iniciadaEm")), batidaEm: ms(d.get("batidaEm")), terminadaEm: ms(d.get("terminadaEm")),
     })),
     workers: workers.docs.map((d): Worker => ({ nome: d.id, batidaEm: ms(d.get("batidaEm")), ocupado: d.get("ocupado") ?? null })),
     local: local(),
@@ -183,8 +187,38 @@ export const excluirColeta = adminAction(async (_user, id: string) => {
 async function novosDa(ref: FirebaseFirestore.DocumentReference) {
   // sem orderBy: igualdade devolve em ordem de id, a mesma em toda chamada (o cursor depende disso)
   const novos = await ref.collection("leads").where("situacao", "==", "novo").get();
-  return novos.docs.map((d, i) => ({ aba: "coleta", linha: i + 1, lead: d.get("lead") }));
+  // o link da ficha fica fora do lead nas coletas gravadas antes do campo maps
+  return novos.docs.map((d, i) => ({ aba: "coleta", linha: i + 1, lead: { maps: String(d.get("link_maps") ?? ""), ...d.get("lead") }, id: d.id }));
 }
+
+/** Linha da prévia com o lead de onde veio: é por ele que se tira da geração. */
+export type LinhaDaPrevia = LinhaGerada & { leadId: string };
+
+/** Tira um novo da geração (ou devolve). Só antes de gerar o primeiro lote: a geração anda
+ *  por posição na lista dos novos, e tirar um do meio depois faria o cursor pular outro.
+ *  O resumo da coleta acompanha: sai dos novos e entra em "fora", com o motivo. */
+async function mudarSituacao(id: string, leadId: string, de: "novo" | "excluido", para: "novo" | "excluido") {
+  const ref = coletas().doc(Id.parse(id));
+  const lead = ref.collection("leads").doc(Id.parse(leadId));
+  await adminDb.runTransaction(async (tx) => {
+    const [c, l] = await Promise.all([tx.get(ref), tx.get(lead)]);
+    if (c.get("estado") !== "pronta" || ((c.get("geradosAte") as number | undefined) ?? 0) > 0) {
+      throw new ErroPrevisto("A geração desta coleta já começou: não dá mais para tirar ou devolver sites.");
+    }
+    if (!l.exists) throw new ErroPrevisto("Esse lead não está mais na coleta.");
+    if (l.get("situacao") !== de) throw new ErroPrevisto(para === "excluido" ? "Esse lead já foi tirado da geração." : "Esse lead já está na geração.");
+    const sinal = para === "excluido" ? 1 : -1;
+    tx.update(lead, { situacao: para, excluidoEm: para === "excluido" ? FieldValue.serverTimestamp() : FieldValue.delete() });
+    tx.update(ref, {
+      "resumo.novos": FieldValue.increment(-sinal),
+      "resumo.fora": FieldValue.increment(sinal),
+      [`resumo.motivos.${MOTIVO_EXCLUIDO}`]: FieldValue.increment(sinal),
+    });
+  });
+}
+const MOTIVO_EXCLUIDO = "tirado no admin";
+export const tirarDaGeracao = adminAction(async (_user, id: string, leadId: string) => mudarSituacao(id, leadId, "novo", "excluido"));
+export const devolverAGeracao = adminAction(async (_user, id: string, leadId: string) => mudarSituacao(id, leadId, "excluido", "novo"));
 
 /** O que gerar os novos faria, sem gravar nada. */
 export const previaDaColeta = adminAction(async (user, id: string) => {
@@ -192,8 +226,13 @@ export const previaDaColeta = adminAction(async (user, id: string) => {
   const estado = (await ref.get()).get("estado");
   if (estado !== "pronta" && estado !== "gerando") throw new ErroPrevisto("A coleta ainda não terminou (ou já foi gerada).");
   const leads = await novosDa(ref);
-  const linhas = [];
-  for (let i = 0; i < leads.length; i += TETO_LOTE) linhas.push(...(await gerarNoBanco(adminDb, leads.slice(i, i + TETO_LOTE), false, process.env.OWNER_UID || user.uid)));
+  const linhas: LinhaDaPrevia[] = [];
+  for (let i = 0; i < leads.length; i += TETO_LOTE) {
+    const lote = leads.slice(i, i + TETO_LOTE);
+    const geradas = await gerarNoBanco(adminDb, lote.map(({ id: _, ...l }) => l), false, process.env.OWNER_UID || user.uid);
+    // gerarNoBanco devolve na ordem da entrada
+    linhas.push(...geradas.map((g, k) => ({ ...g, leadId: lote[k].id })));
+  }
   return linhas;
 });
 
@@ -215,7 +254,7 @@ export const gerarLoteDaColeta = adminAction(async (user, id: string) => {
   });
   try {
     const leads = await novosDa(ref);
-    const linhas = await gerarNoBanco(adminDb, leads.slice(inicio.cursor, inicio.cursor + TETO_LOTE), true, process.env.OWNER_UID || user.uid);
+    const linhas = await gerarNoBanco(adminDb, leads.slice(inicio.cursor, inicio.cursor + TETO_LOTE).map(({ id: _, ...l }) => l), true, process.env.OWNER_UID || user.uid);
     for (const { slug } of linhas.filter((l) => l.acao !== "pular")) {
       revalidatePath(`/s/${slug}/index.html`);
       revalidatePath(`/s/${slug}/og.jpg`);

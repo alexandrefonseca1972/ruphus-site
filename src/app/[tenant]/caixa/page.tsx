@@ -13,6 +13,7 @@ import { CaixaConfig, comissoesDoMes, diaNoMes, pctDoTexto, csvDoMes, idDaBaixa,
 import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
 import { definirComissaoAction } from "../actions";
+import { restanteDe } from "@/lib/sinal";
 import { ConfirmDialog } from "../confirm-dialog";
 import { ComissoesHistorico } from "../comissoes-historico";
 import { ContasFixas } from "../contas-fixas";
@@ -29,6 +30,8 @@ const Atendimento = z.object({
   customerName: z.string(),
   start: z.instanceof(Timestamp),
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
+  // sinal pago pelo agendamento online: já entrou no Caixa, sai do que falta receber
+  sinal: z.object({ cents: z.number(), status: z.string() }).optional().catch(undefined),
 });
 
 const mesSeguinte = (mes: string, n: number) => {
@@ -75,7 +78,7 @@ export default function CaixaPage() {
   // as consultas só sobem com o Caixa ligado: desligado, a regra negaria a leitura
   const [comAnterior, erroLeitura] = useCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mes", "in", [...new Set([desde, mes, ate])])], `${desde}/${mes}/${ate}`);
   const lancamentos = comAnterior && comAnterior.filter((l) => l.mes === mes);
-  const [doMes] = useCollection(
+  const [doMes, erroAgenda] = useCollection(
     ligado ? tenant.id : "",
     "appointments",
     Atendimento,
@@ -103,11 +106,14 @@ export default function CaixaPage() {
   }
 
   const recebidos = new Set(comAnterior?.map((l) => l.id));
+  // o sinal que restanteDe tira do preço: vai junto na baixa, para o servidor conferir que não mudou
+  const sinalDe = (a: z.infer<typeof Atendimento>) => (a.sinal?.status === "pago" ? a.sinal.cents : 0);
+  // ponytail: sinal de 100% confirmado com o Caixa desligado fica fora (restante 0 não aparece aqui)
   // sem os lançamentos carregados não dá para saber o que já foi recebido
   const pendentes = (comAnterior ? (doMes ?? []) : []).filter(
-    (a) => (a.status === "booked" || a.status === "confirmed") && a.start.toMillis() <= agora && !recebidos.has(idDaBaixa(a.id)),
+    (a) => (a.status === "booked" || a.status === "confirmed") && a.start.toMillis() <= agora && !recebidos.has(idDaBaixa(a.id)) && restanteDe(a) > 0,
   );
-  const aReceber = pendentes.reduce((t, a) => t + a.priceCents, 0);
+  const aReceber = pendentes.reduce((t, a) => t + restanteDe(a), 0);
   // o de hoje primeiro: é o que o dono está fechando; os antigos esperam no "ver todos"
   const PRIMEIROS = 3;
   const visiveis = [...pendentes].reverse().slice(0, verTodos ? undefined : PRIMEIROS);
@@ -199,6 +205,10 @@ export default function CaixaPage() {
       {(erro || erroLeitura) && <p role="alert" className="text-sm text-destructive">{erro || erroLeitura}</p>}
       {configQuebrada && <p role="alert" className="text-sm text-destructive">Não foi possível ler as contas fixas e as comissões. Fale com a Ruphus antes de mexer nelas.</p>}
 
+      {/* sem a agenda, "Fechar o dia" sumiria calado e o dono acharia que recebeu tudo */}
+      {erroAgenda && <p role="alert" className="text-sm text-destructive">Não foi possível ler a agenda: os atendimentos a receber não aparecem. Recarregue a página.</p>}
+      {!erroAgenda && comAnterior && doMes === null && <p className="text-sm text-muted-foreground">Conferindo os atendimentos a receber…</p>}
+
       {pendentes.length > 0 && (
         <section aria-labelledby="fechar" className="overflow-hidden rounded-2xl border bg-card">
           <div className="grid gap-0.5 px-4 py-4 sm:px-6">
@@ -214,11 +224,12 @@ export default function CaixaPage() {
                   <span className="font-semibold">{a.customerName}</span>
                   <span className="text-sm text-muted-foreground">
                     {formatLongDate(a.start.toDate())}, {formatTime(a.start.toDate())} · {a.serviceName} · {a.staffName}
+                    {sinalDe(a) > 0 && ` · sinal de ${formatBRL(sinalDe(a))} já pago`}
                   </span>
                 </div>
-                <span className="font-serifa text-xl tabular-nums max-sm:mr-auto">{formatBRL(a.priceCents)}</span>
+                <span className="font-serifa text-xl tabular-nums max-sm:mr-auto">{formatBRL(restanteDe(a))}</span>
                 <div className="flex gap-2">
-                  <Button className="h-10 px-4" onClick={() => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, serviceName: a.serviceName, priceCents: a.priceCents } })}>Recebi</Button>
+                  <Button className="h-10 px-4" onClick={() => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, serviceName: a.serviceName, priceCents: restanteDe(a), sinalCents: sinalDe(a) } })}>Recebi</Button>
                   <Button variant="outline" className="h-10 px-4" onClick={() => setFaltou({ id: a.id, nome: a.customerName })}>Não veio</Button>
                 </div>
               </li>

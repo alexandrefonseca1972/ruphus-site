@@ -256,7 +256,11 @@ assert.equal((await pagina("../etc")).status, 404);
 {
   const base = { sub: "barbearia", telefone: "(96) 99222-0000", cidade: "Macapá", uf: "AP" };
   await criarNegocio(db, { uid: "via-anuncio", email: "a@b.com" }, { ...base, name: "Corte Fino", slug: "corte-fino" },
-    { source: "instagram", medium: "pago", campaign: "setembro", term: "" });
+    { source: "instagram", medium: "pago", campaign: "setembro", term: "" }, { versao: "1.0", origem: "cadastro", uid: "via-anuncio" });
+  // o aceite dos Termos fica gravado junto, com o slug do negócio criado
+  const aceites = await db.collection("aceites").where("slug", "==", "corte-fino").get();
+  assert.equal(aceites.size, 1);
+  assert.equal(aceites.docs[0].get("versao"), "1.0");
   assert.deepEqual((await db.doc("crm/corte-fino").get()).get("utm"), { source: "instagram", medium: "pago", campaign: "setembro" }, "campo vazio não entra");
   // UTM adulterada ou grande demais: o cadastro passa, sem a origem
   await criarNegocio(db, { uid: "utm-estranha" }, { ...base, name: "Corte Grosso", slug: "corte-grosso" }, { campaign: "x".repeat(500) });
@@ -287,6 +291,20 @@ assert.equal((await pagina("../etc")).status, 404);
   // site da fábrica não vira gerado por causa de uma entrada paga
   assert.equal(await publicarSite(db, "fabrica-x"), false);
   assert.equal((await db.doc("tenants/fabrica-x").get()).get("gerado"), undefined);
+}
+
+// nome só de símbolos (veio "***" do Maps): a linha fica de fora com o motivo, e o resto do
+// lote vira site normalmente (antes, um erro parava a geração inteira da cidade)
+{
+  const misto = planilha(
+    ["***", "(91) 98888-0001", "Salão de beleza", "Belém", "PA", "", "", "", "", "", ""],
+    ["Studio Bela Unha", "(91) 98888-0002", "Manicure", "Belém", "PA", "", "", "", "", "", ""],
+  );
+  const r = await gerarNoBanco(db, misto, true, "dono-plataforma");
+  assert.equal(r[0].acao, "pular");
+  assert.match(r[0].motivo ?? "", /sem letras ou números/);
+  assert.equal(r[1].acao, "criar", "a linha boa do mesmo lote é gerada");
+  assert.ok((await db.collection("tenants").doc(r[1].slug).get()).exists);
 }
 
 // entrada adulterada no navegador não passa
