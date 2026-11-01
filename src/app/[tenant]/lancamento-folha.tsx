@@ -59,7 +59,7 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose }: 
   const podeEstornar = !!base && base.tipo === "entrada" && !estornado;
   const deQuem = base?.customerName ?? base?.descricao ?? base?.categoria ?? "";
   // receber por Pix na hora: o QR com o valor, na chave do salão
-  const { pix, id: slug } = useTenant();
+  const { pix, id: slug, podeGerir } = useTenant();
   const [mostrarPix, setMostrarPix] = useState(false);
   const [txid] = useState(() => txidLivre(slug));
   const podePix = !!pix && forma === "pix" && !estornando && (folha.modo === "baixa" || (folha.modo === "novo" && tipo === "entrada"));
@@ -144,6 +144,13 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose }: 
               ))}
             </div>
           </fieldset>
+
+          {!pix && podeGerir && forma === "pix" && !estornando && (folha.modo === "baixa" || (folha.modo === "novo" && tipo === "entrada")) && (
+            <p className="text-sm text-muted-foreground">
+              Para mostrar o QR do Pix com o valor, cadastre sua chave em{" "}
+              <a href={`/${slug}/negocio`} className="font-medium underline underline-offset-2">Meu negócio</a>.
+            </p>
+          )}
 
           {podePix && pix && (
             mostrarPix && centavos ? (

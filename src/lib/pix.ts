@@ -36,10 +36,22 @@ const texto = (v: string, max: number) =>
 
 export type Recebedor = { chave: string; nome: string; cidade: string };
 
+/** Entrada fora do que o BR Code aceita: o QR sairia e o banco recusaria na hora de pagar. */
+export class PixInvalido extends Error {}
+
+// campo 54 tem no máximo 13 caracteres ("9999999999.99"); txid: letras e números, até 25
+const VALOR_MAX_CENTS = 999_999_999_999;
+const TXID = /^[A-Za-z0-9]{1,25}$/;
+
 export function brCode({ chave, nome, cidade, valorCents, txid }: Recebedor & { valorCents: number; txid: string }) {
+  const k = chave.trim();
+  if (!k || k.length > 77) throw new PixInvalido("Chave Pix inválida.");
+  if (!Number.isInteger(valorCents) || valorCents <= 0 || valorCents > VALOR_MAX_CENTS) throw new PixInvalido("Valor do Pix inválido.");
+  if (!TXID.test(txid)) throw new PixInvalido("Identificador do Pix inválido.");
+  if (!texto(nome, 25) || !texto(cidade, 15)) throw new PixInvalido("Nome ou cidade do recebedor vazios.");
   const payload = [
     tlv("00", "01"),
-    tlv("26", tlv("00", "br.gov.bcb.pix") + tlv("01", chave.trim())),
+    tlv("26", tlv("00", "br.gov.bcb.pix") + tlv("01", k)),
     tlv("52", "0000"), // sem categoria de estabelecimento
     tlv("53", "986"), // real
     tlv("54", (valorCents / 100).toFixed(2)), // 59.90, nunca 59.9
@@ -83,6 +95,16 @@ function cpfValido(d: string) {
   return dv(9) === Number(d[9]) && dv(10) === Number(d[10]);
 }
 
+function cnpjValido(d: string) {
+  if (!/^\d{14}$/.test(d) || /^(\d)\1+$/.test(d)) return false;
+  const dv = (n: number) => {
+    const pesos = n === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const r = pesos.reduce((s, p, i) => s + Number(d[i]) * p, 0) % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  return dv(12) === Number(d[12]) && dv(13) === Number(d[13]);
+}
+
 /** A chave Pix como o banco espera: e-mail em minúsculas, aleatória como veio,
  *  CPF/CNPJ só dígitos, telefone +55DDNNNNNNNNN. null quando não é chave.
  *  11 dígitos são CPF se os dígitos verificadores batem; senão, celular. */
@@ -95,8 +117,10 @@ export function normalizarChave(entrada: string): string | null {
   // "(11) 98765-4321" é celular mesmo quando os dígitos formam um CPF válido
   const comCaraDeFone = v.startsWith("+") || v.includes("(");
   if (!comCaraDeFone && d.length === 11 && cpfValido(d)) return d;
-  if (!v.startsWith("+") && d.length === 14) return d;
-  const fone = v.startsWith("+") ? d : d.length <= 11 ? `55${d}` : d;
+  if (!v.startsWith("+") && d.length === 14) return cnpjValido(d) ? d : null;
+  // "0 11 98888-7777": o zero do DDD (ou da operadora) não faz parte da chave
+  const semZero = !v.startsWith("+") && d.startsWith("0") ? d.replace(/^0+/, "") : d;
+  const fone = v.startsWith("+") ? d : semZero.length <= 11 ? `55${semZero}` : semZero;
   return /^55\d{10,11}$/.test(fone) ? `+${fone}` : null;
 }
 
@@ -108,8 +132,10 @@ export const tipoDaChave = (chave: string) =>
 export function recebedorDe(entrada: { chave: string; nome: string; cidade: string }): Recebedor | string {
   const chave = normalizarChave(entrada.chave);
   if (!chave) return "Chave Pix inválida. Use CPF, CNPJ, e-mail, celular ou a chave aleatória.";
-  const nome = entrada.nome.trim();
-  const cidade = entrada.cidade.trim();
+  // sem caracteres de controle e com espaços colapsados: é o que vai para o QR e para o banco
+  const limpo = (v: string) => v.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  const nome = limpo(entrada.nome);
+  const cidade = limpo(entrada.cidade);
   // o BR Code só leva letras sem acento e números: nome só com outros caracteres sairia vazio
   if (texto(nome, 25).replace(/[^A-Z0-9]/g, "").length < 2) return "Informe o nome de quem recebe, como está no banco.";
   if (texto(cidade, 15).replace(/[^A-Z0-9]/g, "").length < 2) return "Informe a cidade.";

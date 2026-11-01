@@ -7,7 +7,7 @@ import { FieldValue, type Firestore, type Timestamp, type Transaction } from "fi
 import { addDays, agoraNaParede, customerKey, dateIn, formatTime, freeSlots, fusoDaUF, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import type { DadosCliente } from "@/lib/cliente-dados";
 import { ConfigSinal, prazoDoSinal, type SinalDoAgendamento, valorDoSinal } from "@/lib/sinal";
-import { txidLivre } from "@/lib/pix";
+import { recebedorDe, txidLivre } from "@/lib/pix";
 import { Service, Staff, type AgendaQuery, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
@@ -414,7 +414,7 @@ function reservaDe(id: string, a: FirebaseFirestore.DocumentData) {
     // sinal ainda por pagar: a tela de confirmado mostra o QR até o prazo
     sinal: ((): { cents: number; ate: string; txid: string; pix: SinalDoAgendamento["pix"] } | null => {
       const x = a.sinal as (Omit<SinalDoAgendamento, "ate"> & { ate: Date | Timestamp }) | undefined;
-      if (x?.status !== "pendente") return null;
+      if (x?.status !== "pendente" || !x.ate || !x.pix || !(Number(x.cents) > 0)) return null;
       const ate = x.ate instanceof Date ? x.ate : x.ate.toDate();
       return { cents: x.cents, ate: ate.toISOString(), txid: x.txid, pix: x.pix };
     })(),
@@ -493,8 +493,10 @@ export async function book(db: Firestore, input: BookingInput, ip?: string, aoCr
 
 /** O sinal da reserva online: só com o sinal ligado, chave Pix cadastrada e preço no serviço. */
 function sinalDaReserva(ctx: { cfg: { pix?: SinalDoAgendamento["pix"]; sinal?: ConfigSinal; fuso: string }; svc: { priceCents: number }[] }, input: BookingInput): SinalDoAgendamento | undefined {
-  const { pix, sinal, fuso } = ctx.cfg;
-  if (!pix?.chave || !sinal?.ativo) return undefined;
+  const { sinal, fuso } = ctx.cfg;
+  // a chave gravada passa de novo pela validação: um Pix fora do formato não vira QR que o banco recusa
+  const pix = ctx.cfg.pix ? recebedorDe(ctx.cfg.pix) : null;
+  if (!pix || typeof pix === "string" || !sinal?.ativo) return undefined;
   const cents = valorDoSinal(sinal, ctx.svc.reduce((soma, s) => soma + s.priceCents, 0));
   if (!cents) return undefined;
   // "start" é hora de parede de Brasília; o prazo é instante real, então o teto é o início real no fuso do negócio

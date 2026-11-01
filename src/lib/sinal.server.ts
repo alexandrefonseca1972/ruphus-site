@@ -20,6 +20,7 @@ export async function confirmarSinal(db: Firestore, tenantId: string, appointmen
     if (a.get("sinal.status") !== "pendente") throw new UserError("Este agendamento não tem sinal a confirmar.");
     if (!["booked", "confirmed"].includes(a.get("status"))) throw new UserError("Este horário já foi cancelado. Combine a devolução do sinal com o cliente.");
     const cents = Number(a.get("sinal.cents"));
+    if (!Number.isInteger(cents) || cents <= 0) throw new UserError("O valor do sinal deste agendamento está inválido. Fale com o suporte.");
     const mudanca: Record<string, unknown> = { "sinal.status": "pago", "sinal.pagoEm": FieldValue.serverTimestamp() };
     if (a.get("status") === "booked") {
       const historico = t.collection("history").doc();
@@ -57,6 +58,7 @@ export async function expirarSinais(db: Firestore, agora = new Date()) {
   let liberados = 0;
   for (const d of vencidos.docs) {
     if (d.ref.parent.parent?.parent.id !== "tenants") continue;
+    // um agendamento com problema não segura os outros: registra e segue
     const ok = await db.runTransaction(async (tx) => {
       const a = await tx.get(d.ref);
       if (a.get("sinal.status") !== "pendente") return false;
@@ -69,7 +71,7 @@ export async function expirarSinais(db: Firestore, agora = new Date()) {
       tx.create(historico, { appointmentId: d.id, type: "cancelled", reason: "sinal_nao_pago", at: FieldValue.serverTimestamp(), by: "sistema", byName: "Sinal não pago no prazo" });
       tx.update(d.ref, { status: "cancelled", lastHistoryId: historico.id, "sinal.status": "vencido" });
       return true;
-    });
+    }).catch((e) => (console.error("[sinal] expirar", d.ref.path, e), false));
     if (ok) liberados++;
   }
   return liberados;

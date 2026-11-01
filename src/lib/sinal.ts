@@ -9,16 +9,19 @@ import { z } from "zod";
 export const ConfigSinal = z.object({
   ativo: z.boolean(),
   tipo: z.enum(["percentual", "fixo"]),
-  valor: z.number().int().positive(),
-  prazoMin: z.number().int().min(10).max(24 * 60),
-}).refine((c) => c.tipo === "fixo" || c.valor <= 100, { message: "O percentual vai até 100%.", path: ["valor"] });
+  valor: z.number({ message: "Informe o valor do sinal." }).int().positive("Informe o valor do sinal."),
+  prazoMin: z.number().int().min(10, "O prazo mínimo é de 10 minutos.").max(24 * 60, "O prazo máximo é de 24 horas."),
+})
+  .refine((c) => c.tipo === "fixo" || c.valor <= 100, { message: "O percentual vai até 100%.", path: ["valor"] })
+  // R$ 10.000: acima disso é erro de digitação, não sinal de salão
+  .refine((c) => c.tipo === "percentual" || c.valor <= 1_000_000, { message: "O sinal fixo vai até R$ 10.000,00.", path: ["valor"] });
 export type ConfigSinal = z.infer<typeof ConfigSinal>;
 
 export const SINAL_PADRAO: ConfigSinal = { ativo: false, tipo: "percentual", valor: 30, prazoMin: 30 };
 
 /** Quanto o cliente paga agora. Fixo nunca passa do preço; sem preço, sem sinal. */
 export function valorDoSinal(cfg: Pick<ConfigSinal, "tipo" | "valor">, precoCents: number) {
-  if (precoCents <= 0) return 0;
+  if (!Number.isFinite(precoCents) || precoCents <= 0 || !Number.isFinite(cfg.valor) || cfg.valor <= 0) return 0;
   return cfg.tipo === "percentual" ? Math.round((precoCents * cfg.valor) / 100) : Math.min(cfg.valor, precoCents);
 }
 
@@ -37,3 +40,10 @@ export const textoDoSinal = (cfg: Pick<ConfigSinal, "tipo" | "valor">) =>
 /** O que falta receber no balcão: o preço menos o sinal já pago. */
 export const restanteDe = (a: { priceCents: number; sinal?: { status?: string; cents?: number } }) =>
   Math.max(0, a.priceCents - (a.sinal?.status === "pago" ? (a.sinal.cents ?? 0) : 0));
+
+/** "24 min" / "1 h 05 min" até o prazo; null quando já passou (ou a data é inválida). */
+export function tempoRestante(ate: string, agora: number) {
+  const min = Math.ceil((Date.parse(ate) - agora) / 60_000);
+  if (!Number.isFinite(min) || min <= 0) return null;
+  return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")} min`;
+}

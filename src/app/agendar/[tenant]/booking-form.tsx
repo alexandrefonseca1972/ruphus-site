@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import type { book } from "@/lib/booking.server";
 import { getAgenda } from "./actions";
 import { PixQr } from "@/components/pix-qr";
-import { type ConfigSinal, textoDoSinal } from "@/lib/sinal";
+import { type ConfigSinal, textoDoSinal, valorDoSinal } from "@/lib/sinal";
 
 type Resposta = Awaited<ReturnType<typeof book>>;
 
@@ -479,7 +479,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 <p className="text-[15px] leading-relaxed">
                   Pague o sinal até <strong className={MONO}>{formatTime(new Date(reserva.sinal.ate), fuso)}</strong> para garantir o horário. Sem o sinal, o horário é liberado.
                 </p>
-                <PixQr recebedor={reserva.sinal.pix} valorCents={reserva.sinal.cents} txid={reserva.sinal.txid} mensagem={`Sinal do horário de ${longDate(date)}, às ${hora}, em ${name}`} />
+                <PixQr recebedor={reserva.sinal.pix} valorCents={reserva.sinal.cents} txid={reserva.sinal.txid} ate={reserva.sinal.ate} mensagem={`Sinal do horário de ${longDate(date)}, às ${hora}, em ${name}`} />
                 {phone && (
                   <a
                     href={linkWhatsApp(phone, `Olá! Paguei o sinal de ${formatBRL(reserva.sinal.cents)} do meu horário de ${longDate(date)}, às ${hora} (${servicos}). Meu nome é ${customerName.trim()}. Segue o comprovante.`) ?? undefined}
@@ -704,9 +704,9 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
         </button>
         {resumo}
 
-        {sinal && (
+        {sinal && valorDoSinal(sinal, escolhidos.reduce((soma, s) => soma + s.priceCents, 0)) > 0 && (
           <p className="rounded-xl border border-[#E4E1D5] bg-[#F6F4EB] p-3.5 text-[13px] leading-relaxed">
-            Para garantir o horário, {name} pede um <strong>sinal de {textoDoSinal(sinal)}</strong> por Pix, pago em até {sinal.prazoMin >= 60 ? `${Math.round(sinal.prazoMin / 60)} h` : `${sinal.prazoMin} min`} depois de reservar. O resto é pago no local.
+            Para garantir o horário, {name} pede um <strong>sinal de {formatBRL(valorDoSinal(sinal, escolhidos.reduce((soma, s) => soma + s.priceCents, 0)))}</strong> ({textoDoSinal(sinal)}) por Pix, pago em até {sinal.prazoMin >= 60 ? `${Math.round(sinal.prazoMin / 60)} h` : `${sinal.prazoMin} min`} depois de reservar. O resto é pago no local.
           </p>
         )}
 

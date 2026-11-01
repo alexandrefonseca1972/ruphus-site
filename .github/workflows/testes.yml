@@ -41,6 +41,7 @@ jobs:
       - run: npm run test:crm
       - run: npm run test:whatsapp
       - run: npm run test:pix
+      - run: npm run test:sinal-puro
       - run: npm run test:admin
       - run: npm run test:gerador
       - run: npm run test:lembrete
