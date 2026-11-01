@@ -42,7 +42,8 @@
     "test:sinal": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server sinal.test.mts'",
     "test:sinal-puro": "tsx sinal-puro.test.mts",
     "test:conexao": "tsx conexao.test.mts",
-    "test:coleta-tempo": "tsx coleta-tempo.test.mts"
+    "test:coleta-tempo": "tsx coleta-tempo.test.mts",
+    "test:coleta-selecao": "tsx coleta-selecao.test.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

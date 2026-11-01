@@ -10,6 +10,7 @@ const versaoOuNada = (e: unknown) => {
 import { useEffect, useState } from "react";
 import { NumeroVivo } from "@/components/numero-vivo";
 import { type Amostra, anotar, duracao, faltam, porcentagem, ritmo } from "@/lib/coleta-tempo";
+import { desmarcar, marcarTodas, sortear } from "@/lib/coleta-selecao";
 import { CAPITAIS, LIMITES, problemaNoPedido, TERMOS_PADRAO, UFS, type Uf } from "@/lib/coleta";
 import type { LinhaGerada } from "@/lib/gerador.server";
 import { cancelarColeta, type Coleta, desligarWorker, excluirColeta, gerarLoteDaColeta, ligarWorker, type WorkerLocal, jaTemosNaCidade, municipios, painelColeta, pedirColeta, previaDaColeta, recolocarColeta, type Worker } from "./coleta-actions";
@@ -20,6 +21,7 @@ import { cancelarColeta, type Coleta, desligarWorker, excluirColeta, gerarLoteDa
 
 const BOTAO = "h-10 rounded-[10px] px-4 text-[13px] font-semibold";
 const CAMPO = "h-10 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-[13px] outline-none focus:border-[#17150F]";
+const MINI = "h-8 rounded-lg border border-[#D8D2C6] bg-white px-2.5 font-semibold hover:border-[#17150F] disabled:opacity-40 disabled:hover:border-[#D8D2C6]";
 const SEM_SINAL_MS = 3 * 60_000; // o worker dá sinal a cada 20 s enquanto coleta e a cada 30 s parado
 
 const ESTADOS: Record<Coleta["estado"], [string, string]> = {
@@ -73,6 +75,7 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
   const [cidades, setCidades] = useState<string[]>([]);
   const [busca, setBusca] = useState("");
   const [escolhidas, setEscolhidas] = useState<string[]>([]);
+  const [sorteio, setSorteio] = useState(5);
   const [jaTemos, setJaTemos] = useState<Record<string, number>>({});
   const [bairros, setBairros] = useState("");
   const [termos, setTermos] = useState(TERMOS_PADRAO.join(", "));
@@ -155,13 +158,32 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
     else setErro(r?.error ?? "Não consegui carregar as cidades. Escolha o estado de novo para tentar outra vez.");
   }
 
+  /** Quantos negócios já temos em cada cidade nova: de 5 em 5, para marcar 50 de uma vez não
+   *  disparar 50 consultas juntas. */
+  async function contar(novas: string[]) {
+    if (!uf) return;
+    const faltam = novas.filter((c) => !(c in jaTemos));
+    for (let i = 0; i < faltam.length; i += 5) {
+      const lote = faltam.slice(i, i + 5);
+      const rs = await Promise.all(lote.map((c) => jaTemosNaCidade(idToken, c, uf).catch(versaoOuNada)));
+      setJaTemos((j) => ({ ...j, ...Object.fromEntries(lote.flatMap((c, k) => (rs[k]?.ok ? [[c, rs[k].dados]] : []))) }));
+    }
+  }
+
   async function alternar(cidade: string) {
     setAviso("");
     if (escolhidas.includes(cidade)) return setEscolhidas((xs) => xs.filter((x) => x !== cidade));
+    if (escolhidas.length >= LIMITES.cidades) return setAlerta(`Cabem ${LIMITES.cidades} cidades por pedido. Ponha estas na fila e peça as outras depois.`);
     setEscolhidas((xs) => [...xs, cidade]);
-    if (!uf || cidade in jaTemos) return;
-    const r = await jaTemosNaCidade(idToken, cidade, uf).catch(versaoOuNada);
-    if (r?.ok) setJaTemos((j) => ({ ...j, [cidade]: r.dados }));
+    await contar([cidade]);
+  }
+
+  /** Marcar todas, desmarcar ou sortear: sempre sobre as cidades visíveis (a busca filtra). */
+  function emMassa(nova: string[], aviso = "") {
+    setAviso("");
+    setAlerta(aviso);
+    setEscolhidas(nova);
+    void contar(nova.filter((c) => !escolhidas.includes(c)));
   }
 
   async function pedir() {
@@ -272,6 +294,47 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
               value={busca}
               onChange={(e) => setBusca(e.currentTarget.value)}
             />
+            {cidades.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 text-[12px]" role="group" aria-label="Seleção em massa">
+                {(() => {
+                  const faltam = visiveis.filter((c) => !escolhidas.includes(c)).length;
+                  const marcadasVisiveis = visiveis.length - faltam;
+                  const cheio = escolhidas.length >= LIMITES.cidades;
+                  const filtro = busca.trim() ? " visíveis" : "";
+                  return (
+                    <>
+                      <button
+                        type="button"
+                        disabled={!faltam || cheio}
+                        onClick={() => {
+                          const { lista, cortadas } = marcarTodas(escolhidas, visiveis, LIMITES.cidades);
+                          emMassa(lista, cortadas ? `Cabem ${LIMITES.cidades} cidades por pedido: ${qtd(cortadas, "ficou de fora", "ficaram de fora")}. Ponha estas na fila e peça as outras depois.` : "");
+                        }}
+                        className={MINI}
+                      >
+                        Marcar {faltam === visiveis.length ? "todas" : `as ${faltam} restantes`}{filtro}
+                      </button>
+                      <button type="button" disabled={!marcadasVisiveis} onClick={() => emMassa(desmarcar(escolhidas, visiveis))} className={MINI}>
+                        Desmarcar{filtro ? `${filtro}` : " todas"}
+                      </button>
+                      <span className="flex items-center gap-1.5">
+                        <button type="button" disabled={!faltam || cheio} onClick={() => emMassa(sortear(escolhidas, visiveis, sorteio, LIMITES.cidades))} className={MINI}>
+                          Sortear
+                        </button>
+                        <select aria-label="Quantas cidades sortear" value={sorteio} onChange={(e) => setSorteio(Number(e.target.value))} className="h-8 rounded-lg border border-[#D8D2C6] bg-white px-1.5">
+                          {[1, 3, 5, 10, 20].map((n) => (
+                            <option key={n} value={n}>{n}</option>
+                          ))}
+                        </select>
+                      </span>
+                      <span className="ml-auto tabular-nums text-[#8B8578]" aria-live="polite">
+                        {escolhidas.length} de {LIMITES.cidades} marcadas
+                      </span>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
             {cidades.length > 0 && (
               <ul aria-label="Cidades do estado" className="max-h-60 overflow-y-auto rounded-[10px] border border-[#E2DDD3]">
                 {visiveis.length === 0 && <li className="px-3 py-2 text-[12.5px] text-[#8B8578]">Nenhuma cidade com esse nome.</li>}
