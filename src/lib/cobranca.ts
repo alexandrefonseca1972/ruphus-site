@@ -76,6 +76,13 @@ export async function pixCadastrado(db: Firestore) {
 
 export async function salvarPix(db: Firestore, entrada: unknown) {
   const dados = PixInput.parse(entrada);
+  // monta um Pix de teste: o que o banco recusaria é recusado aqui, não em cada cobrança
+  try {
+    brCode({ chave: dados.chave, nome: dados.nome, cidade: dados.cidade, valorCents: 100, txid: "TESTE" });
+  } catch (e) {
+    if (e instanceof PixInvalido) throw new CobrancaErro(`Pix da Ruphus inválido: ${e.message}`);
+    throw e;
+  }
   await db.doc(PIX).set({ ...dados, atualizadoEm: FieldValue.serverTimestamp() }, { merge: true });
 }
 

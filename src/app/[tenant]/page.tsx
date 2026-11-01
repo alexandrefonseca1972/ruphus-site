@@ -39,7 +39,7 @@ const Appointment = z.object({
   planId: z.string().optional(),
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
   // sinal do agendamento online (Pix na chave do salão); só o servidor grava
-  sinal: z.object({ cents: z.number(), status: z.enum(["pendente", "pago", "vencido", "dispensado"]), hora: z.string() }).optional().catch(undefined),
+  sinal: z.object({ cents: z.number(), status: z.enum(["pendente", "pago", "vencido", "dispensado", "erro"]), hora: z.string() }).optional().catch(undefined),
 });
 export type Appointment = z.infer<typeof Appointment> & { id: string };
 
@@ -346,6 +346,7 @@ export default function AgendaPage() {
                   title={`O sinal de ${formatBRL(a.sinal.cents)} caiu na sua conta?`}
                   description={`Confira no app do banco o Pix de ${a.customerName}. Confirmando, o horário fica confirmado${caixa ? " e o sinal entra no Caixa" : ""}.`}
                   confirmLabel="Sim, recebi"
+                  tom="normal"
                   onConfirm={() => {
                     setConfirming(null);
                     return sinalRecebido(a);

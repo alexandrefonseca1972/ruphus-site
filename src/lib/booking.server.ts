@@ -52,7 +52,8 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
     // sinal por Pix para reservar: a página avisa antes de o cliente confirmar
     sinal: ((): Pick<ConfigSinal, "tipo" | "valor" | "prazoMin"> | null => {
       const c = ConfigSinal.safeParse(tenant.get("sinal")).data;
-      return c?.ativo && tenant.get("pix.chave") ? { tipo: c.tipo, valor: c.valor, prazoMin: c.prazoMin } : null;
+      const pix = tenant.get("pix");
+      return c?.ativo && pix && typeof recebedorDe(pix) !== "string" ? { tipo: c.tipo, valor: c.valor, prazoMin: c.prazoMin } : null;
     })(),
     // Ordem: o que mais se agenda primeiro. Enquanto ninguém agendou, vale a
     // ordem em que o site lista os serviços (ordem), que é a do próprio negócio.
@@ -414,9 +415,11 @@ function reservaDe(id: string, a: FirebaseFirestore.DocumentData) {
     // sinal ainda por pagar: a tela de confirmado mostra o QR até o prazo
     sinal: ((): { cents: number; ate: string; txid: string; pix: SinalDoAgendamento["pix"] } | null => {
       const x = a.sinal as (Omit<SinalDoAgendamento, "ate"> & { ate: Date | Timestamp }) | undefined;
-      if (x?.status !== "pendente" || !x.ate || !x.pix || !(Number(x.cents) > 0)) return null;
+      if (x?.status !== "pendente" || !x.ate || !x.pix || !Number.isInteger(x.cents) || x.cents <= 0 || typeof x.txid !== "string") return null;
+      const pix = recebedorDe(x.pix);
+      if (typeof pix === "string") return null;
       const ate = x.ate instanceof Date ? x.ate : x.ate.toDate();
-      return { cents: x.cents, ate: ate.toISOString(), txid: x.txid, pix: x.pix };
+      return { cents: x.cents, ate: ate.toISOString(), txid: x.txid, pix };
     })(),
   };
 }

@@ -121,8 +121,16 @@ export function normalizarChave(entrada: string): string | null {
   // "0 11 98888-7777": o zero do DDD (ou da operadora) não faz parte da chave
   const semZero = !v.startsWith("+") && d.startsWith("0") ? d.replace(/^0+/, "") : d;
   const fone = v.startsWith("+") ? d : semZero.length <= 11 ? `55${semZero}` : semZero;
-  return /^55\d{10,11}$/.test(fone) ? `+${fone}` : null;
+  // chave de telefone no Pix é celular: DDD + 9 dígitos começando com 9
+  return /^55[1-9]\d9\d{8}$/.test(fone) ? `+${fone}` : null;
 }
+
+/** O BR Code só leva letras sem acento e números: nome só com outros caracteres sairia vazio.
+ *  A tela e o servidor usam a mesma regra. */
+export const legivel = (v: string, max: number) => texto(v, max).replace(/[^A-Z0-9]/g, "").length >= 2;
+export const ERRO_CHAVE = "Chave inválida. Use CPF, CNPJ, e-mail, celular ou a chave aleatória.";
+export const ERRO_NOME = "Informe o nome de quem recebe, como está no banco (letras sem símbolos).";
+export const ERRO_CIDADE = "Informe a cidade.";
 
 /** Como a tela mostra a chave salva, para o dono conferir o tipo que o sistema entendeu. */
 export const tipoDaChave = (chave: string) =>
@@ -131,13 +139,13 @@ export const tipoDaChave = (chave: string) =>
 /** O que o salão cadastra para receber; o servidor grava em tenants/{slug}.pix. */
 export function recebedorDe(entrada: { chave: string; nome: string; cidade: string }): Recebedor | string {
   const chave = normalizarChave(entrada.chave);
-  if (!chave) return "Chave Pix inválida. Use CPF, CNPJ, e-mail, celular ou a chave aleatória.";
+  if (!chave) return ERRO_CHAVE;
   // sem caracteres de controle e com espaços colapsados: é o que vai para o QR e para o banco
   const limpo = (v: string) => v.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
   const nome = limpo(entrada.nome);
   const cidade = limpo(entrada.cidade);
   // o BR Code só leva letras sem acento e números: nome só com outros caracteres sairia vazio
-  if (texto(nome, 25).replace(/[^A-Z0-9]/g, "").length < 2) return "Informe o nome de quem recebe, como está no banco.";
-  if (texto(cidade, 15).replace(/[^A-Z0-9]/g, "").length < 2) return "Informe a cidade.";
+  if (!legivel(nome, 25)) return ERRO_NOME;
+  if (!legivel(cidade, 15)) return ERRO_CIDADE;
   return { chave, nome: nome.slice(0, 60), cidade: cidade.slice(0, 40) };
 }

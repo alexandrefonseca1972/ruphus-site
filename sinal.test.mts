@@ -105,6 +105,7 @@ assert.equal((await loadCatalog(db, "sinal-salao"))?.sinal, null);
 await t.update({ pix: { chave: "nao-e-chave", nome: "Ana", cidade: "Belem" } });
 const chaveRuim = await book(db, { ...base, date: addDays(date, 1), time: "09:00", customerPhone: "11 91212-1212" });
 assert.ok(chaveRuim.ok && chaveRuim.sinal === null, "chave inválida: sem sinal");
+assert.equal((await loadCatalog(db, "sinal-salao"))?.sinal, null, "e a página não anuncia o sinal");
 await t.update({ pix });
 
 // sinal sem prazo ou sem valor: a resposta não quebra (reserva repetida pelo pedido)

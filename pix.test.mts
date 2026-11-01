@@ -78,7 +78,7 @@ assert.match(tx, /^[A-Z0-9]{1,25}$/);
 console.log("chave do salão ok");
 
 // Validação do BR Code: entrada fora do formato não vira QR que o banco recusa
-import { brCode as montar, PixInvalido } from "@/lib/pix";
+import { brCode as montar, legivel, PixInvalido } from "@/lib/pix";
 const ok = { chave: "52998224725", nome: "Ana", cidade: "Belem", valorCents: 1000, txid: "ABC123" };
 assert.doesNotThrow(() => montar(ok));
 for (const [campo, valor] of [
@@ -95,7 +95,10 @@ assert.ok(montar({ ...ok, valorCents: 999_999_999_999 }).includes("5413" + "9999
 assert.equal(normalizarChave("11.222.333/0001-81"), "11222333000181");
 assert.equal(normalizarChave("11.222.333/0001-82"), null, "CNPJ com dígito errado");
 assert.equal(normalizarChave("00000000000000"), null);
-assert.equal(normalizarChave("111.111.111-11"), "+5511111111111", "CPF repetido não é CPF: vira celular");
+assert.equal(normalizarChave("111.111.111-11"), null, "CPF repetido não é CPF, e 11 1111-1111 não é celular");
+assert.equal(normalizarChave("(11) 3333-4444"), null, "fixo não é chave Pix");
+assert.equal(normalizarChave("(11) 2888-7777 0"), null);
+assert.ok(legivel("Ana", 25) && !legivel("李明", 25) && !legivel("--", 25) && !legivel("A", 25));
 assert.equal(normalizarChave("0 (11) 98888-7777"), "+5511988887777", "zero na frente do DDD");
 assert.equal(normalizarChave("+55 (11) 98888-7777"), "+5511988887777");
 assert.equal(normalizarChave("1234"), null);

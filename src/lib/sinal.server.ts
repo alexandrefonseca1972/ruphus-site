@@ -71,7 +71,12 @@ export async function expirarSinais(db: Firestore, agora = new Date()) {
       tx.create(historico, { appointmentId: d.id, type: "cancelled", reason: "sinal_nao_pago", at: FieldValue.serverTimestamp(), by: "sistema", byName: "Sinal não pago no prazo" });
       tx.update(d.ref, { status: "cancelled", lastHistoryId: historico.id, "sinal.status": "vencido" });
       return true;
-    }).catch((e) => (console.error("[sinal] expirar", d.ref.path, e), false));
+    }).catch(async (e) => {
+      console.error("[sinal] expirar", d.ref.path, e);
+      // tira da consulta: um documento que sempre falha não pode ocupar a rodada inteira
+      await d.ref.update({ "sinal.status": "erro" }).catch(() => undefined);
+      return false;
+    });
     if (ok) liberados++;
   }
   return liberados;

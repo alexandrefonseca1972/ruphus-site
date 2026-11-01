@@ -479,8 +479,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 <p className="text-[15px] leading-relaxed">
                   Pague o sinal até <strong className={MONO}>{formatTime(new Date(reserva.sinal.ate), fuso)}</strong> para garantir o horário. Sem o sinal, o horário é liberado.
                 </p>
-                <PixQr recebedor={reserva.sinal.pix} valorCents={reserva.sinal.cents} txid={reserva.sinal.txid} ate={reserva.sinal.ate} mensagem={`Sinal do horário de ${longDate(date)}, às ${hora}, em ${name}`} />
-                {phone && (
+                <PixQr recebedor={reserva.sinal.pix} valorCents={reserva.sinal.cents} txid={reserva.sinal.txid} ate={reserva.sinal.ate} mensagem={`Sinal do horário de ${longDate(date)}, às ${hora}, em ${name}`} ajuda={`Fale com ${name} para combinar o pagamento.`}>
+                  {phone && (
                   <a
                     href={linkWhatsApp(phone, `Olá! Paguei o sinal de ${formatBRL(reserva.sinal.cents)} do meu horário de ${longDate(date)}, às ${hora} (${servicos}). Meu nome é ${customerName.trim()}. Segue o comprovante.`) ?? undefined}
                     target="_blank"
@@ -490,6 +490,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                     Enviar comprovante para {name}
                   </a>
                 )}
+                </PixQr>
               </div>
             )}
             {/* Quem confirma é o negócio, no número que o cliente deu: "seu" deixa claro que

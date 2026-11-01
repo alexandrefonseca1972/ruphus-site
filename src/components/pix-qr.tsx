@@ -9,7 +9,25 @@ import { tempoRestante } from "@/lib/sinal";
 /** O Pix do salão na tela: o cliente lê o QR no balcão, ou recebe o copia e cola pelo
  *  WhatsApp. O dinheiro cai na conta do salão, e ninguém avisa: confere-se no banco.
  *  ate: prazo do sinal (ISO); com ele, a contagem aparece e o QR some quando vence. */
-export function PixQr({ recebedor, valorCents, txid, mensagem, ate }: { recebedor: Recebedor; valorCents: number; txid: string; mensagem?: string; ate?: string }) {
+export function PixQr({
+  recebedor,
+  valorCents,
+  txid,
+  mensagem,
+  ate,
+  ajuda = "Confira a chave em Meu negócio.",
+  children,
+}: {
+  recebedor: Recebedor;
+  valorCents: number;
+  txid: string;
+  mensagem?: string;
+  ate?: string;
+  /** o que fazer se o Pix não montar: o dono confere a chave; o cliente fala com o salão */
+  ajuda?: string;
+  /** o que só vale enquanto dá para pagar (ex.: "enviar comprovante"): some quando o prazo vence */
+  children?: React.ReactNode;
+}) {
   const montado = useMemo(() => {
     try {
       return { codigo: brCode({ ...recebedor, valorCents, txid }) };
@@ -18,7 +36,8 @@ export function PixQr({ recebedor, valorCents, txid, mensagem, ate }: { recebedo
       throw e;
     }
   }, [recebedor, valorCents, txid]);
-  const [svg, setSvg] = useState<string | null>("");
+  // o desenho guardado junto com o código: valor trocado não mostra o QR do valor antigo
+  const [qr, setQr] = useState<{ codigo: string; svg: string | null } | null>(null);
   const [copiado, setCopiado] = useState<"sim" | "falhou" | null>(null);
   const [agora, setAgora] = useState(() => Date.now());
 
@@ -26,9 +45,10 @@ export function PixQr({ recebedor, valorCents, txid, mensagem, ate }: { recebedo
     if (!montado.codigo) return;
     let atual = true;
     // sem o desenho do QR, o copia e cola continua valendo
-    QRCode.toString(montado.codigo, { type: "svg", margin: 1, errorCorrectionLevel: "M" })
-      .then((s) => atual && setSvg(s))
-      .catch(() => atual && setSvg(null));
+    const codigo = montado.codigo;
+    QRCode.toString(codigo, { type: "svg", margin: 1, errorCorrectionLevel: "M" })
+      .then((svg) => atual && setQr({ codigo, svg }))
+      .catch(() => atual && setQr({ codigo, svg: null }));
     return () => {
       atual = false;
     };
@@ -37,13 +57,15 @@ export function PixQr({ recebedor, valorCents, txid, mensagem, ate }: { recebedo
   useEffect(() => {
     if (!ate) return;
     const id = setInterval(() => setAgora(Date.now()), 30_000);
-    return () => clearInterval(id);
+    // e no instante do prazo: o QR não fica pagável até 30 s além dele
+    const fim = setTimeout(() => setAgora(Date.now()), Math.max(0, Date.parse(ate) - Date.now()) + 50);
+    return () => (clearInterval(id), clearTimeout(fim));
   }, [ate]);
 
   if (!montado.codigo) {
     return (
       <p role="alert" className="rounded-xl border border-[#E7C9BF] bg-[#FBF1EE] p-3.5 text-sm text-[#B4472F]">
-        Não foi possível montar o Pix ({montado.erro}). Confira a chave em Meu negócio.
+        Não foi possível montar o Pix ({montado.erro}). {ajuda}
       </p>
     );
   }
@@ -59,6 +81,7 @@ export function PixQr({ recebedor, valorCents, txid, mensagem, ate }: { recebedo
   const codigo = montado.codigo;
   const texto = `${mensagem ?? `Pix de ${formatBRL(valorCents)} para ${recebedor.nome}`}. Copie o código abaixo e cole no app do banco, em "Pix copia e cola":\n\n${codigo}`;
   async function copiar() {
+    setCopiado(null);
     try {
       await navigator.clipboard.writeText(codigo);
       setCopiado("sim");
@@ -69,6 +92,7 @@ export function PixQr({ recebedor, valorCents, txid, mensagem, ate }: { recebedo
     }
   }
 
+  const svg = qr?.codigo === codigo ? qr.svg : "";
   return (
     <div className="grid gap-3 rounded-xl border bg-white p-4 text-[#17150F]">
       {svg ? (
@@ -88,12 +112,13 @@ export function PixQr({ recebedor, valorCents, txid, mensagem, ate }: { recebedo
           Enviar por WhatsApp
         </a>
       </div>
-      <p aria-live="polite" className="sr-only">{copiado === "sim" ? "Código Pix copiado." : ""}</p>
+      <p aria-live="polite" className="sr-only">{copiado === "sim" ? "Código Pix copiado." : copiado === "falhou" ? "Não deu para copiar. O código está logo abaixo, para selecionar e copiar." : ""}</p>
       {/* o código à vista: quem não consegue copiar pelo botão seleciona e copia */}
       <details open={copiado === "falhou"} className="text-xs text-[#5C5747]">
         <summary className="cursor-pointer py-1">{copiado === "falhou" ? "Copie o código abaixo" : "Ver o código"}</summary>
         <code className="mt-1 block max-h-24 overflow-auto rounded-lg border border-[#E4E1D5] bg-[#FAF9F5] p-2.5 font-[family-name:var(--font-geist-mono)] text-[10px] break-all select-all">{codigo}</code>
       </details>
+      {children}
     </div>
   );
 }
