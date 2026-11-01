@@ -12,6 +12,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { z } from "zod";
 import { adminDb } from "@/lib/admin";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
+import MUNICIPIOS_JSON from "@/lib/municipios.json";
 import { LIMITES, problemaNoPedido, TERMOS_PADRAO, UFS, type EstadoColeta, type Progresso, type Resumo } from "@/lib/coleta";
 import { gerarNoBanco, TETO_LOTE } from "@/lib/gerador.server";
 
@@ -26,15 +27,17 @@ export type WorkerLocal = { pode: boolean; ligado: boolean; nome: string; log: s
 
 const coletas = () => adminDb.collection("coletas");
 const ms = (t: unknown) => (t as Timestamp | undefined)?.toMillis?.() ?? null;
+const MUNICIPIOS = MUNICIPIOS_JSON as Record<string, string[]>;
 const UF = z.enum(Object.keys(UFS) as [keyof typeof UFS, ...(keyof typeof UFS)[]]);
 // id de documento do Firestore: sem "/", senão "x/leads/y" apontaria para dentro de outra coleta
 const Id = z.string().regex(/^[A-Za-z0-9]{1,40}$/);
 
-/** Municípios do estado pelo IBGE (lista oficial; muda quase nunca, então fica um dia em cache). */
+/** Municípios do estado, da lista oficial do IBGE guardada no projeto (src/lib/municipios.json).
+ *  O IBGE não responde para o IP da VPS, e a lista muda quase nunca (um município novo a cada
+ *  poucos anos). Para atualizar: baixar de novo de
+ *  https://servicodados.ibge.gov.br/api/v1/localidades/estados/{UF}/municipios?orderBy=nome */
 async function doIbge(uf: string) {
-  const r = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${UF.parse(uf)}/municipios?orderBy=nome`, { next: { revalidate: 86_400 } });
-  if (!r.ok) throw new ErroPrevisto("O IBGE não respondeu. Tente de novo em instantes.");
-  return ((await r.json()) as { nome: string }[]).map((m) => m.nome);
+  return MUNICIPIOS[UF.parse(uf)] ?? [];
 }
 export const municipios = adminAction(async (_user, uf: string) => doIbge(uf));
 
@@ -55,7 +58,8 @@ const SEM_SINAL_MS = 3 * 60_000;
 
 let temNavegador: boolean | undefined;
 function podeLigarAqui() {
-  if (process.env.VERCEL) return false;
+  // COLETA_SERVICO: o worker é um serviço da máquina (systemd na VPS), não um processo do admin
+  if (process.env.VERCEL || process.env.COLETA_SERVICO) return false;
   temNavegador ??= spawnSync("agent-browser", ["--version"], { timeout: 10_000, stdio: "ignore" }).status === 0;
   return temNavegador;
 }
