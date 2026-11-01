@@ -3,6 +3,18 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## 0.14.0 — WhatsApp na plataforma atendys
+
+### Infraestrutura
+- **O WhatsApp do negócio mudou de gateway**: em vez do protótipo próprio, cada
+  negócio é um tenant na plataforma **atendys** (instância por cliente, filas,
+  opt-in LGPD e webhooks assinados por tenant). Conectar pelo painel (do dono ou
+  do /admin) provisiona o tenant e a instância sozinho — não há mais passo manual.
+- **Webhook novo em `/api/webhooks/atendys`**, com assinatura HMAC por negócio;
+  a rota antiga `/api/webhooks/wtsfy` responde 410 (gateway desativado).
+- Conexões feitas no protólogo antigo aparecem como desconectadas: reconectar
+  provisiona tudo de novo na plataforma nova.
+
 ## 0.13.0 — 31/10/2026
 
 ### Pix do salão (novo)

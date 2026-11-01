@@ -218,11 +218,20 @@ conferidos no Firebase Console (o UID do dono).
 - [ ] Atualizar `docs/` e o CHANGELOG.
 
 ### Fase 6: WhatsApp no gateway novo (separada, depois do corte)
-O detalhamento da versão anterior deste plano continua válido:
-- contrato novo em `src/lib/wtsfy.ts`;
-- tenant WTSFY por negócio;
-- evento `message.received` na plataforma, para o "CONFIRMADO" do dono;
-- webhook interno `http://127.0.0.1:3001/api/webhooks/wtsfy`.
+O detalhamento da versão anterior deste plano continua válido. **Executada em
+2026-10-31** (plataforma renomeada para *atendys* entre o plano e a execução):
+- [x] contrato novo em `src/lib/atendys.ts` (ex-`src/lib/wtsfy.ts`, removido);
+- [x] tenant atendys por negócio, provisionado automaticamente ao conectar
+      (`conectarNegocio` em `whatsapp.server.ts`: garante tenant, rotaciona o
+      segredo do webhook, cria a instância `{slug}-main` — idempotente);
+- [x] evento `message.received` na plataforma, para o "CONFIRMADO" do dono
+      (inscrito MESSAGES_UPSERT; payload `{instance, messageId, phone, type, text}`);
+- [x] webhook `/api/webhooks/atendys` (assinatura por tenant, segredo gravado no
+      doc do negócio; a rota antiga `/api/webhooks/wtsfy` responde 410);
+- [x] envs `ATENDYS_BASE_URL`/`ATENDYS_ADMIN_KEY` no `.env.local` da VPS
+      (chamada interna `http://127.0.0.1:3002`).
+- [ ] Pendente do dono: deploy deste código (action/PR) + conectar um número de
+      teste de verdade no painel e responder `CONFIRMADO` ponta a ponta.
 
 Fica separado porque hoje nada disso funciona em produção, então não trava a
 volta do site.

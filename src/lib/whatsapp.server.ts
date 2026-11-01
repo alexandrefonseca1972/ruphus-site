@@ -3,18 +3,19 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { quando } from "@/lib/avisos.server";
 import { dateIn, formatTime } from "@/lib/datetime";
 import { soDigitosComDDI } from "@/lib/telefone";
-import { getStatus, sendText } from "@/lib/wtsfy";
+import { criarInstancia, enviarTexto, garantirTenant, statusDaConexao, type ConexaoAtendys } from "@/lib/atendys";
 
-// O WhatsApp que o dono conectou ao próprio negócio: qual instância do gateway
-// wtsfy, o número pareado e o estado da conexão. Campo `whatsapp` do documento
-// tenants/{slug} — o mesmo lugar de site, agenda e limiteStaff.
+// O WhatsApp que o dono conectou ao próprio negócio: qual instância da
+// plataforma (atendys), o número pareado e o estado da conexão. Campo
+// `whatsapp` do documento tenants/{slug} — o mesmo lugar de site, agenda e
+// limiteStaff.
 //
 // ownerPhone é o número PESSOAL do dono: quem recebe os avisos de novo
 // agendamento e confirma respondendo CONFIRMADO. Tem de ser um aparelho
 // separado do número conectado: o que o dono manda do próprio número (self-chat)
 // chega ao gateway de forma instável.
 
-export type ConexaoWhatsapp = {
+export type ConexaoWhatsapp = ConexaoAtendys & {
   instanceId: string;
   phone: string | null;
   status: string;
@@ -39,6 +40,11 @@ export type ConexaoWhatsapp = {
   /** Última falha ao avisar o dono de um agendamento (gateway fora, envio
    *  rejeitado…). Visível na gaveta; sumir quando um aviso sai com sucesso. */
   lastNotifyError?: { message: string; at: number } | null;
+  /** Provisionamento atendys: id do tenant + segredo de assinatura dos webhooks
+   *  (x-atendys-signature). Gravados ao conectar; a apikey vem de
+   *  ConexaoAtendys. O segredo rotaciona a cada conexão. */
+  atendysTenantId?: string;
+  atendysWebhookSecret?: string;
 };
 
 export { soDigitosComDDI };
@@ -46,7 +52,9 @@ export { soDigitosComDDI };
 export async function lerConexao(db: Firestore, slug: string): Promise<ConexaoWhatsapp | null> {
   const t = await db.doc(`tenants/${slug}`).get();
   const w = t.get("whatsapp") as ConexaoWhatsapp | undefined;
-  return w?.instanceId ? w : null;
+  // sem atendysApiKey é resto do protólogo antigo (wtsfy): para o app é como se
+  // não houvesse conexão — o dono reconecta e o provisionamento atendys roda do zero.
+  return w?.instanceId && w?.atendysApiKey ? w : null;
 }
 
 /** O mapa whatsapp inteiro, com ou sem conexão — o termo pode estar aceito sem
@@ -94,6 +102,36 @@ export async function gravarConexao(db: Firestore, slug: string, conexao: Conexa
 
 export async function apagarConexao(db: Firestore, slug: string) {
   await db.doc(`tenants/${slug}`).update({ whatsapp: FieldValue.delete() });
+}
+
+/** Provisionamento automático: garante o tenant e a instância no atendys e
+ *  prende o vínculo no negócio. Idempotente — se já houver conexão, o caller
+ *  decide (as actions checam antes). Quando o doc já tem tenant/apikey do
+ *  atendys (reconexão após desligamento), reutiliza; senão emite nova chave. */
+export async function conectarNegocio(
+  db: Firestore,
+  slug: string,
+  nomeNegocio: string,
+  ownerManaged: boolean,
+): Promise<ConexaoWhatsapp> {
+  const atual = await lerConfigWhatsApp(db, slug);
+  const credenciais = await garantirTenant(slug, nomeNegocio || slug, {
+    reatribuirChave: !(atual?.atendysTenantId && atual.atendysApiKey),
+  });
+  const { name } = await criarInstancia(credenciais.tenantId, slug);
+  const conexao: ConexaoWhatsapp = {
+    ...(atual ?? {}),
+    atendysTenantId: credenciais.tenantId,
+    atendysApiKey: credenciais.apikey || atual?.atendysApiKey || "",
+    atendysWebhookSecret: credenciais.webhookSecret,
+    instanceId: name,
+    phone: null,
+    status: "qr",
+    updatedAt: Date.now(),
+    ownerManaged,
+  };
+  await gravarConexao(db, slug, conexao);
+  return conexao;
 }
 
 /** O número pessoal do dono: recebe os avisos e confirma respondendo. Vazio desliga. */
@@ -145,15 +183,16 @@ export async function registrarMensagemRecebida(
 }
 
 /** O gateway avisou que a conexão mudou de estado: espelha no negócio.
- *  `reason` vem junto (banned, session_revoked_repeated, watchdog…) pra a
- *  gaveta explicar o que aconteceu, não só o estado. */
+ *  O atendys manda pending_qr/connected/disconnected; o painel fala qr em vez
+ *  de pending_qr. `reason` (versão antiga) não existe mais no contrato. */
 export async function espelharStatusDaInstancia(
   db: Firestore,
   slug: string,
   dados: { status?: unknown; phone?: unknown; reason?: unknown },
 ) {
-  const status = String(dados.status ?? "");
-  if (!status) return;
+  const bruto = String(dados.status ?? "");
+  if (!bruto) return;
+  const status = bruto === "pending_qr" ? "qr" : bruto === "connected" ? "connected" : "disconnected";
   const reason = typeof dados.reason === "string" && dados.reason ? dados.reason : null;
   await db.doc(`tenants/${slug}`).set(
     {
@@ -196,7 +235,7 @@ export async function processarComandoAgendamento(
   if (!respostaPara) return "ignorado"; // inalcançável (remetente bateu com um dos dois), satisfeito só o TS
   // estado de verdade vem do gateway ao vivo — o status cacheado no documento
   // do tenant pode estar desatualizado se um webhook de reconexão se perder
-  const vivo = await getStatus(conexao.instanceId).catch(() => null);
+  const vivo = await statusDaConexao(conexao).catch(() => null);
   if (!vivo || vivo.status !== "connected") return "ignorado";
   const texto = String((msg.data as { text?: unknown } | undefined)?.text ?? "").trim();
   // "recusar" é o verbo de recusa: "cancelar" fica de fora de propósito — é
@@ -215,7 +254,7 @@ export async function processarComandoAgendamento(
     .filter((d) => startDe(d).getTime() > agora)
     .filter((d) => !codigo || codigoDoAgendamento(d.id) === codigo);
   if (pendentes.length === 0) {
-    await sendText(conexao.instanceId, respostaPara, codigo ? `Não encontrei agendamento aguardando confirmação com o código ${codigo}.` : "Não encontrei agendamento aguardando confirmação.");
+    await enviarTexto(conexao, respostaPara, codigo ? `Não encontrei agendamento aguardando confirmação com o código ${codigo}.` : "Não encontrei agendamento aguardando confirmação.");
     return "sem pendente";
   }
   if (pendentes.length > 1) {
@@ -223,7 +262,7 @@ export async function processarComandoAgendamento(
       .sort((x, y) => startDe(x).getTime() - startDe(y).getTime())
       .map((d) => `${codigoDoAgendamento(d.id)}: ${String(d.get("customerName") ?? "").trim()} · ${d.get("serviceName")} · ${quando(dateIn(startDe(d)), formatTime(startDe(d)))}`)
       .join("\n");
-    await sendText(conexao.instanceId, respostaPara, `Há mais de um agendamento aguardando. Responda com o código, por exemplo ${comando[1].toUpperCase()} ${codigoDoAgendamento(pendentes[0].id)}:\n${lista}`);
+    await enviarTexto(conexao, respostaPara, `Há mais de um agendamento aguardando. Responda com o código, por exemplo ${comando[1].toUpperCase()} ${codigoDoAgendamento(pendentes[0].id)}:\n${lista}`);
     return "sem pendente";
   }
   const a = pendentes[0];
@@ -244,7 +283,7 @@ export async function processarComandoAgendamento(
     });
   };
   const mudou = async (ok: boolean) => {
-    if (!ok) await sendText(conexao.instanceId, respostaPara, `O agendamento de ${nome} (${servico}) já não estava aguardando confirmação. Nada foi alterado.`).catch(() => {});
+    if (!ok) await enviarTexto(conexao, respostaPara, `O agendamento de ${nome} (${servico}) já não estava aguardando confirmação. Nada foi alterado.`).catch(() => {});
     return ok;
   };
 
@@ -255,14 +294,14 @@ export async function processarComandoAgendamento(
       try {
         const base = (process.env.PUBLIC_SITE_URL ?? `https://${slug}.ruphus.site`).replace(/\/+$/, "");
         const link = `${base}/agendar/${slug}`;
-        await sendText(conexao.instanceId, cliente, `Olá, ${nome}. O salão não conseguiu confirmar seu horário de ${servico}. Chame aqui pelo WhatsApp para remarcar ou agende outro horário pelo link: ${link}`);
+        await enviarTexto(conexao, cliente, `Olá, ${nome}. O salão não conseguiu confirmar seu horário de ${servico}. Chame aqui pelo WhatsApp para remarcar ou agende outro horário pelo link: ${link}`);
       } catch (e) {
         const motivo = e instanceof Error ? e.message : String(e);
-        await sendText(conexao.instanceId, respostaPara, `Agendamento de ${nome} recusado, mas o aviso ao cliente falhou: ${motivo}`).catch(() => {});
+        await enviarTexto(conexao, respostaPara, `Agendamento de ${nome} recusado, mas o aviso ao cliente falhou: ${motivo}`).catch(() => {});
         throw e;
       }
     }
-    await sendText(conexao.instanceId, respostaPara, `Agendamento de ${nome} (${servico}) recusado. O cliente foi avisado.`).catch(() => {});
+    await enviarTexto(conexao, respostaPara, `Agendamento de ${nome} (${servico}) recusado. O cliente foi avisado.`).catch(() => {});
     return "recusado";
   }
 
@@ -271,12 +310,12 @@ export async function processarComandoAgendamento(
   const cliente = soDigitosComDDI(String(a.get("customerPhone") ?? ""));
   if (cliente) {
     try {
-      await sendText(conexao.instanceId, cliente, `Olá, ${nome}! Seu agendamento está confirmado: ${servico}. Te esperamos!`);
+      await enviarTexto(conexao, cliente, `Olá, ${nome}! Seu agendamento está confirmado: ${servico}. Te esperamos!`);
     } catch (e) {
       // o agendamento já está confirmado; quem precisa saber que o cliente não
       // foi avisado é quem opera o salão (self-chat), que está esperando o eco
       const motivo = e instanceof Error ? e.message : String(e);
-      await sendText(conexao.instanceId, respostaPara, `Agendamento de ${nome} confirmado, mas o aviso ao cliente falhou: ${motivo}`).catch(() => {});
+      await enviarTexto(conexao, respostaPara, `Agendamento de ${nome} confirmado, mas o aviso ao cliente falhou: ${motivo}`).catch(() => {});
       throw e;
     }
   }
