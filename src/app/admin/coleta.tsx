@@ -1,5 +1,12 @@
 "use client";
 
+import { ehVersaoAntiga, esperaDe, RECONECTOU, recarregarUmaVez } from "@/lib/conexao";
+
+/** Falha de uma ação: aba de versão anterior recarrega; o resto vira null (a tela diz que falhou). */
+const versaoOuNada = (e: unknown) => {
+  if (ehVersaoAntiga(e)) recarregarUmaVez();
+  return null;
+};
 import { useEffect, useState } from "react";
 import { CAPITAIS, LIMITES, problemaNoPedido, TERMOS_PADRAO, UFS, type Uf } from "@/lib/coleta";
 import type { LinhaGerada } from "@/lib/gerador.server";
@@ -80,10 +87,18 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
   useEffect(() => {
     if (!idToken) return;
     let atual = true;
-    const carregar = () =>
+    let falhas = 0;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const proxima = (ms: number) => {
+      clearTimeout(t);
+      t = setTimeout(carregar, ms);
+    };
+    function carregar() {
       painelColeta(idToken).then(
         (r) => {
           if (!atual) return;
+          falhas = 0;
+          proxima(emCurso ? 15_000 : 60_000);
           if (!r.ok) return setErroPainel(`Não consegui atualizar a lista: ${r.error}`);
           setErroPainel("");
           setColetas(r.dados.coletas);
@@ -91,21 +106,31 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
           setLocal(r.dados.local);
           setAgora(Date.now());
         },
-        // falha de rede passageira: avisa e o próximo ciclo tenta de novo
-        () => atual && setErroPainel("Sem conexão com o servidor. Tentando de novo…"),
+        (e) => {
+          if (!atual) return;
+          // a aba é de antes de um deploy: a ação mudou de id; recarrega a página
+          if (ehVersaoAntiga(e) && recarregarUmaVez()) return setErroPainel("Versão nova no ar. Recarregando…");
+          // queda de rede ou app reiniciando: tenta de novo com espera crescente (e já ao reconectar)
+          falhas += 1;
+          setErroPainel(`Sem conexão com o servidor. Nova tentativa em ${Math.round(esperaDe(falhas) / 1000)} s.`);
+          proxima(esperaDe(falhas));
+        },
       );
+    }
     carregar();
-    const t = setInterval(carregar, emCurso ? 15_000 : 60_000);
+    const reconectou = () => carregar();
+    window.addEventListener(RECONECTOU, reconectou);
     return () => {
       atual = false;
-      clearInterval(t);
+      clearTimeout(t);
+      window.removeEventListener(RECONECTOU, reconectou);
     };
   }, [idToken, emCurso, versao]);
 
   async function ligarOuDesligar() {
     setErro("");
     setLigando(true);
-    const r = await (local?.ligado ? desligarWorker(idToken) : ligarWorker(idToken)).catch(() => null);
+    const r = await (local?.ligado ? desligarWorker(idToken) : ligarWorker(idToken)).catch(versaoOuNada);
     setLigando(false);
     if (!r) return setErro("A conexão falhou. Tente de novo.");
     if (!r.ok) return setErro(r.error);
@@ -123,7 +148,7 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
     setEscolhidas([]);
     setCidades([]);
     if (!v) return;
-    const r = await municipios(idToken, v).catch(() => null);
+    const r = await municipios(idToken, v).catch(versaoOuNada);
     if (r?.ok) setCidades(r.dados);
     else setErro(r?.error ?? "Não consegui carregar as cidades. Escolha o estado de novo para tentar outra vez.");
   }
@@ -133,7 +158,7 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
     if (escolhidas.includes(cidade)) return setEscolhidas((xs) => xs.filter((x) => x !== cidade));
     setEscolhidas((xs) => [...xs, cidade]);
     if (!uf || cidade in jaTemos) return;
-    const r = await jaTemosNaCidade(idToken, cidade, uf).catch(() => null);
+    const r = await jaTemosNaCidade(idToken, cidade, uf).catch(versaoOuNada);
     if (r?.ok) setJaTemos((j) => ({ ...j, [cidade]: r.dados }));
   }
 
@@ -143,7 +168,7 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
     setErro("");
     setAviso("");
     setAlerta("");
-    const r = await pedirColeta(idToken, { uf, ...pedido }).catch(() => null);
+    const r = await pedirColeta(idToken, { uf, ...pedido }).catch(versaoOuNada);
     setEnviando(false);
     if (!r) return setErro("A conexão falhou e o pedido não foi enviado. Confira a internet e tente de novo.");
     if (!r.ok) return setErro(r.error);
@@ -332,7 +357,7 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
   async function acao<T>(fn: () => Promise<{ ok: true; dados: T } | { ok: false; error: string }>, depois?: (d: T) => void) {
     setOcupado(true);
     setErro("");
-    const r = await fn().catch(() => null);
+    const r = await fn().catch(versaoOuNada);
     setOcupado(false);
     if (!r) return setErro("Não foi possível agora. Tente de novo.");
     if (!r.ok) return setErro(r.error);
@@ -346,7 +371,7 @@ function Cartao({ c, agora, semWorker, idToken, aoMudar, aoGerar }: { c: Coleta;
     setErro("");
     let feitos = 0;
     for (;;) {
-      const r = await gerarLoteDaColeta(idToken, c.id).catch(() => null);
+      const r = await gerarLoteDaColeta(idToken, c.id).catch(versaoOuNada);
       if (!r || !r.ok) {
         setOcupado(false);
         setGerando(null);
