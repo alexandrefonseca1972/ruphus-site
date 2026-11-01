@@ -19,7 +19,7 @@ import { type Amostra, anotar, duracao, faltam, porcentagem, ritmo } from "@/lib
 import { desmarcar, marcarTodas, sortear } from "@/lib/coleta-selecao";
 import { CAPITAIS, LIMITES, problemaNoPedido, TERMOS_PADRAO, UFS, type Uf } from "@/lib/coleta";
 import type { LinhaGerada } from "@/lib/gerador.server";
-import { cancelarColeta, type Coleta, desligarWorker, excluirColeta, gerarLoteDaColeta, ligarWorker, type WorkerLocal, jaTemosNaCidade, municipios, painelColeta, pedirColeta, previaDaColeta, recolocarColeta, type Worker } from "./coleta-actions";
+import { cancelarColeta, type Coleta, devolverAGeracao, desligarWorker, type LinhaDaPrevia, tirarDaGeracao, excluirColeta, gerarLoteDaColeta, ligarWorker, type WorkerLocal, jaTemosNaCidade, municipios, painelColeta, pedirColeta, previaDaColeta, recolocarColeta, type Worker } from "./coleta-actions";
 
 // Coleta de leads no Google Maps: o admin escolhe estado e cidade e põe na fila; um
 // worker com navegador (npm run coletar -- --fila, neste Mac ou numa VPS) coleta e
@@ -418,7 +418,35 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: () 
 function Cartao({ c, agora, semWorker, aoMudar, aoGerar }: { c: Coleta; agora: number; semWorker: boolean; aoMudar: () => void; aoGerar: () => void }) {
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState("");
-  const [previa, setPrevia] = useState<LinhaGerada[] | null>(null);
+  const [previa, setPrevia] = useState<LinhaDaPrevia[] | null>(null);
+  // o último tirado da geração, com a posição na lista: "Desfazer" devolve no mesmo lugar
+  const [tirado, setTirado] = useState<{ linha: LinhaDaPrevia; pos: number } | null>(null);
+  const [tirando, setTirando] = useState<string | null>(null);
+
+  async function tirar(l: LinhaDaPrevia) {
+    setTirando(l.leadId);
+    setErro("");
+    const r = await tokenFresco().then((tk) => tirarDaGeracao(tk, c.id, l.leadId)).catch(versaoOuNada);
+    setTirando(null);
+    if (!r) return setErro("Não foi possível tirar agora. Tente de novo.");
+    if (!r.ok) return setErro(r.error);
+    setTirado({ linha: l, pos: previa?.indexOf(l) ?? 0 });
+    setPrevia((p) => p?.filter((x) => x.leadId !== l.leadId) ?? null);
+    aoMudar();
+  }
+
+  async function desfazer() {
+    if (!tirado) return;
+    const { linha, pos } = tirado;
+    setTirando(linha.leadId);
+    const r = await tokenFresco().then((tk) => devolverAGeracao(tk, c.id, linha.leadId)).catch(versaoOuNada);
+    setTirando(null);
+    if (!r) return setErro("Não foi possível devolver agora. Tente de novo.");
+    if (!r.ok) return setErro(r.error);
+    setTirado(null);
+    setPrevia((p) => (p ? [...p.slice(0, pos), linha, ...p.slice(pos)] : p));
+    aoMudar();
+  }
   const [gerando, setGerando] = useState<{ feitos: number; total: number } | null>(null);
   const [feito, setFeito] = useState<number | null>(null);
   const [rotulo, cor] = ESTADOS[c.estado];
@@ -648,14 +676,37 @@ function Cartao({ c, agora, semWorker, aoMudar, aoGerar }: { c: Coleta; agora: n
             <summary className="cursor-pointer text-[#6F6A5E]">Ver a lista</summary>
             <ul className="mt-2 flex max-h-72 flex-col gap-0.5 overflow-y-auto text-[12px]">
               {previa.map((l) => (
-                <li key={`${l.aba}#${l.linha}`} className={l.acao === "pular" ? "text-[#8B8578]" : ""}>
-                  <span className="font-semibold">{l.nome}</span> · <span className="font-mono">{l.slug}.ruphus.site</span>
-                  {l.acao === "pular" ? " · já tem site" : l.acao === "atualizar" ? " · atualiza" : ""}
-                  {l.aviso && <span className="text-[#7A5A2E]"> · {l.aviso}</span>}
+                <li key={l.leadId} className={`group flex items-start gap-2 rounded-md px-1 py-0.5 hover:bg-white ${l.acao === "pular" ? "text-[#8B8578]" : ""}`}>
+                  <span className="min-w-0 flex-1">
+                    <span className="font-semibold">{l.nome}</span>
+                    {l.slug && <> · <span className="font-mono">{l.slug}.ruphus.site</span></>}
+                    {l.acao === "pular" ? ` · ${l.motivo ?? "já tem site"}` : l.acao === "atualizar" ? " · atualiza" : ""}
+                    {l.aviso && <span className="text-[#7A5A2E]"> · {l.aviso}</span>}
+                  </span>
+                  {/* tirar da geração: o lead não vira site (e sai dos novos da coleta) */}
+                  {l.acao !== "pular" && (
+                    <button
+                      type="button"
+                      disabled={!!tirando || ocupado}
+                      onClick={() => void tirar(l)}
+                      aria-label={`Não gerar o site de ${l.nome}`}
+                      className="shrink-0 rounded-md border border-[#D8D2C6] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#8A3A22] opacity-60 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-30"
+                    >
+                      {tirando === l.leadId ? "Tirando…" : "Tirar"}
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
           </details>
+          {tirado && (
+            <p role="status" className="flex flex-wrap items-center gap-2 text-[#6F6A5E]">
+              <span><span className="font-semibold text-[#17150F]">{tirado.linha.nome}</span> não vai ser gerado.</span>
+              <button type="button" disabled={!!tirando} onClick={() => void desfazer()} className="font-semibold text-[#17150F] underline underline-offset-2 disabled:opacity-50">
+                {tirando === tirado.linha.leadId ? "Devolvendo…" : "Desfazer"}
+              </button>
+            </p>
+          )}
           {aGerar > 0 && (
             <div>
               <button type="button" disabled={ocupado} onClick={() => gerar(aGerar)} className={`${BOTAO} bg-[#17150F] text-white disabled:opacity-50`}>

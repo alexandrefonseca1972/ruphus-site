@@ -14,7 +14,7 @@ import { adminDb } from "@/lib/admin";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import MUNICIPIOS_JSON from "@/lib/municipios.json";
 import { LIMITES, problemaNoPedido, TERMOS_PADRAO, UFS, type EstadoColeta, type Progresso, type Resumo } from "@/lib/coleta";
-import { gerarNoBanco, TETO_LOTE } from "@/lib/gerador.server";
+import { gerarNoBanco, type LinhaGerada, TETO_LOTE } from "@/lib/gerador.server";
 
 export type Coleta = {
   id: string; uf: string; cidade: string; bairros: string[]; termos: string[]; estado: EstadoColeta;
@@ -187,8 +187,37 @@ export const excluirColeta = adminAction(async (_user, id: string) => {
 async function novosDa(ref: FirebaseFirestore.DocumentReference) {
   // sem orderBy: igualdade devolve em ordem de id, a mesma em toda chamada (o cursor depende disso)
   const novos = await ref.collection("leads").where("situacao", "==", "novo").get();
-  return novos.docs.map((d, i) => ({ aba: "coleta", linha: i + 1, lead: d.get("lead") }));
+  return novos.docs.map((d, i) => ({ aba: "coleta", linha: i + 1, lead: d.get("lead"), id: d.id }));
 }
+
+/** Linha da prévia com o lead de onde veio: é por ele que se tira da geração. */
+export type LinhaDaPrevia = LinhaGerada & { leadId: string };
+
+/** Tira um novo da geração (ou devolve). Só antes de gerar o primeiro lote: a geração anda
+ *  por posição na lista dos novos, e tirar um do meio depois faria o cursor pular outro.
+ *  O resumo da coleta acompanha: sai dos novos e entra em "fora", com o motivo. */
+async function mudarSituacao(id: string, leadId: string, de: "novo" | "excluido", para: "novo" | "excluido") {
+  const ref = coletas().doc(Id.parse(id));
+  const lead = ref.collection("leads").doc(Id.parse(leadId));
+  await adminDb.runTransaction(async (tx) => {
+    const [c, l] = await Promise.all([tx.get(ref), tx.get(lead)]);
+    if (c.get("estado") !== "pronta" || ((c.get("geradosAte") as number | undefined) ?? 0) > 0) {
+      throw new ErroPrevisto("A geração desta coleta já começou: não dá mais para tirar ou devolver sites.");
+    }
+    if (!l.exists) throw new ErroPrevisto("Esse lead não está mais na coleta.");
+    if (l.get("situacao") !== de) throw new ErroPrevisto(para === "excluido" ? "Esse lead já foi tirado da geração." : "Esse lead já está na geração.");
+    const sinal = para === "excluido" ? 1 : -1;
+    tx.update(lead, { situacao: para, excluidoEm: para === "excluido" ? FieldValue.serverTimestamp() : FieldValue.delete() });
+    tx.update(ref, {
+      "resumo.novos": FieldValue.increment(-sinal),
+      "resumo.fora": FieldValue.increment(sinal),
+      [`resumo.motivos.${MOTIVO_EXCLUIDO}`]: FieldValue.increment(sinal),
+    });
+  });
+}
+const MOTIVO_EXCLUIDO = "tirado no admin";
+export const tirarDaGeracao = adminAction(async (_user, id: string, leadId: string) => mudarSituacao(id, leadId, "novo", "excluido"));
+export const devolverAGeracao = adminAction(async (_user, id: string, leadId: string) => mudarSituacao(id, leadId, "excluido", "novo"));
 
 /** O que gerar os novos faria, sem gravar nada. */
 export const previaDaColeta = adminAction(async (user, id: string) => {
@@ -196,8 +225,13 @@ export const previaDaColeta = adminAction(async (user, id: string) => {
   const estado = (await ref.get()).get("estado");
   if (estado !== "pronta" && estado !== "gerando") throw new ErroPrevisto("A coleta ainda não terminou (ou já foi gerada).");
   const leads = await novosDa(ref);
-  const linhas = [];
-  for (let i = 0; i < leads.length; i += TETO_LOTE) linhas.push(...(await gerarNoBanco(adminDb, leads.slice(i, i + TETO_LOTE), false, process.env.OWNER_UID || user.uid)));
+  const linhas: LinhaDaPrevia[] = [];
+  for (let i = 0; i < leads.length; i += TETO_LOTE) {
+    const lote = leads.slice(i, i + TETO_LOTE);
+    const geradas = await gerarNoBanco(adminDb, lote.map(({ id: _, ...l }) => l), false, process.env.OWNER_UID || user.uid);
+    // gerarNoBanco devolve na ordem da entrada
+    linhas.push(...geradas.map((g, k) => ({ ...g, leadId: lote[k].id })));
+  }
   return linhas;
 });
 
@@ -219,7 +253,7 @@ export const gerarLoteDaColeta = adminAction(async (user, id: string) => {
   });
   try {
     const leads = await novosDa(ref);
-    const linhas = await gerarNoBanco(adminDb, leads.slice(inicio.cursor, inicio.cursor + TETO_LOTE), true, process.env.OWNER_UID || user.uid);
+    const linhas = await gerarNoBanco(adminDb, leads.slice(inicio.cursor, inicio.cursor + TETO_LOTE).map(({ id: _, ...l }) => l), true, process.env.OWNER_UID || user.uid);
     for (const { slug } of linhas.filter((l) => l.acao !== "pular")) {
       revalidatePath(`/s/${slug}/index.html`);
       revalidatePath(`/s/${slug}/og.jpg`);
