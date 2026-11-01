@@ -20,6 +20,8 @@ chown -R ruphus:ruphus app-new
 sudo -u ruphus env SHA="$SHA" bash -c 'cd app-new && npm ci --no-audit --no-fund --loglevel=error && GIT_COMMIT_SHA="$SHA" NEXT_TELEMETRY_DISABLED=1 npm run build'
 rm -rf app-prev && mv app app-prev && mv app-new app
 systemctl restart ruphus-site
+# o worker roda o código da app: reinicia junto (a coleta em curso continua de onde parou)
+if systemctl is-enabled --quiet ruphus-coleta 2>/dev/null; then systemctl restart ruphus-coleta; fi
 for i in $(seq 20); do
   curl -fsS -o /dev/null -H "Host: www.ruphus.site" http://localhost:3001/ && { echo "no ar: $(cut -c1-7 <<<"$SHA")"; exit 0; }
   sleep 2
