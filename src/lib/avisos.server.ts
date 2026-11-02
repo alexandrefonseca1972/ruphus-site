@@ -45,8 +45,11 @@ export async function inscrito(db: Firestore, tenantId: string, uid: string, end
   return d.exists && d.get("uid") === uid;
 }
 
-export async function cancelar(db: Firestore, tenantId: string, endpoint: string) {
-  await db.doc(`tenants/${tenantId}/avisos/${idDe(endpoint)}`).delete();
+/** Só a inscrição do próprio aparelho: o membro não cancela os avisos de outro. */
+export async function cancelar(db: Firestore, tenantId: string, uid: string, endpoint: string) {
+  const ref = db.doc(`tenants/${tenantId}/avisos/${idDe(endpoint)}`);
+  if ((await ref.get()).get("uid") !== uid) return;
+  await ref.delete();
 }
 
 /** "hoje às 10:30", "amanhã às 9:00", "sexta, 09/10 às 14:00" */

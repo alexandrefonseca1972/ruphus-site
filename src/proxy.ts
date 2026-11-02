@@ -8,13 +8,18 @@ let fechados: { slugs: Set<string>; ate: number } = { slugs: new Set(), ate: 0 }
 // A origem vem do ambiente, não do pedido: o Host chega de fora e não decide
 // para onde o servidor busca a lista de sites fechados.
 const ORIGEM = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "";
+// Sem SITE_URL, só fora da produção as listas vêm do próprio host da requisição: em produção esse host
+// vem do cabeçalho Host, que o visitante escolhe, e o segredo x-ruphus iria junto para ele.
+const origemDasListas = (origem: string) => ORIGEM || (process.env.NODE_ENV === "production" ? null : origem);
 const SEGREDO = process.env.DESATIVADOS_TOKEN || "";
 
 async function foraDoAr(slug: string, origem: string) {
   if (Date.now() > fechados.ate) {
     fechados = { slugs: fechados.slugs, ate: Date.now() + 60_000 };
     try {
-      const r = await fetch(new URL("/api/desativados", ORIGEM || origem), {
+      const base = origemDasListas(origem);
+      if (!base) return fechados.slugs.has(slug);
+      const r = await fetch(new URL("/api/desativados", base), {
         cache: "no-store",
         ...(SEGREDO && { headers: { "x-ruphus": SEGREDO } }),
       });
@@ -34,7 +39,9 @@ async function mapaDominios(origem: string) {
   if (Date.now() > dominios.ate) {
     dominios = { mapa: dominios.mapa, ate: Date.now() + 60_000 };
     try {
-      const r = await fetch(new URL("/api/dominios", ORIGEM || origem), {
+      const base = origemDasListas(origem);
+      if (!base) return dominios.mapa;
+      const r = await fetch(new URL("/api/dominios", base), {
         cache: "no-store",
         ...(SEGREDO && { headers: { "x-ruphus": SEGREDO } }),
       });

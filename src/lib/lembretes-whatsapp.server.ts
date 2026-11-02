@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
 import { agoraNaParede, dateIn, formatTime, fusoDaUF, todayIn, zonedTime } from "@/lib/datetime";
 import { enviarTexto, statusDaConexao } from "@/lib/atendys";
-import { soDigitosComDDI, type ConexaoWhatsapp } from "@/lib/whatsapp.server";
+import { lerConexao, soDigitosComDDI } from "@/lib/whatsapp.server";
 
 // Lembretes automáticos de horário: X horas antes de cada agendamento confirmado,
 // o cliente recebe um lembrete pelo WhatsApp do salão. O dono liga/desliga e
@@ -40,9 +40,8 @@ export async function enviarLembretesDoDia(): Promise<number> {
     const [h, m] = formatTime(agora, tz).split(":").map(Number);
     const minutosDoDia = h * 60 + m;
     if (minutosDoDia >= SILENCIO.inicioMin || minutosDoDia < SILENCIO.fimMin) continue;
-    const w = t.data().whatsapp as
-      | (ConexaoWhatsapp & { remindersEnabled?: boolean; remindersBeforeHours?: number })
-      | undefined;
+    // a conexão com a credencial do gateway, que mora no doc privado (lerConexao junta)
+    const w = await lerConexao(adminDb, t.id);
     if (!w?.instanceId || w.remindersEnabled !== true) continue;
     const antesMs = Math.min(24, Math.max(1, Number(w.remindersBeforeHours) || 2)) * 60 * 60_000;
     const vivo = await statusDaConexao(w).catch(() => null);

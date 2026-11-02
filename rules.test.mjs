@@ -28,7 +28,8 @@ await assertFails(setDoc(doc(mallory, "tenants/x"), { name: "x", ownerId: "alice
 await assertFails(setDoc(doc(mallory, "tenants/acme/members/mallory"), { uid: "mallory", role: "admin" }));
 
 // Isolamento
-await assertSucceeds(setDoc(doc(alice, "tenants/acme/sites/s1"), { title: "a" }));
+// subcoleção sem regra (a antiga "sites" não era usada): nem o dono grava
+await assertFails(setDoc(doc(alice, "tenants/acme/sites/s1"), { title: "a" }));
 await assertFails(getDoc(doc(mallory, "tenants/acme")));
 
 // Admin da plataforma: entra em qualquer espaço para dar suporte; quem não está na lista, não
@@ -52,7 +53,7 @@ await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), "tenants/
 // Papéis
 await assertFails(setDoc(doc(alice, "tenants/acme/members/bob"), { uid: "bob", role: "member" }), "membro so pelo servidor");
 await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/members/bob"), { uid: "bob", role: "member" }));
-await assertSucceeds(getDoc(doc(bob, "tenants/acme/sites/s1")));
+await assertFails(getDoc(doc(bob, "tenants/acme/sites/s1"))); // sem regra para "sites": ninguém lê pelo navegador
 await assertFails(setDoc(doc(bob, "tenants/acme/members/mallory"), { uid: "mallory", role: "member" }));
 await assertFails(updateDoc(doc(bob, "tenants/acme/members/bob"), { role: "admin" })); // auto-promoção
 await assertFails(setDoc(doc(alice, "tenants/acme/members/bob"), { uid: "bob", role: "owner" }));
@@ -216,6 +217,12 @@ await assertFails(deleteDoc(doc(notas(carla), "n9")), "funcionario nao apaga ano
 await assertSucceeds(getDoc(doc(carla, "tenants/acme/members/carla")), "le o proprio acesso");
 await assertFails(getDoc(doc(carla, "tenants/acme/members/alice")), "a lista da equipe e de quem gere");
 await assertSucceeds(getDoc(doc(alice, "tenants/acme/members/carla")));
+
+// a credencial do gateway de WhatsApp fica num doc que só o servidor lê: nem o dono, nem a equipe
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/privado/whatsapp"), { atendysApiKey: "k", atendysWebhookSecret: "s" }));
+await assertFails(getDoc(doc(alice, "tenants/acme/privado/whatsapp")), "o dono não lê a credencial do gateway");
+await assertFails(getDoc(doc(carla, "tenants/acme/privado/whatsapp")), "a equipe não lê a credencial do gateway");
+await assertFails(setDoc(doc(alice, "tenants/acme/privado/whatsapp"), { atendysApiKey: "outra" }), "nem grava");
 
 await env.cleanup();
 console.log("rules ok");
