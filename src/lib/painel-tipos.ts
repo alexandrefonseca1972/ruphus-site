@@ -153,6 +153,8 @@ export type RespostaPainel =
       crm: Record<string, Crm>;
       /** quantos passam nos filtros, além da página */
       total: number;
+      /** quantos negócios há na base, sem filtro nenhum */
+      base: number;
       contagens: Omit<ResultadoPainel, "lista" | "avisos"> & { avisos: (Omit<Alerta, "slugs"> & { total: number })[] };
       /** com funil=1: os números e as colunas; o CRM dos cartões vai junto em `crm` */
       funil?: ResumoDoFunil;

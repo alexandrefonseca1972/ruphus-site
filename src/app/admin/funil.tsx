@@ -8,8 +8,7 @@ import type { Espaco } from "./actions";
 
 // O funil em colunas: os mesmos negócios da lista (com os mesmos filtros e busca),
 // agrupados por estágio, com os números do período em cima e origem e perdas embaixo.
-// Os números vêm prontos (src/lib/funil-consulta.ts): da rota do painel ou, no ?modo=antigo,
-// calculados na página.
+// Os números vêm prontos da rota do painel (src/lib/funil-consulta.ts).
 
 export function Funil({
   resumo: n,

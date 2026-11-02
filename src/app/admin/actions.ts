@@ -89,12 +89,10 @@ async function acessosPorEspaco() {
   return (slug: string) => porEspaco.get(slug) ?? 1;
 }
 
-/** Lista os espaços com quantas pessoas têm acesso a cada um; com slugs, só esses. */
-async function espacosComAcessos(slugs?: string[]) {
+/** Estes espaços com quantas pessoas têm acesso a cada um (a carteira, sem o índice montado). */
+async function espacosComAcessos(slugs: string[]) {
   const [tenants, acessos] = await Promise.all([
-    slugs
-      ? Promise.all(lotesDe(slugs, 500).map((l) => adminDb.getAll(...l.map((s) => adminDb.collection("tenants").doc(s)), { fieldMask: [...CAMPOS_DA_LISTA] }))).then((x) => x.flat())
-      : adminDb.collection("tenants").select(...CAMPOS_DA_LISTA).get().then((q) => q.docs),
+    Promise.all(lotesDe(slugs, 500).map((l) => adminDb.getAll(...l.map((s) => adminDb.collection("tenants").doc(s)), { fieldMask: [...CAMPOS_DA_LISTA] }))).then((x) => x.flat()),
     acessosPorEspaco(),
   ]);
   return tenants
@@ -319,9 +317,7 @@ async function resumoDoDia(): Promise<Resumo> {
 }
 
 export type Painel = {
-  espacos: Espaco[];
   hoje: Resumo;
-  crm: Awaited<ReturnType<typeof lerCrm>>;
   /** quem assina as mensagens do CRM */
   assinatura: string;
   /** minutos parado até o logout automático; 0 desliga */
@@ -330,7 +326,8 @@ export type Painel = {
   metaPixel: string;
 };
 
-/** Tudo o que o painel precisa para abrir, numa viagem só.
+/** O que o painel precisa para abrir, numa viagem só. A lista e o CRM não vêm daqui: a tela pede
+ *  a página a GET /api/admin/painel (docs/plano-paginacao-admin.md, fase 5).
  *
  * O cliente despacha Server Actions uma de cada vez — é o Next que enfileira —,
  * então quatro chamadas dentro de um Promise.all viravam quatro idas ao
@@ -338,31 +335,18 @@ export type Painel = {
  * novo antes de consultar qualquer coisa. Aqui o paralelo é de verdade: ele
  * acontece deste lado, depois de uma conferência só. */
 export const abrirPainel = adminAction(async (): Promise<Painel> => {
-  const [espacos, hoje, crm, assina, sessao, marketing] = await Promise.all([
-    espacosComAcessos(),
+  const [hoje, assina, sessao, marketing] = await Promise.all([
     resumoDoDia(),
-    lerCrm(adminDb),
     adminDb.doc("config/crm").get(),
     adminDb.doc("config/sessao").get(),
     adminDb.doc("config/marketing").get(),
   ]);
   return {
-    espacos,
     hoje,
-    crm,
     assinatura: String(assina.get("assinatura") ?? ""),
     minutosInativo: Number(sessao.get("minutos")) || 0,
     metaPixel: String(marketing.get("metaPixel") ?? ""),
   };
-});
-
-/** Só os negócios que o Gerador ou a Coleta acabaram de criar ou atualizar: a tela junta à
- *  lista que já tem, em vez de reler os 14 mil. */
-export const espacosGerados = adminAction(async (_user, slugs: string[]) => {
-  const lista = z.array(z.string().regex(SLUG)).max(5000).parse(slugs);
-  // o índice do painel recebe estes pelo listener: reler aqui dobraria as leituras (até 10 mil)
-  const [espacos, crm] = await Promise.all([espacosComAcessos(lista), lerCrm(adminDb, lista)]);
-  return { espacos, crm };
 });
 
 export type Detalhe = {
@@ -406,7 +390,7 @@ export const saudeDoNegocio = adminAction(async (_user, slug: string, hoje: stri
 export const carteira = adminAction(async (_user, hoje: string) => {
   const dia = z.iso.date().parse(hoje);
   // só se já estiver montado: esperar a montagem (~11 s) seguraria as outras ações da tela, que o
-  // Next despacha uma por vez, e o ?modo=antigo não deve montar índice. Sem ele, lê como antes.
+  // Next despacha uma por vez. Sem ele (deploy recente, 2 h sem uso), lê como antes.
   const indice = indiceDoPainel(adminDb).montado();
   const crm = indice?.crm ?? (await lerCrm(adminDb));
   const fechados = Object.entries(crm).filter(([, c]) => c.estagio === "fechado").map(([slug]) => slug);

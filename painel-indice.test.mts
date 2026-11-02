@@ -304,6 +304,7 @@ const trocarConfig = (config: (ref: Ref) => object) => bancoCom({ config });
   if (ok.corpo.ok) {
     assert.deepEqual(ok.corpo.itens.map((e) => e.slug), ["ana-cabelos"], "só a página pedida");
     assert.equal(ok.corpo.total, 5);
+    assert.equal(ok.corpo.base, 5, "a base inteira, sem filtro");
     assert.deepEqual(Object.keys(ok.corpo.crm), ["ana-cabelos"], "CRM só da página");
     assert.deepEqual(ok.corpo.contagens.ufs, [["PA", 2]]);
     assert.equal(ok.corpo.contagens.estagios.negociando, 1);
