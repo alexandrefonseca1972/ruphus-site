@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ruphus — site e agendamento online para pequenos negócios</title>
-<meta name="description" content="Site profissional com agendamento online e WhatsApp para salões, barbearias, pet shops e clínicas. O seu pode já estar pronto: procure o nome do seu negócio.">
-<meta property="og:title" content="Ruphus — seu site já saiu da fábrica">
-<meta property="og:description" content="Sites e landing pages personalizadas para PMEs. Centenas prontos antes de qualquer conversa — procure o nome do seu negócio.">
+<title>Ruphus — site, agenda online e gestão para pequenos negócios</title>
+<meta name="description" content="Site, agenda online e gestão para salões, barbearias, pet shops e clínicas. Conheça o painel, os recursos e os preços da Ruphus. Veja uma prévia antes de contratar.">
+<meta property="og:title" content="Ruphus — site, agenda online e gestão">
+<meta property="og:description" content="Site, agenda online e painel para negócios de atendimento. Veja uma prévia antes de contratar.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://www.ruphus.site/">
 <meta property="og:image" content="https://www.ruphus.site/marca/og.jpg">
@@ -14,10 +14,11 @@
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Seu site já saiu da fábrica — Ruphus, sites e landing pages para PMEs do Brasil">
 <meta property="og:locale" content="pt_BR">
+<meta name="twitter:image:alt" content="Seu site já saiu da fábrica — marca Ruphus">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://www.ruphus.site/marca/og.jpg">
-<meta name="twitter:title" content="Ruphus — seu site já saiu da fábrica">
-<meta name="twitter:description" content="Sites e landing pages para PMEs do Brasil, prontos antes de qualquer conversa.">
+<meta name="twitter:title" content="Ruphus — site, agenda online e gestão">
+<meta name="twitter:description" content="Site, agenda online e painel para negócios de atendimento. Veja uma prévia antes de contratar.">
 <meta name="theme-color" content="#e5e5e5">
 <meta name="color-scheme" content="light">
 <link rel="canonical" href="https://www.ruphus.site/">
@@ -35,7 +36,7 @@
    "url": "https://www.ruphus.site/",
    "image": "https://www.ruphus.site/marca/og.jpg",
    "logo": "https://www.ruphus.site/marca/icone-512.png",
-   "description": "Fábrica de sites e landing pages personalizadas para pequenas e médias empresas do Brasil. Cada site é feito antes da proposta: o dono abre, olha e só paga se quiser publicar.",
+   "description": "Site, agenda online e painel para negócios de atendimento. Veja uma prévia antes de contratar.",
    "areaServed": [
     {
      "@type": "Country",
@@ -91,7 +92,7 @@
     {
      "@type": "Offer",
      "name": "Publicação do site",
-     "description": "Publicação do site no domínio do cliente, uma vez.",
+     "description": "Implantação do site no endereço nome.ruphus.site, uma vez.",
      "price": "250.00",
      "priceCurrency": "BRL"
     },
@@ -119,6 +120,20 @@
    "name": "Ruphus",
    "inLanguage": "pt-BR",
    "publisher": {
+    "@id": "https://www.ruphus.site/#ruphus"
+   }
+  },
+  {
+   "@type": "WebPage",
+   "@id": "https://www.ruphus.site/#pagina",
+   "url": "https://www.ruphus.site/",
+   "name": "Ruphus — site, agenda online e gestão para pequenos negócios",
+   "description": "Site, agendamento e painel de gestão para negócios de atendimento. Confira recursos incluídos e adicionais.",
+   "inLanguage": "pt-BR",
+   "isPartOf": {
+    "@id": "https://www.ruphus.site/#site"
+   },
+   "about": {
     "@id": "https://www.ruphus.site/#ruphus"
    }
   }
@@ -306,7 +321,7 @@ button{font:inherit;color:inherit}
 /* ——— esteira: os nomes de verdade passam como numa linha de produção ——— */
 .esteira{background:var(--preto);color:var(--branco);overflow:hidden;padding-block:18px;border-top:1px solid var(--grafite);
   margin-top:-76px;padding-top:94px;position:relative;z-index:1}
-.esteira-faixa{display:flex;gap:0;width:max-content;animation:desliza 90s linear infinite}
+.esteira-faixa{display:flex;gap:0;width:max-content;animation:desliza 5s linear 1}
 .esteira:hover .esteira-faixa{animation-play-state:paused}
 .esteira-faixa span{font-family:var(--mono);font-size:12px;letter-spacing:-.03em;text-transform:uppercase;white-space:nowrap;padding-inline:20px;color:var(--cinza)}
 .esteira-faixa span b{font-weight:400;color:var(--branco)}
@@ -371,6 +386,13 @@ button{font:inherit;color:inherit}
 .agenda-pe b{font-size:14px;font-weight:500}
 .agenda-pe span.bt-cheio{height:44px;display:inline-flex;align-items:center;padding:0 16px;border-radius:10px;background:var(--preto);color:var(--branco);font-size:14px;font-weight:500}
 
+.exemplos-gestao{margin-top:16px}
+.tela-exemplo{background:var(--nevoa);border:1px solid var(--cinza);border-radius:12px;padding:16px}
+.tela-exemplo>.mono{font-size:10px;color:var(--ardosia)}
+.tela-exemplo dl{margin:12px 0 0}
+.tela-exemplo dl div+div{border-top:1px solid var(--cinza);margin-top:12px;padding-top:12px}
+.tela-exemplo dt{font-size:13px;font-weight:500}
+.tela-exemplo dd{margin:5px 0 0;font-family:var(--mono);font-size:12px;overflow-wrap:anywhere}
 /* painel: quatro blocos com um pedaço da tela de verdade em cada */
 .painel{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
 .bloco{background:var(--branco);border:1px solid var(--cinza);border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:14px}
@@ -533,14 +555,61 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
   .entra,.revela,.h1 span{opacity:1!important;transform:none!important}
   .esteira-faixa{animation:none!important}
 }
+
+/* Leitura, zoom e telas estreitas: a mesma hierarquia em toda a página. */
+body{line-height:1.5}
+html{scroll-padding-bottom:120px}
+main:focus{outline:none}
+button,a,input{touch-action:manipulation}
+.bt{line-height:1.3;text-align:center;max-width:100%;white-space:normal}
+.tag{white-space:normal;overflow-wrap:anywhere}
+.marca small,.un-n{color:var(--ardosia)}
+#q::placeholder{color:var(--ardosia)}
+.painel{grid-template-columns:repeat(2,minmax(0,1fr))}
+.bloco,.cartao,.duas>*{min-width:0}
+.bloco p,.cartao p,.sec-cab p,.passo p{line-height:1.55}
+.tela-exemplo>.mono{font-size:12px}
+.tela-exemplo dt,.tela-exemplo dd,.inclui span{font-size:14px;line-height:1.5}
+.tela-exemplo dd,.valor-n{font-variant-numeric:tabular-nums}
+.detalhes-oferta>p{max-width:70ch;margin-top:20px;color:var(--ardosia);line-height:1.65}
+.detalhes-oferta>h2:not(:first-child){margin-top:64px}
+.detalhes-oferta>h3{font-size:20px;line-height:1.3;font-weight:600;margin-top:32px}
+.detalhes-oferta>h3+p{margin-top:10px}
+.detalhes-oferta a{text-underline-offset:4px}
+.como :focus-visible,.cta :focus-visible,.barra :focus-visible{outline-color:var(--volt)}
+.rodape a{min-height:44px}
+.barra{padding-bottom:max(12px,env(safe-area-inset-bottom))}
+@media(max-width:960px){.esteira{margin-top:32px;padding-top:18px}}
+@media(max-width:860px){
+ .painel{grid-template-columns:minmax(0,1fr)}
+ .topo{gap:12px}
+ .topo>.bt{margin-left:auto;padding-inline:16px;font-size:14px}
+}
+@media(max-width:560px){
+ .hero-p,.preco-p,.cta-p{font-size:17px;line-height:1.55}
+ .disp,.sec-t{line-height:1}
+ .h1{font-size:clamp(3.25rem,14vw,4.75rem)}
+ .acoes{flex-wrap:wrap}
+ .acoes .bt{width:100%}
+ .bloco,.cartao{padding:22px}
+ .linha-ag{flex-wrap:wrap}
+ .linha-ag b{overflow-wrap:anywhere}
+ .atalhos a{flex-wrap:wrap}
+ .barra-c{border-radius:20px}
+ .barra .bt{white-space:normal;font-size:14px}
+ .zap-flutua{width:48px;height:48px}
+ .detalhes-oferta>h2:not(:first-child){margin-top:40px}
+}
+
 </style>
+<noscript><style>.revela,.entra,.h1 span{opacity:1;transform:none;animation:none}.hero-flutua{display:none}</style></noscript>
 </head>
 <body>
 <div class="progresso" aria-hidden="true"></div>
-<a class="pular" href="#q">Pular para a busca</a>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
 
 <header class="wrap topo">
-  <a class="marca entra" href="/" aria-label="Ruphus, início">ruphus<i></i><small>sites e agenda</small></a>
+  <a class="marca entra" href="/" aria-label="Ruphus, início">ruphus<i></i><small>site, agenda e gestão</small></a>
   <nav aria-label="Seções" class="entra" style="--atraso:80ms;margin:0 auto">
     <ul class="pilula">
       <li><a href="#faz">O que fazemos</a></li>
@@ -556,19 +625,18 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
   <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm5.8 14.1c-.25.69-1.43 1.32-1.99 1.4-.51.08-1.15.11-1.86-.12-.43-.14-.98-.32-1.69-.62-2.97-1.28-4.91-4.27-5.06-4.47-.15-.2-1.21-1.61-1.21-3.07 0-1.46.77-2.18 1.04-2.48.27-.3.59-.37.79-.37.2 0 .39 0 .57.01.18.01.42-.07.66.5.25.6.84 2.06.91 2.21.07.15.12.32.02.52-.1.2-.15.32-.3.5-.15.17-.31.39-.44.52-.15.15-.3.31-.13.61.17.3.76 1.25 1.63 2.03 1.12 1 2.06 1.3 2.36 1.45.3.15.47.12.65-.07.17-.2.75-.87.95-1.17.2-.3.4-.25.66-.15.27.1 1.71.81 2.01.96.3.15.5.22.57.35.07.12.07.72-.18 1.41Z"/></svg>
 </a>
 
-<main>
+<main id="conteudo" tabindex="-1">
   <section class="wrap hero" aria-labelledby="h1">
     <div>
       <p class="mono entra" style="--atraso:180ms;color:var(--ardosia)">Site e agenda online · Salões, barbearias, estética e unhas</p>
       <h1 class="disp t-xl h1" id="h1">
-        <span style="--i:0">Seu</span> <span style="--i:1">site</span><br>
-        <span style="--i:2">já</span> <span style="--i:3">saiu</span><br>
-        <span style="--i:4">da</span> <span style="--i:5"><mark>fábrica.</mark></span>
+        <span style="--i:0">Site,</span> <span style="--i:1">agenda</span><br>
+        <span style="--i:2">e</span> <span style="--i:3"><mark>gestão.</mark></span>
       </h1>
       <p class="hero-p entra" style="--atraso:700ms">Seu negócio recebendo agendamento a qualquer hora, com site próprio e lembrete no WhatsApp para o cliente não faltar. <b>O seu já está pronto</b>: procure o nome, abra e só pague se quiser publicar.</p>
 
       <ul class="atalhos entra" style="--atraso:800ms" aria-label="O que vem junto">
-        <li><a href="#faz">Site <small>no seu domínio</small></a></li>
+        <li><a href="#faz">Site <small>no endereço nome.ruphus.site</small></a></li>
         <li><a href="#agenda">Agenda online <small>sem cadastro</small></a></li>
         <li><a href="#painel">Painel <small>no celular</small></a></li>
       </ul>
@@ -600,20 +668,20 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
     </div></div>
   </section>
 
-  <div class="esteira" aria-hidden="true"><div class="esteira-faixa" id="esteira"></div></div>
+  <div class="esteira" aria-hidden="true"><div class="esteira-faixa" aria-hidden="true" id="esteira"></div></div>
 
-  <section class="wrap sec" id="faz" data-demo="https://barbearia-force.ruphus.site" data-demo-rot="Ver um site" data-demo-txt="sites no ar, com agenda aberta" aria-labelledby="faz-t">
+  <section class="wrap sec" id="faz" data-demo="https://barbearia-force.ruphus.site" data-demo-rot="Ver um site" data-demo-txt="exemplos e propostas de sites" aria-labelledby="faz-t">
     <div class="sec-cab">
       <span class="tag">O que a Ruphus faz</span>
-      <h2 class="sec-t revela" id="faz-t">Transformação digital do tamanho da sua empresa.</h2>
+      <h2 class="sec-t revela" id="faz-t">Do primeiro contato à agenda do dia.</h2>
       <p class="revela" style="--atraso:80ms">Sem projeto de seis meses nem reunião de alinhamento. Entregamos a peça que a sua empresa mais precisa e que a maioria ainda não tem: um endereço na internet que converte.</p>
     </div>
     <div class="faz">
       <article class="cartao principal revela" style="--atraso:120ms">
         <span class="tag escura"><i></i>Produto principal</span>
         <h3>Fábrica de sites e landing pages personalizadas</h3>
-        <p>Cada site nasce das suas fotos, dos seus serviços, do seu bairro e da sua reputação no Google. Nenhum é cópia do outro — a lista aí embaixo é a prova. Página estática, sem plugin e sem banco de dados: abre rápido no 4G da rua, no celular do seu cliente.</p>
-        <ul aria-label="O que vem no site"><li>Site institucional</li><li>Landing page</li><li>Botão de WhatsApp</li><li>Mapa e rota</li><li>Google e Instagram</li><li>Domínio e hospedagem</li></ul>
+        <p>Cada site nasce das suas fotos, dos seus serviços, do seu bairro e da sua reputação no Google. Veja exemplos e propostas na lista abaixo. O site apresenta o negócio e leva o cliente ao contato ou ao agendamento.</p>
+        <ul aria-label="O que vem no site"><li>Site institucional</li><li>Landing page</li><li>Botão de WhatsApp</li><li>Mapa e rota</li><li>Google e Instagram</li><li>Endereço ruphus.site e hospedagem</li></ul>
         <div class="acoes" style="margin-top:auto">
           <a class="bt bt-cheio" href="https://barbearia-force.ruphus.site" target="_blank" rel="noopener">Ver um site pronto ↗</a>
           <a class="bt bt-texto" href="#q">Procurar o meu</a>
@@ -635,21 +703,21 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
         <p>Mudou o horário, entrou serviço novo, trocou de número? A gente atualiza. O site cresce com a empresa, e a mensalidade cobre isso.</p>
       </article>
       <article class="cartao escuro revela" style="--atraso:520ms">
-        <span class="tag">Como medimos</span>
-        <h3>Cliques que viram conversa</h3>
-        <p>Cada toque em WhatsApp, telefone, mapa e agenda é registrado. Você vê o que o site trouxe, não só que ele existe.</p>
+        <span class="tag">No dia a dia</span>
+        <h3>Clientes e horários em um lugar só</h3>
+        <p>Consulte a agenda, os serviços e os profissionais. A ficha do cliente reúne histórico, etiquetas e anotações.</p>
       </article>
     </div>
   </section>
 
-  <section class="wrap sec" id="agenda" data-demo="https://barbearia-force.ruphus.site/agendar" data-demo-rot="Ver uma agenda" data-demo-txt="agenda aberta em todos os sites" aria-labelledby="agenda-t">
+  <section class="wrap sec" id="agenda" data-demo="https://barbearia-force.ruphus.site/agendar" data-demo-rot="Ver uma agenda" data-demo-txt="agenda mediante configuração" aria-labelledby="agenda-t">
     <div class="duas">
       <div style="display:flex;flex-direction:column;gap:24px">
         <span class="tag">Agendamento online · já incluso</span>
         <h2 class="sec-t revela" id="agenda-t">A agenda vem junto com o site.</h2>
         <p class="revela" style="--atraso:80ms;font-size:18px;line-height:1.45;color:var(--ardosia);max-width:46ch">
           O cliente escolhe o serviço e o horário na mesma tela, sem cadastro e sem baixar nada. O horário cai
-          no painel e a casa confirma pelo WhatsApp — e <b style="font-weight:500;color:var(--preto)">todos os sites da lista já estão com a agenda aberta</b>.
+          no painel e a casa confirma pelo WhatsApp — e <b style="font-weight:500;color:var(--preto)">a agenda abre depois de configurar serviços, profissionais e horários</b>.
         </p>
         <ul class="lista-t revela" style="--atraso:160ms">
           <li><b>horários</b><span>Cada dia mostra quantas vagas tem antes de você tocar nele.</span></li>
@@ -738,7 +806,7 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
     <div class="sec-cab">
       <span class="tag">Painel do negócio · na mensalidade</span>
       <h2 class="sec-t revela" id="painel-t">O site trabalha. O painel mostra o serviço.</h2>
-      <p class="revela" style="--atraso:80ms">Quem atende abre no celular e vê o dia. Nada de planilha, nada de caderno, nada para aprender.</p>
+      <p class="revela" style="--atraso:80ms">Quem atende abre no celular e vê o dia. O dono organiza a equipe e, com o Caixa ativado, acompanha recebimentos, despesas e comissões. Exemplos ilustrativos com dados fictícios abaixo.</p>
     </div>
     <div class="painel">
       <article class="bloco revela" style="--atraso:120ms">
@@ -775,6 +843,44 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
         </div>
       </article>
     </div>
+    <div class="painel exemplos-gestao">
+      <article class="bloco revela">
+        <span class="tag clara">Equipe · incluído</span>
+        <h3>Quem atende, quando e o quê</h3>
+        <p>Cada profissional tem seus serviços e horários por dia da semana. O plano inclui até 5 profissionais.</p>
+        <div class="bloco-pe tela-exemplo" role="group" aria-label="Exemplo ilustrativo: Profissionais">
+          <span class="mono">Profissionais · exemplo</span>
+          <dl><div><dt>Ana · Corte e barba</dt><dd>Seg–sex · 09h às 18h</dd></div><div><dt>Bruno · Corte</dt><dd>Ter–sáb · 10h às 19h</dd></div></dl>
+        </div>
+      </article>
+      <article class="bloco revela">
+        <span class="tag clara">Caixa · adicional de R$ 20/mês</span>
+        <h3>O mês em números</h3>
+        <p>Registre recebimentos e despesas e exporte os lançamentos para uma planilha. Acesso financeiro só para dono e administradores.</p>
+        <div class="bloco-pe tela-exemplo" role="group" aria-label="Exemplo ilustrativo: Resumo do mês">
+          <span class="mono">Resumo do mês · exemplo</span>
+          <dl><div><dt>Entradas</dt><dd>R$ 8.400,00</dd></div><div><dt>Saídas · saldo</dt><dd>R$ 3.100,00 · R$ 5.300,00</dd></div></dl>
+        </div>
+      </article>
+      <article class="bloco revela">
+        <span class="tag clara">Comissões · no adicional Caixa</span>
+        <h3>Cada profissional com seu percentual</h3>
+        <p>O cálculo usa os recebimentos da agenda no mês. Registrar o pagamento da comissão gera uma saída no Caixa.</p>
+        <div class="bloco-pe tela-exemplo" role="group" aria-label="Exemplo ilustrativo: Comissões do mês">
+          <span class="mono">Comissões do mês · exemplo</span>
+          <dl><div><dt>Ana · base R$ 3.000,00</dt><dd>30% · R$ 900,00</dd></div><div><dt>Bruno · base R$ 2.000,00</dt><dd>25% · R$ 500,00</dd></div></dl>
+        </div>
+      </article>
+      <article class="bloco revela">
+        <span class="tag clara">Contas fixas · no adicional Caixa</span>
+        <h3>As despesas que voltam todo mês</h3>
+        <p>Cadastre aluguel, internet e outras contas recorrentes. A saída entra no Caixa quando você registra o pagamento.</p>
+        <div class="bloco-pe tela-exemplo" role="group" aria-label="Exemplo ilustrativo: Contas do mês">
+          <span class="mono">Contas do mês · exemplo</span>
+          <dl><div><dt>Aluguel · pago</dt><dd>R$ 1.200,00</dd></div><div><dt>Internet · a pagar</dt><dd>R$ 100,00</dd></div></dl>
+        </div>
+      </article>
+    </div>
     <div class="acoes revela" style="--atraso:440ms;margin-top:24px">
       <a class="bt bt-cheio" href="https://barbearia-force.ruphus.site/bio" target="_blank" rel="noopener">Ver um link da bio ↗</a>
       <a class="bt bt-branco" href="https://wa.me/5511948680554?text=Oi!%20Quero%20ver%20o%20site%20do%20meu%20neg%C3%B3cio.">Quero o meu site</a>
@@ -799,7 +905,7 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
         </li>
         <li class="passo revela" style="--atraso:360ms">
           <h3>Só paga se quiser publicar</h3>
-          <p>Gostou? A faixa sai, o site vira oficial no seu domínio e entra no Google. <em>Não gostou? Não paga nada e o assunto morre aí.</em></p>
+          <p>Gostou? A faixa sai, o site vira oficial no endereço nome.ruphus.site e pode ser indexado pelo Google. <em>Não gostou? Não paga nada e o assunto morre aí.</em></p>
         </li>
       </ol>
     </div>
@@ -813,7 +919,7 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
         <div><dt id="n-nichos">—</dt><dd>ramos</dd></div>
         <div><dt id="n-bairros">—</dt><dd>bairros</dd></div>
         <div><dt id="n-cidades">—</dt><dd>cidades</dd></div>
-        <div><dt>41 KB</dt><dd>a página mais pesada</dd></div>
+
       </dl>
     </div>
     <div class="un-cab" aria-hidden="true">
@@ -828,7 +934,7 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
     </div>
   </section>
 
-  <section class="wrap sec" id="preco" data-demo="https://barbearia-force.ruphus.site/agendar" data-demo-rot="Ver uma agenda" data-demo-txt="agenda aberta em todos os sites" aria-labelledby="preco-t">
+  <section class="wrap sec" id="preco" data-demo="https://barbearia-force.ruphus.site/agendar" data-demo-rot="Ver uma agenda" data-demo-txt="agenda mediante configuração" aria-labelledby="preco-t">
     <div class="sec-cab">
       <span class="tag">Preço</span>
       <h2 class="sec-t revela" id="preco-t">Dois números, ditos antes de você perguntar.</h2>
@@ -837,7 +943,7 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
       <div class="valor revela" style="--atraso:120ms">
         <span class="mono" style="color:var(--ardosia)">Uma vez</span>
         <p class="valor-n"><small>R$</small>250</p>
-        <p class="valor-d">Para publicar o seu site, no seu domínio, e colocar no ar.</p>
+        <p class="valor-d">Para publicar o seu site, no endereço nome.ruphus.site, e colocar no ar.</p>
       </div>
       <div class="valor revela" style="--atraso:220ms">
         <span class="mono" style="color:var(--ardosia)">Por mês</span>
@@ -846,23 +952,34 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
       </div>
     </div>
     <ul class="inclui revela" style="--atraso:280ms" aria-label="O que entra nos dois números">
-      <li><b>Site no seu domínio</b><span>Feito com as suas fotos, os seus serviços e o seu bairro.</span></li>
+      <li><b>Site em nome.ruphus.site</b><span>Feito com as suas fotos, os seus serviços e o seu bairro.</span></li>
       <li><b>Agendamento online</b><span>Horários livres, profissional e confirmação pelo WhatsApp.</span></li>
       <li><b>Painel do negócio</b><span>Agenda do dia, clientes, planos e o link da bio.</span></li>
       <li><b>Lembrete no WhatsApp</b><span>O cliente recebe o aviso antes do horário e falta menos (com o WhatsApp do negócio conectado).</span></li>
       <li><b>Sinal pelo Pix</b><span>Quem reserva deixa um sinal: horário marcado e não cumprido já vem pago em parte.</span></li>
-      <li><b>Manutenção</b><span>Mudou horário, preço ou telefone? A gente atualiza.</span></li>
+      <li><b>Manutenção</b><span>Atualizações de conteúdo dentro dos limites mensais dos Termos, em até 2 dias úteis.</span></li>
     </ul>
     <ul class="garantias revela" style="--atraso:300ms" aria-label="Sem risco">
       <li><b>Menos de R$ 3 por dia.</b> Um cliente novo por mês já paga a mensalidade.</li>
       <li><b>Sem fidelidade.</b> Cancela quando quiser, sem multa.</li>
       <li><b>7 dias para desistir.</b> Não gostou depois de publicar? Devolvemos o que você pagou.</li>
     </ul>
-    <p class="preco-p revela" style="--atraso:320ms">O mesmo preço para todo cliente. Não há plano maior nem menor. <mark>O seu site provavelmente já está pronto</mark> — você abre, olha, e só paga se quiser publicar.</p>
+    <p class="preco-p revela" style="--atraso:320ms">Plano básico para 1 negócio e até 5 profissionais. Valores específicos podem ser combinados na proposta. <mark>O seu site provavelmente já está pronto</mark> — você abre, olha, e só paga se quiser publicar.</p>
     <div class="acoes revela" style="--atraso:360ms;margin-top:24px">
       <a class="bt bt-cheio" href="#q">Procurar o meu negócio</a>
       <a class="bt bt-branco" href="https://wa.me/5511948680554?text=Oi!%20Quero%20ver%20o%20site%20do%20meu%20neg%C3%B3cio.">Quero o meu site</a>
     </div>
+  </section>
+
+  <section class="wrap sec detalhes-oferta" aria-labelledby="extras-t">
+    <h2 class="disp t-md" id="extras-t">Incluídos e adicionais</h2>
+    <p>Lembretes por WhatsApp e sinal por Pix estão incluídos mediante ativação. Os lembretes dependem do número do negócio conectado e de horários confirmados; o sinal é recebido na chave Pix do negócio.</p>
+    <ul class="inclui">
+      <li><b>Domínio próprio</b><span>R$ 100 uma vez pela configuração. Registro e renovação pagos pelo cliente.</span></li>
+      <li><b>Caixa</b><span>R$ 20/mês, mediante ativação: entradas, saídas, contas fixas e comissões.</span></li>
+      <li><b>Mais profissionais</b><span>R$ 15/mês por profissional além dos 5 incluídos.</span></li>
+      <li><b>Outro negócio</b><span>70% da mensalidade vigente por negócio adicional na conta.</span></li>
+    </ul>
   </section>
 
   <section class="wrap sec" id="duvidas" aria-labelledby="duvidas-t">
@@ -872,11 +989,12 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
     </div>
     <div class="faq revela">
       <details><summary>Por que o site do meu negócio já existe?</summary><p>A gente monta a proposta com o que já é público: o nome, os serviços, o endereço e a nota no Google. A página leva uma faixa dizendo que é uma proposta, não o site oficial, e não entra no Google enquanto você não publicar. Não quer? O link "Pedir remoção" no topo dela tira do ar na hora.</p></details>
-      <details><summary>Preciso ter domínio ou entender de site?</summary><p>Não. Se você já tem um domínio, o site vai para ele. Se não tem, ele continua no endereço da Ruphus até você querer um. Mudanças de texto, foto, horário ou preço a gente faz.</p></details>
+      <details><summary>Preciso ter domínio ou entender de site?</summary><p>Não. O endereço nome.ruphus.site e a hospedagem estão incluídos. Se você já tem um domínio, o site vai para ele (configuração de R$ 100, uma vez; registro e renovação ficam com você). Mudanças de texto, foto, horário ou preço a gente faz, dentro dos limites mensais dos Termos.</p></details>
       <details><summary>Meu cliente precisa baixar aplicativo ou criar conta?</summary><p>Não. Ele abre o link, escolhe o serviço, o profissional e o horário, e pronto. A confirmação chega pelo WhatsApp.</p></details>
       <details><summary>Já tenho Instagram e marco tudo pelo WhatsApp. Por que mudar?</summary><p>Você não muda: o link da agenda vai na bio do Instagram e no seu WhatsApp. A diferença é que o cliente marca sozinho, de madrugada ou no domingo, sem você parar o atendimento para responder.</p></details>
       <details><summary>Em quanto tempo fica pronto?</summary><p>O site já está pronto. Depois de fechar, a gente cadastra com você os serviços e quem atende, e a agenda costuma abrir no mesmo dia.</p></details>
-      <details><summary>Posso cancelar? E os dados dos meus clientes?</summary><p>Pode cancelar quando quiser, sem multa, e nos primeiros 7 dias devolvemos o que você pagou. Os dados dos seus clientes são seus: você pede uma cópia até 90 dias depois de sair. Está tudo nos <a href="/termos">Termos</a>.</p></details>
+      <details><summary>O que entra na manutenção?</summary><p>Contato e funcionamento: até um pedido por dia útil; serviços e preços: 4 pedidos por mês; fotos: 10 por mês; textos: 3 por mês, até 600 caracteres cada. Atendimento em até 2 dias úteis. Edição de imagem e vídeo não está incluída.</p></details>
+      <details><summary>Posso cancelar? E os dados dos meus clientes?</summary><p>Pode cancelar quando quiser, sem multa, e nos primeiros 7 dias devolvemos o que você pagou. Depois disso, não há devolução proporcional da mensalidade em curso nem da implantação. Os dados dos seus clientes são seus: você pede uma cópia até 90 dias depois de sair. Está tudo nos <a href="/termos">Termos</a>.</p></details>
     </div>
   </section>
 
@@ -894,6 +1012,7 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
       </div>
       <footer class="rodape">
         <span>Ruphus faz o site e o agendamento de quem atende de porta aberta. Atendemos o Brasil inteiro.</span>
+        <a href="/painel">Acessar painel</a>
         <a href="/termos">Termos</a>
         <a href="/privacidade">Privacidade</a>
         <span>Fonseca Gestão e Tecnologia Ltda. · CNPJ 59.500.429/0001-90</span>
@@ -906,7 +1025,7 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
      busca é a ação, e duas chamadas ao mesmo tempo dividiriam a atenção. -->
 <div class="barra" id="barra">
   <div class="barra-c">
-    <span class="barra-n mono"><i></i><span id="barra-n">— sites no ar, com agenda aberta</span></span>
+    <span class="barra-n mono"><i></i><span id="barra-n">— exemplos e propostas de sites</span></span>
     <span style="flex-grow:1"></span>
     <a class="bt bt-fantasma" id="barra-demo" href="https://barbearia-force.ruphus.site/agendar" target="_blank" rel="noopener">Ver uma agenda</a>
     <a class="bt bt-volt" href="#q">Procurar o meu negócio</a>
@@ -1069,11 +1188,11 @@ function mostrarAchados(termos, achados, quantos){
   vazio.hidden = quantos > 0;
   const termo = q.value.trim();
   contagem.innerHTML = !termos.length
-    ? '<b>' + TOTAL + ' sites</b> feitos um a um, já publicados em ' + CIDADES + ' cidades'
+    ? '<b>' + TOTAL + ' exemplos e propostas</b> em ' + CIDADES + ' cidades'
     : quantos === 0 ? 'Nenhum site com esse nome'
     : '<b>' + quantos + (quantos === 1 ? ' site' : ' sites') + '</b> com “'
       + termo.replace(/[<>&]/g, '') + '”';
-  rotulo.textContent = !termos.length ? TOTAL + ' unidades, nenhuma igual'
+  rotulo.textContent = !termos.length ? TOTAL + ' exemplos e propostas'
     : quantos === 0 ? 'Nenhum resultado'
     : quantos === 1 ? '1 site encontrado'
     : quantos > LIMITE ? quantos + ' sites encontrados · mostrando ' + LIMITE
@@ -1099,12 +1218,12 @@ fetch('/api/catalogo').then(r => r.ok ? r.json() : null).then(res => {
   CIDADES = new Set([...CIDADES_FABRICA, ...SITES.map(o => o.c), ...res.cidades].filter(Boolean).map(norm)).size;
   document.getElementById('n-cidades').textContent = CIDADES;
   numeros(); render();
-  document.getElementById('barra-n').textContent = TOTAL + ' sites no ar, com agenda aberta';
+  document.getElementById('barra-n').textContent = TOTAL + ' exemplos e propostas de sites';
 }).catch(() => {}).finally(() => { montarEsteira(); iniciarPalco(); });
 
 /* ——— barra de ação: aparece quando o hero sai de vista ——— */
 const barra = document.getElementById('barra');
-document.getElementById('barra-n').textContent = TOTAL + ' sites no ar, com agenda aberta';
+document.getElementById('barra-n').textContent = TOTAL + ' exemplos e propostas de sites';
 const gatilho = document.querySelector('.hero');
 if (gatilho && 'IntersectionObserver' in window){
   new IntersectionObserver(([e]) => {
@@ -1153,7 +1272,7 @@ let PALCO = [];
 const telas = [document.getElementById('tela-a'), document.getElementById('tela-b')];
 const lista = document.getElementById('escolha');
 const abrir = document.getElementById('abrir');
-let atual = -1, frente = 0, relogio = null, preso = false, voltas = 0, pedido = 0;
+let atual = -1, frente = 0, pedido = 0;
 
 function mostrar(i){
   if (i === atual) return;
@@ -1189,7 +1308,7 @@ function iniciarPalco(){
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = o.curto || o.n;
-    b.addEventListener('click', () => { preso = true; clearInterval(relogio); mostrar(i); });
+    b.addEventListener('click', () => { mostrar(i); });
     li.appendChild(b); lista.appendChild(li);
   });
 
@@ -1205,17 +1324,9 @@ function iniciarPalco(){
                                                           : addEventListener('load', () => ocioso(fn), {once: true}));
   const palcoOlho = new IntersectionObserver(es => {
     es.forEach(e => {
-      if (!e.isIntersecting){ clearInterval(relogio); return; }
+      if (!e.isIntersecting) return;
       if (atual < 0) depois(() => { if (atual < 0) mostrar(0); });
-      if (!CALMO && !ESTREITO && !preso && voltas < PALCO.length){
-        clearInterval(relogio);
-        // cada troca baixa uma landing inteira: gira uma volta e para. Quem
-        // quiser ver outro clica no nome — aí é escolha, não custo de fundo
-        relogio = setInterval(() => {
-          if (++voltas >= PALCO.length){ clearInterval(relogio); return; }
-          mostrar((atual + 1) % PALCO.length);
-        }, 5200);
-      }
+
     });
   }, {threshold: .3});
   palcoOlho.observe(document.querySelector('.hero-obj'));
