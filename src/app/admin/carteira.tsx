@@ -23,8 +23,10 @@ const haQuanto = (iso: string | null) => {
   return d <= 0 ? "hoje" : d === 1 ? "ontem" : `há ${d} dias`;
 };
 
-export function Carteira({ idToken, hoje, espacos, abrir }: { idToken: string; hoje: string; espacos: Espaco[]; abrir: (e: Espaco) => void }) {
-  const [lista, setLista] = useState<ClienteSaude[] | null>(null);
+type Cliente = ClienteSaude & { espaco: Espaco | null };
+
+export function Carteira({ idToken, hoje, abrir }: { idToken: string; hoje: string; abrir: (e: Espaco) => void }) {
+  const [lista, setLista] = useState<Cliente[] | null>(null);
   const [erro, setErro] = useState("");
 
   useEffect(() => {
@@ -39,7 +41,6 @@ export function Carteira({ idToken, hoje, espacos, abrir }: { idToken: string; h
     };
   }, [idToken, hoje]);
 
-  const porSlug = new Map(espacos.map((e) => [e.slug, e]));
   const implantados = lista?.filter((c) => Object.values(c.passos).every(Boolean)).length ?? 0;
   const numeros = [
     ["Clientes ativos", lista ? String(lista.length) : "…", ""],
@@ -72,7 +73,7 @@ export function Carteira({ idToken, hoje, espacos, abrir }: { idToken: string; h
       {lista && lista.length > 0 && (
         <ul className="flex flex-col gap-2.5 lg:hidden">
           {lista.map((c) => {
-            const e = porSlug.get(c.slug);
+            const e = c.espaco;
             const feitos = Object.values(c.passos).filter(Boolean).length;
             return (
               <li key={c.slug} className="flex flex-col gap-2.5 rounded-2xl border border-[#E2DDD3] bg-white p-3.5">
@@ -123,7 +124,7 @@ export function Carteira({ idToken, hoje, espacos, abrir }: { idToken: string; h
             </thead>
             <tbody>
               {lista.map((c) => {
-                const e = porSlug.get(c.slug);
+                const e = c.espaco;
                 const feitos = Object.values(c.passos).filter(Boolean).length;
                 return (
                   <tr key={c.slug} className="border-t border-[#E2DDD3] align-middle">

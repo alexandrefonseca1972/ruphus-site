@@ -3,6 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { errors } from "jose";
 import { invalido, semPermissao } from "@/lib/admin-guard";
 import type { Crm } from "@/lib/crm-tipos";
+import { resumoDoFunil } from "@/lib/funil-consulta";
 import { consultar } from "@/lib/painel-consulta";
 import type { criarIndice, Indice } from "@/lib/painel-indice.server";
 import { ConsultaPainel, type CodigoDeErro, type RespostaPainel } from "@/lib/painel-tipos";
@@ -47,7 +48,7 @@ export async function responderPainel(req: Request, { db, indice, verificar = ve
 
   const consulta = ConsultaPainel.safeParse(Object.fromEntries(new URL(req.url).searchParams));
   if (!consulta.success) return erro("invalido", invalido(consulta.error));
-  const { n, hoje, tz, ...filtros } = consulta.data;
+  const { n, hoje, tz, funil, periodo, novos, ...filtros } = consulta.data;
 
   // a montagem leva ~11 s; passou da espera, a tela tenta de novo e a montagem segue (R5)
   let prazo: ReturnType<typeof setTimeout> | undefined;
@@ -62,9 +63,12 @@ export async function responderPainel(req: Request, { db, indice, verificar = ve
   try {
     const inicio = performance.now();
     const r = consultar(pronto.lista(), filtros, { crm: pronto.crm, hoje, fuso: tz });
-    const itens = r.lista.slice(0, n);
+    // na aba Funil a lista não aparece: só as contagens e o resumo
+    const itens = funil ? [] : r.lista.slice(0, n);
     const crm: Record<string, Crm> = {};
-    for (const e of itens) if (pronto.crm[e.slug]) crm[e.slug] = pronto.crm[e.slug];
+    const resumo = funil ? resumoDoFunil(r.lista, pronto.crm, { periodo, hoje, agora: Date.now(), fuso: tz, novos }) : undefined;
+    const comCrm = resumo ? [...itens, ...Object.values(resumo.colunas).flatMap((c) => c.cartoes)] : itens;
+    for (const e of comCrm) if (pronto.crm[e.slug]) crm[e.slug] = pronto.crm[e.slug];
     const { lista, avisos, ...contagens } = r;
     const corpo: RespostaPainel = {
       ok: true,
@@ -72,6 +76,7 @@ export async function responderPainel(req: Request, { db, indice, verificar = ve
       crm,
       total: lista.length,
       contagens: { ...contagens, avisos: avisos.map(({ slugs, ...a }) => ({ ...a, total: slugs.length })) },
+      funil: resumo,
       versao: pronto.versao,
       montadoEm: new Date(pronto.montadoEm).toISOString(),
     };

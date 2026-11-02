@@ -35,7 +35,7 @@
     "test:pix": "tsx pix.test.mts",
     "test:whatsapp": "tsx whatsapp.test.mts",
     "test:admin": "tsx admin.test.mts",
-    "test:painel": "tsx painel-tipos.test.mts && tsx painel-consulta.test.mts",
+    "test:painel": "tsx painel-tipos.test.mts && tsx painel-consulta.test.mts && tsx funil-consulta.test.mts",
     "test:painel-indice": "NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-siteflow firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server painel-indice.test.mts'",
     "test:gerador": "tsx gerador.test.mts",
     "test:coleta": "tsx coleta.test.mts",

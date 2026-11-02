@@ -12,7 +12,13 @@ const recusa = (x: Record<string, unknown>, motivo: string) => assert.equal(Cons
 assert.deepEqual(ok({}), {
   busca: "", uf: "", cidade: "", nicho: "", situacao: "", estagio: "", prazo: "", alerta: "",
   fora: false, caixa: false, contato: false, fixados: false, ordem: "relevancia", n: PAGINA, hoje,
+  funil: false, periodo: "mes", novos: 6,
 });
+
+// funil
+assert.deepEqual([ok({ funil: "1", periodo: "90", novos: "12" }).funil, ok({ periodo: "90" }).periodo, ok({ novos: "12" }).novos], [true, "90", 12]);
+recusa({ periodo: "ano" }, "período inexistente");
+for (const novos of ["0", "601", "1e2", "-1"]) recusa({ novos }, `novos=${novos}`);
 
 // como chega da URL: tudo texto
 const daUrl = ok(Object.fromEntries(new URLSearchParams("busca=Sal%C3%A3o&uf=PA&estagio=negociando&fora=true&caixa=0&n=80&ordem=nome&tz=America%2FManaus")));

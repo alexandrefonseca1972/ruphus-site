@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePainel } from "./use-painel";
+import { ajustarFunil, NOVOS_MAX, NOVOS_POR_VEZ, resumoDoFunil, type Periodo } from "@/lib/funil-consulta";
 import { auth } from "@/lib/firebase";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import {
@@ -182,6 +183,12 @@ export default function AdminPage() {
   const [modoAntigo, setModoAntigo] = useState(false);
   // muda depois de cada escrita: a página do servidor é pedida de novo
   const [recarga, setRecarga] = useState(0);
+  // o período e quantos cartões de "Novo" o funil mostra: entram na consulta da rota
+  const [periodo, setPeriodo] = useState<Periodo>("mes");
+  const [novos, setNovos] = useState(NOVOS_POR_VEZ);
+  const [agora] = useState(() => Date.now());
+  // negócios que mudaram de estágio nesta tela: o funil os põe na coluna nova na hora
+  const [alterados, setAlterados] = useState<ReadonlySet<string>>(new Set());
   // o que só o listener traz (membros, sites novos da Coleta): pede de novo quando ele já chegou
   const recarregarDepois = () => setTimeout(() => setRecarga((x) => x + 1), 2000);
   // fixo por render: se viesse de Date.now() a cada chamada, um espaço podia cair
@@ -232,8 +239,8 @@ export default function AdminPage() {
     fora: foraDoAr, caixa: comCaixa, contato: contato === "hoje", fixados, ordem,
   };
   // a consulta inteira numa passada (src/lib/painel-consulta.ts): lista, chips, visões, alertas e totais.
-  // Na aba Lista quem responde é o servidor (fase 3 do docs/plano-paginacao-admin.md); a local
-  // ainda serve o funil, a carteira, o cabeçalho e o ?modo=antigo.
+  // Nas abas Lista e Funil quem responde é o servidor (fases 3 e 4 do docs/plano-paginacao-admin.md);
+  // a local serve enquanto a resposta destes filtros não chega e no ?modo=antigo.
   const consulta = useMemo(
     () => consultar(espacos, filtros, { crm, hoje: dataDeHoje }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -242,8 +249,8 @@ export default function AdminPage() {
 
   const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), String(comCaixa), contato, String(fixados), alerta].join("|");
   const quantos = pagina.chave === chave ? pagina.n : PAGINA;
-  const servidor = !modoAntigo && tela === "lista" && estado === "pronto";
-  const doServidor = usePainel({ ativo: servidor, filtros, n: quantos, hoje: dataDeHoje, recarga });
+  const servidor = !modoAntigo && (tela === "lista" || tela === "funil") && estado === "pronto";
+  const doServidor = usePainel({ ativo: servidor, filtros, n: quantos, hoje: dataDeHoje, recarga, funil: tela === "funil" ? { periodo, novos } : undefined });
   const daRota = servidor ? doServidor.pagina : null;
   // os dados de cada negócio vêm da cópia local quando ela tem: é a que já mostra a mudança
   // que acabou de ser feita (o servidor confirma na recarga)
@@ -252,6 +259,21 @@ export default function AdminPage() {
   const total = daRota ? daRota.total : consulta.lista.length;
   const visiveis = daRota ? daRota.itens.map((e) => porSlug.get(e.slug) ?? e) : consulta.lista.slice(0, quantos);
   const { ufs, cidades, nichos, avisos } = contagens;
+  // o funil: da rota quando ela respondeu a estes filtros; enquanto a próxima não chega (troca de
+  // período, "mostrar mais"), a última com funil, sem recalcular aqui nem piscar outros números.
+  // Só sem nenhuma (e no ?modo=antigo) é calculado aqui.
+  const esperando = doServidor.situacao === "carregando" || doServidor.situacao === "preparando";
+  const comFunil = daRota?.funil ? daRota : servidor && esperando && doServidor.ultima?.funil ? doServidor.ultima : null;
+  const resumoLocal = useMemo(
+    () => (tela === "funil" && !comFunil ? resumoDoFunil(consulta.lista, crm, { periodo, hoje: dataDeHoje, agora, novos }) : null),
+    [tela, comFunil, consulta.lista, crm, periodo, dataDeHoje, agora, novos],
+  );
+  // o que mudou de estágio aqui já aparece na coluna nova, sem esperar o servidor
+  const resumo = useMemo(
+    () => (comFunil?.funil ? ajustarFunil(comFunil.funil, crm, { alterados, porSlug, novos }) : resumoLocal),
+    [comFunil, crm, alterados, porSlug, novos, resumoLocal],
+  );
+  const crmDoFunil = useMemo(() => (comFunil ? { ...comFunil.crm, ...crm } : crm), [comFunil, crm]);
 
   // o último negócio aberto: resposta lenta de um anterior não pode pintar a gaveta do atual
   const abertoRef = useRef("");
@@ -367,8 +389,12 @@ export default function AdminPage() {
   async function mudarNegocio(slug: string, dados: Partial<Crm>) {
     const atual = crm[slug] ?? VAZIO;
     setCrm((c) => ({ ...c, [slug]: { ...atual, ...dados } as Crm }));   // resposta imediata na tela
+    if (dados.estagio) setAlterados((a) => new Set(a).add(slug));
     const r = await salvarNegocio(await token(), slug, dados);
     setRecarga((x) => x + 1);
+    // o servidor já tem o estágio novo (a ação atualiza o índice antes de responder): passado o
+    // tempo da recarga, o funil volta a seguir o servidor, que vê também o que outros mudarem
+    if (dados.estagio) setTimeout(() => setAlterados((a) => new Set([...a].filter((x) => x !== slug))), 5000);
     // sem isto a tela segue mostrando a venda fechada, ou o site fora do ar,
     // que o servidor recusou — e o aviso some na primeira ação seguinte
     if (!r.ok) {
@@ -538,6 +564,7 @@ export default function AdminPage() {
     // o servidor não desfaz fechado/perdido em lote; a tela acompanha
     const lista = [...marcados].filter((s) => crm[s]?.estagio !== "fechado" && crm[s]?.estagio !== "perdido");
     const antes = new Map(lista.map((s) => [s, crm[s]]));
+    setAlterados((a) => new Set([...a, ...lista]));
     setCrm((c) => {
       const novo = { ...c };
       for (const s of lista) novo[s] = { ...(novo[s] ?? VAZIO), estagio };
@@ -545,6 +572,7 @@ export default function AdminPage() {
     });
     const r = await marcarEstagio(await token(), lista, estagio);
     setRecarga((x) => x + 1);
+    setTimeout(() => setAlterados((a) => new Set([...a].filter((x) => !lista.includes(x)))), 5000);
     if (!r.ok) {
       setAviso(r.error);
       setCrm((c) => ({ ...c, ...Object.fromEntries([...antes].filter(([, v]) => v).map(([k, v]) => [k, v!])) }));
@@ -1113,12 +1141,19 @@ export default function AdminPage() {
         ) : tela === "coleta" ? (
           <ColetaMaps idToken={idToken} aoGerar={juntarGerados} />
         ) : tela === "clientes" ? (
-          <Carteira idToken={idToken} hoje={dataDeHoje} espacos={espacos} abrir={abrir} />
-        ) : tela === "funil" ? (
+          <Carteira idToken={idToken} hoje={dataDeHoje} abrir={abrir} />
+        ) : tela === "funil" && resumo ? (
           <Funil
-            espacos={consulta.lista}
-            crm={crm}
+            resumo={resumo}
+            crm={crmDoFunil}
             hoje={dataDeHoje}
+            periodo={periodo}
+            setPeriodo={(p) => {
+              setPeriodo(p);
+              setNovos(NOVOS_POR_VEZ);
+            }}
+            novos={novos}
+            maisNovos={() => setNovos((v) => Math.min(v + NOVOS_POR_VEZ, NOVOS_MAX))}
             abrir={abrir}
             mover={(slug, e) => (e === "perdido" ? setPerdendo(slug) : e === "fechado" ? setFechando(slug) : mudarNegocio(slug, { estagio: e }))}
             verAtrasadas={() => {
@@ -1179,8 +1214,8 @@ export default function AdminPage() {
                 "contratados" conta a vitória e esconde o trabalho em aberto. */}
             <span className="text-[13px] text-[#6F6A5E]">
               {hoje ? `${hoje.agendamentosHoje} agendamento(s) hoje` : "carregando agenda"} ·{" "}
-              {formatBRL(consulta.totais.contratadoCents)}/mês contratados
-              {consulta.totais.negociacaoCents > 0 && ` · ${formatBRL(consulta.totais.negociacaoCents)}/mês em negociação`}
+              {formatBRL(contagens.totais.contratadoCents)}/mês contratados
+              {contagens.totais.negociacaoCents > 0 && ` · ${formatBRL(contagens.totais.negociacaoCents)}/mês em negociação`}
             </span>
           </div>
 

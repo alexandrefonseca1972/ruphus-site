@@ -7,6 +7,7 @@ import type { Alerta } from "@/lib/alertas";
 import { UFS, type Uf } from "@/lib/coleta";
 import { ESTAGIOS, type Crm, type Prazo } from "@/lib/crm-tipos";
 import type { ResultadoPainel } from "@/lib/painel-consulta";
+import { NOVOS_MAX, NOVOS_POR_VEZ, PERIODOS, type Periodo, type ResumoDoFunil } from "@/lib/funil-consulta";
 
 export type Espaco = {
   slug: string;
@@ -119,6 +120,10 @@ export const ConsultaPainel = z.strictObject({
   hoje: z.string().refine((s) => hojePlausivel(s), "data fora do dia de hoje"),
   // canônico ("america/sao_paulo" vira "America/Sao_Paulo"): uma grafia por fuso no cache de formatadores
   tz: z.string().max(64).refine(fusoValido, "fuso desconhecido").transform(fusoCanonico).optional(),
+  // a aba Funil: os números e as colunas dos mesmos negócios filtrados
+  funil: z.stringbool().default(false),
+  periodo: z.enum(Object.keys(PERIODOS) as [Periodo, ...Periodo[]]).default("mes"),
+  novos: z.string().regex(/^\d{1,4}$/, "número inteiro").transform(Number).pipe(z.number().int().min(1).max(NOVOS_MAX)).default(NOVOS_POR_VEZ),
 });
 export type ConsultaPainel = z.output<typeof ConsultaPainel>;
 
@@ -126,7 +131,7 @@ export type ConsultaPainel = z.output<typeof ConsultaPainel>;
  *  o chip vem do valor gravado, e a sigla é conferida na fronteira (URL) e na limpeza do índice
  *  (docs/plano-paginacao-admin.md, 6.3 e 6.4), não aqui — senão um valor fora do padrão
  *  ligaria o chip sem filtrar a lista. */
-export type Filtros = Omit<ConsultaPainel, "n" | "hoje" | "tz" | "uf"> & { uf: string };
+export type Filtros = Omit<ConsultaPainel, "n" | "hoje" | "tz" | "uf" | "funil" | "periodo" | "novos"> & { uf: string };
 export const SEM_FILTROS: Filtros = {
   busca: "", uf: "", cidade: "", nicho: "", situacao: "", estagio: "", prazo: "", alerta: "",
   fora: false, caixa: false, contato: false, fixados: false, ordem: "relevancia",
@@ -149,6 +154,8 @@ export type RespostaPainel =
       /** quantos passam nos filtros, além da página */
       total: number;
       contagens: Omit<ResultadoPainel, "lista" | "avisos"> & { avisos: (Omit<Alerta, "slugs"> & { total: number })[] };
+      /** com funil=1: os números e as colunas; o CRM dos cartões vai junto em `crm` */
+      funil?: ResumoDoFunil;
       versao: number;
       montadoEm: string;
     }

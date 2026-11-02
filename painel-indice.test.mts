@@ -310,6 +310,18 @@ const trocarConfig = (config: (ref: Ref) => object) => bancoCom({ config });
     assert.ok(ok.corpo.contagens.avisos.every((a) => typeof a.total === "number" && !("slugs" in a)), "alertas sem a lista de slugs");
     assert.ok(Date.parse(ok.corpo.montadoEm) > 0);
   }
+  const comFunil = await pedir(`${q}&funil=1&periodo=tudo&novos=1`, "admin");
+  assert.ok(comFunil.corpo.ok && comFunil.corpo.funil, "funil=1 traz o resumo");
+  if (comFunil.corpo.ok && comFunil.corpo.funil) {
+    const f = comFunil.corpo.funil;
+    assert.equal(f.colunas.negociando.total, 1);
+    assert.equal(f.colunas.novo.cartoes.length, 1, "novos=1: um cartão em Novo");
+    assert.ok(f.colunas.novo.total >= 3);
+    assert.ok(comFunil.corpo.crm["ana-cabelos"], "o CRM dos cartões vai junto");
+  }
+  const semFunil = (await pedir(`${q}&n=1`, "admin")).corpo;
+  assert.ok(semFunil.ok && semFunil.funil === undefined, "sem funil=1, sem resumo");
+  assert.equal((await pedir(`${q}&funil=1&periodo=ano`, "admin")).status, 400);
   const filtrado = await pedir(`${q}&uf=PA&busca=bia`, "admin");
   assert.ok(filtrado.corpo.ok && filtrado.corpo.total === 1 && filtrado.corpo.itens[0].slug === "bia-unhas");
 

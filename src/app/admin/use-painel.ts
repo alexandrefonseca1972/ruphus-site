@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { auth } from "@/lib/firebase";
+import type { Periodo } from "@/lib/funil-consulta";
 import type { Filtros, RespostaPainel } from "@/lib/painel-tipos";
 
 // A página da lista vinda de GET /api/admin/painel (docs/plano-paginacao-admin.md, 3.4 e 6.2).
@@ -21,7 +22,22 @@ const token = (renovar = false) => (auth.currentUser?.getIdToken(renovar) ?? Pro
  *  mantém a página que já está na tela, com o erro ao lado. `recarga` muda depois de uma escrita.
  *  A página só é devolvida se for a dos filtros atuais: a de um filtro anterior, com outros negócios,
  *  levaria o "marcar todos" a marcar quem não está na tela pedida. */
-export function usePainel({ ativo, filtros, n, hoje, recarga }: { ativo: boolean; filtros: Filtros; n: number; hoje: string; recarga: number }) {
+export function usePainel({
+  ativo,
+  filtros,
+  n,
+  hoje,
+  recarga,
+  funil,
+}: {
+  ativo: boolean;
+  filtros: Filtros;
+  n: number;
+  hoje: string;
+  recarga: number;
+  /** na aba Funil: o resumo do período, com `novos` cartões na coluna "Novo" */
+  funil?: { periodo: Periodo; novos: number };
+}) {
   const [pagina, setPagina] = useState<Guardada | null>(null);
   // a situação vale para a consulta que a produziu: erro de um filtro anterior não fica ao lado da lista nova
   const [status, setStatus] = useState<{ situacao: SituacaoDaPagina; erro: string; query: string }>({ situacao: "carregando", erro: "", query: "" });
@@ -32,6 +48,11 @@ export function usePainel({ ativo, filtros, n, hoje, recarga }: { ativo: boolean
 
   const params = new URLSearchParams({ hoje, n: String(n), tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
   for (const [k, v] of Object.entries(filtros)) if (v !== "" && v !== false) params.set(k, String(v));
+  if (funil) {
+    params.set("funil", "1");
+    params.set("periodo", funil.periodo);
+    params.set("novos", String(funil.novos));
+  }
   const query = params.toString();
 
   useEffect(() => {
@@ -85,6 +106,8 @@ export function usePainel({ ativo, filtros, n, hoje, recarga }: { ativo: boolean
   const atual = status.query === query;
   return {
     pagina: pagina?.query === query ? pagina : null,
+    /** a última página que chegou, de qualquer consulta: o funil a mostra enquanto a nova não vem */
+    ultima: pagina,
     situacao: atual ? status.situacao : "carregando",
     erro: atual ? status.erro : "",
     tentarDeNovo: () => setTentativa((x) => x + 1),
