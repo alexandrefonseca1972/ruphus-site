@@ -262,7 +262,8 @@ export default function AdminPage() {
   // o funil: da rota quando ela respondeu a estes filtros; enquanto a próxima não chega (troca de
   // período, "mostrar mais"), a última com funil, sem recalcular aqui nem piscar outros números.
   // Só sem nenhuma (e no ?modo=antigo) é calculado aqui.
-  const comFunil = daRota?.funil ? daRota : servidor && doServidor.ultima?.funil ? doServidor.ultima : null;
+  const esperando = doServidor.situacao === "carregando" || doServidor.situacao === "preparando";
+  const comFunil = daRota?.funil ? daRota : servidor && esperando && doServidor.ultima?.funil ? doServidor.ultima : null;
   const resumoLocal = useMemo(
     () => (tela === "funil" && !comFunil ? resumoDoFunil(consulta.lista, crm, { periodo, hoje: dataDeHoje, agora, novos }) : null),
     [tela, comFunil, consulta.lista, crm, periodo, dataDeHoje, agora, novos],
@@ -391,6 +392,9 @@ export default function AdminPage() {
     if (dados.estagio) setAlterados((a) => new Set(a).add(slug));
     const r = await salvarNegocio(await token(), slug, dados);
     setRecarga((x) => x + 1);
+    // o servidor já tem o estágio novo (a ação atualiza o índice antes de responder): passado o
+    // tempo da recarga, o funil volta a seguir o servidor, que vê também o que outros mudarem
+    if (dados.estagio) setTimeout(() => setAlterados((a) => new Set([...a].filter((x) => x !== slug))), 5000);
     // sem isto a tela segue mostrando a venda fechada, ou o site fora do ar,
     // que o servidor recusou — e o aviso some na primeira ação seguinte
     if (!r.ok) {
@@ -568,6 +572,7 @@ export default function AdminPage() {
     });
     const r = await marcarEstagio(await token(), lista, estagio);
     setRecarga((x) => x + 1);
+    setTimeout(() => setAlterados((a) => new Set([...a].filter((x) => !lista.includes(x)))), 5000);
     if (!r.ok) {
       setAviso(r.error);
       setCrm((c) => ({ ...c, ...Object.fromEntries([...antes].filter(([, v]) => v).map(([k, v]) => [k, v!])) }));
