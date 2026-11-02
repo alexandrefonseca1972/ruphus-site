@@ -196,6 +196,30 @@ const trocarConfig = (config: (ref: Ref) => object) => bancoCom({ config });
   assert.equal(ind.montado(), null);
 }
 
+// escrita do próprio processo (R9): atualizar aplica antes de o listener chegar
+{
+  const devagar = bancoCom({
+    tenants: (ref) => ({
+      onSnapshot: (ok: never, erro: (e: Error) => void) =>
+        ref.onSnapshot(((snap: unknown) => setTimeout(() => (ok as (s: unknown) => void)(snap), 1000)) as never, erro),
+    }),
+  });
+  const ind = criarIndice(devagar, { log: mudo });
+  await ind.atualizar(["ana-cabelos"]); // sem índice montado: não faz nada (nem lê)
+  await ind.pronto();
+  await db.doc("tenants/ana-cabelos").update({ name: "Ana Cabelos Nova" });
+  await db.doc("crm/ana-cabelos").update({ estagio: "oferta" });
+  await ind.atualizar(["ana-cabelos", "nao-existe"]);
+  const agora = ind.montado()!;
+  assert.equal(agora.lista().find((e) => e.slug === "ana-cabelos")?.nome, "Ana Cabelos Nova", "nome novo antes do listener");
+  assert.equal(agora.crm["ana-cabelos"]?.estagio, "oferta", "CRM novo antes do listener");
+  assert.ok(!agora.lista().some((e) => e.slug === "nao-existe"), "negócio que não existe não entra");
+  await db.doc("tenants/ana-cabelos").update({ name: "Ana Cabelos" });
+  await db.doc("crm/ana-cabelos").update({ estagio: "negociando" });
+  await ind.atualizar(["ana-cabelos"]);
+  ind.soltar();
+}
+
 // contas mudam durante a montagem: o not-in velho não fica valendo
 {
   const ind = criarIndice(db, { log: mudo });

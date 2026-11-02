@@ -225,6 +225,18 @@ export function criarIndice(db: Firestore, { ociosoMs = OCIOSO_MS, prazoMs = PRA
     });
   }
 
+  function aplicarTenant(e: Estado, d: DocumentSnapshot, removido: boolean) {
+    if (removido || !d.exists) return void e.espacos.delete(d.id);
+    const { espaco, corrigido } = espacoDe(d.id, (c) => d.get(c), acessosDe(e, d.id));
+    if (corrigido) e.corrigidos++;
+    e.espacos.set(d.id, espaco);
+  }
+
+  function aplicarCrm(e: Estado, d: DocumentSnapshot, removido: boolean) {
+    if (removido || !d.exists || trivial(d)) delete e.crm[d.id];
+    else e.crm[d.id] = negocio(d);
+  }
+
   const contasDe = (d: DocumentSnapshot) => {
     const uids = d.get("uids");
     return Array.isArray(uids) ? uids.filter((u): u is string => typeof u === "string") : [];
@@ -265,19 +277,11 @@ export function criarIndice(db: Firestore, { ociosoMs = OCIOSO_MS, prazoMs = PRA
       await passo(
         Promise.all([
           ouvir(e, db.collection("tenants"), (snap: QuerySnapshot) => {
-            cadaMudanca(e, snap, (d, removido) => {
-              if (removido) return void e.espacos.delete(d.id);
-              const { espaco, corrigido } = espacoDe(d.id, (c) => d.get(c), acessosDe(e, d.id));
-              if (corrigido) e.corrigidos++;
-              e.espacos.set(d.id, espaco);
-            });
+            cadaMudanca(e, snap, (d, removido) => aplicarTenant(e, d, removido));
             mudou(e, true);
           }),
           ouvir(e, db.collection("crm"), (snap: QuerySnapshot) => {
-            cadaMudanca(e, snap, (d, removido) => {
-              if (removido || trivial(d)) delete e.crm[d.id];
-              else e.crm[d.id] = negocio(d);
-            });
+            cadaMudanca(e, snap, (d, removido) => aplicarCrm(e, d, removido));
             mudou(e, false);
           }),
           ouvir(e, membros, (snap: QuerySnapshot) => {
@@ -371,6 +375,36 @@ export function criarIndice(db: Firestore, { ociosoMs = OCIOSO_MS, prazoMs = PRA
       if (!e.vivo) throw new IndiceIndisponivel("índice solto logo depois de montado");
       if (!atual) atual = e;
       return visao(atual);
+    },
+    /** Escrita do próprio processo (R9): relê estes negócios e aplica antes de responder, para a
+     *  próxima página já vir com a mudança, sem esperar o listener (~1 s). Sem índice montado,
+     *  não faz nada: a montagem lê tudo. Falha aqui não desfaz a escrita; o listener corrige. */
+    async atualizar(slugs: string[]) {
+      const e = atual;
+      if (!e || !slugs.length) return;
+      try {
+        const lotes = Array.from({ length: Math.ceil(slugs.length / 300) }, (_, i) => slugs.slice(i * 300, i * 300 + 300));
+        for (const lote of lotes) {
+          const [tenants, crms] = await Promise.all([
+            db.getAll(...lote.map((s) => db.doc(`tenants/${s}`))),
+            db.getAll(...lote.map((s) => db.doc(`crm/${s}`))),
+          ]);
+          if (!e.vivo) return;
+          // um documento com problema não leva o resto do lote junto (como nos listeners)
+          for (const [docs, aplicar] of [[tenants, aplicarTenant], [crms, aplicarCrm]] as const) {
+            for (const d of docs) {
+              try {
+                aplicar(e, d, false);
+              } catch (err) {
+                log.error(`[painel] documento pulado: ${d.ref.path}`, err instanceof Error ? err.message : err);
+              }
+            }
+          }
+          mudou(e, true);
+        }
+      } catch (err) {
+        log.error("[painel] falha ao atualizar o índice depois de uma escrita", err);
+      }
     },
     /** O índice se já estiver montado, sem montar (a rota usa a cópia de config/admin). */
     montado: (): Indice | null => (atual ? visao(atual) : null),

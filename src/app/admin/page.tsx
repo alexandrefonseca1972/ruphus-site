@@ -5,6 +5,7 @@ import { onAuthStateChanged, onIdTokenChanged, signOut } from "firebase/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePainel } from "./use-painel";
 import { auth } from "@/lib/firebase";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import {
@@ -38,7 +39,7 @@ import {
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
 import { consultar, emDestaque, local, VISOES, visaoDe, type Visao } from "@/lib/painel-consulta";
-import { ehOrdem, PAGINA, type Filtros, type Ordem } from "@/lib/painel-tipos";
+import { ehOrdem, PAGINA, PAGINA_MAX, type Filtros, type Ordem } from "@/lib/painel-tipos";
 import { cents, emReais } from "@/lib/dinheiro";
 import { loginComMotivo, MINUTOS_MAX, useAutoLogout } from "@/lib/sessao";
 import { COMMIT, VERSAO } from "@/lib/versao";
@@ -148,6 +149,8 @@ export default function AdminPage() {
   async function juntarGerados(slugs: string[]) {
     if (!slugs.length) return;
     const r = await espacosGerados(await tokenAtual(), slugs).catch(() => null);
+    setRecarga((x) => x + 1);
+    recarregarDepois();
     if (!r?.ok) return;
     const vindos = new Map(r.dados.espacos.map((e) => [e.slug, e]));
     setEspacos((atual) => [...atual.filter((e) => !vindos.has(e.slug)), ...vindos.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
@@ -175,6 +178,12 @@ export default function AdminPage() {
   // o painel se alinha pela direita do botão; quando a barra quebra e o botão cai à esquerda, isso o joga para fora da tela
   const [filtrosAEsquerda, setFiltrosAEsquerda] = useState(false);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
+  // ?modo=antigo: a lista calculada aqui, como antes da fase 3 (saída sem deploy até a fase 5)
+  const [modoAntigo, setModoAntigo] = useState(false);
+  // muda depois de cada escrita: a página do servidor é pedida de novo
+  const [recarga, setRecarga] = useState(0);
+  // o que só o listener traz (membros, sites novos da Coleta): pede de novo quando ele já chegou
+  const recarregarDepois = () => setTimeout(() => setRecarga((x) => x + 1), 2000);
   // fixo por render: se viesse de Date.now() a cada chamada, um espaço podia cair
   // em "hoje" na contagem e em "atrasada" na lista, na virada da meia-noite
   const dataDeHoje = hojeISO();
@@ -196,6 +205,7 @@ export default function AdminPage() {
         setAssinatura(r.dados.assinatura);
         setMinutosInativo(r.dados.minutosInativo);
         setMetaPixel(r.dados.metaPixel);
+        setModoAntigo(new URLSearchParams(location.search).get("modo") === "antigo");
         setEstado("pronto");
       }),
     [router],
@@ -217,15 +227,31 @@ export default function AdminPage() {
     return () => removeEventListener("keydown", atalho);
   }, []);
 
-  // a consulta inteira numa passada (src/lib/painel-consulta.ts): lista, chips, visões, alertas e totais
-  const consulta = useMemo(() => {
-    const filtros: Filtros = {
-      busca, uf, cidade, nicho, situacao, estagio, prazo, alerta,
-      fora: foraDoAr, caixa: comCaixa, contato: contato === "hoje", fixados, ordem,
-    };
-    return consultar(espacos, filtros, { crm, hoje: dataDeHoje });
-  }, [espacos, crm, dataDeHoje, busca, uf, cidade, nicho, situacao, estagio, prazo, alerta, foraDoAr, comCaixa, contato, fixados, ordem]);
-  const { lista, ufs, cidades, nichos, avisos } = consulta;
+  const filtros: Filtros = {
+    busca, uf, cidade, nicho, situacao, estagio, prazo, alerta,
+    fora: foraDoAr, caixa: comCaixa, contato: contato === "hoje", fixados, ordem,
+  };
+  // a consulta inteira numa passada (src/lib/painel-consulta.ts): lista, chips, visões, alertas e totais.
+  // Na aba Lista quem responde é o servidor (fase 3 do docs/plano-paginacao-admin.md); a local
+  // ainda serve o funil, a carteira, o cabeçalho e o ?modo=antigo.
+  const consulta = useMemo(
+    () => consultar(espacos, filtros, { crm, hoje: dataDeHoje }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [espacos, crm, dataDeHoje, busca, uf, cidade, nicho, situacao, estagio, prazo, alerta, foraDoAr, comCaixa, contato, fixados, ordem],
+  );
+
+  const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), String(comCaixa), contato, String(fixados), alerta].join("|");
+  const quantos = pagina.chave === chave ? pagina.n : PAGINA;
+  const servidor = !modoAntigo && tela === "lista" && estado === "pronto";
+  const doServidor = usePainel({ ativo: servidor, filtros, n: quantos, hoje: dataDeHoje, recarga });
+  const daRota = servidor ? doServidor.pagina : null;
+  // os dados de cada negócio vêm da cópia local quando ela tem: é a que já mostra a mudança
+  // que acabou de ser feita (o servidor confirma na recarga)
+  const porSlug = useMemo(() => new Map(espacos.map((e) => [e.slug, e])), [espacos]);
+  const contagens = daRota ? daRota.contagens : { ...consulta, avisos: consulta.avisos.map((a) => ({ ...a, total: a.slugs.length })) };
+  const total = daRota ? daRota.total : consulta.lista.length;
+  const visiveis = daRota ? daRota.itens.map((e) => porSlug.get(e.slug) ?? e) : consulta.lista.slice(0, quantos);
+  const { ufs, cidades, nichos, avisos } = contagens;
 
   // o último negócio aberto: resposta lenta de um anterior não pode pintar a gaveta do atual
   const abertoRef = useRef("");
@@ -277,6 +303,7 @@ export default function AdminPage() {
     if (!window.confirm(`Enviar o convite de acesso por e-mail para ${email}?`)) return;
     setAviso("");
     const r = await enviarConvitePorEmail(await token(), slug);
+    setRecarga((x) => x + 1);
     if (!r.ok) return setAviso(r.error);
     setEventos(r.dados.eventos);
     setConvite({ slug, url: r.dados.url, email: r.dados.email, copiado: false });
@@ -285,6 +312,8 @@ export default function AdminPage() {
 
   async function revogar(slug: string, uid: string) {
     const r = await revogarAcesso(await token(), slug, uid);
+    setRecarga((x) => x + 1);
+    recarregarDepois();
     setAviso(r.ok ? r.dados : r.error);
     if (!r.ok) return;
     // a contagem do /admin ignora a equipe; e tirar o cliente-dono muda o papel da Ruphus
@@ -316,6 +345,7 @@ export default function AdminPage() {
       : `Desligar o Caixa de ${nome}? O link some do painel; os lançamentos ficam guardados.`;
     if (!window.confirm(pergunta)) return;
     const r = await definirCaixa(await token(), slug, ligado);
+    setRecarga((x) => x + 1);
     if (!r.ok) return setAviso(r.error);
     setAviso(r.dados ? "Caixa ligado: aparece no painel do negócio" : "Caixa desligado: os lançamentos ficam guardados");
     setEspacos((e) => e.map((x) => (x.slug === slug ? { ...x, caixa: r.dados } : x)));
@@ -324,6 +354,7 @@ export default function AdminPage() {
 
   async function mudarLimiteStaff(slug: string, profissionais: number) {
     const r = await definirLimiteStaff(await token(), slug, profissionais);
+    setRecarga((x) => x + 1);
     if (!r.ok) return setAviso(r.error);
     setAviso(`agora pode cadastrar ${r.dados} profissional(is)`);
     setEspacos((e) => e.map((x) => (x.slug === slug ? { ...x, limiteStaff: r.dados } : x)));
@@ -337,6 +368,7 @@ export default function AdminPage() {
     const atual = crm[slug] ?? VAZIO;
     setCrm((c) => ({ ...c, [slug]: { ...atual, ...dados } as Crm }));   // resposta imediata na tela
     const r = await salvarNegocio(await token(), slug, dados);
+    setRecarga((x) => x + 1);
     // sem isto a tela segue mostrando a venda fechada, ou o site fora do ar,
     // que o servidor recusou — e o aviso some na primeira ação seguinte
     if (!r.ok) {
@@ -438,6 +470,7 @@ export default function AdminPage() {
 
   async function enviouMensagem(slug: string, modelo: string, para: string) {
     const r = await registrarEnvio(await token(), slug, modelo, para);
+    setRecarga((x) => x + 1);
     if (r.ok) setEventos(r.dados);
   }
 
@@ -445,6 +478,7 @@ export default function AdminPage() {
   async function enviarPropostaEmail(slug: string, email: string) {
     if (!window.confirm(`Enviar a proposta por e-mail para ${email}?`)) return;
     const r = await enviarPropostaPorEmail(await token(), slug, email);
+    setRecarga((x) => x + 1);
     if (!r.ok) return setAviso(r.error);
     setEventos(r.dados.eventos);
     setAviso(`Proposta enviada para ${r.dados.para}.`);
@@ -452,6 +486,7 @@ export default function AdminPage() {
 
   async function novaNota(slug: string, texto: string) {
     const r = await anotarNegocio(await token(), slug, texto);
+    setRecarga((x) => x + 1);
     if (!r.ok) return setAviso(r.error);
     setEventos(r.dados);
     setCrm((c) => ({ ...c, [slug]: { ...(c[slug] ?? VAZIO), notas: (c[slug]?.notas ?? 0) + 1 } as Crm }));
@@ -509,6 +544,7 @@ export default function AdminPage() {
       return novo;
     });
     const r = await marcarEstagio(await token(), lista, estagio);
+    setRecarga((x) => x + 1);
     if (!r.ok) {
       setAviso(r.error);
       setCrm((c) => ({ ...c, ...Object.fromEntries([...antes].filter(([, v]) => v).map(([k, v]) => [k, v!])) }));
@@ -550,7 +586,6 @@ export default function AdminPage() {
       </main>
     );
 
-  const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), String(comCaixa), contato, String(fixados), alerta].join("|");
   // a cidade escolhida acompanha a lista recolhida: fora das cinco primeiras,
   // ela sumia da tela com o filtro ainda ligado e sem chip para desligar
   const topoCidades = cidades.slice(0, CIDADES_VISIVEIS);
@@ -559,8 +594,6 @@ export default function AdminPage() {
     : cidade && !topoCidades.some(([c]) => c === cidade)
       ? [...topoCidades, ...cidades.filter(([c]) => c === cidade)]
       : topoCidades;
-  const quantos = pagina.chave === chave ? pagina.n : PAGINA;
-  const visiveis = lista.slice(0, quantos);
   const filtrando = busca || uf || cidade || nicho || situacao || estagio || prazo || foraDoAr || comCaixa;
   const nFiltros = [uf, cidade, nicho, estagio, prazo, foraDoAr ? "x" : "", comCaixa ? "x" : ""].filter(Boolean).length;
 
@@ -799,7 +832,7 @@ export default function AdminPage() {
         {/* no celular as oito visões quebravam em até quatro linhas: viram uma faixa que rola */}
         <div className="-mx-4 flex w-[calc(100%+2rem)] overflow-x-auto px-4 [scrollbar-width:none] sm:contents [&::-webkit-scrollbar]:hidden">
         {VISOES.map((v) => {
-          const n = consulta.visoes[v.id];
+          const n = contagens.visoes[v.id];
           const ativa = visaoAtiva?.id === v.id;
           return (
             <span key={v.id} className="flex items-center">
@@ -908,7 +941,7 @@ export default function AdminPage() {
                   <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Funil</span>
                   <Chip ativo={!estagio} onClick={() => setEstagio("")}>Todos</Chip>
                   {ESTAGIOS.map((e) => {
-                    const n = consulta.estagios[e];
+                    const n = contagens.estagios[e];
                     // oferecer um chip que dá lista vazia é oferecer um beco sem saída
                     return (
                       <Chip key={e} ativo={estagio === e} disabled={!n && estagio !== e} onClick={() => setEstagio(estagio === e ? "" : e)}>
@@ -925,10 +958,10 @@ export default function AdminPage() {
                     <Chip
                       key={v}
                       ativo={prazo === v}
-                      disabled={!consulta.prazos[v] && prazo !== v}
+                      disabled={!contagens.prazos[v] && prazo !== v}
                       onClick={() => setPrazo(prazo === v ? "" : v)}
                     >
-                      {r} <span className={prazo === v ? "text-white/70" : "text-[#6F6A5E]"}>{consulta.prazos[v]}</span>
+                      {r} <span className={prazo === v ? "text-white/70" : "text-[#6F6A5E]"}>{contagens.prazos[v]}</span>
                     </Chip>
                   ))}
                 </div>
@@ -936,16 +969,16 @@ export default function AdminPage() {
                 <div className="flex flex-wrap items-center gap-2 border-t border-[#EDE9E1] pt-3.5">
                   <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Módulos</span>
                   <Chip ativo={comCaixa} onClick={() => setComCaixa((v) => !v)}>
-                    Caixa ligado <span className={comCaixa ? "text-white/70" : "text-[#6F6A5E]"}>{consulta.caixa}</span>
+                    Caixa ligado <span className={comCaixa ? "text-white/70" : "text-[#6F6A5E]"}>{contagens.caixa}</span>
                   </Chip>
                 </div>
 
                 <div className="flex items-center gap-3 border-t border-[#EDE9E1] pt-3.5 max-sm:sticky max-sm:bottom-0 max-sm:-mx-5 max-sm:bg-white max-sm:px-5 max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))]">
                   <button type="button" className={BOTAO_CLARO} onClick={limparTudo}>Limpar</button>
                   <div className="grow" />
-                  <span className="text-[13px] text-[#6F6A5E] max-sm:hidden">{lista.length} resultado(s)</span>
+                  <span className="text-[13px] text-[#6F6A5E] max-sm:hidden">{total} resultado(s)</span>
                   <button type="button" className={BOTAO_ESCURO} onClick={() => setMenuFiltros(false)}>
-                    <span className="sm:hidden">Ver {lista.length.toLocaleString("pt-BR")}</span>
+                    <span className="sm:hidden">Ver {total.toLocaleString("pt-BR")}</span>
                     <span className="max-sm:hidden">Pronto</span>
                   </button>
                 </div>
@@ -1045,7 +1078,7 @@ export default function AdminPage() {
                   >
                     {a.rotulo}
                     <span className={`rounded-full px-2 py-0.5 text-[11px] ${ativo ? "bg-white/20" : a.urgente ? "bg-[#FBF0EE]" : "bg-[#F3EFE7] text-[#6F6A5E]"}`}>
-                      {a.slugs.length}
+                      {a.total}
                     </span>
                   </button>
                 );
@@ -1083,7 +1116,7 @@ export default function AdminPage() {
           <Carteira idToken={idToken} hoje={dataDeHoje} espacos={espacos} abrir={abrir} />
         ) : tela === "funil" ? (
           <Funil
-            espacos={lista}
+            espacos={consulta.lista}
             crm={crm}
             hoje={dataDeHoje}
             abrir={abrir}
@@ -1125,12 +1158,22 @@ export default function AdminPage() {
           )}
 
           <div aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[#EDE9E1] px-4 py-3 sm:px-5">
-            <span className="text-sm font-semibold">{lista.length} espaço(s)</span>
+            <span className="text-sm font-semibold">{total} espaço(s)</span>
             <span className="text-[13px] text-[#6F6A5E]">
               {visaoAtiva ? visaoAtiva.rotulo.toLowerCase() : "recorte próprio"}
               {cidade && ` · ${cidade}`}
               {nicho && ` · ${nicho}`}
             </span>
+            {/* enquanto a página dos filtros atuais não chega, a lista é a calculada aqui (ainda temos tudo até a fase 5) */}
+            {servidor && doServidor.situacao === "preparando" && <span className="text-[13px] text-[#7A5A2E]">Preparando o painel…</span>}
+            {servidor && doServidor.situacao === "erro" && (
+              <span className="flex items-center gap-2 text-[13px] text-[#8A2F2F]">
+                {doServidor.erro}
+                <button type="button" onClick={doServidor.tentarDeNovo} className={MENOR}>
+                  Tentar de novo
+                </button>
+              </span>
+            )}
             <div className="grow" />
             {/* Dois números: o que já entrou e o que ainda está em jogo. Só
                 "contratados" conta a vitória e esconde o trabalho em aberto. */}
@@ -1268,7 +1311,7 @@ export default function AdminPage() {
             })}
 
             {/* Vazio com saída: qual filtro matou o resultado, e o que cada saída devolve */}
-            {!lista.length && (
+            {!total && (
               <li className="flex flex-col items-center gap-4 px-5 py-12 text-center">
                 <p className="max-w-sm text-sm text-[#4A4639]">
                   {/* Sem nenhum espaço cadastrado, culpar os filtros manda procurar o que não existe */}
@@ -1285,12 +1328,12 @@ export default function AdminPage() {
                 <div className={`flex-wrap justify-center gap-2 ${espacos.length ? "flex" : "hidden"}`}>
                   {cidade && (
                     <button type="button" className={BOTAO_CLARO} onClick={() => setCidade("")}>
-                      Tirar {cidade} → {consulta.tirando.cidade}
+                      Tirar {cidade} → {contagens.tirando.cidade}
                     </button>
                   )}
                   {nicho && (
                     <button type="button" className={BOTAO_CLARO} onClick={() => setNicho("")}>
-                      Tirar {nicho} → {consulta.tirando.nicho}
+                      Tirar {nicho} → {contagens.tirando.nicho}
                     </button>
                   )}
                   <button type="button" className={BOTAO_ESCURO} onClick={limparTudo}>
@@ -1301,13 +1344,16 @@ export default function AdminPage() {
             )}
           </ul>
 
-          {lista.length > quantos && (
+          {total > quantos && (
             <div className="flex items-center gap-3 border-t border-[#EDE9E1] px-4 py-3.5 sm:px-5">
-              <button type="button" className={BOTAO_CLARO} onClick={() => setPagina({ chave, n: quantos + PAGINA })}>
-                Mostrar mais {Math.min(PAGINA, lista.length - quantos)}
-              </button>
+              {/* o servidor manda até PAGINA_MAX de uma vez; o ?modo=antigo, calculado aqui, não tem teto */}
+              {(modoAntigo || quantos < PAGINA_MAX) && (
+                <button type="button" className={BOTAO_CLARO} onClick={() => setPagina({ chave, n: modoAntigo ? quantos + PAGINA : Math.min(quantos + PAGINA, PAGINA_MAX) })}>
+                  Mostrar mais {Math.min(PAGINA, total - quantos)}
+                </button>
+              )}
               <span className="text-[13px] text-[#6F6A5E]">
-                mostrando {quantos} de {lista.length}
+                mostrando {quantos} de {total}
               </span>
             </div>
           )}
