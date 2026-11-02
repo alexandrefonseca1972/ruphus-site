@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Agendamento mais leve no celular: o zod e o gerador de QR do Pix saíram do JS que todo cliente baixa (de 666 KB para 532 KB sem compressão); ao escolher o primeiro serviço, a faixa de dias rola para a tela quando está abaixo da dobra; e os campos de nome e WhatsApp passam a 16 px, sem o zoom do Safari no iPhone.
+
 - Ajustes ganha **Testar envio** no SMS: depois de cadastrar a chave da Comtele, manda um SMS de teste para um celular e mostra a resposta da Comtele (chave errada, sem crédito) na hora.
 
 - Agendamento no celular: com sinal Pix, a tela não promete mais "sem pagar nada agora" nem "horário reservado" antes do pagamento (mostra "aguardando o sinal"); o preço fica em linha própria no resumo de baixo; o calendário separa dia fechado de dia sem vagas; rótulos de 9 px passam a 11 px; e o nome do serviço não é mais espremido letra a letra quando o preço é "a partir de".

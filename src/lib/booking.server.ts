@@ -6,7 +6,8 @@ import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
 import { addDays, agoraNaParede, customerKey, dateIn, formatTime, freeSlots, fusoDaUF, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import type { DadosCliente } from "@/lib/cliente-dados";
-import { ConfigSinal, prazoDoSinal, type SinalDoAgendamento, valorDoSinal } from "@/lib/sinal";
+import { prazoDoSinal, type SinalDoAgendamento, valorDoSinal } from "@/lib/sinal";
+import { ConfigSinal } from "@/lib/sinal-config";
 import { recebedorDe, txidLivre } from "@/lib/pix";
 import { Service, Staff, type AgendaQuery, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
 

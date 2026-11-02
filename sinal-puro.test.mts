@@ -1,6 +1,7 @@
 // Rode: npm run test:sinal-puro  (regras do sinal, sem emulador)
 import assert from "node:assert/strict";
-import { ConfigSinal, prazoDoSinal, restanteDe, tempoRestante, textoDoSinal, valorDoSinal } from "@/lib/sinal";
+import { prazoDoSinal, restanteDe, tempoRestante, textoDoSinal, valorDoSinal } from "@/lib/sinal";
+import { ConfigSinal } from "@/lib/sinal-config";
 
 const valida = (c: unknown) => ConfigSinal.safeParse(c);
 assert.ok(valida({ ativo: true, tipo: "percentual", valor: 30, prazoMin: 30 }).success);
