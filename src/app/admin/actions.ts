@@ -6,6 +6,7 @@ import type { Dominio } from "@/lib/dominio";
 import { z } from "zod";
 import { adminDb } from "@/lib/admin";
 import { nichoDe, type Espaco } from "@/lib/painel-tipos";
+import { indiceDoPainel } from "@/lib/painel-indice.server";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNegocio as salvarSite } from "@/lib/negocios.server";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX, limiteStaffDe, MINUTOS_MAX } from "@/lib/limites";
@@ -43,6 +44,11 @@ import { FieldValue } from "firebase-admin/firestore";
 export type { ConexaoWhatsapp, QrWhatsApp };
 
 export type { Espaco };
+
+/** Depois de escrever: o índice do painel relê esses negócios antes da resposta, para a próxima
+ *  página já vir com a mudança (docs/plano-paginacao-admin.md, R9). Membros (acessos) ficam com o
+ *  listener, que chega em ~1 s. */
+const noIndice = (...slugs: string[]) => indiceDoPainel(adminDb).atualizar(slugs);
 
 
 /** Se quem entrou administra a plataforma.
@@ -182,6 +188,7 @@ export const marcarEstagio = adminAction(async (user, slugs: string[], estagio: 
   const crms = await adminDb.getAll(...pedidos.map((s) => adminDb.collection("crm").doc(s)));
   const alvos = crms.filter((d) => !["fechado", "perdido"].includes(d.get("estagio"))).map((d) => d.id);
   for (const slug of alvos) await salvarCrm(adminDb, slug, { estagio: estagio as CrmInput["estagio"] }, user.email ?? user.uid);
+  await noIndice(...alvos);
   return alvos.length;
 });
 
@@ -229,6 +236,7 @@ export const definirLimiteStaff = adminAction(async (_user, slug: string, profis
     throw new ErroPrevisto(`O limite vai de 1 a ${LIMITE_STAFF_MAX} profissionais.`);
   }
   await adminDb.doc(`tenants/${slug}`).set({ limiteStaff: profissionais }, { merge: true });
+  await noIndice(slug);
   return profissionais;
 });
 
@@ -238,6 +246,7 @@ export const definirCaixa = adminAction(async (_user, slug: string, ligado: bool
   const t = adminDb.doc(`tenants/${slug}`);
   if (!(await t.get()).exists) throw new ErroPrevisto("Negócio não encontrado.");
   await t.update({ "modulos.financeiro": ligado === true });
+  await noIndice(slug);
   return ligado === true;
 });
 
@@ -351,7 +360,7 @@ export const abrirPainel = adminAction(async (): Promise<Painel> => {
  *  lista que já tem, em vez de reler os 14 mil. */
 export const espacosGerados = adminAction(async (_user, slugs: string[]) => {
   const lista = z.array(z.string().regex(SLUG)).max(5000).parse(slugs);
-  const [espacos, crm] = await Promise.all([espacosComAcessos(lista), lerCrm(adminDb, lista)]);
+  const [espacos, crm] = await Promise.all([espacosComAcessos(lista), lerCrm(adminDb, lista), noIndice(...lista)]);
   return { espacos, crm };
 });
 
@@ -401,6 +410,7 @@ export const carteira = adminAction(async (_user, hoje: string) => {
 export const salvarNegocio = adminAction(async (user, slug: string, dados: unknown) => {
   slugValido(slug);
   await salvarCrm(adminDb, slug, dados as CrmInput, user.email ?? user.uid);
+  await noIndice(slug);
   return "salvo";
 });
 
@@ -419,12 +429,14 @@ export const linhaDoTempoDo = adminAction(async (_user, slug: string) => {
 export const registrarEnvio = adminAction(async (user, slug: string, modelo: string, para: string) => {
   if (!SLUG.test(slug)) throw new Error("negócio inválido");
   await registrarMensagem(adminDb, slug, modelo, para, user.email ?? user.uid);
+  await noIndice(slug);
   return linhaDoTempo(adminDb, slug);
 });
 
 export const anotarNegocio = adminAction(async (user, slug: string, texto: string) => {
   slugValido(slug);
   await anotar(adminDb, slug, texto, user.email ?? user.uid);
+  await noIndice(slug);
   return linhaDoTempo(adminDb, slug);
 });
 
@@ -726,6 +738,7 @@ export const montarSite = adminAction(async (_user, slug: string, dados: unknown
   const previa = await previaDoSite(adminDb, slug, dados, g.data);
   if (!aplicar) return previa;
   await salvarSite(adminDb, slug, dados, previa.tipo === "fabrica" ? undefined : g.data);
+  await noIndice(slug);
   for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${slug}/${p}`);
   revalidatePath(`/bio/${slug}`);
   return previa;
