@@ -5,7 +5,8 @@
 import { z } from "zod";
 import type { Alerta } from "@/lib/alertas";
 import { UFS, type Uf } from "@/lib/coleta";
-import { ESTAGIOS, type Prazo } from "@/lib/crm-tipos";
+import { ESTAGIOS, type Crm, type Prazo } from "@/lib/crm-tipos";
+import type { ResultadoPainel } from "@/lib/painel-consulta";
 
 export type Espaco = {
   slug: string;
@@ -134,3 +135,21 @@ export const SEM_FILTROS: Filtros = {
 /** Guarda de tipo para o que vem de fora (chip, <select>, URL). */
 export const ehUf = (s: string): s is Uf => (UF_SIGLAS as readonly string[]).includes(s);
 export const ehOrdem = (s: string): s is Ordem => (ORDENS as readonly string[]).includes(s);
+
+/** Por que a rota do painel recusou: a tela trata cada um (6.2). */
+export const CODIGOS_DE_ERRO = ["sessao", "restrito", "invalido", "preparando", "falha"] as const;
+export type CodigoDeErro = (typeof CODIGOS_DE_ERRO)[number];
+
+/** Resposta de GET /api/admin/painel: a página pedida, com o CRM dela, e as contagens. */
+export type RespostaPainel =
+  | {
+      ok: true;
+      itens: Espaco[];
+      crm: Record<string, Crm>;
+      /** quantos passam nos filtros, além da página */
+      total: number;
+      contagens: Omit<ResultadoPainel, "lista" | "avisos"> & { avisos: (Omit<Alerta, "slugs"> & { total: number })[] };
+      versao: number;
+      montadoEm: string;
+    }
+  | { ok: false; codigo: CodigoDeErro; erro: string };
