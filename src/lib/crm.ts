@@ -93,6 +93,67 @@ export async function lerFechados(db: Firestore): Promise<Record<string, Crm>> {
   return Object.fromEntries(q.docs.map((d) => [d.id, negocio(d)]));
 }
 
+/** A proposta que o próprio negócio pode tirar do ar pelo link: feita pela Ruphus (não pelo dono, no
+ *  cadastro), ainda não publicada, com a Ruphus como dona, sem convite aceito e antes da negociação.
+ *  Quem aceitou o convite ou está negociando é cliente em andamento: a página dele não sai por um
+ *  link que qualquer um com o endereço abre. */
+function removivel(tenant: FirebaseFirestore.DocumentSnapshot, crm: FirebaseFirestore.DocumentSnapshot, convidados: number, plataforma: string[]) {
+  if (!tenant.exists || !tenant.get("gerado") || tenant.get("gerado.origem") === "cadastro" || tenant.get("gerado.publicadoEm")) return false;
+  if (convidados > 0 || (tenant.get("ownerId") && !plataforma.includes(tenant.get("ownerId")))) return false;
+  return !["negociando", "fechado"].includes(crm.get("estagio"));
+}
+
+const contasDaPlataforma = async (db: Firestore) => ((await db.doc("config/admin").get()).get("uids") as string[] | undefined) ?? [];
+
+export async function propostaRemovivel(db: Firestore, slug: string) {
+  const [tenant, crm, convidados, plataforma] = await Promise.all([
+    db.doc(`tenants/${slug}`).get(),
+    db.collection(RAIZ).doc(slug).get(),
+    db.collection(`tenants/${slug}/members`).where("viaConvite", "==", true).limit(1).get(),
+    contasDaPlataforma(db),
+  ]);
+  if (!removivel(tenant, crm, convidados.size, plataforma)) return null;
+  return { nome: String(tenant.get("name") ?? slug), removida: crm.get("publicado") === false };
+}
+
+/** "Pedir remoção" da faixa de proposta: a página sai do ar (a lista de desativados que o proxy lê)
+ *  e o CRM registra o pedido. Numa transação: o admin fechar a venda no meio não vira "perdido".
+ *  Já perdido, o motivo de antes fica; o estágio anterior é guardado para desfazer. */
+export async function pedirRemocao(db: Firestore, slug: string) {
+  const plataforma = await contasDaPlataforma(db);
+  const ref = db.collection(RAIZ).doc(slug);
+  return db.runTransaction(async (tx) => {
+    const [tenant, crm, convidados] = await Promise.all([
+      tx.get(db.doc(`tenants/${slug}`)),
+      tx.get(ref),
+      tx.get(db.collection(`tenants/${slug}/members`).where("viaConvite", "==", true).limit(1)),
+    ]);
+    if (!removivel(tenant, crm, convidados.size, plataforma)) return false;
+    if (crm.get("publicado") === false) return true;
+    const antes = ((crm.get("estagio") as Crm["estagio"] | undefined) ?? "novo") as Crm["estagio"];
+    const agora = FieldValue.serverTimestamp();
+    tx.set(
+      ref,
+      {
+        publicado: false,
+        remocaoPedidaEm: agora,
+        estagioAntesDaRemocao: antes,
+        ...(antes === "perdido" ? {} : { estagio: "perdido", motivoPerda: "remocao", perdidoEm: agora }),
+        atualizadoEm: agora,
+      },
+      { merge: true },
+    );
+    tx.set(ref.collection("eventos").doc(), {
+      tipo: "estagio",
+      titulo: antes === "perdido" ? "Página tirada do ar" : `${ROTULO[antes]} → ${ROTULO.perdido}`,
+      detalhe: MOTIVOS_PERDA.remocao,
+      autor: "o próprio negócio, pelo link da página",
+      quando: agora,
+    });
+    return true;
+  });
+}
+
 export async function salvarCrm(db: Firestore, slug: string, entrada: CrmInput, autor = "sistema") {
   const parsed = CrmInput.safeParse(entrada);
   if (!parsed.success) throw new CrmErro(parsed.error.issues[0].message);
