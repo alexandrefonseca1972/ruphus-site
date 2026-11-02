@@ -5,11 +5,11 @@ import { conectarDominio, desconectarDominio, verificarDominio } from "@/lib/dom
 import type { Dominio } from "@/lib/dominio";
 import { z } from "zod";
 import { adminDb } from "@/lib/admin";
-import { nichoDe, type Espaco } from "@/lib/painel-tipos";
-import { indiceDoPainel } from "@/lib/painel-indice.server";
+import type { Espaco } from "@/lib/painel-tipos";
+import { espacoDe, indiceDoPainel } from "@/lib/painel-indice.server";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNegocio as salvarSite } from "@/lib/negocios.server";
-import { DIAS_CONVITE, LIMITE_STAFF_MAX, limiteStaffDe, MINUTOS_MAX } from "@/lib/limites";
+import { DIAS_CONVITE, LIMITE_STAFF_MAX, MINUTOS_MAX } from "@/lib/limites";
 import { dadosDoEnvio, destinatarioDoEnvio, gerarProposta } from "@/lib/proposta.server";
 import { enviarEmail } from "@/lib/email.server";
 import { emailDaProposta } from "@/lib/proposta-email";
@@ -26,7 +26,8 @@ import {
   pixCadastrado,
   salvarPix,
 } from "@/lib/cobranca";
-import { anotar, CrmInput, lerCrm, linhaDoTempo, listarNotas, registrarMensagem, salvarCrm } from "@/lib/crm";
+import { anotar, CrmInput, lerCrm, lerFechados, linhaDoTempo, listarNotas, registrarMensagem, salvarCrm } from "@/lib/crm";
+import type { Crm } from "@/lib/crm-tipos";
 import { diaCurto, hojeISO, mensalidadeDe } from "@/lib/crm-tipos";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import { competenciaAtual } from "@/lib/pix";
@@ -89,29 +90,16 @@ async function acessosPorEspaco() {
   return (slug: string) => porEspaco.get(slug) ?? 1;
 }
 
-/** Lista os espaços com quantas pessoas têm acesso a cada um; com slugs, só esses. */
-async function espacosComAcessos(slugs?: string[]) {
+/** Estes espaços com quantas pessoas têm acesso a cada um (a carteira, sem o índice montado). */
+async function espacosComAcessos(slugs: string[]) {
   const [tenants, acessos] = await Promise.all([
-    slugs
-      ? Promise.all(lotesDe(slugs, 500).map((l) => adminDb.getAll(...l.map((s) => adminDb.collection("tenants").doc(s)), { fieldMask: [...CAMPOS_DA_LISTA] }))).then((x) => x.flat())
-      : adminDb.collection("tenants").select(...CAMPOS_DA_LISTA).get().then((q) => q.docs),
+    Promise.all(lotesDe(slugs, 500).map((l) => adminDb.getAll(...l.map((s) => adminDb.collection("tenants").doc(s)), { fieldMask: [...CAMPOS_DA_LISTA] }))).then((x) => x.flat()),
     acessosPorEspaco(),
   ]);
+  // a mesma limpeza do índice: o negócio chega à tela igual, venha de onde vier
   return tenants
     .filter((d) => d.exists)
-    .map((d): Espaco => ({
-      slug: d.id,
-      nome: String(d.get("name") ?? d.id),
-      telefone: d.get("site.phone") ?? null,
-      nicho: nichoDe(d.get("site.category")),
-      cidade: d.get("site.city") ?? null,
-      uf: d.get("site.uf") ?? null,
-      nota: d.get("site.rating") ?? null,
-      avaliacoes: d.get("site.reviews") ?? null,
-      acessos: acessos(d.id),
-      limiteStaff: limiteStaffDe(d.get("limiteStaff") as number | undefined),
-      caixa: d.get("modulos.financeiro") === true,
-    }))
+    .map((d): Espaco => espacoDe(d.id, (c) => d.get(c), acessos(d.id)).espaco)
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
 const lotesDe = <T,>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
@@ -319,9 +307,7 @@ async function resumoDoDia(): Promise<Resumo> {
 }
 
 export type Painel = {
-  espacos: Espaco[];
   hoje: Resumo;
-  crm: Awaited<ReturnType<typeof lerCrm>>;
   /** quem assina as mensagens do CRM */
   assinatura: string;
   /** minutos parado até o logout automático; 0 desliga */
@@ -330,7 +316,8 @@ export type Painel = {
   metaPixel: string;
 };
 
-/** Tudo o que o painel precisa para abrir, numa viagem só.
+/** O que o painel precisa para abrir, numa viagem só. A lista e o CRM não vêm daqui: a tela pede
+ *  a página a GET /api/admin/painel (docs/plano-paginacao-admin.md, fase 5).
  *
  * O cliente despacha Server Actions uma de cada vez — é o Next que enfileira —,
  * então quatro chamadas dentro de um Promise.all viravam quatro idas ao
@@ -338,34 +325,23 @@ export type Painel = {
  * novo antes de consultar qualquer coisa. Aqui o paralelo é de verdade: ele
  * acontece deste lado, depois de uma conferência só. */
 export const abrirPainel = adminAction(async (): Promise<Painel> => {
-  const [espacos, hoje, crm, assina, sessao, marketing] = await Promise.all([
-    espacosComAcessos(),
+  const [hoje, assina, sessao, marketing] = await Promise.all([
     resumoDoDia(),
-    lerCrm(adminDb),
     adminDb.doc("config/crm").get(),
     adminDb.doc("config/sessao").get(),
     adminDb.doc("config/marketing").get(),
   ]);
   return {
-    espacos,
     hoje,
-    crm,
     assinatura: String(assina.get("assinatura") ?? ""),
     minutosInativo: Number(sessao.get("minutos")) || 0,
     metaPixel: String(marketing.get("metaPixel") ?? ""),
   };
 });
 
-/** Só os negócios que o Gerador ou a Coleta acabaram de criar ou atualizar: a tela junta à
- *  lista que já tem, em vez de reler os 14 mil. */
-export const espacosGerados = adminAction(async (_user, slugs: string[]) => {
-  const lista = z.array(z.string().regex(SLUG)).max(5000).parse(slugs);
-  // o índice do painel recebe estes pelo listener: reler aqui dobraria as leituras (até 10 mil)
-  const [espacos, crm] = await Promise.all([espacosComAcessos(lista), lerCrm(adminDb, lista)]);
-  return { espacos, crm };
-});
-
 export type Detalhe = {
+  /** o CRM do negócio (null: ainda sem): a gaveta aberta de fora da Lista e do Funil não o tem */
+  crm: Crm | null;
   servicos: number;
   profissionais: number;
   agendamentos30d: number;
@@ -378,13 +354,15 @@ export const detalhesEspaco = adminAction(async (_user, slug: string): Promise<D
   const t = adminDb.collection("tenants").doc(slug);
   const desde = new Date();
   desde.setDate(desde.getDate() - 30);
-  const [tenant, servicos, staff, agendamentos] = await Promise.all([
+  const [tenant, servicos, staff, agendamentos, crm] = await Promise.all([
     t.get(),
     t.collection("services").where("active", "==", true).count().get(),
     t.collection("staff").where("active", "==", true).count().get(),
     t.collection("appointments").where("start", ">=", desde).count().get(),
+    lerCrm(adminDb, [slug]),
   ]);
   return {
+    crm: crm[slug] ?? null,
     servicos: servicos.data().count,
     profissionais: staff.data().count,
     agendamentos30d: agendamentos.data().count,
@@ -406,9 +384,9 @@ export const saudeDoNegocio = adminAction(async (_user, slug: string, hoje: stri
 export const carteira = adminAction(async (_user, hoje: string) => {
   const dia = z.iso.date().parse(hoje);
   // só se já estiver montado: esperar a montagem (~11 s) seguraria as outras ações da tela, que o
-  // Next despacha uma por vez, e o ?modo=antigo não deve montar índice. Sem ele, lê como antes.
+  // Next despacha uma por vez. Sem ele (deploy recente, 2 h sem uso), lê como antes.
   const indice = indiceDoPainel(adminDb).montado();
-  const crm = indice?.crm ?? (await lerCrm(adminDb));
+  const crm = indice?.crm ?? (await lerFechados(adminDb));
   const fechados = Object.entries(crm).filter(([, c]) => c.estagio === "fechado").map(([slug]) => slug);
   const porSlug = new Map((indice?.lista() ?? (await espacosComAcessos(fechados))).map((e) => [e.slug, e]));
   const peso = { risco: 0, atencao: 1, ok: 2 } as const;
@@ -599,7 +577,7 @@ export const cobrar = adminAction(async (_user, slug: string, tipo: "entrada" | 
 /** A mensalidade do mês para todos os negócios fechados, de uma vez. */
 export const cobrarMes = adminAction(async (_user, competencia?: string) => {
   const mes = competencia ?? competenciaAtual();
-  const [negocios, caixa] = await Promise.all([lerCrm(adminDb), comCaixa()]);
+  const [negocios, caixa] = await Promise.all([lerFechados(adminDb), comCaixa()]);
   const alvos = Object.entries(negocios).filter(([slug, n]) => n.estagio === "fechado" && mensalidadeDe(n, caixa.has(slug)) > 0);
   const geradas: Cobranca[] = [];
   for (const [slug, n] of alvos) {
@@ -764,6 +742,7 @@ export const gerarSites = adminAction(async (user, entrada: unknown, aplicar: bo
     revalidatePath(`/s/${slug}/og.jpg`);
     revalidatePath(`/bio/${slug}`);
   }
+  if (aplicar) await noIndice(...linhas.filter((l) => l.acao !== "pular").map((l) => l.slug));
   return linhas;
 });
 

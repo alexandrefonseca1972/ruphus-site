@@ -168,6 +168,15 @@ const trocarConfig = (config: (ref: Ref) => object) => bancoCom({ config });
   await assert.rejects(criarIndice(bancoCom({ tenants: silencio }), { log: mudo, prazoMs: 300 }).pronto(), /passou de/);
 }
 
+// a leitura dos acessos da plataforma falha na montagem: a montagem falha (e tenta de novo depois),
+// em vez de montar com cliente aparecendo como "sem cliente dentro"
+{
+  const semGetAll = new Proxy(db, {
+    get: (alvo, p) => (p === "getAll" ? () => Promise.reject(new Error("getAll falhou")) : ((v) => (typeof v === "function" ? v.bind(alvo) : v))(Reflect.get(alvo, p))),
+  });
+  await assert.rejects(criarIndice(semGetAll, { log: mudo }).pronto(), /getAll falhou/);
+}
+
 // troca de índice sem deixar listener órfão
 {
   let vivos = 0;
@@ -217,6 +226,24 @@ const trocarConfig = (config: (ref: Ref) => object) => bancoCom({ config });
   await db.doc("tenants/ana-cabelos").update({ name: "Ana Cabelos" });
   await db.doc("crm/ana-cabelos").update({ estagio: "negociando" });
   await ind.atualizar(["ana-cabelos"]);
+  // só o CRM mudou: a lista ordenada (e o cache da consulta, guardado por ela) continua a mesma.
+  // Antes, o listener (atrasado 1 s aqui) termina de entregar as mudanças de nome acima
+  await new Promise((r) => setTimeout(r, 1300));
+  const lista = ind.montado()!.lista();
+  await db.doc("crm/ana-cabelos").update({ proximaAcao: "ligar" });
+  await ind.atualizar(["ana-cabelos"]);
+  assert.equal(ind.montado()!.lista(), lista, "atualizar só com CRM novo não refaz a lista");
+  assert.equal(ind.montado()!.crm["ana-cabelos"]?.proximaAcao, "ligar");
+  // campo do tenant que a lista não mostra (status do WhatsApp, lembretes): mesma lista
+  await db.doc("tenants/ana-cabelos").update({ "whatsapp.status": "conectado" });
+  await ind.atualizar(["ana-cabelos"]);
+  await new Promise((r) => setTimeout(r, 1300)); // e o listener (atrasado aqui) também chega
+  assert.equal(ind.montado()!.lista(), lista, "campo fora da lista não refaz a lista");
+  await db.doc("tenants/ana-cabelos").update({ "site.rating": 4.9 });
+  await ind.atualizar(["ana-cabelos"]);
+  assert.notEqual(ind.montado()!.lista(), lista, "campo da lista refaz");
+  await db.doc("tenants/ana-cabelos").update({ "site.rating": 4.8 });
+  await db.doc("crm/ana-cabelos").update({ proximaAcao: null });
   ind.soltar();
 }
 
@@ -304,6 +331,7 @@ const trocarConfig = (config: (ref: Ref) => object) => bancoCom({ config });
   if (ok.corpo.ok) {
     assert.deepEqual(ok.corpo.itens.map((e) => e.slug), ["ana-cabelos"], "só a página pedida");
     assert.equal(ok.corpo.total, 5);
+    assert.equal(ok.corpo.base, 5, "a base inteira, sem filtro");
     assert.deepEqual(Object.keys(ok.corpo.crm), ["ana-cabelos"], "CRM só da página");
     assert.deepEqual(ok.corpo.contagens.ufs, [["PA", 2]]);
     assert.equal(ok.corpo.contagens.estagios.negociando, 1);

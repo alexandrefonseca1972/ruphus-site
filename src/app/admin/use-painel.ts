@@ -29,6 +29,7 @@ export function usePainel({
   hoje,
   recarga,
   funil,
+  aoReceber,
 }: {
   ativo: boolean;
   filtros: Filtros;
@@ -37,6 +38,8 @@ export function usePainel({
   recarga: number;
   /** na aba Funil: o resumo do período, com `novos` cartões na coluna "Novo" */
   funil?: { periodo: Periodo; novos: number };
+  /** cada página que chega, antes de virar a da tela (a página guarda o que já viu) */
+  aoReceber?: (p: PaginaDoServidor) => void;
 }) {
   const [pagina, setPagina] = useState<Guardada | null>(null);
   // a situação vale para a consulta que a produziu: erro de um filtro anterior não fica ao lado da lista nova
@@ -45,6 +48,10 @@ export function usePainel({
   const seq = useRef(0);
   const ultimaBusca = useRef(filtros.busca);
   const esperas = useRef(0);
+  const receber = useRef(aoReceber);
+  useEffect(() => {
+    receber.current = aoReceber;
+  });
 
   const params = new URLSearchParams({ hoje, n: String(n), tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
   for (const [k, v] of Object.entries(filtros)) if (v !== "" && v !== false) params.set(k, String(v));
@@ -75,6 +82,7 @@ export function usePainel({
         if (controle.signal.aborted || meu !== seq.current) return;
         if (corpo?.ok) {
           esperas.current = 0;
+          receber.current?.(corpo);
           setPagina({ ...corpo, query });
           setStatus({ situacao: "pronto", erro: "", query });
           return;

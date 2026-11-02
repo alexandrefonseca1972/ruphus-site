@@ -87,6 +87,12 @@ export async function lerCrm(db: Firestore, slugs?: string[]): Promise<Record<st
   return Object.fromEntries(docs.filter((d) => d.exists && !trivial(d)).map((d) => [d.id, negocio(d)]));
 }
 
+/** Só os fechados (clientes): a carteira e a cobrança do mês, sem ler os 15 mil do CRM. */
+export async function lerFechados(db: Firestore): Promise<Record<string, Crm>> {
+  const q = await db.collection(RAIZ).where("estagio", "==", "fechado").get();
+  return Object.fromEntries(q.docs.map((d) => [d.id, negocio(d)]));
+}
+
 export async function salvarCrm(db: Firestore, slug: string, entrada: CrmInput, autor = "sistema") {
   const parsed = CrmInput.safeParse(entrada);
   if (!parsed.success) throw new CrmErro(parsed.error.issues[0].message);

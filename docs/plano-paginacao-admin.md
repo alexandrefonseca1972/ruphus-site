@@ -1,6 +1,9 @@
 # Plano: painel do admin paginado no servidor
 
-Status: fase 1 no ar (PR #178); fase 2 implementada (índice e rota, sem uso pela tela).
+Status: fases 1 a 4 no ar (PRs #178, #180, #181, #182); fase 5 neste PR. Depois dela o
+`/admin` não baixa mais a base: a abertura lê a configuração e a agenda do dia, e a lista,
+o funil e as contagens vêm de `GET /api/admin/painel`. Não há mais `?modo=antigo`: voltar
+atrás é o `app-prev` da VPS.
 Escrito em 2026-11-01, depois dos PRs #176 e #177. Revisado no mesmo dia com a
 avaliação de riscos (seção 5) e os requisitos de qualidade de cada mudança (seção 6).
 

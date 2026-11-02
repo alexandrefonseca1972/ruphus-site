@@ -5,13 +5,12 @@ import { onAuthStateChanged, onIdTokenChanged, signOut } from "firebase/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { usePainel } from "./use-painel";
-import { ajustarFunil, NOVOS_MAX, NOVOS_POR_VEZ, resumoDoFunil, type Periodo } from "@/lib/funil-consulta";
+import { usePainel, type PaginaDoServidor } from "./use-painel";
+import { ajustarFunil, COLUNAS, NOVOS_MAX, NOVOS_POR_VEZ, type Periodo } from "@/lib/funil-consulta";
 import { auth } from "@/lib/firebase";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import {
   abrirPainel,
-  espacosGerados,
   anotarNegocio,
   detalhesEspaco,
   gerarConvite,
@@ -39,7 +38,7 @@ import {
   type Espaco,
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
-import { consultar, emDestaque, local, VISOES, visaoDe, type Visao } from "@/lib/painel-consulta";
+import { emDestaque, local, VISOES, visaoDe, type Visao } from "@/lib/painel-consulta";
 import { ehOrdem, PAGINA, PAGINA_MAX, type Filtros, type Ordem } from "@/lib/painel-tipos";
 import { cents, emReais } from "@/lib/dinheiro";
 import { loginComMotivo, MINUTOS_MAX, useAutoLogout } from "@/lib/sessao";
@@ -65,6 +64,15 @@ const VAZIO: Crm = {
   utm: null,
 };
 const CIDADES_VISIVEIS = 5;
+// antes da primeira página: chips, visões e alertas zerados (a lista mostra "carregando")
+const CONTAGENS_VAZIAS: PaginaDoServidor["contagens"] = {
+  ufs: [], cidades: [], nichos: [], caixa: 0, avisos: [],
+  estagios: { novo: 0, oferta: 0, negociando: 0, fechado: 0, perdido: 0 },
+  prazos: { atrasada: 0, hoje: 0, futura: 0 },
+  tirando: { cidade: 0, nicho: 0 },
+  visoes: Object.fromEntries(VISOES.map((v) => [v.id, 0])) as PaginaDoServidor["contagens"]["visoes"],
+  totais: { contratadoCents: 0, negociacaoCents: 0 },
+};
 const ITEM_MENU = "flex h-11 items-center rounded-lg px-2.5 text-left text-[13px] text-[#17150F] hover:bg-[#F4F2EE]";
 
 async function token() {
@@ -113,7 +121,10 @@ export default function AdminPage() {
   useAutoLogout(minutosInativo);
   const [estado, setEstado] = useState<"carregando" | "negado" | "pronto">("carregando");
   const [email, setEmail] = useState("");
-  const [espacos, setEspacos] = useState<Espaco[]>([]);
+  // O que o servidor já mandou (página da lista, cartões do funil), com as edições feitas aqui por
+  // cima: não é a base inteira (fase 5 do docs/plano-paginacao-admin.md). Toda consulta por slug
+  // é de um negócio que está ou esteve na tela.
+  const [espacos, setEspacos] = useState<Record<string, Espaco>>({});
   const [assinatura, setAssinatura] = useState("");   // quem assina as mensagens do CRM
   const [atrasadas, setAtrasadas] = useState(0);      // cobranças vencidas, no rótulo da aba
   const [hoje, setHoje] = useState<{ agendamentosHoje: number; espacosComAgenda: number } | null>(null);
@@ -145,17 +156,12 @@ export default function AdminPage() {
   const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca" | "gerador" | "coleta">("lista");
   // Gerador e Coleta são ferramentas, não recortes da lista: sem visões, filtros nem alertas do funil
   const ferramenta = tela === "gerador" || tela === "coleta";
-  // os sites novos (do Gerador ou da Coleta) entram na lista e no funil sem recarregar a página;
-  // só eles vêm do servidor: reler os 14 mil a cada geração pesava na memória da VPS
-  async function juntarGerados(slugs: string[]) {
+  // os sites novos (do Gerador ou da Coleta) entram na lista e no funil na próxima página; o índice
+  // do servidor os recebe pelo listener (~1 s), daí a segunda recarga
+  function juntarGerados(slugs: string[]) {
     if (!slugs.length) return;
-    const r = await espacosGerados(await tokenAtual(), slugs).catch(() => null);
     setRecarga((x) => x + 1);
     recarregarDepois();
-    if (!r?.ok) return;
-    const vindos = new Map(r.dados.espacos.map((e) => [e.slug, e]));
-    setEspacos((atual) => [...atual.filter((e) => !vindos.has(e.slug)), ...vindos.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
-    setCrm((c) => ({ ...c, ...r.dados.crm }));
   }
   // qual negócio está sendo marcado como fechado (confirma valores e já faz o pós-venda)
   const [fechando, setFechando] = useState<string | null>(null);
@@ -179,14 +185,25 @@ export default function AdminPage() {
   // o painel se alinha pela direita do botão; quando a barra quebra e o botão cai à esquerda, isso o joga para fora da tela
   const [filtrosAEsquerda, setFiltrosAEsquerda] = useState(false);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
-  // ?modo=antigo: a lista calculada aqui, como antes da fase 3 (saída sem deploy até a fase 5)
-  const [modoAntigo, setModoAntigo] = useState(false);
+  // negócios com escrita em curso (quantas): a página que chegar no meio (pedida antes) não desfaz a edição
+  const pendentes = useRef(new Map<string, number>());
+  const marcarPendente = (slug: string) => pendentes.current.set(slug, (pendentes.current.get(slug) ?? 0) + 1);
+  const soltarPendente = (slug: string) => {
+    const n = (pendentes.current.get(slug) ?? 1) - 1;
+    if (n > 0) pendentes.current.set(slug, n);
+    else pendentes.current.delete(slug);
+  };
+  // negócios cujo CRM já veio do servidor: sem ele, `crm[slug]` ausente não diz se o negócio não tem
+  // CRM ou se a página só não o recebeu ainda. A gaveta só mostra os campos (que gravam ao sair do
+  // campo) de quem está aqui: com o CRM vazio no lugar, um clique gravava vazio por cima do real.
+  const [conhecidos, setConhecidos] = useState<ReadonlySet<string>>(new Set());
+  // o CRM da gaveta não pôde ser lido: a gaveta mostra o erro com "Tentar de novo", não "carregando"
+  const [erroAoAbrir, setErroAoAbrir] = useState("");
   // muda depois de cada escrita: a página do servidor é pedida de novo
   const [recarga, setRecarga] = useState(0);
   // o período e quantos cartões de "Novo" o funil mostra: entram na consulta da rota
   const [periodo, setPeriodo] = useState<Periodo>("mes");
   const [novos, setNovos] = useState(NOVOS_POR_VEZ);
-  const [agora] = useState(() => Date.now());
   // negócios que mudaram de estágio nesta tela: o funil os põe na coluna nova na hora
   const [alterados, setAlterados] = useState<ReadonlySet<string>>(new Set());
   // o que só o listener traz (membros, sites novos da Coleta): pede de novo quando ele já chegou
@@ -206,13 +223,10 @@ export default function AdminPage() {
         // partes em paralelo daqui era pedir em fila. O paralelo mora no servidor.
         const r = await abrirPainel(await tokenAtual());
         if (!r.ok) return setEstado("negado");
-        setEspacos(r.dados.espacos);
         setHoje(r.dados.hoje);
-        setCrm(r.dados.crm);
         setAssinatura(r.dados.assinatura);
         setMinutosInativo(r.dados.minutosInativo);
         setMetaPixel(r.dados.metaPixel);
-        setModoAntigo(new URLSearchParams(location.search).get("modo") === "antigo");
         setEstado("pronto");
       }),
     [router],
@@ -238,52 +252,56 @@ export default function AdminPage() {
     busca, uf, cidade, nicho, situacao, estagio, prazo, alerta,
     fora: foraDoAr, caixa: comCaixa, contato: contato === "hoje", fixados, ordem,
   };
-  // a consulta inteira numa passada (src/lib/painel-consulta.ts): lista, chips, visões, alertas e totais.
-  // Nas abas Lista e Funil quem responde é o servidor (fases 3 e 4 do docs/plano-paginacao-admin.md);
-  // a local serve enquanto a resposta destes filtros não chega e no ?modo=antigo.
-  const consulta = useMemo(
-    () => consultar(espacos, filtros, { crm, hoje: dataDeHoje }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [espacos, crm, dataDeHoje, busca, uf, cidade, nicho, situacao, estagio, prazo, alerta, foraDoAr, comCaixa, contato, fixados, ordem],
-  );
-
   const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), String(comCaixa), contato, String(fixados), alerta].join("|");
   const quantos = pagina.chave === chave ? pagina.n : PAGINA;
-  const servidor = !modoAntigo && (tela === "lista" || tela === "funil") && estado === "pronto";
-  const doServidor = usePainel({ ativo: servidor, filtros, n: quantos, hoje: dataDeHoje, recarga, funil: tela === "funil" ? { periodo, novos } : undefined });
+  const servidor = (tela === "lista" || tela === "funil") && estado === "pronto";
+  // cada página que chega entra no cache, menos os negócios com escrita em curso
+  const guardar = (p: PaginaDoServidor) => {
+    const vindos = [...p.itens, ...(p.funil ? COLUNAS.flatMap((c) => p.funil!.colunas[c].cartoes) : [])].filter((e) => !pendentes.current.has(e.slug));
+    if (!vindos.length) return;
+    setConhecidos((c) => new Set([...c, ...vindos.map((e) => e.slug)]));
+    setEspacos((c) => ({ ...c, ...Object.fromEntries(vindos.map((e) => [e.slug, e])) }));
+    setCrm((c) => {
+      const novo = { ...c };
+      for (const e of vindos) {
+        if (p.crm[e.slug]) novo[e.slug] = p.crm[e.slug];
+        else delete novo[e.slug];
+      }
+      return novo;
+    });
+  };
+  const doServidor = usePainel({ ativo: servidor, filtros, n: quantos, hoje: dataDeHoje, recarga, funil: tela === "funil" ? { periodo, novos } : undefined, aoReceber: guardar });
   const daRota = servidor ? doServidor.pagina : null;
-  // os dados de cada negócio vêm da cópia local quando ela tem: é a que já mostra a mudança
-  // que acabou de ser feita (o servidor confirma na recarga)
-  const porSlug = useMemo(() => new Map(espacos.map((e) => [e.slug, e])), [espacos]);
-  const contagens = daRota ? daRota.contagens : { ...consulta, avisos: consulta.avisos.map((a) => ({ ...a, total: a.slugs.length })) };
-  const total = daRota ? daRota.total : consulta.lista.length;
-  const visiveis = daRota ? daRota.itens.map((e) => porSlug.get(e.slug) ?? e) : consulta.lista.slice(0, quantos);
+  // enquanto a página destes filtros não chega, a anterior fica na tela esmaecida e sem clique:
+  // marcar ou abrir um negócio dela seria agir sobre o que os filtros novos não pedem
+  const mostrada = daRota ?? (servidor ? doServidor.ultima : null);
+  const carregandoLista = !daRota;
+  const contagens = mostrada?.contagens ?? CONTAGENS_VAZIAS;
+  const total = mostrada?.total ?? 0;
+  const base = mostrada?.base ?? null;
+  const visiveis = (mostrada?.itens ?? []).map((e) => espacos[e.slug] ?? e);
   const { ufs, cidades, nichos, avisos } = contagens;
   // o funil: da rota quando ela respondeu a estes filtros; enquanto a próxima não chega (troca de
-  // período, "mostrar mais"), a última com funil, sem recalcular aqui nem piscar outros números.
-  // Só sem nenhuma (e no ?modo=antigo) é calculado aqui.
-  const esperando = doServidor.situacao === "carregando" || doServidor.situacao === "preparando";
-  const comFunil = daRota?.funil ? daRota : servidor && esperando && doServidor.ultima?.funil ? doServidor.ultima : null;
-  const resumoLocal = useMemo(
-    () => (tela === "funil" && !comFunil ? resumoDoFunil(consulta.lista, crm, { periodo, hoje: dataDeHoje, agora, novos }) : null),
-    [tela, comFunil, consulta.lista, crm, periodo, dataDeHoje, agora, novos],
-  );
+  // período, "mostrar mais"), a última com funil, sem piscar outros números
+  const comFunil = daRota?.funil ? daRota : doServidor.ultima?.funil ? doServidor.ultima : null;
   // o que mudou de estágio aqui já aparece na coluna nova, sem esperar o servidor
   const resumo = useMemo(
-    () => (comFunil?.funil ? ajustarFunil(comFunil.funil, crm, { alterados, porSlug, novos }) : resumoLocal),
-    [comFunil, crm, alterados, porSlug, novos, resumoLocal],
+    () => (comFunil?.funil ? ajustarFunil(comFunil.funil, crm, { alterados, local: (slug) => espacos[slug], novos }) : null),
+    [comFunil, crm, alterados, espacos, novos],
   );
-  const crmDoFunil = useMemo(() => (comFunil ? { ...comFunil.crm, ...crm } : crm), [comFunil, crm]);
+  const crmDoFunil = crm;
 
   // o último negócio aberto: resposta lenta de um anterior não pode pintar a gaveta do atual
   const abertoRef = useRef("");
   async function abrir(e: Espaco) {
     abertoRef.current = e.slug;
     setAberto(e);
+    setEspacos((c) => (c[e.slug] ? c : { ...c, [e.slug]: e }));
     setMenuNegocio(false);
     setProposta(null);
     setAcessos(null);
     setDetalhe(null);
+    setErroAoAbrir("");
     setAviso("");
     // "Copiado ✓" é do negócio em que se copiou: sem isto, abrir o próximo já mostrava copiado
     setCopiado("");
@@ -292,7 +310,21 @@ export default function AdminPage() {
     const [a, d, n] = await Promise.all([listarAcessos(t, e.slug), detalhesEspaco(t, e.slug), linhaDoTempoDo(t, e.slug)]);
     if (abertoRef.current !== e.slug) return;
     if (a.ok) setAcessos(a.dados);
-    if (d.ok) setDetalhe(d.dados);
+    if (d.ok) {
+      setDetalhe(d.dados);
+      // aberto de fora da Lista e do Funil (Carteira, Cobrança): o CRM vem com os detalhes. Com uma
+      // escrita em curso também: a gaveta não pode esperar por uma página que talvez nunca o traga
+      if (!conhecidos.has(e.slug)) {
+        const doServidor = d.dados.crm;
+        setCrm((c) => {
+          const novo = { ...c };
+          if (doServidor) novo[e.slug] = doServidor;
+          else delete novo[e.slug];
+          return novo;
+        });
+        setConhecidos((c) => new Set(c).add(e.slug));
+      }
+    } else if (!conhecidos.has(e.slug)) setErroAoAbrir(d.error);
     if (n.ok) setEventos(n.dados);
   }
 
@@ -342,7 +374,7 @@ export default function AdminPage() {
     // e leva a equipe junto: a lista é relida do servidor em vez de remendada aqui
     const saiu = acessos?.find((x) => x.uid === uid);
     const menos = saiu && saiu.papel !== "member" ? 1 : 0;
-    setEspacos((e) => e.map((x) => (x.slug === slug ? { ...x, acessos: x.acessos - menos } : x)));
+    setEspacos((e) => (e[slug] ? { ...e, [slug]: { ...e[slug], acessos: e[slug].acessos - menos } } : e));
     setAberto((x) => (x && x.slug === slug ? { ...x, acessos: x.acessos - menos } : x));
     const lida = await listarAcessos(await token(), slug);
     setAcessos(lida.ok ? lida.dados : (a) => a?.filter((x) => x.uid !== uid) ?? null);
@@ -370,7 +402,7 @@ export default function AdminPage() {
     setRecarga((x) => x + 1);
     if (!r.ok) return setAviso(r.error);
     setAviso(r.dados ? "Caixa ligado: aparece no painel do negócio" : "Caixa desligado: os lançamentos ficam guardados");
-    setEspacos((e) => e.map((x) => (x.slug === slug ? { ...x, caixa: r.dados } : x)));
+    setEspacos((e) => (e[slug] ? { ...e, [slug]: { ...e[slug], caixa: r.dados } } : e));
     setAberto((x) => (x && x.slug === slug ? { ...x, caixa: r.dados } : x));
   }
 
@@ -379,7 +411,7 @@ export default function AdminPage() {
     setRecarga((x) => x + 1);
     if (!r.ok) return setAviso(r.error);
     setAviso(`agora pode cadastrar ${r.dados} profissional(is)`);
-    setEspacos((e) => e.map((x) => (x.slug === slug ? { ...x, limiteStaff: r.dados } : x)));
+    setEspacos((e) => (e[slug] ? { ...e, [slug]: { ...e[slug], limiteStaff: r.dados } } : e));
     setAberto((x) => (x && x.slug === slug ? { ...x, limiteStaff: r.dados } : x));
   }
 
@@ -387,10 +419,14 @@ export default function AdminPage() {
   const zapDono = (aberto && crm[aberto.slug]?.donoWhatsapp) || detalhe?.telefone || null;
 
   async function mudarNegocio(slug: string, dados: Partial<Crm>) {
-    const atual = crm[slug] ?? VAZIO;
-    setCrm((c) => ({ ...c, [slug]: { ...atual, ...dados } as Crm }));   // resposta imediata na tela
+    const atual = crm[slug];
+    // só com o CRM conhecido a tela adianta a mudança: sobre um desconhecido (cobrança que tira do ar
+    // um negócio fora da tela), juntar a VAZIO inventaria um registro "Novo" sem contatos
+    const conhecido = conhecidos.has(slug);
+    marcarPendente(slug);
+    if (conhecido) setCrm((c) => ({ ...c, [slug]: { ...(atual ?? VAZIO), ...dados } as Crm }));   // resposta imediata na tela
     if (dados.estagio) setAlterados((a) => new Set(a).add(slug));
-    const r = await salvarNegocio(await token(), slug, dados);
+    const r = await salvarNegocio(await token(), slug, dados).finally(() => soltarPendente(slug));
     setRecarga((x) => x + 1);
     // o servidor já tem o estágio novo (a ação atualiza o índice antes de responder): passado o
     // tempo da recarga, o funil volta a seguir o servidor, que vê também o que outros mudarem
@@ -399,7 +435,13 @@ export default function AdminPage() {
     // que o servidor recusou — e o aviso some na primeira ação seguinte
     if (!r.ok) {
       setAviso(r.error);
-      setCrm((c) => ({ ...c, [slug]: atual }));
+      if (conhecido)
+        setCrm((c) => {
+          const volta = { ...c };
+          if (atual) volta[slug] = atual;
+          else delete volta[slug];
+          return volta;
+        });
       return false;
     }
     // mudança de estágio vira evento: a linha do tempo aberta acompanha
@@ -430,7 +472,7 @@ export default function AdminPage() {
   async function lembrar(slug: string, passo: Passo) {
     const janela = abrirAba();
     const c = crm[slug] ?? VAZIO;
-    const e = espacos.find((x) => x.slug === slug);
+    const e = espacos[slug];
     const numero = c.donoWhatsapp ?? e?.telefone ?? null;
     const oi = `Oi${c.donoNome ? `, ${c.donoNome.split(" ")[0]}` : ""}! Aqui é da Ruphus.`;
     const painel = `https://www.ruphus.site/${slug}`;
@@ -477,7 +519,7 @@ export default function AdminPage() {
     }
     if (janela) {
       const c = { ...(crm[slug] ?? VAZIO), entradaCents: d.entradaCents, mensalCents: d.mensalCents, estagio: "fechado" as const };
-      const e = espacos.find((x) => x.slug === slug);
+      const e = espacos[slug];
       const numero = c.donoWhatsapp ?? e?.telefone ?? null;
       const texto = mensagem("Boas-vindas", { slug, nome: e?.nome ?? slug, telefone: e?.telefone ?? null }, c, assinatura) + (urlConvite ? `\n\nSeu acesso ao painel: ${urlConvite}` : "");
       const link = numero && linkWhatsApp(numero, texto);
@@ -570,7 +612,8 @@ export default function AdminPage() {
       for (const s of lista) novo[s] = { ...(novo[s] ?? VAZIO), estagio };
       return novo;
     });
-    const r = await marcarEstagio(await token(), lista, estagio);
+    lista.forEach(marcarPendente);
+    const r = await marcarEstagio(await token(), lista, estagio).finally(() => lista.forEach(soltarPendente));
     setRecarga((x) => x + 1);
     setTimeout(() => setAlterados((a) => new Set([...a].filter((x) => !lista.includes(x)))), 5000);
     if (!r.ok) {
@@ -1142,7 +1185,27 @@ export default function AdminPage() {
           <ColetaMaps idToken={idToken} aoGerar={juntarGerados} />
         ) : tela === "clientes" ? (
           <Carteira idToken={idToken} hoje={dataDeHoje} abrir={abrir} />
+        ) : tela === "funil" && !resumo ? (
+          <p className="flex items-center gap-3 p-10 text-sm text-[#6F6A5E]">
+            {doServidor.situacao === "erro" ? doServidor.erro : doServidor.situacao === "preparando" ? "Preparando o painel…" : "Carregando o funil…"}
+            {doServidor.situacao === "erro" && (
+              <button type="button" onClick={doServidor.tentarDeNovo} className={MENOR}>
+                Tentar de novo
+              </button>
+            )}
+          </p>
         ) : tela === "funil" && resumo ? (
+          <div className="flex flex-col gap-2">
+          {/* números de outro período ou filtro, enquanto os pedidos não chegam: esmaecidos, e o erro com saída */}
+          {!daRota?.funil && doServidor.situacao === "erro" && (
+            <p className="flex items-center gap-2 text-[13px] text-[#8A2F2F]">
+              {doServidor.erro} Os números abaixo são da consulta anterior.
+              <button type="button" onClick={doServidor.tentarDeNovo} className={MENOR}>
+                Tentar de novo
+              </button>
+            </p>
+          )}
+          <div className={daRota?.funil ? undefined : "opacity-60"}>
           <Funil
             resumo={resumo}
             crm={crmDoFunil}
@@ -1171,6 +1234,8 @@ export default function AdminPage() {
               setTela("lista");
             }}
           />
+          </div>
+          </div>
         ) : (
         <section aria-label="Espaços" className={`${CARTAO} overflow-hidden`}>
           {marcados.size > 0 && (
@@ -1199,7 +1264,7 @@ export default function AdminPage() {
               {cidade && ` · ${cidade}`}
               {nicho && ` · ${nicho}`}
             </span>
-            {/* enquanto a página dos filtros atuais não chega, a lista é a calculada aqui (ainda temos tudo até a fase 5) */}
+            {/* enquanto a página dos filtros atuais não chega, a anterior fica esmaecida */}
             {servidor && doServidor.situacao === "preparando" && <span className="text-[13px] text-[#7A5A2E]">Preparando o painel…</span>}
             {servidor && doServidor.situacao === "erro" && (
               <span className="flex items-center gap-2 text-[13px] text-[#8A2F2F]">
@@ -1225,6 +1290,7 @@ export default function AdminPage() {
               type="checkbox"
               aria-label="Marcar os negócios desta tela"
               className="size-4 accent-[#17150F]"
+              disabled={carregandoLista}
               checked={visiveis.length > 0 && visiveis.every((e) => marcados.has(e.slug))}
               onChange={(ev) =>
                 setMarcados((m) => {
@@ -1252,7 +1318,12 @@ export default function AdminPage() {
             <span className="w-[180px] shrink-0" />
           </div>
 
-          <ul>
+          <ul aria-busy={carregandoLista} inert={carregandoLista || undefined} className={carregandoLista && visiveis.length ? "opacity-60" : undefined}>
+            {!mostrada && (
+              <li className="px-5 py-12 text-center text-sm text-[#6F6A5E]">
+                {doServidor.situacao === "preparando" ? "Preparando o painel…" : doServidor.situacao === "erro" ? doServidor.erro : "Carregando a lista…"}
+              </li>
+            )}
             {visiveis.map((e) => {
               const ativo = e.acessos > 1;
               const p = prazoDe(crm[e.slug], dataDeHoje);
@@ -1346,11 +1417,11 @@ export default function AdminPage() {
             })}
 
             {/* Vazio com saída: qual filtro matou o resultado, e o que cada saída devolve */}
-            {!total && (
+            {!total && !carregandoLista && (
               <li className="flex flex-col items-center gap-4 px-5 py-12 text-center">
                 <p className="max-w-sm text-sm text-[#4A4639]">
                   {/* Sem nenhum espaço cadastrado, culpar os filtros manda procurar o que não existe */}
-                  {!espacos.length ? (
+                  {base === 0 ? (
                     "Nenhum negócio cadastrado ainda."
                   ) : (
                     <>
@@ -1360,7 +1431,7 @@ export default function AdminPage() {
                     </>
                   )}
                 </p>
-                <div className={`flex-wrap justify-center gap-2 ${espacos.length ? "flex" : "hidden"}`}>
+                <div className={`flex-wrap justify-center gap-2 ${base ? "flex" : "hidden"}`}>
                   {cidade && (
                     <button type="button" className={BOTAO_CLARO} onClick={() => setCidade("")}>
                       Tirar {cidade} → {contagens.tirando.cidade}
@@ -1372,7 +1443,7 @@ export default function AdminPage() {
                     </button>
                   )}
                   <button type="button" className={BOTAO_ESCURO} onClick={limparTudo}>
-                    Limpar tudo → {espacos.length}
+                    Limpar tudo → {base}
                   </button>
                 </div>
               </li>
@@ -1381,9 +1452,9 @@ export default function AdminPage() {
 
           {total > quantos && (
             <div className="flex items-center gap-3 border-t border-[#EDE9E1] px-4 py-3.5 sm:px-5">
-              {/* o servidor manda até PAGINA_MAX de uma vez; o ?modo=antigo, calculado aqui, não tem teto */}
-              {(modoAntigo || quantos < PAGINA_MAX) && (
-                <button type="button" className={BOTAO_CLARO} onClick={() => setPagina({ chave, n: modoAntigo ? quantos + PAGINA : Math.min(quantos + PAGINA, PAGINA_MAX) })}>
+              {/* o servidor manda até PAGINA_MAX de uma vez */}
+              {quantos < PAGINA_MAX && (
+                <button type="button" className={BOTAO_CLARO} onClick={() => setPagina({ chave, n: Math.min(quantos + PAGINA, PAGINA_MAX) })}>
                   Mostrar mais {Math.min(PAGINA, total - quantos)}
                 </button>
               )}
@@ -1496,6 +1567,8 @@ export default function AdminPage() {
                       <button
                         type="button"
                         role="menuitem"
+                        // sem o CRM, não se sabe se o site está no ar: o rótulo e a ação seriam um palpite
+                        disabled={!conhecidos.has(aberto.slug)}
                         onClick={() => {
                           mudarNegocio(aberto.slug, { publicado: !(crm[aberto.slug]?.publicado !== false) });
                           setMenuNegocio(false);
@@ -1550,6 +1623,19 @@ export default function AdminPage() {
               ))}
             </div>
 
+            {!conhecidos.has(aberto.slug) ? (
+              erroAoAbrir ? (
+                <p className="flex items-center gap-2 text-sm text-[#8A2F2F]">
+                  {erroAoAbrir}
+                  <button type="button" onClick={() => abrir(aberto)} className={MENOR}>
+                    Tentar de novo
+                  </button>
+                </p>
+              ) : (
+                <p className="text-sm text-[#6F6A5E]">Carregando os dados do negócio…</p>
+              )
+            ) : (
+            <>
             <div role="tabpanel" id="aba-painel" aria-labelledby={`aba-${aba}`} className="flex flex-col gap-5">
             {aba === "venda" && (
               <>
@@ -2179,15 +2265,17 @@ export default function AdminPage() {
                 Anotar
               </button>
             </div>
+            </>
+            )}
           </aside>
         </>
       )}
 
       {fechando && (
         <VendaFechada
-          nome={espacos.find((e) => e.slug === fechando)?.nome ?? fechando}
+          nome={espacos[fechando]?.nome ?? fechando}
           crm={crm[fechando] ?? VAZIO}
-          precisaConvite={(espacos.find((e) => e.slug === fechando)?.acessos ?? 0) <= 1}
+          precisaConvite={(espacos[fechando]?.acessos ?? 0) <= 1}
           onCancelar={() => setFechando(null)}
           onConfirmar={async (d) => {
             if (await fecharVenda(fechando, d)) setFechando(null);
@@ -2197,7 +2285,7 @@ export default function AdminPage() {
 
       {perdendo && (
         <MotivoDaPerda
-          nome={espacos.find((e) => e.slug === perdendo)?.nome ?? perdendo}
+          nome={espacos[perdendo]?.nome ?? perdendo}
           onCancelar={() => setPerdendo(null)}
           onConfirmar={async (dados) => {
             if (await mudarNegocio(perdendo, { estagio: "perdido", ...dados })) setPerdendo(null);

@@ -75,6 +75,7 @@ export async function responderPainel(req: Request, { db, indice, verificar = ve
       itens,
       crm,
       total: lista.length,
+      base: pronto.lista().length,
       contagens: { ...contagens, avisos: avisos.map(({ slugs, ...a }) => ({ ...a, total: slugs.length })) },
       funil: resumo,
       versao: pronto.versao,

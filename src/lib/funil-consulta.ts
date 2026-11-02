@@ -1,6 +1,6 @@
 // O funil em números e colunas, a partir dos negócios já filtrados pela consulta do painel.
-// Puro, sem Firestore: a tela usa no ?modo=antigo e a rota GET /api/admin/painel?funil=1
-// no resto (fase 4 do docs/plano-paginacao-admin.md). Saiu do useMemo de src/app/admin/funil.tsx.
+// Puro, sem Firestore: a rota GET /api/admin/painel?funil=1 o calcula (fase 4 do
+// docs/plano-paginacao-admin.md). Saiu do useMemo de src/app/admin/funil.tsx.
 import { campanhaDe, ORIGENS, prazoDe, PRECO_PADRAO, type Crm, type Estagio, type MotivoPerda, type Origem } from "@/lib/crm-tipos";
 import type { Espaco } from "@/lib/painel-tipos";
 
@@ -135,11 +135,11 @@ export function resumoDoFunil(
 
 /** O resumo do servidor com os negócios que mudaram de estágio nesta tela levados, na hora, para a
  *  coluna do estágio local (o arrastar não pode esperar a ida e volta). Os números do período
- *  esperam a próxima resposta. `porSlug` troca cada cartão pela cópia local, como na Lista. */
+ *  esperam a próxima resposta. `local` troca cada cartão pela cópia local, como na Lista. */
 export function ajustarFunil(
   r: ResumoDoFunil,
   crm: Record<string, Crm>,
-  { alterados, porSlug, novos }: { alterados: ReadonlySet<string>; porSlug: ReadonlyMap<string, Espaco>; novos: number },
+  { alterados, local: copia, novos }: { alterados: ReadonlySet<string>; local: (slug: string) => Espaco | undefined; novos: number },
 ): ResumoDoFunil {
   const colunas = { ...r.colunas };
   let perdidos = r.perdidos;
@@ -151,8 +151,8 @@ export function ajustarFunil(
       if (alterados.has(x.slug) && local !== e) {
         c.total--;
         c.somaCents -= mensal(crm[x.slug]);
-        movidos.push([porSlug.get(x.slug) ?? x, local]);
-      } else c.cartoes.push(porSlug.get(x.slug) ?? x);
+        movidos.push([copia(x.slug) ?? x, local]);
+      } else c.cartoes.push(copia(x.slug) ?? x);
     }
     colunas[e] = c;
   }
