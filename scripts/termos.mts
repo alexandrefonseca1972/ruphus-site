@@ -73,5 +73,15 @@ if (publicada !== null && publicada !== html) {
 }
 mkdirSync(`public/termos/${versao}`, { recursive: true });
 writeFileSync(fixa, html);
-writeFileSync("public/termos/index.html", html);
+// A apresentação atual não altera o arquivo da versão que o cliente aceitou.
+const atual = html
+  .replace(/<link[^>]+(?:fonts.googleapis.com|fonts.gstatic.com)[^>]*>\n/g, "")
+  .replace(/<style>[\s\S]*?<\/style>/, '<link rel="stylesheet" href="/marca/legal.css">')
+  .replace('content="#171013"', 'content="#e5e5e5"')
+  .replace("</head>", '<link rel="icon" type="image/svg+xml" href="/marca/icone.svg">\n</head>')
+  .replace("<body>", '<body>\n<a class="pular" href="#conteudo">Pular para o conteúdo</a>')
+  .replace('<main class="wrap">', '<main class="wrap" id="conteudo" tabindex="-1">')
+  .replace(/<div class="topo">[\s\S]*?<\/div>/, '<header class="topo"><a class="marca" href="/" aria-label="Ruphus, início">ruphus</a><nav aria-label="Navegação institucional"><a href="/">Início</a><a href="/termos">Termos</a><a href="/privacidade">Privacidade</a></nav></header>')
+  .replace("</main>", '<footer><span>Ruphus · Fonseca Gestão e Tecnologia Ltda.</span><a href="/">Voltar ao início</a></footer>\n</main>');
+writeFileSync("public/termos/index.html", atual);
 console.log(`${fixa} e public/termos/index.html gerados`);
