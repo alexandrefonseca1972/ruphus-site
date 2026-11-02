@@ -1,120 +1,51 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { formatBRL } from "@/lib/datetime";
-import {
-  COR,
-  diaCurto,
-  MOTIVOS_PERDA,
-  ORIGENS,
-  prazoDe,
-  PRECO_PADRAO,
-  ROTULO,
-  campanhaDe,
-  type Crm,
-  type Estagio,
-  type MotivoPerda,
-  type Origem,
-} from "@/lib/crm-tipos";
+import { COR, diaCurto, MOTIVOS_PERDA, ORIGENS, prazoDe, ROTULO, type Crm, type Estagio, type MotivoPerda } from "@/lib/crm-tipos";
+import { COLUNAS, mensal, NOVOS_POR_VEZ, origemDe, PERIODOS, ehPeriodo, type Periodo, type ResumoDoFunil } from "@/lib/funil-consulta";
 import type { Espaco } from "./actions";
 
 // O funil em colunas: os mesmos negócios da lista (com os mesmos filtros e busca),
 // agrupados por estágio, com os números do período em cima e origem e perdas embaixo.
-
-const COLUNAS = ["novo", "oferta", "negociando", "fechado"] as const satisfies readonly Estagio[];
-// "Novo" tem a planilha inteira (mil e tantos): a coluna mostra poucos, e a fila se trabalha na Lista
-const NOVOS_POR_VEZ = 6;
-const PERIODOS = { mes: "Este mês", "30": "Últimos 30 dias", "90": "Últimos 90 dias", tudo: "Desde o início" } as const;
-type Periodo = keyof typeof PERIODOS;
-
-const inicioDe = (p: Periodo, hoje: Date) => {
-  if (p === "tudo") return "";
-  if (p === "mes") return new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString();
-  return new Date(hoje.getTime() - Number(p) * 86_400_000).toISOString();
-};
-const mensal = (c: Crm | undefined) => c?.mensalCents ?? PRECO_PADRAO.mensalCents;
-const origemDe = (c: Crm | undefined): Origem => c?.origem ?? "importado";
+// Os números vêm prontos (src/lib/funil-consulta.ts): da rota do painel ou, no ?modo=antigo,
+// calculados na página.
 
 export function Funil({
-  espacos,
+  resumo: n,
   crm,
   hoje,
+  periodo,
+  setPeriodo,
+  novos,
+  maisNovos,
   abrir,
   mover,
   verAtrasadas,
   verPerdidos,
   verNovos,
 }: {
-  espacos: Espaco[];
+  resumo: ResumoDoFunil;
+  /** o CRM dos cartões (pode ter mais) */
   crm: Record<string, Crm>;
   hoje: string;
+  periodo: Periodo;
+  setPeriodo: (p: Periodo) => void;
+  novos: number;
+  maisNovos: () => void;
   abrir: (e: Espaco) => void;
   mover: (slug: string, estagio: Estagio) => void;
   verAtrasadas: () => void;
   verPerdidos: () => void;
   verNovos: () => void;
 }) {
-  const [periodo, setPeriodo] = useState<Periodo>("mes");
-  const [novos, setNovos] = useState(NOVOS_POR_VEZ);
   // no celular as cinco colunas (1.080 px) rolavam para o lado: mostra uma etapa por vez
   const [etapaMovel, setEtapaMovel] = useState<Estagio>("novo");
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [sobre, setSobre] = useState<Estagio | null>(null);
-  const [agora] = useState(() => new Date());
-
-  const n = useMemo(() => {
-    const inicio = inicioDe(periodo, agora);
-    const no = (iso: string | null) => !!iso && (!inicio || iso >= inicio);
-    const de = (e: Estagio) => espacos.filter((x) => (crm[x.slug]?.estagio ?? "novo") === e);
-    const fechados = de("fechado");
-    const perdidos = de("perdido");
-    // "desde o início" conta todo fechado, até os de antes de a data ser gravada
-    const vendas = periodo === "tudo" ? fechados : fechados.filter((x) => no(crm[x.slug]?.fechadoEm ?? null));
-    const perdas = perdidos.filter((x) => (periodo === "tudo" ? true : no(crm[x.slug]?.perdidoEm ?? null)));
-    const dias = vendas.flatMap((x) => {
-      const c = crm[x.slug];
-      return c?.entrouEm && c.fechadoEm ? [(Date.parse(c.fechadoEm) - Date.parse(c.entrouEm)) / 86_400_000] : [];
-    });
-    const motivos = new Map<MotivoPerda, number>();
-    for (const x of perdas) {
-      const m = crm[x.slug]?.motivoPerda;
-      if (m) motivos.set(m, (motivos.get(m) ?? 0) + 1);
-    }
-    const origens = (Object.keys(ORIGENS) as Origem[]).map((o) => {
-      const deles = espacos.filter((x) => origemDe(crm[x.slug]) === o);
-      const ok = deles.filter((x) => crm[x.slug]?.estagio === "fechado").length;
-      return { o, contatos: deles.length, fechados: ok };
-    });
-    // os anúncios: cada campanha, quantos negócios criou e quantos fecharam
-    const porCampanha = new Map<string, { cadastros: number; fechados: number }>();
-    for (const x of espacos) {
-      const nome = campanhaDe(crm[x.slug]?.utm);
-      if (!nome) continue;
-      const c = porCampanha.get(nome) ?? { cadastros: 0, fechados: 0 };
-      c.cadastros++;
-      if (crm[x.slug]?.estagio === "fechado") c.fechados++;
-      porCampanha.set(nome, c);
-    }
-    return {
-      colunas: Object.fromEntries(COLUNAS.map((e) => [e, de(e)])) as Record<(typeof COLUNAS)[number], Espaco[]>,
-      perdidos,
-      receita: fechados.reduce((s, x) => s + mensal(crm[x.slug]), 0),
-      fechadosTotal: fechados.length,
-      negociacao: [...de("oferta"), ...de("negociando")].reduce((s, x) => s + mensal(crm[x.slug]), 0),
-      emNegociacao: de("oferta").length + de("negociando").length,
-      vendas: vendas.length,
-      perdas: perdas.length,
-      dias: dias.length ? Math.round(dias.reduce((a, b) => a + b, 0) / dias.length) : null,
-      atrasadas: espacos.filter((x) => prazoDe(crm[x.slug], hoje) === "atrasada").length,
-      motivos: [...motivos].sort((a, b) => b[1] - a[1]),
-      origens,
-      campanhas: [...porCampanha].sort((a, b) => b[1].cadastros - a[1].cadastros),
-    };
-  }, [espacos, crm, periodo, agora, hoje]);
 
   // Conversão entre etapas: de quem chegou a uma etapa, quantos passaram da seguinte
-  const ordem = (e: Estagio) => COLUNAS.indexOf(e as (typeof COLUNAS)[number]);
-  const chegaram = (i: number) => espacos.filter((x) => ordem(crm[x.slug]?.estagio ?? "novo") >= i).length;
+  const chegaram = (i: number) => n.chegaram[i];
   const taxa = n.vendas + n.perdas ? Math.round((n.vendas / (n.vendas + n.perdas)) * 100) : null;
 
   const numeros: { rotulo: string; valor: string; nota: string; destaque?: string; acao?: () => void }[] = [
@@ -153,7 +84,7 @@ export function Funil({
           Período
           <select
             value={periodo}
-            onChange={(e) => setPeriodo(e.target.value as Periodo)}
+            onChange={(e) => ehPeriodo(e.target.value) && setPeriodo(e.target.value)}
             className="h-10 rounded-[10px] border border-[#D8D2C6] bg-white px-2.5 text-xs text-[#17150F]"
           >
             {(Object.keys(PERIODOS) as Periodo[]).map((p) => (
@@ -197,7 +128,7 @@ export function Funil({
               <li key={e} className="flex flex-col gap-1.5">
                 <span className={`h-2.5 rounded-full ${COR[e].split(" ")[0]}`} />
                 <span className="flex justify-between gap-2 text-[11px]">
-                  <span><b className="font-semibold">{ROTULO[e]}</b> · {n.colunas[e].length}</span>
+                  <span><b className="font-semibold">{ROTULO[e]}</b> · {n.colunas[e].total}</span>
                   {i > 0 && <span className="text-[#6F6A5E]">{antes ? `${Math.round((aqui / antes) * 100)}% chegam` : "—"}</span>}
                 </span>
               </li>
@@ -216,7 +147,7 @@ export function Funil({
             onClick={() => setEtapaMovel(e)}
             className={`flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-xs whitespace-nowrap ${etapaMovel === e ? "border-[#17150F] bg-[#17150F] font-bold text-white" : "border-[#D8D2C6] bg-white font-semibold text-[#17150F]"}`}
           >
-            {ROTULO[e]} <span className={etapaMovel === e ? "text-white/70" : "text-[#6F6A5E]"}>{(e === "perdido" ? n.perdidos.length : n.colunas[e].length).toLocaleString("pt-BR")}</span>
+            {ROTULO[e]} <span className={etapaMovel === e ? "text-white/70" : "text-[#6F6A5E]"}>{(e === "perdido" ? n.perdidos : n.colunas[e].total).toLocaleString("pt-BR")}</span>
           </button>
         ))}
       </div>
@@ -224,15 +155,8 @@ export function Funil({
       <div className="sm:overflow-x-auto">
         <div className="flex flex-col gap-3 sm:grid sm:min-w-[1080px] sm:grid-cols-[repeat(4,minmax(0,1fr))_220px] sm:items-start">
           {COLUNAS.map((e) => {
-            // Quem tem data combinada vem antes. No resto, "Novo" fica na ordem da Lista
-            // (mais relevantes, por padrão): em ordem alfabética, a coluna abria com "1000 Patas"
-            const todos = [...n.colunas[e]].sort(
-              (a, b) =>
-                (crm[a.slug]?.proximaData ?? "9999").localeCompare(crm[b.slug]?.proximaData ?? "9999") ||
-                (e === "novo" ? 0 : a.nome.localeCompare(b.nome, "pt-BR")),
-            );
-            const cartoes = e === "novo" ? todos.slice(0, novos) : todos;
-            const soma = todos.reduce((s, x) => s + mensal(crm[x.slug]), 0);
+            // ordenadas no resumo: data combinada antes; "Novo" na ordem da Lista, o resto por nome
+            const { total, somaCents: soma, cartoes } = n.colunas[e];
             return (
               <section
                 key={e}
@@ -243,8 +167,8 @@ export function Funil({
                 <div className="flex items-center justify-between gap-2">
                   <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR[e]}`}>{ROTULO[e]}</span>
                   <span className="text-[11px] text-[#6F6A5E]">
-                    {todos.length}
-                    {e !== "novo" && todos.length ? ` · ${formatBRL(soma)}/mês` : ""}
+                    {total}
+                    {e !== "novo" && total ? ` · ${formatBRL(soma)}/mês` : ""}
                   </span>
                 </div>
                 {cartoes.map((x) => (
@@ -262,18 +186,18 @@ export function Funil({
                     arrastando={arrastando === x.slug}
                   />
                 ))}
-                {!todos.length && <p className="rounded-xl border border-dashed border-[#D8D2C6] p-3 text-center text-[11px] text-[#6F6A5E]"><span className="hidden sm:inline">Arraste um negócio para cá</span><span className="sm:hidden">Nenhum negócio nesta etapa</span></p>}
-                {e === "novo" && todos.length > novos && (
+                {!total && <p className="rounded-xl border border-dashed border-[#D8D2C6] p-3 text-center text-[11px] text-[#6F6A5E]"><span className="hidden sm:inline">Arraste um negócio para cá</span><span className="sm:hidden">Nenhum negócio nesta etapa</span></p>}
+                {e === "novo" && total > novos && (
                   <div className="flex flex-col gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setNovos((v) => v + NOVOS_POR_VEZ)}
+                      onClick={maisNovos}
                       className="h-10 rounded-[10px] border border-dashed border-[#D8D2C6] text-xs text-[#6F6A5E] hover:border-[#17150F] hover:text-[#17150F]"
                     >
-                      Mostrar mais {Math.min(NOVOS_POR_VEZ, todos.length - novos)}
+                      Mostrar mais {Math.min(NOVOS_POR_VEZ, total - novos)}
                     </button>
                     <button type="button" onClick={verNovos} className="h-9 text-[11px] font-semibold underline underline-offset-4">
-                      Ver os {todos.length} novos na Lista
+                      Ver os {total} novos na Lista
                     </button>
                   </div>
                 )}
@@ -288,7 +212,7 @@ export function Funil({
           >
             <div className="flex items-center justify-between gap-2">
               <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR.perdido}`}>{ROTULO.perdido}</span>
-              <span className="text-[11px] text-[#6F6A5E]">{n.perdidos.length}</span>
+              <span className="text-[11px] text-[#6F6A5E]">{n.perdidos}</span>
             </div>
             <div className="flex flex-col gap-2 rounded-xl border border-[#E2DDD3] bg-white p-3">
               <span className="text-[11px] tracking-[0.06em] text-[#6F6A5E] uppercase">Por quê · {PERIODOS[periodo].toLowerCase()}</span>
@@ -302,9 +226,9 @@ export function Funil({
               ) : (
                 <p className="text-xs text-[#6F6A5E]">Nenhuma perda com motivo no período.</p>
               )}
-              {n.perdidos.length > 0 && (
+              {n.perdidos > 0 && (
                 <button type="button" onClick={verPerdidos} className="self-start text-[11px] font-semibold underline underline-offset-4">
-                  ver os {n.perdidos.length} perdidos
+                  ver os {n.perdidos} perdidos
                 </button>
               )}
             </div>

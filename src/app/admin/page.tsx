@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePainel } from "./use-painel";
+import { NOVOS_MAX, NOVOS_POR_VEZ, resumoDoFunil, type Periodo } from "@/lib/funil-consulta";
 import { auth } from "@/lib/firebase";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import {
@@ -182,6 +183,10 @@ export default function AdminPage() {
   const [modoAntigo, setModoAntigo] = useState(false);
   // muda depois de cada escrita: a página do servidor é pedida de novo
   const [recarga, setRecarga] = useState(0);
+  // o período e quantos cartões de "Novo" o funil mostra: entram na consulta da rota
+  const [periodo, setPeriodo] = useState<Periodo>("mes");
+  const [novos, setNovos] = useState(NOVOS_POR_VEZ);
+  const [agora] = useState(() => Date.now());
   // o que só o listener traz (membros, sites novos da Coleta): pede de novo quando ele já chegou
   const recarregarDepois = () => setTimeout(() => setRecarga((x) => x + 1), 2000);
   // fixo por render: se viesse de Date.now() a cada chamada, um espaço podia cair
@@ -232,8 +237,8 @@ export default function AdminPage() {
     fora: foraDoAr, caixa: comCaixa, contato: contato === "hoje", fixados, ordem,
   };
   // a consulta inteira numa passada (src/lib/painel-consulta.ts): lista, chips, visões, alertas e totais.
-  // Na aba Lista quem responde é o servidor (fase 3 do docs/plano-paginacao-admin.md); a local
-  // ainda serve o funil, a carteira, o cabeçalho e o ?modo=antigo.
+  // Nas abas Lista e Funil quem responde é o servidor (fases 3 e 4 do docs/plano-paginacao-admin.md);
+  // a local serve enquanto a resposta destes filtros não chega e no ?modo=antigo.
   const consulta = useMemo(
     () => consultar(espacos, filtros, { crm, hoje: dataDeHoje }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -242,8 +247,8 @@ export default function AdminPage() {
 
   const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), String(comCaixa), contato, String(fixados), alerta].join("|");
   const quantos = pagina.chave === chave ? pagina.n : PAGINA;
-  const servidor = !modoAntigo && tela === "lista" && estado === "pronto";
-  const doServidor = usePainel({ ativo: servidor, filtros, n: quantos, hoje: dataDeHoje, recarga });
+  const servidor = !modoAntigo && (tela === "lista" || tela === "funil") && estado === "pronto";
+  const doServidor = usePainel({ ativo: servidor, filtros, n: quantos, hoje: dataDeHoje, recarga, funil: tela === "funil" ? { periodo, novos } : undefined });
   const daRota = servidor ? doServidor.pagina : null;
   // os dados de cada negócio vêm da cópia local quando ela tem: é a que já mostra a mudança
   // que acabou de ser feita (o servidor confirma na recarga)
@@ -252,6 +257,13 @@ export default function AdminPage() {
   const total = daRota ? daRota.total : consulta.lista.length;
   const visiveis = daRota ? daRota.itens.map((e) => porSlug.get(e.slug) ?? e) : consulta.lista.slice(0, quantos);
   const { ufs, cidades, nichos, avisos } = contagens;
+  // o funil: da rota quando ela respondeu a estes filtros; até lá (e no ?modo=antigo), calculado aqui
+  const resumoLocal = useMemo(
+    () => (tela === "funil" && !daRota?.funil ? resumoDoFunil(consulta.lista, crm, { periodo, hoje: dataDeHoje, agora, novos }) : null),
+    [tela, daRota, consulta.lista, crm, periodo, dataDeHoje, agora, novos],
+  );
+  const resumo = daRota?.funil ?? resumoLocal;
+  const crmDoFunil = useMemo(() => (daRota ? { ...daRota.crm, ...crm } : crm), [daRota, crm]);
 
   // o último negócio aberto: resposta lenta de um anterior não pode pintar a gaveta do atual
   const abertoRef = useRef("");
@@ -1113,12 +1125,19 @@ export default function AdminPage() {
         ) : tela === "coleta" ? (
           <ColetaMaps idToken={idToken} aoGerar={juntarGerados} />
         ) : tela === "clientes" ? (
-          <Carteira idToken={idToken} hoje={dataDeHoje} espacos={espacos} abrir={abrir} />
-        ) : tela === "funil" ? (
+          <Carteira idToken={idToken} hoje={dataDeHoje} abrir={abrir} />
+        ) : tela === "funil" && resumo ? (
           <Funil
-            espacos={consulta.lista}
-            crm={crm}
+            resumo={resumo}
+            crm={crmDoFunil}
             hoje={dataDeHoje}
+            periodo={periodo}
+            setPeriodo={(p) => {
+              setPeriodo(p);
+              setNovos(NOVOS_POR_VEZ);
+            }}
+            novos={novos}
+            maisNovos={() => setNovos((v) => Math.min(v + NOVOS_POR_VEZ, NOVOS_MAX))}
             abrir={abrir}
             mover={(slug, e) => (e === "perdido" ? setPerdendo(slug) : e === "fechado" ? setFechando(slug) : mudarNegocio(slug, { estagio: e }))}
             verAtrasadas={() => {
@@ -1179,8 +1198,8 @@ export default function AdminPage() {
                 "contratados" conta a vitória e esconde o trabalho em aberto. */}
             <span className="text-[13px] text-[#6F6A5E]">
               {hoje ? `${hoje.agendamentosHoje} agendamento(s) hoje` : "carregando agenda"} ·{" "}
-              {formatBRL(consulta.totais.contratadoCents)}/mês contratados
-              {consulta.totais.negociacaoCents > 0 && ` · ${formatBRL(consulta.totais.negociacaoCents)}/mês em negociação`}
+              {formatBRL(contagens.totais.contratadoCents)}/mês contratados
+              {contagens.totais.negociacaoCents > 0 && ` · ${formatBRL(contagens.totais.negociacaoCents)}/mês em negociação`}
             </span>
           </div>
 

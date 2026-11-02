@@ -401,11 +401,16 @@ export const saudeDoNegocio = adminAction(async (_user, slug: string, hoje: stri
 });
 
 /** A carteira: todos os negócios fechados, do mais em risco ao mais saudável. */
+/** Os clientes (fechados) com a saúde de cada um e o negócio como a lista o mostra. Do índice do
+ *  painel: sem ele, ler o CRM inteiro custava ~15 mil leituras a cada abertura da aba. */
 export const carteira = adminAction(async (_user, hoje: string) => {
   const dia = z.iso.date().parse(hoje);
-  const fechados = Object.entries(await lerCrm(adminDb)).filter(([, c]) => c.estagio === "fechado").map(([slug]) => slug);
+  const indice = await indiceDoPainel(adminDb).pronto();
+  const fechados = Object.entries(indice.crm).filter(([, c]) => c.estagio === "fechado").map(([slug]) => slug);
+  const porSlug = new Map(indice.lista().map((e) => [e.slug, e]));
   const peso = { risco: 0, atencao: 1, ok: 2 } as const;
-  return (await Promise.all(fechados.map((slug) => saudeDe(adminDb, slug, dia)))).sort((a, b) => peso[a.saude] - peso[b.saude]);
+  const lista = await Promise.all(fechados.map(async (slug) => ({ ...(await saudeDe(adminDb, slug, dia)), espaco: porSlug.get(slug) ?? null })));
+  return lista.sort((a, b) => peso[a.saude] - peso[b.saude]);
 });
 
 export const salvarNegocio = adminAction(async (user, slug: string, dados: unknown) => {
