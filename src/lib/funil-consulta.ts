@@ -21,13 +21,15 @@ export function inicioDoDia(dia: string, fuso?: string) {
   const [a, m, d] = dia.split("-").map(Number);
   if (!fuso) return new Date(a, m - 1, d).toISOString();
   const palpite = Date.UTC(a, m - 1, d);
-  const partes = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", { timeZone: fuso, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" })
-      .formatToParts(palpite)
-      .map((p) => [p.type, Number(p.value)]),
-  );
-  const desvio = Date.UTC(partes.year, partes.month - 1, partes.day, partes.hour, partes.minute) - palpite;
-  return new Date(palpite - desvio).toISOString();
+  const formato = new Intl.DateTimeFormat("en-US", { timeZone: fuso, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" });
+  const desvioEm = (t: number) => {
+    const p = Object.fromEntries(formato.formatToParts(t).map((x) => [x.type, Number(x.value)]));
+    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - t;
+  };
+  // medido de novo na meia-noite local: num fuso que troca de horário entre ela e a meia-noite UTC,
+  // o primeiro desvio é o do outro horário
+  const primeiro = desvioEm(palpite);
+  return new Date(palpite - desvioEm(palpite - primeiro)).toISOString();
 }
 
 /** Desde quando o período conta: "" é desde sempre. O mês é o do dia de quem olha. */
@@ -53,6 +55,11 @@ export type ResumoDoFunil = {
 };
 
 const colador = new Intl.Collator("pt-BR");
+
+/** Quem tem data combinada vem antes; no resto, "Novo" fica na ordem da Lista (mais relevantes,
+ *  por padrão): em ordem alfabética, a coluna abria com "1000 Patas". */
+const ordemDaColuna = (e: Coluna, crm: Record<string, Crm>) => (a: Espaco, b: Espaco) =>
+  (crm[a.slug]?.proximaData ?? "9999").localeCompare(crm[b.slug]?.proximaData ?? "9999") || (e === "novo" ? 0 : colador.compare(a.nome, b.nome));
 
 /** `espacos` na ordem da lista (a coluna "Novo" a mantém); as outras vêm por data combinada e nome. */
 export function resumoDoFunil(
@@ -103,12 +110,7 @@ export function resumoDoFunil(
   }
   const soma = (xs: Espaco[]) => xs.reduce((s, x) => s + mensal(crm[x.slug]), 0);
   const coluna = (e: Coluna) => {
-    // quem tem data combinada vem antes; no resto, "Novo" fica na ordem da Lista (mais relevantes,
-    // por padrão): em ordem alfabética, a coluna abria com "1000 Patas"
-    const todos = [...por[e]].sort(
-      (a, b) =>
-        (crm[a.slug]?.proximaData ?? "9999").localeCompare(crm[b.slug]?.proximaData ?? "9999") || (e === "novo" ? 0 : colador.compare(a.nome, b.nome)),
-    );
+    const todos = [...por[e]].sort(ordemDaColuna(e, crm));
     return { total: todos.length, somaCents: soma(todos), cartoes: e === "novo" ? todos.slice(0, novos) : todos };
   };
   const contagem = COLUNAS.map((e) => por[e].length);
@@ -129,4 +131,41 @@ export function resumoDoFunil(
     // perdido (fora de COLUNAS) não chega a nenhuma coluna, como antes
     chegaram: COLUNAS.map((_, i) => contagem.slice(i).reduce((a, b) => a + b, 0)),
   };
+}
+
+/** O resumo do servidor com os negócios que mudaram de estágio nesta tela levados, na hora, para a
+ *  coluna do estágio local (o arrastar não pode esperar a ida e volta). Os números do período
+ *  esperam a próxima resposta. `porSlug` troca cada cartão pela cópia local, como na Lista. */
+export function ajustarFunil(
+  r: ResumoDoFunil,
+  crm: Record<string, Crm>,
+  { alterados, porSlug, novos }: { alterados: ReadonlySet<string>; porSlug: ReadonlyMap<string, Espaco>; novos: number },
+): ResumoDoFunil {
+  const colunas = { ...r.colunas };
+  let perdidos = r.perdidos;
+  const movidos: [Espaco, Estagio][] = [];
+  for (const e of COLUNAS) {
+    const c = { ...colunas[e], cartoes: [] as Espaco[] };
+    for (const x of r.colunas[e].cartoes) {
+      const local = crm[x.slug]?.estagio ?? "novo";
+      if (alterados.has(x.slug) && local !== e) {
+        c.total--;
+        c.somaCents -= mensal(crm[x.slug]);
+        movidos.push([porSlug.get(x.slug) ?? x, local]);
+      } else c.cartoes.push(porSlug.get(x.slug) ?? x);
+    }
+    colunas[e] = c;
+  }
+  for (const [x, e] of movidos) {
+    if (e === "perdido") {
+      perdidos++;
+      continue;
+    }
+    if (!Object.hasOwn(colunas, e)) continue;
+    const c = colunas[e as Coluna];
+    c.total++;
+    c.somaCents += mensal(crm[x.slug]);
+    c.cartoes = e === "novo" ? [x, ...c.cartoes].slice(0, novos) : [...c.cartoes, x].sort(ordemDaColuna(e as Coluna, crm));
+  }
+  return { ...r, colunas, perdidos };
 }

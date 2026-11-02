@@ -106,6 +106,8 @@ export function usePainel({
   const atual = status.query === query;
   return {
     pagina: pagina?.query === query ? pagina : null,
+    /** a última página que chegou, de qualquer consulta: o funil a mostra enquanto a nova não vem */
+    ultima: pagina,
     situacao: atual ? status.situacao : "carregando",
     erro: atual ? status.erro : "",
     tentarDeNovo: () => setTentativa((x) => x + 1),

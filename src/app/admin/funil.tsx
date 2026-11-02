@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { formatBRL } from "@/lib/datetime";
 import { COR, diaCurto, MOTIVOS_PERDA, ORIGENS, prazoDe, ROTULO, type Crm, type Estagio, type MotivoPerda } from "@/lib/crm-tipos";
-import { COLUNAS, mensal, NOVOS_POR_VEZ, origemDe, PERIODOS, ehPeriodo, type Periodo, type ResumoDoFunil } from "@/lib/funil-consulta";
+import { COLUNAS, mensal, NOVOS_MAX, NOVOS_POR_VEZ, origemDe, PERIODOS, ehPeriodo, type Periodo, type ResumoDoFunil } from "@/lib/funil-consulta";
 import type { Espaco } from "./actions";
 
 // O funil em colunas: os mesmos negócios da lista (com os mesmos filtros e busca),
@@ -187,7 +187,7 @@ export function Funil({
                   />
                 ))}
                 {!total && <p className="rounded-xl border border-dashed border-[#D8D2C6] p-3 text-center text-[11px] text-[#6F6A5E]"><span className="hidden sm:inline">Arraste um negócio para cá</span><span className="sm:hidden">Nenhum negócio nesta etapa</span></p>}
-                {e === "novo" && total > novos && (
+                {e === "novo" && total > novos && novos < NOVOS_MAX && (
                   <div className="flex flex-col gap-1.5">
                     <button
                       type="button"

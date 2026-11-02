@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { campanhaDe, ESTAGIOS, MOTIVOS_PERDA, ORIGENS, prazoDe, PRECO_PADRAO, type Crm, type Estagio, type MotivoPerda, type Origem } from "@/lib/crm-tipos";
-import { COLUNAS, inicioDoDia, NOVOS_POR_VEZ, PERIODOS, resumoDoFunil, type Periodo } from "@/lib/funil-consulta";
+import { ajustarFunil, COLUNAS, inicioDoDia, NOVOS_POR_VEZ, PERIODOS, resumoDoFunil, type Periodo } from "@/lib/funil-consulta";
 import type { Espaco } from "@/lib/painel-tipos";
 
 // O funil saiu do useMemo de src/app/admin/funil.tsx (fase 4 do docs/plano-paginacao-admin.md).
@@ -117,6 +117,22 @@ for (let semente = 1; semente <= 300; semente++) {
   const periodo = um(Object.keys(PERIODOS) as Periodo[]);
   const novos = um([NOVOS_POR_VEZ, 12, 1000]);
   assert.deepEqual(resumoDoFunil(espacos, crm, { periodo, hoje, agora: agora.getTime(), novos }), antigo(espacos, crm, periodo, agora, hoje, novos), `semente ${semente}, ${periodo}`);
+}
+
+// arrastar: o cartão muda de coluna na hora, com o CRM local
+{
+  const e = (slug: string, nome: string): Espaco => ({ slug, nome, telefone: null, nicho: "Outros", cidade: null, uf: null, nota: null, avaliacoes: null, acessos: 1, limiteStaff: 2, caixa: false });
+  const espacos = [e("a", "Ana"), e("b", "Bia"), e("c", "Caio")];
+  const doServidor: Record<string, Crm> = { b: { estagio: "oferta", mensalCents: 1000 } as Crm };
+  const r = resumoDoFunil(espacos, doServidor, { periodo: "tudo", hoje, agora: agora.getTime(), novos: 6 });
+  const local: Record<string, Crm> = { a: { estagio: "oferta", mensalCents: 500 } as Crm, b: { estagio: "perdido", mensalCents: 1000 } as Crm };
+  const copiaDeC = { ...espacos[2], nome: "Caio (local)" };
+  const ajustado = ajustarFunil(r, local, { alterados: new Set(["a", "b"]), porSlug: new Map([["c", copiaDeC]]), novos: 6 });
+  assert.deepEqual(ajustado.colunas.novo.cartoes.map((x) => x.nome), ["Caio (local)"], "a saiu de Novo; c é a cópia local");
+  assert.deepEqual(ajustado.colunas.oferta.cartoes.map((x) => x.slug), ["a"], "a entrou em Oferta; b saiu");
+  assert.deepEqual([ajustado.colunas.novo.total, ajustado.colunas.oferta.total, ajustado.colunas.oferta.somaCents, ajustado.perdidos], [1, 1, 500, 1]);
+  assert.equal(r.colunas.oferta.cartoes[0].slug, "b", "o resumo do servidor não é alterado");
+  assert.equal(ajustarFunil(r, local, { alterados: new Set(), porSlug: new Map(), novos: 6 }).colunas.oferta.cartoes[0].slug, "b", "sem alterados, igual ao servidor");
 }
 
 // 20 mil negócios: abaixo de 50 ms

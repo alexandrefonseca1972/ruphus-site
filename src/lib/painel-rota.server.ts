@@ -63,7 +63,8 @@ export async function responderPainel(req: Request, { db, indice, verificar = ve
   try {
     const inicio = performance.now();
     const r = consultar(pronto.lista(), filtros, { crm: pronto.crm, hoje, fuso: tz });
-    const itens = r.lista.slice(0, n);
+    // na aba Funil a lista não aparece: só as contagens e o resumo
+    const itens = funil ? [] : r.lista.slice(0, n);
     const crm: Record<string, Crm> = {};
     const resumo = funil ? resumoDoFunil(r.lista, pronto.crm, { periodo, hoje, agora: Date.now(), fuso: tz, novos }) : undefined;
     const comCrm = resumo ? [...itens, ...Object.values(resumo.colunas).flatMap((c) => c.cartoes)] : itens;

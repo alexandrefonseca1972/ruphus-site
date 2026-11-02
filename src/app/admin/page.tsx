@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePainel } from "./use-painel";
-import { NOVOS_MAX, NOVOS_POR_VEZ, resumoDoFunil, type Periodo } from "@/lib/funil-consulta";
+import { ajustarFunil, NOVOS_MAX, NOVOS_POR_VEZ, resumoDoFunil, type Periodo } from "@/lib/funil-consulta";
 import { auth } from "@/lib/firebase";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import {
@@ -187,6 +187,8 @@ export default function AdminPage() {
   const [periodo, setPeriodo] = useState<Periodo>("mes");
   const [novos, setNovos] = useState(NOVOS_POR_VEZ);
   const [agora] = useState(() => Date.now());
+  // negócios que mudaram de estágio nesta tela: o funil os põe na coluna nova na hora
+  const [alterados, setAlterados] = useState<ReadonlySet<string>>(new Set());
   // o que só o listener traz (membros, sites novos da Coleta): pede de novo quando ele já chegou
   const recarregarDepois = () => setTimeout(() => setRecarga((x) => x + 1), 2000);
   // fixo por render: se viesse de Date.now() a cada chamada, um espaço podia cair
@@ -257,13 +259,20 @@ export default function AdminPage() {
   const total = daRota ? daRota.total : consulta.lista.length;
   const visiveis = daRota ? daRota.itens.map((e) => porSlug.get(e.slug) ?? e) : consulta.lista.slice(0, quantos);
   const { ufs, cidades, nichos, avisos } = contagens;
-  // o funil: da rota quando ela respondeu a estes filtros; até lá (e no ?modo=antigo), calculado aqui
+  // o funil: da rota quando ela respondeu a estes filtros; enquanto a próxima não chega (troca de
+  // período, "mostrar mais"), a última com funil, sem recalcular aqui nem piscar outros números.
+  // Só sem nenhuma (e no ?modo=antigo) é calculado aqui.
+  const comFunil = daRota?.funil ? daRota : servidor && doServidor.ultima?.funil ? doServidor.ultima : null;
   const resumoLocal = useMemo(
-    () => (tela === "funil" && !daRota?.funil ? resumoDoFunil(consulta.lista, crm, { periodo, hoje: dataDeHoje, agora, novos }) : null),
-    [tela, daRota, consulta.lista, crm, periodo, dataDeHoje, agora, novos],
+    () => (tela === "funil" && !comFunil ? resumoDoFunil(consulta.lista, crm, { periodo, hoje: dataDeHoje, agora, novos }) : null),
+    [tela, comFunil, consulta.lista, crm, periodo, dataDeHoje, agora, novos],
   );
-  const resumo = daRota?.funil ?? resumoLocal;
-  const crmDoFunil = useMemo(() => (daRota ? { ...daRota.crm, ...crm } : crm), [daRota, crm]);
+  // o que mudou de estágio aqui já aparece na coluna nova, sem esperar o servidor
+  const resumo = useMemo(
+    () => (comFunil?.funil ? ajustarFunil(comFunil.funil, crm, { alterados, porSlug, novos }) : resumoLocal),
+    [comFunil, crm, alterados, porSlug, novos, resumoLocal],
+  );
+  const crmDoFunil = useMemo(() => (comFunil ? { ...comFunil.crm, ...crm } : crm), [comFunil, crm]);
 
   // o último negócio aberto: resposta lenta de um anterior não pode pintar a gaveta do atual
   const abertoRef = useRef("");
@@ -379,6 +388,7 @@ export default function AdminPage() {
   async function mudarNegocio(slug: string, dados: Partial<Crm>) {
     const atual = crm[slug] ?? VAZIO;
     setCrm((c) => ({ ...c, [slug]: { ...atual, ...dados } as Crm }));   // resposta imediata na tela
+    if (dados.estagio) setAlterados((a) => new Set(a).add(slug));
     const r = await salvarNegocio(await token(), slug, dados);
     setRecarga((x) => x + 1);
     // sem isto a tela segue mostrando a venda fechada, ou o site fora do ar,
@@ -550,6 +560,7 @@ export default function AdminPage() {
     // o servidor não desfaz fechado/perdido em lote; a tela acompanha
     const lista = [...marcados].filter((s) => crm[s]?.estagio !== "fechado" && crm[s]?.estagio !== "perdido");
     const antes = new Map(lista.map((s) => [s, crm[s]]));
+    setAlterados((a) => new Set([...a, ...lista]));
     setCrm((c) => {
       const novo = { ...c };
       for (const s of lista) novo[s] = { ...(novo[s] ?? VAZIO), estagio };
