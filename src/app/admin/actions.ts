@@ -7,7 +7,8 @@ import { z } from "zod";
 import { adminDb } from "@/lib/admin";
 import type { Espaco } from "@/lib/painel-tipos";
 import { espacoDe, indiceDoPainel } from "@/lib/painel-indice.server";
-import { smsDisponivel } from "@/lib/comtele.server";
+import { numeroSms } from "@/lib/comtele";
+import { enviarSms, ErroSms, smsDisponivel } from "@/lib/comtele.server";
 import { gravarIntegracao, INTEGRACOES, integracoesNaTela, type NomeIntegracao } from "@/lib/integracoes.server";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNegocio as salvarSite } from "@/lib/negocios.server";
@@ -861,4 +862,16 @@ export const salvarIntegracao = adminAction(async (_user, nome: unknown, valor: 
   if (v && n !== "GMAIL_USER" && !/^[\x21-\x7E]+$/.test(v)) throw new ErroPrevisto("A chave não pode ter espaço, acento nem quebra de linha.");
   await gravarIntegracao(n, v);
   return integracoesNaTela();
+});
+
+/** SMS de teste com a chave em uso: confere chave e crédito na Comtele sem esperar um agendamento. */
+export const testarSms = adminAction(async (_user, telefone: unknown) => {
+  const numero = numeroSms(z.string().max(30).parse(telefone));
+  if (!numero) throw new ErroPrevisto("Use um celular com DDD, como (91) 98888-7777. Fixo não recebe SMS.");
+  const id = await enviarSms(numero, "Ruphus: SMS de teste. A chave da Comtele esta funcionando.").catch((e) => {
+    // a recusa da Comtele (chave errada, sem crédito) diz o que fazer: vai para a tela como veio
+    throw e instanceof ErroSms ? new ErroPrevisto(e.message) : e;
+  });
+  if (id === null) throw new ErroPrevisto("Cadastre a chave da Comtele antes de testar.");
+  return id;
 });

@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Ajustes ganha **Testar envio** no SMS: depois de cadastrar a chave da Comtele, manda um SMS de teste para um celular e mostra a resposta da Comtele (chave errada, sem crédito) na hora.
+
 - Agendamento no celular: com sinal Pix, a tela não promete mais "sem pagar nada agora" nem "horário reservado" antes do pagamento (mostra "aguardando o sinal"); o preço fica em linha própria no resumo de baixo; o calendário separa dia fechado de dia sem vagas; rótulos de 9 px passam a 11 px; e o nome do serviço não é mais espremido letra a letra quando o preço é "a partir de".
 
 ## 0.15.0 — 02/11/2026 — Ajustes no admin e produção só na VPS
