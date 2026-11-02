@@ -400,3 +400,19 @@ console.log("uf por extenso: ok");
 // o mesmo celular com e sem o 9; fixo não tem outra forma
 assert.deepEqual(["5591993721156", "559193721156", "559632178751", "14155550100"].map(outraForma), ["559193721156", "5591993721156", null, null]);
 console.log("nono dígito: ok");
+
+// número fixo: o WhatsApp não atende — tudo vira ligação, nos dois modelos e em todos os ramos
+for (const sub of ["petshop", "vet", "odonto", "salao", "barbearia", "estetica", "unhas", "podologia"] as const) {
+  const d = { ...base, nome: "Casa Teste", sub, telefone: "559232364727" };
+  const html = ehClaro(sub) ? renderClaro(d) : renderBeleza(d);
+  assert.ok(!html.includes("wa.me"), `${sub} fixo: sem link de WhatsApp`);
+  assert.ok(!/whatsapp/i.test(html), `${sub} fixo: o texto não promete WhatsApp (${/.{40}whatsapp.{40}/i.exec(html)?.[0]})`);
+  assert.ok(html.includes('href="tel:+559232364727"'), `${sub} fixo: botão de ligar`);
+  assert.ok(!html.includes("data-wa="), `${sub} fixo: sem o formulário que monta a mensagem`);
+  assert.ok(!/envie|mensagem pronta|uma mensagem<\/em>/i.test(html), `${sub} fixo: nada de "envie a mensagem" (${/.{30}(envie|mensagem pronta).{30}/i.exec(html)?.[0]})`);
+  assert.ok(!/getElementById\('(wf-dia|agData)'\)/.test(html), `${sub} fixo: sem o script do formulário (quebraria sem ele)`);
+  // com celular, o modelo segue com WhatsApp
+  const cel = ehClaro(sub) ? renderClaro({ ...d, telefone: "5592993721156" }) : renderBeleza({ ...d, telefone: "5592993721156" });
+  assert.ok(cel.includes("wa.me/5592993721156") && cel.includes("data-wa="), `${sub} celular: WhatsApp e formulário`);
+}
+console.log("telefone fixo vira ligação: ok");
