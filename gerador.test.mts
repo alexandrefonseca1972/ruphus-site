@@ -2,7 +2,7 @@
 //   npm run test:gerador
 import assert from "node:assert/strict";
 import lerAbas from "read-excel-file/node";
-import { montar, porRamo } from "@/lib/catalogo";
+import { montar, porRamo, RUPHUS } from "@/lib/catalogo";
 import { candidatos, type DadosSite, fixo, lerPlanilha as lerAbasDaPlanilha, nichoDe, outraForma, ufDe, ufDoTelefone, variante } from "@/lib/gerador";
 
 // uma aba só, como a maioria das planilhas
@@ -405,8 +405,10 @@ console.log("nono dígito: ok");
 for (const sub of ["petshop", "vet", "odonto", "salao", "barbearia", "estetica", "unhas", "podologia"] as const) {
   const d = { ...base, nome: "Casa Teste", sub, telefone: "559232364727" };
   const html = ehClaro(sub) ? renderClaro(d) : renderBeleza(d);
-  assert.ok(!html.includes("wa.me"), `${sub} fixo: sem link de WhatsApp`);
-  assert.ok(!/whatsapp/i.test(html), `${sub} fixo: o texto não promete WhatsApp (${/.{40}whatsapp.{40}/i.exec(html)?.[0]})`);
+  assert.ok(!html.includes("wa.me/559232364727"), `${sub} fixo: sem link de WhatsApp do negócio`);
+  // a faixa de proposta: "Pedir remoção" segue indo para o WhatsApp da Ruphus, não vira ligação ao negócio
+  assert.ok(html.includes(`wa.me/${RUPHUS}?text=`) && /Pedir remoção/.test(html), `${sub} fixo: Pedir remoção intacto`);
+  assert.ok(!/whatsapp/i.test(html.replace(/wa\.me\/\d+/g, "")), `${sub} fixo: o texto não promete WhatsApp (${/.{40}whatsapp.{40}/i.exec(html)?.[0]})`);
   assert.ok(html.includes('href="tel:+559232364727"'), `${sub} fixo: botão de ligar`);
   assert.ok(!html.includes("data-wa="), `${sub} fixo: sem o formulário que monta a mensagem`);
   assert.ok(!/envie|mensagem pronta|uma mensagem<\/em>/i.test(html), `${sub} fixo: nada de "envie a mensagem" (${/.{30}(envie|mensagem pronta).{30}/i.exec(html)?.[0]})`);

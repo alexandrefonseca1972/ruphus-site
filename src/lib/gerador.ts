@@ -403,7 +403,8 @@ const SEM_WHATSAPP: [RegExp, string | ((m: string) => string)][] = [
  *  no próprio modelo. */
 export function paraTelefone(html: string, telefone: string, iconeWhatsApp: string) {
   let saida = html
-    .replace(/href="https:\/\/wa\.me\/\d+\?text=[^"]*"(\s+target="_blank")?(\s+rel="noopener")?/g, `href="tel:+${telefone}"`)
+    // só o número do negócio: o "Pedir remoção" da faixa é o WhatsApp da Ruphus e continua sendo
+    .replace(new RegExp(`href="https://wa\\.me/${telefone}\\?text=[^"]*"(\\s+target="_blank")?(\\s+rel="noopener")?`, "g"), `href="tel:+${telefone}"`)
     .split(iconeWhatsApp)
     .join(FONE_SVG);
   for (const [re, troca] of SEM_WHATSAPP) saida = typeof troca === "string" ? saida.replace(re, troca) : saida.replace(re, troca);
