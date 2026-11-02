@@ -168,6 +168,15 @@ const trocarConfig = (config: (ref: Ref) => object) => bancoCom({ config });
   await assert.rejects(criarIndice(bancoCom({ tenants: silencio }), { log: mudo, prazoMs: 300 }).pronto(), /passou de/);
 }
 
+// a leitura dos acessos da plataforma falha na montagem: a montagem falha (e tenta de novo depois),
+// em vez de montar com cliente aparecendo como "sem cliente dentro"
+{
+  const semGetAll = new Proxy(db, {
+    get: (alvo, p) => (p === "getAll" ? () => Promise.reject(new Error("getAll falhou")) : ((v) => (typeof v === "function" ? v.bind(alvo) : v))(Reflect.get(alvo, p))),
+  });
+  await assert.rejects(criarIndice(semGetAll, { log: mudo }).pronto(), /getAll falhou/);
+}
+
 // troca de índice sem deixar listener órfão
 {
   let vivos = 0;

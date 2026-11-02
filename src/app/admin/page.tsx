@@ -197,6 +197,8 @@ export default function AdminPage() {
   // CRM ou se a página só não o recebeu ainda. A gaveta só mostra os campos (que gravam ao sair do
   // campo) de quem está aqui: com o CRM vazio no lugar, um clique gravava vazio por cima do real.
   const [conhecidos, setConhecidos] = useState<ReadonlySet<string>>(new Set());
+  // o CRM da gaveta não pôde ser lido: a gaveta mostra o erro com "Tentar de novo", não "carregando"
+  const [erroAoAbrir, setErroAoAbrir] = useState("");
   // muda depois de cada escrita: a página do servidor é pedida de novo
   const [recarga, setRecarga] = useState(0);
   // o período e quantos cartões de "Novo" o funil mostra: entram na consulta da rota
@@ -299,6 +301,7 @@ export default function AdminPage() {
     setProposta(null);
     setAcessos(null);
     setDetalhe(null);
+    setErroAoAbrir("");
     setAviso("");
     // "Copiado ✓" é do negócio em que se copiou: sem isto, abrir o próximo já mostrava copiado
     setCopiado("");
@@ -309,8 +312,9 @@ export default function AdminPage() {
     if (a.ok) setAcessos(a.dados);
     if (d.ok) {
       setDetalhe(d.dados);
-      // aberto de fora da Lista e do Funil (Carteira, Cobrança): o CRM vem com os detalhes
-      if (!conhecidos.has(e.slug) && !pendentes.current.has(e.slug)) {
+      // aberto de fora da Lista e do Funil (Carteira, Cobrança): o CRM vem com os detalhes. Com uma
+      // escrita em curso também: a gaveta não pode esperar por uma página que talvez nunca o traga
+      if (!conhecidos.has(e.slug)) {
         const doServidor = d.dados.crm;
         setCrm((c) => {
           const novo = { ...c };
@@ -320,7 +324,7 @@ export default function AdminPage() {
         });
         setConhecidos((c) => new Set(c).add(e.slug));
       }
-    }
+    } else if (!conhecidos.has(e.slug)) setErroAoAbrir(d.error);
     if (n.ok) setEventos(n.dados);
   }
 
@@ -1563,6 +1567,8 @@ export default function AdminPage() {
                       <button
                         type="button"
                         role="menuitem"
+                        // sem o CRM, não se sabe se o site está no ar: o rótulo e a ação seriam um palpite
+                        disabled={!conhecidos.has(aberto.slug)}
                         onClick={() => {
                           mudarNegocio(aberto.slug, { publicado: !(crm[aberto.slug]?.publicado !== false) });
                           setMenuNegocio(false);
@@ -1618,7 +1624,16 @@ export default function AdminPage() {
             </div>
 
             {!conhecidos.has(aberto.slug) ? (
-              <p className="text-sm text-[#6F6A5E]">Carregando os dados do negócio…</p>
+              erroAoAbrir ? (
+                <p className="flex items-center gap-2 text-sm text-[#8A2F2F]">
+                  {erroAoAbrir}
+                  <button type="button" onClick={() => abrir(aberto)} className={MENOR}>
+                    Tentar de novo
+                  </button>
+                </p>
+              ) : (
+                <p className="text-sm text-[#6F6A5E]">Carregando os dados do negócio…</p>
+              )
             ) : (
             <>
             <div role="tabpanel" id="aba-painel" aria-labelledby={`aba-${aba}`} className="flex flex-col gap-5">

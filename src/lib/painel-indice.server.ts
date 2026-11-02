@@ -279,7 +279,8 @@ export function criarIndice(db: Firestore, { ociosoMs = OCIOSO_MS, prazoMs = PRA
       e.adminsDaConsulta = e.admins;
       e.filtrado = e.admins.length > 0 && e.admins.length <= 10;
       const membros = e.filtrado ? db.collectionGroup("members").where("uid", "not-in", e.admins) : db.collectionGroup("members");
-      let ruphusPendente: Promise<void> = Promise.resolve();
+      // todas as leituras da plataforma feitas durante a montagem: ela espera cada uma
+      const ruphusPendentes: Promise<void>[] = [];
       let falhaRuphus: unknown = null;
       await passo(
         Promise.all([
@@ -310,17 +311,18 @@ export function criarIndice(db: Firestore, { ociosoMs = OCIOSO_MS, prazoMs = PRA
             });
             const slugs = [...tocados];
             atualizarAcessos(e, slugs);
-            ruphusPendente = lerRuphus(e, slugs.filter((s) => (e.porEspaco.get(s) ?? 0) > 0)).catch((err) => {
+            const leitura = lerRuphus(e, slugs.filter((s) => (e.porEspaco.get(s) ?? 0) > 0)).catch((err) => {
               // na montagem, falhar é melhor que montar com acessos errados (cliente aparecendo como
               // "sem cliente dentro" por dias): a montagem tenta de novo, com espera crescente. Guardado,
               // não relançado: uma promessa rejeitada que ninguém espera derrubaria o processo
               if (!e.montadoEm) falhaRuphus ??= err;
               log.error("[painel] falha ao conferir a plataforma nos espaços com cliente", err);
             });
+            if (!e.montadoEm) ruphusPendentes.push(leitura);
           }),
         ]),
       );
-      await passo(ruphusPendente);
+      await passo(Promise.all(ruphusPendentes));
       if (falhaRuphus) throw falhaRuphus;
       if (!e.vivo) throw new IndiceIndisponivel("listener caiu durante a montagem");
       // os tenants podem ter chegado antes dos membros: acerta os acessos de todos uma vez
