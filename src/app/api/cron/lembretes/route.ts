@@ -5,8 +5,8 @@ import { segredoIgual } from "@/lib/segredo.server";
 import { expirarSinais } from "@/lib/sinal.server";
 import { enviarLembretesPorSms } from "@/lib/sms-agendamento.server";
 
-// Lembretes de horário pelo WhatsApp do salão (vercel.json: a cada 10 min). A Vercel
-// chama com "Authorization: Bearer $CRON_SECRET"; sem o segredo, ninguém dispara.
+// Lembretes de horário pelo WhatsApp do salão (deploy/crontab.txt: a cada 10 min). O cron
+// da VPS chama com "Authorization: Bearer $CRON_SECRET"; sem o segredo, ninguém dispara.
 export async function GET(request: NextRequest) {
   const segredo = process.env.CRON_SECRET;
   if (!segredo || !segredoIgual(request.headers.get("authorization"), `Bearer ${segredo}`)) {

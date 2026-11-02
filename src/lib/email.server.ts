@@ -41,8 +41,7 @@ async function peloGmail({ para, assunto, texto, html }: EmailSaida, usuario: st
   if (!usuario || !senha) {
     throw new EmailNaoConfigurado("E-mail não configurado: cadastre a chave do Resend (ou a conta e a senha de app do Gmail) no /admin, em Ajustes.");
   }
-  // Uma conexão por envio: o envio de proposta é pontual, e manter conexão aberta
-  // numa função serverless só guarda socket que a Vercel encerra de qualquer jeito.
+  // Uma conexão por envio: o envio de proposta é pontual, não vale manter socket aberto
   const transporte = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 465,

@@ -3,7 +3,7 @@ import { applicationDefault, cert, getApps, initializeApp } from "firebase-admin
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 
-// Vercel: FIREBASE_SERVICE_ACCOUNT com o JSON da conta de serviço.
+// Servidor: FIREBASE_SERVICE_ACCOUNT com o JSON da conta de serviço.
 // Local: GOOGLE_APPLICATION_CREDENTIALS com o caminho do arquivo.
 const app =
   getApps()[0] ??

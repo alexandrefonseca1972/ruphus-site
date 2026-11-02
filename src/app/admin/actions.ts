@@ -630,7 +630,7 @@ export const ligarDominio = adminAction(async (_user, slug: string, host: string
   return verificarDominio(adminDb, slug);
 });
 
-/** Confere o DNS na Vercel; pronto, o domínio vira o endereço oficial do site. */
+/** Confere o DNS; pronto, o domínio vira o endereço oficial do site. */
 export const conferirDominio = adminAction(async (_user, slug: string) => {
   slugValido(slug);
   const antes = ((await adminDb.doc(`tenants/${slug}`).get()).get("dominio") as Dominio | undefined)?.status;

@@ -12,7 +12,7 @@ import { lerConexao, soDigitosComDDI } from "@/lib/whatsapp.server";
 // (whatsappReminderSentAt) para nunca repetir. Nada de mensagem entre 22h e 7h30
 // (fuso do negócio): o que vencer na janela de silêncio espera as 7h30.
 //
-// Roda pela Vercel Cron (/api/cron/lembretes, a cada 10 min). Cada agendamento é
+// Roda pelo cron da VPS (/api/cron/lembretes, a cada 10 min). Cada agendamento é
 // reservado numa transação antes do envio: duas execuções simultâneas não mandam
 // o mesmo lembrete duas vezes.
 //

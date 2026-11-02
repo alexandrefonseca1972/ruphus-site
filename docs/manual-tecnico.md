@@ -35,7 +35,7 @@ cima; este arquivo é a planta baixa.
 | Dono do negócio e equipe | `/painel`, `/{slug}` e filhas | agenda, serviços, profissionais, clientes |
 | Ruphus | `/admin` | CRM, carteira, cobrança, limites, ajustes |
 
-Um banco só (Firestore), um deploy só (Vercel). O que separa os três é **papel**
+Um banco só (Firestore), um deploy só (VPS). O que separa os três é **papel**
 e **regra**, não infraestrutura.
 
 ---
@@ -385,18 +385,15 @@ npm run build
 ```
 
 - `next.config.ts` injeta `NEXT_PUBLIC_VERSAO` (do `package.json`) e
-  `NEXT_PUBLIC_COMMIT` (da Vercel). **Mudou o config, reinicie o dev.**
-- Deploy: merge na `main` → Vercel (região `gru1`).
+  `NEXT_PUBLIC_COMMIT` (do deploy, `GIT_COMMIT_SHA`). **Mudou o config, reinicie o dev.**
+- Deploy: merge na `main`, depois `scripts/deploy-vps.sh` (build na VPS, troca de pasta, `app-prev` para voltar).
 - As regras saem à parte e **depois** do código:
   `npx firebase deploy --only firestore:rules,storage`.
 - O CI (`.github/workflows/testes.yml`) roda os testes; ele **não** faz deploy.
 
 Variáveis: veja a tabela no README. A credencial do Admin SDK é
-`FIREBASE_SERVICE_ACCOUNT` (Vercel) ou `GOOGLE_APPLICATION_CREDENTIALS` (local).
+`FIREBASE_SERVICE_ACCOUNT` (VPS) ou `GOOGLE_APPLICATION_CREDENTIALS` (local).
 
-> **Cuidado:** `vercel link` e `vercel env pull` reescrevem o `.env.local` e
-> levam junto o que a CLI não conhece — inclusive a credencial local. Sem ela, o
-> Admin SDK não lê `config/admin` e o admin da plataforma cai no `/painel`.
 
 ---
 
