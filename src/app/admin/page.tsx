@@ -39,7 +39,7 @@ import {
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
 import { consultar, emDestaque, local, VISOES, visaoDe, type Visao } from "@/lib/painel-consulta";
-import { ehOrdem, PAGINA, type Filtros, type Ordem } from "@/lib/painel-tipos";
+import { ehOrdem, PAGINA, PAGINA_MAX, type Filtros, type Ordem } from "@/lib/painel-tipos";
 import { cents, emReais } from "@/lib/dinheiro";
 import { loginComMotivo, MINUTOS_MAX, useAutoLogout } from "@/lib/sessao";
 import { COMMIT, VERSAO } from "@/lib/versao";
@@ -150,6 +150,7 @@ export default function AdminPage() {
     if (!slugs.length) return;
     const r = await espacosGerados(await tokenAtual(), slugs).catch(() => null);
     setRecarga((x) => x + 1);
+    recarregarDepois();
     if (!r?.ok) return;
     const vindos = new Map(r.dados.espacos.map((e) => [e.slug, e]));
     setEspacos((atual) => [...atual.filter((e) => !vindos.has(e.slug)), ...vindos.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
@@ -181,6 +182,8 @@ export default function AdminPage() {
   const [modoAntigo, setModoAntigo] = useState(false);
   // muda depois de cada escrita: a página do servidor é pedida de novo
   const [recarga, setRecarga] = useState(0);
+  // o que só o listener traz (membros, sites novos da Coleta): pede de novo quando ele já chegou
+  const recarregarDepois = () => setTimeout(() => setRecarga((x) => x + 1), 2000);
   // fixo por render: se viesse de Date.now() a cada chamada, um espaço podia cair
   // em "hoje" na contagem e em "atrasada" na lista, na virada da meia-noite
   const dataDeHoje = hojeISO();
@@ -300,6 +303,7 @@ export default function AdminPage() {
     if (!window.confirm(`Enviar o convite de acesso por e-mail para ${email}?`)) return;
     setAviso("");
     const r = await enviarConvitePorEmail(await token(), slug);
+    setRecarga((x) => x + 1);
     if (!r.ok) return setAviso(r.error);
     setEventos(r.dados.eventos);
     setConvite({ slug, url: r.dados.url, email: r.dados.email, copiado: false });
@@ -309,6 +313,7 @@ export default function AdminPage() {
   async function revogar(slug: string, uid: string) {
     const r = await revogarAcesso(await token(), slug, uid);
     setRecarga((x) => x + 1);
+    recarregarDepois();
     setAviso(r.ok ? r.dados : r.error);
     if (!r.ok) return;
     // a contagem do /admin ignora a equipe; e tirar o cliente-dono muda o papel da Ruphus
@@ -473,6 +478,7 @@ export default function AdminPage() {
   async function enviarPropostaEmail(slug: string, email: string) {
     if (!window.confirm(`Enviar a proposta por e-mail para ${email}?`)) return;
     const r = await enviarPropostaPorEmail(await token(), slug, email);
+    setRecarga((x) => x + 1);
     if (!r.ok) return setAviso(r.error);
     setEventos(r.dados.eventos);
     setAviso(`Proposta enviada para ${r.dados.para}.`);
@@ -1158,7 +1164,7 @@ export default function AdminPage() {
               {cidade && ` · ${cidade}`}
               {nicho && ` · ${nicho}`}
             </span>
-            {/* enquanto o servidor não responde, a lista é a calculada aqui (ainda temos tudo até a fase 5) */}
+            {/* enquanto a página dos filtros atuais não chega, a lista é a calculada aqui (ainda temos tudo até a fase 5) */}
             {servidor && doServidor.situacao === "preparando" && <span className="text-[13px] text-[#7A5A2E]">Preparando o painel…</span>}
             {servidor && doServidor.situacao === "erro" && (
               <span className="flex items-center gap-2 text-[13px] text-[#8A2F2F]">
@@ -1338,9 +1344,9 @@ export default function AdminPage() {
             )}
           </ul>
 
-          {total > quantos && (
+          {total > quantos && quantos < PAGINA_MAX && (
             <div className="flex items-center gap-3 border-t border-[#EDE9E1] px-4 py-3.5 sm:px-5">
-              <button type="button" className={BOTAO_CLARO} onClick={() => setPagina({ chave, n: quantos + PAGINA })}>
+              <button type="button" className={BOTAO_CLARO} onClick={() => setPagina({ chave, n: Math.min(quantos + PAGINA, PAGINA_MAX) })}>
                 Mostrar mais {Math.min(PAGINA, total - quantos)}
               </button>
               <span className="text-[13px] text-[#6F6A5E]">

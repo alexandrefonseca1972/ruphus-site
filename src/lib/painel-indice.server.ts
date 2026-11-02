@@ -390,8 +390,16 @@ export function criarIndice(db: Firestore, { ociosoMs = OCIOSO_MS, prazoMs = PRA
             db.getAll(...lote.map((s) => db.doc(`crm/${s}`))),
           ]);
           if (!e.vivo) return;
-          tenants.forEach((d) => aplicarTenant(e, d, false));
-          crms.forEach((d) => aplicarCrm(e, d, false));
+          // um documento com problema não leva o resto do lote junto (como nos listeners)
+          for (const [docs, aplicar] of [[tenants, aplicarTenant], [crms, aplicarCrm]] as const) {
+            for (const d of docs) {
+              try {
+                aplicar(e, d, false);
+              } catch (err) {
+                log.error(`[painel] documento pulado: ${d.ref.path}`, err instanceof Error ? err.message : err);
+              }
+            }
+          }
           mudou(e, true);
         }
       } catch (err) {

@@ -6,23 +6,29 @@ import type { Filtros, RespostaPainel } from "@/lib/painel-tipos";
 // fetch, não server action: o Next despacha uma action por vez, e a busca digitada viraria fila.
 
 export type PaginaDoServidor = Extract<RespostaPainel, { ok: true }>;
+type Guardada = PaginaDoServidor & { query: string };
 export type SituacaoDaPagina = "carregando" | "preparando" | "pronto" | "erro";
 
 const ESPERA_BUSCA_MS = 300;
 const NOVA_TENTATIVA_MS = 2000;
+/** ~30 s esperando a montagem; depois disso é erro, com "Tentar de novo" (e para de pedir) */
+const TENTATIVAS_MAX = 15;
 
 const token = (renovar = false) => (auth.currentUser?.getIdToken(renovar) ?? Promise.resolve("")).catch(() => "");
 
 /** Pede a página dos filtros. Busca digitada espera 300 ms; pedido velho é cancelado e resposta
  *  fora de ordem, descartada; 503 tenta de novo sozinho; 401 renova o token uma vez; queda de rede
- *  mantém a página que já está na tela, com o erro ao lado. `recarga` muda depois de uma escrita. */
+ *  mantém a página que já está na tela, com o erro ao lado. `recarga` muda depois de uma escrita.
+ *  A página só é devolvida se for a dos filtros atuais: a de um filtro anterior, com outros negócios,
+ *  levaria o "marcar todos" a marcar quem não está na tela pedida. */
 export function usePainel({ ativo, filtros, n, hoje, recarga }: { ativo: boolean; filtros: Filtros; n: number; hoje: string; recarga: number }) {
-  const [pagina, setPagina] = useState<PaginaDoServidor | null>(null);
+  const [pagina, setPagina] = useState<Guardada | null>(null);
   const [situacao, setSituacao] = useState<SituacaoDaPagina>("carregando");
   const [erro, setErro] = useState("");
   const [tentativa, setTentativa] = useState(0);
   const seq = useRef(0);
   const ultimaBusca = useRef(filtros.busca);
+  const esperas = useRef(0);
 
   const params = new URLSearchParams({ hoje, n: String(n), tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
   for (const [k, v] of Object.entries(filtros)) if (v !== "" && v !== false) params.set(k, String(v));
@@ -45,20 +51,22 @@ export function usePainel({ ativo, filtros, n, hoje, recarga }: { ativo: boolean
         let res = await pedir(await token());
         if (res.status === 401) res = await pedir(await token(true));
         const corpo = (await res.json().catch(() => null)) as RespostaPainel | null;
-        if (meu !== seq.current) return;
+        if (controle.signal.aborted || meu !== seq.current) return;
         if (corpo?.ok) {
-          setPagina(corpo);
+          esperas.current = 0;
+          setPagina({ ...corpo, query });
           setSituacao("pronto");
           setErro("");
           return;
         }
-        if (corpo?.codigo === "preparando") {
+        if (corpo?.codigo === "preparando" && ++esperas.current <= TENTATIVAS_MAX) {
           setSituacao("preparando");
           nova = setTimeout(() => setTentativa((x) => x + 1), NOVA_TENTATIVA_MS);
           return;
         }
+        esperas.current = 0;
         setSituacao("erro");
-        setErro(corpo?.erro ?? "Não foi possível agora.");
+        setErro(corpo?.codigo === "preparando" ? "O painel não ficou pronto." : (corpo?.erro ?? "Não foi possível agora."));
       } catch (err) {
         if (controle.signal.aborted || meu !== seq.current) return;
         console.error("[painel] falha ao pedir a página", err);
@@ -76,5 +84,5 @@ export function usePainel({ ativo, filtros, n, hoje, recarga }: { ativo: boolean
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ativo, query, recarga, tentativa]);
 
-  return { pagina, situacao, erro, tentarDeNovo: () => setTentativa((x) => x + 1) };
+  return { pagina: pagina?.query === query ? pagina : null, situacao, erro, tentarDeNovo: () => setTentativa((x) => x + 1) };
 }

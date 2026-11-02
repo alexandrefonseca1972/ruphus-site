@@ -360,7 +360,8 @@ export const abrirPainel = adminAction(async (): Promise<Painel> => {
  *  lista que já tem, em vez de reler os 14 mil. */
 export const espacosGerados = adminAction(async (_user, slugs: string[]) => {
   const lista = z.array(z.string().regex(SLUG)).max(5000).parse(slugs);
-  const [espacos, crm] = await Promise.all([espacosComAcessos(lista), lerCrm(adminDb, lista), noIndice(...lista)]);
+  // o índice do painel recebe estes pelo listener: reler aqui dobraria as leituras (até 10 mil)
+  const [espacos, crm] = await Promise.all([espacosComAcessos(lista), lerCrm(adminDb, lista)]);
   return { espacos, crm };
 });
 
@@ -507,6 +508,7 @@ export const enviarPropostaPorEmail = adminAction(async (user, slug: string, dig
   const { assunto, texto, html } = emailDaProposta({ ...dados, url: `${base}/proposta/${slug}?t=${token}`, valeAte });
   await enviarEmail({ para, assunto, texto, html });
   await registrarMensagem(adminDb, slug, "Proposta por e-mail", para, user.email ?? user.uid);
+  await noIndice(slug);
   return { para, eventos: await linhaDoTempo(adminDb, slug) };
 });
 
@@ -531,6 +533,7 @@ export const enviarConvitePorEmail = adminAction(async (user, slug: string) => {
   });
   await enviarEmail({ para: convite.email, assunto, texto, html });
   await registrarMensagem(adminDb, slug, "Convite por e-mail", convite.email, user.email ?? user.uid);
+  await noIndice(slug);
   return { url: convite.url, email: convite.email, eventos: await linhaDoTempo(adminDb, slug) };
 });
 
