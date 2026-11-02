@@ -11,7 +11,8 @@ import { ehUf, limparTexto, nichoDe, type Espaco } from "@/lib/painel-tipos";
 // ninguém no admin não custa leitura. As consultas são síncronas e os callbacks dos
 // listeners também, então uma consulta nunca vê uma mudança aplicada pela metade.
 
-export const OCIOSO_MS = 2 * 3_600_000;
+// o dia de trabalho inteiro: cada remontagem relê ~30 mil documentos, e montado custa ~120 MB
+export const OCIOSO_MS = 12 * 3_600_000;
 const ESPERA_MAX_MS = 60_000;
 
 const colador = new Intl.Collator("pt-BR");

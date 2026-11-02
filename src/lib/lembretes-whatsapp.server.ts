@@ -24,9 +24,9 @@ const SILENCIO = { inicioMin: 22 * 60, fimMin: 7 * 60 + 30 }; // 22:00 → 07:30
 
 /** Envia os lembretes devidos agora. Devolve quantos foram enviados. */
 export async function enviarLembretesDoDia(): Promise<number> {
-  // varredura simples de tenants: vale para dezenas; com centenas, virar consulta
-  // agendada por tenant ou collection group com índice
-  const tenants = await adminDb.collection("tenants").get();
+  // só quem ligou os lembretes: ler os ~15 mil tenants a cada 10 min eram ~2 milhões de
+  // leituras por dia, para achar meia dúzia (índice de campo único, automático)
+  const tenants = await adminDb.collection("tenants").where("whatsapp.remindersEnabled", "==", true).get();
   const agora = new Date();
   let enviados = 0;
   for (const t of tenants.docs) {

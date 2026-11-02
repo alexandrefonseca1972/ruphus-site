@@ -65,7 +65,7 @@ servidor, sobre essa cópia.
 - **Mantido por listeners** (`onSnapshot`) em `tenants`, `crm`, `config/admin` e
   `members` de fora da plataforma (a consulta `not-in` do PR #176). Cada mudança
   custa uma leitura, venha de onde vier: admin, painel do dono, gerador, cobrança.
-- **Desmontado depois de 2 h sem consulta** (`OCIOSO_MS`): solta os listeners e a
+- **Desmontado depois de 12 h sem consulta** (`OCIOSO_MS`; eram 2 h, e cada volta do almoço remontava): solta os listeners e a
   memória. A próxima consulta monta de novo.
 - **Troca atômica**: a montagem preenche estruturas novas e só então substitui as
   antigas, com `versao` incrementada. Uma consulta nunca vê o índice pela metade.
@@ -130,7 +130,7 @@ atual, para voltar atrás sem deploy.
 | | Hoje | Depois |
 |---|---|---|
 | Leituras por abertura do admin | ~30 mil | 0 com o índice montado |
-| Leituras para montar o índice | — | ~30 mil, uma vez por sessão de uso (até 2 h ocioso) |
+| Leituras para montar o índice | — | ~30 mil, uma vez por dia de uso (até 12 h ocioso) |
 | Payload por abertura | ~4 MB | ~10–20 KB |
 | Memória do servidor | picos de até 2,24 GB ao montar e serializar | **+~120 MB de RSS fixos** enquanto o índice existe (medido) |
 | Primeira consulta depois de deploy | ~5 s (hoje) | até ~11 s (montagem medida: 10,8 s) |
