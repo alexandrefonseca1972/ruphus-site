@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { confirmar } from "@/components/confirmar";
+import { numeroSms } from "@/lib/comtele";
+import { formatPhone } from "@/lib/datetime";
 import { idToken as tokenAtual } from "@/lib/firebase";
 import type { IntegracaoNaTela } from "@/lib/integracoes.server";
 import { lerIntegracoes, salvarIntegracao, testarSms } from "./actions";
@@ -115,7 +117,15 @@ function Campo({ item, aoSalvar }: { item: IntegracaoNaTela; aoSalvar: (l: Integ
 /** Manda um SMS de verdade (gasta um crédito) para conferir a chave logo depois de cadastrar. */
 function TesteSms({ pronto }: { pronto: boolean }) {
   const [telefone, setTelefone] = useState("");
+  const [tocado, setTocado] = useState(false);
   const [busy, setBusy] = useState(false);
+  // a mesma regra do envio (numeroSms): só celular, com DDD; o erro aparece ao sair do campo
+  // ou quando o número já tem dígitos suficientes, não a cada tecla do começo
+  const digitos = telefone.replace(/\D/g, "");
+  const erro = !digitos || numeroSms(telefone) ? "" : digitos.length < 10 ? "Informe o número com DDD." : digitos[0] === "0" ? "DDD inválido." : "Fixo não recebe SMS: use um celular (9 depois do DDD).";
+  // 10 dígitos sem o 9 depois do DDD já é fixo; com o 9, a pessoa ainda está digitando
+  const mostraErro = !!erro && (tocado || digitos.length >= 11 || (digitos.length === 10 && digitos[2] !== "9"));
+  const valido = !!digitos && !erro;
   const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
 
   async function enviar() {
@@ -132,7 +142,8 @@ function TesteSms({ pronto }: { pronto: boolean }) {
       className="flex flex-col gap-1.5 border-t border-[#EDE9E1] pt-4"
       onSubmit={(e) => {
         e.preventDefault();
-        if (telefone.trim()) enviar();
+        setTocado(true);
+        if (valido) enviar();
       }}
     >
       <label htmlFor="teste-sms" className="text-xs font-medium text-[#17150F]">
@@ -146,15 +157,27 @@ function TesteSms({ pronto }: { pronto: boolean }) {
           inputMode="tel"
           autoComplete="tel"
           value={telefone}
-          onChange={(e) => setTelefone(e.target.value)}
+          onChange={(e) => {
+            setTelefone(formatPhone(e.target.value));
+            setResultado(null);
+          }}
+          onBlur={() => setTocado(true)}
+          maxLength={15}
           placeholder="(91) 98888-7777"
           disabled={!pronto}
-          className="h-11 min-w-0 flex-1 rounded-[10px] border border-[#D8D2C6] px-3 text-sm disabled:opacity-50"
+          aria-invalid={mostraErro}
+          aria-describedby={mostraErro ? "teste-sms-erro" : undefined}
+          className={`h-11 min-w-0 flex-1 rounded-[10px] border px-3 text-base tabular-nums disabled:opacity-50 ${mostraErro ? "border-[#8A2F2F]" : valido ? "border-[#2C6A53]" : "border-[#D8D2C6]"}`}
         />
-        <button type="submit" disabled={!pronto || busy || !telefone.trim()} className={BOTAO_CLARO}>
+        <button type="submit" disabled={!pronto || busy || !valido} className={BOTAO_CLARO}>
           {busy ? "Enviando…" : "Enviar teste"}
         </button>
       </div>
+      {mostraErro && (
+        <p id="teste-sms-erro" role="alert" className="text-xs text-[#8A2F2F]">
+          {erro}
+        </p>
+      )}
       {resultado && (
         <p role="status" className={`text-xs ${resultado.ok ? "text-[#2C6A53]" : "text-[#8A2F2F]"}`}>
           {resultado.texto}
