@@ -494,6 +494,10 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
 .valor-n{font-family:var(--disp);font-size:var(--disp-md);line-height:.9;letter-spacing:-.02em;text-transform:uppercase;margin-top:auto;font-variant-numeric:tabular-nums}
 .valor-n small{font-family:var(--corpo);font-size:16px;font-weight:500;color:var(--ardosia);margin-right:.35em;letter-spacing:0;vertical-align:.55em}
 .valor-d{font-size:16px;line-height:1.4;color:var(--ardosia)}
+.zap-msg{align-self:flex-start;max-width:420px;background:#fff;border-radius:16px 16px 16px 4px;padding:12px 16px 8px;box-shadow:0 1px 0 rgba(0,0,0,.08)}
+.zap-msg p{font-size:15px;line-height:1.45}
+.zap-dela{align-self:flex-end;background:#d9fdd3;border-radius:16px 16px 4px 16px}
+.zap-hora{display:block;text-align:right;font-size:11px;color:var(--fumo);margin-top:4px}
 .garantias{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:24px}
 .garantias li{background:var(--branco);border-radius:16px;padding:16px 20px;border-left:5px solid var(--volt);line-height:1.45}
 .faq{display:grid;gap:8px;max-width:820px}
@@ -695,6 +699,37 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
           </div>
         </div>
         <p class="mono" style="color:var(--ardosia)">o cliente não cria conta · o dono não paga por agendamento</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap sec" id="falta" aria-labelledby="falta-t">
+    <div class="duas">
+      <div style="display:flex;flex-direction:column;gap:24px">
+        <span class="tag">Menos falta · já incluso</span>
+        <h2 class="sec-t revela" id="falta-t">Horário marcado é horário pago.</h2>
+        <p class="revela" style="--atraso:80ms;font-size:18px;line-height:1.45;color:var(--ardosia);max-width:46ch">
+          A falta é o prejuízo que ninguém vê: a cadeira vazia no horário que estava reservado. Dois recursos que já vêm no plano
+          atacam isso — <b style="font-weight:500;color:var(--preto)">o cliente lembra, e quem reserva se compromete</b>.
+        </p>
+        <ul class="lista-t revela" style="--atraso:160ms">
+          <li><b>lembrete</b><span>O cliente recebe um aviso no WhatsApp do seu negócio antes do horário — você escolhe quantas horas antes. Quem ia esquecer, lembra; quem não pode vir, responde e libera a vaga.</span></li>
+          <li><b>sinal pelo pix</b><span>Na hora de reservar, o cliente paga um sinal pelo Pix: uma porcentagem do serviço ou um valor fixo, você decide. O horário fica guardado pelo prazo que você definir, esperando o pagamento.</span></li>
+          <li><b>a conta</b><span>Uma falta por semana num serviço de R$ 60 são R$ 240 por mês — quase três mensalidades.</span></li>
+        </ul>
+      </div>
+
+      <div class="revela" style="--atraso:120ms;display:flex;flex-direction:column;gap:12px">
+        <span class="mono" style="color:var(--ardosia)">lembrete enviado pelo WhatsApp do negócio</span>
+        <div class="zap-msg" role="img" aria-label="Exemplo de lembrete no WhatsApp">
+          <p>Olá, Marina! Lembrete do seu horário amanhã às 15:15: Corte no Barbearia Force. Qualquer imprevisto, responda aqui pelo WhatsApp.</p>
+          <span class="zap-hora">14:15 ✓✓</span>
+        </div>
+        <div class="zap-msg zap-dela">
+          <p>Confirmado, até amanhã!</p>
+          <span class="zap-hora">14:16</span>
+        </div>
+        <p class="mono" style="color:var(--ardosia);font-size:11px;line-height:1.5">Com o WhatsApp do negócio conectado ao painel. O sinal pelo Pix usa a chave Pix do próprio negócio.</p>
       </div>
     </div>
   </section>
