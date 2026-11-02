@@ -274,6 +274,8 @@ export async function agendaDias(db: Firestore, q: AgendaQuery, dias: string[]) 
         horarios: [...horarios]
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([hora, staffId]) => ({ hora, staffId })),
+        // ninguém atende neste dia da semana: fechado. Com equipe e sem horário, é lotação
+        fechado: doDia.length === 0,
       };
     }),
   );
