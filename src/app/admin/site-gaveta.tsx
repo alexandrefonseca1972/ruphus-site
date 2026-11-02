@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/confirmar";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -174,7 +175,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
   async function aplicarModelo() {
     const nome = modelos.find((m) => m.id === modelo)?.rotulo ?? "Padrão do sistema";
     // troca o site ao vivo na hora: confirma antes de gravar
-    if (!window.confirm(`Trocar o modelo de ${dados?.name} para ${nome}? O site e a bio mudam na hora.`)) return;
+    if (!(await confirmar({ titulo: `Trocar o modelo de ${dados?.name} para ${nome}?`, texto: "O site e a bio mudam na hora.", acao: "Trocar o modelo", tom: "normal" }))) return;
     setBusy(true);
     setAvisoModelo(null);
     const r = await definirModelo(await token(), slug, modelo || null).catch(() => null);

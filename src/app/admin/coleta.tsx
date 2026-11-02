@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/confirmar";
 import { ehVersaoAntiga, esperaDe, RECONECTOU, recarregarUmaVez } from "@/lib/conexao";
 import { idToken as tokenAtual } from "@/lib/firebase";
 
@@ -252,7 +253,11 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: (sl
           <button
             type="button"
             disabled={ligando}
-            onClick={() => (!local.ligado || confirm("Desligar o worker? A coleta em andamento para e continua de onde parou quando ele for ligado de novo.")) && ligarOuDesligar()}
+            onClick={async () =>
+              (!local.ligado ||
+                (await confirmar({ titulo: "Desligar o worker?", texto: "A coleta em andamento para e continua de onde parou quando ele for ligado de novo.", acao: "Desligar" }))) &&
+              ligarOuDesligar()
+            }
             className={`${BOTAO} shrink-0 border border-current bg-white disabled:opacity-50`}
           >
             {ligando ? "Aguarde…" : local.ligado ? "Desligar worker" : "Ligar worker"}
@@ -484,7 +489,7 @@ function Cartao({ c, agora, semWorker, aoMudar, aoGerar }: { c: Coleta; agora: n
 
   /** Um lote de 300 por chamada, até acabar; se um falhar, o botão continua do mesmo ponto. */
   async function gerar(aGerar: number) {
-    if (!confirm(`Gerar ${qtd(aGerar, "site", "sites")} de ${c.cidade}? Eles entram no ar e no funil.`)) return;
+    if (!(await confirmar({ titulo: `Gerar ${qtd(aGerar, "site", "sites")} de ${c.cidade}?`, texto: "Eles entram no ar e no funil.", acao: "Gerar", tom: "normal" }))) return;
     setOcupado(true);
     setErro("");
     let feitos = 0;
@@ -628,7 +633,7 @@ function Cartao({ c, agora, semWorker, aoMudar, aoGerar }: { c: Coleta; agora: n
 
       <div className="flex flex-wrap items-center gap-2">
         {(c.estado === "fila" || c.estado === "coletando") && (
-          <button type="button" disabled={ocupado} onClick={() => confirm(`Cancelar a coleta de ${c.cidade}? O que já foi coletado fica guardado se ela for recolocada na fila.`) && acao(async () => cancelarColeta(await tokenFresco(), c.id), aoMudar)} className={`${BOTAO} border border-[#D8D2C6] bg-white hover:border-[#17150F] disabled:opacity-50`}>
+          <button type="button" disabled={ocupado} onClick={async () => (await confirmar({ titulo: `Cancelar a coleta de ${c.cidade}?`, texto: "O que já foi coletado fica guardado se ela for recolocada na fila.", acao: "Cancelar a coleta" })) && acao(async () => cancelarColeta(await tokenFresco(), c.id), aoMudar)} className={`${BOTAO} border border-[#D8D2C6] bg-white hover:border-[#17150F] disabled:opacity-50`}>
             Cancelar
           </button>
         )}
@@ -646,15 +651,17 @@ function Cartao({ c, agora, semWorker, aoMudar, aoGerar }: { c: Coleta; agora: n
           <button
             type="button"
             disabled={ocupado}
-            onClick={() =>
-              confirm(
-                `Excluir a coleta de ${c.cidade}? ` +
-                  (c.estado === "pronta" && totalNovos > 0
+            onClick={async () =>
+              (await confirmar({
+                titulo: `Excluir a coleta de ${c.cidade}?`,
+                texto:
+                  c.estado === "pronta" && totalNovos > 0
                     ? `Os ${qtd(totalNovos, "novo", "novos")} ainda não viraram site e serão perdidos.`
                     : c.estado === "concluida"
                       ? "Os sites gerados continuam no ar; só este registro some."
-                      : "O registro e o que foi coletado somem."),
-              ) && acao(async () => excluirColeta(await tokenFresco(), c.id), aoMudar)
+                      : "O registro e o que foi coletado somem.",
+                acao: "Excluir",
+              })) && acao(async () => excluirColeta(await tokenFresco(), c.id), aoMudar)
             }
             className={`${BOTAO} ml-auto text-[#8A3A22] hover:bg-[#FBEFEB] disabled:opacity-50`}
           >

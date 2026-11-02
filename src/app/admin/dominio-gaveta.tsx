@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/confirmar";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import type { Dominio } from "@/lib/dominio";
@@ -44,7 +45,7 @@ export function DominioDoSite({ slug, publicado, token }: { slug: string; public
   }
 
   async function soltar() {
-    if (!dominio || !confirm(`Desligar ${dominio.host}? O site volta para ${slug}.ruphus.site.`)) return;
+    if (!dominio || !(await confirmar({ titulo: `Desligar ${dominio.host}?`, texto: `O site volta para ${slug}.ruphus.site.`, acao: "Desligar" }))) return;
     setBusy(true);
     const r = await soltarDominio(await token(), slug).catch(() => null);
     setBusy(false);
