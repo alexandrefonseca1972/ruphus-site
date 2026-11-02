@@ -13,20 +13,25 @@ import { ErroPrevisto } from "@/lib/erro-previsto";
 export { ErroPrevisto };
 export class SemAcesso extends ErroPrevisto {}
 
+/** Por que quem tem este token não entra, ou null se entra. Os campos vêm de config/admin:
+ *  lidos na hora (requireAdmin) ou da cópia que o índice do painel mantém. */
+export function semPermissao(uids: unknown, revogados: unknown, user: { uid: string; authTimeMs: number }) {
+  if (!Array.isArray(uids) || !uids.includes(user.uid)) return "Área restrita.";
+  if (sessaoRevogada(revogados, user.uid, user.authTimeMs)) return "Sua sessão foi encerrada. Entre novamente.";
+  return null;
+}
+
 export async function requireAdmin(idToken: string) {
   const user = await verifyFirebaseToken(idToken).catch(() => null);
   if (!user) throw new SemAcesso("Sessão expirada. Entre novamente.");
   const doc = await adminDb.doc(DOC).get();
-  const uids = doc.get("uids");
-  if (!Array.isArray(uids) || !uids.includes(user.uid)) throw new SemAcesso("Área restrita.");
-  if (sessaoRevogada(doc.get("revogados"), user.uid, user.authTimeMs)) {
-    throw new SemAcesso("Sua sessão foi encerrada. Entre novamente.");
-  }
+  const motivo = semPermissao(doc.get("uids"), doc.get("revogados"), user);
+  if (motivo) throw new SemAcesso(motivo);
   return user;
 }
 
 /** Entrada recusada pela validação: diz o campo e o limite, em vez de "não foi possível". */
-function invalido(err: ZodError) {
+export function invalido(err: ZodError) {
   const i = err.issues[0];
   const campo = i?.path.join(" › ") || "dados";
   const itens = i && "origin" in i && i.origin === "array" ? "itens" : "letras";

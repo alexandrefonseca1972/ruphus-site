@@ -1,6 +1,6 @@
 # Plano: painel do admin paginado no servidor
 
-Status: **proposta para revisão**. Nada foi implementado.
+Status: fase 1 no ar (PR #178); fase 2 implementada (índice e rota, sem uso pela tela).
 Escrito em 2026-11-01, depois dos PRs #176 e #177. Revisado no mesmo dia com a
 avaliação de riscos (seção 5) e os requisitos de qualidade de cada mudança (seção 6).
 
@@ -112,7 +112,8 @@ no-store, private`, porque leva telefones e nomes.
 A resposta traz: os itens da página (40; "mostrar mais" pede 80, 120…) com o CRM
 deles, o total filtrado, as contagens (chips, visões, prazos, alertas), as métricas
 e os primeiros cartões de cada coluna do funil, os totais do cabeçalho e o estado
-do índice (`versao`, `atualizadoEm`).
+do índice (`versao`, `montadoEm`). Os alertas vão com a contagem (`total`), sem a lista de
+slugs: o foco num alerta é o filtro `alerta`, aplicado no servidor.
 
 ### 3.4 A tela
 
@@ -143,7 +144,7 @@ Medidos em 01/11 quando indicado. Cada risco tem a correção que entra no plano
 | R3 | **Reconexão relê tudo**: listener desconectado por mais de 30 min é cobrado como consulta nova | Regra de cobrança do Firestore | Coberto por R2. O log de montagem também registra reconexões. |
 | R4 | **CPU bloqueia o processo**: 1 vCPU; filtro e ordem rodam no mesmo processo que serve os sites públicos | Ordenar: 87 ms com `localeCompare`; busca sem pré-normalizar: 16 ms | Uma passada (3.2), `Intl.Collator`, ordem base em cache, busca pré-normalizada (1 ms). Registrar consultas acima de 50 ms. Teste de desempenho com 20 mil itens sintéticos e teto de 50 ms. |
 | R5 | **Primeira consulta lenta**: montar leva 10,8 s | Medido | A rota espera a montagem até 20 s; passou disso, responde 503 com `Retry-After: 2`. A tela mostra "Preparando o painel…" e tenta de novo. |
-| R6 | **Listener cai e o índice fica velho** | `onError` só é chamado em erro definitivo; falha de rede o SDK reconecta sozinho | `onError` marca o índice como inválido, solta tudo e remonta com espera crescente (1 s a 60 s). A resposta leva `atualizadoEm`; a tela mostra aviso se passar de 1 min. Callback de snapshot nunca lança: erro de um documento é registrado e pulado. |
+| R6 | **Listener cai e o índice fica velho** | `onError` só é chamado em erro definitivo; falha de rede o SDK reconecta sozinho | `onError` solta o índice inteiro; a próxima consulta monta de novo (sem ninguém no admin, não relê nada). Montagem que falha espera de 1 s a 60 s, crescendo, antes de tentar outra vez; nesse meio a rota responde 503. A resposta leva `versao` e `montadoEm`. Callback de snapshot nunca lança: erro de um documento é registrado e pulado. |
 | R7 | **Documento estranho no Firestore** (campo de outro tipo, nome vazio, nota 50) | 14,9 mil documentos gravados por vários caminhos ao longo de meses | Cada documento passa por um schema zod tolerante (6.3): campo inválido vira o valor neutro (`null`, `""`), documento sem nome usa o slug. Uma linha de log por montagem com a contagem de documentos corrigidos. |
 | R8 | **Fuso horário**: "hoje", "atrasada" e "falei hoje" hoje usam o fuso do navegador; no servidor, usariam `TZ=America/Sao_Paulo` | `diaLocal` e `hojeISO` no `page.tsx`; `Environment=TZ` no serviço | A tela manda `hoje` (AAAA-MM-DD) e `tz` (nome IANA). O servidor valida (6.4) e calcula com eles. Teste na virada da meia-noite e com fuso diferente. |
 | R9 | **Tela pisca valor antigo** depois de uma ação, até o listener chegar | Listener leva ~1 s | Escrita do próprio processo atualiza o índice na hora (3.1). A tela ignora respostas mais velhas que a última pedida (número de sequência). |
@@ -199,7 +200,8 @@ Cada `tenant` e cada `crm` passa por um schema zod tolerante antes de entrar no
 índice:
 
 - `nome`: texto, sem caracteres de controle, até 120 caracteres; vazio usa o slug.
-- `telefone`: só dígitos, de 10 a 13; fora disso, `null`.
+- `telefone`: fica como foi gravado (a busca acha "(91) 9…", e a tela formata), limpo e
+  até 30 caracteres; com menos de 8 ou mais de 15 dígitos, `null`.
 - `uf`: uma das 27 siglas (`UFS` de `src/lib/coleta.ts`); fora disso, `null`. Em
   01/11 nenhum dos 14.937 negócios tinha UF fora das 27 siglas, mas o campo do
   cadastro é texto livre.
@@ -278,7 +280,10 @@ Cada fase é um PR com deploy, e a tela funciona igual no fim de cada uma.
    `src/lib/painel-consulta.ts`, com os testes 1 a 4. A tela passa a importá-las.
    Nenhuma mudança de comportamento.
 2. **Índice e endpoint**: listeners, rota e testes 5 a 7, ainda sem uso pela tela.
-   Medir a memória e as leituras da montagem na VPS.
+   Medir a memória e as leituras da montagem na VPS. As escritas do próprio processo
+   atualizando o índice na hora (3.1, R9) ficam para a fase 3, quando a tela passa a ler
+   do índice. `npm run test:painel-indice` (emulador) e `npm run conferir:indice`
+   (produção, só leitura, ~60 mil leituras).
 3. **Lista no servidor**: lista, visões, chips, alertas e busca passam a vir do
    endpoint, com `?modo=antigo` como saída.
 4. **Funil, carteira e cabeçalho** passam a vir do endpoint.

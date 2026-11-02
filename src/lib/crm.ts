@@ -77,7 +77,7 @@ export function negocio(d: { get: (campo: string) => unknown }): Crm {
 /** Importado que ninguém tocou: só a origem (e as notas do levantamento, cuja contagem a tela
  *  não mostra). É igual ao vazio que a tela usa para quem não tem CRM, que já conta como
  *  "novo" e "importado" — 12 mil dos 14 mil documentos, que não precisam ir ao navegador. */
-const trivial = (d: FirebaseFirestore.DocumentSnapshot) =>
+export const trivial = (d: FirebaseFirestore.DocumentSnapshot) =>
   Object.keys(d.data() ?? {}).every((k) => k === "origem" || k === "notas") && (d.get("origem") ?? "importado") === "importado";
 
 export async function lerCrm(db: Firestore, slugs?: string[]): Promise<Record<string, Crm>> {
