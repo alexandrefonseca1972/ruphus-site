@@ -9,6 +9,7 @@ import { PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
 import { deslogarInstancia, enviarTexto, qrDaConexao, statusDaConexao } from "@/lib/atendys";
+import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { aceitarTermoWhatsApp, conectarNegocio, desligarConexao, lerConfigWhatsApp, lerConexao, gravarConexao, paraTela } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
@@ -361,4 +362,11 @@ export const estornarAction = memberAction(z.object({ tenantId: docIdStaff, esto
   await exigeGestor(data.tenantId, user.uid);
   await estornar(adminDb, data.tenantId, data.estorno, user);
   return { ok: true as const };
+});
+
+/** Depois que a casa confirma um horário pelo painel: o cliente recebe o SMS de confirmação, se o
+ *  negócio tiver o SMS ligado. A confirmação em si é gravada pelo navegador (regras); isto só avisa,
+ *  e confere no banco que o horário está mesmo confirmado. */
+export const avisarConfirmacaoSmsAction = memberAction(z.object({ tenantId: docIdStaff, appointmentId: docIdStaff }), async (data) => {
+  return { ok: true as const, resultado: await avisarConfirmacaoPorSms(adminDb, data.tenantId, data.appointmentId) };
 });

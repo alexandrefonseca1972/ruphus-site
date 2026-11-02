@@ -647,5 +647,49 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   console.log("pedir remoção: ok");
 }
 
+// SMS de confirmação e lembrete (Comtele): só com o SMS ligado no negócio, uma vez por agendamento
+{
+  const { avisarConfirmacaoPorSms, enviarLembretesPorSms } = await import("@/lib/sms-agendamento.server");
+  const enviados: { numero: string; texto: string }[] = [];
+  const enviar = async (numero: string, texto: string) => (enviados.push({ numero, texto }), "id-1");
+  const falha = async () => {
+    throw new Error("Comtele fora");
+  };
+  const dia = addDays(todayIn(), 2);
+  await db.doc("tenants/sms-casa").set({ name: "Casa SMS", site: { uf: "SP", phone: "11933334444" }, sms: { ligado: true } });
+  await db.doc("tenants/sms-off").set({ name: "Casa sem SMS", site: { uf: "SP" } });
+  const horario = (slug: string, id: string, extra: Record<string, unknown> = {}) =>
+    db.doc(`tenants/${slug}/appointments/${id}`).set({ status: "confirmed", start: zonedTime(dia, "15:00"), serviceName: "Corte", customerName: "Marina Souza", customerPhone: "5511912345678", ...extra });
+  await horario("sms-casa", "a1");
+  await horario("sms-off", "a1");
+  await horario("sms-casa", "fixo", { customerPhone: "551133334444" });
+  await horario("sms-casa", "pendente", { status: "booked" });
+
+  assert.equal(await avisarConfirmacaoPorSms(db, "sms-off", "a1", { enviar }), "desligado");
+  assert.equal(await avisarConfirmacaoPorSms(db, "sms-casa", "pendente", { enviar }), "nada a avisar", "sem confirmação, sem SMS");
+  assert.equal(await avisarConfirmacaoPorSms(db, "sms-casa", "fixo", { enviar }), "sem celular", "fixo não recebe SMS");
+  assert.equal(await avisarConfirmacaoPorSms(db, "sms-casa", "a1", { enviar }), "enviado");
+  assert.equal(await avisarConfirmacaoPorSms(db, "sms-casa", "a1", { enviar }), "nada a avisar", "uma vez só");
+  assert.equal(enviados.length, 1);
+  assert.equal(enviados[0].numero, "11912345678");
+  assert.match(enviados[0].texto, /^Casa SMS: seu horario .* às 15:00 \(Corte\) esta confirmado\. Imprevisto\? Ligue \(11\) 93333-4444\.$/);
+  assert.equal((await db.doc("tenants/sms-casa/appointments/a1").get()).get("smsConfirmacaoId"), "id-1");
+
+  // envio que falha devolve a reserva
+  await horario("sms-casa", "a2");
+  assert.equal(await avisarConfirmacaoPorSms(db, "sms-casa", "a2", { enviar: falha }), "falhou");
+  assert.equal((await db.doc("tenants/sms-casa/appointments/a2").get()).get("smsConfirmacaoEm"), undefined, "reserva devolvida");
+
+  // lembrete: só dentro das 2 h antes, uma vez, e nunca no silêncio da noite
+  enviados.length = 0;
+  assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "12:30") }), 0, "cedo demais");
+  assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "13:30") }), 2, "a1 e a2 (o fixo e o pendente não)");
+  assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "14:00") }), 0, "uma vez só");
+  assert.ok(enviados.every((e) => e.texto.startsWith("Lembrete, Marina: seu horario")), enviados[0]?.texto);
+  await horario("sms-casa", "noite", { start: zonedTime(dia, "23:30") });
+  assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "22:15") }), 0, "silêncio das 22h às 7h30");
+  console.log("sms no agendamento: ok");
+}
+
 console.log("booking ok");
 process.exit(0);

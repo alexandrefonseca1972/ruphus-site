@@ -1,6 +1,7 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { quando } from "@/lib/avisos.server";
+import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { dateIn, formatTime } from "@/lib/datetime";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { criarInstancia, enviarTexto, garantirTenant, statusDaConexao, type ConexaoAtendys } from "@/lib/atendys";
@@ -346,6 +347,8 @@ export async function processarComandoAgendamento(
   }
 
   if (!(await mudou(await aplicar("confirmed", {})))) return "sem pendente";
+  // o SMS de confirmação, para o negócio que o tem ligado; falha não muda a confirmação
+  await avisarConfirmacaoPorSms(db, slug, a.id).catch((e) => console.error("[sms] confirmação pelo WhatsApp", e));
 
   const cliente = soDigitosComDDI(String(a.get("customerPhone") ?? ""));
   if (cliente) {

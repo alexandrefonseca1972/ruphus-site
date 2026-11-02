@@ -48,6 +48,7 @@ import { DIAS_CONVITE, LIMITE_STAFF_MAX } from "@/lib/limites";
 import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
 import { FichaDoNegocio } from "./ficha-gaveta";
 import { SiteDoNegocio } from "./site-gaveta";
+import { SmsDoNegocio } from "./sms-gaveta";
 import { WhatsAppDoNegocio } from "./whatsapp-gaveta";
 import { EnviarPorEmail } from "./enviar-email";
 import { Carteira } from "./carteira";
@@ -1909,7 +1910,12 @@ export default function AdminPage() {
             )}
             {aba === "ficha" && <FichaDoNegocio key={`ficha-${aberto.slug}`} slug={aberto.slug} token={token} />}
             {aba === "site" && <SiteDoNegocio key={`site-${aberto.slug}`} slug={aberto.slug} token={token} />}
-            {aba === "whatsapp" && <WhatsAppDoNegocio key={`zap-${aberto.slug}`} slug={aberto.slug} token={token} />}
+            {aba === "whatsapp" && (
+              <>
+                <WhatsAppDoNegocio key={`zap-${aberto.slug}`} slug={aberto.slug} token={token} />
+                <SmsDoNegocio key={`sms-${aberto.slug}`} slug={aberto.slug} token={token} />
+              </>
+            )}
             {aba === "cliente" && (
               <>
             {clienteAberto && <ImplantacaoESaude saude={saude} lembrar={(p) => lembrar(aberto.slug, p)} />}
