@@ -12,9 +12,12 @@ const lista = fonte.match(/const CAMPOS_DA_LISTA = \[([^\]]*)\]/)?.[1];
 assert.ok(lista, "CAMPOS_DA_LISTA sumiu de actions.ts");
 const pedidos = new Set([...lista.matchAll(/"([^"]+)"/g)].map((m) => m[1]));
 
-const mapeamento = fonte.match(/\.map\(\(d\): Espaco => \(\{([\s\S]*?)\}\)\)/)?.[1];
+// os campos são lidos e limpos por espacoDe (src/lib/painel-indice.server.ts), o mesmo do índice
+assert.match(fonte, /espacoDe\(d\.id, \(c\) => d\.get\(c\)/, "a lista não usa mais espacoDe: confira o select à mão");
+const indice = readFileSync(new URL("./src/lib/painel-indice.server.ts", import.meta.url), "utf8");
+const mapeamento = indice.match(/export function espacoDe\([\s\S]*?\n\}/)?.[0];
 assert.ok(mapeamento, "o mapeamento de Espaco mudou de forma");
-const lidos = [...mapeamento.matchAll(/d\.get\("([^"]+)"\)/g)].map((m) => m[1]);
+const lidos = [...mapeamento.matchAll(/(?:conferido|get)\("([^"]+)"/g)].map((m) => m[1]);
 assert.ok(lidos.length >= 7, `só ${lidos.length} campos lidos: a regex não está pegando o mapeamento`);
 
 for (const campo of lidos) {
