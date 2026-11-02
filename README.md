@@ -1,6 +1,6 @@
 # Ruphus
 
-Next.js 16 · Firebase · Vercel · [o que mudou em cada versão](CHANGELOG.md)
+Next.js 16 · Firebase · VPS (Caddy + systemd) · [o que mudou em cada versão](CHANGELOG.md)
 
 **Agenda online e site para quem atende de porta aberta.** Salões, barbearias, pet shops, clínicas e estúdios ganham um endereço próprio, uma agenda que o cliente usa sozinho e um painel para tocar o dia. A Ruphus vende, implanta e cobra por isso — e este repositório é o produto inteiro: o site público, o painel do negócio, o CRM de vendas e a cobrança por Pix.
 
@@ -77,7 +77,7 @@ Quatro telas, escolhidas na barra de cima: **Lista**, **Funil**, **Clientes** e 
 | Servidor | **firebase-admin** em Server Actions | O que decide limite e acesso roda fora do navegador |
 | Validação | **zod v4** | Um esquema por entrada, do formulário à gravação |
 | Pagamento | Pix **BR Code** gerado no próprio app (`src/lib/pix.ts`) | Sem intermediário e sem taxa por transação |
-| Hospedagem | **Vercel** + GitHub Actions | Deploy no merge; os testes rodam no CI |
+| Hospedagem | **VPS** (Caddy + systemd) + GitHub Actions | Deploy com `scripts/deploy-vps.sh`; os testes rodam no CI |
 
 > **Atenção:** este Next.js não é o das suas lembranças. Antes de escrever código, leia o guia correspondente em `node_modules/next/dist/docs/` — APIs, convenções e estrutura de arquivos mudaram. Isso vale para humanos e para agentes (veja `AGENTS.md`).
 
@@ -97,7 +97,6 @@ Mudou o `next.config.ts`? Reinicie o servidor — ele só lê essa configuraçã
 
 Mexeu no `package-lock.json` (inclusive para desfazer um `npm audit fix`)? Rode `npm ci`: lockfile revertido sem reinstalar deixa o `node_modules` inconsistente, e o erro aparece dentro de `node_modules`, longe da causa.
 
-**Cuidado com `vercel link` e `vercel env pull`**: eles reescrevem o `.env.local` e levam junto o que a CLI não conhece, como o `GOOGLE_APPLICATION_CREDENTIALS`. Sem essa linha, o Admin SDK não lê `config/admin` e o admin da plataforma cai no `/painel`.
 
 **Emuladores**, para os testes que tocam o banco:
 
@@ -112,7 +111,7 @@ Os emuladores sobem e caem sozinhos dentro de cada comando; nada precisa estar r
 
 ## Variáveis de ambiente
 
-Em `.env.local` (desenvolvimento) e no painel da Vercel (produção).
+Em `.env.local` (desenvolvimento) e em `/opt/ruphus-site/app/.env.local` na VPS (produção; o deploy copia para cada versão nova). As chaves de SMS, e-mail e WhatsApp também podem ser cadastradas no `/admin`, em Ajustes.
 
 | Variável | Onde vale | Para quê |
 |---|---|---|
@@ -123,7 +122,7 @@ Em `.env.local` (desenvolvimento) e no painel da Vercel (produção).
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | cliente | SDK |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | cliente | SDK |
 | `NEXT_PUBLIC_SITE_URL` | cliente | links absolutos (convite, compartilhar) |
-| `FIREBASE_SERVICE_ACCOUNT` | servidor | credencial do Admin SDK, em JSON, na Vercel |
+| `FIREBASE_SERVICE_ACCOUNT` | servidor | credencial do Admin SDK, em JSON, na VPS |
 | `GOOGLE_APPLICATION_CREDENTIALS` | servidor local | caminho do `.json` da conta de serviço |
 | `OWNER_UID` | scripts | quem vira admin da plataforma no primeiro uso |
 | `SITE_URL` | servidor | origem que o proxy usa para consultar a lista de sites fechados |
@@ -131,7 +130,7 @@ Em `.env.local` (desenvolvimento) e no painel da Vercel (produção).
 | `GMAIL_USER` | servidor | conta da Ruphus que envia as propostas por e-mail (`app.ruphus@gmail.com`) |
 | `GMAIL_APP_PASSWORD` | servidor | senha de app dessa conta (exige verificação em duas etapas); sem ela o envio recusa com mensagem clara |
 
-`NEXT_PUBLIC_VERSAO` e `NEXT_PUBLIC_COMMIT` não se preenchem à mão: o `next.config.ts` injeta a versão do `package.json` e o commit da Vercel, que aparecem no rodapé do `/admin`.
+`NEXT_PUBLIC_VERSAO` e `NEXT_PUBLIC_COMMIT` não se preenchem à mão: o `next.config.ts` injeta a versão do `package.json` e o commit do deploy (`GIT_COMMIT_SHA`, passado pelo `scripts/deploy-vps.sh`), que aparecem no rodapé do `/admin`.
 
 ---
 
@@ -261,9 +260,9 @@ Todo script que grava tem um modo de simulação: rode sem `--aplicar` primeiro.
 ## Deploy
 
 1. Trabalhe numa branch e abra o PR.
-2. O CI roda os testes (~10 min) e a Vercel publica um preview.
+2. O CI roda os testes (~10 min).
 3. Com o CI verde **no commit final**, `gh pr merge --squash --delete-branch`.
-4. O merge na `main` dispara o deploy de produção.
+4. Publique a `main` na VPS: `git switch --detach origin/main && bash scripts/deploy-vps.sh` (sobe o commit atual, sem o que não foi commitado; o anterior fica em `app-prev`).
 5. As regras saem à parte, **depois** do código — publicá-las antes quebraria a versão que ainda está no ar:
 
 ```bash
@@ -272,7 +271,7 @@ npx firebase deploy --only firestore:rules,storage    # projeto padrão: .fireba
 
 6. Subiu versão? `package.json` e uma entrada no `CHANGELOG.md`.
 
-A versão no ar aparece no rodapé do `/admin` (`v0.3.0 · <commit>`), e vem do `package.json` mais o commit da Vercel.
+A versão no ar aparece no rodapé do `/admin` (`v0.3.0 · <commit>`), e vem do `package.json` mais o commit do deploy.
 
 ---
 

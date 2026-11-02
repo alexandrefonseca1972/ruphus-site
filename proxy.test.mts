@@ -109,7 +109,6 @@ import { normalizarHost, raizDe, resolverDominio, urlDoSite } from "@/lib/domini
 assert.equal(normalizarHost(" https://WWW.SalaoDaAna.com.br/agendar "), "www.salaodaana.com.br");
 assert.equal(normalizarHost("salaodaana.com.br."), "salaodaana.com.br");
 assert.equal(normalizarHost("barbearia-force.ruphus.site"), null, "endereço da Ruphus não é domínio de cliente");
-assert.equal(normalizarHost("x.vercel.app"), null);
 assert.equal(normalizarHost("nao é dominio"), null);
 assert.equal(normalizarHost("localhost"), null);
 assert.equal(raizDe("www.salao.com.br"), "salao.com.br");

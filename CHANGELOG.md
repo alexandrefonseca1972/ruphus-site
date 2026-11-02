@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- A Vercel saiu do código: sem `vercel.json`, domínio próprio só pelo modo VPS (DNS no IP da VPS, certificado pelo Caddy), e a documentação de deploy aponta para `scripts/deploy-vps.sh`.
+
 - Admin ganha a tela **Ajustes**: as chaves do SMS (Comtele), do e-mail (Resend e Gmail) e do WhatsApp (atendys) são cadastradas ali e valem na hora, sem mexer no `.env` nem reiniciar. O `.env` segue valendo para o que não for cadastrado.
 
 - Termos e Privacidade seguem a identidade visual da Ruphus, com fontes locais e navegação responsiva. A versão contratual já publicada permanece intacta.

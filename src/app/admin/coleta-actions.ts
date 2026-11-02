@@ -50,7 +50,6 @@ export const jaTemosNaCidade = adminAction(async (_user, cidade: string, uf: str
 
 // ── worker ligado pelo admin ────────────────────────────────────────────────────────
 // Só onde o Next roda na mesma máquina que o agent-browser (npm run dev no Mac, ou uma VPS).
-// Na Vercel não há navegador nem processo que dure horas: lá o botão some e fica o comando.
 const RAIZ = process.env.COLETA_PASTA ?? join(process.cwd(), "dblocal/pesquisa");
 const PID = join(RAIZ, "worker.pid");
 const LOG = join(RAIZ, "worker.log");
@@ -60,7 +59,7 @@ const SEM_SINAL_MS = 3 * 60_000;
 let temNavegador: boolean | undefined;
 function podeLigarAqui() {
   // COLETA_SERVICO: o worker é um serviço da máquina (systemd na VPS), não um processo do admin
-  if (process.env.VERCEL || process.env.COLETA_SERVICO) return false;
+  if (process.env.COLETA_SERVICO) return false;
   temNavegador ??= spawnSync("agent-browser", ["--version"], { timeout: 10_000, stdio: "ignore" }).status === 0;
   return temNavegador;
 }

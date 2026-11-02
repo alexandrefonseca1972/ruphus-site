@@ -5,9 +5,9 @@ import { PAGINAS_DEMO } from "@/lib/demo";
 import { segredoIgual } from "@/lib/segredo.server";
 import { restaurarDemo } from "@/lib/demo.server";
 
-// Restauração diária da demonstração, de madrugada (vercel.json: 06:00 UTC = 03:00 em
-// Brasília): as datas de exemplo andam com o calendário e o teste da véspera some. A
-// Vercel chama com "Authorization: Bearer $CRON_SECRET"; sem o segredo, ninguém restaura.
+// Restauração diária da demonstração, às 03:00 (deploy/crontab.txt): as datas de exemplo
+// andam com o calendário e o teste da véspera some. O cron da VPS chama com
+// "Authorization: Bearer $CRON_SECRET"; sem o segredo, ninguém restaura.
 export async function GET(request: NextRequest) {
   const segredo = process.env.CRON_SECRET;
   if (!segredo || !segredoIgual(request.headers.get("authorization"), `Bearer ${segredo}`)) {

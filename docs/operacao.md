@@ -13,9 +13,8 @@ como conferir que deu certo.
 1. Branch, commit, PR.
 2. Espere o CI **do commit final** — não o de um commit anterior do PR.
 3. `gh pr merge <n> --squash --delete-branch`.
-4. O merge na `main` dispara o deploy da Vercel.
-5. Conferir: `curl -s https://www.ruphus.site/painel | grep -o 'dpl_[A-Za-z0-9]*'`
-   deve mostrar um id novo, e o rodapé do `/admin` a versão nova.
+4. Publicar na VPS: `git switch --detach origin/main && bash scripts/deploy-vps.sh`.
+5. Conferir: o rodapé do `/admin` mostra o commit novo.
 
 ## Publicar regras do Firestore ou do Storage
 
@@ -111,10 +110,7 @@ aberta a partir dali — as já geradas mantêm o código antigo.
 
 O Admin SDK não está conseguindo ler `config/admin`. Quase sempre é credencial:
 confira `GOOGLE_APPLICATION_CREDENTIALS` no `.env.local` (local) ou
-`FIREBASE_SERVICE_ACCOUNT` (Vercel).
-
-> `vercel link` e `vercel env pull` **reescrevem o `.env.local`** e levam essa
-> linha junto. Se acabou de rodar um deles, é isso.
+`FIREBASE_SERVICE_ACCOUNT` (no `.env.local` da VPS).
 
 ### Erro estranho dentro de `node_modules`
 

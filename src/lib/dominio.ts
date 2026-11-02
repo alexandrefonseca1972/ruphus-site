@@ -1,7 +1,7 @@
 // Domínio próprio do site do cliente (ex.: www.salaodaana.com.br). Código puro: roda no
 // proxy, no servidor, no navegador e nos testes.
 //
-// O cliente mantém o domínio no nome dele e aponta o DNS para a Vercel; a Ruphus
+// O cliente mantém o domínio no nome dele e aponta o DNS para a VPS; a Ruphus
 // cadastra o endereço no /admin. Ativo (DNS conferido), o site responde nele, a raiz
 // leva ao www, e {slug}.ruphus.site passa a redirecionar para lá.
 
@@ -15,7 +15,7 @@ export function normalizarHost(entrada: string): string | null {
   const h = entrada.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/[/?#].*$/, "").replace(/\.$/, "");
   if (!HOSTNAME.test(h)) return null;
   // os endereços da própria Ruphus não viram domínio de cliente
-  if (h === "ruphus.site" || h.endsWith(".ruphus.site") || h.endsWith(".vercel.app")) return null;
+  if (h === "ruphus.site" || h.endsWith(".ruphus.site")) return null;
   return h;
 }
 
