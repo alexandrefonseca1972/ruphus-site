@@ -22,6 +22,9 @@ ssh "$VPS" SHA="$SHA" BASE="$BASE" bash -s <<'REMOTO'
 set -euo pipefail
 cd "$BASE"
 cp app/.env.local app-new/.env.local
+# o mesmo id no build e no `next start` (que relê o next.config): uma aba aberta antes da
+# publicação recarrega sozinha na próxima navegação, e os assets não baixam duas vezes
+echo "NEXT_DEPLOYMENT_ID=${SHA:0:12}" > app-new/.env.production
 chown -R ruphus:ruphus app-new
 sudo -u ruphus env SHA="$SHA" bash -c 'cd app-new && npm ci --no-audit --no-fund --loglevel=error && GIT_COMMIT_SHA="$SHA" NEXT_TELEMETRY_DISABLED=1 npm run build'
 rm -rf app-prev && mv app app-prev && mv app-new app
