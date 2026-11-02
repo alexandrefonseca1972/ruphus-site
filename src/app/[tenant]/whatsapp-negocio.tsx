@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/confirmar";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -118,7 +119,7 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
   }
 
   async function desconectar() {
-    if (!window.confirm("Desconectar o WhatsApp do negócio? O número sai do gateway e para de responder pela plataforma.")) return;
+    if (!(await confirmar({ titulo: "Desconectar o WhatsApp do negócio?", texto: "O número sai do gateway e para de responder pela plataforma.", acao: "Desconectar" }))) return;
     setBusy(true);
     setAviso(null);
     const r = await desconectarWhatsAppDonoAction(await idToken(), { tenantId: slug }).catch(() => null);

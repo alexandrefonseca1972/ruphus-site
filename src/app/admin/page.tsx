@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/confirmar";
 import { idToken as tokenAtual } from "@/lib/firebase";
 import { onAuthStateChanged, onIdTokenChanged, signOut } from "firebase/auth";
 import Link from "next/link";
@@ -354,7 +355,7 @@ export default function AdminPage() {
   // Sai da conta da Ruphus e não tem volta: a confirmação fica aqui. O link fica
   // no estado, então copiar e enviar pelo WhatsApp continuam valendo o mesmo.
   async function enviarConviteEmail(slug: string, email: string) {
-    if (!window.confirm(`Enviar o convite de acesso por e-mail para ${email}?`)) return;
+    if (!(await confirmar({ titulo: "Enviar o convite por e-mail?", texto: `O convite de acesso vai para ${email}.`, acao: "Enviar", tom: "normal" }))) return;
     setAviso("");
     const r = await enviarConvitePorEmail(await token(), slug);
     setRecarga((x) => x + 1);
@@ -395,9 +396,9 @@ export default function AdminPage() {
 
   async function mudarCaixa(slug: string, nome: string, ligado: boolean) {
     const pergunta = ligado
-      ? `Ligar o Caixa para ${nome}? O link aparece no painel do dono.`
-      : `Desligar o Caixa de ${nome}? O link some do painel; os lançamentos ficam guardados.`;
-    if (!window.confirm(pergunta)) return;
+      ? { titulo: `Ligar o Caixa para ${nome}?`, texto: "O link aparece no painel do dono.", acao: "Ligar", tom: "normal" as const }
+      : { titulo: `Desligar o Caixa de ${nome}?`, texto: "O link some do painel; os lançamentos ficam guardados.", acao: "Desligar" };
+    if (!(await confirmar(pergunta))) return;
     const r = await definirCaixa(await token(), slug, ligado);
     setRecarga((x) => x + 1);
     if (!r.ok) return setAviso(r.error);
@@ -544,7 +545,7 @@ export default function AdminPage() {
 
   // Sai da conta da Ruphus e não tem volta: a confirmação fica aqui, não no botão.
   async function enviarPropostaEmail(slug: string, email: string) {
-    if (!window.confirm(`Enviar a proposta por e-mail para ${email}?`)) return;
+    if (!(await confirmar({ titulo: "Enviar a proposta por e-mail?", texto: `A proposta vai para ${email}.`, acao: "Enviar", tom: "normal" }))) return;
     const r = await enviarPropostaPorEmail(await token(), slug, email);
     setRecarga((x) => x + 1);
     if (!r.ok) return setAviso(r.error);
