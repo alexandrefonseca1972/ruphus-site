@@ -9,7 +9,7 @@ import { DadosCliente } from "@/lib/cliente-dados";
 import { addDays, agoraNaParede, customerKey, formatPhone, fusoDaUF, maskBRL, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 import { cotaDe, criarNegocio, definirLimite } from "@/lib/negocios.server";
-import { anotar, linhaDoTempo, registrarMensagem, salvarCrm } from "@/lib/crm";
+import { anotar, linhaDoTempo, pedirRemocao, propostaRemovivel, registrarMensagem, salvarCrm } from "@/lib/crm";
 import { saudeDe } from "@/lib/saude.server";
 
 // Funções puras
@@ -581,6 +581,41 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.deepEqual(filhos.map((f) => f.ok && f.staffName), ["Ana", "Bia"], "dois filhos, duas reservas");
   // o servidor aplica a regra de telefone da tela
   assert.equal(BookingInput.safeParse({ ...base, serviceIds: ["corte"], time: "11:00", customerPhone: "0000000000" }).success, false);
+}
+
+// "Pedir remoção" da faixa de proposta: tira do ar e registra no CRM
+{
+  const proposta = (slug: string, gerado: Record<string, unknown>) => db.doc(`tenants/${slug}`).set({ name: `Casa ${slug}`, gerado: { sub: "salao", ...gerado } });
+  await proposta("rem-ok", { origem: "prospeccao" });
+  await db.doc("crm/rem-ok").set({ estagio: "oferta" });
+  assert.deepEqual(await propostaRemovivel(db, "rem-ok"), { nome: "Casa rem-ok", removida: false });
+  assert.equal(await pedirRemocao(db, "rem-ok"), true);
+  const c = await db.doc("crm/rem-ok").get();
+  assert.deepEqual([c.get("publicado"), c.get("estagio"), c.get("motivoPerda")], [false, "perdido", "remocao"], "fora do ar, perdido, motivo remoção");
+  assert.ok(c.get("remocaoPedidaEm") && c.get("perdidoEm"), "data do pedido e da perda");
+  const ev = await linhaDoTempo(db, "rem-ok");
+  assert.ok(ev.some((e) => e.titulo === "Oferta enviada → Perdido" && e.detalhe === "Pediu a remoção da página"), "evento com o motivo");
+  assert.equal(await pedirRemocao(db, "rem-ok"), true, "pedir de novo: já removida");
+  assert.equal((await linhaDoTempo(db, "rem-ok")).length, ev.length, "sem evento repetido");
+
+  // já perdido por outro motivo: ainda assim registra o pedido
+  await proposta("rem-perdido", {});
+  await db.doc("crm/rem-perdido").set({ estagio: "perdido", motivoPerda: "preco" });
+  assert.equal(await pedirRemocao(db, "rem-perdido"), true);
+  assert.equal((await db.doc("crm/rem-perdido").get()).get("publicado"), false);
+  assert.ok((await linhaDoTempo(db, "rem-perdido")).some((e) => e.titulo === "Página tirada do ar"));
+
+  // o que não se remove pelo link: cliente fechado, site do cadastro, site publicado, inexistente
+  await proposta("rem-cliente", {});
+  await db.doc("crm/rem-cliente").set({ estagio: "fechado" });
+  await proposta("rem-cadastro", { origem: "cadastro" });
+  await proposta("rem-publicado", { publicadoEm: new Date() });
+  for (const slug of ["rem-cliente", "rem-cadastro", "rem-publicado", "rem-nao-existe"]) {
+    assert.equal(await propostaRemovivel(db, slug), null, slug);
+    assert.equal(await pedirRemocao(db, slug), false, slug);
+  }
+  assert.equal((await db.doc("crm/rem-cliente").get()).get("publicado"), undefined, "cliente intocado");
+  console.log("pedir remoção: ok");
 }
 
 console.log("booking ok");

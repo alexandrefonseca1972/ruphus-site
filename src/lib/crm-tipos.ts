@@ -39,6 +39,8 @@ export const MOTIVOS_PERDA = {
   sem_interesse: "Sem interesse agora",
   nao_respondeu: "Não respondeu",
   fechou: "Fechou o negócio",
+  // pelo "Pedir remoção" da faixa de proposta: o próprio negócio tirou a página do ar
+  remocao: "Pediu a remoção da página",
   outro: "Outro",
 } as const;
 export type MotivoPerda = keyof typeof MOTIVOS_PERDA;

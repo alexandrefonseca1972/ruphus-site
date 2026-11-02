@@ -93,6 +93,30 @@ export async function lerFechados(db: Firestore): Promise<Record<string, Crm>> {
   return Object.fromEntries(q.docs.map((d) => [d.id, negocio(d)]));
 }
 
+/** A proposta que ainda pode ser removida pelo próprio negócio: feita pela Ruphus (não pelo dono, no
+ *  cadastro), ainda não publicada (entrada não paga) e de quem não é cliente. null: não pode. */
+export async function propostaRemovivel(db: Firestore, slug: string) {
+  const [tenant, crm] = await Promise.all([db.doc(`tenants/${slug}`).get(), db.collection(RAIZ).doc(slug).get()]);
+  if (!tenant.exists || !tenant.get("gerado") || tenant.get("gerado.origem") === "cadastro" || tenant.get("gerado.publicadoEm")) return null;
+  if (crm.get("estagio") === "fechado") return null;
+  return { nome: String(tenant.get("name") ?? slug), removida: crm.get("publicado") === false };
+}
+
+/** "Pedir remoção" da faixa de proposta: a página sai do ar na hora (a lista de desativados que o
+ *  proxy lê) e o CRM registra quem pediu e quando: perdido, motivo "Pediu a remoção da página". */
+export async function pedirRemocao(db: Firestore, slug: string) {
+  const proposta = await propostaRemovivel(db, slug);
+  if (!proposta) return false;
+  if (proposta.removida) return true;
+  const autor = "o próprio negócio, pelo link da página";
+  const antes = (await db.collection(RAIZ).doc(slug).get()).get("estagio");
+  await salvarCrm(db, slug, { estagio: "perdido", motivoPerda: "remocao", publicado: false }, autor);
+  // já estava perdido: o salvarCrm não registra evento sem mudança de estágio, e o pedido precisa ficar
+  if (antes === "perdido") await evento(db, slug, { tipo: "estagio", titulo: "Página tirada do ar", detalhe: MOTIVOS_PERDA.remocao, autor });
+  await db.collection(RAIZ).doc(slug).set({ remocaoPedidaEm: FieldValue.serverTimestamp() }, { merge: true });
+  return true;
+}
+
 export async function salvarCrm(db: Firestore, slug: string, entrada: CrmInput, autor = "sistema") {
   const parsed = CrmInput.safeParse(entrada);
   if (!parsed.success) throw new CrmErro(parsed.error.issues[0].message);
