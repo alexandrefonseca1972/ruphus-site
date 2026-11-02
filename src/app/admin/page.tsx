@@ -185,8 +185,18 @@ export default function AdminPage() {
   // o painel se alinha pela direita do botão; quando a barra quebra e o botão cai à esquerda, isso o joga para fora da tela
   const [filtrosAEsquerda, setFiltrosAEsquerda] = useState(false);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
-  // negócios com escrita em curso: a página que chegar no meio (pedida antes) não desfaz a edição
-  const pendentes = useRef(new Set<string>());
+  // negócios com escrita em curso (quantas): a página que chegar no meio (pedida antes) não desfaz a edição
+  const pendentes = useRef(new Map<string, number>());
+  const marcarPendente = (slug: string) => pendentes.current.set(slug, (pendentes.current.get(slug) ?? 0) + 1);
+  const soltarPendente = (slug: string) => {
+    const n = (pendentes.current.get(slug) ?? 1) - 1;
+    if (n > 0) pendentes.current.set(slug, n);
+    else pendentes.current.delete(slug);
+  };
+  // negócios cujo CRM já veio do servidor: sem ele, `crm[slug]` ausente não diz se o negócio não tem
+  // CRM ou se a página só não o recebeu ainda. A gaveta só mostra os campos (que gravam ao sair do
+  // campo) de quem está aqui: com o CRM vazio no lugar, um clique gravava vazio por cima do real.
+  const [conhecidos, setConhecidos] = useState<ReadonlySet<string>>(new Set());
   // muda depois de cada escrita: a página do servidor é pedida de novo
   const [recarga, setRecarga] = useState(0);
   // o período e quantos cartões de "Novo" o funil mostra: entram na consulta da rota
@@ -247,6 +257,7 @@ export default function AdminPage() {
   const guardar = (p: PaginaDoServidor) => {
     const vindos = [...p.itens, ...(p.funil ? COLUNAS.flatMap((c) => p.funil!.colunas[c].cartoes) : [])].filter((e) => !pendentes.current.has(e.slug));
     if (!vindos.length) return;
+    setConhecidos((c) => new Set([...c, ...vindos.map((e) => e.slug)]));
     setEspacos((c) => ({ ...c, ...Object.fromEntries(vindos.map((e) => [e.slug, e])) }));
     setCrm((c) => {
       const novo = { ...c };
@@ -283,6 +294,7 @@ export default function AdminPage() {
   async function abrir(e: Espaco) {
     abertoRef.current = e.slug;
     setAberto(e);
+    setEspacos((c) => (c[e.slug] ? c : { ...c, [e.slug]: e }));
     setMenuNegocio(false);
     setProposta(null);
     setAcessos(null);
@@ -295,7 +307,20 @@ export default function AdminPage() {
     const [a, d, n] = await Promise.all([listarAcessos(t, e.slug), detalhesEspaco(t, e.slug), linhaDoTempoDo(t, e.slug)]);
     if (abertoRef.current !== e.slug) return;
     if (a.ok) setAcessos(a.dados);
-    if (d.ok) setDetalhe(d.dados);
+    if (d.ok) {
+      setDetalhe(d.dados);
+      // aberto de fora da Lista e do Funil (Carteira, Cobrança): o CRM vem com os detalhes
+      if (!conhecidos.has(e.slug) && !pendentes.current.has(e.slug)) {
+        const doServidor = d.dados.crm;
+        setCrm((c) => {
+          const novo = { ...c };
+          if (doServidor) novo[e.slug] = doServidor;
+          else delete novo[e.slug];
+          return novo;
+        });
+        setConhecidos((c) => new Set(c).add(e.slug));
+      }
+    }
     if (n.ok) setEventos(n.dados);
   }
 
@@ -390,11 +415,14 @@ export default function AdminPage() {
   const zapDono = (aberto && crm[aberto.slug]?.donoWhatsapp) || detalhe?.telefone || null;
 
   async function mudarNegocio(slug: string, dados: Partial<Crm>) {
-    const atual = crm[slug] ?? VAZIO;
-    pendentes.current.add(slug);
-    setCrm((c) => ({ ...c, [slug]: { ...atual, ...dados } as Crm }));   // resposta imediata na tela
+    const atual = crm[slug];
+    // só com o CRM conhecido a tela adianta a mudança: sobre um desconhecido (cobrança que tira do ar
+    // um negócio fora da tela), juntar a VAZIO inventaria um registro "Novo" sem contatos
+    const conhecido = conhecidos.has(slug);
+    marcarPendente(slug);
+    if (conhecido) setCrm((c) => ({ ...c, [slug]: { ...(atual ?? VAZIO), ...dados } as Crm }));   // resposta imediata na tela
     if (dados.estagio) setAlterados((a) => new Set(a).add(slug));
-    const r = await salvarNegocio(await token(), slug, dados).finally(() => pendentes.current.delete(slug));
+    const r = await salvarNegocio(await token(), slug, dados).finally(() => soltarPendente(slug));
     setRecarga((x) => x + 1);
     // o servidor já tem o estágio novo (a ação atualiza o índice antes de responder): passado o
     // tempo da recarga, o funil volta a seguir o servidor, que vê também o que outros mudarem
@@ -403,7 +431,13 @@ export default function AdminPage() {
     // que o servidor recusou — e o aviso some na primeira ação seguinte
     if (!r.ok) {
       setAviso(r.error);
-      setCrm((c) => ({ ...c, [slug]: atual }));
+      if (conhecido)
+        setCrm((c) => {
+          const volta = { ...c };
+          if (atual) volta[slug] = atual;
+          else delete volta[slug];
+          return volta;
+        });
       return false;
     }
     // mudança de estágio vira evento: a linha do tempo aberta acompanha
@@ -574,8 +608,8 @@ export default function AdminPage() {
       for (const s of lista) novo[s] = { ...(novo[s] ?? VAZIO), estagio };
       return novo;
     });
-    for (const s of lista) pendentes.current.add(s);
-    const r = await marcarEstagio(await token(), lista, estagio).finally(() => lista.forEach((s) => pendentes.current.delete(s)));
+    lista.forEach(marcarPendente);
+    const r = await marcarEstagio(await token(), lista, estagio).finally(() => lista.forEach(soltarPendente));
     setRecarga((x) => x + 1);
     setTimeout(() => setAlterados((a) => new Set([...a].filter((x) => !lista.includes(x)))), 5000);
     if (!r.ok) {
@@ -1148,8 +1182,26 @@ export default function AdminPage() {
         ) : tela === "clientes" ? (
           <Carteira idToken={idToken} hoje={dataDeHoje} abrir={abrir} />
         ) : tela === "funil" && !resumo ? (
-          <p className="p-10 text-sm text-[#6F6A5E]">{doServidor.situacao === "erro" ? doServidor.erro : "Carregando o funil…"}</p>
+          <p className="flex items-center gap-3 p-10 text-sm text-[#6F6A5E]">
+            {doServidor.situacao === "erro" ? doServidor.erro : doServidor.situacao === "preparando" ? "Preparando o painel…" : "Carregando o funil…"}
+            {doServidor.situacao === "erro" && (
+              <button type="button" onClick={doServidor.tentarDeNovo} className={MENOR}>
+                Tentar de novo
+              </button>
+            )}
+          </p>
         ) : tela === "funil" && resumo ? (
+          <div className="flex flex-col gap-2">
+          {/* números de outro período ou filtro, enquanto os pedidos não chegam: esmaecidos, e o erro com saída */}
+          {!daRota?.funil && doServidor.situacao === "erro" && (
+            <p className="flex items-center gap-2 text-[13px] text-[#8A2F2F]">
+              {doServidor.erro} Os números abaixo são da consulta anterior.
+              <button type="button" onClick={doServidor.tentarDeNovo} className={MENOR}>
+                Tentar de novo
+              </button>
+            </p>
+          )}
+          <div className={daRota?.funil ? undefined : "opacity-60"}>
           <Funil
             resumo={resumo}
             crm={crmDoFunil}
@@ -1178,6 +1230,8 @@ export default function AdminPage() {
               setTela("lista");
             }}
           />
+          </div>
+          </div>
         ) : (
         <section aria-label="Espaços" className={`${CARTAO} overflow-hidden`}>
           {marcados.size > 0 && (
@@ -1260,7 +1314,12 @@ export default function AdminPage() {
             <span className="w-[180px] shrink-0" />
           </div>
 
-          <ul aria-busy={carregandoLista} className={carregandoLista && visiveis.length ? "pointer-events-none opacity-60" : undefined}>
+          <ul aria-busy={carregandoLista} inert={carregandoLista || undefined} className={carregandoLista && visiveis.length ? "opacity-60" : undefined}>
+            {!mostrada && (
+              <li className="px-5 py-12 text-center text-sm text-[#6F6A5E]">
+                {doServidor.situacao === "preparando" ? "Preparando o painel…" : doServidor.situacao === "erro" ? doServidor.erro : "Carregando a lista…"}
+              </li>
+            )}
             {visiveis.map((e) => {
               const ativo = e.acessos > 1;
               const p = prazoDe(crm[e.slug], dataDeHoje);
@@ -1558,6 +1617,10 @@ export default function AdminPage() {
               ))}
             </div>
 
+            {!conhecidos.has(aberto.slug) ? (
+              <p className="text-sm text-[#6F6A5E]">Carregando os dados do negócio…</p>
+            ) : (
+            <>
             <div role="tabpanel" id="aba-painel" aria-labelledby={`aba-${aba}`} className="flex flex-col gap-5">
             {aba === "venda" && (
               <>
@@ -2187,6 +2250,8 @@ export default function AdminPage() {
                 Anotar
               </button>
             </div>
+            </>
+            )}
           </aside>
         </>
       )}

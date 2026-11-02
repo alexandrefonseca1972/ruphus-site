@@ -225,11 +225,17 @@ export function criarIndice(db: Firestore, { ociosoMs = OCIOSO_MS, prazoMs = PRA
     });
   }
 
+  /** Se a lista mudou. O tenant é escrito por caminhos que a lista não mostra (status do WhatsApp,
+   *  lembretes, modelo do site): igual ao que já está, fica o mesmo objeto, e a lista ordenada (e o
+   *  texto de busca guardado por objeto) continua valendo. */
   function aplicarTenant(e: Estado, d: DocumentSnapshot, removido: boolean) {
-    if (removido || !d.exists) return void e.espacos.delete(d.id);
+    if (removido || !d.exists) return e.espacos.delete(d.id);
     const { espaco, corrigido } = espacoDe(d.id, (c) => d.get(c), acessosDe(e, d.id));
-    if (corrigido) e.corrigidos++;
+    const antes = e.espacos.get(d.id);
+    if (antes && (Object.keys(espaco) as (keyof Espaco)[]).every((k) => Object.is(antes[k], espaco[k]))) return false;
+    if (corrigido && !antes) e.corrigidos++;
     e.espacos.set(d.id, espaco);
+    return true;
   }
 
   function aplicarCrm(e: Estado, d: DocumentSnapshot, removido: boolean) {
@@ -274,11 +280,15 @@ export function criarIndice(db: Firestore, { ociosoMs = OCIOSO_MS, prazoMs = PRA
       e.filtrado = e.admins.length > 0 && e.admins.length <= 10;
       const membros = e.filtrado ? db.collectionGroup("members").where("uid", "not-in", e.admins) : db.collectionGroup("members");
       let ruphusPendente: Promise<void> = Promise.resolve();
+      let falhaRuphus: unknown = null;
       await passo(
         Promise.all([
           ouvir(e, db.collection("tenants"), (snap: QuerySnapshot) => {
-            cadaMudanca(e, snap, (d, removido) => aplicarTenant(e, d, removido));
-            mudou(e, true);
+            let lista = false;
+            cadaMudanca(e, snap, (d, removido) => {
+              if (aplicarTenant(e, d, removido)) lista = true;
+            });
+            mudou(e, lista);
           }),
           ouvir(e, db.collection("crm"), (snap: QuerySnapshot) => {
             cadaMudanca(e, snap, (d, removido) => aplicarCrm(e, d, removido));
@@ -300,13 +310,18 @@ export function criarIndice(db: Firestore, { ociosoMs = OCIOSO_MS, prazoMs = PRA
             });
             const slugs = [...tocados];
             atualizarAcessos(e, slugs);
-            ruphusPendente = lerRuphus(e, slugs.filter((s) => (e.porEspaco.get(s) ?? 0) > 0)).catch((err) =>
-              log.error("[painel] falha ao conferir a plataforma nos espaços com cliente", err),
-            );
+            ruphusPendente = lerRuphus(e, slugs.filter((s) => (e.porEspaco.get(s) ?? 0) > 0)).catch((err) => {
+              // na montagem, falhar é melhor que montar com acessos errados (cliente aparecendo como
+              // "sem cliente dentro" por dias): a montagem tenta de novo, com espera crescente. Guardado,
+              // não relançado: uma promessa rejeitada que ninguém espera derrubaria o processo
+              if (!e.montadoEm) falhaRuphus ??= err;
+              log.error("[painel] falha ao conferir a plataforma nos espaços com cliente", err);
+            });
           }),
         ]),
       );
       await passo(ruphusPendente);
+      if (falhaRuphus) throw falhaRuphus;
       if (!e.vivo) throw new IndiceIndisponivel("listener caiu durante a montagem");
       // os tenants podem ter chegado antes dos membros: acerta os acessos de todos uma vez
       atualizarAcessos(e, e.espacos.keys());
@@ -390,17 +405,23 @@ export function criarIndice(db: Firestore, { ociosoMs = OCIOSO_MS, prazoMs = PRA
             db.getAll(...lote.map((s) => db.doc(`crm/${s}`))),
           ]);
           if (!e.vivo) return;
-          // um documento com problema não leva o resto do lote junto (como nos listeners)
-          for (const [docs, aplicar] of [[tenants, aplicarTenant], [crms, aplicarCrm]] as const) {
+          // um documento com problema não leva o resto do lote junto (como nos listeners); só a
+          // mudança num campo da lista a refaz: anotar ou mudar o estágio mexe só no CRM
+          let lista = false;
+          const cada = (docs: DocumentSnapshot[], aplicar: (d: DocumentSnapshot) => void) => {
             for (const d of docs) {
               try {
-                aplicar(e, d, false);
+                aplicar(d);
               } catch (err) {
                 log.error(`[painel] documento pulado: ${d.ref.path}`, err instanceof Error ? err.message : err);
               }
             }
-          }
-          mudou(e, true);
+          };
+          cada(tenants, (d) => {
+            if (aplicarTenant(e, d, false)) lista = true;
+          });
+          cada(crms, (d) => aplicarCrm(e, d, false));
+          mudou(e, lista);
         }
       } catch (err) {
         log.error("[painel] falha ao atualizar o índice depois de uma escrita", err);

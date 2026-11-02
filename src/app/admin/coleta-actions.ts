@@ -15,6 +15,7 @@ import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import MUNICIPIOS_JSON from "@/lib/municipios.json";
 import { LIMITES, problemaNoPedido, TERMOS_PADRAO, UFS, type EstadoColeta, type Progresso, type Resumo } from "@/lib/coleta";
 import { gerarNoBanco, type LinhaGerada, TETO_LOTE } from "@/lib/gerador.server";
+import { indiceDoPainel } from "@/lib/painel-indice.server";
 
 export type Coleta = {
   id: string; uf: string; cidade: string; bairros: string[]; termos: string[]; estado: EstadoColeta;
@@ -260,6 +261,8 @@ export const gerarLoteDaColeta = adminAction(async (user, id: string) => {
       revalidatePath(`/s/${slug}/og.jpg`);
       revalidatePath(`/bio/${slug}`);
     }
+    // a lista do admin já mostra o lote na próxima página, sem esperar o listener
+    await indiceDoPainel(adminDb).atualizar(linhas.filter((l) => l.acao !== "pular").map((l) => l.slug));
     const geradosAte = Math.min(leads.length, inicio.cursor + TETO_LOTE);
     const gerados = inicio.gerados + linhas.filter((l) => l.acao !== "pular").length;
     const concluida = geradosAte >= leads.length;

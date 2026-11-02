@@ -217,6 +217,24 @@ const trocarConfig = (config: (ref: Ref) => object) => bancoCom({ config });
   await db.doc("tenants/ana-cabelos").update({ name: "Ana Cabelos" });
   await db.doc("crm/ana-cabelos").update({ estagio: "negociando" });
   await ind.atualizar(["ana-cabelos"]);
+  // só o CRM mudou: a lista ordenada (e o cache da consulta, guardado por ela) continua a mesma.
+  // Antes, o listener (atrasado 1 s aqui) termina de entregar as mudanças de nome acima
+  await new Promise((r) => setTimeout(r, 1300));
+  const lista = ind.montado()!.lista();
+  await db.doc("crm/ana-cabelos").update({ proximaAcao: "ligar" });
+  await ind.atualizar(["ana-cabelos"]);
+  assert.equal(ind.montado()!.lista(), lista, "atualizar só com CRM novo não refaz a lista");
+  assert.equal(ind.montado()!.crm["ana-cabelos"]?.proximaAcao, "ligar");
+  // campo do tenant que a lista não mostra (status do WhatsApp, lembretes): mesma lista
+  await db.doc("tenants/ana-cabelos").update({ "whatsapp.status": "conectado" });
+  await ind.atualizar(["ana-cabelos"]);
+  await new Promise((r) => setTimeout(r, 1300)); // e o listener (atrasado aqui) também chega
+  assert.equal(ind.montado()!.lista(), lista, "campo fora da lista não refaz a lista");
+  await db.doc("tenants/ana-cabelos").update({ "site.rating": 4.9 });
+  await ind.atualizar(["ana-cabelos"]);
+  assert.notEqual(ind.montado()!.lista(), lista, "campo da lista refaz");
+  await db.doc("tenants/ana-cabelos").update({ "site.rating": 4.8 });
+  await db.doc("crm/ana-cabelos").update({ proximaAcao: null });
   ind.soltar();
 }
 
