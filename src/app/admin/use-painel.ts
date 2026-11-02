@@ -23,8 +23,8 @@ const token = (renovar = false) => (auth.currentUser?.getIdToken(renovar) ?? Pro
  *  levaria o "marcar todos" a marcar quem não está na tela pedida. */
 export function usePainel({ ativo, filtros, n, hoje, recarga }: { ativo: boolean; filtros: Filtros; n: number; hoje: string; recarga: number }) {
   const [pagina, setPagina] = useState<Guardada | null>(null);
-  const [situacao, setSituacao] = useState<SituacaoDaPagina>("carregando");
-  const [erro, setErro] = useState("");
+  // a situação vale para a consulta que a produziu: erro de um filtro anterior não fica ao lado da lista nova
+  const [status, setStatus] = useState<{ situacao: SituacaoDaPagina; erro: string; query: string }>({ situacao: "carregando", erro: "", query: "" });
   const [tentativa, setTentativa] = useState(0);
   const seq = useRef(0);
   const ultimaBusca = useRef(filtros.busca);
@@ -55,23 +55,21 @@ export function usePainel({ ativo, filtros, n, hoje, recarga }: { ativo: boolean
         if (corpo?.ok) {
           esperas.current = 0;
           setPagina({ ...corpo, query });
-          setSituacao("pronto");
-          setErro("");
+          setStatus({ situacao: "pronto", erro: "", query });
           return;
         }
         if (corpo?.codigo === "preparando" && ++esperas.current <= TENTATIVAS_MAX) {
-          setSituacao("preparando");
+          setStatus({ situacao: "preparando", erro: "", query });
           nova = setTimeout(() => setTentativa((x) => x + 1), NOVA_TENTATIVA_MS);
           return;
         }
         esperas.current = 0;
-        setSituacao("erro");
-        setErro(corpo?.codigo === "preparando" ? "O painel não ficou pronto." : (corpo?.erro ?? "Não foi possível agora."));
+        setStatus({ situacao: "erro", erro: corpo?.codigo === "preparando" ? "O painel não ficou pronto." : (corpo?.erro ?? "Não foi possível agora."), query });
       } catch (err) {
         if (controle.signal.aborted || meu !== seq.current) return;
         console.error("[painel] falha ao pedir a página", err);
-        setSituacao("erro");
-        setErro("Sem conexão com o servidor.");
+        esperas.current = 0;
+        setStatus({ situacao: "erro", erro: "Sem conexão com o servidor.", query });
       }
     }, esperar);
 
@@ -84,5 +82,11 @@ export function usePainel({ ativo, filtros, n, hoje, recarga }: { ativo: boolean
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ativo, query, recarga, tentativa]);
 
-  return { pagina: pagina?.query === query ? pagina : null, situacao, erro, tentarDeNovo: () => setTentativa((x) => x + 1) };
+  const atual = status.query === query;
+  return {
+    pagina: pagina?.query === query ? pagina : null,
+    situacao: atual ? status.situacao : "carregando",
+    erro: atual ? status.erro : "",
+    tentarDeNovo: () => setTentativa((x) => x + 1),
+  };
 }

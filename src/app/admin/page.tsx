@@ -1344,11 +1344,14 @@ export default function AdminPage() {
             )}
           </ul>
 
-          {total > quantos && quantos < PAGINA_MAX && (
+          {total > quantos && (
             <div className="flex items-center gap-3 border-t border-[#EDE9E1] px-4 py-3.5 sm:px-5">
-              <button type="button" className={BOTAO_CLARO} onClick={() => setPagina({ chave, n: Math.min(quantos + PAGINA, PAGINA_MAX) })}>
-                Mostrar mais {Math.min(PAGINA, total - quantos)}
-              </button>
+              {/* o servidor manda até PAGINA_MAX de uma vez; o ?modo=antigo, calculado aqui, não tem teto */}
+              {(modoAntigo || quantos < PAGINA_MAX) && (
+                <button type="button" className={BOTAO_CLARO} onClick={() => setPagina({ chave, n: modoAntigo ? quantos + PAGINA : Math.min(quantos + PAGINA, PAGINA_MAX) })}>
+                  Mostrar mais {Math.min(PAGINA, total - quantos)}
+                </button>
+              )}
               <span className="text-[13px] text-[#6F6A5E]">
                 mostrando {quantos} de {total}
               </span>
