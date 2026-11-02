@@ -56,6 +56,7 @@ jobs:
       # Com emulador do Firestore (e do Auth, no booking)
       - run: npm run test:rules
       - run: npm run test:convite
+      - run: npm run test:integracoes
       - run: npm run test:cobranca
       - run: npm run test:financeiro
       - run: npm run test:sinal

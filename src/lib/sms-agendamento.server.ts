@@ -52,7 +52,7 @@ async function enviarReservado(ref: DocumentReference, campo: "smsConfirmacaoEm"
 /** Depois que a casa confirma (painel ou CONFIRMADO no WhatsApp): o cliente recebe o SMS de confirmação.
  *  Devolve o que aconteceu, para log e teste. */
 export async function avisarConfirmacaoPorSms(db: Firestore, slug: string, appointmentId: string, { enviar = enviarSms as Enviar, agora = new Date() } = {}) {
-  if (!smsDisponivel() && enviar === enviarSms) return "sem chave";
+  if (enviar === enviarSms && !(await smsDisponivel())) return "sem chave";
   const t = await db.doc(`tenants/${slug}`).get();
   if (t.get("sms.ligado") !== true) return "desligado";
   const ref = db.doc(`tenants/${slug}/appointments/${appointmentId}`);
@@ -76,7 +76,7 @@ export async function avisarConfirmacaoPorSms(db: Firestore, slug: string, appoi
 /** Lembrete por SMS 2 h antes, para os horários confirmados dos negócios com SMS ligado. Roda no cron
  *  dos lembretes (a cada 10 min). Devolve quantos saíram. */
 export async function enviarLembretesPorSms(db: Firestore, { enviar = enviarSms as Enviar, agora = new Date() } = {}) {
-  if (!smsDisponivel() && enviar === enviarSms) return 0;
+  if (enviar === enviarSms && !(await smsDisponivel())) return 0;
   const tenants = await db.collection("tenants").where("sms.ligado", "==", true).get();
   let enviados = 0;
   for (const t of tenants.docs) {

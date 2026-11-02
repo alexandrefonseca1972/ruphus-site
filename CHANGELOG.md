@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Admin ganha a tela **Ajustes**: as chaves do SMS (Comtele), do e-mail (Resend e Gmail) e do WhatsApp (atendys) são cadastradas ali e valem na hora, sem mexer no `.env` nem reiniciar. O `.env` segue valendo para o que não for cadastrado.
+
 - Termos e Privacidade seguem a identidade visual da Ruphus, com fontes locais e navegação responsiva. A versão contratual já publicada permanece intacta.
 
 - Inicial com tipografia mais legível, exemplos em grade responsiva, foco visível em fundos escuros, leitura sem JavaScript e metadados de SEO revisados.

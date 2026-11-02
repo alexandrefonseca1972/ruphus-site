@@ -45,6 +45,7 @@ await assertFails(getDoc(doc(mallory, "config/admin")));   // a lista não é p�
 await assertFails(getDoc(doc(alice, "cobrancas/acme-2026-10")), "membro nao le cobranca");
 await assertFails(setDoc(doc(alice, "cobrancas/acme-2026-10"), { valorCents: 1 }));
 await assertFails(getDoc(doc(alice, "config/pix")), "a chave Pix da Ruphus nao e publica");
+await assertFails(getDoc(doc(alice, "config/integracoes")), "as chaves de SMS, e-mail e WhatsApp nao sao publicas");
 await assertFails(getDoc(doc(suporte, "cobrancas/acme-2026-10")), "nem o admin le pelo cliente: so o Admin SDK")
 await assertFails(setDoc(doc(suporte, "config/admin"), { uids: ["mallory"] })); // nem o admin escreve nela
 await assertFails(getDoc(doc(mallory, "tenants/acme/sites/s1")));

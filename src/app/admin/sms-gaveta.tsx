@@ -36,7 +36,7 @@ export function SmsDoNegocio({ slug, token }: { slug: string; token: () => Promi
       <p className="text-xs text-[#6F6A5E]">
         Confirmação quando a casa confirma o horário, e lembrete 2 h antes. Vai para o celular do cliente pela conta da Ruphus na Comtele: cada SMS gasta crédito.
       </p>
-      {estado && !estado.disponivel && <p className="text-xs text-[#8A2F2F]">A chave da Comtele (COMTELE_API_KEY) não está configurada no servidor: nada é enviado.</p>}
+      {estado && !estado.disponivel && <p className="text-xs text-[#8A2F2F]">A chave da Comtele não está cadastrada (Ajustes, no topo do admin): nada é enviado.</p>}
       <label className="flex min-h-11 items-center gap-2.5 text-sm">
         <input type="checkbox" className="size-4 accent-[#17150F]" disabled={!estado || busy} checked={estado?.ligado ?? false} onChange={(e) => mudar(e.target.checked)} />
         {busy ? "Salvando…" : "Enviar SMS de confirmação e lembrete"}
