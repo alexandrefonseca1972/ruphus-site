@@ -16,7 +16,7 @@ import { verifyFirebaseToken } from "@/lib/verify-token";
 import { criarConvite, revogarConvitesDaEquipe, tirarAcessosDoProfissional } from "@/lib/convite";
 import { DIAS_CONVITE } from "@/lib/limites";
 import { recebedorDe } from "@/lib/pix";
-import { ConfigSinal } from "@/lib/sinal";
+import { ConfigSinal } from "@/lib/sinal-config";
 import { confirmarSinal } from "@/lib/sinal.server";
 import { FieldValue } from "firebase-admin/firestore";
 import { BaixaInput, EstornoInput, FixaInput, ID_AVULSO, LancamentoInput, PagamentoInput } from "@/lib/financeiro";

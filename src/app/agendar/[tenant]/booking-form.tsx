@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,8 +23,8 @@ import { erroNome, mascaraNome } from "@/lib/nome";
 import { cn } from "@/lib/utils";
 import type { book } from "@/lib/booking.server";
 import { getAgenda } from "./actions";
-import { PixQr } from "@/components/pix-qr";
-import { type ConfigSinal, textoDoSinal, valorDoSinal } from "@/lib/sinal";
+import { textoDoSinal, valorDoSinal } from "@/lib/sinal";
+import type { ConfigSinal } from "@/lib/sinal-config";
 
 type Resposta = Awaited<ReturnType<typeof book>>;
 
@@ -58,13 +59,16 @@ const CONTACT_KEY = "siteflow:contato"; // lembrado só neste navegador
 // A mesma paleta dos sites dos negócios e da tela de entrada: esta página é a
 // vitrine do cliente, não o painel.
 const ROTULO = "font-[family-name:var(--font-geist-mono)] text-[11px] font-medium tracking-[0.14em] text-[#6B6555] uppercase";
+// o QR (biblioteca qrcode) só aparece depois de reservar com sinal: fora do JS de quem só olha horários
+const PixQr = dynamic(() => import("@/components/pix-qr").then((m) => m.PixQr));
+
 const MONO = "font-[family-name:var(--font-geist-mono)]";
 const PAINEL = "rounded-[14px] border border-[#E0DCCE] bg-[#FAF9F5]";
 // Trilhos que rolam de lado sem mostrar a barra de rolagem (a borda esmaecida já diz que continua)
 const SEM_BARRA = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 const HORARIOS_VISIVEIS = 12;
 const CAMPO =
-  "h-12 rounded-[10px] border-[#D5D0C1] bg-white px-3.5 text-[15px] text-[#17150F] focus-visible:border-[#17150F] focus-visible:ring-[3px] focus-visible:ring-[#17150F]/8";
+  "h-12 rounded-[10px] border-[#D5D0C1] bg-white px-3.5 text-base text-[#17150F] focus-visible:border-[#17150F] focus-visible:ring-[3px] focus-visible:ring-[#17150F]/8";
 const PRIMARIO =
   "flex h-13 items-center justify-center gap-2.5 rounded-[10px] bg-[#17150F] px-4 text-[15px] font-semibold text-[#FAF9F5] disabled:cursor-not-allowed disabled:bg-[#B8B3A4]";
 
@@ -271,6 +275,16 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   // Trocar de etapa leva ao topo e, na confirmação, põe o foco no título: sem isso a tela
   // nova abria no meio e o leitor de tela ficava no botão que sumiu
   const primeiraEtapa = useRef(true);
+  const mostrarDias = useRef(false);
+  useEffect(() => {
+    if (!mostrarDias.current) return;
+    mostrarDias.current = false;
+    const dias = document.getElementById("dias");
+    if (!dias || !matchMedia("(max-width: 1023px)").matches) return;
+    // rola só o necessário para a faixa aparecer: a lista de serviços continua à vista para somar outro
+    const falta = dias.getBoundingClientRect().bottom + 16 - innerHeight;
+    if (falta > 0) scrollBy({ top: falta, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [serviceIds]);
   useEffect(() => {
     if (primeiraEtapa.current) {
       primeiraEtapa.current = false;
@@ -284,6 +298,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     // Mantém a ordem do catálogo: "Corte + Barba", não a ordem dos cliques
     const ids = services.map((s) => s.id).filter((s) => (s === id ? !serviceIds.includes(id) : serviceIds.includes(s)));
     if (!ids.length) return; // sem serviço não há agenda para mostrar
+    if (!serviceIds.length) mostrarDias.current = true;
     setServiceIds(ids);
     // O profissional escolhido pode não fazer o novo conjunto: volta para "qualquer"
     if (staffId && !ids.every((s) => staff.find((p) => p.id === staffId)?.serviceIds.includes(s))) setStaffId("");
@@ -998,7 +1013,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 </span>
               </div>
 
-              <div className="grid grid-cols-7 gap-1.5 lg:gap-2">
+              <div id="dias" className="grid grid-cols-7 gap-1.5 lg:gap-2">
                 {(agenda ?? Array.from({ length: 7 }, (_, i): Dia => ({ date: addDays(from, i), horarios: [] }))).map((d) => {
                   const sel = d.date === date;
                   const vazio = !d.horarios.length;
