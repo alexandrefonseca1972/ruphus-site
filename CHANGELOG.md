@@ -3,6 +3,16 @@
 O que entrou em cada versão, do ponto de vista de quem usa. Cada linha aponta
 o PR, onde está o porquê.
 
+## Não publicado
+
+- Termos e Privacidade seguem a identidade visual da Ruphus, com fontes locais e navegação responsiva. A versão contratual já publicada permanece intacta.
+
+- Inicial com tipografia mais legível, exemplos em grade responsiva, foco visível em fundos escuros, leitura sem JavaScript e metadados de SEO revisados.
+
+- A inicial mostra exemplos de equipe, Caixa, comissões e contas fixas, com indicação dos módulos adicionais.
+
+- A inicial apresenta site, agenda e gestão, distingue recursos incluídos de adicionais e esclarece domínio, ativação e manutenção conforme os Termos.
+
 ## 0.14.0 — WhatsApp na plataforma atendys
 
 ### Contrato
