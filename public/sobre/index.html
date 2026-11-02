@@ -903,6 +903,10 @@ document.querySelectorAll('.revela').forEach(el => olho.observe(el));
 const CIDADES_FABRICA = ['Manaus', 'Belém', 'Ananindeua', 'Marituba', 'Benevides', 'Castanhal', 'Barcarena',
   'Santa Izabel', 'Manacapuru', 'Itacoatiara', 'Parauapebas', 'Santarém', 'Parintins', 'São Luís'];
 let CIDADES = new Set([...CIDADES_FABRICA, ...SITES.map(o => o.c)].filter(Boolean).map(norm)).size;
+// quantos sites há no total: a lista deste HTML até o resumo do /api/catalogo chegar
+let TOTAL = SITES.length;
+// o resumo do catálogo: nichos, bairros e a amostra da esteira (a lista inteira fica no servidor)
+let RESUMO = null;
 // nichos e bairros contados do catálogo: o que a lista tem é o que a seção diz
 function numeros(){
   const nichos = new Set(), bairros = new Set();
@@ -911,19 +915,17 @@ function numeros(){
     if (partes[0]) nichos.add(partes[0].toLowerCase());
     if (partes[1] && partes[1] !== '-') bairros.add(partes[1].toLowerCase());
   }
-  document.getElementById('n-nichos').textContent = nichos.size;
-  document.getElementById('n-bairros').textContent = bairros.size;
+  document.getElementById('n-nichos').textContent = Math.max(nichos.size, RESUMO ? RESUMO.nichos : 0);
+  document.getElementById('n-bairros').textContent = Math.max(bairros.size, RESUMO ? RESUMO.bairros : 0);
 }
 numeros();
 document.getElementById('n-cidades').textContent = CIDADES;
 
 /* ——— esteira: os sites do gerador, espalhados para as cidades se misturarem ——— */
-// amostra o catálogo inteiro; sem ele (falhou), a VITRINE
+// a amostra que o servidor tira do catálogo inteiro; sem ela (falhou), a VITRINE
 const esteira = document.getElementById('esteira');
 function montarEsteira(){
-  const gerados = SITES.filter(o => o.t && o.t.endsWith('/og.jpg'));
-  const passo = Math.max(1, Math.floor(gerados.length / 40));
-  const amostra = gerados.filter((o, i) => i % passo === 0).slice(0, 40);
+  const amostra = RESUMO && RESUMO.amostra.length ? RESUMO.amostra : VITRINE;
   const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const faixa = amostra.map(o => '<span><b>' + esc(o.n) + '</b>' + (o.d ? ' · ' + esc(o.d) : '') + '</span>').join('');
   esteira.innerHTML = faixa + faixa;   // duas voltas: a animação anda metade e recomeça sem emenda
@@ -946,7 +948,7 @@ function linha(o, i){
   a.style.setProperty('--atraso', Math.min(i, 8) * 40 + 'ms');
   a.href = '/s/' + o.s;
   const n = document.createElement('span'); n.className = 'un-n';
-  n.textContent = String(SITES.indexOf(o) + 1).padStart(3, '0');
+  n.textContent = String((o.i ?? SITES.indexOf(o)) + 1).padStart(3, '0');
   a.appendChild(n);
   if (o.t){
     const img = document.createElement('img');
@@ -964,28 +966,48 @@ function linha(o, i){
   return a;
 }
 
+// A busca vai ao servidor: a lista inteira (15 mil sites) não vem para o navegador. Sem termo, a
+// VITRINE deste HTML. Os sites da fábrica que estão só aqui entram junto, filtrados na hora.
+let buscando = null, espera = null, seq = 0;
 function render(){
   const termos = norm(q.value.trim()).split(/\s+/).filter(Boolean);
-  const achados = termos.length ? SITES.filter(o => termos.every(t => o.k.includes(t)))
-                                : VITRINE;
+  if (!termos.length){ mostrarAchados(termos, VITRINE, VITRINE.length); return; }
+  clearTimeout(espera);
+  espera = setTimeout(() => {
+    const meu = ++seq;
+    if (buscando) buscando.abort();
+    buscando = new AbortController();
+    fetch('/api/catalogo?q=' + encodeURIComponent(q.value.trim().slice(0, 80)), { signal: buscando.signal })
+      .then(r => r.ok ? r.json() : null)
+      .then(res => {
+        if (meu !== seq) return;
+        const doServidor = res ? res.itens : [];
+        const vistos = new Set(doServidor.map(o => o.s));
+        const daqui = SITES.filter(o => !vistos.has(o.s) && !(o.t || '').endsWith('/og.jpg') && termos.every(t => o.k.includes(t)));
+        mostrarAchados(termos, [...doServidor, ...daqui], (res ? res.total : 0) + daqui.length);
+      })
+      .catch(() => {});
+  }, 250);
+}
+function mostrarAchados(termos, achados, quantos){
   grade.replaceChildren(...achados.slice(0, LIMITE).map((o, i) => {
     const li = document.createElement('li'); li.appendChild(linha(o, i)); return li;
   }));
   grade.querySelectorAll('.revela').forEach(el => olho.observe(el));
-  vazio.hidden = achados.length > 0;
+  vazio.hidden = quantos > 0;
   const termo = q.value.trim();
   contagem.innerHTML = !termos.length
-    ? '<b>' + SITES.length + ' sites</b> feitos um a um, já publicados em ' + CIDADES + ' cidades'
-    : achados.length === 0 ? 'Nenhum site com esse nome'
-    : '<b>' + achados.length + (achados.length === 1 ? ' site' : ' sites') + '</b> com “'
+    ? '<b>' + TOTAL + ' sites</b> feitos um a um, já publicados em ' + CIDADES + ' cidades'
+    : quantos === 0 ? 'Nenhum site com esse nome'
+    : '<b>' + quantos + (quantos === 1 ? ' site' : ' sites') + '</b> com “'
       + termo.replace(/[<>&]/g, '') + '”';
-  rotulo.textContent = !termos.length ? SITES.length + ' unidades, nenhuma igual'
-    : achados.length === 0 ? 'Nenhum resultado'
-    : achados.length === 1 ? '1 site encontrado'
-    : achados.length > LIMITE ? achados.length + ' sites encontrados · mostrando ' + LIMITE
-    : achados.length + ' sites encontrados';
-  restam.textContent = !termos.length && SITES.length > LIMITE
-    ? '+ ' + (SITES.length - LIMITE) + ' unidades na mesma lista'
+  rotulo.textContent = !termos.length ? TOTAL + ' unidades, nenhuma igual'
+    : quantos === 0 ? 'Nenhum resultado'
+    : quantos === 1 ? '1 site encontrado'
+    : quantos > LIMITE ? quantos + ' sites encontrados · mostrando ' + LIMITE
+    : quantos + ' sites encontrados';
+  restam.textContent = !termos.length && TOTAL > LIMITE
+    ? '+ ' + (TOTAL - LIMITE) + ' unidades na mesma lista'
     : '';
 }
 q.addEventListener('input', render);
@@ -993,28 +1015,24 @@ render();
 
 // os sites do gerador moram no banco, não neste HTML: entram quando chegam, e
 // sem resposta a página segue com a lista estática
-fetch('/api/catalogo').then(r => r.ok ? r.json() : []).then(novos => {
-  // site da VITRINE que o catálogo não traz saiu do ar ou pediu remoção: sai da landing.
-  // Catálogo vazio (falhou) não tira nada
-  if (novos.length){
-    const noAr = new Set(novos.map(o => o.s));
-    for (const lista of [VITRINE, SITES])
-      for (let i = lista.length - 1; i >= 0; i--)
-        if (lista[i].t?.endsWith('/og.jpg') && !noAr.has(lista[i].s)) lista.splice(i, 1);
-  }
-  const tem = new Set(SITES.map(o => o.s));
-  novos = novos.filter(o => !tem.has(o.s));
-  if (!novos.length){ render(); return; }
-  novos.forEach(o => { o.k = norm(o.n + ' ' + o.d + ' ' + o.s + ' ' + o.c); SITES.push(o); });
-  CIDADES = new Set([...CIDADES_FABRICA, ...SITES.map(o => o.c)].filter(Boolean).map(norm)).size;
+fetch('/api/catalogo').then(r => r.ok ? r.json() : null).then(res => {
+  if (!res || !Array.isArray(res.cidades)) return;
+  RESUMO = res;
+  // site da VITRINE que saiu do ar ou pediu remoção: sai da landing
+  const fora = new Set(res.fora || []);
+  for (const lista of [VITRINE, SITES])
+    for (let i = lista.length - 1; i >= 0; i--)
+      if (fora.has(lista[i].s)) lista.splice(i, 1);
+  TOTAL = Math.max(SITES.length, res.total);
+  CIDADES = new Set([...CIDADES_FABRICA, ...SITES.map(o => o.c), ...res.cidades].filter(Boolean).map(norm)).size;
   document.getElementById('n-cidades').textContent = CIDADES;
   numeros(); render();
-  document.getElementById('barra-n').textContent = SITES.length + ' sites no ar, com agenda aberta';
+  document.getElementById('barra-n').textContent = TOTAL + ' sites no ar, com agenda aberta';
 }).catch(() => {}).finally(() => { montarEsteira(); iniciarPalco(); });
 
 /* ——— barra de ação: aparece quando o hero sai de vista ——— */
 const barra = document.getElementById('barra');
-document.getElementById('barra-n').textContent = SITES.length + ' sites no ar, com agenda aberta';
+document.getElementById('barra-n').textContent = TOTAL + ' sites no ar, com agenda aberta';
 const gatilho = document.querySelector('.hero');
 if (gatilho && 'IntersectionObserver' in window){
   new IntersectionObserver(([e]) => {
@@ -1036,7 +1054,7 @@ if ('IntersectionObserver' in window){
     if (!e.isIntersecting) return;
     const d = e.target.dataset;
     demo.href = d.demo; demo.textContent = d.demoRot + ' ↗';
-    qtd.textContent = (d.demoTxt.startsWith('sites') ? SITES.length + ' ' : '') + d.demoTxt;
+    qtd.textContent = (d.demoTxt.startsWith('sites') ? TOTAL + ' ' : '') + d.demoTxt;
   }), { rootMargin: '-45% 0px -45% 0px' });
   document.querySelectorAll('[data-demo]').forEach(s => o.observe(s));
 }
