@@ -368,6 +368,14 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   // Luzes só a Ana faz: escolher os dois serviços tira a Bia da conta
   const combo2 = await agendaDias(db, { tenantId: "salao", serviceIds: ["corte", "luzes"], staffId: "", from: semana }, [semana]);
   assert.ok(combo2[0].horarios.every((h) => h.staffId === "ana"));
+
+  // fechado é dia em que ninguém atende; dia com equipe e sem horário é lotação
+  assert.equal(soAna[0].fechado, false);
+  const diaDaSemana = String(new Date(`${semana}T12:00:00Z`).getUTCDay());
+  await t.collection("staff").doc("caio").set({ name: "Caio", serviceIds: ["corte"], hours: { [diaDaSemana]: { start: "09:00", end: "12:00" } }, active: true });
+  const doCaio = await agendaDias(db, { ...corte, staffId: "caio", from: semana }, dias);
+  assert.deepEqual(doCaio.map((d) => d.fechado), [false, true], "Caio só atende no primeiro dia");
+  await t.collection("staff").doc("caio").delete();
   assert.deepEqual(await agendaDias(db, { ...corte, staffId: "", from: semana }, []), [], "sem dias, sem consulta");
   assert.deepEqual(await agendaDias(db, { ...corte, staffId: "", from: semana, tenantId: "nao-existe" }, dias), []);
 }

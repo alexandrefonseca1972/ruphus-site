@@ -51,13 +51,13 @@ type Props = {
   staff: { id: string; name: string; serviceIds: string[]; workDays: number[] }[];
 };
 
-type Dia = { date: string; horarios: { hora: string; staffId: string }[] };
+type Dia = { date: string; horarios: { hora: string; staffId: string }[]; fechado?: boolean };
 
 const CONTACT_KEY = "siteflow:contato"; // lembrado só neste navegador
 
 // A mesma paleta dos sites dos negócios e da tela de entrada: esta página é a
 // vitrine do cliente, não o painel.
-const ROTULO = "font-[family-name:var(--font-geist-mono)] text-[9px] font-medium tracking-[0.14em] text-[#6B6555] uppercase";
+const ROTULO = "font-[family-name:var(--font-geist-mono)] text-[11px] font-medium tracking-[0.14em] text-[#6B6555] uppercase";
 const MONO = "font-[family-name:var(--font-geist-mono)]";
 const PAINEL = "rounded-[14px] border border-[#E0DCCE] bg-[#FAF9F5]";
 // Trilhos que rolam de lado sem mostrar a barra de rolagem (a borda esmaecida já diz que continua)
@@ -166,7 +166,7 @@ function Cabecalho({ tenantId, temSite, siteUrl, name, rating, reviews, city, ph
 
 function Rodape() {
   return (
-    <p className={cn("flex items-center justify-center gap-2 text-[9px] tracking-[0.12em] text-[#6B6555] uppercase", MONO)}>
+    <p className={cn("flex items-center justify-center gap-2 text-[11px] tracking-[0.12em] text-[#6B6555] uppercase", MONO)}>
       ruphus · agenda deste negócio
     </p>
   );
@@ -203,6 +203,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const escolhidos = services.filter((s) => serviceIds.includes(s.id));
   const totalMin = escolhidos.reduce((sum, s) => sum + s.durationMin, 0);
   const total = precoDe(...escolhidos);
+  const valorSinal = sinal ? valorDoSinal(sinal, escolhidos.reduce((soma, s) => soma + s.priceCents, 0)) : 0;
   const fazTudo = (p: Props["staff"][number]) => serviceIds.every((id) => p.serviceIds.includes(id));
   const profissionais = staff.filter(fazTudo);
   const atendente = staff.find((p) => p.id === escolha?.staffId);
@@ -425,13 +426,14 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
         <Cabecalho tenantId={tenantId} temSite={temSite} siteUrl={siteUrl} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
         <div className={cn(PAINEL, "overflow-hidden shadow-[0_28px_50px_-34px_rgba(22,21,15,0.28)]")}>
           <div className="flex flex-col gap-4 p-5">
-            <p className={cn("flex items-center gap-2 text-[9px] font-medium tracking-[0.16em] text-[#2C6A53] uppercase", MONO)} role="status">
-              <span className="flex size-5 items-center justify-center rounded-full bg-[#2C6A53]">
+            {/* com sinal, o horário só está guardado até o prazo: "reservado" prometeria o que ainda falta pagar */}
+            <p className={cn("flex items-center gap-2 text-[11px] font-medium tracking-[0.14em] uppercase", MONO, reserva.sinal ? "text-[#8A5A12]" : "text-[#2C6A53]")} role="status">
+              <span className={cn("flex size-5 items-center justify-center rounded-full", reserva.sinal ? "bg-[#8A5A12]" : "bg-[#2C6A53]")}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FAF9F5" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M5 13l4 4L19 7" />
+                  {reserva.sinal ? <path d="M12 7v5l3 2" /> : <path d="M5 13l4 4L19 7" />}
                 </svg>
               </span>
-              horário reservado
+              {reserva.sinal ? "aguardando o sinal" : "horário reservado"}
             </p>
             <div className="flex flex-col gap-1">
               <p className={cn(MONO, "text-[11px] tracking-[0.06em] text-[#6B6555]")}>{quando}</p>
@@ -521,7 +523,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                   <Zap />
                   Mandar o resumo no WhatsApp
                 </a>
-                <p className="text-center text-xs text-[#5C5747]">Opcional. O horário já está reservado.</p>
+                <p className="text-center text-xs text-[#5C5747]">{reserva.sinal ? "Opcional." : "Opcional. O horário já está reservado."}</p>
               </div>
             )}
           </div>
@@ -640,7 +642,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col gap-4 bg-[#F2F0E7] p-4 py-6 text-[#17150F]">
         <Cabecalho tenantId={tenantId} temSite={temSite} siteUrl={siteUrl} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
         <div className={cn(PAINEL, "flex flex-col gap-4 p-5")}>
-          <p className={cn("text-[9px] font-medium tracking-[0.16em] text-[#6B6555] uppercase", MONO)}>agenda online ainda fechada</p>
+          <p className={cn("text-[11px] font-medium tracking-[0.16em] text-[#6B6555] uppercase", MONO)}>agenda online ainda fechada</p>
           <p className="text-sm leading-relaxed text-[#5C5747]">
             {name} ainda não abriu os horários aqui. Para marcar, fale direto — responde no WhatsApp o dia inteiro.
           </p>
@@ -705,9 +707,9 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
         </button>
         {resumo}
 
-        {sinal && valorDoSinal(sinal, escolhidos.reduce((soma, s) => soma + s.priceCents, 0)) > 0 && (
+        {valorSinal > 0 && sinal && (
           <p className="rounded-xl border border-[#E4E1D5] bg-[#F6F4EB] p-3.5 text-[13px] leading-relaxed">
-            Para garantir o horário, {name} pede um <strong>sinal de {formatBRL(valorDoSinal(sinal, escolhidos.reduce((soma, s) => soma + s.priceCents, 0)))}</strong> ({textoDoSinal(sinal)}) por Pix, pago em até {sinal.prazoMin >= 60 ? `${Math.round(sinal.prazoMin / 60)} h` : `${sinal.prazoMin} min`} depois de reservar. O resto é pago no local.
+            Para garantir o horário, {name} pede um <strong>sinal de {formatBRL(valorSinal)}</strong> ({textoDoSinal(sinal)}) por Pix, pago em até {sinal.prazoMin >= 60 ? `${Math.round(sinal.prazoMin / 60)} h` : `${sinal.prazoMin} min`} depois de reservar. O resto é pago no local.
           </p>
         )}
 
@@ -833,7 +835,9 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           <span className={cn("flex size-5 items-center justify-center rounded-md bg-[#FAF9F5]/16 text-[11px]", MONO)}>&#8629;</span>
         </button>
         <p className="text-center text-xs text-[#5C5747]">
-          {name} confirma o horário com você pelo WhatsApp. Sem cadastro e sem pagar nada agora.
+          {valorSinal > 0
+            ? `Sem cadastro. O horário fica guardado enquanto o sinal não é pago; ${name} confirma com você pelo WhatsApp.`
+            : `${name} confirma o horário com você pelo WhatsApp. Sem cadastro e sem pagar nada agora.`}
         </p>
         <div className="flex-1" />
         <Rodape />
@@ -898,7 +902,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                         )}
                       </span>
                       <span className="min-w-0 flex-1 break-words text-[15px] font-semibold tracking-[-0.01em]">{s.name}</span>
-                      <span className={cn(MONO, "shrink-0 text-xs", sel ? "text-[#FAF9F5]/75" : "text-[#5C5747]")}>
+                      {/* sem shrink-0: "a partir de R$ 30,00" quebra em duas linhas em vez de espremer o nome letra a letra */}
+                      <span className={cn(MONO, "max-w-[48%] text-right text-xs", sel ? "text-[#FAF9F5]/75" : "text-[#5C5747]")}>
                         {[formatDuration(s.durationMin), precoDe(s)].filter(Boolean).join(" · ")}
                       </span>
                     </button>
@@ -994,10 +999,12 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
               </div>
 
               <div className="grid grid-cols-7 gap-1.5 lg:gap-2">
-                {(agenda ?? Array.from({ length: 7 }, (_, i) => ({ date: addDays(from, i), horarios: [] }))).map((d) => {
+                {(agenda ?? Array.from({ length: 7 }, (_, i): Dia => ({ date: addDays(from, i), horarios: [] }))).map((d) => {
                   const sel = d.date === date;
                   const vazio = !d.horarios.length;
-                  const rotulo = d.date === today ? "hoje" : d.date === addDays(today, 1) ? "amanhã" : parte(d.date, { weekday: "short" });
+                  // "amanhã" não cabe na coluna de um celular estreito: o dia da semana diz o mesmo
+                  const rotulo = d.date === today ? "hoje" : parte(d.date, { weekday: "short" }).replace(".", "");
+                  const semVaga = d.fechado ? "fechado" : "sem vagas";
                   return (
                     <button
                       key={d.date}
@@ -1008,16 +1015,16 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                         setDate(d.date);
                         setEscolha(null);
                       }}
-                      aria-label={`${longDate(d.date)}, ${agenda ? (vazio ? "sem horário" : `${d.horarios.length} horários livres`) : "carregando"}`}
+                      aria-label={`${longDate(d.date)}, ${agenda ? (vazio ? semVaga : `${d.horarios.length} horários livres`) : "carregando"}`}
                       className={cn(
                         "flex min-h-16 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[10px] border px-0 lg:min-h-[72px] lg:rounded-xl",
                         sel ? "border-[#17150F] bg-[#17150F] text-[#FAF9F5]" : vazio ? "border-dashed border-[#D5D0C1] text-[#9A9484]" : "border-[#D5D0C1] bg-white",
                       )}
                     >
-                      <span className={cn(MONO, "text-[9px] tracking-[0.06em] uppercase opacity-75")}>{rotulo}</span>
+                      <span className={cn(MONO, "text-[11px] uppercase opacity-75")}>{rotulo}</span>
                       <span className={cn(MONO, "text-lg leading-none")}>{parte(d.date, { day: "numeric" })}</span>
-                      <span className={cn(MONO, "text-[9px]", sel ? "text-[#FAF9F5]/80" : vazio ? "text-[#9A9484]" : "text-[#2C6A53]")}>
-                        {agenda ? (vazio ? "fechado" : <>{d.horarios.length}<span className="hidden sm:inline"> livres</span></>) : "—"}
+                      <span className={cn(MONO, "text-[11px]", sel ? "text-[#FAF9F5]/80" : vazio ? "text-[#9A9484]" : "text-[#2C6A53]")}>
+                        {agenda ? (vazio ? <>–<span className="sr-only sm:not-sr-only sm:ml-1">{semVaga}</span></> : <>{d.horarios.length}<span className="hidden sm:inline"> livres</span></>) : "—"}
                       </span>
                     </button>
                   );
@@ -1132,13 +1139,15 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
         <div className="fixed inset-x-0 bottom-0 z-10 border-t border-[#E0DCCE] bg-[#FAF9F5] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
           <div className="mx-auto flex w-full max-w-[420px] items-center gap-3.5">
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className={cn(MONO, "text-[9px] tracking-[0.12em] text-[#6B6555] uppercase")}>
+              <span className={cn(MONO, "truncate text-[11px] tracking-[0.08em] text-[#6B6555] uppercase")}>
                 {parte(date, { weekday: "short", day: "numeric" })} · {escolha.hora}
                 {atendente ? ` · ${atendente.name}` : ""}
               </span>
               <span className="truncate text-sm font-semibold tracking-[-0.01em]">
-                {[escolhidos.map((s) => s.name).join(" + "), total].filter(Boolean).join(" · ")}
+                {escolhidos.length > 2 ? `${escolhidos[0].name} + ${escolhidos.length - 1} serviços` : escolhidos.map((s) => s.name).join(" + ")}
               </span>
+              {/* o preço em linha própria: nome longo de serviço não pode esconder o valor */}
+              {total && <span className="text-sm font-semibold tracking-[-0.01em] whitespace-nowrap">{total}</span>}
             </div>
             <button type="button" onClick={() => setEtapa("confirmar")} disabled={!agenda} className={cn(PRIMARIO, "shrink-0 disabled:opacity-60")}>
               Continuar

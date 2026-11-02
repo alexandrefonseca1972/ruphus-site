@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Agendamento no celular: com sinal Pix, a tela não promete mais "sem pagar nada agora" nem "horário reservado" antes do pagamento (mostra "aguardando o sinal"); o preço fica em linha própria no resumo de baixo; o calendário separa dia fechado de dia sem vagas; rótulos de 9 px passam a 11 px; e o nome do serviço não é mais espremido letra a letra quando o preço é "a partir de".
+
 ## 0.15.0 — 02/11/2026 — Ajustes no admin e produção só na VPS
 
 - A Vercel saiu do código: sem `vercel.json`, domínio próprio só pelo modo VPS (DNS no IP da VPS, certificado pelo Caddy), e a documentação de deploy aponta para `scripts/deploy-vps.sh`.
