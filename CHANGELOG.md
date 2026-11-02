@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Fontes e scripts não baixam mais duas vezes na primeira visita (~125 KB a menos), e a aba aberta antes de uma publicação volta a recarregar sozinha: o id do deploy passa a valer também no servidor em execução, não só no build.
+
 - Agendamento mais leve no celular: o zod e o gerador de QR do Pix saíram do JS que todo cliente baixa (de 666 KB para 532 KB sem compressão); ao escolher o primeiro serviço, a faixa de dias rola para a tela quando está abaixo da dobra; e os campos de nome e WhatsApp passam a 16 px, sem o zoom do Safari no iPhone.
 
 - Ajustes ganha **Testar envio** no SMS: depois de cadastrar a chave da Comtele, manda um SMS de teste para um celular e mostra a resposta da Comtele (chave errada, sem crédito) na hora.
