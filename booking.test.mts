@@ -585,36 +585,65 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
 
 // "Pedir remoção" da faixa de proposta: tira do ar e registra no CRM
 {
-  const proposta = (slug: string, gerado: Record<string, unknown>) => db.doc(`tenants/${slug}`).set({ name: `Casa ${slug}`, gerado: { sub: "salao", ...gerado } });
+  const { assinaturaDeRemocao, assinaturaValida } = await import("@/lib/remocao.server");
+  const segredo = process.env.CRON_SECRET;
+  delete process.env.CRON_SECRET;
+  assert.equal(assinaturaDeRemocao("x"), null, "sem segredo, sem assinatura");
+  assert.equal(assinaturaValida("x", ""), false, "sem segredo, ninguém remove");
+  process.env.CRON_SECRET = "segredo-de-teste";
+  const t = assinaturaDeRemocao("rem-ok")!;
+  assert.ok(assinaturaValida("rem-ok", t));
+  assert.equal(assinaturaValida("rem-outro", t), false, "a assinatura é de um slug só");
+  assert.equal(assinaturaValida("rem-ok", t.slice(0, -1) + "x"), false);
+  assert.equal(assinaturaValida("rem-ok", undefined), false);
+  if (segredo === undefined) delete process.env.CRON_SECRET;
+  else process.env.CRON_SECRET = segredo;
+
+  await db.doc("config/admin").set({ uids: ["conta-ruphus"] }, { merge: true });
+  const proposta = (slug: string, gerado: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+    db.doc(`tenants/${slug}`).set({ name: `Casa ${slug}`, ownerId: "conta-ruphus", gerado: { sub: "salao", ...gerado }, ...extra });
   await proposta("rem-ok", { origem: "prospeccao" });
   await db.doc("crm/rem-ok").set({ estagio: "oferta" });
   assert.deepEqual(await propostaRemovivel(db, "rem-ok"), { nome: "Casa rem-ok", removida: false });
   assert.equal(await pedirRemocao(db, "rem-ok"), true);
   const c = await db.doc("crm/rem-ok").get();
-  assert.deepEqual([c.get("publicado"), c.get("estagio"), c.get("motivoPerda")], [false, "perdido", "remocao"], "fora do ar, perdido, motivo remoção");
+  assert.deepEqual([c.get("publicado"), c.get("estagio"), c.get("motivoPerda"), c.get("estagioAntesDaRemocao")], [false, "perdido", "remocao", "oferta"], "fora do ar, perdido, motivo, estágio de antes");
   assert.ok(c.get("remocaoPedidaEm") && c.get("perdidoEm"), "data do pedido e da perda");
   const ev = await linhaDoTempo(db, "rem-ok");
   assert.ok(ev.some((e) => e.titulo === "Oferta enviada → Perdido" && e.detalhe === "Pediu a remoção da página"), "evento com o motivo");
   assert.equal(await pedirRemocao(db, "rem-ok"), true, "pedir de novo: já removida");
   assert.equal((await linhaDoTempo(db, "rem-ok")).length, ev.length, "sem evento repetido");
 
-  // já perdido por outro motivo: ainda assim registra o pedido
+  // sem CRM: nasce perdido, sem marcar entrada na negociação
+  await proposta("rem-sem-crm", {});
+  assert.equal(await pedirRemocao(db, "rem-sem-crm"), true);
+  const semCrm = await db.doc("crm/rem-sem-crm").get();
+  assert.deepEqual([semCrm.get("estagio"), semCrm.get("entrouEm"), semCrm.get("estagioAntesDaRemocao")], ["perdido", undefined, "novo"]);
+
+  // já perdido por outro motivo: o motivo de antes fica, e o pedido é registrado
   await proposta("rem-perdido", {});
-  await db.doc("crm/rem-perdido").set({ estagio: "perdido", motivoPerda: "preco" });
+  await db.doc("crm/rem-perdido").set({ estagio: "perdido", motivoPerda: "preco", detalhePerda: "achou caro" });
   assert.equal(await pedirRemocao(db, "rem-perdido"), true);
-  assert.equal((await db.doc("crm/rem-perdido").get()).get("publicado"), false);
+  const perdido = await db.doc("crm/rem-perdido").get();
+  assert.deepEqual([perdido.get("publicado"), perdido.get("motivoPerda"), perdido.get("detalhePerda")], [false, "preco", "achou caro"]);
   assert.ok((await linhaDoTempo(db, "rem-perdido")).some((e) => e.titulo === "Página tirada do ar"));
 
-  // o que não se remove pelo link: cliente fechado, site do cadastro, site publicado, inexistente
+  // não sai pelo link: cliente, em negociação, convite aceito, dono de fora, cadastro, publicado, inexistente
   await proposta("rem-cliente", {});
   await db.doc("crm/rem-cliente").set({ estagio: "fechado" });
+  await proposta("rem-negociando", {});
+  await db.doc("crm/rem-negociando").set({ estagio: "negociando" });
+  await proposta("rem-convite", {});
+  await db.doc("tenants/rem-convite/members/dono-1").set({ uid: "dono-1", role: "owner", viaConvite: true });
+  await proposta("rem-dono", {}, { ownerId: "dono-de-fora" });
   await proposta("rem-cadastro", { origem: "cadastro" });
   await proposta("rem-publicado", { publicadoEm: new Date() });
-  for (const slug of ["rem-cliente", "rem-cadastro", "rem-publicado", "rem-nao-existe"]) {
+  for (const slug of ["rem-cliente", "rem-negociando", "rem-convite", "rem-dono", "rem-cadastro", "rem-publicado", "rem-nao-existe"]) {
     assert.equal(await propostaRemovivel(db, slug), null, slug);
     assert.equal(await pedirRemocao(db, slug), false, slug);
   }
   assert.equal((await db.doc("crm/rem-cliente").get()).get("publicado"), undefined, "cliente intocado");
+  assert.equal((await db.doc("crm/rem-convite").get()).exists, false, "convite aceito intocado");
   console.log("pedir remoção: ok");
 }
 

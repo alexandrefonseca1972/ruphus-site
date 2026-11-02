@@ -471,6 +471,8 @@ export type DadosSite = {
   /** a entrada foi paga: o site é oficial — sem faixa de proposta e aberto ao Google.
    *  Até lá, de prospecção ou de cadastro, ele é proposta. */
   publicado?: boolean;
+  /** assinatura do link "Pedir remoção" (src/lib/remocao.server.ts); sem ela, o link pede contato */
+  remocao?: string;
   /** domínio próprio do cliente: ativo, vira o endereço oficial (canonical, og, JSON-LD) */
   dominio?: Pick<Dominio, "host" | "status"> | null;
 };
@@ -481,11 +483,11 @@ export const mapa = (d: Pick<DadosSite, "nome" | "endereco" | "cidade" | "uf">) 
 
 /** A camada da Ruphus que todo site-proposta carrega, igual à dos sites que já estão no ar.
  *  O do cadastro não oferece "Pedir remoção": foi o próprio dono que criou. */
-export const faixaProposta = (d: Pick<DadosSite, "slug" | "origem">) =>
+export const faixaProposta = (d: Pick<DadosSite, "slug" | "origem" | "remocao">) =>
   `<aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">${
     d.origem === "cadastro"
       ? `Esta página é uma prévia feita com a <a href="https://www.ruphus.site/" style="color:#f2b56b">Ruphus</a>, ainda não publicada. <a href="https://www.ruphus.site/privacidade" style="color:#a2918d">Privacidade</a>`
-      : `Esta página é uma proposta da <a href="https://www.ruphus.site/" style="color:#f2b56b">Ruphus</a>, não o site oficial. <a href="https://www.ruphus.site/remover/${d.slug}" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ruphus.site/privacidade" style="color:#a2918d">Privacidade</a>`
+      : `Esta página é uma proposta da <a href="https://www.ruphus.site/" style="color:#f2b56b">Ruphus</a>, não o site oficial. <a href="https://www.ruphus.site/remover/${d.slug}${d.remocao ? `?t=${d.remocao}` : ""}" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ruphus.site/privacidade" style="color:#a2918d">Privacidade</a>`
   }</aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){var b=document.querySelector("aside[data-ysis=proposta]");if(!b)return;var h=b.getBoundingClientRect().height;document.querySelectorAll("header,nav,.site-header,.nav,.topo").forEach(function(el){var s=getComputedStyle(el);if(s.position==="fixed"||s.position==="sticky")el.style.top=h+"px"});});</script>`;
 
 export const AVISO =

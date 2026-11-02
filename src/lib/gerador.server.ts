@@ -1,4 +1,5 @@
 import "server-only";
+import { assinaturaDeRemocao } from "@/lib/remocao.server";
 import { type DocumentData, type DocumentReference, FieldValue, type Firestore, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { z } from "zod";
 import { EQUIPE, montar, porRamo } from "@/lib/catalogo";
@@ -305,6 +306,7 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
     origem: gerado.origem === "cadastro" ? "cadastro" : "prospeccao",
     publicado: !!gerado.publicadoEm,
     dominio: (tenant.get("dominio") as DadosSite["dominio"]) ?? null,
+    remocao: assinaturaDeRemocao(slug) ?? undefined,
     ...(gerado.escolha && { escolha: gerado.escolha }),
     ...(gerado.variantes && { variantes: true }),
   };

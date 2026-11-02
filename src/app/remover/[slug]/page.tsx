@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/admin";
 import { RUPHUS } from "@/lib/catalogo";
 import { pedirRemocao, propostaRemovivel } from "@/lib/crm";
 import { indiceDoPainel } from "@/lib/painel-indice.server";
+import { assinaturaValida } from "@/lib/remocao.server";
 
 // "Pedir remoção", na faixa de cada página de proposta. A remoção pede um clique de confirmação:
 // o WhatsApp e os buscadores abrem os links para montar a prévia, e um GET que removesse tiraria
@@ -12,18 +13,19 @@ import { indiceDoPainel } from "@/lib/painel-indice.server";
 export const metadata: Metadata = { title: "Remover página · Ruphus", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
-const SLUG = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
+const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/; // o mesmo do gerador
 
-async function remover(slug: string) {
+async function remover(slug: string, t: string) {
   "use server";
-  if (!SLUG.test(slug)) redirect("/");
+  if (!SLUG.test(slug) || !assinaturaValida(slug, t)) redirect("/");
   if (await pedirRemocao(adminDb, slug)) await indiceDoPainel(adminDb).atualizar([slug]);
-  redirect(`/remover/${slug}?feito=1`);
+  redirect(`/remover/${slug}?t=${encodeURIComponent(t)}`);
 }
 
-export default async function Remover({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ feito?: string }> }) {
-  const [{ slug }, { feito }] = await Promise.all([params, searchParams]);
-  const proposta = SLUG.test(slug) ? await propostaRemovivel(adminDb, slug) : null;
+export default async function Remover({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ t?: string }> }) {
+  const [{ slug }, { t }] = await Promise.all([params, searchParams]);
+  // sem a assinatura do link (veio da página de verdade), a mesma resposta de quem não pode remover
+  const proposta = SLUG.test(slug) && assinaturaValida(slug, t) ? await propostaRemovivel(adminDb, slug) : null;
   const falar = `https://wa.me/${RUPHUS}?text=${encodeURIComponent(`Sobre a página ${slug}.ruphus.site`)}`;
   const CAIXA = "mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 px-6 text-[#17150F]";
   const BOTAO = "inline-flex h-12 items-center justify-center rounded-xl px-5 text-[15px] font-semibold";
@@ -37,7 +39,7 @@ export default async function Remover({ params, searchParams }: { params: Promis
       </main>
     );
 
-  if (proposta.removida || feito)
+  if (proposta.removida)
     return (
       <main className={CAIXA}>
         <h1 className="text-2xl font-semibold">Página removida</h1>
@@ -56,7 +58,7 @@ export default async function Remover({ params, searchParams }: { params: Promis
         Esta página foi feita pela Ruphus como proposta, a partir das informações públicas do negócio. Ao confirmar, ela sai do ar e não
         voltamos a usá-la.
       </p>
-      <form action={remover.bind(null, slug)}>
+      <form action={remover.bind(null, slug, t!)}>
         <button type="submit" className={`${BOTAO} w-full bg-[#17150F] text-white`}>
           Tirar esta página do ar
         </button>
