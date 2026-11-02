@@ -9,7 +9,7 @@ import { PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
 import { deslogarInstancia, enviarTexto, qrDaConexao, statusDaConexao } from "@/lib/atendys";
-import { aceitarTermoWhatsApp, conectarNegocio, desligarConexao, lerConfigWhatsApp, lerConexao, gravarConexao } from "@/lib/whatsapp.server";
+import { aceitarTermoWhatsApp, conectarNegocio, desligarConexao, lerConfigWhatsApp, lerConexao, gravarConexao, paraTela } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { criarConvite, revogarConvitesDaEquipe, tirarAcessosDoProfissional } from "@/lib/convite";
@@ -156,8 +156,8 @@ export const avisosLigadosAction = memberAction(z.object({ tenantId: docIdStaff,
   ligado: await inscrito(adminDb, data.tenantId, user.uid, data.endpoint),
 }));
 
-export const cancelarAvisosAction = memberAction(z.object({ tenantId: docIdStaff, endpoint: Inscricao.shape.endpoint }), async (data) => {
-  await cancelar(adminDb, data.tenantId, data.endpoint);
+export const cancelarAvisosAction = memberAction(z.object({ tenantId: docIdStaff, endpoint: Inscricao.shape.endpoint }), async (data, user) => {
+  await cancelar(adminDb, data.tenantId, user.uid, data.endpoint);
   return { ok: true as const };
 });
 
@@ -242,7 +242,7 @@ const SoTenant = z.object({ tenantId: docIdStaff });
 
 export const lerWhatsAppDoNegocioAction = memberAction(SoTenant, async ({ tenantId }, user) => {
   await exigeGestor(tenantId, user.uid);
-  return lerConfigWhatsApp(adminDb, tenantId);
+  return paraTela(await lerConfigWhatsApp(adminDb, tenantId));
 });
 
 export const aceitarTermoWhatsAppAction = memberAction(SoTenant, async ({ tenantId }, user) => {
@@ -261,7 +261,7 @@ export const conectarWhatsAppDonoAction = memberAction(SoTenant, async ({ tenant
     throw new UserError("Leia e aceite o termo sobre o WhatsApp antes de conectar.");
   }
   if (await lerConexao(adminDb, tenantId)) throw new UserError("Já existe um WhatsApp conectado. Desconecte antes de trocar de número.");
-  return conectarNegocio(adminDb, tenantId, tenantId, true);
+  return paraTela(await conectarNegocio(adminDb, tenantId, tenantId, true));
 });
 
 export const refreshWhatsAppStatusDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
@@ -271,7 +271,7 @@ export const refreshWhatsAppStatusDonoAction = memberAction(SoTenant, async ({ t
   const vivo = await statusDaConexao(salva);
   const conexao = { ...salva, phone: vivo.phone ?? salva.phone, status: vivo.status, updatedAt: Date.now() };
   await gravarConexao(adminDb, tenantId, conexao);
-  return conexao;
+  return paraTela(conexao);
 });
 
 export const qrWhatsAppDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {

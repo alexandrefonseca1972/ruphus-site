@@ -25,6 +25,7 @@
     "dblocal": "tsx --env-file=.env.local scripts/dblocal.mts",
     "coletar": "tsx --conditions=react-server --env-file=.env.local scripts/coletar.mts",
     "backfill:maps": "tsx --conditions=react-server --env-file=.env.local scripts/backfill-maps.mts",
+    "mover:segredos-whatsapp": "tsx --conditions=react-server --env-file=.env.local scripts/mover-segredos-whatsapp.mts",
     "converter:fabrica": "tsx --conditions=react-server --env-file=.env.local scripts/converter-fabrica.mts",
     "conferir:indice": "tsx --conditions=react-server --env-file=.env.local --expose-gc scripts/conferir-indice.mts",
     "membros": "tsx --env-file=.env.local scripts/preencher-membros.mts",
@@ -61,7 +62,7 @@
     "firebase-admin": "^14.4.0",
     "jose": "^6.2.12",
     "lucide-react": "^1.47.0",
-    "next": "16.3.5",
+    "next": "16.4.4",
     "nodemailer": "^10.1.6",
     "qrcode": "^1.5.4",
     "react": "19.2.8",
@@ -71,7 +72,7 @@
     "shadcn": "^4.21.0",
     "tw-animate-css": "^1.4.0",
     "web-push": "^3.6.7",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.2",
@@ -81,11 +82,11 @@
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
     "eslint": "^9",
-    "eslint-config-next": "16.3.5",
+    "eslint-config-next": "16.4.4",
     "firebase-tools": "^15.30.2",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
-    "typescript": "^5",
+    "typescript": "5.9.3",
     "write-excel-file": "^4.1.1"
   }
 }

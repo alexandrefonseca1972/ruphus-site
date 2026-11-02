@@ -49,19 +49,47 @@ export type ConexaoWhatsapp = ConexaoAtendys & {
 
 export { soDigitosComDDI };
 
-export async function lerConexao(db: Firestore, slug: string): Promise<ConexaoWhatsapp | null> {
-  const t = await db.doc(`tenants/${slug}`).get();
+// As credenciais do gateway (apikey, segredo dos webhooks, id do tenant atendys) moram fora do
+// documento do negócio: as regras deixam qualquer membro (até a equipe) ler tenants/{slug}, e o
+// painel baixa esse documento inteiro no navegador. Em tenants/{slug}/privado/whatsapp nenhuma regra
+// abre a leitura: só o servidor (Admin SDK) lê. Para a tela, `paraTela` tira as três.
+const SEGREDOS = ["atendysApiKey", "atendysWebhookSecret", "atendysTenantId"] as const;
+type Segredo = (typeof SEGREDOS)[number];
+export type ConexaoNaTela = Omit<ConexaoWhatsapp, Segredo>;
+const privado = (db: Firestore, slug: string) => db.doc(`tenants/${slug}/privado/whatsapp`);
+
+/** A conexão sem as credenciais: o que pode ir para o navegador (painel do dono ou /admin). */
+export function paraTela<T extends Partial<ConexaoWhatsapp>>(c: T): Omit<T, Segredo>;
+export function paraTela(c: null): null;
+export function paraTela<T extends Partial<ConexaoWhatsapp>>(c: T | null): Omit<T, Segredo> | null;
+export function paraTela<T extends Partial<ConexaoWhatsapp>>(c: T | null) {
+  if (!c) return null;
+  const copia: Partial<ConexaoWhatsapp> = { ...c };
+  for (const k of SEGREDOS) delete copia[k];
+  return copia as Omit<T, Segredo>;
+}
+
+/** O mapa whatsapp com as credenciais do doc privado (as antigas, ainda no doc do negócio antes da
+ *  migração, valem enquanto o privado não tem as dele). */
+async function lerInteira(db: Firestore, slug: string): Promise<ConexaoWhatsapp | null> {
+  const [t, p] = await Promise.all([db.doc(`tenants/${slug}`).get(), privado(db, slug).get()]);
   const w = t.get("whatsapp") as ConexaoWhatsapp | undefined;
+  if (!w) return null;
+  const segredos = p.data() as Partial<Pick<ConexaoWhatsapp, Segredo>> | undefined;
+  return { ...w, ...segredos };
+}
+
+export async function lerConexao(db: Firestore, slug: string): Promise<ConexaoWhatsapp | null> {
+  const w = await lerInteira(db, slug);
   // sem atendysApiKey é resto do protólogo antigo (wtsfy): para o app é como se
   // não houvesse conexão — o dono reconecta e o provisionamento atendys roda do zero.
   return w?.instanceId && w?.atendysApiKey ? w : null;
 }
 
 /** O mapa whatsapp inteiro, com ou sem conexão — o termo pode estar aceito sem
- *  instância, e o painel do dono precisa enxergar isso. */
+ *  instância, e o painel do dono precisa enxergar isso. Com credenciais: só para o servidor. */
 export async function lerConfigWhatsApp(db: Firestore, slug: string): Promise<ConexaoWhatsapp | null> {
-  const t = await db.doc(`tenants/${slug}`).get();
-  return (t.get("whatsapp") as ConexaoWhatsapp | undefined) ?? null;
+  return lerInteira(db, slug);
 }
 
 /** Aceite do termo de risco pelo dono. Idempotente: guarda só o primeiro. */
@@ -96,12 +124,24 @@ export async function gravarGestaoDono(db: Firestore, slug: string, permitir: bo
   await db.doc(`tenants/${slug}`).set({ whatsapp: { ownerManaged: permitir } }, { merge: true });
 }
 
+/** Grava a conexão: as credenciais no doc privado, o resto no negócio (e as antigas saem dele). */
 export async function gravarConexao(db: Firestore, slug: string, conexao: ConexaoWhatsapp) {
-  await db.doc(`tenants/${slug}`).set({ whatsapp: conexao }, { merge: true });
+  const segredos = Object.fromEntries(SEGREDOS.filter((k) => conexao[k] !== undefined).map((k) => [k, conexao[k]]));
+  const lote = db.batch();
+  lote.set(
+    db.doc(`tenants/${slug}`),
+    { whatsapp: { ...paraTela(conexao), ...Object.fromEntries(SEGREDOS.map((k) => [k, FieldValue.delete()])) } },
+    { merge: true },
+  );
+  if (Object.keys(segredos).length) lote.set(privado(db, slug), segredos, { merge: true });
+  await lote.commit();
 }
 
 export async function apagarConexao(db: Firestore, slug: string) {
-  await db.doc(`tenants/${slug}`).update({ whatsapp: FieldValue.delete() });
+  const lote = db.batch();
+  lote.update(db.doc(`tenants/${slug}`), { whatsapp: FieldValue.delete() });
+  lote.delete(privado(db, slug));
+  await lote.commit();
 }
 
 /** Provisionamento automático: garante o tenant e a instância no atendys e

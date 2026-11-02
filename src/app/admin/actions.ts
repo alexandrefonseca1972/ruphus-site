@@ -35,14 +35,15 @@ import { gerarNoBanco, lerSite, publicarSite } from "@/lib/gerador.server";
 import { PAGINAS_DEMO } from "@/lib/demo";
 import { acessoDemo, contas, restaurarDemo } from "@/lib/demo.server";
 import { deslogarInstancia, qrDaConexao, statusDaConexao, type SituacaoQr as QrWhatsApp } from "@/lib/atendys";
-import { apagarConexao, conectarNegocio, gravarGestaoDono, gravarOwnerPhone, lerConexao, type ConexaoWhatsapp, gravarConexao } from "@/lib/whatsapp.server";
+import { apagarConexao, conectarNegocio, gravarGestaoDono, gravarOwnerPhone, lerConexao, paraTela, type ConexaoNaTela, type ConexaoWhatsapp, gravarConexao } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { MODELOS, modeloDoId, renderEditorial, visualEditorial } from "@/lib/site-editorial";
 import { ehClaro, renderClaro } from "@/lib/site-claro";
 import type { Escolha, Sub } from "@/lib/gerador";
 import { FieldValue } from "firebase-admin/firestore";
 
-export type { ConexaoWhatsapp, QrWhatsApp };
+// a tela só recebe a conexão sem as credenciais do gateway
+export type { ConexaoNaTela as ConexaoWhatsapp, QrWhatsApp };
 
 export type { Espaco };
 
@@ -761,18 +762,18 @@ export const restaurarADemo = adminAction(async (user) => {
 // ─── WhatsApp do negócio (gateway próprio, wtsfy) ────────────────────────────
 
 /** O WhatsApp que o dono conectou: o que está gravado no tenants/{slug}. */
-export const whatsappDoNegocio = adminAction(async (_user, slug: string): Promise<ConexaoWhatsapp | null> => {
+export const whatsappDoNegocio = adminAction(async (_user, slug: string): Promise<ConexaoNaTela | null> => {
   slugValido(slug);
-  return lerConexao(adminDb, slug);
+  return paraTela(await lerConexao(adminDb, slug));
 });
 
 /** Cria a instância no gateway e prende o vínculo ao negócio. Um número por negócio.
  *  Quem conecta pela plataforma assume a gestão: ownerManaged false trava a
  *  edição no painel do dono (a plataforma tem prioridade). */
-export const conectarWhatsApp = adminAction(async (_user, slug: string): Promise<ConexaoWhatsapp> => {
+export const conectarWhatsApp = adminAction(async (_user, slug: string): Promise<ConexaoNaTela> => {
   slugValido(slug);
   if (await lerConexao(adminDb, slug)) throw new ErroPrevisto("Este negócio já tem um WhatsApp conectado. Desconecte antes de trocar de número.");
-  return conectarNegocio(adminDb, slug, slug, false);
+  return paraTela(await conectarNegocio(adminDb, slug, slug, false));
 });
 
 /** Delegar (ou retomar) a gestão do WhatsApp ao painel do dono. Só a plataforma decide. */
@@ -784,14 +785,14 @@ export const definirGestaoDonoWhatsApp = adminAction(async (_user, slug: string,
 });
 
 /** Pergunta ao gateway o estado de verdade e espelha no banco. É o que o polling usa. */
-export const refreshWhatsAppStatus = adminAction(async (_user, slug: string): Promise<ConexaoWhatsapp | null> => {
+export const refreshWhatsAppStatus = adminAction(async (_user, slug: string): Promise<ConexaoNaTela | null> => {
   slugValido(slug);
   const salva = await lerConexao(adminDb, slug);
   if (!salva) return null;
   const vivo = await statusDaConexao(salva);
   const conexao: ConexaoWhatsapp = { ...salva, phone: vivo.phone ?? salva.phone, status: vivo.status, updatedAt: Date.now() };
   await gravarConexao(adminDb, slug, conexao);
-  return conexao;
+  return paraTela(conexao);
 });
 
 /** O QR de pareamento (PNG em base64), ou o estado da conexão enquanto o QR não sai. */
