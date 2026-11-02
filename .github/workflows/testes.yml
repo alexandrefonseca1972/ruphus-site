@@ -61,3 +61,4 @@ jobs:
       - run: npm run test:gerador-banco
       - run: npm run test:booking
       - run: npm run test:scale
+      - run: npm run test:painel-indice

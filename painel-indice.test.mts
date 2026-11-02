@@ -54,6 +54,12 @@ await db.doc("tenants/ana-cabelos/members/" + ADMIN).set({ uid: ADMIN, role: "ow
 await db.doc("tenants/bia-unhas/members/" + ADMIN).set({ uid: ADMIN, role: "owner" });
 await db.doc("crm/ana-cabelos").set({ estagio: "negociando", mensalCents: 8990 });
 await db.doc("crm/bia-unhas").set({ origem: "importado", notas: 2 }); // trivial
+// já com cliente antes de montar: com a plataforma junto (2) e sozinho, por cadastro no site (1)
+await db.doc("tenants/dani-spa/members/cliente-0").set({ uid: "cliente-0", role: "owner" });
+await db.doc("tenants/dani-spa/members/" + ADMIN).set({ uid: ADMIN, role: "owner" });
+await tenant("dani-spa", { name: "Dani Spa", site: { category: "DaySpa" } });
+await db.doc("tenants/eva-nails/members/cliente-9").set({ uid: "cliente-9", role: "owner" });
+await tenant("eva-nails", { name: "Eva Nails", site: { category: "NailSalon" } });
 
 // ---- índice: montagem, mudanças ao vivo
 const indice = criarIndice(db, { log: mudo });
@@ -61,7 +67,9 @@ assert.equal(indice.montado(), null, "nada montado antes da primeira consulta");
 const [i1, i2] = await Promise.all([indice.pronto(), indice.pronto()]);
 assert.equal(i1.montadoEm, i2.montadoEm, "chamadas juntas esperam a mesma montagem");
 const porSlug = () => Object.fromEntries(indice.montado()!.lista().map((e) => [e.slug, e]));
-assert.deepEqual(i1.lista().map((e) => e.slug), ["ana-cabelos", "bia-unhas", "estranho"], "ordenada por nome");
+assert.deepEqual(i1.lista().map((e) => e.slug), ["ana-cabelos", "bia-unhas", "dani-spa", "estranho", "eva-nails"], "ordenada por nome");
+assert.equal(porSlug()["dani-spa"].acessos, 2, "cliente da montagem + plataforma");
+assert.equal(porSlug()["eva-nails"].acessos, 1, "cliente sem a plataforma no espaço");
 assert.equal(porSlug().estranho.nome, "estranho");
 assert.equal(porSlug().estranho.uf, null);
 assert.deepEqual(Object.keys(i1.crm), ["ana-cabelos"], "CRM trivial não entra");
@@ -70,6 +78,13 @@ assert.deepEqual(i1.admins, [ADMIN]);
 
 const lista1 = indice.montado()!.lista();
 assert.equal(indice.montado()!.lista(), lista1, "mesmo array enquanto nada muda");
+{
+  const v = indice.montado()!.versao;
+  await db.doc("crm/estranho").set({ estagio: "oferta" });
+  await ate(() => indice.montado()!.versao > v, "mudança no CRM muda a versão");
+  assert.equal(indice.montado()!.lista(), lista1, "mas não refaz a lista (nem a ordenação)");
+  await db.doc("crm/estranho").delete();
+}
 
 await tenant("caio-barba", { name: "Caio Barba", site: { category: "BarberShop" } });
 await ate(() => !!porSlug()["caio-barba"], "negócio criado aparece");
@@ -99,7 +114,7 @@ await db.doc("config/admin").set({ uids: [ADMIN, "admin-2"] });
 assert.ok(indice.montado(), "durante a remontagem ainda há índice");
 await ate(() => indice.montado()!.montadoEm !== antes.montadoEm, "remontado com as contas novas");
 assert.deepEqual(indice.montado()!.admins, [ADMIN, "admin-2"]);
-assert.equal(indice.montado()!.lista().length, 3, "o novo veio inteiro");
+assert.equal(indice.montado()!.lista().length, 5, "o novo veio inteiro");
 
 // revogação chega pelo listener (a rota usa esta cópia)
 await db.doc("config/admin").update({ revogados: { [ADMIN]: Date.now() + 60_000 } });
@@ -118,15 +133,18 @@ assert.equal(indice.montado(), null, "solto");
   await ate(() => curto.montado() === null, "solto depois de ocioso");
 }
 
-// o banco com config/admin trocado; o resto (e o que o SDK chama por dentro) é o de verdade
-const trocarConfig = (trocar: (ref: FirebaseFirestore.DocumentReference) => object) =>
+// o banco com config/admin ou tenants trocados; o resto (e o que o SDK chama por dentro) é o de verdade
+type Ref = { onSnapshot: (ok: never, erro: (e: Error) => void) => () => void };
+const bancoCom = ({ config, tenants }: { config?: (ref: Ref) => object; tenants?: (ref: Ref) => object }) =>
   new Proxy(db, {
     get: (alvo, p) => {
-      if (p === "doc") return (c: string) => (c === "config/admin" ? trocar(alvo.doc(c)) : alvo.doc(c));
+      if (p === "doc") return (c: string) => (c === "config/admin" && config ? config(alvo.doc(c) as unknown as Ref) : alvo.doc(c));
+      if (p === "collection") return (c: string) => (c === "tenants" && tenants ? tenants(alvo.collection(c) as unknown as Ref) : alvo.collection(c));
       const v = Reflect.get(alvo, p);
       return typeof v === "function" ? v.bind(alvo) : v;
     },
   });
+const trocarConfig = (config: (ref: Ref) => object) => bancoCom({ config });
 
 // montagem que falha: espera crescente antes de tentar de novo (sem reler 30 mil a cada consulta)
 {
@@ -134,6 +152,71 @@ const trocarConfig = (trocar: (ref: FirebaseFirestore.DocumentReference) => obje
   const ruim = criarIndice(quebrado, { log: mudo });
   await assert.rejects(ruim.pronto(), /sem rede/);
   await assert.rejects(ruim.pronto(), IndiceIndisponivel, "segunda tentativa logo em seguida é recusada");
+  await new Promise((r) => setTimeout(r, 1100));
+  await assert.rejects(ruim.pronto(), /sem rede/, "passada a espera, tenta de novo");
+}
+
+// listener que cai no meio da montagem: a montagem falha (não fica pendurada para sempre)
+{
+  const silencio = (): Ref => ({ onSnapshot: () => () => {} }); // tenants nunca responde
+  const cai = bancoCom({
+    config: (ref) => ({ onSnapshot: (ok: never, erro: (e: Error) => void) => (setTimeout(() => erro(new Error("caiu")), 100), ref.onSnapshot(ok, erro)) }),
+    tenants: silencio,
+  });
+  await assert.rejects(criarIndice(cai, { log: mudo }).pronto(), /solto durante a montagem/, "listener caído aborta a montagem");
+  // primeira resposta que nunca chega: o prazo aborta
+  await assert.rejects(criarIndice(bancoCom({ tenants: silencio }), { log: mudo, prazoMs: 300 }).pronto(), /passou de/);
+}
+
+// troca de índice sem deixar listener órfão
+{
+  let vivos = 0;
+  const contando = bancoCom({
+    tenants: (ref) => ({
+      onSnapshot: (ok: never, erro: (e: Error) => void) => {
+        vivos++;
+        // cada resposta 300 ms depois: a montagem demora o bastante para ser interrompida no meio
+        const devagar = ((snap: unknown) => setTimeout(() => (ok as (s: unknown) => void)(snap), 300)) as never;
+        const soltar = ref.onSnapshot(devagar, erro);
+        return () => (vivos--, soltar());
+      },
+    }),
+  });
+  const ind = criarIndice(contando, { log: mudo });
+  await ind.pronto();
+  assert.equal(vivos, 1);
+  const antes = ind.montado()!.montadoEm;
+  await db.doc("config/admin").set({ uids: [ADMIN, "admin-3"] });
+  await ate(() => ind.montado()?.montadoEm !== antes && vivos === 1, "trocado, e o velho soltou os listeners");
+  // o velho é solto enquanto o novo monta: o novo não tem quem o use e não pode ficar ouvindo
+  await db.doc("config/admin").set({ uids: [ADMIN] });
+  await ate(() => vivos === 2, "nova montagem começou");
+  ind.soltar();
+  await ate(() => vivos === 0, "nenhum listener órfão");
+  assert.equal(ind.montado(), null);
+}
+
+// contas mudam durante a montagem: o not-in velho não fica valendo
+{
+  const ind = criarIndice(db, { log: mudo });
+  const montagem = ind.pronto();
+  await db.doc("config/admin").set({ uids: [ADMIN, "cliente-0"] }); // o cliente de dani-spa vira da plataforma
+  await montagem;
+  const dani = () => ind.montado()?.lista().find((e) => e.slug === "dani-spa")?.acessos;
+  await ate(() => dani() === 1, "cliente que virou conta da plataforma não conta mais como cliente");
+  await db.doc("config/admin").set({ uids: [ADMIN] });
+  await ate(() => dani() === 2, "e volta a contar");
+  ind.soltar();
+}
+
+// sem contas da plataforma (sem not-in): conta todos os membros que gerem, como antes
+{
+  await db.doc("config/admin").set({ uids: [] });
+  const ind = criarIndice(db, { log: mudo });
+  const acessos = Object.fromEntries((await ind.pronto()).lista().map((e) => [e.slug, e.acessos]));
+  assert.deepEqual([acessos["ana-cabelos"], acessos["dani-spa"], acessos["eva-nails"], acessos.estranho], [1, 2, 1, 0]);
+  ind.soltar();
+  await db.doc("config/admin").set({ uids: [ADMIN] });
 }
 
 // listener que cai depois de montado solta o índice; a próxima consulta monta de novo
@@ -144,7 +227,9 @@ const trocarConfig = (trocar: (ref: FirebaseFirestore.DocumentReference) => obje
   await ind.pronto();
   derrubar(new Error("permissão"));
   assert.equal(ind.montado(), null, "listener caído solta o índice");
-  assert.ok((await ind.pronto()).lista().length, "e a próxima consulta monta de novo");
+  await assert.rejects(ind.pronto(), IndiceIndisponivel, "caiu logo depois de montado: espera antes de remontar");
+  await new Promise((r) => setTimeout(r, 1100));
+  assert.ok((await ind.pronto()).lista().length, "passada a espera, a próxima consulta monta de novo");
   ind.soltar();
 }
 
@@ -154,6 +239,9 @@ const trocarConfig = (trocar: (ref: FirebaseFirestore.DocumentReference) => obje
   const verificar = async (token: string) => {
     if (token === "admin") return { uid: ADMIN, authTimeMs: Date.now() };
     if (token === "dono") return { uid: "dono-1", authTimeMs: Date.now() };
+    if (token === "rede") throw new TypeError("fetch failed");
+    if (token === "google") throw new (await import("jose")).errors.JOSEError("Expected 200 OK from the JSON Web Key Set HTTP response");
+    if (token === "vencido") throw new (await import("jose")).errors.JWTExpired("exp", {});
     throw new Error("token inválido");
   };
   const pedir = async (query: string, token?: string, esperaMs?: number) => {
@@ -168,6 +256,9 @@ const trocarConfig = (trocar: (ref: FirebaseFirestore.DocumentReference) => obje
 
   assert.equal((await pedir(q)).status, 401, "sem token");
   assert.equal((await pedir(q, "lixo")).status, 401, "token inválido");
+  assert.equal((await pedir(q, "rede")).status, 500, "sem as chaves do Google não é sessão expirada");
+  assert.equal((await pedir(q, "google")).status, 500, "Google fora do 200 também não");
+  assert.equal((await pedir(q, "vencido")).status, 401, "token vencido é sessão expirada");
   const semPermissao = await pedir(q, "dono");
   assert.equal(semPermissao.status, 403);
   assert.deepEqual(semPermissao.corpo, { ok: false, codigo: "restrito", erro: "Área restrita." });
@@ -188,7 +279,7 @@ const trocarConfig = (trocar: (ref: FirebaseFirestore.DocumentReference) => obje
   assert.ok(ok.corpo.ok);
   if (ok.corpo.ok) {
     assert.deepEqual(ok.corpo.itens.map((e) => e.slug), ["ana-cabelos"], "só a página pedida");
-    assert.equal(ok.corpo.total, 3);
+    assert.equal(ok.corpo.total, 5);
     assert.deepEqual(Object.keys(ok.corpo.crm), ["ana-cabelos"], "CRM só da página");
     assert.deepEqual(ok.corpo.contagens.ufs, [["PA", 2]]);
     assert.equal(ok.corpo.contagens.estagios.negociando, 1);

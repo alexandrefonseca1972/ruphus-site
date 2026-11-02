@@ -1,5 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { errors } from "jose";
 import { invalido, semPermissao } from "@/lib/admin-guard";
 import type { Crm } from "@/lib/crm-tipos";
 import { consultar } from "@/lib/painel-consulta";
@@ -33,7 +34,8 @@ function erro(codigo: CodigoDeErro, mensagem: string) {
 export async function responderPainel(req: Request, { db, indice, verificar = verifyFirebaseToken, esperaMs = ESPERA_MONTAGEM_MS }: Dependencias) {
   // o token só no cabeçalho: a URL vai para o log do Caddy
   const token = /^Bearer (\S{1,4096})$/.exec(req.headers.get("authorization") ?? "")?.[1];
-  const user = token ? await verificar(token).catch(() => null) : null;
+  const user = token ? await verificar(token).catch((err) => (semRede(err) ? "rede" : null)) : null;
+  if (user === "rede") return erro("falha", "Não foi possível agora.");
   if (!user) return erro("sessao", "Sessão expirada. Entre novamente.");
 
   // a cópia de config/admin do índice, quando montado: sem uma leitura por tecla digitada (R11)
@@ -81,6 +83,13 @@ export async function responderPainel(req: Request, { db, indice, verificar = ve
     return erro("falha", "Não foi possível agora.");
   }
 }
+
+// sem as chaves do Google o token não foi julgado: "sessão expirada" mandaria a tela renovar o
+// token e tentar de novo em laço. fetch que falha é TypeError.
+// O JOSEError puro (sem subclasse) é a resposta do Google fora do 200. Pelo código, não por
+// instanceof: com duas cópias do jose carregadas (CJS e ESM), a classe não é a mesma.
+const CODIGOS_DE_REDE: unknown[] = [errors.JWKSTimeout.code, errors.JWKSInvalid.code, errors.JOSEError.code];
+const semRede = (err: unknown) => err instanceof TypeError || (err instanceof Error && CODIGOS_DE_REDE.includes((err as { code?: unknown }).code));
 
 // a busca pode ser um telefone: no log vai só o tamanho dela
 const semDadoPessoal = ({ busca, ...resto }: { busca: string }) => ({ ...resto, busca: busca.length });
