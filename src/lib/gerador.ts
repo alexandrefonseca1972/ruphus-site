@@ -384,6 +384,33 @@ export const jsonLd = (dados: unknown) =>
 
 export const zap = (telefone: string, msg: string) => esc(`https://wa.me/${telefone}?text=${encodeURIComponent(msg)}`);
 
+/** Ícone de telefone, no lugar do WhatsApp quando o número é fixo. */
+export const FONE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>';
+
+// Frases dos modelos que falam em WhatsApp, na ordem: as específicas antes das genéricas.
+const SEM_WHATSAPP: [RegExp, string | ((m: string) => string)][] = [
+  [/(Falar|Chamar) no WhatsApp/g, "Ligar agora"],
+  [/Agendar pelo WhatsApp de/g, "Ligar para"],
+  [/Telefone \/ WhatsApp/g, "Telefone"],
+  [/mande uma mensagem no WhatsApp e receba/g, "ligue e saiba"],
+  [/(chame|pergunte|mande uma mensagem) (no|pelo) WhatsApp/gi, (m) => (m[0] === m[0].toUpperCase() ? "Ligue" : "ligue")],
+  [/(pelo|no|direto pelo) WhatsApp/g, "por telefone"],
+  [/WhatsApp/g, "Telefone"],
+];
+
+/** O site de número fixo: o WhatsApp não atende, então cada link vira ligação (tel:), o ícone vira
+ *  telefone e o texto deixa de prometer WhatsApp. Os formulários que montam a mensagem saem antes,
+ *  no próprio modelo. */
+export function paraTelefone(html: string, telefone: string, iconeWhatsApp: string) {
+  let saida = html
+    // só o número do negócio: o "Pedir remoção" da faixa é o WhatsApp da Ruphus e continua sendo
+    .replace(new RegExp(`href="https://wa\\.me/${telefone}\\?text=[^"]*"(\\s+target="_blank")?(\\s+rel="noopener")?`, "g"), `href="tel:+${telefone}"`)
+    .split(iconeWhatsApp)
+    .join(FONE_SVG);
+  for (const [re, troca] of SEM_WHATSAPP) saida = typeof troca === "string" ? saida.replace(re, troca) : saida.replace(re, troca);
+  return saida;
+}
+
 /** 5591993721156 → (91) 99372-1156 */
 export const foneBR = (t: string) => {
   const d = t.slice(2);

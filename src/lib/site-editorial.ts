@@ -4,6 +4,8 @@
 // estão aqui, os demais em src/lib/nichos) e os seus kits de fotos.
 import {
   AVISO, cabecaComum, type Capa, type DadosSite, type Escolha, esc, faixaProposta, foneBR, jsonLdNegocio, lugar, mapa, notaBR, type Sub, variante, zap,
+  fixo,
+  paraTelefone,
 } from "@/lib/gerador";
 import { AUTOMOTIVO } from "@/lib/nichos/automotivo";
 import { FITNESS } from "@/lib/nichos/fitness";
@@ -299,11 +301,17 @@ export function renderEditorial(d: DadosSite): string {
   const marquee = [...servicos, ...servicos].map((s) => `<span>${esc(s)} ✦</span>`).join("");
   const alt = esc(`${d.nome} — ${rotulo}`);
   const escolhido = <T,>(lista: T[], sal: string): T => (d.variantes ? sorteio(lista, d.slug, sal) : lista[0]);
-  const passos = escolhido(VARIANTES.passos, "passos");
+  // número fixo: o WhatsApp não atende — ligação no lugar, sem o formulário que monta a mensagem
+  const porTelefone = fixo(d.telefone);
+  const passos = porTelefone
+    ? ["Escolha o serviço e o melhor dia para você.", "Ligue para a equipe.", "Combine o horário na própria ligação."]
+    : escolhido(VARIANTES.passos, "passos");
   const [precoTitulo, precoTexto] = escolhido(VARIANTES.precos, "precos");
-  const intro = escolhido(VARIANTES.intro, "intro").replace("{nome}", esc(d.nome));
+  const intro = porTelefone
+    ? `Ligue para ${esc(d.nome)} e marque na hora, sem cadastro e sem aplicativo.`
+    : escolhido(VARIANTES.intro, "intro").replace("{nome}", esc(d.nome));
 
-  return `<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <script>document.documentElement.classList.add("js");</script>
@@ -383,7 +391,7 @@ ${d.publicado ? "" : faixaProposta(d)}
         <div class="step"><b>3</b><span>${passos[2]}</span></div>
       </div>
     </div>
-    <form class="waform rv" id="waform" data-wa="${d.telefone}">
+    ${porTelefone ? `<div class="waform rv"><p>Ligue para ${esc(d.nome)} e combine o serviço e o melhor horário.</p><a class="btn-solid" href="tel:+${d.telefone}">${WA} Ligar ${foneBR(d.telefone)}</a></div>` : `<form class="waform rv" id="waform" data-wa="${d.telefone}">
       <label for="wf-nome">Seu nome</label>
       <input id="wf-nome" name="nome" type="text" placeholder="Como podemos te chamar?" autocomplete="name" required>
       <label for="wf-svc">Serviço</label>
@@ -396,7 +404,7 @@ ${d.publicado ? "" : faixaProposta(d)}
       <textarea id="wf-msg" name="msg" placeholder="${e.obs ?? "Ex.: primeira visita, referência, alergia a produto…"}"></textarea>
       <button type="submit">${WA} Enviar pelo WhatsApp</button>
     ${AVISO}
-</form>
+</form>`}
   </div>
 </section>
 ${temNota ? `
@@ -421,7 +429,7 @@ ${temNota ? `
 
 <section class="contato" id="contato">
   <div class="sec-head rv"><span class="label">Contato</span><h2>Fale com a gente</h2></div>
-  <h2 class="cta-h2 rv">Seu próximo horário está a <em>uma mensagem</em> de distância</h2>
+  <h2 class="cta-h2 rv">Seu próximo horário está a <em>${porTelefone ? "uma ligação" : "uma mensagem"}</em> de distância</h2>
   <div class="cta-row rv">
     <a class="btn-solid" href="${oi}" target="_blank" rel="noopener">${WA} Chamar no WhatsApp</a>
     <a class="btn-ghost" href="${google}" target="_blank" rel="noopener">${PINO} Ver no mapa</a>
@@ -446,7 +454,7 @@ var hd=document.getElementById('hd');
 addEventListener('scroll',function(){hd.classList.toggle('scrolled',scrollY>40);},{passive:true});
 var io=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target);}});},{threshold:.12});
 document.querySelectorAll('.rv').forEach(function(el){io.observe(el);});
-// dia de preferência a partir de hoje (no fuso de quem abre): o navegador recusa data passada
+${porTelefone ? "" : `// dia de preferência a partir de hoje (no fuso de quem abre): o navegador recusa data passada
 document.getElementById('wf-dia').min=new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
 document.getElementById('waform').addEventListener('submit',function(ev){
   ev.preventDefault();
@@ -456,11 +464,12 @@ document.getElementById('waform').addEventListener('submit',function(ev){
   if(f.periodo.value)linhas.push('Período: '+f.periodo.value);
   if(f.msg.value)linhas.push('Obs.: '+f.msg.value);
   window.open('https://wa.me/'+f.getAttribute('data-wa')+'?text='+encodeURIComponent(linhas.join('\\n')),'_blank');
-});
+});`}
 </script>
 <script src="../assets/fx.js" defer></script>
 <script>window.addEventListener('load',function(){if(window.init3D)init3D('fx3d','${acc}',{shapes:12,opacity:.45});});</script>
 </body>
 </html>
 `;
+  return porTelefone ? paraTelefone(html, d.telefone, WA) : html;
 }

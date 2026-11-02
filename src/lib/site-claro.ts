@@ -3,6 +3,8 @@
 // public/s/assets/gerado/pet.css (o nome ficou: é o arquivo que os sites já pedem).
 import {
   AVISO, cabecaComum, type Capa, type DadosSite, type Escolha, esc, faixaProposta, foneBR, jsonLd, jsonLdNegocio, lugar, mapa, notaBR, type Sub, variante, zap,
+  fixo,
+  paraTelefone,
 } from "@/lib/gerador";
 import { PET } from "@/lib/nichos/pet";
 import { AULAS } from "@/lib/nichos/aulas";
@@ -133,7 +135,9 @@ export function renderClaro(d: DadosSite): string {
   const img = (nome: string) => imagem(c, nome);
   const ICONE = c.icone;
 
-  return `<!doctype html>
+  // número fixo: o WhatsApp não atende — ligação no lugar, sem o formulário que monta a mensagem
+  const porTelefone = fixo(d.telefone);
+  const html = `<!doctype html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -299,9 +303,9 @@ ${temNota ? `
   <div class="wrap">
     <span class="eyebrow">Agendar</span>
     <h2 class="section-title">${c.textos.agendar}</h2>
-    <p class="lead">Preencha os dados — ao enviar, a solicitação já chega pronta no WhatsApp da ${esc(d.nome)}.</p>
+    <p class="lead">${porTelefone ? `Ligue para ${esc(d.nome)} e combine o serviço, o dia e o horário.` : `Preencha os dados — ao enviar, a solicitação já chega pronta no WhatsApp da ${esc(d.nome)}.`}</p>
     <div class="agendar-box">
-      <form id="agendarForm" data-brand="${esc(d.nome)}" data-wa="${d.telefone}">
+      ${porTelefone ? `<div class="agendar-actions"><a class="btn btn-primary" href="tel:+${d.telefone}">${FONE}<span>Ligar ${foneBR(d.telefone)}</span></a></div>` : `<form id="agendarForm" data-brand="${esc(d.nome)}" data-wa="${d.telefone}">
         <div class="form-grid">
           <div class="full"><label for="agNome">Seu nome</label><input id="agNome" required placeholder="Seu nome completo"></div>
           <div><label for="agTelefone">Telefone / WhatsApp</label><input id="agTelefone" required placeholder="(00) 90000-0000"></div>
@@ -315,7 +319,7 @@ ${temNota ? `
         </div>
         <p class="form-note" id="agendarNote"></p>
         ${AVISO}
-      </form>
+      </form>`}
     </div>
   </div>
 </section>
@@ -367,7 +371,7 @@ ${temNota ? `
   document.getElementById('drawerBackdrop').addEventListener('click',closeDrawer);
   document.querySelectorAll('.drawer-link').forEach(function(a){a.addEventListener('click',closeDrawer);});
   document.getElementById('yr').textContent=new Date().getFullYear();
-  // data a partir de hoje (no fuso de quem abre): o navegador recusa data passada
+  ${porTelefone ? "" : `// data a partir de hoje (no fuso de quem abre): o navegador recusa data passada
   document.getElementById('agData').min=new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
   var form=document.getElementById('agendarForm');
   var v=function(id){return document.getElementById(id).value.trim();};
@@ -384,10 +388,11 @@ ${temNota ? `
     window.open('https://wa.me/'+form.getAttribute('data-wa')+'?text='+encodeURIComponent(msg),'_blank');
     var note=document.getElementById('agendarNote');
     note.textContent='Abrindo o WhatsApp com sua mensagem pronta...';note.classList.add('ok');
-  });
+  });`}
 })();
 </script>
 </body>
 </html>
 `;
+  return porTelefone ? paraTelefone(html, d.telefone, WA) : html;
 }

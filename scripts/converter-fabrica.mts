@@ -11,13 +11,14 @@
 //
 // Converter guarda o index.html em fabrica-backup/{slug}/ (fora de sites/, que a rota lê), grava
 // `gerado` no tenant e tira o index.html de sites/: a rota passa a montar o site pelo modelo.
-// Recusa cliente (fechado ou com dono de fora), site já gerado e telefone fixo (o modelo é de WhatsApp).
+// Recusa cliente (fechado ou com dono de fora) e site já gerado. Número fixo vai também: o modelo
+// troca o WhatsApp por ligação (paraTelefone, em src/lib/gerador.ts).
 import { writeFileSync } from "node:fs";
 import type { DocumentSnapshot } from "firebase-admin/firestore";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminBucket, adminDb } from "@/lib/admin";
 import { normalizar } from "@/lib/catalogo";
-import { fixo, nichoDe, SUBS, type DadosSite, type Sub } from "@/lib/gerador";
+import { nichoDe, SUBS, type DadosSite, type Sub } from "@/lib/gerador";
 import { PREFIXO } from "@/lib/site-arquivo";
 import { ehClaro, renderClaro } from "@/lib/site-claro";
 import { renderEditorial } from "@/lib/site-editorial";
@@ -126,7 +127,6 @@ const recusa = (t: DocumentSnapshot, crm: DocumentSnapshot, sub: Sub | null) =>
   : t.get("ownerId") && !plataforma.has(t.get("ownerId")) ? "cliente (dono)"
   : !sub ? "sem ramo"
   : !normalizar(String(t.get("site.phone") ?? "")) ? "sem telefone"
-  : fixo(normalizar(String(t.get("site.phone"))) ?? "") ? "telefone fixo"
   : "";
 
 const html = async (slug: string) => (await adminBucket().file(`${PREFIXO}/${slug}/index.html`).download())[0].toString("utf8");

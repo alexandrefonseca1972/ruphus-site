@@ -2,7 +2,7 @@
 //   npm run test:gerador
 import assert from "node:assert/strict";
 import lerAbas from "read-excel-file/node";
-import { montar, porRamo } from "@/lib/catalogo";
+import { montar, porRamo, RUPHUS } from "@/lib/catalogo";
 import { candidatos, type DadosSite, fixo, lerPlanilha as lerAbasDaPlanilha, nichoDe, outraForma, ufDe, ufDoTelefone, variante } from "@/lib/gerador";
 
 // uma aba só, como a maioria das planilhas
@@ -400,3 +400,21 @@ console.log("uf por extenso: ok");
 // o mesmo celular com e sem o 9; fixo não tem outra forma
 assert.deepEqual(["5591993721156", "559193721156", "559632178751", "14155550100"].map(outraForma), ["559193721156", "5591993721156", null, null]);
 console.log("nono dígito: ok");
+
+// número fixo: o WhatsApp não atende — tudo vira ligação, nos dois modelos e em todos os ramos
+for (const sub of ["petshop", "vet", "odonto", "salao", "barbearia", "estetica", "unhas", "podologia"] as const) {
+  const d = { ...base, nome: "Casa Teste", sub, telefone: "559232364727" };
+  const html = ehClaro(sub) ? renderClaro(d) : renderBeleza(d);
+  assert.ok(!html.includes("wa.me/559232364727"), `${sub} fixo: sem link de WhatsApp do negócio`);
+  // a faixa de proposta: "Pedir remoção" segue indo para o WhatsApp da Ruphus, não vira ligação ao negócio
+  assert.ok(html.includes(`wa.me/${RUPHUS}?text=`) && /Pedir remoção/.test(html), `${sub} fixo: Pedir remoção intacto`);
+  assert.ok(!/whatsapp/i.test(html.replace(/wa\.me\/\d+/g, "")), `${sub} fixo: o texto não promete WhatsApp (${/.{40}whatsapp.{40}/i.exec(html)?.[0]})`);
+  assert.ok(html.includes('href="tel:+559232364727"'), `${sub} fixo: botão de ligar`);
+  assert.ok(!html.includes("data-wa="), `${sub} fixo: sem o formulário que monta a mensagem`);
+  assert.ok(!/envie|mensagem pronta|uma mensagem<\/em>/i.test(html), `${sub} fixo: nada de "envie a mensagem" (${/.{30}(envie|mensagem pronta).{30}/i.exec(html)?.[0]})`);
+  assert.ok(!/getElementById\('(wf-dia|agData)'\)/.test(html), `${sub} fixo: sem o script do formulário (quebraria sem ele)`);
+  // com celular, o modelo segue com WhatsApp
+  const cel = ehClaro(sub) ? renderClaro({ ...d, telefone: "5592993721156" }) : renderBeleza({ ...d, telefone: "5592993721156" });
+  assert.ok(cel.includes("wa.me/5592993721156") && cel.includes("data-wa="), `${sub} celular: WhatsApp e formulário`);
+}
+console.log("telefone fixo vira ligação: ok");
