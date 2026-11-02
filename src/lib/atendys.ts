@@ -1,11 +1,12 @@
 import "server-only";
 import { ErroPrevisto } from "@/lib/erro-previsto";
+import { integracao } from "@/lib/integracoes.server";
 
 // Cliente da plataforma de notificações WhatsApp (atendys). Só roda no servidor:
 // as chaves moram em variáveis de ambiente e nenhum segredo vai ao navegador.
 //
 // Dois níveis de autenticação:
-// - admin (X-Admin-Key, variável de ambiente): provisionamento — criar o tenant
+// - admin (X-Admin-Key, cadastrada no /admin ou no .env): provisionamento — criar o tenant
 //   do negócio, a instância do número, logout/reinício administrativo.
 // - tenant (header apikey, gravada no doc do negócio): status, QR, envio, opt-in.
 //
@@ -13,7 +14,6 @@ import { ErroPrevisto } from "@/lib/erro-previsto";
 // com HMAC-SHA256 em x-atendys-signature (segredo gravado no doc do negócio).
 
 const BASE = () => (process.env.ATENDYS_BASE_URL ?? "http://127.0.0.1:3002").replace(/\/+$/, "");
-const ADMIN_KEY = () => process.env.ATENDYS_ADMIN_KEY ?? "";
 const SITE = () => (process.env.PUBLIC_SITE_URL ?? "https://ruphus.site").replace(/\/+$/, "");
 const WEBHOOK_URL = () => `${SITE()}/api/webhooks/atendys`;
 // o primeiro envio para um número novo estabelece a sessão de criptografia do
@@ -55,11 +55,12 @@ async function chamar<T>(auth: { "x-admin-key": string } | { apikey: string }, m
   return (await res.json()) as T;
 }
 
-function chamarAdmin<T>(method: string, caminho: string, corpo?: unknown): Promise<T> {
-  if (!ADMIN_KEY()) {
-    throw new ErroPrevisto("O provisionamento do WhatsApp não está configurado neste ambiente (falta ATENDYS_ADMIN_KEY).");
+async function chamarAdmin<T>(method: string, caminho: string, corpo?: unknown): Promise<T> {
+  const chave = await integracao("ATENDYS_ADMIN_KEY");
+  if (!chave) {
+    throw new ErroPrevisto("O provisionamento do WhatsApp não está configurado (falta a chave de administração do atendys no /admin).");
   }
-  return chamar<T>({ "x-admin-key": ADMIN_KEY() }, method, caminho, corpo);
+  return chamar<T>({ "x-admin-key": chave }, method, caminho, corpo);
 }
 
 const authTenant = (conn: ConexaoAtendys) => {

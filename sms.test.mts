@@ -29,19 +29,14 @@ for (const t of [textoConfirmacao(longo), textoLembrete({ ...longo, nome: "Marin
 assert.equal(textoSms(textoConfirmacao({ negocio: "Bella", quando: "amanhã às 15:15", servico: "Corte", telefone: "" })), "Bella: seu horario amanha as 15:15 (Corte) esta confirmado.");
 
 // envio: cabeçalho auth-key, corpo da API v2, id de volta; erro da Comtele vira ErroSms; sem chave, nada sai
-const chave = process.env.COMTELE_API_KEY;
-delete process.env.COMTELE_API_KEY;
-assert.equal(await enviarSms("11912345678", "oi", { fetch: () => { throw new Error("não devia chamar"); } }), null);
-process.env.COMTELE_API_KEY = "chave-teste";
+assert.equal(await enviarSms("11912345678", "oi", { chave: "", fetch: () => { throw new Error("não devia chamar"); } }), null);
 let pedido: { url: string; init: RequestInit } | null = null;
 const ok = (async (url: string, init: RequestInit) => ((pedido = { url, init }), Response.json({ Success: true, Object: { requestUniqueId: "abc" }, Message: "ok" }))) as unknown as typeof fetch;
-assert.equal(await enviarSms("11912345678", "Olá", { fetch: ok }), "abc");
+assert.equal(await enviarSms("11912345678", "Olá", { chave: "chave-teste", fetch: ok }), "abc");
 assert.equal(pedido!.url, "https://sms.comtele.com.br/api/v2/send");
 assert.equal((pedido!.init.headers as Record<string, string>)["auth-key"], "chave-teste");
 assert.deepEqual(JSON.parse(String(pedido!.init.body)), { Sender: "ruphus", Receivers: "11912345678", Content: "Ola" });
 const semCredito = (async () => Response.json({ Success: false, Message: "Créditos insuficientes" }, { status: 400 })) as unknown as typeof fetch;
-await assert.rejects(enviarSms("11912345678", "oi", { fetch: semCredito }), (e: unknown) => e instanceof ErroSms && /insuficientes/.test(e.message));
-if (chave === undefined) delete process.env.COMTELE_API_KEY;
-else process.env.COMTELE_API_KEY = chave;
+await assert.rejects(enviarSms("11912345678", "oi", { chave: "chave-teste", fetch: semCredito }), (e: unknown) => e instanceof ErroSms && /insuficientes/.test(e.message));
 
 console.log("sms ok");

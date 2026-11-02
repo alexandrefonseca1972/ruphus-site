@@ -1,18 +1,19 @@
 import "server-only";
 import { textoSms } from "@/lib/comtele";
+import { integracao } from "@/lib/integracoes.server";
 
 // Envio de SMS pela Comtele (painel antigo): POST /api/v2/send com a chave no cabeçalho `auth-key`.
-// Sem COMTELE_API_KEY no ambiente, nada sai (e nada quebra): o SMS fica desligado na plataforma.
+// Sem a chave (no /admin, ou COMTELE_API_KEY no .env), nada sai (e nada quebra): o SMS fica desligado.
 const ENVIO = "https://sms.comtele.com.br/api/v2/send";
 
-export const smsDisponivel = () => !!process.env.COMTELE_API_KEY;
+export const smsDisponivel = async () => !!(await integracao("COMTELE_API_KEY"));
 
 export class ErroSms extends Error {}
 
 /** Envia um SMS para um celular já no formato da Comtele (numeroSms). Devolve o id do envio
  *  (requestUniqueId, para conferir no relatório da Comtele), "" sem id, ou null sem chave. */
-export async function enviarSms(numero: string, texto: string, { fetch: buscar = fetch } = {}): Promise<string | null> {
-  const chave = process.env.COMTELE_API_KEY;
+export async function enviarSms(numero: string, texto: string, { fetch: buscar = fetch, chave }: { fetch?: typeof fetch; chave?: string } = {}): Promise<string | null> {
+  chave ??= await integracao("COMTELE_API_KEY");
   if (!chave) return null;
   const res = await buscar(ENVIO, {
     method: "POST",

@@ -8,6 +8,7 @@ import { adminDb } from "@/lib/admin";
 import type { Espaco } from "@/lib/painel-tipos";
 import { espacoDe, indiceDoPainel } from "@/lib/painel-indice.server";
 import { smsDisponivel } from "@/lib/comtele.server";
+import { gravarIntegracao, INTEGRACOES, integracoesNaTela, type NomeIntegracao } from "@/lib/integracoes.server";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNegocio as salvarSite } from "@/lib/negocios.server";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX, MINUTOS_MAX } from "@/lib/limites";
@@ -834,7 +835,7 @@ export const definirOwnerPhoneWhatsApp = adminAction(async (_user, slug: string,
 export const smsDoNegocio = adminAction(async (_user, slug: string) => {
   slugValido(slug);
   const t = await adminDb.doc(`tenants/${slug}`).get();
-  return { ligado: t.get("sms.ligado") === true, disponivel: smsDisponivel() };
+  return { ligado: t.get("sms.ligado") === true, disponivel: await smsDisponivel() };
 });
 
 /** Liga ou desliga o SMS do negócio: cada SMS gasta crédito da conta da Ruphus na Comtele. */
@@ -844,4 +845,20 @@ export const definirSms = adminAction(async (_user, slug: string, ligado: unknow
   if (!(await t.get()).exists) throw new ErroPrevisto("Negócio não encontrado.");
   await t.set({ sms: { ligado: ligado === true } }, { merge: true });
   return ligado === true;
+});
+
+// ─── Ajustes: chaves dos serviços de fora (SMS, e-mail, WhatsApp) ──────────────
+
+/** O que está cadastrado e de onde vem; segredo só com os 4 últimos caracteres. */
+export const lerIntegracoes = adminAction(async () => integracoesNaTela());
+
+/** Grava a chave no painel; "" apaga (volta a valer o .env, se houver). */
+export const salvarIntegracao = adminAction(async (_user, nome: unknown, valor: unknown) => {
+  const n = z.enum(Object.keys(INTEGRACOES) as [NomeIntegracao, ...NomeIntegracao[]]).parse(nome);
+  const v = z.string().trim().max(500).parse(valor);
+  // vira cabeçalho HTTP: espaço, quebra de linha ou acento quebrariam o envio sem dizer por quê
+  if (v && n === "GMAIL_USER" && !z.email().safeParse(v).success) throw new ErroPrevisto("Confira o e-mail do Gmail.");
+  if (v && n !== "GMAIL_USER" && !/^[\x21-\x7E]+$/.test(v)) throw new ErroPrevisto("A chave não pode ter espaço, acento nem quebra de linha.");
+  await gravarIntegracao(n, v);
+  return integracoesNaTela();
 });
