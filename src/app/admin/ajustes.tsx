@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { confirmar } from "@/components/confirmar";
 import { idToken as tokenAtual } from "@/lib/firebase";
 import type { IntegracaoNaTela } from "@/lib/integracoes.server";
-import { lerIntegracoes, salvarIntegracao } from "./actions";
+import { lerIntegracoes, salvarIntegracao, testarSms } from "./actions";
 
 const BOTAO = "inline-flex h-11 items-center justify-center rounded-[10px] px-4 text-sm font-semibold transition-colors";
 const BOTAO_ESCURO = `${BOTAO} bg-[#17150F] text-white hover:bg-[#2C2920] disabled:opacity-50`;
@@ -46,6 +46,7 @@ export function Ajustes({ idToken }: { idToken: string }) {
           {lista!.filter((i) => i.grupo === g).map((i) => (
             <Campo key={i.nome} item={i} aoSalvar={setLista} />
           ))}
+          {g === "SMS (Comtele)" && <TesteSms pronto={lista!.some((i) => i.nome === "COMTELE_API_KEY" && i.origem !== "nenhuma")} />}
         </section>
       ))}
     </div>
@@ -107,6 +108,58 @@ function Campo({ item, aoSalvar }: { item: IntegracaoNaTela; aoSalvar: (l: Integ
         )}
       </div>
       {erro && <p className="text-xs text-[#8A2F2F]">{erro}</p>}
+    </form>
+  );
+}
+
+/** Manda um SMS de verdade (gasta um crédito) para conferir a chave logo depois de cadastrar. */
+function TesteSms({ pronto }: { pronto: boolean }) {
+  const [telefone, setTelefone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
+
+  async function enviar() {
+    setBusy(true);
+    setResultado(null);
+    const r = await testarSms(await tokenAtual(), telefone).catch(() => null);
+    setBusy(false);
+    if (!r?.ok) return setResultado({ ok: false, texto: r?.error ?? "Não foi possível enviar agora." });
+    setResultado({ ok: true, texto: `Enviado. Confira o celular${r.dados ? ` (id na Comtele: ${r.dados})` : ""}.` });
+  }
+
+  return (
+    <form
+      className="flex flex-col gap-1.5 border-t border-[#EDE9E1] pt-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (telefone.trim()) enviar();
+      }}
+    >
+      <label htmlFor="teste-sms" className="text-xs font-medium text-[#17150F]">
+        Testar envio
+      </label>
+      <p className="text-xs text-[#6F6A5E]">{pronto ? "Manda um SMS de teste para o celular informado. Gasta um crédito." : "Cadastre a chave acima para testar."}</p>
+      <div className="flex flex-wrap gap-2">
+        <input
+          id="teste-sms"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          value={telefone}
+          onChange={(e) => setTelefone(e.target.value)}
+          placeholder="(91) 98888-7777"
+          disabled={!pronto}
+          className="h-11 min-w-0 flex-1 rounded-[10px] border border-[#D8D2C6] px-3 text-sm disabled:opacity-50"
+        />
+        <button type="submit" disabled={!pronto || busy || !telefone.trim()} className={BOTAO_CLARO}>
+          {busy ? "Enviando…" : "Enviar teste"}
+        </button>
+      </div>
+      {resultado && (
+        <p role="status" className={`text-xs ${resultado.ok ? "text-[#2C6A53]" : "text-[#8A2F2F]"}`}>
+          {resultado.texto}
+        </p>
+      )}
     </form>
   );
 }
