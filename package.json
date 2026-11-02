@@ -25,6 +25,7 @@
     "dblocal": "tsx --env-file=.env.local scripts/dblocal.mts",
     "coletar": "tsx --conditions=react-server --env-file=.env.local scripts/coletar.mts",
     "backfill:maps": "tsx --conditions=react-server --env-file=.env.local scripts/backfill-maps.mts",
+    "converter:fabrica": "tsx --conditions=react-server --env-file=.env.local scripts/converter-fabrica.mts",
     "conferir:indice": "tsx --conditions=react-server --env-file=.env.local --expose-gc scripts/conferir-indice.mts",
     "membros": "tsx --env-file=.env.local scripts/preencher-membros.mts",
     "test:convite": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server convite.test.mts'",
