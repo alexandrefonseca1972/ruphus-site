@@ -22,7 +22,7 @@ import { Reschedule } from "./reschedule";
 import { RowMenu } from "./row-menu";
 import { ShareLink } from "./share-link";
 import { mudarStatus, STATUS } from "./status";
-import { confirmarSinalAction } from "./actions";
+import { avisarConfirmacaoSmsAction, confirmarSinalAction } from "./actions";
 import { idToken } from "@/lib/firebase";
 import { restanteDe } from "@/lib/sinal";
 
@@ -113,6 +113,8 @@ export default function AgendaPage() {
     setError("");
     try {
       await mudarStatus(tenant.id, a.id, status);
+      // o SMS de confirmação (negócio com SMS ligado no admin): sem esperar, e falha não desfaz nada
+      if (status === "confirmed") void idToken().then((t) => avisarConfirmacaoSmsAction(t, { tenantId: tenant.id, appointmentId: a.id })).catch(() => {});
       return true;
     } catch (err) {
       setError(err instanceof Error && err.message.startsWith("Sessão") ? err.message : errorMessage(err));

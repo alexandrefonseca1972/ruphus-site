@@ -7,6 +7,7 @@ import { z } from "zod";
 import { adminDb } from "@/lib/admin";
 import type { Espaco } from "@/lib/painel-tipos";
 import { espacoDe, indiceDoPainel } from "@/lib/painel-indice.server";
+import { smsDisponivel } from "@/lib/comtele.server";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNegocio as salvarSite } from "@/lib/negocios.server";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX, MINUTOS_MAX } from "@/lib/limites";
@@ -825,4 +826,22 @@ export const definirOwnerPhoneWhatsApp = adminAction(async (_user, slug: string,
   }
   await gravarOwnerPhone(adminDb, slug, dono);
   return dono;
+});
+
+// ─── SMS para o cliente final (Comtele) ──────────────────────────────────────
+
+/** Se o negócio manda SMS de confirmação e lembrete, e se a plataforma tem a chave da Comtele. */
+export const smsDoNegocio = adminAction(async (_user, slug: string) => {
+  slugValido(slug);
+  const t = await adminDb.doc(`tenants/${slug}`).get();
+  return { ligado: t.get("sms.ligado") === true, disponivel: smsDisponivel() };
+});
+
+/** Liga ou desliga o SMS do negócio: cada SMS gasta crédito da conta da Ruphus na Comtele. */
+export const definirSms = adminAction(async (_user, slug: string, ligado: unknown) => {
+  slugValido(slug);
+  const t = adminDb.doc(`tenants/${slug}`);
+  if (!(await t.get()).exists) throw new ErroPrevisto("Negócio não encontrado.");
+  await t.set({ sms: { ligado: ligado === true } }, { merge: true });
+  return ligado === true;
 });

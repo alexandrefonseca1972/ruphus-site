@@ -3,6 +3,7 @@ import { adminDb } from "@/lib/admin";
 import { enviarLembretesDoDia } from "@/lib/lembretes-whatsapp.server";
 import { segredoIgual } from "@/lib/segredo.server";
 import { expirarSinais } from "@/lib/sinal.server";
+import { enviarLembretesPorSms } from "@/lib/sms-agendamento.server";
 
 // Lembretes de horário pelo WhatsApp do salão (vercel.json: a cada 10 min). A Vercel
 // chama com "Authorization: Bearer $CRON_SECRET"; sem o segredo, ninguém dispara.
@@ -13,5 +14,8 @@ export async function GET(request: NextRequest) {
   }
   // sinal vencido primeiro: o horário liberado já não recebe lembrete
   const sinaisVencidos = await expirarSinais(adminDb).catch((e) => (console.error("[cron] expirar sinais", e), 0));
-  return Response.json({ ok: true, sinaisVencidos, enviados: await enviarLembretesDoDia() });
+  const enviados = await enviarLembretesDoDia();
+  // SMS depois do WhatsApp: um falhar não impede o outro
+  const sms = await enviarLembretesPorSms(adminDb).catch((e) => (console.error("[cron] lembretes por SMS", e), 0));
+  return Response.json({ ok: true, sinaisVencidos, enviados, sms });
 }
