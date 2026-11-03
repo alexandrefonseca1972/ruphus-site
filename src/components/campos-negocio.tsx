@@ -68,7 +68,7 @@ export function CamposNegocio({
       {dica && !erros[c] ? <p id={`negocio-${c}-msg`} className="min-h-4 text-xs text-muted-foreground">{dica}</p> : msg(c)}
     </div>
   );
-  const SELETOR = "h-12 rounded-lg border border-input bg-card px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:h-11 sm:text-[15px]";
+  const SELETOR = "h-12 w-full min-w-0 rounded-lg border border-input bg-card px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:h-11 sm:text-[15px]";
 
   return (
     <>
