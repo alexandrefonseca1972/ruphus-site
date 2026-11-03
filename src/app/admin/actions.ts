@@ -41,7 +41,7 @@ import { acessoDemo, contas, restaurarDemo } from "@/lib/demo.server";
 import { deslogarInstancia, qrDaConexao, statusDaConexao, type SituacaoQr as QrWhatsApp } from "@/lib/atendys";
 import { apagarConexao, conectarNegocio, gravarGestaoDono, gravarOwnerPhone, lerConexao, paraTela, type ConexaoNaTela, type ConexaoWhatsapp, gravarConexao } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
-import { MODELOS, modeloDoId, renderEditorial, visualEditorial } from "@/lib/site-editorial";
+import { MODELOS, modeloDoId, NOMES_FONTE, Personal, renderEditorial, visualEditorial } from "@/lib/site-editorial";
 import { ehClaro } from "@/lib/site-claro";
 import type { Escolha, Sub } from "@/lib/gerador";
 import { FieldValue } from "firebase-admin/firestore";
@@ -659,7 +659,57 @@ export const siteDoNegocio = adminAction(async (_user, slug: string) => {
   // escolha gravada que não é de nenhum modelo da lista: "personalizado", só para mostrar
   const casa = e?.modelo ? modelos.find((m) => m.id === e.modelo)?.id : modelos.find((m) => m.escolha.kit === e?.kit && m.escolha.cor === e?.cor)?.id;
   const modeloAtual = casa ?? (e ? "personalizado" : null);
-  return { ...site, modelos: modelos.map(({ id, rotulo }) => ({ id, rotulo })), modeloAtual };
+  // o que a seção "Visual" da gaveta mostra: a personalização gravada, as fotos e as cores
+  // que o modelo daria sem ela (as miniaturas e os seletores partem daí)
+  const tenant = await adminDb.doc(`tenants/${slug}`).get();
+  const personal = personalDe(tenant.get("gerado.personal"));
+  const visual = modelos.length ? visualEditorial(slug, site.sub as Sub, e) : null;
+  const fotos = visual ? Object.fromEntries(Object.entries(visual.fotos).map(([k, ref]) => [k, `/s${ref}`])) : null;
+  return {
+    ...site,
+    modelos: modelos.map(({ id, rotulo }) => ({ id, rotulo })),
+    modeloAtual,
+    personal,
+    doModelo: visual && fotos ? { fotos: { ...fotos, bio: fotos.hero }, ink: visual.ink, acc: visual.acc, fonte: visual.fonte[0] } : null,
+    fontes: NOMES_FONTE,
+  };
+});
+
+/** Só site do gerador no modelo editorial tem personalização; devolve o tenant conferido. */
+async function tenantEditorial(slug: string) {
+  slugValido(slug);
+  const tenant = await adminDb.doc(`tenants/${slug}`).get();
+  const sub = tenant.get("gerado.sub") as Sub | undefined;
+  if (!tenant.exists || !sub || ehClaro(sub)) throw new ErroPrevisto("Este site não tem personalização.");
+  return { tenant, sub };
+}
+
+/** Pré-visualização do rascunho da personalização (fotos, cores, fonte, textos), com o modelo
+ *  em uso e os dados reais do negócio; não grava nada. */
+export const previewVisual = adminAction(async (_user, slug: string, rascunho: unknown): Promise<string> => {
+  await tenantEditorial(slug);
+  const dados = await lerSite(adminDb, slug);
+  if (!dados) throw new ErroPrevisto("Site não encontrado.");
+  const html = renderEditorial({ ...dados, personal: Personal.parse(rascunho) });
+  return html.replace("<head>", `<head><base href="https://${slug}.ruphus.site/">`);
+});
+
+/** Publica a personalização: grava gerado.personal (ou apaga, se ficou vazia) e a cor e a
+ *  foto que a bio lê; o site, o og.jpg e a bio saem do cache na hora. */
+export const definirVisual = adminAction(async (_user, slug: string, rascunho: unknown) => {
+  const { tenant, sub } = await tenantEditorial(slug);
+  const p = Personal.parse(rascunho);
+  // chave sem nada dentro ({ cores: {} }) é o mesmo que ausente
+  const personal = Object.fromEntries(Object.entries(p).filter(([, v]) => v != null && (typeof v !== "object" || Object.keys(v).length))) as Personal;
+  const vazio = !Object.keys(personal).length;
+  const visual = visualEditorial(slug, sub, tenant.get("gerado.escolha"), vazio ? null : personal);
+  await tenant.ref.update({
+    "gerado.personal": vazio ? FieldValue.delete() : personal,
+    "site.color": visual.cor,
+    "site.photo": visual.foto,
+  });
+  renovarEnderecos(slug);
+  return vazio ? null : personal;
 });
 
 /** Aba "Ficha" da gaveta: tudo o que se sabe do negócio, para o vendedor avaliar antes do contato. */

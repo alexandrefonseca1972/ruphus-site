@@ -9,6 +9,7 @@ import { formatPhone } from "@/lib/datetime";
 import type { Mudanca, TipoSite } from "@/lib/negocios.server";
 import { definirModelo, montarSite, previewModelo, siteDoNegocio } from "./actions";
 import { DominioDoSite } from "./dominio-gaveta";
+import { VisualDoSite } from "./visual-gaveta";
 
 // Aba "Site" da gaveta: montar ou completar o site de um negócio, sobretudo o de quem
 // se cadastrou sozinho — esse sai só com nome, ramo, WhatsApp e cidade. Os campos são
@@ -16,8 +17,8 @@ import { DominioDoSite } from "./dominio-gaveta";
 // Nada é gravado sem passar pela prévia do que muda.
 
 const BOTAO = "inline-flex h-11 items-center justify-center gap-2 rounded-[10px] px-4 text-[13px] font-semibold transition-colors disabled:opacity-60";
-const BOTAO_CLARO = `${BOTAO} border border-[#D8D2C6] bg-white text-[#17150F] hover:border-[#17150F]`;
-const BOTAO_ESCURO = `${BOTAO} bg-[#17150F] text-white hover:bg-[#2E2B22]`;
+export const BOTAO_CLARO = `${BOTAO} border border-[#D8D2C6] bg-white text-[#17150F] hover:border-[#17150F]`;
+export const BOTAO_ESCURO = `${BOTAO} bg-[#17150F] text-white hover:bg-[#2E2B22]`;
 const CAMPO = "h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]";
 
 const TIPO: Record<TipoSite, { rotulo: string; cor: string; texto: string; acao: string }> = {
@@ -48,11 +49,12 @@ const TIPO: Record<TipoSite, { rotulo: string; cor: string; texto: string; acao:
 };
 
 type Dados = { name: string; tipo: TipoSite; publicado: boolean; google: { nota: number | null; avaliacoes: number | null } } & Valores;
+type Visual = Pick<Extract<Awaited<ReturnType<typeof siteDoNegocio>>, { ok: true }>["dados"], "personal" | "doModelo" | "fontes">;
 
 // a prévia é uma página de desktop: renderiza em 1280px e encolhe para a largura da gaveta
 const LARGURA_PREVIA = 1280;
 const ALTURA_PREVIA = 900;
-function PreviaModelo({ html }: { html: string }) {
+export function PreviaModelo({ html }: { html: string }) {
   const [caixa, setCaixa] = useState<HTMLDivElement | null>(null);
   const [escala, setEscala] = useState(0.4);
   useEffect(() => {
@@ -96,14 +98,16 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
   const [avisoModelo, setAvisoModelo] = useState<{ ok: boolean; texto: string } | null>(null);
   const [previaModelo, setPreviaModelo] = useState<string | null>(null);
   const [visualizando, setVisualizando] = useState(false);
+  const [visual, setVisual] = useState<Visual | null>(null);
 
   async function ler() {
     return siteDoNegocio(await token(), slug).catch(() => null);
   }
   function mostrar(r: Awaited<ReturnType<typeof ler>>) {
     if (!r?.ok) return setErroCarga(r ? r.error : "Sem conexão.");
-    const { name, tipo, google, fabrica: _f, publicado, modelos: lista, modeloAtual: atual, ...resto } = r.dados;
+    const { name, tipo, google, fabrica: _f, publicado, modelos: lista, modeloAtual: atual, personal, doModelo, fontes, ...resto } = r.dados;
     setModelos(lista);
+    setVisual({ personal, doModelo, fontes });
     setModeloAtual(atual ?? "");
     setModelo(atual ?? "");
     setDados({ ...VAZIO, ...resto, name, tipo, google, publicado });
@@ -268,6 +272,18 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
           </div>
         )}
       </section>
+
+      {temSite && !fabrica && visual?.doModelo && (
+        <VisualDoSite
+          key={`visual-${slug}`}
+          slug={slug}
+          token={token}
+          personal={visual.personal}
+          doModelo={visual.doModelo}
+          fontes={visual.fontes}
+          onPublicado={() => setVersao((v) => v + 1)}
+        />
+      )}
 
       {/* sites da fábrica têm o endereço escrito no próprio HTML: domínio próprio só no gerador */}
       {!fabrica && <DominioDoSite key={slug} slug={slug} publicado={!!dados.publicado} token={token} />}
