@@ -215,10 +215,10 @@ export const salvarNegocioAction = memberAction(z.object({ tenantId: docIdStaff,
   return { ok: true as const };
 });
 
-// Só dígitos, DDI+DDD+número: é o formato que o gateway (wtsfy) exige no envio.
+// Só dígitos, DDI+DDD+número: é o formato que o gateway (atendys) exige no envio.
 const FONE_INTERNACIONAL = /^\d{10,15}$/;
 
-/** Texto pelo WhatsApp que o dono conectou ao negócio (gateway wtsfy): sai do
+/** Texto pelo WhatsApp que o dono conectou ao negócio (gateway atendys): sai do
  *  número dele, não da Ruphus. Cai no wa.me comum quando ninguém conectou. */
 export const enviarWhatsAppAction = memberAction(
   z.object({

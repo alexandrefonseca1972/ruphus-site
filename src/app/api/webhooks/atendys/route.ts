@@ -1,12 +1,12 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { after, NextResponse } from "next/server";
+import { assinaturaValida } from "@/lib/atendys";
 import { adminDb } from "@/lib/admin";
 import { espelharStatusDaInstancia, lerConexao, processarComandoAgendamento, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
 
 // Onde o atendys avisa o que acontece nas instâncias: mensagem recebida do
 // cliente final, mudança de estado da conexão e status de envio. Cada webhook é
 // assinado com HMAC-SHA256 em x-atendys-signature usando o segredo do tenant
-// (gravado no doc do negócio ao conectar — rotaciona a cada reconexão).
+// (gravado no doc privado do negócio ao conectar; só rotaciona quando falta).
 //
 // Contrato (packages/shared do atendys):
 //   x-atendys-event: message.received | instance.status | message.status
@@ -54,12 +54,7 @@ export async function POST(req: Request) {
   const segredo = conexao?.atendysWebhookSecret;
   if (!segredo) return responder(401, { error: "Tenant sem segredo de webhook." });
 
-  const esperado = createHmac("sha256", segredo).update(bruto, "utf8").digest("hex");
-  const recebida = Buffer.from(assinatura, "utf8");
-  const calculada = Buffer.from(esperado, "utf8");
-  if (recebida.length !== calculada.length || !timingSafeEqual(recebida, calculada)) {
-    return responder(401, { error: "Assinatura inválida." });
-  }
+  if (!assinaturaValida(segredo, bruto, assinatura)) return responder(401, { error: "Assinatura inválida." });
 
   if (evento.event === "message.received") {
     const data = evento.type === "text" ? { text: evento.text ?? "" } : null;

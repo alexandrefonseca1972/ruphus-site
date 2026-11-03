@@ -1,4 +1,4 @@
-// Texto do termo da integração WhatsApp (gateway próprio, wtsfy). Fonte única
+// Texto do termo da integração WhatsApp (gateway próprio, atendys). Fonte única
 // exibida em dois lugares: aviso na gaveta do /admin e termo de aceite no painel
 // do dono — antes dele habilitar o uso. Sem "server-only" de propósito: os dois
 // lados renderizam.

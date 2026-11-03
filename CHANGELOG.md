@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- WhatsApp (atendys) mais robusto: reconectar não troca mais o segredo dos webhooks (antes, uma falha na gravação deixava o negócio sem receber mensagens nem CONFIRMADO); lembrete do WhatsApp que falha aparece na gaveta do negócio e vira e-mail para o admin; a integração ganhou testes. Restos do nome antigo (wtsfy) trocados por atendys.
+
 - SMS configurável por negócio no /admin: ligar a confirmação e o lembrete separadamente e escolher quantas horas antes vai o lembrete (1 a 24 h). Sem escolha, segue como antes: os dois ligados, lembrete 2 h antes.
 
 - SMS que falha não chega mais como erro a ninguém: o admin recebe um e-mail com o agendamento e o motivo (no máximo um a cada 6 h, contando as repetições). Ajustes ganha **E-mail para alertas do sistema**; sem ele, o aviso vai para a conta do Gmail.
