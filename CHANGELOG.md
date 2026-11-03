@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Gaveta do negócio no /admin: a barra de ações (WhatsApp, Anotar) encosta na borda de baixo, sem o conteúdo aparecendo por baixo dela; as 7 abas cabem na gaveta no computador, e no celular um esmaecido na borda avisa que há mais abas, com a aba tocada rolando para a vista.
+
 - WhatsApp (atendys) mais robusto: reconectar não troca mais o segredo dos webhooks (antes, uma falha na gravação deixava o negócio sem receber mensagens nem CONFIRMADO); lembrete do WhatsApp que falha aparece na gaveta do negócio e vira e-mail para o admin; a integração ganhou testes. Restos do nome antigo (wtsfy) trocados por atendys.
 
 - SMS configurável por negócio no /admin: ligar a confirmação e o lembrete separadamente e escolher quantas horas antes vai o lembrete (1 a 24 h). Sem escolha, segue como antes: os dois ligados, lembrete 2 h antes.

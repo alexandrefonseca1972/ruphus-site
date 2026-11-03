@@ -5,7 +5,7 @@ import { idToken as tokenAtual } from "@/lib/firebase";
 import { onAuthStateChanged, onIdTokenChanged, signOut } from "firebase/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePainel, type PaginaDoServidor } from "./use-painel";
 import { ajustarFunil, COLUNAS, NOVOS_MAX, NOVOS_POR_VEZ, type Periodo } from "@/lib/funil-consulta";
 import { auth } from "@/lib/firebase";
@@ -171,6 +171,13 @@ export default function AdminPage() {
   const [saude, setSaude] = useState<ClienteSaude | null>(null);
   // A aba escolhida vale para o próximo negócio aberto: quem está cobrando segue cobrando
   const [aba, setAba] = useState<"venda" | "ficha" | "historico" | "cliente" | "site" | "whatsapp" | "cobranca">("venda");
+  // no celular as 7 abas não cabem: um esmaecido na borda direita avisa que há mais, até rolar ao fim
+  const [abasCortadas, setAbasCortadas] = useState(false);
+  const medirAbas = useCallback((el: HTMLElement | null) => {
+    // cortada = a última aba não está inteira na área visível (o padding da lista não conta)
+    const ultima = el?.lastElementChild?.getBoundingClientRect();
+    if (el && ultima) setAbasCortadas(ultima.right > el.getBoundingClientRect().right + 1);
+  }, []);
   const [estagio, setEstagio] = useState<Filtros["estagio"]>("");
   const [prazo, setPrazo] = useState<"" | Prazo>("");
   const [contato, setContato] = useState<"" | "hoje">("");   // "falei hoje"
@@ -1602,7 +1609,13 @@ export default function AdminPage() {
             {/* A gaveta tem o que o vendedor usa todo dia em "Venda"; o resto fica a um toque.
                 Só texto e dividindo a largura: com ícone, as cinco abas passavam da gaveta e
                 "Cobrança" ficava cortada */}
-            <div role="tablist" aria-label="Seções do negócio" className="sticky -top-6 z-10 -mx-6 -mt-2 flex shrink-0 gap-0 overflow-x-auto sm:gap-1 border-b border-[#E2DDD3] bg-white px-6 [scrollbar-width:none] sm:-top-8 sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden">
+            <div
+              role="tablist"
+              aria-label="Seções do negócio"
+              ref={medirAbas}
+              onScroll={(e) => medirAbas(e.currentTarget)}
+              className={`sticky -top-6 z-10 -mx-6 -mt-2 flex shrink-0 gap-0 overflow-x-auto border-b border-[#E2DDD3] bg-white px-6 [scrollbar-width:none] sm:-top-8 sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden ${abasCortadas ? "[mask-image:linear-gradient(to_right,#000_calc(100%-48px),transparent)]" : ""}`}
+            >
               {(
                 [
                   ["venda", "Venda"],
@@ -1621,8 +1634,12 @@ export default function AdminPage() {
                   id={`aba-${id}`}
                   aria-selected={aba === id}
                   aria-controls="aba-painel"
-                  onClick={() => setAba(id)}
-                  className={`flex h-12 flex-1 items-center justify-center px-1 text-[12px] whitespace-nowrap sm:px-2 sm:text-[13px] ${aba === id ? "font-semibold text-[#17150F] shadow-[inset_0_-2px_0_#17150F]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
+                  onClick={(e) => {
+                    setAba(id);
+                    e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
+                  }}
+                  // 12px e px-1: as 7 abas cabem nos 456px úteis da gaveta (com 13px, "Cobrança" saía cortada)
+                  className={`flex h-12 flex-1 items-center justify-center px-1.5 text-[12px] whitespace-nowrap sm:px-1 ${aba === id ? "font-semibold text-[#17150F] shadow-[inset_0_-2px_0_#17150F]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
                 >
                   {rotulo}
                 </button>
@@ -2256,7 +2273,9 @@ export default function AdminPage() {
 
             {/* Fixa no rodapé: mandar e anotar são o dia inteiro, e estavam
                 a uma rolagem de distância dentro de blocos diferentes. */}
-            <div className="sticky bottom-0 -mx-6 -mb-6 flex gap-2 border-t border-[#E2DDD3] bg-white px-6 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:-mx-8 sm:-mb-8 sm:px-8">
+            {/* bottom negativo = o padding de baixo da gaveta, como o -top das abas: com bottom-0
+                a barra parava acima da borda e o conteúdo aparecia rolando por baixo dela */}
+            <div className="sticky bottom-[calc(-1.5rem-env(safe-area-inset-bottom))] -mx-6 -mb-6 flex gap-2 border-t border-[#E2DDD3] bg-white px-6 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:-bottom-8 sm:-mx-8 sm:-mb-8 sm:px-8">
               {pronto?.link ? (
                 <a
                   href={pronto.link}
