@@ -1,4 +1,5 @@
 import "server-only";
+import { Readable } from "node:stream";
 import { adminBucket } from "@/lib/admin";
 import { cacheDe, faixa, objetoDoSite, tipoDe } from "@/lib/site-arquivo";
 
@@ -31,12 +32,15 @@ export async function doStorage(slug: string, partes: string[], req?: Request): 
 
   const f = faixa(req?.headers.get("range") ?? null, tamanho);
   if (f === "fora") return new Response(null, { status: 416, headers: { ...cabecalhos, "content-range": `bytes */${tamanho}` } });
-  const [corpo] = await arquivo.download(f ? { start: f.inicio, end: f.fim } : {});
-  return new Response(new Uint8Array(corpo), {
+  // em stream: um vídeo de 30 MB não passa mais inteiro pela memória do processo
+  // a mesma versão dos metadados: publicar no meio deixaria o tamanho diferente do corpo
+  const versao = adminBucket().file(nome, { generation: meta.generation as number | undefined });
+  const corpo = Readable.toWeb(versao.createReadStream(f ? { start: f.inicio, end: f.fim } : {})) as ReadableStream<Uint8Array>;
+  return new Response(corpo, {
     status: f ? 206 : 200,
     headers: {
       ...cabecalhos,
-      "content-length": String(corpo.length),
+      "content-length": String(f ? f.fim - f.inicio + 1 : tamanho),
       ...(f && { "content-range": `bytes ${f.inicio}-${f.fim}/${tamanho}` }),
     },
   });

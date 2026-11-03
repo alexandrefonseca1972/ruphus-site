@@ -18,8 +18,9 @@ const DIAS_NA_FAIXA = 7; // o que cabe na faixa de dias da página, e o teto do 
 export async function getAgenda(input: unknown) {
   const q = AgendaQuery.safeParse(input);
   if (!q.success) return [];
-  // aba aberta desde ontem (ou data digitada no passado): começa hoje, em vez de faixa vazia
-  const from = q.data.from < todayIn() ? todayIn() : q.data.from;
+  // passado distante (aba esquecida, data digitada): começa hoje. "Ontem" de Brasília passa, porque
+  // no AC e no AM ainda pode ser hoje; o agendaDias acerta pelo fuso do negócio
+  const from = q.data.from < addDays(todayIn(), -1) ? todayIn() : q.data.from;
   if (!withinRange(from)) return [];
   const dias = Array.from({ length: DIAS_NA_FAIXA }, (_, i) => addDays(from, i)).filter(withinRange);
   return agendaDias(adminDb, { ...q.data, from }, dias);

@@ -4,7 +4,7 @@ import { sessaoRevogada } from "@/lib/revogacao";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
-import { addDays, agoraNaParede, customerKey, dateIn, formatTime, freeSlots, fusoDaUF, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import { addDays, agoraNaParede, customerKey, dateIn, dentroDaJanela, formatTime, freeSlots, fusoDaUF, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import type { DadosCliente } from "@/lib/cliente-dados";
 import { prazoDoSinal, type SinalDoAgendamento, valorDoSinal } from "@/lib/sinal";
 import { ConfigSinal } from "@/lib/sinal-config";
@@ -22,6 +22,11 @@ export async function foraDoAr(db: Firestore, tenantId: string) {
 const FORA_DO_AR = "Este negócio não está recebendo agendamentos online agora.";
 
 export async function loadCatalog(db: Firestore, tenantId: string) {
+  return (await lerCatalogo(db, tenantId))?.catalogo ?? null;
+}
+
+/** O catálogo da página pública e, à parte (não vai para o navegador), o expediente de cada um. */
+async function lerCatalogo(db: Firestore, tenantId: string) {
   if (!SLUG.test(tenantId)) return null;
   const t = db.collection("tenants").doc(tenantId);
   const [tenant, services, staff, fora] = await Promise.all([
@@ -39,7 +44,11 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
   // serviço que ninguém da equipe faz não vai para o link: o cliente escolhia e encontrava
   // todos os dias "fechado", sem saber por quê (o painel avisa o dono: "Ninguém faz ainda")
   const feitos = new Set(equipe.flatMap((p) => p.serviceIds));
-  return {
+  const horas = new Map(staff.docs.flatMap((d) => {
+    const s = Staff.safeParse(d.data());
+    return s.success ? [[d.id, s.data.hours] as const] : [];
+  }));
+  const catalogo = {
     name: String(tenant.get("name")),
     // o WhatsApp do negócio: é por ele que o agendamento chega a quem atende
     phone: (tenant.get("site.phone") as string | null) ?? null,
@@ -77,6 +86,7 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
       .map(({ usos, ordem, ...s }) => s),
     staff: equipe,
   };
+  return { catalogo, horas };
 }
 
 /** Garante que o token é válido e o usuário é membro do tenant. */
@@ -252,39 +262,66 @@ export async function availableSlots(db: Firestore, q: SlotQuery) {
  * escolhidos, e cada horário já sai com o profissional que vai atender — assim
  * escolher profissional deixa de ser um passo para quem não tem preferência.
  *
- * ponytail: uma transação por dia e por profissional (dias × equipe). Na escala
- * de hoje, com equipes pequenas, é barato; se uma equipe crescer, vale ler os
- * agendamentos da semana inteira de uma vez e montar os dias em memória.
+ * Só leitura, sem transação: o catálogo uma vez e os agendamentos da faixa numa
+ * consulta só (eram dias × equipe transações, ~150 leituras por carga). Quem
+ * garante o horário é a transação da reserva, que confere tudo de novo.
  */
 export async function agendaDias(db: Firestore, q: AgendaQuery, dias: string[]) {
-  const catalog = await loadCatalog(db, q.tenantId);
-  if (!catalog) return [];
-  const equipe = catalog.staff.filter(
+  const lido = await lerCatalogo(db, q.tenantId);
+  if (!lido || !dias.length) return [];
+  const { catalogo, horas } = lido;
+  // aba aberta desde ontem (ou "ontem" de Brasília que ainda não é hoje no negócio): a faixa
+  // começa no hoje do negócio, do mesmo tamanho
+  const hoje = todayIn(fusoDaUF(catalogo.uf ?? undefined));
+  if (dias[0] < hoje) dias = Array.from({ length: dias.length }, (_, i) => addDays(hoje, i)).filter(dentroDaJanela);
+  if (!dias.length) return [];
+  const svc = q.serviceIds.map((id) => catalogo.services.find((s) => s.id === id));
+  // serviço que saiu do link com a página aberta: a semana vem sem horário (lotada), não vazia
+  if (svc.some((s) => !s)) return dias.map((date) => ({ date, horarios: [], fechado: false }));
+  const durationMin = svc.reduce((soma, s) => soma + s!.durationMin, 0);
+  const equipe = catalogo.staff.filter(
     (p) => (!q.staffId || p.id === q.staffId) && q.serviceIds.every((id) => p.serviceIds.includes(id)),
   );
-  const grade = await Promise.all(
-    dias.map(async (date) => {
-      // Só quem atende neste dia da semana entra na conta
-      const doDia = equipe.filter((p) => p.workDays.includes(weekday(date)));
-      const porProfissional = await Promise.all(
-        doDia.map(async (p) => [p.id, await availableSlots(db, { ...q, staffId: p.id, date })] as const),
-      );
-      // Ordem do catálogo decide quem fica com o horário que dois podem atender
-      const horarios = new Map<string, string>();
-      for (const [staffId, horas] of porProfissional) {
-        for (const hora of horas) if (!horarios.has(hora)) horarios.set(hora, staffId);
-      }
-      return {
+  const ordenados = [...dias].sort();
+  const marcados = equipe.length
+    ? await db
+        .collection(`tenants/${q.tenantId}/appointments`)
+        .where("start", ">=", zonedTime(ordenados[0], "00:00"))
+        .where("start", "<", zonedTime(addDays(ordenados.at(-1)!, 1), "00:00"))
+        .select("staffId", "start", "end", "status")
+        .get()
+    : null;
+  const ocupado = new Map<string, { start: Date; end: Date }[]>();
+  for (const d of marcados?.docs ?? []) {
+    if (d.get("status") === "cancelled") continue;
+    const lista = ocupado.get(d.get("staffId")) ?? [];
+    lista.push({ start: (d.get("start") as Timestamp).toDate(), end: (d.get("end") as Timestamp).toDate() });
+    ocupado.set(d.get("staffId"), lista);
+  }
+  // o que já passou é pela hora local do negócio (Manaus está 1h atrás de Brasília)
+  const agora = agoraNaParede(fusoDaUF(catalogo.uf ?? undefined));
+  return dias.map((date) => {
+    // Só quem atende neste dia da semana entra na conta
+    const doDia = equipe.filter((p) => p.workDays.includes(weekday(date)));
+    // Ordem do catálogo decide quem fica com o horário que dois podem atender
+    const horarios = new Map<string, string>();
+    for (const p of doDia) {
+      const livres = freeSlots({
         date,
-        horarios: [...horarios]
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([hora, staffId]) => ({ hora, staffId })),
-        // ninguém atende neste dia da semana: fechado. Com equipe e sem horário, é lotação
-        fechado: doDia.length === 0,
-      };
-    }),
-  );
-  return grade;
+        window: horas.get(p.id)?.[String(weekday(date)) as keyof Staff["hours"]],
+        durationMin,
+        busy: ocupado.get(p.id) ?? [],
+        now: agora,
+      });
+      for (const hora of livres) if (!horarios.has(hora)) horarios.set(hora, p.id);
+    }
+    return {
+      date,
+      horarios: [...horarios].sort(([a], [b]) => a.localeCompare(b)).map(([hora, staffId]) => ({ hora, staffId })),
+      // ninguém atende neste dia da semana: fechado. Com equipe e sem horário, é lotação
+      fechado: doDia.length === 0,
+    };
+  });
 }
 
 type Actor = { uid: string; email?: string };

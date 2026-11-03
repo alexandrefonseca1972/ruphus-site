@@ -308,6 +308,6 @@ export async function linhaDoTempo(db: Firestore, slug: string): Promise<Evento[
 
 /** Os slugs fora do ar, que o proxy consulta para fechar site, agendamento e minisite. */
 export async function desativados(db: Firestore) {
-  const snap = await db.collection(RAIZ).where("publicado", "==", false).get();
+  const snap = await db.collection(RAIZ).where("publicado", "==", false).select().get();
   return snap.docs.map((d) => d.id);
 }

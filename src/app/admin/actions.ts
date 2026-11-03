@@ -306,6 +306,7 @@ async function resumoDoDia(): Promise<Resumo> {
     .collectionGroup("appointments")
     .where("start", ">=", inicio)
     .where("start", "<", fim)
+    .select() // só os caminhos: o negócio vem do pai, sem baixar os agendamentos inteiros
     .get();
   const espacos = new Set(snap.docs.map((d) => d.ref.parent.parent?.id).filter(Boolean));
   return { agendamentosHoje: snap.size, espacosComAgenda: espacos.size };

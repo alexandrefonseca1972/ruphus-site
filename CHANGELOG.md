@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Desempenho: a agenda pública lê o catálogo uma vez e os agendamentos da semana numa consulta (eram dezenas de transações a cada troca de serviço). No AC e no AM os horários da noite não somem mais (o "hoje" é o do negócio). Fotos e arquivos compartilhados dos sites saem em stream e ficam um dia em cache; o "fora do ar" dos arquivos é lido uma vez por minuto. O proxy busca as listas no próprio servidor e atualiza em segundo plano. O índice do /admin monta quando o servidor sobe. Lembretes por WhatsApp e SMS vão de 5 negócios em 5.
+
 - Segurança: toda resposta sai com HSTS, `nosniff`, `X-Frame-Options: SAMEORIGIN` e `Referrer-Policy` (o /admin e o painel não abrem mais dentro de site alheio). Site da fábrica aberto direto em `www.ruphus.site/s/…` vai para o subdomínio dele, fora da origem do login. "Pedir remoção" tem teto de 20 por dia na plataforma, e o catálogo público só conta quem saiu do ar se está na vitrine da landing. A faixa "Sem conexão" não fica mais presa no iPhone com iOS 15, e a trava de agendamentos não desliga mais em produção.
 
 - Mensagens prontas do /admin não põem mais "o" antes do nome de quem assina (saía "Aqui é o Fernanda").

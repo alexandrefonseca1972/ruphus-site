@@ -1,4 +1,5 @@
 import "server-only";
+import { emParalelo } from "@/lib/paralelo";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
 import { agoraNaParede, dateIn, formatTime, fusoDaUF, todayIn, zonedTime } from "@/lib/datetime";
@@ -32,7 +33,8 @@ export async function enviarLembretesDoDia(): Promise<number> {
   const tenants = await adminDb.collection("tenants").where("whatsapp.remindersEnabled", "==", true).get();
   const agora = new Date();
   let enviados = 0;
-  for (const t of tenants.docs) {
+  // 5 negócios de cada vez: em fila, ~100 negócios estouravam os 120 s do curl do cron
+  await emParalelo(tenants.docs, 5, async (t) => {
     // tudo no fuso do endereço do negócio — salão em Manaus não segue horário de SP
     const tz = fusoDaUF(t.get("site.uf") as string | undefined);
     const hoje = todayIn(tz);
@@ -42,16 +44,16 @@ export async function enviarLembretesDoDia(): Promise<number> {
     // janela de silêncio: quem vence entre 22h e 7h30 (no fuso dele) espera as 7h30
     const [h, m] = formatTime(agora, tz).split(":").map(Number);
     const minutosDoDia = h * 60 + m;
-    if (minutosDoDia >= SILENCIO.inicioMin || minutosDoDia < SILENCIO.fimMin) continue;
+    if (minutosDoDia >= SILENCIO.inicioMin || minutosDoDia < SILENCIO.fimMin) return;
     // a conexão com a credencial do gateway, que mora no doc privado (lerConexao junta)
     const w = await lerConexao(adminDb, t.id);
-    if (!w?.instanceId || w.remindersEnabled !== true) continue;
+    if (!w?.instanceId || w.remindersEnabled !== true) return;
     const antesMs = Math.min(24, Math.max(1, Number(w.remindersBeforeHours) || 2)) * 60 * 60_000;
     const vivo = await statusDaConexao(w).catch(() => null);
     if (!vivo || vivo.status !== "connected") {
       const motivo = vivo ? `o WhatsApp do negócio está "${vivo.status}"` : "o atendys não respondeu";
       await falhou(t.id, `Lembretes ligados, mas ${motivo}: nenhum lembrete sai até reconectar.`);
-      continue;
+      return;
     }
     const nomeNegocio = String(t.get("name") ?? "seu salão");
     // janela: o dia do horário, com folga para lembretes cuja hora de envio cai
@@ -95,7 +97,7 @@ export async function enviarLembretesDoDia(): Promise<number> {
         await falhou(t.id, `O lembrete de ${nome || "um cliente"} (${a.get("serviceName")}, ${dia} às ${formatTime(start)}) não saiu: ${e instanceof Error ? e.message : String(e)}. Tenta de novo no próximo ciclo.`);
       }
     }
-  }
+  });
   return enviados;
 }
 

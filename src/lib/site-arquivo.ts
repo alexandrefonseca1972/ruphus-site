@@ -39,7 +39,10 @@ const TIPOS: Record<string, string> = {
 };
 export const tipoDe = (nome: string) => TIPOS[nome.split(".").pop()!.toLowerCase()] ?? "application/octet-stream";
 
-/** Um minuto na CDN para tudo: publicar aparece em até um minuto sem limpar cache.
- *  O HTML o navegador sempre confere; o resto ele guarda cinco minutos. */
+/** HTML, CSS e JS: um minuto na CDN, publicar aparece em até um minuto sem limpar cache; o HTML o
+ *  navegador sempre confere, CSS e JS ele guarda cinco minutos. Fotos, vídeos e fontes quase nunca
+ *  mudam de conteúdo com o mesmo nome: um dia no navegador e na CDN (domínio próprio não tem CDN). */
 export const cacheDe = (nome: string) =>
-  `public, max-age=${nome.endsWith(".html") ? 0 : 300}, s-maxage=60, stale-while-revalidate=86400`;
+  /\.(html|css|js)$/.test(nome)
+    ? `public, max-age=${nome.endsWith(".html") ? 0 : 300}, s-maxage=60, stale-while-revalidate=86400`
+    : "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800";
