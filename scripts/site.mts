@@ -66,7 +66,8 @@ async function publicar(slug: string, pasta: string, miniatura: string | undefin
     if (noBucket.get(nome) !== md5(corpo)) envios.push({ nome, corpo });
     noBucket.delete(nome);
   }
-  const apagar = [...noBucket.keys()];
+  // as fotos que o admin subiu pela gaveta (sites/{slug}/fotos/) não vêm da pasta: ficam
+  const apagar = [...noBucket.keys()].filter((n) => !n.startsWith(`${PREFIXO}/${slug}/fotos/`));
   let mini: Buffer | null = miniatura ? readFileSync(miniatura) : null;
   if (mini) {
     const [m] = await bucket.file(`${PREFIXO}/_p/${slug}.webp`).getMetadata().catch(() => [null]);

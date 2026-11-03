@@ -132,6 +132,29 @@ assert.match(await (await pagina("navalha")).text(), /assets\/gerado\/beleza\.cs
 assert.equal((await pagina("pet-feliz")).status, 404, "tenant da fábrica não é gerado");
 assert.equal((await pagina("nao-existe")).status, 404);
 assert.equal((await pagina("../etc")).status, 404);
+// fotos próprias do admin: redimensionadas por posição e gravadas em sites/{slug}/fotos/
+{
+  const sharp = (await import("sharp")).default;
+  const { processarFoto, apagarFoto } = await import("@/lib/foto.server");
+  const grande = await sharp({ create: { width: 3000, height: 2000, channels: 3, background: "#336699" } }).jpeg().toBuffer();
+  const hero = await processarFoto("navalha", "hero", grande);
+  assert.equal(hero.ref, "fotos/hero.jpg");
+  const arquivo = adminBucket().file("sites/navalha/fotos/hero.jpg");
+  const [meta] = await sharp((await arquivo.download())[0]).metadata().then((m) => [m]);
+  assert.deepEqual([meta.width, meta.format], [1600, "jpeg"], "topo sai com 1600 de largura");
+  const bio = await processarFoto("navalha", "bio", grande);
+  const metaBio = await sharp((await adminBucket().file("sites/navalha/fotos/bio.jpg").download())[0]).metadata();
+  assert.deepEqual([bio.ref, metaBio.width, metaBio.height], ["fotos/bio.jpg", 1040, 448], "bio recortada no formato da faixa");
+  const pequena = await sharp({ create: { width: 300, height: 200, channels: 3, background: "#000" } }).png().toBuffer();
+  await processarFoto("navalha", "ga1", pequena);
+  assert.equal((await sharp((await adminBucket().file("sites/navalha/fotos/ga1.jpg").download())[0]).metadata()).width, 300, "pequena não é ampliada");
+  await assert.rejects(processarFoto("navalha", "ga2", Buffer.from("não é imagem")), /JPG, PNG ou WebP/);
+  await assert.rejects(processarFoto("../x", "hero", pequena), /inválido/);
+  await apagarFoto("navalha", "hero");
+  assert.equal((await arquivo.exists())[0], false);
+  await apagarFoto("navalha", "hero");
+  await Promise.all(["bio", "ga1"].map((s) => apagarFoto("navalha", s as "bio" | "ga1")));
+}
 
 // ─── Cadastro pelo dono: o negócio já nasce com site, agenda, equipe e funil ───
 {
