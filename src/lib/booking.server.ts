@@ -31,6 +31,14 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
     foraDoAr(db, tenantId),
   ]);
   if (!tenant.exists || fora) return null;
+  const equipe = staff.docs.flatMap((d) => {
+    const s = Staff.safeParse(d.data());
+    // workDays: dias da semana em que atende (para desabilitar datas na página pública)
+    return s.success ? [{ id: d.id, name: s.data.name, serviceIds: s.data.serviceIds, workDays: Object.keys(s.data.hours).map(Number) }] : [];
+  });
+  // serviço que ninguém da equipe faz não vai para o link: o cliente escolhia e encontrava
+  // todos os dias "fechado", sem saber por quê (o painel avisa o dono: "Ninguém faz ainda")
+  const feitos = new Set(equipe.flatMap((p) => p.serviceIds));
   return {
     name: String(tenant.get("name")),
     // o WhatsApp do negócio: é por ele que o agendamento chega a quem atende
@@ -63,15 +71,11 @@ export async function loadCatalog(db: Firestore, tenantId: string) {
         const s = Service.safeParse(d.data());
         const usos = typeof d.get("usos") === "number" ? (d.get("usos") as number) : 0;
         const ordem = typeof d.get("ordem") === "number" ? (d.get("ordem") as number) : 99;
-        return s.success ? [{ id: d.id, name: s.data.name, durationMin: s.data.durationMin, priceCents: s.data.priceCents, tipoPreco: s.data.tipoPreco, usos, ordem }] : [];
+        return s.success && feitos.has(d.id) ? [{ id: d.id, name: s.data.name, durationMin: s.data.durationMin, priceCents: s.data.priceCents, tipoPreco: s.data.tipoPreco, usos, ordem }] : [];
       })
       .sort((a, b) => b.usos - a.usos || a.ordem - b.ordem || a.name.localeCompare(b.name, "pt-BR"))
       .map(({ usos, ordem, ...s }) => s),
-    staff: staff.docs.flatMap((d) => {
-      const s = Staff.safeParse(d.data());
-      // workDays: dias da semana em que atende (para desabilitar datas na página pública)
-      return s.success ? [{ id: d.id, name: s.data.name, serviceIds: s.data.serviceIds, workDays: Object.keys(s.data.hours).map(Number) }] : [];
-    }),
+    staff: equipe,
   };
 }
 

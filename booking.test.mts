@@ -70,6 +70,7 @@ await t.set({ name: "Salão Teste", ownerId: "owner" });
 await t.collection("services").doc("corte").set({ name: "Corte", durationMin: 30, priceCents: 5000, active: true });
 await t.collection("services").doc("luzes").set({ name: "Luzes", durationMin: 90, priceCents: 20000, active: true });
 await t.collection("services").doc("off").set({ name: "Antigo", durationMin: 30, priceCents: 1, active: false });
+await t.collection("services").doc("orfao").set({ name: "Sem ninguém", durationMin: 30, priceCents: 1000, active: true });
 const hours = Object.fromEntries(["0", "1", "2", "3", "4", "5", "6"].map((d) => [d, { start: "09:00", end: "12:00" }]));
 await t.collection("staff").doc("ana").set({ name: "Ana", serviceIds: ["corte", "luzes"], hours, active: true });
 await t.collection("staff").doc("bia").set({ name: "Bia", serviceIds: ["corte"], hours, active: true });
@@ -81,7 +82,7 @@ const outro = () => ({ customerPhone: `11 96${String(100000 + seq++)}` });
 const base = { tenantId: "salao", staffId: "ana", date, customerName: "Cliente", customerPhone: "11 91234-5678" };
 
 const catalog = await loadCatalog(db, "salao");
-assert.deepEqual(catalog?.services.map((s) => s.id).sort(), ["corte", "luzes"]); // inativo fora
+assert.deepEqual(catalog?.services.map((s) => s.id).sort(), ["corte", "luzes"]); // inativo fora, e o que ninguém faz também
 assert.equal(JSON.stringify(catalog).includes("customer"), false);
 assert.equal(await loadCatalog(db, "nao-existe"), null);
 // recado do dono na confirmação: vazio (ou só espaço) volta ao texto padrão
