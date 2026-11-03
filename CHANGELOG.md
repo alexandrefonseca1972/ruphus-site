@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- /admin no celular: a linha de filtros alargava a página, e a gaveta do negócio saía da tela (o × e a borda direita cortados). A barra de ações fica no pé da gaveta mesmo com pouco conteúdo, e a miniatura do site usa a imagem de compartilhamento quando não há captura.
+
 - Histórico do negócio no /admin: notas, mudanças de estágio e mensagens mostram "por Ruphus" em vez do e-mail da conta de admin, que aparecia embaixo do destinatário e parecia ser ele.
 
 ## 0.16.0 — 02/11/2026 — SMS completo, atendys mais robusto e agendamento mais leve
