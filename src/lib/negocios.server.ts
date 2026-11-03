@@ -3,7 +3,7 @@ import { type DocumentSnapshot, FieldValue, type Firestore } from "firebase-admi
 import { z } from "zod";
 import { UserError } from "@/lib/booking.server";
 import { DadosNegocio, leadDoDono, NegocioInput, type Sub, SUBS, UtmInput } from "@/lib/gerador";
-import { registrosDoSite } from "@/lib/gerador.server";
+import { personalDe, registrosDoSite } from "@/lib/gerador.server";
 import { limiteStaffDe } from "@/lib/limites";
 
 /** Negócios que cada conta pode ter, até o admin da plataforma liberar mais. */
@@ -180,7 +180,8 @@ export async function salvarNegocio(db: Firestore, slug: string, input: unknown,
   // paletas que não existem. Trocou o ramo, volta ao visual padrão do ramo novo.
   const mudouRamo = t.get("gerado.sub") !== d.sub;
   const [negocio] = registrosDoSite(db, slug, { ...leadDoDono(d), ...google }, { nicho: SUBS[d.sub].nicho, sub: d.sub, tipo: SUBS[d.sub].tipo }, {
-    novo: false, ownerId: String(t.get("ownerId")), origem, escolha: mudouRamo ? undefined : t.get("gerado.escolha"),
+    // fotos, cores e textos próprios são do negócio, não do ramo: ficam mesmo trocando o ramo
+    novo: false, ownerId: String(t.get("ownerId")), origem, escolha: mudouRamo ? undefined : t.get("gerado.escolha"), personal: personalDe(t.get("gerado.personal")),
   });
   const { rating: _nota, reviews: _avaliacoes, ...site } = negocio.dados.site as Record<string, unknown>;
   await ref.set({ ...negocio.dados, site: google ? negocio.dados.site : site }, { merge: true });

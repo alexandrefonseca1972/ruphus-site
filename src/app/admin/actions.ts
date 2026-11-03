@@ -35,7 +35,7 @@ import type { Crm } from "@/lib/crm-tipos";
 import { diaCurto, hojeISO, mensalidadeDe } from "@/lib/crm-tipos";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import { competenciaAtual } from "@/lib/pix";
-import { gerarNoBanco, lerSite, publicarSite } from "@/lib/gerador.server";
+import { gerarNoBanco, lerSite, personalDe, publicarSite } from "@/lib/gerador.server";
 import { PAGINAS_DEMO } from "@/lib/demo";
 import { acessoDemo, contas, restaurarDemo } from "@/lib/demo.server";
 import { deslogarInstancia, qrDaConexao, statusDaConexao, type SituacaoQr as QrWhatsApp } from "@/lib/atendys";
@@ -712,7 +712,7 @@ export const definirModelo = adminAction(async (_user, slug: string, id: string 
   const escolha = id === null ? undefined : modeloDoId(id)?.escolha;
   if (id !== null && !escolha) throw new ErroPrevisto("Este modelo não existe.");
   // a /bio lê a cor e a foto gravadas no tenant: elas trocam junto com o modelo
-  const visual = visualEditorial(slug, sub, escolha);
+  const visual = visualEditorial(slug, sub, escolha, personalDe(tenant.get("gerado.personal")));
   await t.update({
     "gerado.escolha": escolha ?? FieldValue.delete(),
     "site.color": visual.cor,

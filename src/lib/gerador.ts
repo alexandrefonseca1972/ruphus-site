@@ -5,6 +5,7 @@ import { z } from "zod";
 import { normalizar, RUPHUS } from "@/lib/catalogo";
 import { slugify, TenantInput } from "@/lib/tenant-input";
 import { type Dominio, urlDoSite } from "@/lib/dominio";
+import type { Personal } from "@/lib/site-editorial";
 
 // ─── Planilha ────────────────────────────────────────────────────────────────
 
@@ -454,6 +455,8 @@ export type DadosSite = {
   escolha?: Escolha;
   /** textos sorteados entre variantes; ausente = o texto original (sites antigos) */
   variantes?: boolean;
+  /** o que o admin personalizou (fotos próprias, cores, fonte, textos); só no modelo editorial */
+  personal?: Personal | null;
   endereco: string;
   bairro: string;
   cidade: string;

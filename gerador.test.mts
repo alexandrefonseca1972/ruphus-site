@@ -353,6 +353,41 @@ console.log("gerador: ok");
   console.log("escolha por região: ok");
 }
 
+// personalização pelo /admin (gerado.personal): por cima do modelo, da escolha e do sorteio
+{
+  const { Personal, paletaDe, visualEditorial, capaEditorial, renderEditorial } = await import("@/lib/site-editorial");
+  assert.equal(Personal.parse({ cores: { acc: "#B5732F" } }).cores?.acc, "#b5732f", "hex vira minúscula");
+  for (const ruim of [{ cores: { acc: "#bbb" } }, { cores: { ink: "red" } }, { fotos: { hero: "fotos/../x.jpg" } }, { fotos: { hero: "index.html" } }, { fonte: "Comic Sans" }, { layout: "x" }]) {
+    assert.ok(!Personal.safeParse(ruim).success, `recusa ${JSON.stringify(ruim)}`);
+  }
+  assert.deepEqual(paletaDe("#000000"), { deep: "#000000", tint: "#e0e0e0" });
+  const modelo = visualEditorial("x", "barbearia", { modelo: "barbearia-2" });
+  const v = visualEditorial("x", "barbearia", { modelo: "barbearia-2" }, { cores: { acc: "#112233" }, fonte: "Italiana", fotos: { ga2: "fotos/ga2.jpg" } });
+  assert.equal(v.acc, "#112233");
+  assert.equal(v.ink, modelo.ink, "só o destaque mudou: a tinta segue a do modelo");
+  assert.deepEqual([v.deep, v.tint], [paletaDe("#112233").deep, paletaDe("#112233").tint], "deep e tint derivam do destaque");
+  assert.equal(v.fonte[0], "Italiana");
+  assert.equal(v.fotos.hero, modelo.fotos.hero, "sem foto própria no topo, fica a do kit");
+  assert.equal(v.fotos.ga2, "fotos/ga2.jpg");
+  assert.equal(v.foto, modelo.foto, "a bio segue a foto do topo do kit");
+  assert.equal(visualEditorial("x", "barbearia", undefined, { fotos: { hero: "fotos/hero.jpg" } }).foto, "/fotos/hero.jpg", "topo próprio vira a foto da bio");
+  assert.equal(visualEditorial("x", "barbearia", undefined, { fotos: { bio: "fotos/bio.jpg" } }).foto, "/fotos/bio.jpg");
+  const d: DadosSite = { ...base, slug: "navalha", sub: "barbearia", tipo: "BarberShop", personal: { fotos: { hero: "fotos/hero.jpg", ga1: "fotos/ga1.jpg" }, cores: { acc: "#112233" }, textos: { frase: "Corte na régua.", sobre: "Desde 2010 no bairro.", galeria: "Nosso espaço" } } };
+  const html = renderEditorial(d);
+  assert.ok(html.includes('src="fotos/hero.jpg"'), "foto própria é relativa à raiz do site");
+  assert.ok(html.includes('src="fotos/ga1.jpg"') && html.includes("/ga2.jpg"), "galeria mistura própria e do kit");
+  assert.ok(html.includes("--acc:#112233"));
+  assert.equal((html.match(/Imagem ilustrativa/g) ?? []).length, 2, "legenda só nas fotos do banco");
+  assert.ok(html.includes("Imagens ilustrativas"), "rodapé avisa enquanto há foto do banco");
+  assert.ok(html.includes('class="sub rv">Corte na régua.') && html.includes('sobre-big">Desde 2010 no bairro.') && html.includes("<h2>Nosso espaço</h2>"));
+  assert.ok(html.includes('"image":"https://navalha.ruphus.site/fotos/hero.jpg"'), "JSON-LD aponta a foto própria");
+  const todas = renderEditorial({ ...d, personal: { fotos: { hero: "fotos/hero.jpg", ga1: "fotos/ga1.jpg", ga2: "fotos/ga2.jpg", ga3: "fotos/ga3.jpg" } } });
+  assert.ok(!todas.includes("ilustrativa"), "só fotos próprias: sem aviso de banco");
+  assert.equal(capaEditorial(d).foto, "/navalha/fotos/hero.jpg", "og.jpg lê a foto própria do Storage");
+  assert.ok(capaEditorial({ ...d, personal: null }).foto.startsWith("/assets/"));
+  console.log("personalização: ok");
+}
+
 // levantamento de Manaus: "Não identificado" é dado faltando, em qualquer coluna
 {
   const { leads, erros, semTelefone } = lerPlanilha([
