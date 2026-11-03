@@ -8,6 +8,8 @@
 export const PREFIXO = "sites";
 
 const SLUG = /^([a-z0-9][a-z0-9-]{0,61}[a-z0-9]|_p)$/;
+/** O endereço de um site, sem a pasta das miniaturas. */
+export const SLUG_SITE = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
 // Nada de "..", barra, espaço ou acento: os sites só têm nomes assim, e o caminho vira chave do bucket
 const PARTE = /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,99}$/;
 
@@ -45,4 +47,8 @@ export const tipoDe = (nome: string) => TIPOS[nome.split(".").pop()!.toLowerCase
 export const cacheDe = (nome: string) =>
   /\.(html|css|js)$/.test(nome)
     ? `public, max-age=${nome.endsWith(".html") ? 0 : 300}, s-maxage=60, stale-while-revalidate=86400`
-    : "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800";
+    // foto própria do admin tem nome fixo e é trocada no lugar: o navegador confere sempre (o
+    // ETag responde 304) e a CDN guarda um minuto, como o HTML
+    : /\/fotos\/[a-z0-9]+\.jpg$/.test(nome)
+      ? "public, max-age=0, must-revalidate, s-maxage=60"
+      : "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800";

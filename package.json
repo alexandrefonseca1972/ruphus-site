@@ -45,6 +45,7 @@
     "test:painel-indice": "NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-siteflow firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server painel-indice.test.mts'",
     "test:gerador": "tsx gerador.test.mts",
     "test:ia": "tsx --conditions=react-server ia.test.mts",
+    "test:foto-rota": "tsx --conditions=react-server foto-rota.test.mts",
     "test:coleta": "tsx coleta.test.mts",
     "test:lembrete": "tsx lembrete.test.mts",
     "test:proposta-email": "tsx --conditions=react-server proposta-email.test.mts",

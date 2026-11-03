@@ -35,5 +35,6 @@ assert.equal(tipoDe("video/marsala.mp4"), "video/mp4");
 assert.equal(tipoDe("sem-extensao"), "application/octet-stream");
 assert.match(cacheDe("index.html"), /max-age=0,/);
 assert.match(cacheDe("img/a.jpg"), /max-age=86400,/, "foto: um dia");
+assert.match(cacheDe("sites/x/fotos/hero.jpg"), /max-age=0, must-revalidate, s-maxage=60/, "foto própria do admin troca no lugar: confere sempre");
 assert.match(cacheDe("estilo.css"), /max-age=300,/);
 console.log("tipos ok");
