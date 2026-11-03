@@ -447,7 +447,10 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   for (const t of ["estagio", "mensagem", "nota", "convite", "cobranca"]) assert.ok(tipos.has(t as never), `falta ${t} na linha do tempo`);
   const perda = linha.find((e) => e.titulo === "Oferta enviada → Perdido");
   assert.equal(perda?.detalhe, "Preço · achou alto");
-  assert.equal(perda?.autor, "vendedor@teste.dev");
+  // feito no /admin aparece como da Ruphus, não com o e-mail da conta (um login, não uma caixa)
+  assert.equal(perda?.autor, "por Ruphus");
+  assert.ok(linha.filter((e) => ["estagio", "mensagem", "nota"].includes(e.tipo)).every((e) => e.autor === "por Ruphus"));
+  assert.equal(linha.find((e) => e.tipo === "convite")?.autor, "cliente@teste.dev", "a entrada do cliente segue com o e-mail dele");
   assert.ok(linha.every((e, i) => i === 0 || linha[i - 1].quando >= e.quando), "do mais novo ao mais antigo");
 
   const crmDoc = async () => (await db.doc(`crm/${slug}`).get());
