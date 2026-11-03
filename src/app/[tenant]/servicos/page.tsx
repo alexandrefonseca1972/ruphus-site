@@ -10,7 +10,7 @@ import { db } from "@/lib/firebase-db";
 import { formatBRL, formatDuration, maskBRL, precoDe, type TipoPreco } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
-import { useTenant } from "../layout";
+import { useTenant } from "../painel-layout";
 import { PageTitle } from "../page-title";
 import { ConfirmDialog } from "../confirm-dialog";
 import { RowMenu } from "../row-menu";
@@ -178,7 +178,11 @@ export default function ServicesPage() {
     }
   }
 
-  const ativos = items?.filter((s) => s.active).length ?? 0;
+  // no link de verdade: ativo e com alguém da equipe que faz (sem ninguém, o /agendar esconde)
+  // equipe ainda carregando: conta pelo ativo, sem piscar "fora do link" em tudo
+  const noLink = (s: { id: string; active: boolean }) => s.active && (!staff || fazemIds.has(s.id));
+  const fazemIds = new Set(staff?.filter((p) => p.active).flatMap((p) => p.serviceIds) ?? []);
+  const ativos = items?.filter(noLink).length ?? 0;
   // Os que já foram criados em dobro, de antes da validação: ficam marcados para excluir um
   const repetidos = new Map<string, number>();
   for (const s of items ?? []) repetidos.set(chaveNome(s.name), (repetidos.get(chaveNome(s.name)) ?? 0) + 1);
@@ -188,7 +192,7 @@ export default function ServicesPage() {
     <>
       <PageTitle
         title="Serviços"
-        sub={items && (items.length ? `${ativos} no link de agendamento${items.length > ativos ? ` · ${items.length - ativos} oculto(s)` : ""}` : "O que os clientes podem agendar")}
+        sub={items && (items.length ? `${ativos} no link de agendamento${items.length > ativos ? ` · ${items.length - ativos} fora do link` : ""}` : "O que os clientes podem agendar")}
       />
       {/* preço e o que entra no link são do dono: o funcionário só consulta */}
       {tenant.podeGerir && <section aria-labelledby="form-servico" className="grid gap-5 rounded-2xl border bg-card p-5 sm:px-7 sm:py-6">
@@ -258,7 +262,7 @@ export default function ServicesPage() {
                       className="peer sr-only"
                     />
                     <span aria-hidden="true" className="relative h-6 w-11 shrink-0 rounded-full bg-input transition-colors peer-checked:bg-primary peer-focus-visible:ring-3 peer-focus-visible:ring-ring/50 after:absolute after:top-0.5 after:left-0.5 after:size-5 after:rounded-full after:bg-card after:transition-transform peer-checked:after:translate-x-5" />
-                    {s.active ? "No link" : "Oculto"}
+                    {!s.active ? "Oculto" : noLink(s) ? "No link" : "Fora do link até alguém fazer"}
                   </label>
                   {tenant.podeGerir && <div className="flex items-center justify-end gap-1">
                     <Button variant="ghost" className="h-10 px-3" onClick={() => setEditing(s)}>Editar</Button>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { auth } from "@/lib/firebase";
 import { sair } from "@/lib/sessao";
 import { useAvisos } from "./avisos";
-import { useTenantSeHouver } from "./layout";
+import { useTenantSeHouver } from "./painel-layout";
 
 const ITEM = "flex cursor-default rounded-md px-3 py-2 outline-none select-none data-[highlighted]:bg-muted";
 

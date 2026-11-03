@@ -12,7 +12,7 @@ import { baixarAgendamentoAction, editarLancamentoAction, estornarAction, exclui
 import { ConfirmDialog } from "./confirm-dialog";
 import { PixQr } from "@/components/pix-qr";
 import { txidLivre } from "@/lib/pix";
-import { useTenant } from "./layout";
+import { useTenant } from "./painel-layout";
 
 /** O que a folha faz: entrada/saída nova, corrigir uma que existe, receber um atendimento
  *  ou pagar a conta fixa / a comissão do mês. */

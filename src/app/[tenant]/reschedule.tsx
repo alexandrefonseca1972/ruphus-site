@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/auth-errors";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,7 +37,7 @@ export function Reschedule(props: {
         if (!r.ok) setError(r.error);
         setFetched({ for: key, slots: r.ok ? r.slots : [] });
       })
-      .catch((err: Error) => current && (setError(err.message), setFetched({ for: key, slots: [] })));
+      .catch((err) => current && (setError(errorMessage(err)), setFetched({ for: key, slots: [] })));
     return () => {
       current = false;
     };
@@ -55,7 +56,7 @@ export function Reschedule(props: {
       }
       onDone(date, zonedTime(date, time));
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }

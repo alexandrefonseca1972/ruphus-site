@@ -13,7 +13,7 @@ import { CaixaConfig, pctDoTexto } from "@/lib/financeiro";
 import { WEEKDAYS } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
-import { useTenant } from "../layout";
+import { useTenant } from "../painel-layout";
 import { limiteStaffDe } from "@/lib/limites";
 import { PageTitle } from "../page-title";
 import { ConfirmDialog } from "../confirm-dialog";

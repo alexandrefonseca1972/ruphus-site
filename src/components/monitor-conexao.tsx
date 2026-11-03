@@ -86,7 +86,8 @@ export function MonitorConexao() {
   if (estado.tipo === "ok") return null;
   const segundos = estado.tipo === "sem-conexao" ? Math.max(0, Math.ceil((estado.proxima - agora) / 1000)) : 0;
   return (
-    <div role="status" aria-live="polite" className="fixed inset-x-0 bottom-0 z-[60] flex justify-center p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] print:hidden">
+    // no celular, acima da barra de navegação de baixo (painel e admin, ~57 px): tapava as abas
+    <div role="status" aria-live="polite" className="fixed inset-x-0 bottom-0 z-[60] flex justify-center p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] max-sm:bottom-[calc(3.75rem+env(safe-area-inset-bottom))] max-sm:pb-3 print:hidden">
       <div className="flex max-w-xl flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-[#17150F] px-4 py-3 text-sm text-[#FAF9F5] shadow-lg">
         {estado.tipo === "sem-conexao" ? (
           <>

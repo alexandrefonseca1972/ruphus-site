@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { ativosDesde, DIA_EM_MS, JANELAS, MAIOR_JANELA, resumoPorCliente } from "@/lib/clientes";
 import { formatBRL, whatsappLink } from "@/lib/datetime";
 import { useCollection } from "@/lib/use-collection";
-import { useTenant } from "../layout";
+import { useTenant } from "../painel-layout";
 import { PageTitle } from "../page-title";
 import { PlanForm } from "../plan-form";
 import { cn } from "@/lib/utils";

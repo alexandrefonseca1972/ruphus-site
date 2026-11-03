@@ -2,7 +2,7 @@
 
 import { confirmar } from "@/components/confirmar";
 import { idToken as tokenAtual } from "@/lib/firebase";
-import { onAuthStateChanged, onIdTokenChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged, onIdTokenChanged } from "firebase/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -42,7 +42,7 @@ import { Atrasadas, Cobrancas } from "./cobranca";
 import { emDestaque, local, VISOES, visaoDe, type Visao } from "@/lib/painel-consulta";
 import { ehOrdem, PAGINA, PAGINA_MAX, type Filtros, type Ordem } from "@/lib/painel-tipos";
 import { cents, emReais } from "@/lib/dinheiro";
-import { loginComMotivo, MINUTOS_MAX, useAutoLogout } from "@/lib/sessao";
+import { loginComMotivo, MINUTOS_MAX, sair, useAutoLogout } from "@/lib/sessao";
 import { COMMIT, VERSAO } from "@/lib/versao";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX } from "@/lib/limites";
 import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
@@ -257,6 +257,12 @@ export default function AdminPage() {
     addEventListener("keydown", atalho);
     return () => removeEventListener("keydown", atalho);
   }, []);
+
+  useGavetaModal(aberto?.slug, () => {
+    // o menu "Mais ações" da gaveta não tem Esc próprio: fecha ele primeiro
+    if (menuNegocio) return setMenuNegocio(false);
+    setAberto(null);
+  });
 
   const filtros: Filtros = {
     busca, uf, cidade, nicho, situacao, estagio, prazo, alerta,
@@ -660,7 +666,7 @@ export default function AdminPage() {
           <p className="mt-2 text-sm text-[#6F6A5E]">
             {email ? `${email} não administra a plataforma.` : "Esta conta não administra a plataforma."}
           </p>
-          <button className={`${BOTAO_CLARO} mt-5`} onClick={() => signOut(auth).then(() => router.replace("/login"))}>
+          <button className={`${BOTAO_CLARO} mt-5`} onClick={() => sair().then(() => router.replace("/login"))}>
             Entrar com outra conta
           </button>
         </div>
@@ -789,7 +795,7 @@ export default function AdminPage() {
               <div
                 role="dialog"
                 aria-label="Ajustes da plataforma"
-                className="absolute right-0 top-11 z-40 flex max-h-[80vh] w-[min(92vw,420px)] flex-col gap-4 overflow-y-auto rounded-xl border border-[#C8C1B3] bg-white p-4 shadow-[0_18px_48px_rgba(23,21,15,0.18)]"
+                className="absolute right-0 top-11 z-40 flex max-h-[80dvh] w-[min(92vw,420px)] flex-col gap-4 overflow-y-auto rounded-xl border border-[#C8C1B3] bg-white p-4 shadow-[0_18px_48px_rgba(23,21,15,0.18)]"
               >
                 <div className="flex items-baseline gap-2">
                   <h2 className="font-[family-name:var(--fonte-serifa)] text-[20px] leading-none">Ajustes</h2>
@@ -897,7 +903,7 @@ export default function AdminPage() {
                   <button
                     type="button"
                     className="h-11 rounded-[10px] border border-[#D8D2C6] px-3.5 text-[13px] font-semibold text-[#8A2F2F] hover:border-[#8A2F2F]"
-                    onClick={() => signOut(auth).then(() => router.replace("/login"))}
+                    onClick={() => sair().then(() => router.replace("/login"))}
                   >
                     Sair
                   </button>
@@ -1524,8 +1530,12 @@ export default function AdminPage() {
         <>
           <button type="button" aria-label="Fechar painel" onClick={() => setAberto(null)} className="fixed inset-0 z-40 bg-[#17150F]/25" />
           <aside
+            id="gaveta-negocio"
+            role="dialog"
+            aria-modal="true"
+            tabIndex={-1}
             aria-label={aberto.nome}
-            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[520px] flex-col gap-5 overflow-y-auto border-l border-[#E2DDD3] bg-white p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:p-8"
+            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[520px] flex-col gap-5 overflow-y-auto border-l border-[#E2DDD3] bg-white p-6 outline-none pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:p-8"
           >
             <div className="flex items-start gap-3.5">
               <div
@@ -2341,4 +2351,33 @@ export default function AdminPage() {
       )}
     </>
   );
+}
+
+/** Gaveta aberta: Esc fecha (se não houver menu ou confirmação aberta por cima), o fundo não rola
+ *  e o foco entra nela, para o teclado e o leitor de tela começarem pela gaveta. */
+function useGavetaModal(aberta: string | undefined, fechar: () => void) {
+  const fecharAgora = useRef(fechar);
+  useEffect(() => {
+    fecharAgora.current = fechar;
+  });
+  useEffect(() => {
+    if (!aberta) return;
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || document.querySelector('[role="alertdialog"]')) return;
+      // os campos da gaveta salvam no blur: desmontar com o foco neles perdia a edição
+      (document.activeElement as HTMLElement | null)?.blur();
+      fecharAgora.current();
+    };
+    const rolagem = document.body.style.overflow;
+    const antes = document.activeElement as HTMLElement | null;
+    document.body.style.overflow = "hidden";
+    document.getElementById("gaveta-negocio")?.focus();
+    addEventListener("keydown", tecla);
+    return () => {
+      removeEventListener("keydown", tecla);
+      document.body.style.overflow = rolagem;
+      // de volta à linha que abriu, para quem navega pelo teclado não recomeçar do topo
+      if (antes?.isConnected) antes.focus();
+    };
+  }, [aberta]);
 }
