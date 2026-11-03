@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/admin";
 import { desativados } from "@/lib/crm";
@@ -47,7 +49,20 @@ async function catalogo() {
   return atual ? lendo.catch(() => atual!) : lendo;
 }
 
-function resumo(c: Catalogo) {
+// Quem saiu do ar ou pediu remoção só interessa à landing se está na vitrine que vem no HTML dela;
+// a lista inteira dizia a qualquer um quais negócios pediram para sair.
+let vitrine: Promise<Set<string>> | null = null;
+// SITES vem em JSON ("s":"…"), VITRINE em objeto JS (s: "…"): os dois entram.
+const naVitrine = () =>
+  (vitrine ??= readFile(join(process.cwd(), "public/sobre/index.html"), "utf8")
+    .then((html) => new Set([...html.matchAll(/(?:"s"|\bs)\s*:\s*"([a-z0-9-]+)"/g)].map((m) => m[1])))
+    .catch((e) => {
+      // sem o arquivo, o fora iria vazio e a vitrine mostraria quem saiu: tenta de novo na próxima
+      vitrine = null;
+      throw e;
+    }));
+
+function resumo(c: Catalogo, mostrados: Set<string>) {
   const nichos = new Set<string>();
   const bairros = new Set<string>();
   const cidades = new Set<string>();
@@ -66,7 +81,7 @@ function resumo(c: Catalogo) {
     // os nomes da esteira, espalhados pela lista para as cidades se misturarem
     amostra: c.lista.filter((_, i) => i % passo === 0).slice(0, AMOSTRA).map(({ n, d }) => ({ n, d })),
     // quem saiu do ar ou pediu remoção: a landing tira da vitrine que vem no HTML
-    fora: c.fora,
+    fora: c.fora.filter((s) => mostrados.has(s)),
   };
 }
 
@@ -75,7 +90,7 @@ export async function GET(req: Request) {
   if (!c) return NextResponse.json({ erro: "indisponível" }, { status: 503, headers: { "cache-control": "no-store" } });
   const busca = new URL(req.url).searchParams.get("q")?.slice(0, 80) ?? "";
   const termos = norm(busca.trim()).split(/\s+/).filter(Boolean);
-  if (!termos.length) return NextResponse.json(resumo(c), { headers: { "cache-control": "public, max-age=300, stale-while-revalidate=3600" } });
+  if (!termos.length) return NextResponse.json(resumo(c, await naVitrine().catch(() => new Set(c.fora))), { headers: { "cache-control": "public, max-age=300, stale-while-revalidate=3600" } });
   const achados: (Item & { i: number })[] = [];
   let total = 0;
   c.chaves.forEach((k, i) => {

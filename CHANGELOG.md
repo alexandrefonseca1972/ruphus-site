@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Segurança: toda resposta sai com HSTS, `nosniff`, `X-Frame-Options: SAMEORIGIN` e `Referrer-Policy` (o /admin e o painel não abrem mais dentro de site alheio). Site da fábrica aberto direto em `www.ruphus.site/s/…` vai para o subdomínio dele, fora da origem do login. "Pedir remoção" tem teto de 20 por dia na plataforma, e o catálogo público só conta quem saiu do ar se está na vitrine da landing. A faixa "Sem conexão" não fica mais presa no iPhone com iOS 15, e a trava de agendamentos não desliga mais em produção.
+
 - Mensagens prontas do /admin não põem mais "o" antes do nome de quem assina (saía "Aqui é o Fernanda").
 
 - Campo "Ramo" (aba Site do /admin, Meu negócio e cadastro no painel) não alarga mais a tela no celular: o nome mais longo da lista empurrava o formulário 30 px para fora.

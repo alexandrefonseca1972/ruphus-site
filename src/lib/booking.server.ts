@@ -314,8 +314,9 @@ async function limitError(
     for (const ref of [phoneRef, deviceRef, phoneGlobal, deviceGlobal]) if (ref) tx.set(ref, { count: FieldValue.increment(1), day }, { merge: true });
   };
   // trava desligada durante testes manuais (AGENDAMENTO_SEM_LIMITE=1 no ambiente):
-  // a contagem segue normal para conferência; só o bloqueio sai
-  if (process.env.AGENDAMENTO_SEM_LIMITE === "1") return { bump: contar };
+  // a contagem segue normal para conferência; só o bloqueio sai. Nunca em produção:
+  // esquecida no .env da VPS, abria o disparo de recibos para qualquer número
+  if (process.env.AGENDAMENTO_SEM_LIMITE === "1" && process.env.NODE_ENV !== "production") return { bump: contar };
   const [phoneDoc, phoneGlobalDoc, deviceDoc, deviceGlobalDoc] = await tx.getAll(phoneRef, phoneGlobal, ...(deviceRef && deviceGlobal ? [deviceRef, deviceGlobal] : []));
   const future = await tx.get(
     t.collection("appointments").where("customerKey", "==", key).where("start", ">", new Date()),

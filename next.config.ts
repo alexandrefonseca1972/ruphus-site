@@ -4,10 +4,27 @@ import { version } from "./package.json";
 // Versão no rodapé do /admin: o número vem do package.json e o commit do deploy na VPS (GIT_COMMIT_SHA),
 // que só existe no build lá. Em desenvolvimento fica "local", sem enfeite.
 const nextConfig: NextConfig = {
-  // O service worker não pode ficar em cache: é por ele que uma versão nova chega
-  // ao painel instalado. Só scripts da própria origem.
   async headers() {
     return [
+      // Em toda resposta: sem adivinhar tipo de arquivo, e /admin e /painel fora de
+      // iframe de outro site (clickjacking). SAMEORIGIN porque a landing mostra os sites em iframe.
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+      // HSTS só nos nossos: no domínio próprio do cliente o includeSubDomains prenderia em HTTPS
+      // por um ano o webmail e o resto do domínio dele
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "(?:.+\\.)?ruphus\\.site" }],
+        headers: [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }],
+      },
+      // O service worker não pode ficar em cache: é por ele que uma versão nova chega
+      // ao painel instalado. Só scripts da própria origem.
       {
         source: "/sw.js",
         headers: [
