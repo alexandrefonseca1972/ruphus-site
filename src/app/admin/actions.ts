@@ -42,7 +42,7 @@ import { deslogarInstancia, qrDaConexao, statusDaConexao, type SituacaoQr as QrW
 import { apagarConexao, conectarNegocio, gravarGestaoDono, gravarOwnerPhone, lerConexao, paraTela, type ConexaoNaTela, type ConexaoWhatsapp, gravarConexao } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { MODELOS, modeloDoId, renderEditorial, visualEditorial } from "@/lib/site-editorial";
-import { ehClaro, renderClaro } from "@/lib/site-claro";
+import { ehClaro } from "@/lib/site-claro";
 import type { Escolha, Sub } from "@/lib/gerador";
 import { FieldValue } from "firebase-admin/firestore";
 

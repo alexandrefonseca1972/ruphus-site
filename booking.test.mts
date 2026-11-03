@@ -656,6 +656,18 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   }
   assert.equal((await db.doc("crm/rem-cliente").get()).get("publicado"), undefined, "cliente intocado");
   assert.equal((await db.doc("crm/rem-convite").get()).exists, false, "convite aceito intocado");
+
+  // teto do dia: quem raspou as assinaturas das páginas não tira tudo do ar de uma vez
+  const { REMOCOES_POR_DIA, remocoesEsgotadas } = await import("@/lib/crm");
+  assert.equal(await remocoesEsgotadas(db), false);
+  const usadas = (await db.doc(`limitesRemocao/${todayIn()}`).get()).get("count");
+  assert.equal(usadas, 3, "conta só as remoções de verdade (não as repetidas nem as negadas)");
+  await db.doc(`limitesRemocao/${todayIn()}`).set({ count: REMOCOES_POR_DIA });
+  await proposta("rem-cheio", {});
+  assert.equal(await remocoesEsgotadas(db), true, "a página mostra o aviso em vez do botão");
+  assert.equal(await pedirRemocao(db, "rem-cheio"), "cheio");
+  assert.equal((await db.doc("crm/rem-cheio").get()).exists, false, "passou do teto: fica no ar");
+  assert.equal(await pedirRemocao(db, "rem-ok"), true, "a já removida continua respondendo removida");
   console.log("pedir remoção: ok");
 }
 

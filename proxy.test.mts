@@ -83,6 +83,16 @@ assert.deepEqual(enderecoCanonico("ruphus.site", "/sobre"), { host: "www.ruphus.
 assert.deepEqual(enderecoCanonico("www.ruphus.site", "/sobre/"), { host: null, pathname: "/" });
 assert.equal(enderecoCanonico("www.ruphus.site", "/"), null);
 assert.equal(enderecoCanonico("www.ruphus.site", "/sobre/index.html"), null, "o arquivo da landing continua servido");
+// site da fábrica aberto como página no www: vai para o subdomínio (fora da origem do /admin)
+assert.deepEqual(enderecoCanonico("www.ruphus.site", "/s/casa-x", "document"), { host: "casa-x.ruphus.site", pathname: "/" });
+assert.deepEqual(enderecoCanonico("www.ruphus.site", "/s/casa-x/", "document"), { host: "casa-x.ruphus.site", pathname: "/" });
+assert.deepEqual(enderecoCanonico("www.ruphus.site", "/s/casa-x/sobre.html", "document"), { host: "casa-x.ruphus.site", pathname: "/sobre.html" });
+assert.deepEqual(enderecoCanonico("ruphus.site", "/s/casa-x", "document"), { host: "casa-x.ruphus.site", pathname: "/" }, "um salto só");
+assert.equal(enderecoCanonico("www.ruphus.site", "/s/casa-x", "iframe"), null, "a vitrine da landing fica no www");
+assert.equal(enderecoCanonico("www.ruphus.site", "/s/casa-x/foto.jpg", "image"), null, "arquivo não redireciona");
+assert.equal(enderecoCanonico("www.ruphus.site", "/s/casa-x", null), null, "navegador sem Sec-Fetch-Dest: como antes");
+assert.equal(enderecoCanonico("www.ruphus.site", "/s/assets/x.css", "document"), null, "pasta compartilhada");
+assert.equal(enderecoCanonico("localhost:3001", "/s/casa-x", "document"), null, "em desenvolvimento fica");
 // no computador de quem desenvolve e nos previews, /sobre vai para a raiz do mesmo host
 assert.deepEqual(enderecoCanonico("localhost:3001", "/sobre"), { host: null, pathname: "/" });
 assert.equal(enderecoCanonico("siteflow-ruphus-projects.vercel.app", "/admin"), null);

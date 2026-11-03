@@ -23,7 +23,11 @@ export function MonitorConexao() {
       let commit: string | null = null;
       try {
         if (typeof navigator !== "undefined" && navigator.onLine === false) throw new Error("offline");
-        const r = await fetch("/api/versao", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
+        // AbortController e não AbortSignal.timeout, que o Safari do iOS 15 não tem: lá o
+        // fetch quebrava antes de sair e a faixa "Sem conexão" ficava para sempre
+        const aborta = new AbortController();
+        const prazo = setTimeout(() => aborta.abort(), 10_000);
+        const r = await fetch("/api/versao", { cache: "no-store", signal: aborta.signal }).finally(() => clearTimeout(prazo));
         if (!r.ok) throw new Error(String(r.status));
         commit = ((await r.json()) as { commit?: string }).commit ?? null;
       } catch {

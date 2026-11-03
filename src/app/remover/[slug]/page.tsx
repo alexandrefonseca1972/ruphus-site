@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { adminDb } from "@/lib/admin";
 import { RUPHUS } from "@/lib/catalogo";
-import { pedirRemocao, propostaRemovivel } from "@/lib/crm";
+import { pedirRemocao, propostaRemovivel, remocoesEsgotadas } from "@/lib/crm";
 import { indiceDoPainel } from "@/lib/painel-indice.server";
 import { assinaturaValida } from "@/lib/remocao.server";
 
@@ -18,7 +18,8 @@ const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/; // o mesmo do gerador
 async function remover(slug: string, t: string) {
   "use server";
   if (!SLUG.test(slug) || !assinaturaValida(slug, t)) redirect("/");
-  if (await pedirRemocao(adminDb, slug)) await indiceDoPainel(adminDb).atualizar([slug]);
+  const r = await pedirRemocao(adminDb, slug);
+  if (r === true) await indiceDoPainel(adminDb).atualizar([slug]);
   redirect(`/remover/${slug}?t=${encodeURIComponent(t)}`);
 }
 
@@ -48,6 +49,18 @@ export default async function Remover({ params, searchParams }: { params: Promis
           falar com a gente.
         </p>
         <a href={falar} className={`${BOTAO} border border-[#D8D2C6] text-[#4A4639]`}>Falar com a Ruphus</a>
+      </main>
+    );
+
+  // conferido aqui, não por parâmetro do link: ninguém esconde o botão de outro mandando um link
+  if (await remocoesEsgotadas(adminDb))
+    return (
+      <main className={CAIXA}>
+        <h1 className="text-2xl font-semibold">Muitos pedidos hoje</h1>
+        <p className="text-[15px] leading-relaxed text-[#4A4639]">
+          A remoção pelo link está pausada até amanhã. Fale com a gente que tiramos a página de <b>{proposta.nome}</b> do ar agora.
+        </p>
+        <a href={falar} className={`${BOTAO} border border-[#17150F]`}>Falar com a Ruphus</a>
       </main>
     );
 

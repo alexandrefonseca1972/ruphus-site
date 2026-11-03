@@ -1,6 +1,7 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
+import { todayIn } from "@/lib/datetime";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 
 // O CRM mora fora do tenant: nenhuma regra expõe a coleção "crm", então valor,
@@ -119,17 +120,33 @@ export async function propostaRemovivel(db: Firestore, slug: string) {
 /** "Pedir remoção" da faixa de proposta: a página sai do ar (a lista de desativados que o proxy lê)
  *  e o CRM registra o pedido. Numa transação: o admin fechar a venda no meio não vira "perdido".
  *  Já perdido, o motivo de antes fica; o estágio anterior é guardado para desfazer. */
-export async function pedirRemocao(db: Firestore, slug: string) {
+// O link de remoção leva uma assinatura fixa por slug, impressa na própria página: quem raspar as
+// propostas consegue todas. A trava do dia limita o estrago a um punhado, que o admin desfaz.
+// ponytail: teto global por dia; token aleatório por proposta se alguém bater nele de verdade
+export const REMOCOES_POR_DIA = 20;
+
+/** O teto do dia já foi: a página de remoção mostra o aviso em vez do botão. */
+export async function remocoesEsgotadas(db: Firestore) {
+  return ((await db.collection("limitesRemocao").doc(todayIn()).get()).get("count") ?? 0) >= REMOCOES_POR_DIA;
+}
+
+/** true: removida (ou já estava); false: não pode pelo link; "cheio": passou do teto do dia. */
+export async function pedirRemocao(db: Firestore, slug: string): Promise<boolean | "cheio"> {
   const plataforma = await contasDaPlataforma(db);
   const ref = db.collection(RAIZ).doc(slug);
+  const dia = todayIn();
+  const cota = db.collection("limitesRemocao").doc(dia);
   return db.runTransaction(async (tx) => {
-    const [tenant, crm, convidados] = await Promise.all([
+    const [tenant, crm, convidados, usadas] = await Promise.all([
       tx.get(db.doc(`tenants/${slug}`)),
       tx.get(ref),
       tx.get(db.collection(`tenants/${slug}/members`).where("viaConvite", "==", true).limit(1)),
+      tx.get(cota),
     ]);
     if (!removivel(tenant, crm, convidados.size, plataforma)) return false;
     if (crm.get("publicado") === false) return true;
+    if ((usadas.get("count") ?? 0) >= REMOCOES_POR_DIA) return "cheio";
+    tx.set(cota, { count: FieldValue.increment(1), dia }, { merge: true });
     const antes = ((crm.get("estagio") as Crm["estagio"] | undefined) ?? "novo") as Crm["estagio"];
     const agora = FieldValue.serverTimestamp();
     tx.set(
