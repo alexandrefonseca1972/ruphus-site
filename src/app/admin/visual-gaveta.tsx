@@ -70,6 +70,9 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, temIA, o
   const [enviando, setEnviando] = useState<Slot | null>(null);
   const [erroFoto, setErroFoto] = useState<{ slot: Slot; texto: string } | null>(null);
   const [versao, setVersao] = useState(0);
+  // posições cujo arquivo foi trocado depois da última publicação: a referência não muda
+  // ("fotos/hero.jpg"), mas o site só passa a pedir a foto nova ao publicar (carimbo ?v=)
+  const [reenviadas, setReenviadas] = useState<Set<Slot>>(() => new Set());
   const [acao, setAcao] = useState<"previa" | "publicar" | null>(null);
   const busy = acao !== null;
   const [previa, setPrevia] = useState<string | null>(null);
@@ -91,7 +94,7 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, temIA, o
 
   // comparação por valor, com as chaves em ordem: apagar e redigitar o mesmo texto não "muda"
   const semVersao = ({ versao: _v, ...resto }: Personal) => resto;
-  const mudou = canonico(semVersao(rascunho)) !== canonico(semVersao(publicado));
+  const mudou = canonico(semVersao(rascunho)) !== canonico(semVersao(publicado)) || [...reenviadas].some((s) => rascunho.fotos?.[s]);
   const fotoDe = (slot: Slot) => (rascunho.fotos?.[slot] ? `/s/${slug}/fotos/${slot}.jpg?v=${versao}` : doModelo.fotos[slot]);
   const falha = (r: { ok: false; error: string } | null) => setAviso({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
   // sessão caída ou sem rede: o token falha antes da chamada, e a tela não pode ficar presa em "Enviando…"
@@ -111,6 +114,7 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, temIA, o
     setEnviando(null);
     if (!r?.ok) return setErroFoto({ slot, texto: r ? r.error : "Sem conexão. Tente de novo." });
     setVersao((v) => v + 1);
+    setReenviadas((r) => new Set(r).add(slot));
     setRascunho((p) => ({ ...p, fotos: { ...p.fotos, [slot]: `fotos/${slot}.jpg` } }));
     setAviso({ ok: true, texto: `${SLOTS.find((s) => s.slot === slot)?.rotulo}: foto enviada. Entra no site ao publicar.` });
   }
@@ -189,6 +193,7 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, temIA, o
     const gravado = r.dados ?? {};
     setPublicado(gravado);
     setRascunho(gravado);
+    setReenviadas(new Set());
     setPrevia(null);
     setAviso({ ok: true, texto: "Visual publicado. O site, a bio e a imagem do WhatsApp já mostram." });
     onPublicado();
