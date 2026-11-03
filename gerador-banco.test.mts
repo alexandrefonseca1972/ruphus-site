@@ -1,7 +1,7 @@
 // Rode: npm run test:gerador-banco  (gravação do gerador de sites no emulador do Firestore)
 import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { dateIn } from "@/lib/datetime";
 import { lerPlanilha } from "@/lib/gerador";
 import { baixar } from "@/lib/cobranca";
@@ -212,6 +212,26 @@ assert.equal((await pagina("../etc")).status, 404);
   await salvarNegocio(db, "navalha", { name: "Navalha", sub: "barbearia", telefone: "(92) 99123-4567", cidade: "Manaus", uf: "AM" });
   const n = (await db.doc("tenants/navalha").get()).data()!;
   assert.equal(n.gerado.origem, "prospeccao", "o site continua sendo proposta até a Ruphus mudar");
+}
+// a personalização do admin (fotos, cores, textos) sobrevive à edição e à planilha
+{
+  await db.doc("tenants/navalha").update({ "gerado.personal": { fotos: { hero: "fotos/hero.jpg" }, cores: { acc: "#112233" } } });
+  await salvarNegocio(db, "navalha", { name: "Navalha", sub: "barbearia", telefone: "(92) 99123-4567", cidade: "Manaus", uf: "AM" });
+  let n = (await db.doc("tenants/navalha").get()).data()!;
+  assert.deepEqual(n.gerado.personal, { fotos: { hero: "fotos/hero.jpg" }, cores: { acc: "#112233" } });
+  assert.deepEqual([n.site.photo, n.site.color], ["/fotos/hero.jpg", "#112233"], "a bio lê a foto e a cor próprias");
+  await gerarNoBanco(db, planilha(["Navalha", "(92) 99123-4567", "Barbearia", "Manaus", "AM", 4.9, 80, "", "", "", ""]), true, "a");
+  n = (await db.doc("tenants/navalha").get()).data()!;
+  assert.deepEqual([n.gerado.personal.cores.acc, n.site.photo, n.site.color], ["#112233", "/fotos/hero.jpg", "#112233"], "reenviar a planilha não apaga a personalização");
+  assert.equal((await lerSite(db, "navalha"))?.personal?.cores?.acc, "#112233");
+  // trocar o ramo zera o modelo, mas fotos e cores são do negócio
+  await salvarNegocio(db, "navalha", { name: "Navalha", sub: "salao", telefone: "(92) 99123-4567", cidade: "Manaus", uf: "AM" });
+  assert.equal((await db.doc("tenants/navalha").get()).get("gerado.personal.cores.acc"), "#112233");
+  await salvarNegocio(db, "navalha", { name: "Navalha", sub: "barbearia", telefone: "(92) 99123-4567", cidade: "Manaus", uf: "AM" });
+  // gravação inválida (chave estranha) é ignorada na leitura, não derruba o site
+  await db.doc("tenants/navalha").update({ "gerado.personal": { layout: "x" } });
+  assert.equal((await lerSite(db, "navalha"))?.personal, undefined);
+  await db.doc("tenants/navalha").update({ "gerado.personal": FieldValue.delete() });
 }
 
 // ─── Gaveta do admin, aba "Site": completar o site de quem se cadastrou ───

@@ -9,6 +9,7 @@ import {
 } from "@/lib/gerador";
 import { AUTOMOTIVO } from "@/lib/nichos/automotivo";
 import { FITNESS } from "@/lib/nichos/fitness";
+import { z } from "zod";
 
 /** O que muda de um nicho para outro no modelo editorial. */
 export type Estilo = {
@@ -67,6 +68,33 @@ const FONTES: [string, string][] = [
   ["Italiana", "Italiana"],
   ["Cormorant Garamond", "Cormorant+Garamond:ital,wght@0,400;0,600;1,400"],
 ];
+export const NOMES_FONTE = FONTES.map(([n]) => n) as [string, ...string[]];
+
+// ─── Personalização pelo /admin (gerado.personal) ────────────────────────────
+// O que o admin muda num site além do modelo: fotos próprias por posição (gravadas em
+// sites/{slug}/fotos/, só o nome fixo da posição), cores, fonte e textos. Tudo opcional:
+// chave ausente = o que o modelo, a escolha ou o sorteio do slug dariam.
+const HEX = z.string().regex(/^#[0-9a-f]{6}$/i, "cor em hex de 6 dígitos").transform((h) => h.toLowerCase());
+const FOTO = z.string().regex(/^fotos\/(hero|ga1|ga2|ga3|bio)\.jpg$/);
+export const Personal = z.object({
+  fotos: z.object({ hero: FOTO, ga1: FOTO, ga2: FOTO, ga3: FOTO, bio: FOTO }).partial(),
+  cores: z.object({ ink: HEX, acc: HEX, deep: HEX, tint: HEX }).partial(),
+  fonte: z.enum(NOMES_FONTE),
+  textos: z.object({ frase: z.string().trim().max(160), sobre: z.string().trim().max(600), galeria: z.string().trim().max(60) }).partial(),
+}).partial().strict();
+export type Personal = z.infer<typeof Personal>;
+
+const mistura = (hex: string, alvo: number, peso: number) =>
+  "#" + [1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - peso) + alvo * peso).toString(16).padStart(2, "0")).join("");
+/** --deep e --tint a partir da cor de destaque: 25% para o preto e 88% para o branco. */
+export const paletaDe = (acc: string) => ({ deep: mistura(acc, 0, 0.25), tint: mistura(acc, 255, 0.88) });
+
+/** Uma referência de foto como o HTML a pede: a do banco é relativa ao site (../assets/…, como
+ *  sempre foi) e a própria é relativa à raiz do site (fotos/hero.jpg), que o proxy leva a
+ *  /s/{slug}/fotos/… no subdomínio, no www e no domínio próprio. */
+const noHtml = (ref: string) => (ref.startsWith("/assets/") ? `..${ref}` : ref);
+/** A mesma referência a partir da raiz do site (JSON-LD, bio e og.jpg prefixam o que falta). */
+const naRaiz = (ref: string) => (ref.startsWith("/assets/") ? ref : `/${ref}`);
 
 const TEXTOS = {
   barbearia: [
@@ -257,28 +285,46 @@ const VARIANTES = {
 const sorteio = <T,>(lista: T[], slug: string, sal: string): T => lista[variante(slug, lista.length, sal)];
 
 /** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. */
-export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha & { modelo?: string }) {
+export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha & { modelo?: string }, personal?: Personal | null) {
   const e = estiloDe(sub);
   const padrao = escolhaEditorial(sub, slug);
   // modelo gravado: foto e paleta vêm dele, mesmo que o ramo do negócio seja outro
   const doModelo = escolha?.modelo ? modeloDoId(escolha.modelo) : undefined;
-  const [ink, acc, deep, tint] = doModelo?.paleta ?? e.paletas[escolha?.cor ?? padrao.cor];
+  const paleta = doModelo?.paleta ?? e.paletas[escolha?.cor ?? padrao.cor];
   const kit = doModelo?.pasta ?? [...e.kits, ...(e.extras ?? [])][escolha?.kit ?? padrao.kit] ?? e.kits[padrao.kit];
-  return { e, ink, acc, deep, tint, kit, cor: acc, foto: `${kit}/hero.jpg`, fonte: FONTES[variante(slug, FONTES.length, "fonte")] };
+  // personalização por cima de tudo: cor de destaque própria arrasta deep e tint, salvo se vieram também
+  const c = personal?.cores ?? {};
+  const derivada = c.acc ? paletaDe(c.acc) : null;
+  const ink = c.ink ?? paleta[0];
+  const acc = c.acc ?? paleta[1];
+  const deep = c.deep ?? derivada?.deep ?? paleta[2];
+  const tint = c.tint ?? derivada?.tint ?? paleta[3];
+  const fonte = FONTES.find(([n]) => n === personal?.fonte) ?? FONTES[variante(slug, FONTES.length, "fonte")];
+  const p = personal?.fotos ?? {};
+  const fotos = { hero: p.hero ?? `${kit}/hero.jpg`, ga1: p.ga1 ?? `${kit}/ga1.jpg`, ga2: p.ga2 ?? `${kit}/ga2.jpg`, ga3: p.ga3 ?? `${kit}/ga3.jpg` };
+  // a foto da bio: a própria da bio, senão a do topo (própria ou do kit)
+  const foto = naRaiz(p.bio ?? fotos.hero);
+  return { e, ink, acc, deep, tint, kit, cor: acc, foto, fonte, fotos };
 }
 
 /** A imagem de compartilhamento: a foto do topo do kit e a fonte de título do próprio site. */
 export function capaEditorial(d: DadosSite): Capa {
-  const { e, kit, cor, fonte } = visualEditorial(d.slug, d.sub, d.escolha);
-  return { foto: `${kit}/hero.jpg`, cor, fonte: fonte[0], linha: [e.rotulo, d.cidade].filter(Boolean).join(" em ") };
+  const { e, cor, fonte, fotos } = visualEditorial(d.slug, d.sub, d.escolha, d.personal);
+  // a rota do og.jpg pede `/s${foto}`: a do banco é /assets/…, a própria é /{slug}/fotos/hero.jpg
+  const foto = fotos.hero.startsWith("/assets/") ? fotos.hero : `/${d.slug}/${fotos.hero}`;
+  return { foto, cor, fonte: fonte[0], linha: [e.rotulo, d.cidade].filter(Boolean).join(" em ") };
 }
 
 export function renderEditorial(d: DadosSite): string {
-  const { e, ink, acc, deep, tint, kit, fonte } = visualEditorial(d.slug, d.sub, d.escolha);
+  const { e, ink, acc, deep, tint, fonte, fotos } = visualEditorial(d.slug, d.sub, d.escolha, d.personal);
   const onde = lugar(d);
   const rotulo = e.rotulo;
   const tag = [rotulo, [d.cidade, d.uf].filter(Boolean).join("/")].filter(Boolean).join(" · ");
-  const texto = e.textos[variante(d.slug, e.textos.length, "texto")] + (onde ? ` Em ${onde}.` : "");
+  const t = d.personal?.textos ?? {};
+  const texto = t.frase || e.textos[variante(d.slug, e.textos.length, "texto")] + (onde ? ` Em ${onde}.` : "");
+  const sobre = t.sobre || texto;
+  // "ilustrativa" só vale para foto do banco: a própria é do estabelecimento
+  const doBanco = (ref: string) => ref.startsWith("/assets/");
   const temNota = d.nota != null && !!d.avaliacoes;
   const nota = temNota ? notaBR(d.nota!) : "";
   const descr = `${d.nome} — ${rotulo}${d.cidade ? ` em ${d.cidade}` : ""}${temNota ? ` com nota ${nota} e ${d.avaliacoes} avaliações no Google` : ""}. Agende pelo WhatsApp.`;
@@ -326,7 +372,7 @@ export function renderEditorial(d: DadosSite): string {
 <style>:root{--ink:${ink};--paper:#ffffff;--acc:${acc};--deep:${deep};--tint:${tint};--grey:#8b8587;--serif:'${fonte[0]}',serif}</style>
 ${cabecaComum(d, tituloPag, descr, d.publicado)}
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${ink}"/><text x="32" y="45" font-family="Arial Narrow,Arial,sans-serif" font-size="36" font-weight="700" fill="${acc}" text-anchor="middle">${esc(d.nome[0].toUpperCase())}</text></svg>`)}">
-${jsonLdNegocio(d, descr, `${kit}/hero.jpg`)}
+${jsonLdNegocio(d, descr, naRaiz(fotos.hero))}
 </head>
 <body id="top">
 ${d.publicado ? "" : faixaProposta(d)}
@@ -340,7 +386,7 @@ ${d.publicado ? "" : faixaProposta(d)}
 </header>
 
 <section class="hero">
-  <div class="bgimg"><img src="..${kit}/hero.jpg" alt="${alt}"></div>
+  <div class="bgimg"><img src="${noHtml(fotos.hero)}" alt="${alt}"></div>
   <canvas id="fx3d"></canvas>
   <div class="hero-inner">
     <span class="tag">${esc(tag)}</span>
@@ -360,14 +406,14 @@ ${d.publicado ? "" : faixaProposta(d)}
 <section id="sobre">
   <div class="sec-head rv"><span class="label">A Casa</span><h2>Sobre</h2></div>
   <div class="sobre-grid">
-    <div class="rv"><p class="sobre-big">${esc(texto)}</p></div>
+    <div class="rv"><p class="sobre-big">${esc(sobre)}</p></div>
     ${fatos.length ? `<div class="facts rv">${fatos.map(([b, s]) => `<div class="fact"><b>${esc(b)}</b><span>${s}</span></div>`).join("")}</div>` : ""}
   </div>
 </section>
 
 <section class="galeria" id="trabalhos">
-  <div class="sec-head rv"><span class="label">Galeria</span><h2>${escolhido(VARIANTES.galeria, "galeria")}</h2></div>
-  <div class="gal-grid">${[1, 2, 3].map((n) => `<div class="tilt rv fit-cover"><img src="..${kit}/ga${n}.jpg" alt="${alt}" loading="lazy"><span class="cap">Imagem ilustrativa</span></div>`).join("")}</div>
+  <div class="sec-head rv"><span class="label">Galeria</span><h2>${esc(t.galeria || escolhido(VARIANTES.galeria, "galeria"))}</h2></div>
+  <div class="gal-grid">${[fotos.ga1, fotos.ga2, fotos.ga3].map((ref) => `<div class="tilt rv fit-cover"><img src="${noHtml(ref)}" alt="${alt}" loading="lazy">${doBanco(ref) ? '<span class="cap">Imagem ilustrativa</span>' : ""}</div>`).join("")}</div>
 </section>
 
 <section class="servicos" id="servicos">
@@ -444,7 +490,7 @@ ${temNota ? `
     ${d.instagram ? `<a href="https://www.instagram.com/${esc(d.instagram)}/" target="_blank" rel="noopener" aria-label="Instagram de ${esc(d.nome)}">${INSTA}</a>` : ""}
     <a href="${google}" target="_blank" rel="noopener" aria-label="${esc(d.nome)} no Google Maps">${PINO}</a>
   </span>
-<p data-ysis="fonte" style="margin:14px 0 0;font-size:.76rem;line-height:1.5;opacity:.6">Imagens ilustrativas, não são fotos do estabelecimento.${d.origem === "cadastro" ? "" : ` ${temNota ? "Nota e número de avaliações do Google" : "Endereço e contato do perfil público do Google"}, consultados em ${esc(d.consultado)}. Valores públicos, sujeitos a mudança.`}</p>
+<p data-ysis="fonte" style="margin:14px 0 0;font-size:.76rem;line-height:1.5;opacity:.6">${Object.values(fotos).some(doBanco) ? "Imagens ilustrativas, não são fotos do estabelecimento." : ""}${d.origem === "cadastro" ? "" : ` ${temNota ? "Nota e número de avaliações do Google" : "Endereço e contato do perfil público do Google"}, consultados em ${esc(d.consultado)}. Valores públicos, sujeitos a mudança.`}</p>
 </footer>
 
 <a class="wpp-float" href="${oi}" target="_blank" rel="noopener" aria-label="Agendar pelo WhatsApp de ${esc(d.nome)}">${WA}</a>

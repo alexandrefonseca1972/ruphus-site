@@ -8,7 +8,7 @@ import { AUTOR_LEVANTAMENTO } from "@/lib/crm-tipos";
 import { candidatos, type DadosSite, type Escolha, fixo, Lead, type Nicho, nichoDe, outraForma, type Sub, sortearVisual } from "@/lib/gerador";
 import type { Utm } from "@/lib/crm-tipos";
 import { dateIn } from "@/lib/datetime";
-import { combinacoesEditorial, escolhaEditorial, visualEditorial } from "@/lib/site-editorial";
+import { combinacoesEditorial, escolhaEditorial, Personal, visualEditorial } from "@/lib/site-editorial";
 import { combinacoesClaro, ehClaro, escolhaClaro, visualClaro } from "@/lib/site-claro";
 
 /** Kits e paletas do modelo do nicho, e o que o slug sorteia quando o site não tem escolha. */
@@ -58,9 +58,10 @@ export function registrosDoSite(
   slug: string,
   lead: Lead,
   n: Nicho,
-  o: { novo: boolean; ownerId: string; origem: "prospeccao" | "cadastro"; equipe?: string; donoNome?: string; utm?: Utm | null; escolha?: Escolha },
+  o: { novo: boolean; ownerId: string; origem: "prospeccao" | "cadastro"; equipe?: string; donoNome?: string; utm?: Utm | null; escolha?: Escolha; personal?: Personal | null },
 ): Escrita[] {
-  const visual = ehClaro(n.sub) ? visualClaro(slug, n.sub, o.escolha) : visualEditorial(slug, n.sub, o.escolha);
+  // a personalização do admin segue valendo: a cor e a foto que a bio lê saem dela
+  const visual = ehClaro(n.sub) ? visualClaro(slug, n.sub, o.escolha) : visualEditorial(slug, n.sub, o.escolha, o.personal);
   const t = db.collection("tenants").doc(slug);
   const agora = FieldValue.serverTimestamp();
   const escritas: Escrita[] = [{
@@ -132,7 +133,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   // O mesmo celular aparece com e sem o 9 (levantamento antigo, número salvo antes da
   // mudança): procura as duas formas e guarda o achado nas duas, para casar com a planilha.
   const telefones = [...new Set(lida.data.flatMap(({ lead }) => [lead.telefone, outraForma(lead.telefone)].filter((t): t is string => !!t)))];
-  const porTelefone = new Map<string, { slug: string; gerado: boolean; cadastro: boolean; publicado: boolean; escolha?: Escolha }>();
+  const porTelefone = new Map<string, { slug: string; gerado: boolean; cadastro: boolean; publicado: boolean; escolha?: Escolha; personal?: Personal | null }>();
   for (let i = 0; i < telefones.length; i += 30) { // o "in" do Firestore aceita até 30
     const achados = await tenants.where("site.phone", "in", telefones.slice(i, i + 30)).select("site.phone", "gerado").get();
     for (const d of achados.docs) {
@@ -140,7 +141,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
       for (const t of [achado, outraForma(achado)].filter((t): t is string => !!t)) {
         // entre um gerado e outro qualquer com o mesmo número, o que não é gerado decide: não duplicar
         if (!porTelefone.has(t) || !d.get("gerado")) {
-          porTelefone.set(t, { slug: d.id, gerado: !!d.get("gerado"), cadastro: d.get("gerado.origem") === "cadastro", publicado: !!d.get("gerado.publicadoEm"), escolha: d.get("gerado.escolha") });
+          porTelefone.set(t, { slug: d.id, gerado: !!d.get("gerado"), cadastro: d.get("gerado.origem") === "cadastro", publicado: !!d.get("gerado.publicadoEm"), escolha: d.get("gerado.escolha"), personal: personalDe(d.get("gerado.personal")) });
         }
       }
     }
@@ -173,6 +174,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
     return usosDaRegiao.get(chave)!;
   };
   const escolhas = new Map<string, Escolha | undefined>();
+  const personais = new Map<string, Personal | null | undefined>();
 
   // Um endereço está livre se não há tenant nele. Site da fábrica ou negócio real
   // nunca é sobrescrito: passa para o próximo candidato.
@@ -204,6 +206,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
     if (ja) {
       // o que já está no ar fica como está: a escolha dele não muda com a planilha
       escolhas.set(ja.slug, ja.escolha);
+      personais.set(ja.slug, ja.personal);
       saida.push({ ...base, slug: ja.slug, acao: "atualizar" });
       continue;
     }
@@ -245,7 +248,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   const falharam = new Set<string>();
   for (const { slug, acao, lead } of saida) {
     if (acao === "pular") continue;
-    for (const e of registrosDoSite(db, slug, lead, nichoDe(lead)!, { novo: acao === "criar", ownerId, origem: "prospeccao", escolha: escolhas.get(slug) })) {
+    for (const e of registrosDoSite(db, slug, lead, nichoDe(lead)!, { novo: acao === "criar", ownerId, origem: "prospeccao", escolha: escolhas.get(slug), personal: personais.get(slug) })) {
       writer.set(e.ref, e.dados, { merge: true }).catch((err) => {
         falharam.add(slug);
         console.error(`[gerador] escrita de ${slug} falhou`, err);
@@ -276,7 +279,7 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
   if (!SLUG.test(slug)) return null;
   const t = db.collection("tenants").doc(slug);
   const [tenant, servicos] = await Promise.all([t.get(), t.collection("services").where("active", "==", true).get()]);
-  const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; origem?: string; publicadoEm?: unknown; atualizadoEm?: { toDate(): Date }; escolha?: Escolha; variantes?: boolean } | undefined;
+  const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; origem?: string; publicadoEm?: unknown; atualizadoEm?: { toDate(): Date }; escolha?: Escolha; variantes?: boolean; personal?: unknown } | undefined;
   if (!tenant.exists || !gerado?.sub) return null;
 
   const quando = gerado.atualizadoEm?.toDate() ?? new Date();
@@ -309,5 +312,12 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
     remocao: assinaturaDeRemocao(slug) ?? undefined,
     ...(gerado.escolha && { escolha: gerado.escolha }),
     ...(gerado.variantes && { variantes: true }),
+    ...(personalDe(gerado.personal) && { personal: personalDe(gerado.personal) }),
   };
+}
+
+/** gerado.personal como foi gravado, ou null se não passa na validação (o site sai sem ela, não quebra). */
+export function personalDe(bruto: unknown): Personal | null {
+  const p = Personal.safeParse(bruto);
+  return p.success && Object.keys(p.data).length ? p.data : null;
 }
