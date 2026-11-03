@@ -29,6 +29,8 @@ export function useCollection<S extends z.ZodType>(
           for: current,
           items: snap.docs.flatMap((d) => {
             const r = schema.safeParse(d.data({ serverTimestamps: "estimate" }));
+            // documento fora do formato some da lista: pelo menos fica no console para achar
+            if (!r.success) console.warn(`[${name}] ${d.id} fora do formato:`, r.error.issues[0]);
             return r.success ? [{ ...(r.data as object), id: d.id } as Item] : [];
           }),
         }),

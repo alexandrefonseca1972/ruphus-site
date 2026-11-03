@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark:has(.painel) *));
 
 @theme inline {
   --font-serifa: var(--fonte-serifa), Georgia, serif;
@@ -49,8 +49,10 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Só o painel tem tema escuro: agendar, admin, landing e o resto pintam cores fixas, e com
+   color-scheme "light dark" o body e os controles nativos ficavam escuros por baixo delas */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -85,7 +87,8 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-.dark {
+.dark:has(.painel) {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -187,4 +190,16 @@ body:has(.painel) {
 @keyframes coleta-brilho {
   from { left: -25%; }
   to { left: 100%; }
+}
+
+/* Quem pediu menos movimento no sistema: sem pulsar, deslizar nem rolagem suave */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

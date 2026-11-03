@@ -11,7 +11,7 @@ import { idToken } from "@/lib/firebase";
 import { RECADO_MAX } from "@/lib/scheduling";
 import { lerNegocioAction, salvarNegocioAction, salvarRecadoAction } from "../actions";
 import { InstalarPainel } from "../app-instalado";
-import { useTenant } from "../layout";
+import { useTenant } from "../painel-layout";
 import { PageTitle } from "../page-title";
 import { WhatsAppNegocio } from "../whatsapp-negocio";
 import { PixNegocio, SinalNegocio } from "../pix-negocio";

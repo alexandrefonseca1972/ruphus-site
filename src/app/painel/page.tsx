@@ -15,6 +15,7 @@ import { auth, idToken } from "@/lib/firebase";
 import { loginComMotivo } from "@/lib/sessao";
 import { mascaraSlug, myTenants, slugify, TenantInput, type Role } from "@/lib/tenants";
 import { cn } from "@/lib/utils";
+import { registrarServiceWorker } from "@/lib/versao";
 import { AceiteContrato } from "@/components/aceite-contrato";
 import { CONTRATO_RECUSADO } from "@/lib/contrato";
 import { criarNegocioAction, minhaCota, slugLivre } from "./actions";
@@ -52,6 +53,8 @@ export default function MeusNegocios() {
   const [cota, setCota] = useState<{ usados: number; limite: number | null } | null>(null);
   const form = useRef<HTMLElement>(null);
   useSerifaNoBody();
+  // o app instalado abre aqui (start_url): sem isto, a primeira abertura ficava sem SW nem offline.html
+  useEffect(registrarServiceWorker, []);
 
   useEffect(
     () =>

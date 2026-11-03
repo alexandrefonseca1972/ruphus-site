@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/auth-errors";
 import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, serverTimestamp, Timestamp, updateDoc, where } from "firebase/firestore";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -15,7 +16,7 @@ import { brDeIso, erroEmail, erroNascimento, idade, isoDeBR, mascaraData, mascar
 import { deleteCustomerAction, endPlanAction, renameCustomerAction, salvarDadosClienteAction } from "../../actions";
 import { ConfirmDialog } from "../../confirm-dialog";
 import { History } from "../../history";
-import { useTenant } from "../../layout";
+import { useTenant } from "../../painel-layout";
 import { PlanForm, planLabel } from "../../plan-form";
 import { STATUS } from "../../status";
 
@@ -99,13 +100,13 @@ export default function CustomerPage() {
       const res = await endPlanAction(await idToken(), { tenantId: tenant.id, planId });
       if (!res.ok) setError(res.error);
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     }
   }
 
   async function remove() {
     setError("");
-    const res = await deleteCustomerAction(await idToken(), { tenantId: tenant.id, customerId: key }).catch((err: Error) => ({ ok: false as const, error: err.message }));
+    const res = await deleteCustomerAction(await idToken(), { tenantId: tenant.id, customerId: key }).catch((err) => ({ ok: false as const, error: errorMessage(err) }));
     if (!res.ok) {
       setDeleting(false);
       return setError(res.error);

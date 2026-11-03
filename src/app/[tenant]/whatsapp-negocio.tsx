@@ -241,6 +241,7 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                   Enviar
                   <select
+                    aria-label="Quantas horas antes enviar o lembrete"
                     value={horasLembretes}
                     onChange={(e) => {
                       const h = Number(e.target.value);

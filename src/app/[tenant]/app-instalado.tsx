@@ -1,9 +1,10 @@
 "use client";
 
+import { registrarServiceWorker } from "@/lib/versao";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { useAvisos } from "./avisos";
-import { useTenant } from "./layout";
+import { useTenant } from "./painel-layout";
 
 // O painel como app: registra o service worker, convida a instalar e avisa sem rede.
 // O convite some depois de instalado ou dispensado (volta em 30 dias); dispensado, a opção
@@ -116,12 +117,7 @@ export function AppInstalado() {
   const [mostrarAvisos, setMostrarAvisos] = useState(() => !dispensadoEm(AVISOS_DISPENSADO));
   const semRede = useSyncExternalStore(assinarRede, () => !navigator.onLine, () => false);
 
-  useEffect(() => {
-    // em desenvolvimento o cache do service worker esconderia as mudanças do código
-    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
-    }
-  }, []);
+  useEffect(registrarServiceWorker, []);
 
   function dispensarAvisos() {
     setMostrarAvisos(false);

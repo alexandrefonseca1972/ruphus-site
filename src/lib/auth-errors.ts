@@ -12,7 +12,9 @@ const messages: Record<string, string> = {
   "auth/invalid-action-code": "Este link já foi usado ou não vale mais. Peça um novo.",
   "auth/user-disabled": "Esta conta está desativada.",
   "auth/user-not-found": "Esta conta não existe mais.",
-  "permission-denied": "Sem permissão. Esse endereço pode já estar em uso.",
+  // lido também em leituras (lista de clientes, agenda): o texto não pode falar de endereço em uso
+  "permission-denied": "Sem permissão para isso. Entre de novo ou peça acesso ao dono do negócio.",
+  unavailable: "Sem conexão com o servidor. Confira a internet e tente de novo.",
 };
 
 export function errorMessage(err: unknown) {

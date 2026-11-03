@@ -13,7 +13,6 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/painel",
     scope: "/",
     display: "standalone",
-    orientation: "portrait",
     background_color: "#ffffff",
     theme_color: "#ffffff",
     categories: ["business", "productivity"],

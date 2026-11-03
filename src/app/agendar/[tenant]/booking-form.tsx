@@ -293,11 +293,16 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     scrollTo({ top: 0 });
     if (etapa === "confirmar") document.getElementById("passo-confirmar")?.focus();
   }, [etapa]);
+  // reservou: a tela inteira troca e o foco caía no body; vai para o dia reservado, que o leitor
+  // de tela anuncia (o role="status" nasce com o texto e não seria lido)
+  useEffect(() => {
+    if (reserva) document.getElementById("reserva-feita")?.focus();
+  }, [reserva]);
 
   function toggleService(id: string) {
     // Mantém a ordem do catálogo: "Corte + Barba", não a ordem dos cliques
     const ids = services.map((s) => s.id).filter((s) => (s === id ? !serviceIds.includes(id) : serviceIds.includes(s)));
-    if (!ids.length) return; // sem serviço não há agenda para mostrar
+    // desmarcar o único volta ao começo (o aviso "escolha um serviço"); antes o toque era ignorado
     if (!serviceIds.length) mostrarDias.current = true;
     setServiceIds(ids);
     // O profissional escolhido pode não fazer o novo conjunto: volta para "qualquer"
@@ -452,7 +457,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
             </p>
             <div className="flex flex-col gap-1">
               <p className={cn(MONO, "text-[11px] tracking-[0.06em] text-[#6B6555]")}>{quando}</p>
-              <h2 className="text-[28px] leading-[1.06] font-semibold tracking-[-0.03em] first-letter:uppercase">{longDate(date)}</h2>
+              <h2 id="reserva-feita" tabIndex={-1} className="text-[28px] leading-[1.06] font-semibold tracking-[-0.03em] outline-none first-letter:uppercase">{longDate(date)}</h2>
               <p className={cn(MONO, "text-[22px]")}>
                 {hora} — {fim}
               </p>
@@ -1033,12 +1038,12 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                       aria-label={`${longDate(d.date)}, ${agenda ? (vazio ? semVaga : `${d.horarios.length} horários livres`) : "carregando"}`}
                       className={cn(
                         "flex min-h-16 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[10px] border px-0 lg:min-h-[72px] lg:rounded-xl",
-                        sel ? "border-[#17150F] bg-[#17150F] text-[#FAF9F5]" : vazio ? "border-dashed border-[#D5D0C1] text-[#9A9484]" : "border-[#D5D0C1] bg-white",
+                        sel ? "border-[#17150F] bg-[#17150F] text-[#FAF9F5]" : vazio ? "border-dashed border-[#D5D0C1] text-[#6F6A5E]" : "border-[#D5D0C1] bg-white",
                       )}
                     >
                       <span className={cn(MONO, "text-[11px] uppercase opacity-75")}>{rotulo}</span>
                       <span className={cn(MONO, "text-lg leading-none")}>{parte(d.date, { day: "numeric" })}</span>
-                      <span className={cn(MONO, "text-[11px]", sel ? "text-[#FAF9F5]/80" : vazio ? "text-[#9A9484]" : "text-[#2C6A53]")}>
+                      <span className={cn(MONO, "text-[11px]", sel ? "text-[#FAF9F5]/80" : vazio ? "text-[#6F6A5E]" : "text-[#2C6A53]")}>
                         {agenda ? (vazio ? <>–<span className="sr-only sm:not-sr-only sm:ml-1">{semVaga}</span></> : <>{d.horarios.length}<span className="hidden sm:inline"> livres</span></>) : "—"}
                       </span>
                     </button>

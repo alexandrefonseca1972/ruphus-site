@@ -16,7 +16,7 @@ import { ConfirmDialog } from "./confirm-dialog";
 import { History } from "./history";
 import { type Folha, LancamentoFolha } from "./lancamento-folha";
 import { idDaBaixa, Lancamento } from "@/lib/financeiro";
-import { useTenant } from "./layout";
+import { useTenant } from "./painel-layout";
 import { PageTitle } from "./page-title";
 import { Reschedule } from "./reschedule";
 import { RowMenu } from "./row-menu";
@@ -123,13 +123,19 @@ export default function AgendaPage() {
   }
 
   async function notifyAndChange(a: Appointment, status: "confirmed" | "cancelled", message: string) {
+    // a aba abre ainda dentro do clique: depois do await da gravação o navegador já não conta
+    // como gesto, bloqueava a aba nova, e o WhatsApp tomava o lugar do painel
+    const aba = window.open("", "_blank");
     setPending(a.id);
     const saved = await changeStatus(a, status);
     setPending(null);
     // Falhou a gravação: não avisa o cliente de algo que não aconteceu
-    if (!saved) return;
+    if (!saved) return aba?.close();
     const link = whatsappLink(a.customerPhone, message);
-    if (!openExternal(link)) location.assign(link); // webview bloqueou a aba nova
+    if (aba) {
+      aba.opener = null;
+      aba.location.href = link;
+    } else if (!openExternal(link)) location.assign(link); // webview bloqueou a aba nova
   }
 
   async function sinalRecebido(a: Appointment) {

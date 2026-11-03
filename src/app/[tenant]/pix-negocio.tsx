@@ -12,7 +12,7 @@ import { ERRO_CHAVE, ERRO_CIDADE, ERRO_NOME, legivel, normalizarChave, tipoDaCha
 import { ConfirmDialog } from "./confirm-dialog";
 import { cn } from "@/lib/utils";
 import { salvarPixAction, salvarSinalAction } from "./actions";
-import { useTenant } from "./layout";
+import { useTenant } from "./painel-layout";
 
 /** A chave Pix do salão: com ela, o Caixa mostra o QR com o valor na hora de receber. */
 export function PixNegocio({ cidadeSugerida = "" }: { cidadeSugerida?: string }) {
