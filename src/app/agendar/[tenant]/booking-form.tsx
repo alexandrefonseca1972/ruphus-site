@@ -176,6 +176,35 @@ function Rodape() {
   );
 }
 
+/** Um passo da lista "o que falta": feito (✓), o de agora (destacado) e os que vêm depois. */
+function Passo({ estado, ultimo, children }: { estado: "feito" | "agora" | "depois"; ultimo: boolean; children: React.ReactNode }) {
+  return (
+    <li className="relative flex gap-3 pb-4 last:pb-0" aria-current={estado === "agora" ? "step" : undefined}>
+      {!ultimo && <span aria-hidden="true" className="absolute top-6 bottom-0 left-[11px] w-px bg-[#D5D0C1]" />}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "relative z-10 flex size-6 shrink-0 items-center justify-center rounded-full text-[#FAF9F5]",
+          estado === "feito" && "bg-[#2C6A53]",
+          estado === "agora" && "bg-[#17150F] ring-4 ring-[#17150F]/10",
+          estado === "depois" && "border border-[#B8B2A2] bg-white",
+        )}
+      >
+        {estado === "feito" && (
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+        {estado === "agora" && <span className="size-2 rounded-full bg-[#FAF9F5]" />}
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-[15px] leading-snug">
+        <span className="sr-only">{estado === "feito" ? "Feito: " : estado === "agora" ? "Agora: " : "Depois: "}</span>
+        {children}
+      </div>
+    </li>
+  );
+}
+
 export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, sinal, fuso, services, staff }: Props) {
   // Nada vem marcado: quem agenda diz o que quer, e só então a agenda aparece.
   // Os serviços chegam do servidor na ordem do que mais se agenda.
@@ -446,14 +475,15 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
         <Cabecalho tenantId={tenantId} temSite={temSite} siteUrl={siteUrl} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
         <div className={cn(PAINEL, "overflow-hidden shadow-[0_28px_50px_-34px_rgba(22,21,15,0.28)]")}>
           <div className="flex flex-col gap-4 p-5">
-            {/* com sinal, o horário só está guardado até o prazo: "reservado" prometeria o que ainda falta pagar */}
-            <p className={cn("flex items-center gap-2 text-[11px] font-medium tracking-[0.14em] uppercase", MONO, reserva.sinal ? "text-[#8A5A12]" : "text-[#2C6A53]")} role="status">
-              <span className={cn("flex size-5 items-center justify-center rounded-full", reserva.sinal ? "bg-[#8A5A12]" : "bg-[#2C6A53]")}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FAF9F5" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  {reserva.sinal ? <path d="M12 7v5l3 2" /> : <path d="M5 13l4 4L19 7" />}
+            {/* "pedido enviado", não "confirmado": quem confirma é o negócio (e, com sinal, depois do Pix).
+                O que falta vem nos passos abaixo; o verde fica para quando o salão confirmar */}
+            <p className={cn("flex items-center gap-2 text-[11px] font-medium tracking-[0.14em] uppercase text-[#5C5747]", MONO)} role="status">
+              <span className="flex size-5 items-center justify-center rounded-full border border-[#B8B2A2]" aria-hidden="true">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5747" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 12l16-8-6 16-2-6z" />
                 </svg>
               </span>
-              {reserva.sinal ? "aguardando o sinal" : "horário reservado"}
+              pedido enviado
             </p>
             <div className="flex flex-col gap-1">
               <p className={cn(MONO, "text-[11px] tracking-[0.06em] text-[#6B6555]")}>{quando}</p>
@@ -495,43 +525,50 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           </div>
           <div className="h-px bg-[repeating-linear-gradient(to_right,#D5D0C1_0_6px,transparent_6px_12px)]" />
           <div className="flex flex-col gap-3.5 p-5">
-            {reserva.sinal && (
-              // o horário fica segurado até o prazo; o salão confere no banco e confirma
-              <div className="flex flex-col gap-2.5">
-                <p className="text-[15px] leading-relaxed">
-                  Pague o sinal até <strong className={MONO}>{formatTime(new Date(reserva.sinal.ate), fuso)}</strong> para garantir o horário. Sem o sinal, o horário é liberado.
-                </p>
-                <PixQr recebedor={reserva.sinal.pix} valorCents={reserva.sinal.cents} txid={reserva.sinal.txid} ate={reserva.sinal.ate} mensagem={`Sinal do horário de ${longDate(date)}, às ${hora}, em ${name}`} ajuda={`Fale com ${name} para combinar o pagamento.`}>
-                  {phone && (
-                  <a
-                    href={linkWhatsApp(phone, `Olá! Paguei o sinal de ${formatBRL(reserva.sinal.cents)} do meu horário de ${longDate(date)}, às ${hora} (${servicos}). Meu nome é ${customerName.trim()}. Segue o comprovante.`) ?? undefined}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex h-11 items-center justify-center rounded-lg bg-[#17150F] text-sm font-semibold text-[#FAF9F5]"
-                  >
-                    Enviar comprovante para {name}
-                  </a>
+            {/* O caminho até o horário confirmado, com o passo de agora em destaque: o cliente vê
+                o que já está feito, a única coisa que falta e quem faz o resto */}
+            <ol className="flex flex-col" aria-label="O que falta para o horário ficar confirmado">
+              <Passo estado="feito" ultimo={false}>
+                <span className="font-semibold">Horário guardado</span>
+                <span className="text-[13px] text-[#5C5747]">ninguém mais marca este horário{reserva.sinal ? " enquanto o prazo do sinal corre" : ""}</span>
+              </Passo>
+              <Passo estado="agora" ultimo={false}>
+                {reserva.sinal ? (
+                  // o horário fica segurado até o prazo; o salão confere no banco e confirma
+                  <>
+                    <span className="font-semibold">
+                      Pague o sinal de <span className={MONO}>{formatBRL(reserva.sinal.cents)}</span> até <span className={MONO}>{formatTime(new Date(reserva.sinal.ate), fuso)}</span>
+                    </span>
+                    <span className="text-[13px] text-[#5C5747]">Sem o sinal até esse horário, ele é liberado para outra pessoa.</span>
+                    <div className="mt-2">
+                      <PixQr recebedor={reserva.sinal.pix} valorCents={reserva.sinal.cents} txid={reserva.sinal.txid} ate={reserva.sinal.ate} mensagem={`Sinal do horário de ${longDate(date)}, às ${hora}, em ${name}`} ajuda={`Fale com ${name} para combinar o pagamento.`}>
+                        {phone && (
+                          <a
+                            href={linkWhatsApp(phone, `Olá! Paguei o sinal de ${formatBRL(reserva.sinal.cents)} do meu horário de ${longDate(date)}, às ${hora} (${servicos}). Meu nome é ${customerName.trim()}. Segue o comprovante.`) ?? undefined}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex h-11 items-center justify-center rounded-lg bg-[#17150F] text-sm font-semibold text-[#FAF9F5]"
+                          >
+                            Enviar comprovante para {name}
+                          </a>
+                        )}
+                      </PixQr>
+                    </div>
+                  </>
+                ) : (
+                  // "seu" deixa claro que o número mostrado é o do cliente, não o do negócio
+                  <>
+                    <span className="font-semibold">{name} confirma pelo seu WhatsApp</span>
+                    <span className={cn(MONO, "text-[13px] text-[#5C5747]")}>{customerPhone}</span>
+                  </>
                 )}
-                </PixQr>
-              </div>
-            )}
-            {/* Quem confirma é o negócio, no número que o cliente deu: "seu" deixa claro que
-                o número mostrado é o dele, não o do negócio. Falar com ele é a ação da tela. */}
-            {recadoDono ? (
-              // o recado é do dono (texto puro, quebras de linha mantidas); o número continua
-              // à vista para o cliente conferir onde vai ser chamado
-              <>
-                <p className="text-[15px] leading-relaxed whitespace-pre-line break-words">{recadoDono}</p>
-                <p className="text-[13px] text-[#5C5747]">
-                  Seu WhatsApp: <span className={cn(MONO, "whitespace-nowrap")}>{customerPhone}</span>
-                </p>
-              </>
-            ) : (
-              <p className="text-[15px] leading-relaxed">
-                <strong className="font-semibold">{name}</strong> vai te chamar no <strong className="font-semibold">seu</strong> WhatsApp{" "}
-                <span className={cn(MONO, "text-[13px] whitespace-nowrap")}>{customerPhone}</span> para confirmar.
-              </p>
-            )}
+              </Passo>
+              <Passo estado="depois" ultimo>
+                <span className="font-semibold text-[#5C5747]">{reserva.sinal ? `${name} confere o pagamento e confirma` : "Horário confirmado"}</span>
+              </Passo>
+            </ol>
+            {/* o recado é do dono (texto puro, quebras de linha mantidas) */}
+            {recadoDono && <p className="text-[15px] leading-relaxed whitespace-pre-line break-words">{recadoDono}</p>}
             {avisoUrl && (
               <div className="flex flex-col gap-2">
                 <a
@@ -543,7 +580,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                   <Zap />
                   Mandar o resumo no WhatsApp
                 </a>
-                <p className="text-center text-xs text-[#5C5747]">{reserva.sinal ? "Opcional." : "Opcional. O horário já está reservado."}</p>
+                <p className="text-center text-xs text-[#5C5747]">Opcional: o pedido já chegou para {name}.</p>
               </div>
             )}
           </div>
