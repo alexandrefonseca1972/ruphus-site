@@ -43,6 +43,7 @@
     "test:painel": "tsx painel-tipos.test.mts && tsx painel-consulta.test.mts && tsx funil-consulta.test.mts",
     "test:painel-indice": "NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-siteflow firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server painel-indice.test.mts'",
     "test:gerador": "tsx gerador.test.mts",
+    "test:ia": "tsx --conditions=react-server ia.test.mts",
     "test:coleta": "tsx coleta.test.mts",
     "test:lembrete": "tsx lembrete.test.mts",
     "test:proposta-email": "tsx --conditions=react-server proposta-email.test.mts",
@@ -56,6 +57,7 @@
     "test:coleta-selecao": "tsx coleta-selecao.test.mts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
     "@base-ui/react": "^1.8.0",
     "@types/nodemailer": "^8.0.2",
     "@types/qrcode": "^1.5.6",
@@ -73,6 +75,7 @@
     "read-excel-file": "^9.3.10",
     "server-only": "^0.0.1",
     "shadcn": "^4.21.0",
+    "sharp": "^0.35.5",
     "tw-animate-css": "^1.4.0",
     "web-push": "^3.6.7",
     "zod": "^4.6.7"

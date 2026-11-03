@@ -49,6 +49,7 @@ jobs:
       - run: npm run test:painel
       - run: npm run test:sms
       - run: npm run test:gerador
+      - run: npm run test:ia
       - run: npm run test:lembrete
       - run: npm run test:proposta-email
       - run: npm run test:convite-email
