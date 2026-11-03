@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Abuso e manutenção: o limite de agendamentos por aparelho conta o IPv6 pelo /64 (trocar o fim do endereço não abre mais um limite novo, e com ele o disparo de recibos pelo WhatsApp do salão). Histórico e notas só levam o e-mail de quem o confirmou, nas regras do Firestore e no painel. O CI passa a rodar o `tsc` (erro de tipo só aparecia no build da VPS). `shadcn` e tipos saem das dependências de produção.
+
 - Visual do site pelo /admin: na aba Site de um site do gerador (modelo editorial) há a seção **Visual**: fotos próprias do negócio por posição (topo, três da galeria e a faixa da bio), enviadas do celular ou do computador e redimensionadas no servidor; tinta e destaque com seletor de cor; fonte dos títulos; frase do topo, Sobre e título da galeria. Tudo fica num rascunho com pré-visualização e só entra no site, na bio e na imagem do WhatsApp em "Publicar visual". Reenviar a planilha, editar os dados ou trocar o ramo não apaga a personalização. Com a chave da Anthropic em Ajustes, um chat na mesma seção propõe cores, fonte e textos a partir do pedido e das fotos; o admin marca o que entra e vê a prévia antes de publicar.
 
 - Sites da fábrica acabaram: os 11 que restavam no Storage foram ao modelo do gerador (650 ao todo, com o HTML original guardado em `fabrica-backup/`). "Selagem", "progressiva" e "alisamento" contam como salão, "harmonização" como estética.

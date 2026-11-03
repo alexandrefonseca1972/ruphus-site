@@ -4,7 +4,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
-import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, LIMITS, loadCatalog, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente } from "@/lib/booking.server";
+import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, LIMITS, loadCatalog, redeDoIp, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
 import { addDays, agoraNaParede, customerKey, formatPhone, fusoDaUF, maskBRL, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
@@ -75,6 +75,13 @@ const hours = Object.fromEntries(["0", "1", "2", "3", "4", "5", "6"].map((d) => 
 await t.collection("staff").doc("ana").set({ name: "Ana", serviceIds: ["corte", "luzes"], hours, active: true });
 await t.collection("staff").doc("bia").set({ name: "Bia", serviceIds: ["corte"], hours, active: true });
 
+// IPv6 conta pelo /64: trocar o fim do endereço não abre um limite novo
+assert.equal(redeDoIp("2804:14c:5b:8000:a1b2:c3d4:e5f6:1"), "2804:14c:5b:8000::/64");
+assert.equal(redeDoIp("2804:14c:5b:8000::9"), "2804:14c:5b:8000::/64");
+assert.equal(redeDoIp("2804:014c:005b:8000:0:0:0:1"), "2804:14c:5b:8000::/64", "zeros à esquerda");
+assert.equal(redeDoIp("2001:db8::1"), "2001:db8:0:0::/64");
+assert.equal(redeDoIp("189.6.10.20"), "189.6.10.20", "IPv4 como está");
+assert.equal(redeDoIp("::ffff:189.6.10.20"), "189.6.10.20", "IPv4 mapeado");
 const date = addDays(todayIn(), 7);
 let seq = 0;
 /** Cada cliente com seu telefone: o limite por telefone é testado à parte */

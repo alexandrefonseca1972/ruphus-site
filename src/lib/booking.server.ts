@@ -328,7 +328,18 @@ type Actor = { uid: string; email?: string };
 
 // Trava simples contra reservas em massa pela página pública (sem captcha nem serviço externo)
 export const LIMITS = { activePerPhone: 3, dailyPerPhone: 5, dailyPerDevice: 20, globalPerPhone: 8, globalPerDevice: 30 };
-const deviceId = (ip: string) => createHash("sha256").update(`siteflow:${ip}`).digest("hex").slice(0, 16);
+// IPv6: a operadora entrega um /64 inteiro a cada aparelho, e trocar o fim do endereço furava o
+// limite por aparelho (uma reserva por IP novo). Conta pelo /64.
+export function redeDoIp(ip: string) {
+  const v = ip.trim().toLowerCase().replace(/^\[|\]$/g, "").split("%")[0];
+  if (!v.includes(":") || /^::ffff:\d/.test(v)) return v.replace(/^::ffff:/, "");
+  const [esq, dir = ""] = v.split("::");
+  const a = esq ? esq.split(":") : [];
+  const b = v.includes("::") ? (dir ? dir.split(":") : []) : [];
+  const grupos = [...a, ...Array(Math.max(0, 8 - a.length - b.length)).fill("0"), ...b];
+  return `${grupos.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":")}::/64`;
+}
+const deviceId = (ip: string) => createHash("sha256").update(`siteflow:${redeDoIp(ip)}`).digest("hex").slice(0, 16);
 
 /** Conta e valida limites do dia. Devolve a mensagem quando estourou. */
 async function limitError(

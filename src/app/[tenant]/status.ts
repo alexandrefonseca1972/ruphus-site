@@ -16,7 +16,8 @@ export async function mudarStatus(tenantId: string, appointmentId: string, statu
   if (!user) throw new Error("Sessão expirada. Entre novamente.");
   const entry = doc(collection(db, "tenants", tenantId, "history"));
   const batch = writeBatch(db);
-  batch.set(entry, { appointmentId, type: status, at: serverTimestamp(), by: user.uid, byName: user.email });
+  // e-mail só confirmado vira autor (as regras exigem): sem isso qualquer um assinava com o alheio
+  batch.set(entry, { appointmentId, type: status, at: serverTimestamp(), by: user.uid, byName: user.emailVerified ? user.email : null });
   batch.update(doc(db, "tenants", tenantId, "appointments", appointmentId), { status, lastHistoryId: entry.id });
   await batch.commit();
 }
