@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Mensagens prontas do /admin não põem mais "o" antes do nome de quem assina (saía "Aqui é o Fernanda").
+
 - Campo "Ramo" (aba Site do /admin, Meu negócio e cadastro no painel) não alarga mais a tela no celular: o nome mais longo da lista empurrava o formulário 30 px para fora.
 
 - Agendamento público não mostra mais serviço que ninguém da equipe faz (o cliente escolhia e via todos os dias "fechado"). No /admin, mudar a etapa de um negócio sem CRM ainda deixava um erro no console e não atualizava a linha do tempo.

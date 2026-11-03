@@ -276,7 +276,7 @@ const QUANDO: Record<Modelo, string> = {
 
 export function mensagem(modelo: Modelo, negocio: Negocio, crm: Crm, vendedor?: string, linkProposta?: string | null) {
   const quem = vendedor?.trim() || MARCA_NOME;
-  const oi = `Oi${crm.donoNome ? `, ${crm.donoNome.split(" ")[0]}` : ""}! Aqui é o ${quem}, da Ruphus.`;
+  const oi = `Oi${crm.donoNome ? `, ${crm.donoNome.split(" ")[0]}` : ""}! Aqui é ${quem}, da Ruphus.`;
   const site = `${negocio.slug}.ruphus.site`;
   const entrada = formatBRL(crm.entradaCents ?? PRECO_PADRAO.entradaCents);
   const mensal = formatBRL(crm.mensalCents ?? PRECO_PADRAO.mensalCents);
