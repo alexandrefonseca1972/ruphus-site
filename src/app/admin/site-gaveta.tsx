@@ -51,27 +51,30 @@ const TIPO: Record<TipoSite, { rotulo: string; cor: string; texto: string; acao:
 type Dados = { name: string; tipo: TipoSite; publicado: boolean; google: { nota: number | null; avaliacoes: number | null } } & Valores;
 type Visual = Pick<Extract<Awaited<ReturnType<typeof siteDoNegocio>>, { ok: true }>["dados"], "personal" | "doModelo" | "fontes" | "temIA">;
 
-// a prévia é uma página de desktop: renderiza em 1280px e encolhe para a largura da gaveta
-const LARGURA_PREVIA = 1280;
-const ALTURA_PREVIA = 900;
-export function PreviaModelo({ html }: { html: string }) {
+// a prévia renderiza na largura de um computador (1280) ou de um celular (390) e encolhe para
+// caber na gaveta; a altura segue a proporção da tela escolhida
+export const TELAS = { computador: { largura: 1280, altura: 900 }, celular: { largura: 390, altura: 760 } } as const;
+export type Tela = keyof typeof TELAS;
+export function PreviaModelo({ html, tela = "computador", titulo = "Pré-visualização do modelo" }: { html: string; tela?: Tela; titulo?: string }) {
+  const { largura, altura } = TELAS[tela];
   const [caixa, setCaixa] = useState<HTMLDivElement | null>(null);
   const [escala, setEscala] = useState(0.4);
   useEffect(() => {
     if (!caixa) return;
-    const medir = () => setEscala(caixa.clientWidth / LARGURA_PREVIA);
+    // no celular a prévia não precisa ser maior que a tela: fica em escala 1 quando cabe
+    const medir = () => setEscala(Math.min(1, caixa.clientWidth / largura));
     medir();
     const obs = new ResizeObserver(medir);
     obs.observe(caixa);
     return () => obs.disconnect();
-  }, [caixa]);
+  }, [caixa, largura]);
   return (
-    <div ref={setCaixa} className="w-full overflow-hidden rounded-[10px] border border-[#D8D2C6] bg-white" style={{ height: ALTURA_PREVIA * escala }}>
+    <div ref={setCaixa} className="w-full overflow-hidden rounded-[10px] border border-[#D8D2C6] bg-white" style={{ height: altura * escala }}>
       <iframe
-        title="Pré-visualização do modelo"
+        title={titulo}
         srcDoc={html}
         sandbox="allow-scripts"
-        style={{ width: LARGURA_PREVIA, height: ALTURA_PREVIA, transform: `scale(${escala})`, transformOrigin: "top left" }}
+        style={{ width: largura, height: altura, transform: `scale(${escala})`, transformOrigin: "top left" }}
         className="border-0 bg-white"
       />
     </div>
@@ -247,7 +250,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
                 {modeloAtual === "personalizado" && <option value="personalizado" disabled>Personalizado</option>}
               </select>
               <button type="button" className={BOTAO_CLARO} disabled={busy || modelo === "personalizado"} onClick={visualizarModelo}>
-                {visualizando ? "Abrindo…" : "Pré-visualizar"}
+                {visualizando ? "Abrindo…" : "Prévia do modelo"}
               </button>
               <button
                 type="button"
@@ -262,7 +265,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
               <div className="flex flex-col gap-2">
                 <PreviaModelo html={previaModelo} />
                 <div className="flex justify-end">
-                  <button type="button" className={BOTAO_CLARO} onClick={() => setPreviaModelo(null)}>Fechar prévia</button>
+                  <button type="button" className={BOTAO_CLARO} onClick={() => setPreviaModelo(null)}>Fechar prévia do modelo</button>
                 </div>
               </div>
             )}

@@ -46,7 +46,12 @@ const nextConfig: NextConfig = {
   // O cache do Turbopack no build (ligado por padrão desde o 16.3)
   // deixava o CSS do Tailwind velho: classes de componentes novos não entravam e o modal
   // do Caixa abria sem posição no computador. Build frio custa ~1 min a mais.
-  experimental: { turbopackFileSystemCacheForBuild: false },
+  experimental: {
+    turbopackFileSystemCacheForBuild: false,
+    // o proxy guarda o corpo em memória até este teto: acima dele o upload de foto do /admin
+    // (até 12 MB, src/lib/foto.server.ts) chegava cortado e virava "Pedido inválido"
+    proxyClientMaxBodySize: "13mb",
+  },
   // deploymentId: vem de NEXT_DEPLOYMENT_ID, que o scripts/deploy-vps.sh grava no .env.production
   // de cada versão. Não sai daqui (GIT_COMMIT_SHA só existe no build): o `next start` relê este
   // arquivo, ficava sem o id, e a página pedia cada fonte e chunk duas vezes (com e sem ?dpl=).

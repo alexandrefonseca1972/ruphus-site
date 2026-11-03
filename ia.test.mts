@@ -20,13 +20,16 @@ assert.equal(pedido.messages.at(-1)?.content, "deixa mais escuro");
 const primeiro = pedido.messages[0].content as { type: string }[];
 assert.ok(Array.isArray(primeiro) && primeiro.some((b) => b.type === "image") && JSON.stringify(primeiro).includes("Navalha"), "negócio e miniaturas no primeiro turno");
 assert.ok(!JSON.stringify(pedido.system).includes("fotos:"), "o sistema não oferece mudar fotos");
+assert.ok(JSON.stringify(primeiro).includes("<dados_do_negocio>") && JSON.stringify(pedido.system).includes("dados_do_negocio"), "dados do negócio marcados como dado, não instrução");
 
 const ok = (parsed_output: unknown) => lerResposta({ stop_reason: "end_turn", parsed_output });
 const lida = ok({ resposta: "Escureci a tinta.", mudancas: { cores: { ink: "#0A0A0A", acc: null }, fonte: null, textos: { frase: null, sobre: "Desde 2010.", galeria: null } } });
 assert.deepEqual(lida, { resposta: "Escureci a tinta.", mudancas: { cores: { ink: "#0a0a0a" }, textos: { sobre: "Desde 2010." } } }, "nulos somem, hex vira minúscula");
 assert.deepEqual(ok({ resposta: "Nada a mudar.", mudancas: { cores: { ink: null, acc: null }, fonte: null, textos: { frase: null, sobre: null, galeria: null } } }).mudancas, {}, "tudo null = sem mudança");
+const tbt = ok({ resposta: "x", mudancas: { cores: { ink: null, acc: "#ABCDEF" }, fonte: null, textos: { frase: "#TBT do salão", sobre: "  " + "a".repeat(700) + "  ", galeria: "   " } } }).mudancas;
+assert.deepEqual(tbt, { cores: { acc: "#abcdef" }, textos: { frase: "#TBT do salão", sobre: "a".repeat(600) } }, "texto com # fica como está; longo é aparado; só espaço conta como não mexer");
 assert.throws(() => lerResposta({ stop_reason: "refusal", parsed_output: null }), /não aceitou/);
-assert.throws(() => lerResposta({ stop_reason: "max_tokens", parsed_output: null }), /longa/);
+assert.throws(() => lerResposta({ stop_reason: "max_tokens", parsed_output: null }), /não terminou/);
 assert.throws(() => ok(null), /fora do formato/);
 assert.throws(() => ok({ resposta: "x", mudancas: { cores: { ink: "red", acc: null }, fonte: null, textos: { frase: null, sobre: null, galeria: null } } }), /fora do formato/);
 assert.throws(() => ok({ resposta: "x", mudancas: { cores: { ink: null, acc: null }, fonte: "Comic Sans", textos: { frase: null, sobre: null, galeria: null } } }), /fora do formato/);

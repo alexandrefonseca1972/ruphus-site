@@ -44,7 +44,7 @@ import { soDigitosComDDI } from "@/lib/telefone";
 import { MODELOS, modeloDoId, NOMES_FONTE, Personal, renderEditorial, visualEditorial } from "@/lib/site-editorial";
 import { ehClaro } from "@/lib/site-claro";
 import { iaDisponivel, type Mensagem, sugerirVisual } from "@/lib/ia.server";
-import { adminBucket } from "@/lib/admin";
+import { apagarFotosFora, fotosFaltando, lerFoto, type Slot, tenantEditorial } from "@/lib/foto.server";
 import type { Escolha, Sub } from "@/lib/gerador";
 import { FieldValue } from "firebase-admin/firestore";
 
@@ -685,38 +685,40 @@ const PedidoIA = z.object({
 
 /** Um turno do assistente da seção "Visual": o pedido do admin vira resposta mais mudanças no
  *  formato do rascunho. Não grava nada; a gaveta aplica o que o admin marcar. */
-export const conversarVisual = adminAction(async (_user, slug: string, rascunho: unknown, entrada: unknown) => {
+export const conversarVisual = adminAction(async (user, slug: string, rascunho: unknown, entrada: unknown) => {
   const { tenant, sub } = await tenantEditorial(slug);
+  contarTurnoIA(user.uid);
   const p = Personal.parse(rascunho);
   const { pedido, historico } = PedidoIA.parse(entrada);
   const dados = await lerSite(adminDb, slug);
   if (!dados) throw new ErroPrevisto("Site não encontrado.");
   const visual = visualEditorial(slug, sub, tenant.get("gerado.escolha"), p);
-  // as fotos próprias vão como miniaturas: a IA tira a paleta delas, e 512 px bastam
+  // as fotos próprias vão como miniaturas: a IA tira a paleta delas, e 512 px bastam. Foto que
+  // o rascunho aponta mas não está lá (ou que o sharp não lê) fica de fora, sem derrubar o pedido
   const sharp = (await import("sharp")).default;
-  const proprias = Object.entries(p.fotos ?? {}).filter(([, ref]) => ref);
-  const fotos = await Promise.all(
-    proprias.map(async ([slot]) => {
-      const [corpo] = await adminBucket().file(`sites/${slug}/fotos/${slot}.jpg`).download();
-      return (await sharp(corpo).resize({ width: 512, withoutEnlargement: true }).jpeg({ quality: 70 }).toBuffer()).toString("base64");
+  const proprias = (Object.keys(p.fotos ?? {}) as Slot[]).filter((slot) => p.fotos?.[slot]);
+  const lidas = await Promise.allSettled(
+    proprias.map(async (slot) => {
+      const corpo = await lerFoto(slug, slot);
+      if (!corpo) throw new Error("sem arquivo");
+      return { slot, base64: (await sharp(corpo).resize({ width: 512, withoutEnlargement: true }).jpeg({ quality: 70 }).toBuffer()).toString("base64") };
     }),
   );
+  const fotos = lidas.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
   return sugerirVisual({
     negocio: { nome: dados.nome, ramo: visual.e.rotulo, cidade: dados.cidade, uf: dados.uf, bairro: dados.bairro, servicos: dados.servicos, horario: dados.horario },
-    atual: { cores: { ink: visual.ink, acc: visual.acc }, fonte: visual.fonte[0], textos: p.textos, fotosProprias: proprias.map(([slot]) => slot) },
-    fotos,
+    atual: { cores: { ink: visual.ink, acc: visual.acc }, fonte: visual.fonte[0], textos: p.textos, fotosProprias: fotos.map((f) => f.slot) },
+    fotos: fotos.map((f) => f.base64),
     historico: historico as Mensagem[],
     pedido,
   });
 });
 
-/** Só site do gerador no modelo editorial tem personalização; devolve o tenant conferido. */
-async function tenantEditorial(slug: string) {
-  slugValido(slug);
-  const tenant = await adminDb.doc(`tenants/${slug}`).get();
-  const sub = tenant.get("gerado.sub") as Sub | undefined;
-  if (!tenant.exists || !sub || ehClaro(sub)) throw new ErroPrevisto("Este site não tem personalização.");
-  return { tenant, sub };
+/** O HTML do site com <base> no domínio dele, para as fotos carregarem dentro do admin. */
+function comBase(html: string, slug: string) {
+  const r = html.replace("<head>", `<head><base href="https://${slug}.ruphus.site/">`);
+  if (r === html) throw new Error("Modelo sem <head>: não dá para montar a pré-visualização.");
+  return r;
 }
 
 /** Pré-visualização do rascunho da personalização (fotos, cores, fonte, textos), com o modelo
@@ -726,7 +728,8 @@ export const previewVisual = adminAction(async (_user, slug: string, rascunho: u
   const dados = await lerSite(adminDb, slug);
   if (!dados) throw new ErroPrevisto("Site não encontrado.");
   const html = renderEditorial({ ...dados, personal: Personal.parse(rascunho) });
-  return html.replace("<head>", `<head><base href="https://${slug}.ruphus.site/">`);
+  // a foto própria tem nome fixo: a prévia pede com um carimbo para ver a que acabou de subir
+  return comBase(html.replace(/src="(fotos\/[a-z0-9]+\.jpg)"/g, `src="/s/${slug}/$1?v=${Date.now()}"`), slug);
 });
 
 /** Publica a personalização: grava gerado.personal (ou apaga, se ficou vazia) e a cor e a
@@ -737,15 +740,30 @@ export const definirVisual = adminAction(async (_user, slug: string, rascunho: u
   // chave sem nada dentro ({ cores: {} }) é o mesmo que ausente
   const personal = Object.fromEntries(Object.entries(p).filter(([, v]) => v != null && (typeof v !== "object" || Object.keys(v).length))) as Personal;
   const vazio = !Object.keys(personal).length;
+  // foto que o rascunho aponta mas não está no Storage publicaria uma imagem quebrada
+  const faltam = await fotosFaltando(slug, personal.fotos);
+  if (faltam.length) throw new ErroPrevisto(`Foto não encontrada: ${faltam.join(", ")}. Envie de novo ou use a do modelo.`);
   const visual = visualEditorial(slug, sub, tenant.get("gerado.escolha"), vazio ? null : personal);
   await tenant.ref.update({
     "gerado.personal": vazio ? FieldValue.delete() : personal,
     "site.color": visual.cor,
     "site.photo": visual.foto,
   });
+  // só agora as fotos que saíram do visual podem sumir do Storage: até aqui o site publicado podia apontar para elas
+  await apagarFotosFora(slug, personal.fotos);
   renovarEnderecos(slug);
   return vazio ? null : personal;
 });
+
+// ponytail: contador em memória por conta (um processo só); vai para o Firestore se houver mais de uma instância
+const TURNOS_IA_POR_HORA = 30;
+const turnosIA = new Map<string, number[]>();
+function contarTurnoIA(uid: string) {
+  const agora = Date.now();
+  const recentes = (turnosIA.get(uid) ?? []).filter((t) => agora - t < 3_600_000);
+  if (recentes.length >= TURNOS_IA_POR_HORA) throw new ErroPrevisto(`Limite de ${TURNOS_IA_POR_HORA} pedidos à IA por hora. Espere um pouco.`);
+  turnosIA.set(uid, [...recentes, agora]);
+}
 
 /** Aba "Ficha" da gaveta: tudo o que se sabe do negócio, para o vendedor avaliar antes do contato. */
 export const fichaDoNegocio = adminAction(async (_user, slug: string) => {
@@ -779,10 +797,7 @@ export const previewModelo = adminAction(async (_user, slug: string, id: string 
     if (!modelo) throw new ErroPrevisto("Este modelo não existe.");
     escolha = modelo.escolha;
   }
-  const html = renderEditorial({ ...dados, escolha });
-  const comBase = html.replace("<head>", `<head><base href="https://${slug}.ruphus.site/">`);
-  if (comBase === html) throw new Error("Modelo sem <head>: não dá para montar a pré-visualização.");
-  return comBase;
+  return comBase(renderEditorial({ ...dados, escolha }), slug);
 });
 
 /** Troca o modelo editorial do site: grava a escolha de kit e cor do modelo, ou volta ao

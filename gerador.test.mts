@@ -361,6 +361,8 @@ console.log("gerador: ok");
     assert.ok(!Personal.safeParse(ruim).success, `recusa ${JSON.stringify(ruim)}`);
   }
   assert.deepEqual(paletaDe("#000000"), { deep: "#000000", tint: "#e0e0e0" });
+  assert.deepEqual(paletaDe("#ffffff"), { deep: "#bfbfbf", tint: "#ffffff" }, "branco: deep escurece, tint fica branco");
+  assert.equal(paletaDe("#ABCDEF").deep, paletaDe("#abcdef").deep, "maiúscula e minúscula dão o mesmo");
   const modelo = visualEditorial("x", "barbearia", { modelo: "barbearia-2" });
   const v = visualEditorial("x", "barbearia", { modelo: "barbearia-2" }, { cores: { acc: "#112233" }, fonte: "Italiana", fotos: { ga2: "fotos/ga2.jpg" } });
   assert.equal(v.acc, "#112233");
@@ -384,6 +386,9 @@ console.log("gerador: ok");
   const todas = renderEditorial({ ...d, personal: { fotos: { hero: "fotos/hero.jpg", ga1: "fotos/ga1.jpg", ga2: "fotos/ga2.jpg", ga3: "fotos/ga3.jpg" } } });
   assert.ok(!todas.includes("ilustrativa"), "só fotos próprias: sem aviso de banco");
   assert.equal(capaEditorial(d).foto, "/navalha/fotos/hero.jpg", "og.jpg lê a foto própria do Storage");
+  const vazios = renderEditorial({ ...d, personal: { textos: { frase: "", sobre: "" } } });
+  assert.ok(!vazios.includes('class="sub rv"></p>') && vazios.includes("sobre-big"), "texto vazio cai no do modelo, sem parágrafo em branco");
+  assert.ok(renderEditorial({ ...d, personal: { textos: { frase: "Só a frase." } } }).includes('sobre-big">Só a frase.'), "sem Sobre, repete a frase");
   assert.ok(capaEditorial({ ...d, personal: null }).foto.startsWith("/assets/"));
   console.log("personalização: ok");
 }

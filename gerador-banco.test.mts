@@ -149,11 +149,28 @@ assert.equal((await pagina("../etc")).status, 404);
   await processarFoto("navalha", "ga1", pequena);
   assert.equal((await sharp((await adminBucket().file("sites/navalha/fotos/ga1.jpg").download())[0]).metadata()).width, 300, "pequena não é ampliada");
   await assert.rejects(processarFoto("navalha", "ga2", Buffer.from("não é imagem")), /JPG, PNG ou WebP/);
+  // o tipo declarado não vale: SVG (que o sharp decodifica) é recusado pelo formato real
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><script>alert(1)</script></svg>');
+  await assert.rejects(processarFoto("navalha", "ga2", svg), /Formato não aceito/);
+  // bomba de pixels: PNG de cor lisa gigante pesa pouco, mas decodificado passa do teto
+  const bomba = await sharp({ create: { width: 9000, height: 5000, channels: 3, background: "#fff" } }).png().toBuffer();
+  await assert.rejects(processarFoto("navalha", "ga3", bomba), /40 megapixels/);
   await assert.rejects(processarFoto("../x", "hero", pequena), /inválido/);
   await apagarFoto("navalha", "hero");
   assert.equal((await arquivo.exists())[0], false);
   await apagarFoto("navalha", "hero");
-  await Promise.all(["bio", "ga1"].map((s) => apagarFoto("navalha", s as "bio" | "ga1")));
+  // ao publicar, só as posições fora do visual somem
+  const { apagarFotosFora, lerFoto, fotosFaltando, tenantEditorial } = await import("@/lib/foto.server");
+  assert.ok((await lerFoto("navalha", "bio"))!.length > 0 && (await lerFoto("navalha", "hero")) === null, "lerFoto: arquivo ou null");
+  assert.deepEqual(await fotosFaltando("navalha", { hero: "fotos/hero.jpg", bio: "fotos/bio.jpg" }), ["hero"], "aponta a posição sem arquivo");
+  await assert.rejects(tenantEditorial("pet-feliz-belem"), /não tem personalização/, "modelo claro não personaliza");
+  await assert.rejects(tenantEditorial("nao-existe"), /não tem personalização/);
+  await assert.rejects(tenantEditorial("../x"), /inválido/);
+  assert.equal((await tenantEditorial("navalha")).sub, "barbearia");
+  await apagarFotosFora("navalha", { bio: "fotos/bio.jpg" });
+  assert.deepEqual(await Promise.all(["bio", "ga1"].map(async (s) => (await adminBucket().file(`sites/navalha/fotos/${s}.jpg`).exists())[0])), [true, false]);
+  await apagarFotosFora("navalha", undefined);
+  assert.equal((await adminBucket().file("sites/navalha/fotos/bio.jpg").exists())[0], false);
 }
 
 // ─── Cadastro pelo dono: o negócio já nasce com site, agenda, equipe e funil ───
