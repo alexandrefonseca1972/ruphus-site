@@ -946,7 +946,10 @@ export default function AdminPage() {
         <div className="grow" />
 
         {/* Filtro e ordem moram com as visões: são todos recortes da mesma lista */}
-        <div className="flex items-center gap-2 py-1.5">
+        {/* max-w-full e o select com min-w-0: com 421px ("Compromisso mais próximo" decide a largura
+            do select), a linha alargava a página no celular, e a gaveta e a barra de baixo, que são
+            fixed com w-full, iam junto: o × e a borda direita dos cartões saíam da tela */}
+        <div className="flex max-w-full min-w-0 items-center gap-2 py-1.5">
         <div className="relative">
           <button
             type="button"
@@ -1073,7 +1076,7 @@ export default function AdminPage() {
           id="ordem"
           value={ordem}
           onChange={(e) => ehOrdem(e.target.value) && setOrdem(e.target.value)}
-          className="h-9 rounded-lg border border-[#D8D2C6] bg-white px-2.5 text-[13px]"
+          className="h-9 min-w-0 rounded-lg border border-[#D8D2C6] bg-white px-2.5 text-[13px]"
         >
           <option value="relevancia">Mais relevantes</option>
           <option value="compromisso">Compromisso mais próximo</option>
@@ -2200,8 +2203,12 @@ export default function AdminPage() {
                     src={`/s/_p/${aberto.slug}.webp`}
                     alt={`Página inicial do site de ${aberto.nome}`}
                     className="size-full object-cover object-top"
-                    // site do gerador não tem captura: o quadro fica liso, sem ícone quebrado
-                    onError={(e) => { e.currentTarget.hidden = true; }}
+                    // site do gerador não tem captura: cai no og.jpg (existe para todo site); sem ele, quadro liso
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (!img.src.endsWith("/og.jpg")) img.src = `/s/${aberto.slug}/og.jpg`;
+                      else img.hidden = true;
+                    }}
                   />
                 </a>
                 {/* eslint-disable-next-line @next/next/no-img-element -- QR em SVG gerado pela própria rota */}
@@ -2283,8 +2290,9 @@ export default function AdminPage() {
             {/* Fixa no rodapé: mandar e anotar são o dia inteiro, e estavam
                 a uma rolagem de distância dentro de blocos diferentes. */}
             {/* bottom negativo = o padding de baixo da gaveta, como o -top das abas: com bottom-0
-                a barra parava acima da borda e o conteúdo aparecia rolando por baixo dela */}
-            <div className="sticky bottom-[calc(-1.5rem-env(safe-area-inset-bottom))] -mx-6 -mb-6 flex gap-2 border-t border-[#E2DDD3] bg-white px-6 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:-bottom-8 sm:-mx-8 sm:-mb-8 sm:px-8">
+                a barra parava acima da borda e o conteúdo aparecia rolando por baixo dela.
+                mt-auto: com pouco conteúdo (aba Cobrança) a barra ficava no meio da gaveta */}
+            <div className="sticky bottom-[calc(-1.5rem-env(safe-area-inset-bottom))] -mx-6 -mb-6 mt-auto flex gap-2 border-t border-[#E2DDD3] bg-white px-6 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:-bottom-8 sm:-mx-8 sm:-mb-8 sm:px-8">
               {pronto?.link ? (
                 <a
                   href={pronto.link}
