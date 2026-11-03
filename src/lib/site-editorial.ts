@@ -62,7 +62,7 @@ const CLINICAS: [string, string, string, string][] = [
 ];
 
 // os quatro pares de fonte que a família usa, todos com Archivo no texto
-const FONTES: [string, string][] = [
+export const FONTES: [string, string][] = [
   ["Fraunces", "Fraunces:opsz,wght@9..144,400;9..144,600"],
   ["Marcellus", "Marcellus"],
   ["Italiana", "Italiana"],

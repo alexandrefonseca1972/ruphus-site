@@ -1,4 +1,5 @@
-// Aulas e cursos no modelo claro: idiomas, reforço escolar, música e autoescola.
+// Aulas e cursos no modelo claro: idiomas, reforço escolar, música, autoescola e cursos
+// profissionalizantes (informática, beleza, gastronomia, elétrica, costura…).
 // Fotos do banco Pexels em public/s/assets/aulas (créditos no creditos.json).
 // Autoescola só com alunos adultos: habilitação é a partir dos 18.
 import type { Conteudo } from "@/lib/site-claro";
@@ -40,6 +41,15 @@ const FOTOS: Record<string, string> = {
   "autoescola-volante-aluna": "Aluna sorridente sentada ao volante",
   "autoescola-instrucao": "Instrutor explica ao aluno durante o trajeto",
   "autoescola-volante": "Mão no volante e painel do carro",
+  "profi-instrutor": "Instrutor acompanha alunos adultos em aula prática",
+  "profi-turma": "Professor orienta alunos em sala de aula",
+  "profi-eletronica": "Dois alunos montam circuito em bancada de eletrônica",
+  "profi-cozinha": "Alunos de gastronomia praticam na cozinha-escola",
+  "profi-refrigeracao": "Aula prática de manutenção de ar-condicionado",
+  "profi-costura": "Aluna sorri na máquina de costura durante o curso",
+  "profi-cnc": "Aluno opera máquina CNC com óculos de proteção",
+  "profi-chef": "Chef explica a receita para a turma na cozinha",
+  "profi-informatica": "Turma de adultos em curso de informática",
 };
 
 const DESCRICOES: [RegExp, string][] = [
@@ -56,9 +66,17 @@ const DESCRICOES: [RegExp, string][] = [
   [/pr[áa]tica|dire[çc][ãa]o/i, "Aulas no carro com instrutor credenciado, no trânsito real da cidade."],
   [/legisla[çc][ãa]o|te[óo]rica/i, "Conteúdo da prova teórica explicado de forma clara."],
   [/habilitad/i, "Para quem já tem CNH e quer voltar a dirigir com segurança."],
+  [/inform[áa]tica|excel|computador|digital/i, "Do básico ao uso no trabalho, com prática em cada aula."],
+  [/cabel|barb|manicure|maquiag|est[ée]tic|beleza|cílio|cilio|sobrancelha/i, "Técnica e prática em modelo real, com certificado ao final."],
+  [/gastronom|confeit|cozinh|panifica/i, "Receitas, técnicas e organização de cozinha, com aulas práticas."],
+  [/el[ée]tric|refrigera|ar[- ]condicionado|manuten[çc][ãa]o|solda|mec[âa]nic/i, "Aulas práticas na oficina-escola, com as ferramentas do dia a dia."],
+  [/costur|modelag/i, "Da máquina ao acabamento, com projetos para levar para casa."],
+  [/intensiv|r[áa]pid|qualifica/i, "Formação curta e focada no mercado, para começar a trabalhar logo."],
+  [/certifica/i, "Certificado de conclusão para apresentar a empresas e clientes."],
+  [/profissionaliz|curso/i, "Turmas pequenas, aulas práticas e professor que acompanha cada aluno."],
 ];
 
-export const AULAS: Record<"idiomas" | "reforco" | "musica" | "autoescola", Conteudo> = {
+export const AULAS: Record<"idiomas" | "reforco" | "musica" | "autoescola" | "profissionalizante", Conteudo> = {
   idiomas: {
     pasta: "aulas", fotos: FOTOS, paletas: PALETAS, descricoes: DESCRICOES, icone: LIVRO,
     rotulo: "Escola de idiomas",
@@ -185,6 +203,38 @@ export const AULAS: Record<"idiomas" | "reforco" | "musica" | "autoescola", Cont
       valores: "O valor depende da categoria e do número de aulas. Toque em “pedir valor” e receba as opções pelo WhatsApp.",
       agendar: "Agende a sua aula",
       obs: ["Categoria e experiência (opcional)", "Ex.: categoria B, primeira habilitação…"],
+    },
+  },
+  profissionalizante: {
+    pasta: "aulas", fotos: FOTOS, paletas: PALETAS, descricoes: DESCRICOES, icone: LIVRO,
+    rotulo: "Cursos profissionalizantes",
+    padrao: ["Aula experimental", "Curso profissionalizante", "Curso intensivo", "Certificação"],
+    topo: ["profi-instrutor", "profi-turma", "profi-eletronica"],
+    galeria: ["profi-cozinha", "profi-refrigeracao", "profi-costura", "profi-cnc", "profi-chef", "profi-informatica"],
+    passos: [
+      ["profi-turma", "Conversa sobre o seu objetivo", "Qual profissão, quanto tempo tem e o que já sabe: o curso certo sai daí."],
+      ["profi-eletronica", "Aula prática desde o começo", "Turmas pequenas, mão na massa e professor acompanhando cada aluno."],
+      ["profi-instrutor", "Certificado e próximo passo", "Ao concluir, o certificado e orientação para entrar no mercado."],
+    ],
+    titulos: [
+      ["Aprenda uma profissão", "e comece a trabalhar", "Cursos profissionalizantes com aula prática e certificado. Agende uma aula experimental."],
+      ["Qualificação rápida", "para o mercado", "Turmas pequenas, professor que acompanha e certificado ao final. Fale pelo WhatsApp."],
+      ["Um curso que cabe", "na sua rotina", "Horários de manhã, tarde e noite, com prática desde a primeira aula. Agende a sua."],
+    ],
+    faq: [
+      ["Precisa ter experiência?", "Não. Os cursos começam do zero e avançam no ritmo da turma."],
+      ["Tem certificado?", "Sim, de conclusão, para apresentar a empresas e clientes."],
+      ["Quanto tempo dura?", "Depende do curso: há formações de algumas semanas e outras de alguns meses. Pergunte pelo WhatsApp."],
+      ["Quanto custa?", "Depende do curso e da turma. Peça os valores e as formas de pagamento pelo WhatsApp."],
+    ],
+    textos: {
+      oi: "quero saber sobre os cursos.",
+      servicos: (nome) => `Cursos da ${nome}`,
+      passos: "Da aula experimental ao certificado — com prática em cada etapa.",
+      galeria: ["Em aula", "Aprender fazendo"],
+      valores: "O valor depende do curso, da turma e da carga horária. Toque em “pedir valor” e receba as opções pelo WhatsApp.",
+      agendar: "Agende a sua aula experimental",
+      obs: ["Curso e horário (opcional)", "Ex.: curso de informática, prefiro à noite…"],
     },
   },
 };

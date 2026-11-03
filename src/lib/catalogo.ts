@@ -77,6 +77,7 @@ export const PADRAO: [RegExp, string[]][] = [
   [/^reforço escolar/i, ["Aula experimental", "Reforço escolar", "Aula particular"]],
   [/^música/i, ["Aula experimental", "Violão", "Piano", "Canto"]],
   [/^autoescola/i, ["Aula prática de direção", "Aula de legislação", "Aula para habilitados"]],
+  [/^cursos profissionalizantes/i, ["Aula experimental", "Curso profissionalizante", "Curso intensivo", "Certificação"]],
   [/^academia/i, ["Avaliação física", "Musculação", "Treino funcional", "Personal trainer"]],
   [/^pilates/i, ["Aula experimental", "Pilates em aparelhos", "Pilates solo", "Yoga"]],
   [/^lutas/i, ["Aula experimental", "Jiu-jitsu", "Muay thai", "Boxe"]],

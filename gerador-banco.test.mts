@@ -160,13 +160,13 @@ assert.equal((await pagina("../etc")).status, 404);
   assert.equal((await arquivo.exists())[0], false);
   await apagarFoto("navalha", "hero");
   // ao publicar, só as posições fora do visual somem
-  const { apagarFotosFora, lerFoto, fotosFaltando, tenantEditorial } = await import("@/lib/foto.server");
+  const { apagarFotosFora, lerFoto, fotosFaltando, tenantGerado } = await import("@/lib/foto.server");
   assert.ok((await lerFoto("navalha", "bio"))!.length > 0 && (await lerFoto("navalha", "hero")) === null, "lerFoto: arquivo ou null");
   assert.deepEqual(await fotosFaltando("navalha", { hero: "fotos/hero.jpg", bio: "fotos/bio.jpg" }), ["hero"], "aponta a posição sem arquivo");
-  await assert.rejects(tenantEditorial("pet-feliz-belem"), /não tem personalização/, "modelo claro não personaliza");
-  await assert.rejects(tenantEditorial("nao-existe"), /não tem personalização/);
-  await assert.rejects(tenantEditorial("../x"), /inválido/);
-  assert.equal((await tenantEditorial("navalha")).sub, "barbearia");
+  assert.equal((await tenantGerado("pet-feliz-belem")).sub, "petshop", "o modelo claro também personaliza");
+  await assert.rejects(tenantGerado("nao-existe"), /não tem personalização/);
+  await assert.rejects(tenantGerado("../x"), /inválido/);
+  assert.equal((await tenantGerado("navalha")).sub, "barbearia");
   await apagarFotosFora("navalha", { bio: "fotos/bio.jpg" });
   assert.deepEqual(await Promise.all(["bio", "ga1"].map(async (s) => (await adminBucket().file(`sites/navalha/fotos/${s}.jpg`).exists())[0])), [true, false]);
   await apagarFotosFora("navalha", undefined);

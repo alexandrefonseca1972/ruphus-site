@@ -173,8 +173,10 @@ agenda não mudam. Em site da fábrica mudam só os dados da bio e do agendament
 
 ### Personalizar o visual de um site (fotos, cores, fonte, textos, IA)
 
-Gaveta do negócio → aba **Site** → seção **Visual** (só em site do gerador no modelo
-editorial: beleza, fitness e automotivo). Cinco posições de foto (topo, galeria 1 a 3
+Gaveta do negócio → aba **Site** → seção **Visual** (todo site do gerador: no modelo
+editorial, de beleza, fitness e automotivo, e no claro, de pet, saúde e aulas). No
+claro, "tinta" é a cor principal (botões e selo) e "destaque" a de realce; o Sobre
+próprio ganha uma seção. Cinco posições de foto (topo, galeria 1 a 3
 e a faixa da bio): "Enviar" abre a galeria ou a câmera no celular; JPG, PNG ou WebP
 até 12 MB, o servidor endireita e redimensiona e grava em `sites/{slug}/fotos/`. "✕"
 volta à foto do modelo. Tinta e destaque pelos seletores de cor, fonte dos títulos no

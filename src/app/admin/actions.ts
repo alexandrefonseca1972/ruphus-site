@@ -42,10 +42,10 @@ import { deslogarInstancia, qrDaConexao, statusDaConexao, type SituacaoQr as QrW
 import { apagarConexao, conectarNegocio, gravarGestaoDono, gravarOwnerPhone, lerConexao, paraTela, type ConexaoNaTela, type ConexaoWhatsapp, gravarConexao } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { MODELOS, modeloDoId, NOMES_FONTE, Personal, renderEditorial, visualEditorial } from "@/lib/site-editorial";
-import { ehClaro } from "@/lib/site-claro";
+import { ehClaro, modeloClaroDoId, modelosClaro, renderClaro, visualClaro } from "@/lib/site-claro";
 import { iaDisponivel, type Mensagem, sugerirVisual } from "@/lib/ia.server";
-import { apagarFotosFora, fotosFaltando, lerFoto, type Slot, tenantEditorial } from "@/lib/foto.server";
-import type { Escolha, Sub } from "@/lib/gerador";
+import { apagarFotosFora, fotosFaltando, lerFoto, type Slot, tenantGerado } from "@/lib/foto.server";
+import { type DadosSite, type Escolha, type Sub, SUBS } from "@/lib/gerador";
 import { FieldValue } from "firebase-admin/firestore";
 
 // a tela só recebe a conexão sem as credenciais do gateway
@@ -656,8 +656,8 @@ export const siteDoNegocio = adminAction(async (_user, slug: string) => {
   slugValido(slug);
   const { escolha, ...site } = await lerSiteDoNegocio(adminDb, slug);
   const e = escolha as (Escolha & { modelo?: string }) | undefined;
-  // site de ramo claro (pet, saúde, aulas) não usa modelo editorial
-  const modelos = ehClaro(site.sub as Sub) ? [] : MODELOS;
+  // cada modelo tem a sua lista: o editorial compartilha entre ramos, o claro é por ramo
+  const modelos = ehClaro(site.sub as Sub) ? modelosClaro(site.sub as Sub) : MODELOS;
   // escolha gravada que não é de nenhum modelo da lista: "personalizado", só para mostrar
   const casa = e?.modelo ? modelos.find((m) => m.id === e.modelo)?.id : modelos.find((m) => m.escolha.kit === e?.kit && m.escolha.cor === e?.cor)?.id;
   const modeloAtual = casa ?? (e ? "personalizado" : null);
@@ -665,18 +665,41 @@ export const siteDoNegocio = adminAction(async (_user, slug: string) => {
   // que o modelo daria sem ela (as miniaturas e os seletores partem daí)
   const tenant = await adminDb.doc(`tenants/${slug}`).get();
   const personal = personalDe(tenant.get("gerado.personal"));
-  const visual = modelos.length ? visualEditorial(slug, site.sub as Sub, e) : null;
-  const fotos = visual ? Object.fromEntries(Object.entries(visual.fotos).map(([k, ref]) => [k, `/s${ref}`])) : null;
+  const doModelo = site.sub ? visualDoModelo(slug, site.sub as Sub, e) : null;
   return {
     ...site,
     modelos: modelos.map(({ id, rotulo }) => ({ id, rotulo })),
     modeloAtual,
     personal,
-    doModelo: visual && fotos ? { fotos: { ...fotos, bio: fotos.hero }, ink: visual.ink, acc: visual.acc, fonte: visual.fonte[0] } : null,
+    doModelo,
     fontes: NOMES_FONTE,
     temIA: await iaDisponivel(),
   };
 });
+
+/** O que o modelo em uso dá sem personalização, para as miniaturas e os seletores da seção
+ *  Visual: fotos públicas por posição, as duas cores e a fonte. Tinta e destaque são
+ *  --ink/--acc no editorial e --accent/--gold no claro. */
+function visualDoModelo(slug: string, sub: Sub, escolha: Escolha | undefined) {
+  if (ehClaro(sub)) {
+    const v = visualClaro(slug, sub, escolha);
+    const c = (nome: string) => `/s/assets/${v.fotos.hero.split("/")[2]}/${nome}-800.jpg`;
+    // a galeria do claro sorteia pelo slug: as miniaturas mostram as três que o site usa
+    const html = renderClaro({ slug, nome: "x", telefone: "5511999999999", sub, tipo: "", endereco: "", bairro: "", cidade: "", uf: "", nota: null, avaliacoes: null, instagram: "", horario: "", servicos: [], consultado: "" });
+    const galeria = [...html.matchAll(/<div class="galeria">([\s\S]*?)<\/div>/)][0]?.[1].match(/src="\.\.\/assets\/[^/]+\/([^"]+)-800\.jpg"/g)?.map((m) => m.replace(/.*\/([^"]+)-800\.jpg"/, "$1")) ?? [];
+    const fotos = { hero: `/s${v.fotos.hero}-800.jpg`, ga1: c(galeria[0] ?? v.topo), ga2: c(galeria[1] ?? v.topo), ga3: c(galeria[2] ?? v.topo) };
+    return { fotos: { ...fotos, bio: fotos.hero }, ink: v.cor, acc: v.gold, fonte: "Bricolage Grotesque" };
+  }
+  const v = visualEditorial(slug, sub, escolha);
+  const fotos = Object.fromEntries(Object.entries(v.fotos).map(([k, ref]) => [k, `/s${ref}`])) as Record<string, string>;
+  return { fotos: { ...fotos, bio: fotos.hero }, ink: v.ink, acc: v.acc, fonte: v.fonte[0] };
+}
+
+/** O HTML de um site do gerador, no modelo do ramo dele. */
+const renderSite = (d: DadosSite) => (ehClaro(d.sub) ? renderClaro(d) : renderEditorial(d));
+/** Cor e foto que a bio lê, no modelo do ramo. */
+const visualSite = (slug: string, sub: Sub, escolha: Escolha | undefined, personal: Personal | null) =>
+  ehClaro(sub) ? visualClaro(slug, sub, escolha, personal) : visualEditorial(slug, sub, escolha, personal);
 
 const PedidoIA = z.object({
   pedido: z.string().trim().min(1, "Escreva o que quer mudar.").max(600),
@@ -686,13 +709,14 @@ const PedidoIA = z.object({
 /** Um turno do assistente da seção "Visual": o pedido do admin vira resposta mais mudanças no
  *  formato do rascunho. Não grava nada; a gaveta aplica o que o admin marcar. */
 export const conversarVisual = adminAction(async (user, slug: string, rascunho: unknown, entrada: unknown) => {
-  const { tenant, sub } = await tenantEditorial(slug);
+  const { tenant, sub } = await tenantGerado(slug);
   contarTurnoIA(user.uid);
   const p = Personal.parse(rascunho);
   const { pedido, historico } = PedidoIA.parse(entrada);
   const dados = await lerSite(adminDb, slug);
   if (!dados) throw new ErroPrevisto("Site não encontrado.");
-  const visual = visualEditorial(slug, sub, tenant.get("gerado.escolha"), p);
+  const visual = visualSite(slug, sub, tenant.get("gerado.escolha"), p);
+  const ramo = ehClaro(sub) ? SUBS[sub].rotulo : (visual as ReturnType<typeof visualEditorial>).e.rotulo;
   // as fotos próprias vão como miniaturas: a IA tira a paleta delas, e 512 px bastam. Foto que
   // o rascunho aponta mas não está lá (ou que o sharp não lê) fica de fora, sem derrubar o pedido
   const sharp = (await import("sharp")).default;
@@ -706,8 +730,8 @@ export const conversarVisual = adminAction(async (user, slug: string, rascunho: 
   );
   const fotos = lidas.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
   return sugerirVisual({
-    negocio: { nome: dados.nome, ramo: visual.e.rotulo, cidade: dados.cidade, uf: dados.uf, bairro: dados.bairro, servicos: dados.servicos, horario: dados.horario },
-    atual: { cores: { ink: visual.ink, acc: visual.acc }, fonte: visual.fonte[0], textos: p.textos, fotosProprias: fotos.map((f) => f.slot) },
+    negocio: { nome: dados.nome, ramo, cidade: dados.cidade, uf: dados.uf, bairro: dados.bairro, servicos: dados.servicos, horario: dados.horario },
+    atual: { cores: coresDe(visual), fonte: ehClaro(sub) ? ((visual as ReturnType<typeof visualClaro>).fonte?.[0] ?? "Bricolage Grotesque") : (visual as ReturnType<typeof visualEditorial>).fonte[0], textos: p.textos, fotosProprias: fotos.map((f) => f.slot) },
     fotos: fotos.map((f) => f.base64),
     historico: historico as Mensagem[],
     pedido,
@@ -724,18 +748,19 @@ function comBase(html: string, slug: string) {
 /** Pré-visualização do rascunho da personalização (fotos, cores, fonte, textos), com o modelo
  *  em uso e os dados reais do negócio; não grava nada. */
 export const previewVisual = adminAction(async (_user, slug: string, rascunho: unknown): Promise<string> => {
-  await tenantEditorial(slug);
+  await tenantGerado(slug);
   const dados = await lerSite(adminDb, slug);
   if (!dados) throw new ErroPrevisto("Site não encontrado.");
-  const html = renderEditorial({ ...dados, personal: Personal.parse(rascunho) });
+  const html = renderSite({ ...dados, personal: Personal.parse(rascunho) });
   // a foto própria tem nome fixo: a prévia pede com um carimbo para ver a que acabou de subir
-  return comBase(html.replace(/src="(fotos\/[a-z0-9]+\.jpg)(\?v=\d+)?"/g, `src="/s/${slug}/$1?v=${Date.now()}"`), slug);
+  // (em src, href e url() do CSS do topo)
+  return comBase(html.replace(/(["(])fotos\/(hero|ga1|ga2|ga3)\.jpg(\?v=\d+)?(["\)])/g, `$1/s/${slug}/fotos/$2.jpg?v=${Date.now()}$4`), slug);
 });
 
 /** Publica a personalização: grava gerado.personal (ou apaga, se ficou vazia) e a cor e a
  *  foto que a bio lê; o site, o og.jpg e a bio saem do cache na hora. */
 export const definirVisual = adminAction(async (_user, slug: string, rascunho: unknown) => {
-  const { tenant, sub } = await tenantEditorial(slug);
+  const { tenant, sub } = await tenantGerado(slug);
   const p = Personal.parse(rascunho);
   // chave sem nada dentro ({ cores: {} }) é o mesmo que ausente
   const personal = Object.fromEntries(Object.entries(p).filter(([, v]) => v != null && (typeof v !== "object" || Object.keys(v).length))) as Personal;
@@ -747,7 +772,7 @@ export const definirVisual = adminAction(async (_user, slug: string, rascunho: u
   if (personal.fotos && Object.keys(personal.fotos).length) personal.versao = Date.now();
   else delete personal.versao;
   const vazio = !Object.keys(personal).length;
-  const visual = visualEditorial(slug, sub, tenant.get("gerado.escolha"), vazio ? null : personal);
+  const visual = visualSite(slug, sub, tenant.get("gerado.escolha"), vazio ? null : personal);
   await tenant.ref.update({
     "gerado.personal": vazio ? FieldValue.delete() : personal,
     "site.color": visual.cor,
@@ -789,19 +814,26 @@ export const fichaDoNegocio = adminAction(async (_user, slug: string) => {
   };
 });
 
+/** As duas cores que a seção Visual edita, no nome do modelo: tinta e destaque. */
+const coresDe = (v: ReturnType<typeof visualClaro> | ReturnType<typeof visualEditorial>) =>
+  "gold" in v ? { ink: v.cor, acc: v.gold } : { ink: v.ink, acc: v.acc };
+
+/** O modelo pelo id, na lista do ramo: o editorial é compartilhado, o claro é por ramo. */
+const modeloDe = (sub: Sub, id: string) => (ehClaro(sub) ? modeloClaroDoId(sub, id) : modeloDoId(id));
+
 /** Pré-visualização do modelo com os dados reais do negócio, sem gravar nada. O HTML
  *  sai com <base> no domínio do site, para as fotos carregarem dentro do admin. */
 export const previewModelo = adminAction(async (_user, slug: string, id: string | null): Promise<string> => {
   slugValido(slug);
   const dados = await lerSite(adminDb, slug);
-  if (!dados || ehClaro(dados.sub)) throw new ErroPrevisto("Este site não usa modelo.");
+  if (!dados) throw new ErroPrevisto("Este site não usa modelo.");
   let escolha: Escolha | undefined;
   if (id !== null) {
-    const modelo = modeloDoId(id);
+    const modelo = modeloDe(dados.sub, id);
     if (!modelo) throw new ErroPrevisto("Este modelo não existe.");
     escolha = modelo.escolha;
   }
-  return comBase(renderEditorial({ ...dados, escolha }), slug);
+  return comBase(renderSite({ ...dados, escolha }), slug);
 });
 
 /** Troca o modelo editorial do site: grava a escolha de kit e cor do modelo, ou volta ao
@@ -811,12 +843,12 @@ export const definirModelo = adminAction(async (_user, slug: string, id: string 
   const t = adminDb.collection("tenants").doc(slug);
   const tenant = await t.get();
   const { tipo } = await lerSiteDoNegocio(adminDb, slug);
-  const sub = tenant.get("gerado.sub");
-  if (!tenant.exists || !sub || tipo === "fabrica" || ehClaro(sub)) throw new ErroPrevisto("Este site não usa modelo.");
-  const escolha = id === null ? undefined : modeloDoId(id)?.escolha;
+  const sub = tenant.get("gerado.sub") as Sub | undefined;
+  if (!tenant.exists || !sub || tipo === "fabrica") throw new ErroPrevisto("Este site não usa modelo.");
+  const escolha = id === null ? undefined : modeloDe(sub, id)?.escolha;
   if (id !== null && !escolha) throw new ErroPrevisto("Este modelo não existe.");
   // a /bio lê a cor e a foto gravadas no tenant: elas trocam junto com o modelo
-  const visual = visualEditorial(slug, sub, escolha, personalDe(tenant.get("gerado.personal")));
+  const visual = visualSite(slug, sub, escolha, personalDe(tenant.get("gerado.personal")));
   await t.update({
     "gerado.escolha": escolha ?? FieldValue.delete(),
     "site.color": visual.cor,
