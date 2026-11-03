@@ -9,6 +9,7 @@ import type { Espaco } from "@/lib/painel-tipos";
 import { espacoDe, indiceDoPainel } from "@/lib/painel-indice.server";
 import { numeroSms } from "@/lib/comtele";
 import { enviarSms, ErroSms, smsDisponivel } from "@/lib/comtele.server";
+import { configSms, HORAS_LEMBRETE } from "@/lib/sms-agendamento.server";
 import { gravarIntegracao, INTEGRACOES, integracoesNaTela, type NomeIntegracao } from "@/lib/integracoes.server";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNegocio as salvarSite } from "@/lib/negocios.server";
@@ -836,16 +837,25 @@ export const definirOwnerPhoneWhatsApp = adminAction(async (_user, slug: string,
 export const smsDoNegocio = adminAction(async (_user, slug: string) => {
   slugValido(slug);
   const t = await adminDb.doc(`tenants/${slug}`).get();
-  return { ligado: t.get("sms.ligado") === true, disponivel: await smsDisponivel() };
+  return { ...configSms(t.get("sms")), disponivel: await smsDisponivel() };
 });
 
-/** Liga ou desliga o SMS do negócio: cada SMS gasta crédito da conta da Ruphus na Comtele. */
-export const definirSms = adminAction(async (_user, slug: string, ligado: unknown) => {
+const ConfigSms = z.object({
+  ligado: z.boolean(),
+  confirmacao: z.boolean(),
+  lembrete: z.boolean(),
+  horasAntes: z.number().refine((h) => (HORAS_LEMBRETE as readonly number[]).includes(h), "Escolha quantas horas antes."),
+});
+
+/** O SMS do negócio: ligado, quais mensagens e quantas horas antes vai o lembrete. Cada SMS gasta
+ *  crédito da conta da Ruphus na Comtele. */
+export const definirSms = adminAction(async (_user, slug: string, cfg: unknown) => {
   slugValido(slug);
+  const sms = ConfigSms.parse(cfg);
   const t = adminDb.doc(`tenants/${slug}`);
   if (!(await t.get()).exists) throw new ErroPrevisto("Negócio não encontrado.");
-  await t.set({ sms: { ligado: ligado === true } }, { merge: true });
-  return ligado === true;
+  await t.set({ sms }, { merge: true });
+  return sms;
 });
 
 // ─── Ajustes: chaves dos serviços de fora (SMS, e-mail, WhatsApp) ──────────────

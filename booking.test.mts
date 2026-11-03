@@ -705,6 +705,19 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.ok(enviados.every((e) => e.texto.startsWith("Lembrete, Marina: seu horario")), enviados[0]?.texto);
   await horario("sms-casa", "noite", { start: zonedTime(dia, "23:30") });
   assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "22:15") }), 0, "silêncio das 22h às 7h30");
+
+  // configuração por negócio: confirmação e lembrete separados, e quantas horas antes
+  await db.doc("tenants/sms-cfg").set({ name: "Casa Config", site: { uf: "SP" }, sms: { ligado: true, confirmacao: false, lembrete: true, horasAntes: 4 } });
+  await horario("sms-cfg", "c1");
+  assert.equal(await avisarConfirmacaoPorSms(db, "sms-cfg", "c1", { enviar }), "desligado", "confirmação desmarcada");
+  assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "10:30") }), 0, "4h30 antes: ainda não");
+  assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "11:30") }), 1, "3h30 antes, com 4 h escolhidas: sai");
+  await db.doc("tenants/sms-cfg").set({ sms: { lembrete: false } }, { merge: true });
+  await horario("sms-cfg", "c2", { start: zonedTime(dia, "16:00") });
+  assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "15:00") }), 0, "lembrete desmarcado");
+  const { configSms } = await import("@/lib/sms-agendamento.server");
+  assert.deepEqual(configSms({ ligado: true }), { ligado: true, confirmacao: true, lembrete: true, horasAntes: 2 }, "sem escolha: tudo ligado, 2 h");
+  assert.equal(configSms({ horasAntes: 5 }).horasAntes, 2, "valor fora da lista volta ao padrão");
   console.log("sms no agendamento: ok");
 }
 
