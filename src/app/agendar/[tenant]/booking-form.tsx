@@ -236,7 +236,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const escolhidos = services.filter((s) => serviceIds.includes(s.id));
   const totalMin = escolhidos.reduce((sum, s) => sum + s.durationMin, 0);
   const total = precoDe(...escolhidos);
-  const valorSinal = sinal ? valorDoSinal(sinal, escolhidos.reduce((soma, s) => soma + s.priceCents, 0)) : 0;
+  const precoEscolhido = escolhidos.reduce((soma, s) => soma + s.priceCents, 0);
+  const valorSinal = sinal ? valorDoSinal(sinal, precoEscolhido) : 0;
   const fazTudo = (p: Props["staff"][number]) => serviceIds.every((id) => p.serviceIds.includes(id));
   const profissionais = staff.filter(fazTudo);
   const atendente = staff.find((p) => p.id === escolha?.staffId);
@@ -508,7 +509,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 <dd>
                   {total ? (
                     <>
-                      <span className={MONO}>{total}</span> <span className="text-[#5C5747]">· {reserva.sinal ? `sinal de ${formatBRL(reserva.sinal.cents)} por Pix, o resto no local` : "pago no local"}</span>
+                      <span className={MONO}>{total}</span> <span className="text-[#5C5747]">· {reserva.sinal ? (reserva.sinal.cents >= reserva.priceCents ? "todo por Pix, no sinal" : `sinal de ${formatBRL(reserva.sinal.cents)} por Pix, o resto no local`) : "pago no local"}</span>
                     </>
                   ) : (
                     <span className="text-[#5C5747]">a combinar com {name}</span>
@@ -547,7 +548,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                             href={linkWhatsApp(phone, `Olá! Paguei o sinal de ${formatBRL(reserva.sinal.cents)} do meu horário de ${longDate(date)}, às ${hora} (${servicos}). Meu nome é ${customerName.trim()}. Segue o comprovante.`) ?? undefined}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex h-11 items-center justify-center rounded-lg bg-[#17150F] text-sm font-semibold text-[#FAF9F5]"
+                            className="flex min-h-11 items-center justify-center rounded-lg bg-[#17150F] px-4 py-2 text-center text-sm font-semibold text-[#FAF9F5]"
                           >
                             Enviar comprovante para {name}
                           </a>
@@ -766,7 +767,11 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
 
         {valorSinal > 0 && sinal && (
           <p className="rounded-xl border border-[#E4E1D5] bg-[#F6F4EB] p-3.5 text-[13px] leading-relaxed">
-            Para garantir o horário, {name} pede um <strong>sinal de {formatBRL(valorSinal)}</strong> ({textoDoSinal(sinal)}) por Pix, pago em até {sinal.prazoMin >= 60 ? `${Math.round(sinal.prazoMin / 60)} h` : `${sinal.prazoMin} min`} depois de reservar. O resto é pago no local.
+            {/* o percentual explica o valor; o fixo já é o próprio valor (e, limitado ao preço, o
+                número de cima confundia). Sinal do tamanho do preço: não sobra nada para o local */}
+            Para garantir o horário, {name} pede um <strong>sinal de {formatBRL(valorSinal)}</strong>
+            {sinal.tipo === "percentual" ? ` (${textoDoSinal(sinal)})` : ""} por Pix, pago em até {sinal.prazoMin >= 60 ? `${Math.round(sinal.prazoMin / 60)} h` : `${sinal.prazoMin} min`} depois de reservar.
+            {valorSinal >= precoEscolhido ? " É o valor todo do serviço." : " O resto é pago no local."}
           </p>
         )}
 

@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Sinal fixo maior que o preço do serviço: a página dizia "sinal de R$ 15,00 (R$ 20,00)" e "o resto é pago no local" sem sobrar nada. Agora o valor fixo não aparece entre parênteses e, quando o sinal cobre o serviço todo, a tela diz isso. O botão "Enviar comprovante" ganhou margem interna (o texto encostava na borda).
+
 - Depois de agendar, a tela diz "pedido enviado" e mostra o caminho em três passos: horário guardado, o que falta agora (o salão confirmar pelo WhatsApp, ou pagar o sinal por Pix até o prazo) e o horário confirmado. Antes o ✓ verde de "horário reservado" parecia confirmação, e com sinal o "aguardando o sinal" convivia com o "vai te chamar para confirmar".
 
 - Abuso e manutenção: o limite de agendamentos por aparelho conta o IPv6 pelo /64 (trocar o fim do endereço não abre mais um limite novo, e com ele o disparo de recibos pelo WhatsApp do salão). Histórico e notas só levam o e-mail de quem o confirmou, nas regras do Firestore e no painel. O CI passa a rodar o `tsc` (erro de tipo só aparecia no build da VPS). `shadcn` e tipos saem das dependências de produção.
