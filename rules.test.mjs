@@ -9,7 +9,9 @@ const env = await initializeTestEnvironment({
   firestore: { rules: readFileSync("firestore.rules", "utf8"), host: "127.0.0.1", port: 8085 },
   storage: { rules: readFileSync("storage.rules", "utf8"), host: "127.0.0.1", port: 9199 },
 });
-const as = (uid) => env.authenticatedContext(uid, { email: `${uid}@teste.dev` }).firestore();
+const as = (uid) => env.authenticatedContext(uid, { email: `${uid}@teste.dev`, email_verified: true }).firestore();
+// conta com e-mail ainda sem confirmar: o e-mail não vale como autor
+const semConfirmar = (uid) => env.authenticatedContext(uid, { email: `${uid}@teste.dev`, email_verified: false }).firestore();
 
 function create(db, slug, uid) {
   const b = writeBatch(db);
@@ -153,6 +155,10 @@ const nota = (extra = {}) => ({
 await assertSucceeds(setDoc(doc(notas(alice), "n1"), nota()));
 await assertFails(setDoc(doc(notas(alice), "n2"), nota({ por: "bob" })), "nao da para assinar no lugar de outro");
 await assertFails(setDoc(doc(notas(alice), "n3"), nota({ porNome: "outro@teste.dev" })));
+// e-mail sem confirmar não vale como autor: grava, mas sem o nome (o painel manda null)
+const aliceNova = semConfirmar("alice");
+await assertFails(setDoc(doc(notas(aliceNova), "n3b"), nota()), "e-mail sem confirmar como autor");
+await assertSucceeds(setDoc(doc(notas(aliceNova), "n3c"), nota({ porNome: null })));
 await assertFails(setDoc(doc(notas(alice), "n4"), nota({ quando: new Date(0) })), "a data e a do servidor");
 await assertFails(setDoc(doc(notas(alice), "n5"), nota({ texto: "" })));
 await assertFails(setDoc(doc(notas(alice), "n6"), nota({ texto: "x".repeat(601) })));

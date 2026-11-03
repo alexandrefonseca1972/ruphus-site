@@ -30,6 +30,8 @@ jobs:
       # Lint junto dos testes: sem isto ele só reclama na máquina de quem lembra
       # de rodar, e os erros se acumulam até ninguém mais olhar a saída.
       - run: npm run lint
+      # Erro de tipo só aparecia no build do deploy, já na VPS
+      - run: npm run typecheck
 
       # Sem emulador
       - run: npm run test:proxy

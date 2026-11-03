@@ -49,7 +49,7 @@ const shortDate = (date: string) =>
 const Nota = z.object({
   texto: z.string(),
   quando: z.instanceof(Timestamp).optional(),
-  porNome: z.string().optional(),
+  porNome: z.string().nullish(),
 });
 
 export default function CustomerPage() {
@@ -270,7 +270,7 @@ export default function CustomerPage() {
               texto,
               quando: serverTimestamp(),
               por: user.uid,
-              porNome: user.email,
+              porNome: user.emailVerified ? user.email : null,
             });
             campo.value = "";
           }}
