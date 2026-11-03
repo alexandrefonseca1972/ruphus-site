@@ -729,7 +729,7 @@ export const previewVisual = adminAction(async (_user, slug: string, rascunho: u
   if (!dados) throw new ErroPrevisto("Site não encontrado.");
   const html = renderEditorial({ ...dados, personal: Personal.parse(rascunho) });
   // a foto própria tem nome fixo: a prévia pede com um carimbo para ver a que acabou de subir
-  return comBase(html.replace(/src="(fotos\/[a-z0-9]+\.jpg)"/g, `src="/s/${slug}/$1?v=${Date.now()}"`), slug);
+  return comBase(html.replace(/src="(fotos\/[a-z0-9]+\.jpg)(\?v=\d+)?"/g, `src="/s/${slug}/$1?v=${Date.now()}"`), slug);
 });
 
 /** Publica a personalização: grava gerado.personal (ou apaga, se ficou vazia) e a cor e a
@@ -743,6 +743,9 @@ export const definirVisual = adminAction(async (_user, slug: string, rascunho: u
   // foto que o rascunho aponta mas não está no Storage publicaria uma imagem quebrada
   const faltam = await fotosFaltando(slug, personal.fotos);
   if (faltam.length) throw new ErroPrevisto(`Foto não encontrada: ${faltam.join(", ")}. Envie de novo ou use a do modelo.`);
+  // carimbo novo a cada publicação com foto própria: a URL muda e o cache não segura a foto antiga
+  if (personal.fotos && Object.keys(personal.fotos).length) personal.versao = Date.now();
+  else delete personal.versao;
   const visual = visualEditorial(slug, sub, tenant.get("gerado.escolha"), vazio ? null : personal);
   await tenant.ref.update({
     "gerado.personal": vazio ? FieldValue.delete() : personal,

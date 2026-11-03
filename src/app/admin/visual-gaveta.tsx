@@ -90,7 +90,8 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, temIA, o
   }, [aviso]);
 
   // comparação por valor, com as chaves em ordem: apagar e redigitar o mesmo texto não "muda"
-  const mudou = canonico(rascunho) !== canonico(publicado);
+  const semVersao = ({ versao: _v, ...resto }: Personal) => resto;
+  const mudou = canonico(semVersao(rascunho)) !== canonico(semVersao(publicado));
   const fotoDe = (slot: Slot) => (rascunho.fotos?.[slot] ? `/s/${slug}/fotos/${slot}.jpg?v=${versao}` : doModelo.fotos[slot]);
   const falha = (r: { ok: false; error: string } | null) => setAviso({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
   // sessão caída ou sem rede: o token falha antes da chamada, e a tela não pode ficar presa em "Enviando…"
