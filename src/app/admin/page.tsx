@@ -455,7 +455,7 @@ export default function AdminPage() {
       return false;
     }
     // mudança de estágio vira evento: a linha do tempo aberta acompanha
-    if (dados.estagio && dados.estagio !== atual.estagio && aberto?.slug === slug) {
+    if (dados.estagio && dados.estagio !== atual?.estagio && aberto?.slug === slug) {
       const n = await linhaDoTempoDo(await token(), slug);
       if (n.ok) setEventos(n.dados);
     }
