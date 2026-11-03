@@ -41,7 +41,7 @@ const semAcento = (s: unknown) => String(s ?? "").normalize("NFD").replace(/[\u0
 const RAMO: Record<Sub, string> = {
   petshop: "pet shop", vet: "veterinária", barbearia: "barbearia", salao: "salão cabelo", estetica: "estética", unhas: "unhas", tatuagem: "tatuagem", podologia: "podologia",
   odonto: "odontologia", fisio: "fisioterapia", psico: "psicologia", nutri: "nutrição", clinica: "clínica médica",
-  idiomas: "idiomas", reforco: "reforço escolar", musica: "música", autoescola: "autoescola",
+  idiomas: "idiomas", reforco: "reforço escolar", musica: "música", autoescola: "autoescola", profissionalizante: "cursos profissionalizantes",
   academia: "academia", pilates: "pilates", lutas: "lutas", danca: "dança",
   oficina: "oficina mecânica", lavagem: "estética automotiva", pneus: "pneus",
 };
@@ -61,7 +61,7 @@ export function registrosDoSite(
   o: { novo: boolean; ownerId: string; origem: "prospeccao" | "cadastro"; equipe?: string; donoNome?: string; utm?: Utm | null; escolha?: Escolha; personal?: Personal | null },
 ): Escrita[] {
   // a personalização do admin segue valendo: a cor e a foto que a bio lê saem dela
-  const visual = ehClaro(n.sub) ? visualClaro(slug, n.sub, o.escolha) : visualEditorial(slug, n.sub, o.escolha, o.personal);
+  const visual = ehClaro(n.sub) ? visualClaro(slug, n.sub, o.escolha, o.personal) : visualEditorial(slug, n.sub, o.escolha, o.personal);
   const t = db.collection("tenants").doc(slug);
   const agora = FieldValue.serverTimestamp();
   const escritas: Escrita[] = [{

@@ -4,7 +4,6 @@ import { adminBucket, adminDb } from "@/lib/admin";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import type { Sub } from "@/lib/gerador";
 import { objetoDoSite, SLUG_SITE } from "@/lib/site-arquivo";
-import { ehClaro } from "@/lib/site-claro";
 
 // Fotos próprias do negócio, enviadas pelo /admin: uma por posição do site editorial, com
 // nome fixo em sites/{slug}/fotos/{posição}.jpg (a rota [...arquivo] já serve). Nunca
@@ -25,12 +24,12 @@ const MEDIDA: Record<Slot, { width: number; height?: number }> = {
   bio: { width: 1040, height: 448 },
 };
 
-/** Só site do gerador no modelo editorial tem personalização; devolve o tenant conferido. */
-export async function tenantEditorial(slug: string) {
+/** Só site do gerador (editorial ou claro) tem personalização; devolve o tenant conferido. */
+export async function tenantGerado(slug: string) {
   if (!SLUG_SITE.test(slug)) throw new ErroPrevisto("Negócio inválido.");
   const tenant = await adminDb.doc(`tenants/${slug}`).get();
   const sub = tenant.get("gerado.sub") as Sub | undefined;
-  if (!tenant.exists || !sub || ehClaro(sub)) throw new ErroPrevisto("Este site não tem personalização.");
+  if (!tenant.exists || !sub) throw new ErroPrevisto("Este site não tem personalização.");
   return { tenant, sub };
 }
 

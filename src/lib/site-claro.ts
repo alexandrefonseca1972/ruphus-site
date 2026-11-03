@@ -9,6 +9,7 @@ import {
 import { PET } from "@/lib/nichos/pet";
 import { AULAS } from "@/lib/nichos/aulas";
 import { SAUDE } from "@/lib/nichos/saude";
+import { FONTES, type Personal } from "@/lib/site-editorial";
 
 /** O que muda de um nicho para outro no modelo claro. Os textos entram no HTML
  *  como estão: são nossos, não da planilha. */
@@ -64,20 +65,58 @@ export const escolhaClaro = (sub: Sub, slug: string): Required<Escolha> => ({
   cor: variante(slug, conteudoDe(sub).paletas.length, "cor"),
 });
 
-/** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. */
-export function visualClaro(slug: string, sub: Sub, escolha?: Escolha) {
+/** Modelos que o admin escolhe na gaveta, por ramo do claro: cada foto do topo com uma
+ *  paleta, girando as paletas para os modelos não saírem iguais. O id é "{sub}-{n}". */
+export const modelosClaro = (sub: Sub) => {
+  const c = conteudoDe(sub);
+  return c.topo.map((_, i) => {
+    const id = `${sub}-${i + 1}`;
+    return { id, rotulo: `${c.rotulo} ${i + 1}`, escolha: { kit: i, cor: (i * 2) % c.paletas.length, modelo: id } as Required<Escolha> & { modelo: string } };
+  });
+};
+export const modeloClaroDoId = (sub: Sub, id: string) => modelosClaro(sub).find((m) => m.id === id);
+
+// texto branco ou escuro por cima de uma cor: o claro escreve nos botões (--accent) e nos selos (--gold)
+const luminancia = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).reduce((soma, v, k) => soma + [0.2126, 0.7152, 0.0722][k] * (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4), 0);
+const tintaSobre = (hex: string) => (luminancia(hex) > 0.4 ? "#1B1208" : "#FFFFFF");
+
+/** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. Com `personal`, as
+ *  cores (tinta = --accent, destaque = --gold), a fonte dos títulos e as fotos próprias entram
+ *  por cima da paleta e do topo do modelo. */
+export function visualClaro(slug: string, sub: Sub, escolha?: Escolha, personal?: Personal | null) {
   const c = conteudoDe(sub);
   const padrao = escolhaClaro(sub, slug);
-  const paleta = c.paletas[escolha?.cor ?? padrao.cor];
-  const topo = c.topo[escolha?.kit ?? padrao.kit];
-  return { cor: /--accent:(#[0-9A-F]{6})/.exec(paleta[0])![1], foto: `/assets/${c.pasta}/${topo}-800.jpg`, paleta, topo };
+  // índice fora do ramo (modelo de outro sub, dado antigo) cai no que o slug sorteia
+  const base = c.paletas[escolha?.cor ?? padrao.cor] ?? c.paletas[padrao.cor];
+  const topo = c.topo[escolha?.kit ?? padrao.kit] ?? c.topo[padrao.kit];
+  const accent = personal?.cores?.ink ?? /--accent:(#[0-9A-F]{6})/i.exec(base[0])![1];
+  const gold = personal?.cores?.acc ?? /--gold:(#[0-9A-F]{6})/i.exec(base[0])![1];
+  const proprias = personal?.cores?.ink || personal?.cores?.acc;
+  // cor própria vale nos dois temas, com o texto por cima calculado pelo contraste
+  const extra = proprias ? `--accent:${accent};--gold:${gold};--accent-ink:${tintaSobre(accent)};--gold-ink:${tintaSobre(gold)};` : "";
+  const paleta: [string, string] = [base[0] + extra, base[1] + extra];
+  const fonte = FONTES.find(([n]) => n === personal?.fonte) ?? null;
+  const p = personal?.fotos ?? {};
+  const propria = (ref: string | undefined) => (ref && personal?.versao ? `${ref}?v=${personal.versao}` : ref);
+  // referências das fotos: do banco ("/assets/{pasta}/{nome}", sem extensão: o HTML põe -800/1400)
+  // ou própria ("fotos/hero.jpg?v=…", relativa à raiz do site)
+  const fotos = {
+    hero: propria(p.hero) ?? `/assets/${c.pasta}/${topo}`,
+    ga1: propria(p.ga1) ?? null,
+    ga2: propria(p.ga2) ?? null,
+    ga3: propria(p.ga3) ?? null,
+  };
+  const foto = propria(p.bio) ?? (p.hero ? propria(p.hero)! : null);
+  return { cor: accent, foto: foto ? `/${foto}` : `/assets/${c.pasta}/${topo}-800.jpg`, paleta, topo, fonte, fotos, gold };
 }
 
-/** A imagem de compartilhamento: a foto do topo, na versão grande, e a mesma fonte de título. */
+/** A imagem de compartilhamento: a foto do topo, na versão grande, e a fonte de título do site. */
 export function capaClaro(d: DadosSite): Capa {
   const c = conteudoDe(d.sub);
-  const { topo, cor } = visualClaro(d.slug, d.sub, d.escolha);
-  return { foto: `/assets/${c.pasta}/${topo}.jpg`, cor, fonte: "Bricolage Grotesque", linha: [c.rotulo, lugar(d)].filter(Boolean).join(" em ") };
+  const { fotos, cor, fonte } = visualClaro(d.slug, d.sub, d.escolha, d.personal);
+  // a rota do og.jpg pede `/s${foto}`: a do banco é /assets/…, a própria é /{slug}/fotos/hero.jpg
+  const foto = fotos.hero.startsWith("/assets/") ? `${fotos.hero}.jpg` : `/${d.slug}/${fotos.hero}`;
+  return { foto, cor, fonte: fonte?.[0] ?? "Bricolage Grotesque", linha: [c.rotulo, lugar(d)].filter(Boolean).join(" em ") };
 }
 
 const imagem = (c: Conteudo, nome: string) =>
@@ -106,13 +145,19 @@ const girar = <T,>(lista: T[], d: DadosSite, sal: string): T[] => {
 
 export function renderClaro(d: DadosSite): string {
   const c = conteudoDe(d.sub);
-  const { paleta, topo } = visualClaro(d.slug, d.sub, d.escolha);
-  const cor = /--accent:(#[0-9A-F]{6})/.exec(paleta[0])![1];
-  const ouro = /--gold:(#[0-9A-F]{6})/.exec(paleta[0])![1];
-  const [titulo, destaque, chamada] = c.titulos[variante(d.slug, c.titulos.length, "titulo")];
+  const { paleta, topo, cor, gold: ouro, fonte, fotos: proprias } = visualClaro(d.slug, d.sub, d.escolha, d.personal);
+  const t = d.personal?.textos ?? {};
+  const [titulo, destaque, chamadaModelo] = c.titulos[variante(d.slug, c.titulos.length, "titulo")];
+  const chamada = t.frase || chamadaModelo;
   const galeria = c.galeria;
   const g0 = variante(d.slug, galeria.length, "galeria");
-  const fotos = [0, 1, 2].map((i) => galeria[(g0 + i * 2) % galeria.length]);
+  // cada posição da galeria: a foto própria, se houver, senão a do banco que o slug sorteia
+  const fotos = [0, 1, 2].map((i) => [proprias.ga1, proprias.ga2, proprias.ga3][i] ?? galeria[(g0 + i * 2) % galeria.length]);
+  const propriaNoTopo = !proprias.hero.startsWith("/assets/");
+  // o topo é fundo CSS: a própria vai nas duas larguras; a do banco tem versão -800
+  const topoUrl = (grande: boolean) => (propriaNoTopo ? proprias.hero : `../assets/${c.pasta}/${topo}${grande ? "" : "-800"}.jpg`);
+  const imgPropria = (ref: string) => `<img src="${ref}" width="1400" height="933" alt="${esc(d.nome)}" loading="lazy" decoding="async">`;
+  const doBanco = fotos.some((f) => !f.startsWith("fotos/")) || !propriaNoTopo;
   const rotulo = c.rotulo;
   const onde = lugar(d);
   const sub = [rotulo, onde].filter(Boolean).join(" em ");
@@ -144,17 +189,17 @@ export function renderClaro(d: DadosSite): string {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${esc(tituloPag)}</title>
 <link rel="icon" type="image/svg+xml" href="${seloSrc}">
-<link rel="preload" as="image" href="../assets/${c.pasta}/${topo}-800.jpg" fetchpriority="high" media="(max-width:759px)">
-<link rel="preload" as="image" href="../assets/${c.pasta}/${topo}.jpg" fetchpriority="high" media="(min-width:760px)">
+<link rel="preload" as="image" href="${topoUrl(false)}" fetchpriority="high" media="(max-width:759px)">
+<link rel="preload" as="image" href="${topoUrl(true)}" fetchpriority="high" media="(min-width:760px)">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Figtree:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Figtree:wght@400;600;700${fonte ? `&family=${fonte[1]}` : ""}&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/gerado/pet.css">
-<style>:root{${paleta[0]}}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){${paleta[1]}}}:root[data-theme="dark"]{${paleta[1]}}.hero{background:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("../assets/${c.pasta}/${topo}-800.jpg") center 38%/cover no-repeat;}@media (min-width:760px){.hero{background-image:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("../assets/${c.pasta}/${topo}.jpg");}}</style>
+<style>:root{${paleta[0]}${fonte ? `--font-display:'${fonte[0]}',serif;` : ""}}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){${paleta[1]}}}:root[data-theme="dark"]{${paleta[1]}}.hero{background:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("${topoUrl(false)}") center 38%/cover no-repeat;}@media (min-width:760px){.hero{background-image:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("${topoUrl(true)}");}}</style>
 ${cabecaComum(d, tituloPag, descr, d.publicado)}
 <meta name="theme-color" content="${cor}">
 ${d.uf ? `<meta name="geo.region" content="BR-${esc(d.uf)}">` : ""}
-${jsonLdNegocio(d, descr, `/assets/${c.pasta}/${topo}.jpg`)}${jsonLd({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) })}
+${jsonLdNegocio(d, descr, propriaNoTopo ? `/${proprias.hero}` : `/assets/${c.pasta}/${topo}.jpg`)}${jsonLd({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) })}
 </head>
 <body>
 ${d.publicado ? "" : faixaProposta(d)}
@@ -210,7 +255,16 @@ ${d.publicado ? "" : faixaProposta(d)}
     temNota ? `${nota} no Google com ${d.avaliacoes} avaliações` : `Atendimento com hora marcada`,
     onde ? `Atendimento em ${onde} e região` : "Atendimento perto de você",
     "Agendamento direto pelo WhatsApp",
-  ].map((t) => `<span>${ICONE}<span>${esc(t)}</span></span>`).join("")}</div>
+  ].map((x) => `<span>${ICONE}<span>${esc(x)}</span></span>`).join("")}</div>
+${t.sobre ? `
+<section id="sobre">
+  <div class="wrap">
+    <span class="eyebrow">Sobre</span>
+    <h2 class="section-title">${esc(d.nome)}</h2>
+    <div class="sobre-box">${esc(t.sobre)}</div>
+  </div>
+</section>
+` : ""}
 
 <section id="servicos">
   <div class="wrap">
@@ -233,9 +287,9 @@ ${d.publicado ? "" : faixaProposta(d)}
 <section id="galeria">
   <div class="wrap">
     <span class="eyebrow">${c.textos.galeria[0]}</span>
-    <h2 class="section-title">${d.variantes ? TEXTOS_GALERIA[variante(d.slug, TEXTOS_GALERIA.length, "galeria-titulo")] : c.textos.galeria[1]}</h2>
-    <p class="lead">Imagens ilustrativas do tipo de atendimento oferecido na ${esc(d.nome)}.</p>
-    <div class="galeria">${fotos.map((f) => img(f)).join("")}</div>
+    <h2 class="section-title">${esc(t.galeria || (d.variantes ? TEXTOS_GALERIA[variante(d.slug, TEXTOS_GALERIA.length, "galeria-titulo")] : c.textos.galeria[1]))}</h2>
+    ${fotos.some((f) => !f.startsWith("fotos/")) ? `<p class="lead">Imagens ilustrativas do tipo de atendimento oferecido na ${esc(d.nome)}.</p>` : ""}
+    <div class="galeria">${fotos.map((f) => (f.startsWith("fotos/") ? imgPropria(f) : img(f))).join("")}</div>
   </div>
 </section>
 
@@ -354,7 +408,7 @@ ${temNota ? `
       <span>&copy; <span id="yr"></span> ${esc(d.nome)}. Todos os direitos reservados.</span>
       <span>${d.origem === "cadastro" || d.publicado ? "Site criado com Ruphus." : "Página demonstrativa desenvolvida para apresentar o potencial de uma presença digital própria."}</span>
     </div>
-    <p data-ysis="fonte" style="margin:16px 0 0;text-align:center;font-size:.76rem;line-height:1.5;opacity:.6">Fotos ilustrativas (banco de imagens Pexels), não são imagens do estabelecimento.${d.origem === "cadastro" ? "" : ` Endereço, horário, nota e número de avaliações vêm do perfil público do Google Maps, consultado em ${esc(d.consultado)}. Valores públicos, sujeitos a mudança.`}</p>
+    <p data-ysis="fonte" style="margin:16px 0 0;text-align:center;font-size:.76rem;line-height:1.5;opacity:.6">${doBanco ? "Algumas fotos são ilustrativas (banco de imagens Pexels), não imagens do estabelecimento." : ""}${d.origem === "cadastro" ? "" : ` Endereço, horário, nota e número de avaliações vêm do perfil público do Google Maps, consultado em ${esc(d.consultado)}. Valores públicos, sujeitos a mudança.`}</p>
   </div>
 </footer>
 

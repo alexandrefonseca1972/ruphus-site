@@ -171,6 +171,14 @@ assert.equal(nichoDe({ categoria: "Studio de tatuagem", nome: "" })?.tipo, "Tatt
 assert.equal(nichoDe({ categoria: "", nome: "Kaos Tattoo Studio" })?.sub, "tatuagem");
 assert.equal(nichoDe({ categoria: "Restaurante", nome: "Petisco Bar" }), null);
 assert.equal(nichoDe({ categoria: "", nome: "Barbearia Navalha" })?.sub, "barbearia");
+// cursos profissionalizantes: formação vence o ramo ensinado, e cursinho continua reforço
+assert.equal(nichoDe({ categoria: "Escola de cabeleireiro", nome: "" })?.sub, "profissionalizante");
+assert.equal(nichoDe({ categoria: "", nome: "Curso de Manicure Profissional" })?.sub, "profissionalizante");
+assert.equal(nichoDe({ categoria: "Escola técnica", nome: "" })?.sub, "profissionalizante");
+assert.equal(nichoDe({ categoria: "Centro de formação profissional", nome: "" })?.sub, "profissionalizante");
+assert.equal(nichoDe({ categoria: "Cursinho pré-vestibular", nome: "" })?.sub, "reforco");
+assert.equal(nichoDe({ categoria: "Salão de beleza", nome: "" })?.sub, "salao");
+assert.equal(nichoDe({ categoria: "Autoescola", nome: "" })?.sub, "autoescola");
 
 // endereço: nome, depois nome + cidade; reservado e acento resolvidos
 assert.deepEqual(candidatos({ nome: "Salão da Ná", cidade: "São Luís", slug: "" }).slice(0, 2), ["salao-da-na", "salao-da-na-sao-luis"]);
@@ -396,6 +404,39 @@ console.log("gerador: ok");
   assert.ok(renderEditorial({ ...d, personal: { textos: { frase: "Só a frase." } } }).includes('sobre-big">Só a frase.'), "sem Sobre, repete a frase");
   assert.ok(capaEditorial({ ...d, personal: null }).foto.startsWith("/assets/"));
   console.log("personalização: ok");
+}
+
+// personalização no modelo claro: modelos por ramo, cores em --accent/--gold, fonte, fotos próprias e textos
+{
+  const { modelosClaro, modeloClaroDoId, visualClaro, capaClaro, renderClaro } = await import("@/lib/site-claro");
+  const m = modelosClaro("petshop");
+  assert.equal(m.length, 4, "um modelo por foto de topo");
+  assert.deepEqual(m.map((x) => x.id), ["petshop-1", "petshop-2", "petshop-3", "petshop-4"]);
+  assert.equal(modeloClaroDoId("petshop", "petshop-2")?.escolha.kit, 1);
+  assert.equal(modeloClaroDoId("vet", "petshop-2"), undefined, "modelo de outro ramo não vale");
+  assert.equal(modelosClaro("profissionalizante").length, 3);
+  const semNada = visualClaro("x", "petshop");
+  const v = visualClaro("x", "petshop", undefined, { cores: { ink: "#112233", acc: "#ffcc00" }, fonte: "Italiana", fotos: { ga2: "fotos/ga2.jpg", bio: "fotos/bio.jpg" }, versao: 5 });
+  assert.equal(v.cor, "#112233", "tinta vira --accent (a cor da bio)");
+  assert.ok(v.paleta[0].includes("--accent:#112233;--gold:#ffcc00;--accent-ink:#FFFFFF;--gold-ink:#1B1208;"), "as duas cores nos dois temas, com o texto pelo contraste");
+  assert.ok(v.paleta[1].includes("--accent:#112233"));
+  assert.equal(v.fonte?.[0], "Italiana");
+  assert.equal(v.fotos.hero, semNada.fotos.hero, "sem topo próprio, o do modelo");
+  assert.deepEqual([v.fotos.ga2, v.foto], ["fotos/ga2.jpg?v=5", "/fotos/bio.jpg?v=5"]);
+  assert.ok(visualClaro("x", "petshop", { kit: 99, cor: 99 }).cor.startsWith("#"), "índice fora do ramo não quebra");
+  const d: DadosSite = { ...base, slug: "pet-feliz", personal: { fotos: { hero: "fotos/hero.jpg", ga1: "fotos/ga1.jpg" }, cores: { ink: "#112233" }, fonte: "Marcellus", textos: { frase: "Banho sem estresse.", sobre: "Desde 2015 no bairro.", galeria: "Nosso espaço" }, versao: 7 } };
+  const html = renderClaro(d);
+  assert.ok(html.includes('url("fotos/hero.jpg?v=7")') && html.includes('href="fotos/hero.jpg?v=7"'), "topo próprio no CSS e no preload");
+  assert.ok(html.includes('<img src="fotos/ga1.jpg?v=7"') && html.includes("-800.jpg"), "galeria mistura própria e do banco");
+  assert.ok(html.includes("--accent:#112233") && html.includes("--font-display:'Marcellus',serif") && html.includes("family=Marcellus"), "cor e fonte próprias");
+  assert.ok(html.includes("Banho sem estresse.") && html.includes('<div class="sobre-box">Desde 2015 no bairro.</div>') && html.includes("<h2 class=\"section-title\">Nosso espaço</h2>"), "textos próprios");
+  assert.ok(html.includes("Algumas fotos são ilustrativas"), "ainda há foto do banco (passos e galeria)");
+  assert.ok(html.includes('"image":"https://pet-feliz.ruphus.site/fotos/hero.jpg?v=7"'), "JSON-LD aponta o topo próprio");
+  assert.equal(capaClaro(d).foto, "/pet-feliz/fotos/hero.jpg?v=7");
+  assert.equal(capaClaro(d).fonte, "Marcellus");
+  assert.ok(capaClaro({ ...d, personal: null }).foto.startsWith("/assets/pet/") && capaClaro({ ...d, personal: null }).foto.endsWith(".jpg"));
+  assert.ok(!renderClaro({ ...d, personal: null }).includes('id="sobre"'), "sem Sobre próprio não há seção Sobre");
+  console.log("personalização no claro: ok");
 }
 
 // levantamento de Manaus: "Não identificado" é dado faltando, em qualquer coluna

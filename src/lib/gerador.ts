@@ -241,7 +241,7 @@ export type Sub =
   | "petshop" | "vet"
   | "barbearia" | "salao" | "estetica" | "unhas" | "tatuagem" | "podologia"
   | "odonto" | "fisio" | "psico" | "nutri" | "clinica"
-  | "idiomas" | "reforco" | "musica" | "autoescola"
+  | "idiomas" | "reforco" | "musica" | "autoescola" | "profissionalizante"
   | "academia" | "pilates" | "lutas" | "danca"
   | "oficina" | "lavagem" | "pneus";
 export type Nicho = { nicho: "pet" | "beleza" | "saude" | "aulas" | "fitness" | "automotivo"; sub: Sub; tipo: string };
@@ -267,6 +267,7 @@ export const SUBS: Record<Sub, { nicho: Nicho["nicho"]; tipo: string; rotulo: st
   reforco: { nicho: "aulas", tipo: "EducationalOrganization", rotulo: "Reforço escolar" },
   musica: { nicho: "aulas", tipo: "EducationalOrganization", rotulo: "Escola de música" },
   autoescola: { nicho: "aulas", tipo: "DrivingSchool", rotulo: "Autoescola" },
+  profissionalizante: { nicho: "aulas", tipo: "EducationalOrganization", rotulo: "Cursos profissionalizantes" },
   academia: { nicho: "fitness", tipo: "ExerciseGym", rotulo: "Academia" },
   pilates: { nicho: "fitness", tipo: "SportsActivityLocation", rotulo: "Pilates e yoga" },
   lutas: { nicho: "fitness", tipo: "SportsActivityLocation", rotulo: "Artes marciais e lutas" },
@@ -282,7 +283,7 @@ export const GRUPOS: [string, Sub[]][] = [
   ["Saúde", ["odonto", "fisio", "psico", "nutri", "clinica"]],
   ["Pet", ["petshop", "vet"]],
   ["Fitness", ["academia", "pilates", "lutas", "danca"]],
-  ["Aulas e cursos", ["idiomas", "reforco", "musica", "autoescola"]],
+  ["Aulas e cursos", ["idiomas", "reforco", "musica", "autoescola", "profissionalizante"]],
   ["Automotivo", ["oficina", "lavagem", "pneus"]],
 ];
 
@@ -296,6 +297,9 @@ export const GRUPOS: [string, Sub[]][] = [
 const RAMOS: [RegExp, Sub][] = [
   [/tatu|tattoo|piercing/, "tatuagem"],
   [/auto ?escola|\bcfc\b|formacao de condutores|habilitacao/, "autoescola"],
+  // antes de barbearia, unhas, estética e salão: "escola de cabeleireiro" e "curso de manicure" são
+  // formação profissional, não o salão; antes de reforço: "curso técnico" não é cursinho
+  [/profissionaliz|curso(s)? tecnico|escola tecnica|formacao profissional|qualificacao profissional|curso(s)? (de |profissional|livre)|senai|senac|escola de (cabel|barb|estetic|manicure|maquiag|gastronom|inform)|treinamento profissional|capacitacao/, "profissionalizante"],
   [/estetica automotiva|lava[ -]?jato|lava[ -]?rapido|lavagem (automotiva|de (carro|veiculo))|polimento|detailing|higienizacao automotiva|martelinho/, "lavagem"],
   [/pneu|borracharia|alinhamento|balanceamento/, "pneus"],
   [/oficina|mecanic|auto ?center|centro automotivo|funilaria|injecao eletronica|automotiv|retifica/, "oficina"],

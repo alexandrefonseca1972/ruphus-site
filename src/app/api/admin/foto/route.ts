@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { adminAction, ErroPrevisto, requireAdmin } from "@/lib/admin-guard";
-import { processarFoto, SLOTS, tenantEditorial, TETO_FOTO, TIPOS_FOTO } from "@/lib/foto.server";
+import { processarFoto, SLOTS, tenantGerado, TETO_FOTO, TIPOS_FOTO } from "@/lib/foto.server";
 import { SLUG_SITE } from "@/lib/site-arquivo";
 
 // Upload das fotos próprias do site (aba Site da gaveta). Rota, não server action: a action
@@ -13,7 +13,7 @@ const Pedido = z.object({ slug: z.string().regex(SLUG_SITE), slot: z.enum(SLOTS)
 const subir = adminAction(async (_user, slug: string, slot: (typeof SLOTS)[number], arquivo: File) => {
   if (arquivo.size > TETO_FOTO) throw new ErroPrevisto("Foto acima de 12 MB. Envie uma menor.");
   if (!TIPOS_FOTO.includes(arquivo.type)) throw new ErroPrevisto("Formato não aceito. Envie JPG, PNG ou WebP (o iPhone converte HEIC ao escolher a foto).");
-  await tenantEditorial(slug);
+  await tenantGerado(slug);
   return processarFoto(slug, slot, Buffer.from(await arquivo.arrayBuffer()));
 });
 

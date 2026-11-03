@@ -214,5 +214,80 @@
   "kb": 123,
   "heroi": false,
   "sub": "autoescola"
+ },
+ "profi-instrutor": {
+  "alt": "Instrutor acompanha alunos adultos em aula prática",
+  "pexels": "7983558",
+  "w": 1400,
+  "h": 933,
+  "kb": 80,
+  "sub": "profissionalizante",
+  "heroi": true
+ },
+ "profi-turma": {
+  "alt": "Professor orienta alunos em sala de aula",
+  "pexels": "8419196",
+  "w": 1400,
+  "h": 933,
+  "kb": 124,
+  "sub": "profissionalizante",
+  "heroi": true
+ },
+ "profi-eletronica": {
+  "alt": "Dois alunos montam circuito em bancada de eletrônica",
+  "pexels": "9242810",
+  "w": 1400,
+  "h": 933,
+  "kb": 101,
+  "sub": "profissionalizante",
+  "heroi": true
+ },
+ "profi-cozinha": {
+  "alt": "Alunos de gastronomia praticam na cozinha-escola",
+  "pexels": "7437731",
+  "w": 1400,
+  "h": 933,
+  "kb": 135,
+  "sub": "profissionalizante"
+ },
+ "profi-refrigeracao": {
+  "alt": "Aula prática de manutenção de ar-condicionado",
+  "pexels": "33925031",
+  "w": 1400,
+  "h": 933,
+  "kb": 172,
+  "sub": "profissionalizante"
+ },
+ "profi-costura": {
+  "alt": "Aluna sorri na máquina de costura durante o curso",
+  "pexels": "20853652",
+  "w": 1400,
+  "h": 933,
+  "kb": 108,
+  "sub": "profissionalizante"
+ },
+ "profi-cnc": {
+  "alt": "Aluno opera máquina CNC com óculos de proteção",
+  "pexels": "9242206",
+  "w": 1400,
+  "h": 933,
+  "kb": 102,
+  "sub": "profissionalizante"
+ },
+ "profi-chef": {
+  "alt": "Chef explica a receita para a turma na cozinha",
+  "pexels": "38939130",
+  "w": 1400,
+  "h": 933,
+  "kb": 110,
+  "sub": "profissionalizante"
+ },
+ "profi-informatica": {
+  "alt": "Turma de adultos em curso de informática",
+  "pexels": "7983565",
+  "w": 1400,
+  "h": 933,
+  "kb": 90,
+  "sub": "profissionalizante"
  }
 }
