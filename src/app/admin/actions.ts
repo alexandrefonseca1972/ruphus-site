@@ -739,13 +739,14 @@ export const definirVisual = adminAction(async (_user, slug: string, rascunho: u
   const p = Personal.parse(rascunho);
   // chave sem nada dentro ({ cores: {} }) é o mesmo que ausente
   const personal = Object.fromEntries(Object.entries(p).filter(([, v]) => v != null && (typeof v !== "object" || Object.keys(v).length))) as Personal;
-  const vazio = !Object.keys(personal).length;
   // foto que o rascunho aponta mas não está no Storage publicaria uma imagem quebrada
   const faltam = await fotosFaltando(slug, personal.fotos);
   if (faltam.length) throw new ErroPrevisto(`Foto não encontrada: ${faltam.join(", ")}. Envie de novo ou use a do modelo.`);
-  // carimbo novo a cada publicação com foto própria: a URL muda e o cache não segura a foto antiga
+  // carimbo novo a cada publicação com foto própria: a URL muda e o cache não segura a foto antiga.
+  // Sem foto própria o carimbo sai — antes de decidir se sobrou algo para gravar
   if (personal.fotos && Object.keys(personal.fotos).length) personal.versao = Date.now();
   else delete personal.versao;
+  const vazio = !Object.keys(personal).length;
   const visual = visualEditorial(slug, sub, tenant.get("gerado.escolha"), vazio ? null : personal);
   await tenant.ref.update({
     "gerado.personal": vazio ? FieldValue.delete() : personal,
