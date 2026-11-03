@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Campo "Ramo" (aba Site do /admin, Meu negócio e cadastro no painel) não alarga mais a tela no celular: o nome mais longo da lista empurrava o formulário 30 px para fora.
+
 - Agendamento público não mostra mais serviço que ninguém da equipe faz (o cliente escolhia e via todos os dias "fechado"). No /admin, mudar a etapa de um negócio sem CRM ainda deixava um erro no console e não atualizava a linha do tempo.
 
 - /admin no celular: a linha de filtros alargava a página, e a gaveta do negócio saía da tela (o × e a borda direita cortados). A barra de ações fica no pé da gaveta mesmo com pouco conteúdo, e a miniatura do site usa a imagem de compartilhamento quando não há captura.
