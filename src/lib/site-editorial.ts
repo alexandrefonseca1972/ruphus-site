@@ -81,6 +81,9 @@ export const Personal = z.object({
   cores: z.object({ ink: HEX, acc: HEX, deep: HEX, tint: HEX }).partial(),
   fonte: z.enum(NOMES_FONTE),
   textos: z.object({ frase: z.string().trim().max(160), sobre: z.string().trim().max(600), galeria: z.string().trim().max(60) }).partial(),
+  /** carimbo da última publicação com foto própria: vai na URL (?v=) para o navegador e a CDN
+   *  não mostrarem a foto antiga, já que o nome do arquivo é fixo */
+  versao: z.number().int().positive(),
 }).partial().strict();
 export type Personal = z.infer<typeof Personal>;
 
@@ -301,9 +304,11 @@ export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha & { mo
   const tint = c.tint ?? derivada?.tint ?? paleta[3];
   const fonte = FONTES.find(([n]) => n === personal?.fonte) ?? FONTES[variante(slug, FONTES.length, "fonte")];
   const p = personal?.fotos ?? {};
-  const fotos = { hero: p.hero ?? `${kit}/hero.jpg`, ga1: p.ga1 ?? `${kit}/ga1.jpg`, ga2: p.ga2 ?? `${kit}/ga2.jpg`, ga3: p.ga3 ?? `${kit}/ga3.jpg` };
+  // foto própria leva o carimbo da publicação: "fotos/hero.jpg?v=1730000000000"
+  const propria = (ref: string | undefined) => (ref && personal?.versao ? `${ref}?v=${personal.versao}` : ref);
+  const fotos = { hero: propria(p.hero) ?? `${kit}/hero.jpg`, ga1: propria(p.ga1) ?? `${kit}/ga1.jpg`, ga2: propria(p.ga2) ?? `${kit}/ga2.jpg`, ga3: propria(p.ga3) ?? `${kit}/ga3.jpg` };
   // a foto da bio: a própria da bio, senão a do topo (própria ou do kit)
-  const foto = naRaiz(p.bio ?? fotos.hero);
+  const foto = naRaiz(propria(p.bio) ?? fotos.hero);
   return { e, ink, acc, deep, tint, kit, cor: acc, foto, fonte, fotos };
 }
 
