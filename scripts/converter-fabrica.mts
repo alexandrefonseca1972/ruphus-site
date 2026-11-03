@@ -11,7 +11,8 @@
 //
 // Converter guarda o index.html em fabrica-backup/{slug}/ (fora de sites/, que a rota lê), grava
 // `gerado` no tenant e tira o index.html de sites/: a rota passa a montar o site pelo modelo.
-// Recusa cliente (fechado ou com dono de fora) e site já gerado. Número fixo vai também: o modelo
+// Recusa cliente (fechado ou com dono de fora). Site que já tem `gerado` e ainda tem index.html
+// (a fábrica publicou por cima) também converte: tira o arquivo e mantém o `gerado` que estava. Número fixo vai também: o modelo
 // troca o WhatsApp por ligação (paraTelefone, em src/lib/gerador.ts).
 import { writeFileSync } from "node:fs";
 import type { DocumentSnapshot } from "firebase-admin/firestore";
@@ -122,7 +123,6 @@ const plataforma = new Set(((await adminDb.doc("config/admin").get()).get("uids"
 /** Por que este site não pode ser convertido, ou "" se pode. */
 const recusa = (t: DocumentSnapshot, crm: DocumentSnapshot, sub: Sub | null) =>
   !t.exists ? "sem tenant"
-  : t.get("gerado") ? "já é gerado"
   : crm.get("estagio") === "fechado" ? "cliente (fechado)"
   : t.get("ownerId") && !plataforma.has(t.get("ownerId")) ? "cliente (dono)"
   : !sub ? "sem ramo"
@@ -153,7 +153,14 @@ async function converter(slug: string) {
   if (aplicar) {
     await original.copy(copia);
     if (!(await copia.exists())[0]) throw new Error("backup não confirmado: nada foi alterado");
-    await t.ref.update({ gerado: { sub: sub!, bairro: "", horario, origem: "prospeccao", atualizadoEm: FieldValue.serverTimestamp(), convertidoEm: FieldValue.serverTimestamp() } });
+    // Já tinha `gerado` (o HTML da fábrica foi publicado por cima): fica o que o gerador gravou, só
+    // marca a conversão e completa o horário. atualizadoEm diferente de convertidoEm é como o
+    // desfazer reconhece esse caso.
+    await t.ref.update(
+      t.get("gerado")
+        ? { "gerado.convertidoEm": FieldValue.serverTimestamp(), ...(!t.get("gerado.horario") && horario && { "gerado.horario": horario }) }
+        : { gerado: { sub: sub!, bairro: "", horario, origem: "prospeccao", atualizadoEm: FieldValue.serverTimestamp(), convertidoEm: FieldValue.serverTimestamp() } },
+    );
     await original.delete();
   }
   return { sub: sub!, horario };
@@ -167,7 +174,9 @@ async function desfazer(slug: string) {
   if (!t.get("gerado.convertidoEm")) throw new Error(`${slug}: não foi convertido por este script`);
   if (aplicar) {
     await copia.copy(original);
-    await t.ref.update({ gerado: FieldValue.delete() });
+    // gerado criado pela conversão: some inteiro; gerado anterior à conversão: só a marca sai
+    const criadoAqui = t.get("gerado.atualizadoEm")?.isEqual?.(t.get("gerado.convertidoEm")) ?? true;
+    await t.ref.update(criadoAqui ? { gerado: FieldValue.delete() } : { "gerado.convertidoEm": FieldValue.delete() });
   }
 }
 
