@@ -858,8 +858,9 @@ export const salvarIntegracao = adminAction(async (_user, nome: unknown, valor: 
   const n = z.enum(Object.keys(INTEGRACOES) as [NomeIntegracao, ...NomeIntegracao[]]).parse(nome);
   const v = z.string().trim().max(500).parse(valor);
   // vira cabeçalho HTTP: espaço, quebra de linha ou acento quebrariam o envio sem dizer por quê
-  if (v && n === "GMAIL_USER" && !z.email().safeParse(v).success) throw new ErroPrevisto("Confira o e-mail do Gmail.");
-  if (v && n !== "GMAIL_USER" && !/^[\x21-\x7E]+$/.test(v)) throw new ErroPrevisto("A chave não pode ter espaço, acento nem quebra de linha.");
+  const ehEmail = n === "GMAIL_USER" || n === "ALERTA_EMAIL";
+  if (v && ehEmail && !z.email().safeParse(v).success) throw new ErroPrevisto("Confira o e-mail.");
+  if (v && !ehEmail && !/^[\x21-\x7E]+$/.test(v)) throw new ErroPrevisto("A chave não pode ter espaço, acento nem quebra de linha.");
   await gravarIntegracao(n, v);
   return integracoesNaTela();
 });

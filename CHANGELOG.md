@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- SMS que falha não chega mais como erro a ninguém: o admin recebe um e-mail com o agendamento e o motivo (no máximo um a cada 6 h, contando as repetições). Ajustes ganha **E-mail para alertas do sistema**; sem ele, o aviso vai para a conta do Gmail.
+
 - Teste de SMS nos Ajustes com máscara de celular, aviso em tempo real (sem DDD, DDD inválido, fixo) e botão liberado só com número válido.
 
 - Fontes e scripts não baixam mais duas vezes na primeira visita (~125 KB a menos), e a aba aberta antes de uma publicação volta a recarregar sozinha: o id do deploy passa a valer também no servidor em execução, não só no build.

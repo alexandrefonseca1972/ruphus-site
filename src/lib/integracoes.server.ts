@@ -16,6 +16,8 @@ export const INTEGRACOES = {
   GMAIL_USER: { grupo: "E-mail", rotulo: "Conta do Gmail (reserva)", secreta: false },
   GMAIL_APP_PASSWORD: { grupo: "E-mail", rotulo: "Senha de app do Gmail", secreta: true },
   ATENDYS_ADMIN_KEY: { grupo: "WhatsApp (atendys)", rotulo: "Chave de administração", secreta: true },
+  // sem ele, os alertas vão para a conta do Gmail acima
+  ALERTA_EMAIL: { grupo: "Alertas", rotulo: "E-mail para alertas do sistema", secreta: false },
 } as const;
 
 export type NomeIntegracao = keyof typeof INTEGRACOES;
