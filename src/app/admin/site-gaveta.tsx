@@ -49,7 +49,7 @@ const TIPO: Record<TipoSite, { rotulo: string; cor: string; texto: string; acao:
 };
 
 type Dados = { name: string; tipo: TipoSite; publicado: boolean; google: { nota: number | null; avaliacoes: number | null } } & Valores;
-type Visual = Pick<Extract<Awaited<ReturnType<typeof siteDoNegocio>>, { ok: true }>["dados"], "personal" | "doModelo" | "fontes">;
+type Visual = Pick<Extract<Awaited<ReturnType<typeof siteDoNegocio>>, { ok: true }>["dados"], "personal" | "doModelo" | "fontes" | "temIA">;
 
 // a prévia é uma página de desktop: renderiza em 1280px e encolhe para a largura da gaveta
 const LARGURA_PREVIA = 1280;
@@ -105,9 +105,9 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
   }
   function mostrar(r: Awaited<ReturnType<typeof ler>>) {
     if (!r?.ok) return setErroCarga(r ? r.error : "Sem conexão.");
-    const { name, tipo, google, fabrica: _f, publicado, modelos: lista, modeloAtual: atual, personal, doModelo, fontes, ...resto } = r.dados;
+    const { name, tipo, google, fabrica: _f, publicado, modelos: lista, modeloAtual: atual, personal, doModelo, fontes, temIA, ...resto } = r.dados;
     setModelos(lista);
-    setVisual({ personal, doModelo, fontes });
+    setVisual({ personal, doModelo, fontes, temIA });
     setModeloAtual(atual ?? "");
     setModelo(atual ?? "");
     setDados({ ...VAZIO, ...resto, name, tipo, google, publicado });
@@ -281,6 +281,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
           personal={visual.personal}
           doModelo={visual.doModelo}
           fontes={visual.fontes}
+          temIA={visual.temIA}
           onPublicado={() => setVersao((v) => v + 1)}
         />
       )}

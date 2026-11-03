@@ -18,6 +18,8 @@ export const INTEGRACOES = {
   ATENDYS_ADMIN_KEY: { grupo: "WhatsApp (atendys)", rotulo: "Chave de administração", secreta: true },
   // sem ele, os alertas vão para a conta do Gmail acima
   ALERTA_EMAIL: { grupo: "Alertas", rotulo: "E-mail para alertas do sistema", secreta: false },
+  // o assistente da seção "Visual" da gaveta do site (src/lib/ia.server.ts)
+  ANTHROPIC_API_KEY: { grupo: "IA (Anthropic)", rotulo: "Chave da API", secreta: true },
 } as const;
 
 export type NomeIntegracao = keyof typeof INTEGRACOES;

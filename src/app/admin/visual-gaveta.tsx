@@ -4,7 +4,7 @@ import { confirmar } from "@/components/confirmar";
 import { Label } from "@/components/ui/label";
 import type { Personal } from "@/lib/site-editorial";
 import { useRef, useState } from "react";
-import { definirVisual, previewVisual } from "./actions";
+import { conversarVisual, definirVisual, previewVisual } from "./actions";
 import { BOTAO_CLARO, BOTAO_ESCURO, PreviaModelo } from "./site-gaveta";
 
 // Seção "Visual" da aba Site: fotos próprias por posição, cores, fonte e textos do site
@@ -34,11 +34,28 @@ type Props = {
   /** o que o modelo em uso dá sem personalização: miniaturas e valores iniciais dos seletores */
   doModelo: { fotos: Record<string, string>; ink: string; acc: string; fonte: string };
   fontes: readonly string[];
+  /** há chave da Anthropic em Ajustes: o chat aparece */
+  temIA: boolean;
   onPublicado: () => void;
 };
 
-export function VisualDoSite({ slug, token, personal, doModelo, fontes, onPublicado }: Props) {
+type Mensagem = { papel: "user" | "assistant"; texto: string };
+/** uma mudança proposta pela IA, por chave folha ("cores.acc"), com o rótulo que a lista mostra */
+type Proposta = { chave: string; rotulo: string; valor: string; marcada: boolean };
+const ROTULO: Record<string, string> = { "cores.ink": "Tinta", "cores.acc": "Destaque", fonte: "Fonte", "textos.frase": "Frase do topo", "textos.sobre": "Sobre", "textos.galeria": "Título da galeria" };
+const propostasDe = (m: Personal): Proposta[] =>
+  Object.entries(ROTULO).flatMap(([chave, rotulo]) => {
+    const [a, b] = chave.split(".");
+    const v = b ? (m as Record<string, Record<string, string> | undefined>)[a]?.[b] : (m as Record<string, string | undefined>)[a];
+    return v ? [{ chave, rotulo, valor: v, marcada: true }] : [];
+  });
+
+export function VisualDoSite({ slug, token, personal, doModelo, fontes, temIA, onPublicado }: Props) {
   const [rascunho, setRascunho] = useState<Personal>(personal ?? {});
+  const [historico, setHistorico] = useState<Mensagem[]>([]);
+  const [pedido, setPedido] = useState("");
+  const [pensando, setPensando] = useState(false);
+  const [propostas, setPropostas] = useState<Proposta[]>([]);
   const [publicado, setPublicado] = useState<Personal>(personal ?? {});
   const [enviando, setEnviando] = useState<Slot | null>(null);
   const [versao, setVersao] = useState(0);
@@ -89,6 +106,36 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, onPublic
       if (!v) delete textos[campo];
       return { ...p, textos };
     });
+
+  async function perguntar() {
+    const texto = pedido.trim();
+    if (!texto) return;
+    setAviso(null);
+    setPensando(true);
+    setPropostas([]);
+    // só os últimos turnos vão: o contexto do negócio e do visual é remontado a cada pedido
+    const r = await conversarVisual(await token(), slug, rascunho, { pedido: texto, historico: historico.slice(-10) }).catch(() => null);
+    setPensando(false);
+    if (!r?.ok) return falha(r);
+    setPedido("");
+    setHistorico((h) => [...h, { papel: "user", texto }, { papel: "assistant", texto: r.dados.resposta }]);
+    setPropostas(propostasDe(r.dados.mudancas));
+  }
+
+  function aplicarPropostas() {
+    setRascunho((p) => {
+      const n: Personal = { ...p, cores: { ...p.cores }, textos: { ...p.textos } };
+      for (const { chave, valor, marcada } of propostas) {
+        if (!marcada) continue;
+        if (chave === "fonte") n.fonte = valor;
+        else if (chave.startsWith("cores.")) n.cores![chave.slice(6) as "ink" | "acc"] = valor;
+        else n.textos![chave.slice(7) as "frase" | "sobre" | "galeria"] = valor;
+      }
+      return n;
+    });
+    setPropostas([]);
+    visualizar();
+  }
 
   async function visualizar() {
     setBusy(true);
@@ -219,6 +266,62 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, onPublic
             </div>
           );
         })}
+      </div>
+
+      <div className="grid gap-2 rounded-xl bg-[#FBFAF8] p-3.5">
+        <Label htmlFor="visual-ia">Conversar com a IA</Label>
+        {temIA ? (
+          <>
+            {historico.length > 0 && (
+              <ul className="flex max-h-56 flex-col gap-2 overflow-y-auto text-[13px]" aria-live="polite">
+                {historico.map((m, i) => (
+                  <li key={i} className={`max-w-[92%] rounded-[12px] px-3 py-2 ${m.papel === "user" ? "self-end bg-[#17150F] text-white" : "self-start border border-[#E2DDD3] bg-white text-[#17150F]"}`}>{m.texto}</li>
+                ))}
+              </ul>
+            )}
+            {propostas.length > 0 && (
+              <div className="grid gap-2 rounded-[10px] border border-[#17150F] bg-white p-3">
+                <p className="text-xs font-semibold">Mudanças propostas</p>
+                <ul className="grid gap-1.5 text-[13px]">
+                  {propostas.map((pr) => (
+                    <li key={pr.chave}>
+                      <label className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" checked={pr.marcada} onChange={(e) => setPropostas((ps) => ps.map((x) => (x.chave === pr.chave ? { ...x, marcada: e.target.checked } : x)))} />
+                        <span className="min-w-0"><b className="font-semibold">{pr.rotulo}:</b> <span className="break-words">{pr.valor}</span>{pr.chave.startsWith("cores.") && <i aria-hidden className="ml-1.5 inline-block size-3 rounded-full align-middle border border-[#D8D2C6]" style={{ background: pr.valor }} />}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex justify-end gap-2">
+                  <button type="button" className={`${BOTAO_CLARO} h-9 text-xs`} onClick={() => setPropostas([])}>Descartar</button>
+                  <button type="button" className={`${BOTAO_ESCURO} h-9 text-xs`} disabled={busy || !propostas.some((x) => x.marcada)} onClick={aplicarPropostas}>Aplicar na prévia</button>
+                </div>
+              </div>
+            )}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <textarea
+                id="visual-ia"
+                value={pedido}
+                rows={2}
+                maxLength={600}
+                placeholder="Ex.: sugira uma paleta a partir das fotos e reescreva o Sobre"
+                disabled={pensando}
+                onChange={(e) => setPedido(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    perguntar();
+                  }
+                }}
+                className="grow rounded-[10px] border border-[#D8D2C6] bg-white px-3.5 py-2.5 text-base sm:text-[15px]"
+              />
+              <button type="button" className={BOTAO_ESCURO} disabled={pensando || busy || !pedido.trim()} onClick={perguntar}>{pensando ? "Pensando…" : "Enviar"}</button>
+            </div>
+            <p className="text-[11px] text-[#6F6A5E]">A IA propõe cores, fonte e textos; você marca o que entra. Fotos só pelos botões acima.</p>
+          </>
+        ) : (
+          <p className="text-xs text-[#6F6A5E]">Cadastre a chave da Anthropic em Ajustes (engrenagem) para pedir sugestões de cores, fonte e textos.</p>
+        )}
       </div>
 
       {previa !== null && (
