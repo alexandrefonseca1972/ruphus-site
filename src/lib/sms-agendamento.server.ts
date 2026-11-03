@@ -6,13 +6,25 @@ import { numeroSms } from "@/lib/comtele";
 import { enviarSms, smsDisponivel } from "@/lib/comtele.server";
 import { agoraNaParede, dateIn, formatPhone, formatTime, fusoDaUF, todayIn } from "@/lib/datetime";
 
-// SMS para o cliente final, pela conta da Ruphus na Comtele: quando a casa confirma o horário e 2 h
+// SMS para o cliente final, pela conta da Ruphus na Comtele: quando a casa confirma o horário e X h
 // antes dele. Só nos negócios com `sms.ligado` (a chave fica na gaveta do /admin): cada SMS gasta
 // crédito da Ruphus. Cada agendamento é reservado numa transação antes do envio (smsConfirmacaoEm,
 // smsLembreteEm), para duas execuções não mandarem o mesmo SMS; envio que falha devolve a reserva.
 // Falha nunca chega ao cliente nem a quem confirmou: vira e-mail para o admin (alertarAdmin).
 
-const LEMBRETE_MS = 2 * 3_600_000;
+/** O que o /admin escolheu para o negócio (tenants/{slug}.sms). Sem escolha: confirmação e lembrete
+ *  ligados, lembrete 2 h antes. */
+export const HORAS_LEMBRETE = [1, 2, 3, 4, 6, 8, 12, 24] as const;
+export function configSms(sms: unknown) {
+  const s = (sms ?? {}) as { ligado?: unknown; confirmacao?: unknown; lembrete?: unknown; horasAntes?: unknown };
+  const horas = Number(s.horasAntes);
+  return {
+    ligado: s.ligado === true,
+    confirmacao: s.confirmacao !== false,
+    lembrete: s.lembrete !== false,
+    horasAntes: (HORAS_LEMBRETE as readonly number[]).includes(horas) ? horas : 2,
+  };
+}
 const SILENCIO = { inicioMin: 22 * 60, fimMin: 7 * 60 + 30 }; // 22:00 → 07:30, como o lembrete do WhatsApp
 
 type Enviar = (numero: string, texto: string) => Promise<string | null>;
@@ -77,7 +89,8 @@ export async function avisarConfirmacaoPorSms(db: Firestore, slug: string, appoi
 async function confirmacao(db: Firestore, slug: string, appointmentId: string, { enviar, agora, alertar }: { enviar: Enviar; agora: Date; alertar: Alertar }) {
   if (enviar === enviarSms && !(await smsDisponivel())) return "sem chave";
   const t = await db.doc(`tenants/${slug}`).get();
-  if (t.get("sms.ligado") !== true) return "desligado";
+  const cfg = configSms(t.get("sms"));
+  if (!cfg.ligado || !cfg.confirmacao) return "desligado";
   const ref = db.doc(`tenants/${slug}/appointments/${appointmentId}`);
   const a = await ref.get();
   if (!a.exists || a.get("status") !== "confirmed" || a.get("smsConfirmacaoEm")) return "nada a avisar";
@@ -96,7 +109,7 @@ async function confirmacao(db: Firestore, slug: string, appointmentId: string, {
   return (await enviarReservado(ref, "smsConfirmacaoEm", numero, texto, enviar, alertar)) ? "enviado" : "falhou";
 }
 
-/** Lembrete por SMS 2 h antes, para os horários confirmados dos negócios com SMS ligado. Roda no cron
+/** Lembrete por SMS X h antes (o que o negócio escolheu), para os horários confirmados. Roda no cron
  *  dos lembretes (a cada 10 min). Devolve quantos saíram. */
 export async function enviarLembretesPorSms(db: Firestore, opcoes: { enviar?: Enviar; agora?: Date; alertar?: Alertar } = {}) {
   const alertar = opcoes.alertar ?? alertaPadrao(db);
@@ -114,16 +127,18 @@ async function lembretes(db: Firestore, { enviar, agora, alertar }: { enviar: En
   const tenants = await db.collection("tenants").where("sms.ligado", "==", true).get();
   let enviados = 0;
   for (const t of tenants.docs) {
+    const cfg = configSms(t.get("sms"));
+    if (!cfg.lembrete) continue;
     const tz = fusoDaUF(t.get("site.uf") as string | undefined);
     const [h, m] = formatTime(agora, tz).split(":").map(Number);
     if (h * 60 + m >= SILENCIO.inicioMin || h * 60 + m < SILENCIO.fimMin) continue;
     const hoje = todayIn(tz);
     const parede = agoraNaParede(tz, agora);
-    // horários que começam nas próximas 2 h (na hora de parede do negócio, como "start" é gravado)
+    // horários que começam nas próximas X h (na hora de parede do negócio, como "start" é gravado)
     const proximos = await t.ref
       .collection("appointments")
       .where("start", ">", parede)
-      .where("start", "<=", new Date(parede.getTime() + LEMBRETE_MS))
+      .where("start", "<=", new Date(parede.getTime() + cfg.horasAntes * 3_600_000))
       .get();
     for (const a of proximos.docs) {
       if (a.get("status") !== "confirmed" || a.get("smsLembreteEm")) continue;
