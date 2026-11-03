@@ -799,7 +799,7 @@ export const refreshWhatsAppStatus = adminAction(async (_user, slug: string): Pr
   return paraTela(conexao);
 });
 
-/** O QR de pareamento (PNG em base64), ou o estado da conexão enquanto o QR não sai. */
+/** O QR de pareamento (data URL), ou o estado da conexão enquanto o QR não sai. */
 export const qrWhatsApp = adminAction(async (_user, slug: string): Promise<QrWhatsApp> => {
   slugValido(slug);
   const salva = await lerConexao(adminDb, slug);

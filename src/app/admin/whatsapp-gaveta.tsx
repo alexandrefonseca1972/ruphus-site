@@ -2,7 +2,6 @@
 
 import { confirmar } from "@/components/confirmar";
 import { useEffect, useState } from "react";
-import { TERMO_WHATSAPP } from "@/lib/whatsapp-termo";
 import { mascaraTelefoneBR, telefoneBrValido } from "@/lib/telefone";
 import { conectarWhatsApp, definirGestaoDonoWhatsApp, definirOwnerPhoneWhatsApp, desconectarWhatsApp, qrWhatsApp, refreshWhatsAppStatus, whatsappDoNegocio, type ConexaoWhatsapp } from "./actions";
 
@@ -73,7 +72,7 @@ export function WhatsAppDoNegocio({ slug, token }: { slug: string; token: () => 
       if (!r?.ok) return;
       setConexao(r.dados);
       const q = await qrWhatsApp(t, slug).catch(() => null);
-      setQr(q?.ok && q.dados.status === "qr" ? q.dados.base64 : null);
+      setQr(q?.ok && q.dados.status === "qr" ? q.dados.imagem : null);
     }, 4000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -88,7 +87,7 @@ export function WhatsAppDoNegocio({ slug, token }: { slug: string; token: () => 
     if (!r?.ok) return setAviso(r ? r.error : "Sem conexão. Tente de novo.");
     setConexao(r.dados);
     const q = await qrWhatsApp(t, slug).catch(() => null);
-    setQr(q?.ok && q.dados.status === "qr" ? q.dados.base64 : null);
+    setQr(q?.ok && q.dados.status === "qr" ? q.dados.imagem : null);
   }
 
   async function desconectar() {
@@ -164,9 +163,9 @@ export function WhatsAppDoNegocio({ slug, token }: { slug: string; token: () => 
           </p>
           {qr && !conectado && (
             // o gateway entrega o QR pronto, em PNG: é só mostrar
-            // eslint-disable-next-line @next/next/no-img-element -- PNG em base64 vindo do gateway
+            // eslint-disable-next-line @next/next/no-img-element -- QR em data URL vindo do gateway
             <img
-              src={`data:image/png;base64,${qr}`}
+              src={qr}
               alt="QR para conectar o WhatsApp do negócio"
               className="self-start rounded-xl border border-[#E2DDD3] bg-white p-2"
             />
@@ -246,17 +245,15 @@ export function WhatsAppDoNegocio({ slug, token }: { slug: string; token: () => 
 
       {aviso && <p role="alert" className="text-sm text-[#8A2F2F]">{aviso}</p>}
 
-      <div className="rounded-[10px] border border-[#E2DDD3] bg-[#FAF8F4] px-3 py-2.5 text-[11.5px] leading-relaxed text-[#6F6A5E]">
-        <p className="mb-1 font-semibold text-[#4A4639]">{TERMO_WHATSAPP.titulo}</p>
-        {TERMO_WHATSAPP.paragrafos.map((p) => (
-          <p key={p.slice(0, 24)} className="mb-1.5">{p}</p>
-        ))}
-        <ul className="list-disc pl-4">
-          {TERMO_WHATSAPP.itens.map((i) => (
-            <li key={i.slice(0, 24)}>{i}</li>
-          ))}
-        </ul>
-      </div>
+      {/* o termo de risco é do dono: ele lê e aceita no painel do negócio, antes de conectar.
+          Aqui a plataforma só vê se já foi aceito */}
+      <p className={`text-[11.5px] ${conexao && !conexao.termsAcceptedAt ? "text-[#8A5A12]" : "text-[#6F6A5E]"}`}>
+        {conexao?.termsAcceptedAt
+          ? `Termo de risco do WhatsApp aceito pelo dono em ${new Date(conexao.termsAcceptedAt).toLocaleString("pt-BR")}.`
+          : conexao
+            ? "O dono ainda não aceitou o termo de risco do WhatsApp: ele aparece no painel do negócio."
+            : "O termo de risco do WhatsApp é lido e aceito pelo dono, no painel do negócio."}
+      </p>
     </section>
   );
 }
