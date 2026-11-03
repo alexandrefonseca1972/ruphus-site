@@ -3,7 +3,8 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
 import { agoraNaParede, dateIn, formatTime, fusoDaUF, todayIn, zonedTime } from "@/lib/datetime";
 import { enviarTexto, statusDaConexao } from "@/lib/atendys";
-import { lerConexao, soDigitosComDDI } from "@/lib/whatsapp.server";
+import { alertarAdmin } from "@/lib/alerta-admin.server";
+import { lerConexao, registrarErroNotificacao, soDigitosComDDI } from "@/lib/whatsapp.server";
 
 // Lembretes automáticos de horário: X horas antes de cada agendamento confirmado,
 // o cliente recebe um lembrete pelo WhatsApp do salão. O dono liga/desliga e
@@ -11,6 +12,8 @@ import { lerConexao, soDigitosComDDI } from "@/lib/whatsapp.server";
 // /.remindersBeforeHours). Envio transacional; o sucesso marca o agendamento
 // (whatsappReminderSentAt) para nunca repetir. Nada de mensagem entre 22h e 7h30
 // (fuso do negócio): o que vencer na janela de silêncio espera as 7h30.
+// Falha (WhatsApp desconectado, envio recusado) aparece na gaveta do negócio
+// (lastNotifyError) e vira e-mail para o admin, no máximo um por negócio a cada 6 h.
 //
 // Roda pelo cron da VPS (/api/cron/lembretes, a cada 10 min). Cada agendamento é
 // reservado numa transação antes do envio: duas execuções simultâneas não mandam
@@ -45,7 +48,11 @@ export async function enviarLembretesDoDia(): Promise<number> {
     if (!w?.instanceId || w.remindersEnabled !== true) continue;
     const antesMs = Math.min(24, Math.max(1, Number(w.remindersBeforeHours) || 2)) * 60 * 60_000;
     const vivo = await statusDaConexao(w).catch(() => null);
-    if (!vivo || vivo.status !== "connected") continue;
+    if (!vivo || vivo.status !== "connected") {
+      const motivo = vivo ? `o WhatsApp do negócio está "${vivo.status}"` : "o atendys não respondeu";
+      await falhou(t.id, `Lembretes ligados, mas ${motivo}: nenhum lembrete sai até reconectar.`);
+      continue;
+    }
     const nomeNegocio = String(t.get("name") ?? "seu salão");
     // janela: o dia do horário, com folga para lembretes cuja hora de envio cai
     // no dia anterior (ex.: horário 00:30 com 2h antes → 22:30 de ontem). "start"
@@ -82,11 +89,18 @@ export async function enviarLembretesDoDia(): Promise<number> {
         );
         enviados += 1;
       } catch (e) {
-        // devolve a reserva: o próximo ciclo tenta de novo; o erro fica no log do servidor
+        // devolve a reserva: o próximo ciclo tenta de novo
         await a.ref.update({ whatsappReminderSentAt: FieldValue.delete() }).catch(() => {});
-        console.error(`[wtsfy] lembrete ${t.id}/${a.id}`, e);
+        console.error(`[whatsapp] lembrete ${t.id}/${a.id}`, e);
+        await falhou(t.id, `O lembrete de ${nome || "um cliente"} (${a.get("serviceName")}, ${dia} às ${formatTime(start)}) não saiu: ${e instanceof Error ? e.message : String(e)}. Tenta de novo no próximo ciclo.`);
       }
     }
   }
   return enviados;
+}
+
+/** Lembrete que não saiu: na gaveta do negócio e no e-mail do admin. Nunca lança. */
+async function falhou(slug: string, mensagem: string) {
+  await registrarErroNotificacao(adminDb, slug, { message: mensagem, at: Date.now() }).catch(() => {});
+  await alertarAdmin(adminDb, `whatsapp-lembrete-${slug}`, `Lembrete do WhatsApp falhou em ${slug}`, `${mensagem}\n\nNegócio: ${slug}`);
 }

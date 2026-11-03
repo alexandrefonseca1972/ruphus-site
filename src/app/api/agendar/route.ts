@@ -93,7 +93,7 @@ export async function POST(req: Request) {
             console.error("aviso de agendamento via WhatsApp", e);
           }
         } else {
-          console.warn(`[wtsfy] ${tenantId}: número do salão sem telefone pareado; aviso de novo agendamento não enviado`);
+          console.warn(`[whatsapp] ${tenantId}: número do salão sem telefone pareado; aviso de novo agendamento não enviado`);
         }
         // recibo pro cliente: o pedido foi recebido e a confirmação vem pelo salão
         const cliente = soDigitosComDDI(b.data.customerPhone);
@@ -110,7 +110,7 @@ export async function POST(req: Request) {
             console.error("recibo de agendamento via WhatsApp", e);
           }
         } else {
-          console.warn(`[wtsfy] ${tenantId}: telefone do cliente inválido (${b.data.customerPhone}); recibo de agendamento não enviado`);
+          console.warn(`[whatsapp] ${tenantId}: telefone do cliente inválido (${b.data.customerPhone}); recibo de agendamento não enviado`);
         }
         // um aviso bem-sucedido limpa o erro anterior; falha mantém o detalhe
         await registrarErroNotificacao(

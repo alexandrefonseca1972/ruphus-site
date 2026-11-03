@@ -1,4 +1,5 @@
 import "server-only";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { integracao } from "@/lib/integracoes.server";
 
@@ -75,19 +76,22 @@ const authTenant = (conn: ConexaoAtendys) => {
  * Garante o tenant do negócio no atendys e devolve as credenciais para gravar.
  * Idempotente por slug: se o tenant já existe, reutiliza; reatribuirChave emite
  * uma nova apikey (quando o doc local perdeu a credencial). O segredo de
- * assinatura dos webhooks é rotacionado a cada chamada e devolvido para o
- * caller gravar — o atendys nunca mais o exibe.
+ * assinatura dos webhooks só é rotacionado quando o caller não tem um gravado
+ * (tenant novo ou credencial perdida): rotacionar a cada reconexão deixava os
+ * webhooks recusados entre o rotate e a gravação — e para sempre, se a gravação
+ * falhasse. Sem rotate, webhookSecret volta "" e o caller mantém o que tem.
  */
 export async function garantirTenant(
   slug: string,
   nomeNegocio: string,
-  opts: { reatribuirChave?: boolean } = {},
+  opts: { reatribuirChave?: boolean; rotacionarSegredo?: boolean } = {},
 ): Promise<{ tenantId: string; apikey: string; webhookSecret: string }> {
   const lista = await chamarAdmin<Array<{ id: string; slug: string }>>("GET", "/admin/tenants");
   const existente = lista.find((t) => t.slug === slug);
 
   let tenantId: string;
   let apikey: string;
+  let novo = false;
   if (existente) {
     tenantId = existente.id;
     if (opts.reatribuirChave) {
@@ -105,8 +109,11 @@ export async function garantirTenant(
     });
     tenantId = criado.tenant.id;
     apikey = criado.apikey;
+    novo = true;
   }
 
+  // tenant novo nunca teve segredo do lado de cá: rotaciona para conhecê-lo
+  if (!novo && !opts.rotacionarSegredo) return { tenantId, apikey, webhookSecret: "" };
   const rotacionado = await chamarAdmin<{ webhookSecret: string }>("POST", `/admin/tenants/${tenantId}/webhook-secret/rotate`);
   return { tenantId, apikey, webhookSecret: rotacionado.webhookSecret };
 }
@@ -177,4 +184,12 @@ export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: 
 /** Consentimento explícito (quando o fluxo pede, ex.: aceite no agendamento). */
 export function registrarOptIn(conn: ConexaoAtendys, phone: string, origem: string) {
   return chamar(authTenant(conn), "POST", "/v1/optin", { number: phone.replace(/\D/g, ""), source: origem });
+}
+
+/** Webhook do atendys: HMAC-SHA256 do corpo bruto com o segredo do tenant, em hex no cabeçalho
+ *  x-atendys-signature. Comparação em tempo constante. */
+export function assinaturaValida(segredo: string, bruto: string, assinatura: string) {
+  const recebida = Buffer.from(assinatura, "utf8");
+  const calculada = Buffer.from(createHmac("sha256", segredo).update(bruto, "utf8").digest("hex"), "utf8");
+  return recebida.length === calculada.length && timingSafeEqual(recebida, calculada);
 }

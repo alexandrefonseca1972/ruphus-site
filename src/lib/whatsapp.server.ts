@@ -43,7 +43,7 @@ export type ConexaoWhatsapp = ConexaoAtendys & {
   lastNotifyError?: { message: string; at: number } | null;
   /** Provisionamento atendys: id do tenant + segredo de assinatura dos webhooks
    *  (x-atendys-signature). Gravados ao conectar; a apikey vem de
-   *  ConexaoAtendys. O segredo rotaciona a cada conexão. */
+   *  ConexaoAtendys. O segredo só rotaciona quando não há um gravado. */
   atendysTenantId?: string;
   atendysWebhookSecret?: string;
 };
@@ -148,7 +148,8 @@ export async function apagarConexao(db: Firestore, slug: string) {
 /** Provisionamento automático: garante o tenant e a instância no atendys e
  *  prende o vínculo no negócio. Idempotente — se já houver conexão, o caller
  *  decide (as actions checam antes). Quando o doc já tem tenant/apikey do
- *  atendys (reconexão após desligamento), reutiliza; senão emite nova chave. */
+ *  atendys (reconexão após desligamento), reutiliza; senão emite nova chave.
+ *  O segredo dos webhooks também é reaproveitado: só rotaciona sem um gravado. */
 export async function conectarNegocio(
   db: Firestore,
   slug: string,
@@ -158,13 +159,14 @@ export async function conectarNegocio(
   const atual = await lerConfigWhatsApp(db, slug);
   const credenciais = await garantirTenant(slug, nomeNegocio || slug, {
     reatribuirChave: !(atual?.atendysTenantId && atual.atendysApiKey),
+    rotacionarSegredo: !atual?.atendysWebhookSecret,
   });
   const { name } = await criarInstancia(credenciais.tenantId, slug);
   const conexao: ConexaoWhatsapp = {
     ...(atual ?? {}),
     atendysTenantId: credenciais.tenantId,
     atendysApiKey: credenciais.apikey || atual?.atendysApiKey || "",
-    atendysWebhookSecret: credenciais.webhookSecret,
+    atendysWebhookSecret: credenciais.webhookSecret || atual?.atendysWebhookSecret || "",
     instanceId: name,
     phone: null,
     status: "qr",
@@ -252,6 +254,15 @@ export async function espelharStatusDaInstancia(
  *  qual aviso o dono respondeu quando há mais de um pendente. */
 export const codigoDoAgendamento = (id: string) => id.slice(0, 4).toUpperCase();
 
+/** "CONFIRMADO", "recusar ab12"… → o comando; qualquer outra mensagem → null.
+ *  "recusar" é o verbo de recusa: "cancelar" fica de fora de propósito — é stop
+ *  word do gateway (opt-out de cliente) e colidiria com o comando. */
+export function lerComando(texto: string): { verbo: string; recusar: boolean; codigo?: string } | null {
+  const m = /^(confirmado|recusar|recuso|recusado)\b(?:\s+([a-z0-9]{4})\b)?/i.exec(texto.trim());
+  if (!m) return null;
+  return { verbo: m[1].toUpperCase(), recusar: m[1].toLowerCase() !== "confirmado", codigo: m[2]?.toUpperCase() };
+}
+
 /** O salão respondeu ao aviso de agendamento no próprio WhatsApp: CONFIRMADO
  *  confirma o agendamento pendente mais recente; RECUSAR cancela. Em ambos os
  *  casos o cliente é avisado pelo número do salão. O comando pode vir do
@@ -278,13 +289,9 @@ export async function processarComandoAgendamento(
   // do tenant pode estar desatualizado se um webhook de reconexão se perder
   const vivo = await statusDaConexao(conexao).catch(() => null);
   if (!vivo || vivo.status !== "connected") return "ignorado";
-  const texto = String((msg.data as { text?: unknown } | undefined)?.text ?? "").trim();
-  // "recusar" é o verbo de recusa: "cancelar" fica de fora de propósito — é
-  // stop word do gateway (opt-out de cliente) e colidiria com o comando
-  const comando = /^(confirmado|recusar|recuso|recusado)\b(?:\s+([a-z0-9]{4})\b)?/i.exec(texto);
+  const comando = lerComando(String((msg.data as { text?: unknown } | undefined)?.text ?? ""));
   if (!comando) return "ignorado";
-  const recusar = comando[1].toLowerCase() !== "confirmado";
-  const codigo = comando[2]?.toUpperCase();
+  const { recusar, codigo } = comando;
 
   // só os que ainda vão acontecer; com código, o do aviso respondido. Sem código vale
   // só quando há um pendente: com mais de um, adivinhar confirmaria o cliente errado
@@ -303,7 +310,7 @@ export async function processarComandoAgendamento(
       .sort((x, y) => startDe(x).getTime() - startDe(y).getTime())
       .map((d) => `${codigoDoAgendamento(d.id)}: ${String(d.get("customerName") ?? "").trim()} · ${d.get("serviceName")} · ${quando(dateIn(startDe(d)), formatTime(startDe(d)))}`)
       .join("\n");
-    await enviarTexto(conexao, respostaPara, `Há mais de um agendamento aguardando. Responda com o código, por exemplo ${comando[1].toUpperCase()} ${codigoDoAgendamento(pendentes[0].id)}:\n${lista}`);
+    await enviarTexto(conexao, respostaPara, `Há mais de um agendamento aguardando. Responda com o código, por exemplo ${comando.verbo} ${codigoDoAgendamento(pendentes[0].id)}:\n${lista}`);
     return "sem pendente";
   }
   const a = pendentes[0];

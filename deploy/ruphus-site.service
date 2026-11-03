@@ -1,6 +1,6 @@
 [Unit]
 Description=ruphus-site - Next.js
-After=network-online.target wtsfy.service
+After=network-online.target
 Wants=network-online.target
 
 [Service]

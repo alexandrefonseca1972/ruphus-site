@@ -763,7 +763,7 @@ export const restaurarADemo = adminAction(async (user) => {
   return r;
 });
 
-// ─── WhatsApp do negócio (gateway próprio, wtsfy) ────────────────────────────
+// ─── WhatsApp do negócio (gateway próprio, atendys) ──────────────────────────
 
 /** O WhatsApp que o dono conectou: o que está gravado no tenants/{slug}. */
 export const whatsappDoNegocio = adminAction(async (_user, slug: string): Promise<ConexaoNaTela | null> => {

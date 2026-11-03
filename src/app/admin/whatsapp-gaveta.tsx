@@ -7,7 +7,7 @@ import { mascaraTelefoneBR, telefoneBrValido } from "@/lib/telefone";
 import { conectarWhatsApp, definirGestaoDonoWhatsApp, definirOwnerPhoneWhatsApp, desconectarWhatsApp, qrWhatsApp, refreshWhatsAppStatus, whatsappDoNegocio, type ConexaoWhatsapp } from "./actions";
 
 // Aba "WhatsApp" da gaveta: o número que o dono do negócio conecta para responder
-// os clientes pela plataforma, via gateway próprio (wtsfy). Conectar cria a
+// os clientes pela plataforma, via gateway próprio (atendys). Conectar cria a
 // instância e mostra o QR; enquanto não conecta, o status é perguntado ao gateway
 // a cada 4s (e o QR troca junto, porque expira).
 
