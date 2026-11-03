@@ -35,7 +35,7 @@ Três produtos no mesmo aplicativo, com um banco só.
 
 ### 1. O site e a agenda do cliente final
 
-Cada negócio tem um endereço em `{slug}.ruphus.site`. O site da fábrica mora no Firebase Storage em `sites/{slug}/` (publicado com `npm run site`, sem deploy) e o do gerador é montado do Firestore; o proxy (`src/proxy.ts`) leva o subdomínio às rotas de `/s/{slug}/`. O agendamento é o app.
+Cada negócio tem um endereço em `{slug}.ruphus.site`. O site é montado do Firestore pelo gerador (`src/lib/site-editorial.ts` e `site-claro.ts`), com os dados do negócio e, por cima, a personalização do `/admin` (`gerado.personal`: fotos próprias em `sites/{slug}/fotos/` no Storage, cores, fonte e textos); o proxy (`src/proxy.ts`) leva o subdomínio às rotas de `/s/{slug}/`. Um `index.html` publicado em `sites/{slug}/` no Storage (`npm run site`, o antigo caminho da fábrica) ainda responde antes do gerador. O agendamento é o app.
 
 - **Uma tela só** para marcar: serviço, profissional e horário, sem recarregar a página.
 - **Página de bio** (`/bio/{slug}`), no estilo "link na bio", com ISR de 60s.
@@ -129,6 +129,7 @@ Em `.env.local` (desenvolvimento) e em `/opt/ruphus-site/app/.env.local` na VPS 
 | `DESATIVADOS_TOKEN` | servidor | segredo entre o proxy e `/api/desativados`; sem ele a lista fica pública (já criado em produção) |
 | `GMAIL_USER` | servidor | conta da Ruphus que envia as propostas por e-mail (`app.ruphus@gmail.com`) |
 | `GMAIL_APP_PASSWORD` | servidor | senha de app dessa conta (exige verificação em duas etapas); sem ela o envio recusa com mensagem clara |
+| `ANTHROPIC_API_KEY` | servidor | chave da Anthropic para o assistente da seção Visual da gaveta do site (costuma ser cadastrada em Ajustes, não aqui) |
 
 `NEXT_PUBLIC_VERSAO` e `NEXT_PUBLIC_COMMIT` não se preenchem à mão: o `next.config.ts` injeta a versão do `package.json` e o commit do deploy (`GIT_COMMIT_SHA`, passado pelo `scripts/deploy-vps.sh`), que aparecem no rodapé do `/admin`.
 
@@ -157,7 +158,7 @@ O proxy (`src/proxy.ts`) resolve `{slug}.ruphus.site` para `/s/{slug}/` (site no
 ## Como os dados são organizados
 
 ```
-tenants/{slug}                  negócio: nome, ownerId, limiteStaff, modulos.financeiro
+tenants/{slug}                  negócio: nome, ownerId, limiteStaff, modulos.financeiro, site.*, gerado.* (ramo, modelo, personal = fotos/cores/fonte/textos do admin)
   members/{uid}                 acesso: role owner | admin | member, email, nome, viaConvite
   services/{id}                 serviço: nome, duração, preço, ativo
   staff/{id}                    profissional: nome, serviços, horário por dia
@@ -178,7 +179,10 @@ config/convite                  segredo que assina os convites
 config/pix                      chave Pix da Ruphus, recebedor e cidade
 config/crm                      quem assina as mensagens
 config/sessao                   minutos até o logout automático
+config/integracoes              chaves de SMS, e-mail, WhatsApp e IA cadastradas em Ajustes
 ```
+
+No Storage, `sites/{slug}/fotos/{posição}.jpg` são as fotos próprias enviadas pelo `/admin`; `fabrica-backup/{slug}/index.html` guarda o HTML dos antigos sites da fábrica.
 
 Tudo o que decide acesso está em `firestore.rules`, com teste em `rules.test.mjs`. O que a regra não consegue decidir — contar documentos, por exemplo — mora numa Server Action com o Admin SDK.
 
@@ -234,6 +238,9 @@ npm run test:pix          # BR Code e CRC
 npm run test:whatsapp     # montagem dos links
 npm run test:admin        # o select da lista do /admin x os campos lidos
 npm run test:scale        # comportamento com volume
+npm run test:gerador      # planilha, nichos, modelos e personalização (sem emulador)
+npm run test:gerador-banco # gravação do gerador, fotos próprias no Storage (emulador)
+npm run test:ia           # assistente da seção Visual: pedido e resposta (sem rede)
 ```
 
 O CI (`testes`) roda o conjunto a cada push. **Confira a execução do commit final antes de mesclar** — não a de um commit anterior.

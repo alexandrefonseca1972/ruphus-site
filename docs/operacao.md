@@ -171,6 +171,31 @@ e só grava em "Publicar mudanças". Conta antiga sem site ganha o site ao escol
 o ramo. O site do cadastro continua sem a faixa de proposta; serviços, equipe e
 agenda não mudam. Em site da fábrica mudam só os dados da bio e do agendamento.
 
+### Personalizar o visual de um site (fotos, cores, fonte, textos, IA)
+
+Gaveta do negócio → aba **Site** → seção **Visual** (só em site do gerador no modelo
+editorial: beleza, fitness e automotivo). Cinco posições de foto (topo, galeria 1 a 3
+e a faixa da bio): "Enviar" abre a galeria ou a câmera no celular; JPG, PNG ou WebP
+até 12 MB, o servidor endireita e redimensiona e grava em `sites/{slug}/fotos/`. "✕"
+volta à foto do modelo. Tinta e destaque pelos seletores de cor, fonte dos títulos no
+seletor, frase do topo, Sobre e título da galeria nos campos. Nada entra no site até
+"Publicar visual": "Pré-visualizar" mostra o rascunho com os dados reais. Publicar
+grava `gerado.personal` e troca a cor e a foto da bio; o site, a bio e a imagem do
+WhatsApp saem do cache na hora. Reenviar a planilha, editar os dados ou trocar o ramo
+não apaga a personalização; trocar o modelo mantém as fotos e as cores próprias.
+
+Com `ANTHROPIC_API_KEY` cadastrada em Ajustes, a seção ganha "Conversar com a IA":
+escreva o pedido ("sugira uma paleta a partir das fotos e reescreva o Sobre"), a IA
+responde em até três frases e lista as mudanças (cores, fonte, textos; fotos nunca);
+marque o que entra e "Aplicar na prévia" leva ao rascunho. Cada pedido é uma chamada
+ao modelo `claude-opus-5-5` com as fotos próprias reduzidas a 512 px. Sem a chave, a
+seção mostra a dica e esconde o chat. Plano e decisões em
+`docs/plano-personalizacao-site.md`.
+
+`npm run site -- publicar <slug> <pasta>` sincroniza a pasta com `sites/{slug}/` mas
+não apaga `fotos/`. Não publique um `index.html` num site do gerador: ele passa a
+responder no lugar do gerador.
+
 ### Ninguém consegue agendar em um negócio
 
 Confira, nessa ordem: existe serviço **ativo**? existe profissional **ativo**?
