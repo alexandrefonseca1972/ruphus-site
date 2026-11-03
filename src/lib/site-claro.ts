@@ -76,6 +76,14 @@ export const modelosClaro = (sub: Sub) => {
 };
 export const modeloClaroDoId = (sub: Sub, id: string) => modelosClaro(sub).find((m) => m.id === id);
 
+/** As três fotos do banco que a galeria do site mostra, sorteadas pelo slug (pulando de duas em
+ *  duas para não repetir): o site e as miniaturas da gaveta usam a mesma lista. */
+export function galeriaClaro(slug: string, sub: Sub) {
+  const { galeria } = conteudoDe(sub);
+  const g0 = variante(slug, galeria.length, "galeria");
+  return [0, 1, 2].map((i) => galeria[(g0 + i * 2) % galeria.length]);
+}
+
 // texto branco ou escuro por cima de uma cor: o claro escreve nos botões (--accent) e nos selos (--gold)
 const luminancia = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).reduce((soma, v, k) => soma + [0.2126, 0.7152, 0.0722][k] * (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4), 0);
 const tintaSobre = (hex: string) => (luminancia(hex) > 0.4 ? "#1B1208" : "#FFFFFF");
@@ -149,10 +157,9 @@ export function renderClaro(d: DadosSite): string {
   const t = d.personal?.textos ?? {};
   const [titulo, destaque, chamadaModelo] = c.titulos[variante(d.slug, c.titulos.length, "titulo")];
   const chamada = t.frase || chamadaModelo;
-  const galeria = c.galeria;
-  const g0 = variante(d.slug, galeria.length, "galeria");
   // cada posição da galeria: a foto própria, se houver, senão a do banco que o slug sorteia
-  const fotos = [0, 1, 2].map((i) => [proprias.ga1, proprias.ga2, proprias.ga3][i] ?? galeria[(g0 + i * 2) % galeria.length]);
+  const doSlug = galeriaClaro(d.slug, d.sub);
+  const fotos = [0, 1, 2].map((i) => [proprias.ga1, proprias.ga2, proprias.ga3][i] ?? doSlug[i]);
   const propriaNoTopo = !proprias.hero.startsWith("/assets/");
   // o topo é fundo CSS: a própria vai nas duas larguras; a do banco tem versão -800
   const topoUrl = (grande: boolean) => (propriaNoTopo ? proprias.hero : `../assets/${c.pasta}/${topo}${grande ? "" : "-800"}.jpg`);

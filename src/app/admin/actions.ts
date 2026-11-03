@@ -42,7 +42,7 @@ import { deslogarInstancia, qrDaConexao, statusDaConexao, type SituacaoQr as QrW
 import { apagarConexao, conectarNegocio, gravarGestaoDono, gravarOwnerPhone, lerConexao, paraTela, type ConexaoNaTela, type ConexaoWhatsapp, gravarConexao } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { MODELOS, modeloDoId, NOMES_FONTE, Personal, renderEditorial, visualEditorial } from "@/lib/site-editorial";
-import { ehClaro, modeloClaroDoId, modelosClaro, renderClaro, visualClaro } from "@/lib/site-claro";
+import { ehClaro, galeriaClaro, modeloClaroDoId, modelosClaro, renderClaro, visualClaro } from "@/lib/site-claro";
 import { iaDisponivel, type Mensagem, sugerirVisual } from "@/lib/ia.server";
 import { apagarFotosFora, fotosFaltando, lerFoto, type Slot, tenantGerado } from "@/lib/foto.server";
 import { type DadosSite, type Escolha, type Sub, SUBS } from "@/lib/gerador";
@@ -685,9 +685,8 @@ function visualDoModelo(slug: string, sub: Sub, escolha: Escolha | undefined) {
     const v = visualClaro(slug, sub, escolha);
     const c = (nome: string) => `/s/assets/${v.fotos.hero.split("/")[2]}/${nome}-800.jpg`;
     // a galeria do claro sorteia pelo slug: as miniaturas mostram as três que o site usa
-    const html = renderClaro({ slug, nome: "x", telefone: "5511999999999", sub, tipo: "", endereco: "", bairro: "", cidade: "", uf: "", nota: null, avaliacoes: null, instagram: "", horario: "", servicos: [], consultado: "" });
-    const galeria = [...html.matchAll(/<div class="galeria">([\s\S]*?)<\/div>/)][0]?.[1].match(/src="\.\.\/assets\/[^/]+\/([^"]+)-800\.jpg"/g)?.map((m) => m.replace(/.*\/([^"]+)-800\.jpg"/, "$1")) ?? [];
-    const fotos = { hero: `/s${v.fotos.hero}-800.jpg`, ga1: c(galeria[0] ?? v.topo), ga2: c(galeria[1] ?? v.topo), ga3: c(galeria[2] ?? v.topo) };
+    const [g1, g2, g3] = galeriaClaro(slug, sub);
+    const fotos = { hero: `/s${v.fotos.hero}-800.jpg`, ga1: c(g1), ga2: c(g2), ga3: c(g3) };
     return { fotos: { ...fotos, bio: fotos.hero }, ink: v.cor, acc: v.gold, fonte: "Bricolage Grotesque" };
   }
   const v = visualEditorial(slug, sub, escolha);
