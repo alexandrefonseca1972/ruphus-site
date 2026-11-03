@@ -18,7 +18,7 @@ import { ConfirmDialog } from "../confirm-dialog";
 import { ComissoesHistorico } from "../comissoes-historico";
 import { ContasFixas } from "../contas-fixas";
 import { type Folha, LancamentoFolha } from "../lancamento-folha";
-import { useTenant } from "../layout";
+import { useTenant } from "../painel-layout";
 import { PageTitle } from "../page-title";
 import { mudarStatus } from "../status";
 
@@ -184,9 +184,10 @@ export default function CaixaPage() {
           { label: "Saiu", valor: r.saiu, cor: "text-red-800 dark:text-red-300" },
           { label: "Sobrou", valor: r.sobrou, cor: r.sobrou < 0 ? "text-red-800 dark:text-red-300" : "" },
         ].map((t) => (
-          <div key={t.label} className="grid gap-1.5 rounded-2xl border bg-card px-3 py-4 sm:px-5">
+          // min-w-0 e quebra em qualquer ponto: em 320 px "R$ 12.345,00" passava da borda do cartão
+          <div key={t.label} className="grid min-w-0 gap-1.5 rounded-2xl border bg-card px-3 py-4 sm:px-5">
             <dt className="text-[13px] text-muted-foreground">{t.label}</dt>
-            <dd className={cn("font-serifa text-xl leading-none tabular-nums sm:text-3xl", t.cor)}>{lancamentos ? formatBRL(t.valor) : "…"}</dd>
+            <dd className={cn("font-serifa text-xl leading-none tabular-nums [overflow-wrap:anywhere] max-[359px]:text-base sm:text-3xl", t.cor)}>{lancamentos ? formatBRL(t.valor) : "…"}</dd>
           </div>
         ))}
       </dl>
@@ -362,9 +363,9 @@ export default function CaixaPage() {
                 { label: "Pago", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? 0), 0) },
                 { label: "Falta pagar", valor: comissoes.reduce((t, c) => t + (pagas.has(idDoPagamento("comissao", c.staffId, mes)) ? 0 : c.valor), 0) },
               ].map((t) => (
-                <div key={t.label} className="grid gap-0.5 border-l px-4 py-3 first:border-l-0 sm:px-6">
+                <div key={t.label} className="grid min-w-0 gap-0.5 border-l px-3 py-3 first:border-l-0 sm:px-6">
                   <dt className="text-[13px] text-muted-foreground">{t.label}</dt>
-                  <dd className="font-serifa text-lg tabular-nums">{formatBRL(t.valor)}</dd>
+                  <dd className="font-serifa text-lg tabular-nums [overflow-wrap:anywhere] max-[359px]:text-base">{formatBRL(t.valor)}</dd>
                 </div>
               ))}
             </dl>

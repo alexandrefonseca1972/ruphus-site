@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/auth-errors";
 import { orderBy } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { getAgenda } from "@/app/agendar/[tenant]/actions";
@@ -111,7 +112,7 @@ export function PlanForm(props: {
           (res.skipped.length ? ` Datas puladas por falta de horário livre: ${res.skipped.map(shortDate).join(", ")}.` : ""),
       );
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }

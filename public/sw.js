@@ -6,7 +6,9 @@
 //   O HTML do painel é só a casca: os dados vêm do Firestore, que tem cache próprio.
 // - POST (server actions), outros domínios (Firestore, fontes) e /api: direto à rede.
 // - push: mostra o aviso de agendamento; o clique abre o painel na página do aviso.
-const VERSAO = "v1";
+// a versão vem do endereço (/sw.js?v={commit}, ver registrarServiceWorker): deploy novo, SW novo,
+// e o activate apaga os caches da anterior
+const VERSAO = new URL(self.location.href).searchParams.get("v") || "v1";
 const ESTATICO = `estatico-${VERSAO}`;
 const PAGINAS = `paginas-${VERSAO}`;
 const BASE = ["/offline.html", "/app/icone-192.png"];

@@ -38,7 +38,7 @@ export function ShareLink({ tenantId, name }: { tenantId: string; name: string }
             <p className="font-medium">Link de agendamento</p>
             <p className="text-sm text-muted-foreground">Coloque na bio do Instagram, no status do WhatsApp ou mande para o cliente.</p>
           </div>
-          <Input readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="h-11 text-sm md:h-8" />
+          <Input readOnly aria-label="Link de agendamento" value={url} onFocus={(e) => e.currentTarget.select()} className="h-11 text-sm md:h-8" />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={copy}>{copied ? "Copiado ✓" : "Copiar link"}</Button>
             <Button size="sm" variant="outline" onClick={() => openExternal(`https://wa.me/?text=${encodeURIComponent(message)}`)}>
