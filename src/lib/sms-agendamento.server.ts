@@ -1,4 +1,5 @@
 import "server-only";
+import { emParalelo } from "@/lib/paralelo";
 import { FieldValue, type DocumentReference, type Firestore, type Timestamp } from "firebase-admin/firestore";
 import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { quando } from "@/lib/avisos.server";
@@ -126,12 +127,13 @@ async function lembretes(db: Firestore, { enviar, agora, alertar }: { enviar: En
   if (enviar === enviarSms && !(await smsDisponivel())) return 0;
   const tenants = await db.collection("tenants").where("sms.ligado", "==", true).get();
   let enviados = 0;
-  for (const t of tenants.docs) {
+  // 5 negócios de cada vez: em fila, ~100 negócios estouravam os 120 s do curl do cron
+  await emParalelo(tenants.docs, 5, async (t) => {
     const cfg = configSms(t.get("sms"));
-    if (!cfg.lembrete) continue;
+    if (!cfg.lembrete) return;
     const tz = fusoDaUF(t.get("site.uf") as string | undefined);
     const [h, m] = formatTime(agora, tz).split(":").map(Number);
-    if (h * 60 + m >= SILENCIO.inicioMin || h * 60 + m < SILENCIO.fimMin) continue;
+    if (h * 60 + m >= SILENCIO.inicioMin || h * 60 + m < SILENCIO.fimMin) return;
     const hoje = todayIn(tz);
     const parede = agoraNaParede(tz, agora);
     // horários que começam nas próximas X h (na hora de parede do negócio, como "start" é gravado)
@@ -154,7 +156,7 @@ async function lembretes(db: Firestore, { enviar, agora, alertar }: { enviar: En
       });
       if (await enviarReservado(a.ref, "smsLembreteEm", numero, texto, enviar, alertar)) enviados++;
     }
-  }
+  });
   return enviados;
 }
 

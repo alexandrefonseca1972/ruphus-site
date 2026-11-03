@@ -23,6 +23,14 @@ const nextConfig: NextConfig = {
         has: [{ type: "host", value: "(?:.+\\.)?ruphus\\.site" }],
         headers: [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }],
       },
+      // As fotos e fontes compartilhadas dos sites (66 MB em public/s/assets) saíam com max-age=0:
+      // cada visita conferia tudo de novo. Mudam pouco e com o mesmo nome: um dia.
+      // /assets/… é como os sites pedem (../assets no subdomínio); o proxy reescreve para /s/assets
+      // depois que estes cabeçalhos já foram escolhidos pelo caminho de entrada
+      ...["/s/assets/:path*", "/assets/:path*"].map((source) => ({
+        source,
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
+      })),
       // O service worker não pode ficar em cache: é por ele que uma versão nova chega
       // ao painel instalado. Só scripts da própria origem.
       {

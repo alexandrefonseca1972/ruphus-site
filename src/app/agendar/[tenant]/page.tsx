@@ -30,5 +30,6 @@ export default async function BookingPage({ params }: PageProps<"/agendar/[tenan
   const { tenant } = await params;
   const catalog = await getCatalog(tenant);
   if (!catalog) notFound();
-  return <BookingForm tenantId={tenant} today={todayIn()} fuso={fusoDaUF(catalog.uf)} {...catalog} />;
+  const fuso = fusoDaUF(catalog.uf);
+  return <BookingForm tenantId={tenant} today={todayIn(fuso)} fuso={fuso} {...catalog} />;
 }

@@ -10,23 +10,41 @@ let fechados: { slugs: Set<string>; ate: number } = { slugs: new Set(), ate: 0 }
 const ORIGEM = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "";
 // Sem SITE_URL, só fora da produção as listas vêm do próprio host da requisição: em produção esse host
 // vem do cabeçalho Host, que o visitante escolhe, e o segredo x-ruphus iria junto para ele.
-const origemDasListas = (origem: string) => ORIGEM || (process.env.NODE_ENV === "production" ? null : origem);
+// Em produção o next start grava a porta em PORT: a lista vem do próprio processo, sem sair pela
+// Cloudflare e voltar (o SITE_URL é https://www.ruphus.site).
+const origemDasListas = (origem: string) =>
+  process.env.NODE_ENV === "production" ? (process.env.PORT ? `http://localhost:${process.env.PORT}` : ORIGEM || null) : ORIGEM || origem;
 const SEGREDO = process.env.DESATIVADOS_TOKEN || "";
 
+// Vencida, a lista é relida em segundo plano e a visita segue com a anterior; só a primeira
+// leitura do processo espera (sem ela, site fechado e domínio próprio ficariam errados no boot).
+function revalidar(lendo: { promessa: Promise<void> | null }, carregou: boolean, ler: () => Promise<void>) {
+  lendo.promessa ??= ler().finally(() => (lendo.promessa = null));
+  return carregou ? undefined : lendo.promessa;
+}
+
+const lendoFechados = { promessa: null as Promise<void> | null };
+let fechadosCarregou = false;
+
 async function foraDoAr(slug: string, origem: string) {
-  if (Date.now() > fechados.ate) {
+  // a primeira leitura ainda não voltou: quem chega junto espera a mesma, em vez da lista vazia
+  if (Date.now() > fechados.ate || !fechadosCarregou) {
     fechados = { slugs: fechados.slugs, ate: Date.now() + 60_000 };
-    try {
-      const base = origemDasListas(origem);
-      if (!base) return fechados.slugs.has(slug);
-      const r = await fetch(new URL("/api/desativados", base), {
-        cache: "no-store",
-        ...(SEGREDO && { headers: { "x-ruphus": SEGREDO } }),
-      });
-      if (r.ok) fechados = { slugs: new Set(await r.json()), ate: Date.now() + 60_000 };
-    } catch {
-      // sem resposta, vale a lista anterior: melhor servir o site do que derrubar todos
-    }
+    await revalidar(lendoFechados, fechadosCarregou, async () => {
+      try {
+        const base = origemDasListas(origem);
+        if (!base) return;
+        const r = await fetch(new URL("/api/desativados", base), {
+          cache: "no-store",
+          ...(SEGREDO && { headers: { "x-ruphus": SEGREDO } }),
+        });
+        if (r.ok) fechados = { slugs: new Set(await r.json()), ate: Date.now() + 60_000 };
+      } catch {
+        // sem resposta, vale a lista anterior: melhor servir o site do que derrubar todos
+      } finally {
+        fechadosCarregou = true; // tentou: daqui em diante só em segundo plano
+      }
+    });
   }
   return fechados.slugs.has(slug);
 }
@@ -35,20 +53,28 @@ async function foraDoAr(slug: string, origem: string) {
 // memória, e sem resposta vale o mapa anterior.
 let dominios: { mapa: MapaDominios; ate: number } = { mapa: { hosts: {}, porSlug: {} }, ate: 0 };
 
+const lendoDominios = { promessa: null as Promise<void> | null };
+let dominiosCarregou = false;
+
 async function mapaDominios(origem: string) {
-  if (Date.now() > dominios.ate) {
+  // a primeira leitura ainda não voltou: quem chega junto espera a mesma, em vez da lista vazia
+  if (Date.now() > dominios.ate || !dominiosCarregou) {
     dominios = { mapa: dominios.mapa, ate: Date.now() + 60_000 };
-    try {
-      const base = origemDasListas(origem);
-      if (!base) return dominios.mapa;
-      const r = await fetch(new URL("/api/dominios", base), {
-        cache: "no-store",
-        ...(SEGREDO && { headers: { "x-ruphus": SEGREDO } }),
-      });
-      if (r.ok) dominios = { mapa: await r.json(), ate: Date.now() + 60_000 };
-    } catch {
-      // sem resposta, vale o mapa anterior
-    }
+    await revalidar(lendoDominios, dominiosCarregou, async () => {
+      try {
+        const base = origemDasListas(origem);
+        if (!base) return;
+        const r = await fetch(new URL("/api/dominios", base), {
+          cache: "no-store",
+          ...(SEGREDO && { headers: { "x-ruphus": SEGREDO } }),
+        });
+        if (r.ok) dominios = { mapa: await r.json(), ate: Date.now() + 60_000 };
+      } catch {
+        // sem resposta, vale o mapa anterior
+      } finally {
+        dominiosCarregou = true; // tentou: daqui em diante só em segundo plano
+      }
+    });
   }
   return dominios.mapa;
 }
