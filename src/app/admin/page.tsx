@@ -1846,7 +1846,7 @@ export default function AdminPage() {
                           const c = crm[aberto.slug];
                           const numero = c?.donoWhatsapp ?? aberto.telefone;
                           const texto =
-                            `Oi${c?.donoNome ? `, ${c.donoNome.split(" ")[0]}` : ""}! Aqui é o ${assinatura || "pessoal"}, da Ruphus.\n\n` +
+                            `Oi${c?.donoNome ? `, ${c.donoNome.split(" ")[0]}` : ""}! Aqui é ${assinatura || "o pessoal"}, da Ruphus.\n\n` +
                             `Montei a proposta do ${aberto.nome} numa página só, dá para ler no celular em um minuto: ${proposta.url}\n\n` +
                             `Qualquer dúvida me chama por aqui.`;
                           const zap = numero ? linkWhatsApp(numero, texto) : null;
