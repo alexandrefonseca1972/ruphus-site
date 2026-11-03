@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Histórico do negócio no /admin: notas, mudanças de estágio e mensagens mostram "por Ruphus" em vez do e-mail da conta de admin, que aparecia embaixo do destinatário e parecia ser ele.
+
 ## 0.16.0 — 02/11/2026 — SMS completo, atendys mais robusto e agendamento mais leve
 
 - QR do WhatsApp volta a aparecer (no /admin e no painel do dono): a imagem vinha com o prefixo `data:` e era prefixada de novo. Abas da gaveta do negócio com ícone em cima do nome. O termo de risco do WhatsApp fica só para o dono, no painel dele; a gaveta do admin mostra se foi aceito.

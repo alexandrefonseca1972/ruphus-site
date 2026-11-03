@@ -247,14 +247,18 @@ export async function linhaDoTempo(db: Firestore, slug: string): Promise<Evento[
   // o admin da plataforma é dono dos sites importados: a entrada dele não é do cliente
   const daPlataforma = new Set((admins.get("uids") as string[] | undefined) ?? []);
   const brl = (c: number) => (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  // notas, estágio e mensagens só nascem no /admin: quem fez é a Ruphus. O gravado é o e-mail
+  // da conta (admin@…, um login, não uma caixa), e solto embaixo de "para a recepção" lia
+  // como destinatário
+  const PELA_RUPHUS = "por Ruphus";
   const lista: Evento[] = [
-    ...notas.docs.map((d) => ({ id: d.id, tipo: "nota" as const, titulo: "Nota", detalhe: String(d.get("texto") ?? ""), autor: String(d.get("autor") ?? ""), quando: iso(d.get("quando")) ?? "" })),
+    ...notas.docs.map((d) => ({ id: d.id, tipo: "nota" as const, titulo: "Nota", detalhe: String(d.get("texto") ?? ""), autor: PELA_RUPHUS, quando: iso(d.get("quando")) ?? "" })),
     ...eventos.docs.map((d) => ({
       id: d.id,
       tipo: d.get("tipo") as Evento["tipo"],
       titulo: String(d.get("titulo") ?? ""),
       detalhe: (d.get("detalhe") as string | null) ?? null,
-      autor: String(d.get("autor") ?? ""),
+      autor: PELA_RUPHUS,
       quando: iso(d.get("quando")) ?? "",
     })),
     ...membros.docs.flatMap((d) => {
