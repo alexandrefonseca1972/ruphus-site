@@ -123,24 +123,23 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, temIA, o
   }
 
   function aplicarPropostas() {
-    setRascunho((p) => {
-      const n: Personal = { ...p, cores: { ...p.cores }, textos: { ...p.textos } };
-      for (const { chave, valor, marcada } of propostas) {
-        if (!marcada) continue;
-        if (chave === "fonte") n.fonte = valor;
-        else if (chave.startsWith("cores.")) n.cores![chave.slice(6) as "ink" | "acc"] = valor;
-        else n.textos![chave.slice(7) as "frase" | "sobre" | "galeria"] = valor;
-      }
-      return n;
-    });
+    // monta o rascunho novo fora do setState: a prévia abre com ele, não com o anterior
+    const n: Personal = { ...rascunho, cores: { ...rascunho.cores }, textos: { ...rascunho.textos } };
+    for (const { chave, valor, marcada } of propostas) {
+      if (!marcada) continue;
+      if (chave === "fonte") n.fonte = valor;
+      else if (chave.startsWith("cores.")) n.cores![chave.slice(6) as "ink" | "acc"] = valor;
+      else n.textos![chave.slice(7) as "frase" | "sobre" | "galeria"] = valor;
+    }
+    setRascunho(n);
     setPropostas([]);
-    visualizar();
+    visualizar(n);
   }
 
-  async function visualizar() {
+  async function visualizar(r0: Personal = rascunho) {
     setBusy(true);
     setAviso(null);
-    const r = await previewVisual(await token(), slug, rascunho).catch(() => null);
+    const r = await previewVisual(await token(), slug, r0).catch(() => null);
     setBusy(false);
     if (!r?.ok) return falha(r);
     setPrevia(r.dados);
@@ -336,7 +335,7 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, temIA, o
         <p role={aviso.ok ? "status" : "alert"} className={`text-sm ${aviso.ok ? "text-[#2C6A53]" : "text-[#8A2F2F]"}`}>{aviso.texto}</p>
       )}
       <div className="flex flex-wrap justify-end gap-2">
-        <button type="button" className={BOTAO_CLARO} disabled={busy || enviando !== null} onClick={visualizar}>{busy ? "Abrindo…" : "Pré-visualizar"}</button>
+        <button type="button" className={BOTAO_CLARO} disabled={busy || enviando !== null} onClick={() => visualizar()}>{busy ? "Abrindo…" : "Pré-visualizar"}</button>
         <button type="button" className={BOTAO_ESCURO} disabled={busy || enviando !== null || !mudou} onClick={publicar}>{busy ? "Publicando…" : "Publicar visual"}</button>
       </div>
     </section>
