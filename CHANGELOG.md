@@ -5,6 +5,10 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+## 0.16.0 — 02/11/2026 — SMS completo, atendys mais robusto e agendamento mais leve
+
+- QR do WhatsApp volta a aparecer (no /admin e no painel do dono): a imagem vinha com o prefixo `data:` e era prefixada de novo. Abas da gaveta do negócio com ícone em cima do nome. O termo de risco do WhatsApp fica só para o dono, no painel dele; a gaveta do admin mostra se foi aceito.
+
 - Gaveta do negócio no /admin: a barra de ações (WhatsApp, Anotar) encosta na borda de baixo, sem o conteúdo aparecendo por baixo dela; as 7 abas cabem na gaveta no computador, e no celular um esmaecido na borda avisa que há mais abas, com a aba tocada rolando para a vista.
 
 - WhatsApp (atendys) mais robusto: reconectar não troca mais o segredo dos webhooks (antes, uma falha na gravação deixava o negócio sem receber mensagens nem CONFIRMADO); lembrete do WhatsApp que falha aparece na gaveta do negócio e vira e-mail para o admin; a integração ganhou testes. Restos do nome antigo (wtsfy) trocados por atendys.

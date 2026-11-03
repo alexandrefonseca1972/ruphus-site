@@ -1607,7 +1607,7 @@ export default function AdminPage() {
             </div>
 
             {/* A gaveta tem o que o vendedor usa todo dia em "Venda"; o resto fica a um toque.
-                Só texto e dividindo a largura: com ícone, as cinco abas passavam da gaveta e
+                Ícone em cima do nome, não ao lado: ao lado, as abas passavam da gaveta e
                 "Cobrança" ficava cortada */}
             <div
               role="tablist"
@@ -1618,15 +1618,15 @@ export default function AdminPage() {
             >
               {(
                 [
-                  ["venda", "Venda"],
-                  ["ficha", "Ficha"],
-                  ["historico", `Histórico${historia ? ` · ${historia.length}` : ""}`],
-                  ["cliente", "Cliente"],
-                  ["site", "Site"],
-                  ["whatsapp", "WhatsApp"],
-                  ["cobranca", "Cobrança"],
+                  ["venda", "Venda", <path key="v" d="M3 17l6-6 4 4 8-8M15 7h6v6" />],
+                  ["ficha", "Ficha", <><rect key="r" x="5" y="3" width="14" height="18" rx="2" /><path key="p" d="M9 8h6M9 12h6M9 16h3" /></>],
+                  ["historico", "Histórico", <><circle key="c" cx="12" cy="12" r="8.5" /><path key="p" d="M12 7.5V12l3 2" /></>],
+                  ["cliente", "Cliente", <><circle key="c" cx="12" cy="8" r="3.5" /><path key="p" d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" /></>],
+                  ["site", "Site", <><circle key="c" cx="12" cy="12" r="8.5" /><path key="p" d="M3.5 12h17M12 3.5c2.6 3 2.6 14 0 17M12 3.5c-2.6 3-2.6 14 0 17" /></>],
+                  ["whatsapp", "WhatsApp", <path key="w" d="M20.5 11.5a8.5 8.5 0 0 1-12.4 7.6L3.5 20.5l1.4-4.4A8.5 8.5 0 1 1 20.5 11.5z" />],
+                  ["cobranca", "Cobrança", <><rect key="r" x="3" y="6" width="18" height="12" rx="2" /><path key="p" d="M3 10h18M7 15h3" /></>],
                 ] as const
-              ).map(([id, rotulo]) => (
+              ).map(([id, rotulo, icone]) => (
                 <button
                   key={id}
                   type="button"
@@ -1638,10 +1638,19 @@ export default function AdminPage() {
                     setAba(id);
                     e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
                   }}
-                  // 12px e px-1: as 7 abas cabem nos 456px úteis da gaveta (com 13px, "Cobrança" saía cortada)
-                  className={`flex h-12 flex-1 items-center justify-center px-1.5 text-[12px] whitespace-nowrap sm:px-1 ${aba === id ? "font-semibold text-[#17150F] shadow-[inset_0_-2px_0_#17150F]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
+                  // ícone em cima e nome embaixo: cada aba vira uma coluna (lado a lado, "Histórico · 2
+                  // Cliente" se confundia) e as 7 cabem nos 456px úteis da gaveta
+                  className={`relative flex h-14 flex-auto flex-col items-center justify-center gap-1 px-2.5 text-[11px] sm:px-1 whitespace-nowrap ${aba === id ? "font-semibold text-[#17150F] shadow-[inset_0_-2px_0_#17150F]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
                 >
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth={aba === id ? 2.1 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    {icone}
+                  </svg>
                   {rotulo}
+                  {id === "historico" && !!historia?.length && (
+                    <span className="absolute top-1.5 left-[calc(50%+6px)] rounded-full bg-[#EFEBE2] px-1.5 text-[10px] leading-4 font-semibold text-[#4A4639] tabular-nums" aria-label={`${historia.length} registros`}>
+                      {historia.length}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>

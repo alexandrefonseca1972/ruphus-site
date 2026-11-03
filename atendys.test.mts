@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
-import { assinaturaValida, criarInstancia, enviarTexto, garantirTenant } from "@/lib/atendys";
+import { assinaturaValida, criarInstancia, enviarTexto, garantirTenant, imagemDoQr } from "@/lib/atendys";
 import { conectarNegocio, gravarConexao, lerConfigWhatsApp, lerComando } from "@/lib/whatsapp.server";
 
 // ── assinatura do webhook ──
@@ -21,6 +21,11 @@ assert.deepEqual(lerComando("Confirmado, obrigado!"), { verbo: "CONFIRMADO", rec
 assert.equal(lerComando("cancelar"), null, "cancelar é opt-out do gateway, não comando");
 assert.equal(lerComando("confirmadoo"), null);
 assert.equal(lerComando("oi, tudo bem?"), null);
+
+// ── QR: a Evolution manda com o prefixo data:, só o base64 ou o texto do pareamento ──
+assert.equal(await imagemDoQr("data:image/png;base64,iVBORw0KGgo="), "data:image/png;base64,iVBORw0KGgo=", "não prefixa de novo");
+assert.equal(await imagemDoQr("iVBORw0KGgoAAAANSUhEUg=="), "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==");
+assert.match(await imagemDoQr("2@AbCdEf,GhIjKl,MnOp=="), /^data:image\/png;base64,iVBOR/, "texto do pareamento vira PNG");
 
 // ── cliente HTTP: fetch simulado, uma resposta por rota ──
 process.env.ATENDYS_ADMIN_KEY = "chave-admin";

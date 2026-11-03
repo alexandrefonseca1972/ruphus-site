@@ -93,7 +93,7 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
       if (!r || falhou(r)) return;
       setCfg(r);
       const q = await qrWhatsAppDonoAction(t, { tenantId: slug }).catch(() => null);
-      setQr(q && !falhou(q) && q.status === "qr" ? q.base64 : null);
+      setQr(q && !falhou(q) && q.status === "qr" ? q.imagem : null);
     }, 4000);
     return () => clearInterval(id);
   }, [slug, cfg?.instanceId, conectado, adminGerencia]);
@@ -115,7 +115,7 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     if (!r || falhou(r)) return setAviso({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
     setCfg({ ...r });
     const q = await qrWhatsAppDonoAction(await idToken(), { tenantId: slug }).catch(() => null);
-    setQr(q && !falhou(q) && q.status === "qr" ? q.base64 : null);
+    setQr(q && !falhou(q) && q.status === "qr" ? q.imagem : null);
   }
 
   async function desconectar() {
@@ -213,8 +213,8 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
               : "Abra o WhatsApp do número, toque em Aparelhos conectados e leia o QR:"}
           </p>
           {qr && !conectado && (
-            // eslint-disable-next-line @next/next/no-img-element -- PNG em base64 vindo do gateway
-            <img src={`data:image/png;base64,${qr}`} alt="QR para conectar o WhatsApp do negócio" className="justify-self-start rounded-lg border bg-white p-2" />
+            // eslint-disable-next-line @next/next/no-img-element -- QR em data URL vindo do gateway
+            <img src={qr} alt="QR para conectar o WhatsApp do negócio" className="justify-self-start rounded-lg border bg-white p-2" />
           )}
           <div className="flex gap-2">
             <Button type="button" variant="outline" disabled={busy} onClick={desconectar} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">

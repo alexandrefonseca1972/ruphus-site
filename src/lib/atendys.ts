@@ -1,5 +1,6 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import QRCode from "qrcode";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { integracao } from "@/lib/integracoes.server";
 
@@ -24,7 +25,8 @@ const TIMEOUT_MS = 35_000;
 /** Vocabularão do atendys: pending_qr vira "qr" no painel (QR aguardando leitura). */
 export type StatusConexao = "connected" | "disconnected" | "qr";
 
-export type SituacaoQr = { status: "qr"; base64: string } | { status: "connecting" } | { status: "connected"; phone: string };
+/** imagem: pronta para o src de um <img> (data URL). */
+export type SituacaoQr = { status: "qr"; imagem: string } | { status: "connecting" } | { status: "connected"; phone: string };
 
 export type Envio = { messageId: string; status: string };
 
@@ -148,7 +150,7 @@ export async function qrDaConexao(conn: ConexaoAtendys): Promise<SituacaoQr> {
   const r = await chamar<{ base64: string }>(
     authTenant(conn), "GET", `/v1/instance/${encodeURIComponent(conn.instanceId)}/qr`,
   );
-  if (r.base64) return { status: "qr", base64: r.base64 };
+  if (r.base64) return { status: "qr", imagem: await imagemDoQr(r.base64) };
   // sem QR novo: a instância pode estar conectando ou já conectada — o status vem do polling
   return { status: "connecting" };
 }
@@ -192,4 +194,13 @@ export function assinaturaValida(segredo: string, bruto: string, assinatura: str
   const recebida = Buffer.from(assinatura, "utf8");
   const calculada = Buffer.from(createHmac("sha256", segredo).update(bruto, "utf8").digest("hex"), "utf8");
   return recebida.length === calculada.length && timingSafeEqual(recebida, calculada);
+}
+
+/** O QR como o atendys devolve (repassado da Evolution) vira um src de imagem. Vem em três formas:
+ *  já com "data:image/png;base64," (o comum — prefixar de novo quebrava a imagem), só o base64
+ *  do PNG, ou o texto do pareamento ("2@…", quando a Evolution não manda imagem), que vira QR aqui. */
+export async function imagemDoQr(valor: string) {
+  if (valor.startsWith("data:")) return valor;
+  if (/^[A-Za-z0-9+/]+={0,2}$/.test(valor) && valor.startsWith("iVBOR")) return `data:image/png;base64,${valor}`;
+  return QRCode.toDataURL(valor, { margin: 1, width: 264 });
 }
