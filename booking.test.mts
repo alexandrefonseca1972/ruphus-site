@@ -685,8 +685,17 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
 
   // envio que falha devolve a reserva
   await horario("sms-casa", "a2");
-  assert.equal(await avisarConfirmacaoPorSms(db, "sms-casa", "a2", { enviar: falha }), "falhou");
+  const alertas: string[] = [];
+  const alertar = async (assunto: string, texto: string) => void alertas.push(`${assunto}: ${texto}`);
+  assert.equal(await avisarConfirmacaoPorSms(db, "sms-casa", "a2", { enviar: falha, alertar }), "falhou");
   assert.equal((await db.doc("tenants/sms-casa/appointments/a2").get()).get("smsConfirmacaoEm"), undefined, "reserva devolvida");
+  assert.equal(alertas.length, 1, "a falha vira aviso para o admin");
+  assert.match(alertas[0], /tenants\/sms-casa\/appointments\/a2/);
+  // erro antes do envio (banco fora, por exemplo) também não sobe para quem confirmou
+  const quebrado = { doc: () => { throw new Error("banco fora"); } } as unknown as typeof db;
+  assert.equal(await avisarConfirmacaoPorSms(quebrado, "sms-casa", "a2", { enviar, alertar }), "falhou");
+  assert.equal(await enviarLembretesPorSms(quebrado, { enviar, alertar }), 0);
+  assert.equal(alertas.length, 3);
 
   // lembrete: só dentro das 2 h antes, uma vez, e nunca no silêncio da noite
   enviados.length = 0;

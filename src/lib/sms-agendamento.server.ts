@@ -1,5 +1,6 @@
 import "server-only";
 import { FieldValue, type DocumentReference, type Firestore, type Timestamp } from "firebase-admin/firestore";
+import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { quando } from "@/lib/avisos.server";
 import { numeroSms } from "@/lib/comtele";
 import { enviarSms, smsDisponivel } from "@/lib/comtele.server";
@@ -9,11 +10,15 @@ import { agoraNaParede, dateIn, formatPhone, formatTime, fusoDaUF, todayIn } fro
 // antes dele. Só nos negócios com `sms.ligado` (a chave fica na gaveta do /admin): cada SMS gasta
 // crédito da Ruphus. Cada agendamento é reservado numa transação antes do envio (smsConfirmacaoEm,
 // smsLembreteEm), para duas execuções não mandarem o mesmo SMS; envio que falha devolve a reserva.
+// Falha nunca chega ao cliente nem a quem confirmou: vira e-mail para o admin (alertarAdmin).
 
 const LEMBRETE_MS = 2 * 3_600_000;
 const SILENCIO = { inicioMin: 22 * 60, fimMin: 7 * 60 + 30 }; // 22:00 → 07:30, como o lembrete do WhatsApp
 
 type Enviar = (numero: string, texto: string) => Promise<string | null>;
+type Alertar = (assunto: string, texto: string) => Promise<unknown>;
+const alertaPadrao = (db: Firestore): Alertar => (assunto, texto) => alertarAdmin(db, "sms", assunto, texto);
+const mensagem = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 const inicioDe = (v: unknown): Date => (v instanceof Date ? v : (v as Timestamp).toDate());
 const telefoneDoNegocio = (t: FirebaseFirestore.DocumentSnapshot) => {
@@ -36,7 +41,7 @@ async function reservar(db: Firestore, ref: DocumentReference, campo: "smsConfir
   });
 }
 
-async function enviarReservado(ref: DocumentReference, campo: "smsConfirmacaoEm" | "smsLembreteEm", numero: string, texto: string, enviar: Enviar) {
+async function enviarReservado(ref: DocumentReference, campo: "smsConfirmacaoEm" | "smsLembreteEm", numero: string, texto: string, enviar: Enviar, alertar: Alertar) {
   try {
     const id = await enviar(numero, texto);
     if (id) await ref.update({ [`${campo.replace("Em", "Id")}`]: id }).catch(() => {});
@@ -44,14 +49,32 @@ async function enviarReservado(ref: DocumentReference, campo: "smsConfirmacaoEm"
   } catch (e) {
     // devolve a reserva: a confirmação não tenta de novo sozinha, o lembrete tenta no próximo ciclo
     await ref.update({ [campo]: FieldValue.delete() }).catch(() => {});
-    console.error(`[sms] ${ref.path} ${campo}`, e instanceof Error ? e.message : e);
+    console.error(`[sms] ${ref.path} ${campo}`, mensagem(e));
+    const tipo = campo === "smsConfirmacaoEm" ? "confirmação" : "lembrete";
+    await alertar(
+      "SMS não foi enviado",
+      `O SMS de ${tipo} não saiu.\n\nAgendamento: ${ref.path}\nErro: ${mensagem(e)}\n\n` +
+        `Sem crédito ou chave recusada: confira em /admin → Ajustes → SMS (Testar envio) e o saldo na Comtele. ` +
+        (tipo === "lembrete" ? "O lembrete tenta de novo no próximo ciclo do cron." : "A confirmação não é reenviada sozinha."),
+    );
     return false;
   }
 }
 
 /** Depois que a casa confirma (painel ou CONFIRMADO no WhatsApp): o cliente recebe o SMS de confirmação.
  *  Devolve o que aconteceu, para log e teste. */
-export async function avisarConfirmacaoPorSms(db: Firestore, slug: string, appointmentId: string, { enviar = enviarSms as Enviar, agora = new Date() } = {}) {
+export async function avisarConfirmacaoPorSms(db: Firestore, slug: string, appointmentId: string, opcoes: { enviar?: Enviar; agora?: Date; alertar?: Alertar } = {}) {
+  const alertar = opcoes.alertar ?? alertaPadrao(db);
+  try {
+    return await confirmacao(db, slug, appointmentId, { enviar: opcoes.enviar ?? (enviarSms as Enviar), agora: opcoes.agora ?? new Date(), alertar });
+  } catch (e) {
+    console.error(`[sms] confirmação ${slug}/${appointmentId}`, mensagem(e));
+    await alertar("Falha no SMS de confirmação", `Erro antes do envio, em tenants/${slug}/appointments/${appointmentId}.\n\nErro: ${mensagem(e)}`);
+    return "falhou";
+  }
+}
+
+async function confirmacao(db: Firestore, slug: string, appointmentId: string, { enviar, agora, alertar }: { enviar: Enviar; agora: Date; alertar: Alertar }) {
   if (enviar === enviarSms && !(await smsDisponivel())) return "sem chave";
   const t = await db.doc(`tenants/${slug}`).get();
   if (t.get("sms.ligado") !== true) return "desligado";
@@ -70,12 +93,23 @@ export async function avisarConfirmacaoPorSms(db: Firestore, slug: string, appoi
     servico: String(a.get("serviceName") ?? ""),
     telefone: telefoneDoNegocio(t),
   });
-  return (await enviarReservado(ref, "smsConfirmacaoEm", numero, texto, enviar)) ? "enviado" : "falhou";
+  return (await enviarReservado(ref, "smsConfirmacaoEm", numero, texto, enviar, alertar)) ? "enviado" : "falhou";
 }
 
 /** Lembrete por SMS 2 h antes, para os horários confirmados dos negócios com SMS ligado. Roda no cron
  *  dos lembretes (a cada 10 min). Devolve quantos saíram. */
-export async function enviarLembretesPorSms(db: Firestore, { enviar = enviarSms as Enviar, agora = new Date() } = {}) {
+export async function enviarLembretesPorSms(db: Firestore, opcoes: { enviar?: Enviar; agora?: Date; alertar?: Alertar } = {}) {
+  const alertar = opcoes.alertar ?? alertaPadrao(db);
+  try {
+    return await lembretes(db, { enviar: opcoes.enviar ?? (enviarSms as Enviar), agora: opcoes.agora ?? new Date(), alertar });
+  } catch (e) {
+    console.error("[sms] lembretes", mensagem(e));
+    await alertar("Falha nos lembretes por SMS", `O ciclo de lembretes por SMS parou no meio.\n\nErro: ${mensagem(e)}`);
+    return 0;
+  }
+}
+
+async function lembretes(db: Firestore, { enviar, agora, alertar }: { enviar: Enviar; agora: Date; alertar: Alertar }) {
   if (enviar === enviarSms && !(await smsDisponivel())) return 0;
   const tenants = await db.collection("tenants").where("sms.ligado", "==", true).get();
   let enviados = 0;
@@ -103,7 +137,7 @@ export async function enviarLembretesPorSms(db: Firestore, { enviar = enviarSms 
         servico: String(a.get("serviceName") ?? ""),
         telefone: telefoneDoNegocio(t),
       });
-      if (await enviarReservado(a.ref, "smsLembreteEm", numero, texto, enviar)) enviados++;
+      if (await enviarReservado(a.ref, "smsLembreteEm", numero, texto, enviar, alertar)) enviados++;
     }
   }
   return enviados;
