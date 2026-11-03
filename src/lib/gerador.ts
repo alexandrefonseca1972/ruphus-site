@@ -313,11 +313,11 @@ const RAMOS: [RegExp, Sub][] = [
   [/danca|ballet|\bbale|zumba|forro|dance/, "danca"],
   [/pilates|yoga|ioga/, "pilates"],
   [/academia|crossfit|cross ?training|musculacao|treino funcional|personal|fitness|\bgym\b/, "academia"],
-  [/estetic|sobrancel|cilio|lash|micropigment|depila|\bspa|pele|massag|massoterap|bronze|dermat|biomedic|maquiag|make/, "estetica"],
+  [/estetic|sobrancel|cilio|lash|micropigment|depila|\bspa|pele|massag|massoterap|bronze|dermat|biomedic|maquiag|make|harmoniza/, "estetica"],
   [/idioma|ingles|espanhol|frances|english|language/, "idiomas"],
   [/musica|violao|piano|canto|guitarra|bateria|teclado/, "musica"],
   [/reforco|aulas? particular|explicador|pre-?vestibular|preparatorio|cursinho|apoio escolar/, "reforco"],
-  [/salao|cabel|hair|beleza|beauty|cachos|escova|tranca|penteado|studio/, "salao"],
+  [/salao|cabel|hair|beleza|beauty|cachos|escova|tranca|penteado|studio|selagem|progressiva|alisamento/, "salao"],
   [/clinica|consultorio|medic|pediatr|cardiolog|ginecolog|posto de saude|check-?up/, "clinica"],
 ];
 
