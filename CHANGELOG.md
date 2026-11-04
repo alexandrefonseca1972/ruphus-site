@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- WhatsApp (atendys): nenhum envio saía — o atendys exige o cabeçalho `instance` no envio e `evidence` no opt-in, e o cliente não mandava nenhum dos dois (400 em todo aviso, recibo, lembrete e resposta). Corrigido; o teste `npm run test:atendys` agora simula o contrato real e cobre o webhook. Também: o webhook aceita `message.status` com 200 (antes 400, e o atendys repetia 5 vezes cada um) e a entrega repetida da mesma mensagem recebida deixa de dar erro 500.
+
 - Pet shop: a foto do topo do primeiro modelo era de um balcão no exterior; agora é uma tutora brasileira com o cão (`br-tutora-pit`). Vale para todo site de pet shop que usa esse modelo.
 
 - Clientes de exemplo dos modelos claros: `npm run exemplos:nichos -- --aplicar` cria (ou atualiza) um site por ramo de pet, saúde e cursos (`exemplo-petshop`, `exemplo-vet`, `exemplo-odonto`, `exemplo-fisio`, `exemplo-psico`, `exemplo-nutri`, `exemplo-clinica`, `exemplo-cursos`), em Macapá, com telefones de teste e fora do funil, como a demonstração.

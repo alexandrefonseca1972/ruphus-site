@@ -220,7 +220,8 @@ export async function registrarMensagemRecebida(
     });
     return true;
   } catch (e) {
-    if ((e as { code?: string }).code === "already-exists") return false;
+    // 6 = ALREADY_EXISTS do Admin SDK (gRPC): a entrega repetida do mesmo messageId
+    if ((e as { code?: number }).code === 6) return false;
     throw e;
   }
 }
