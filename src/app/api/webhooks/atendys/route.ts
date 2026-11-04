@@ -2,7 +2,7 @@ import { after, NextResponse } from "next/server";
 import { assinaturaValida } from "@/lib/atendys";
 import { adminDb } from "@/lib/admin";
 import { DEMO } from "@/lib/demo";
-import { espelharStatusDaInstancia, lerConexao, processarComandoAgendamento, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
+import { avisarQueda, espelharStatusDaInstancia, lerConexao, processarComandoAgendamento, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
 
 // Onde o atendys avisa o que acontece nas instâncias: mensagem recebida do
 // cliente final, mudança de estado da conexão e status de envio. Cada webhook é
@@ -88,7 +88,9 @@ export async function POST(req: Request) {
       );
     }
   } else if (evento.event === "instance.status") {
-    await espelharStatusDaInstancia(adminDb, slug, { status: evento.status, at: evento.at });
+    const { caiu } = await espelharStatusDaInstancia(adminDb, slug, { status: evento.status, at: evento.at });
+    // o push vai depois do 200: serviço de push lento fazia o atendys esgotar o tempo e reentregar
+    if (caiu) after(() => avisarQueda(adminDb, slug));
   }
   return responder(200, { ok: true });
 }

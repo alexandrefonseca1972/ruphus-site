@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { idToken } from "@/lib/firebase";
 import { TERMO_WHATSAPP } from "@/lib/whatsapp-termo";
+import { useTenantSeHouver } from "./painel-layout";
 import {
   aceitarTermoWhatsAppAction,
   configurarLembretesWhatsAppAction,
@@ -31,6 +32,7 @@ type Config = {
   termsAcceptedAt?: number | null;
   remindersEnabled?: boolean;
   remindersBeforeHours?: number | null;
+  conectadoEm?: number;
   // último aviso que não saiu (gateway fora, desconectado…); some quando um aviso sai
   lastNotifyError?: { message: string; at: number } | null;
 };
@@ -74,6 +76,17 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
   const conectado = cfg?.status === "connected";
   // a plataforma assumiu a gestão: painel do dono é só leitura
   const adminGerencia = cfg?.ownerManaged === false;
+
+  // o painel guarda o negócio lido uma vez: o que esta tela descobre (reconectou, caiu) vale
+  // na faixa "Seu WhatsApp desconectou" das outras páginas sem recarregar
+  const tenant = useTenantSeHouver();
+  useEffect(() => {
+    if (!tenant?.atualizar || cfg === undefined) return;
+    const novo = { status: cfg?.status, instanceId: cfg?.instanceId, ownerManaged: cfg?.ownerManaged, conectadoEm: cfg?.conectadoEm };
+    const atual = tenant.whatsapp ?? {};
+    if ((Object.keys(novo) as (keyof typeof novo)[]).every((k) => novo[k] === atual[k])) return;
+    tenant.atualizar({ whatsapp: novo });
+  }, [cfg, tenant]);
 
   useEffect(() => {
     let atual = true;

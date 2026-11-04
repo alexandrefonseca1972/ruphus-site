@@ -12,7 +12,7 @@ import { deslogarInstancia, enviarTexto, qrDaConexao, statusDaConexao } from "@/
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { soDigitosComDDI } from "@/lib/telefone";
-import { aceitarTermoWhatsApp, conectarNegocio, desligarConexao, lerConfigWhatsApp, lerConexao, gravarConexao, paraTela } from "@/lib/whatsapp.server";
+import { aceitarTermoWhatsApp, conectarNegocio, desligarConexao, espelharStatusVivo, lerConfigWhatsApp, lerConexao, paraTela } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { criarConvite, revogarConvitesDaEquipe, tirarAcessosDoProfissional } from "@/lib/convite";
@@ -276,9 +276,8 @@ export const refreshWhatsAppStatusDonoAction = memberAction(SoTenant, async ({ t
   const salva = await lerConexao(adminDb, tenantId);
   if (!salva) return null;
   const vivo = await statusDaConexao(salva);
-  const conexao = { ...salva, phone: vivo.phone ?? salva.phone, status: vivo.status, updatedAt: Date.now() };
-  await gravarConexao(adminDb, tenantId, conexao);
-  return paraTela(conexao);
+  await espelharStatusVivo(adminDb, tenantId, vivo);
+  return paraTela(await lerConfigWhatsApp(adminDb, tenantId));
 });
 
 export const qrWhatsAppDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
@@ -295,8 +294,10 @@ export const desconectarWhatsAppDonoAction = memberAction(SoTenant, async ({ ten
   const config = await lerConfigWhatsApp(adminDb, tenantId);
   if (config?.ownerManaged === false) throw new UserError("Gerenciado pela plataforma — quem desconecta é o suporte.");
   const salva = await lerConexao(adminDb, tenantId);
-  if (salva) await deslogarInstancia(salva.instanceId).catch(() => {});
+  // solta o vínculo ANTES de despareiar: o "disconnected" que o atendys manda no logout chega
+  // sem negócio para achar, e o dono não recebe "seu WhatsApp desconectou" pelo que ele pediu
   await desligarConexao(adminDb, tenantId);
+  if (salva) await deslogarInstancia(salva.instanceId).catch(() => {});
   return "desconectado";
 });
 

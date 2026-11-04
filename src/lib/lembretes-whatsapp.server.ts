@@ -3,9 +3,9 @@ import { emParalelo } from "@/lib/paralelo";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
 import { agoraNaParede, dateIn, formatTime, fusoDaUF, todayIn, zonedTime } from "@/lib/datetime";
-import { enviarTexto, statusDaConexao } from "@/lib/atendys";
+import { enviarTexto, motivoLegivel, ROTULO_STATUS, statusDaConexao } from "@/lib/atendys";
 import { alertarAdmin } from "@/lib/alerta-admin.server";
-import { lerConexao, registrarErroNotificacao, soDigitosComDDI } from "@/lib/whatsapp.server";
+import { espelharStatusVivo, lerConexao, registrarErroNotificacao, soDigitosComDDI } from "@/lib/whatsapp.server";
 
 // Lembretes automáticos de horário: X horas antes de cada agendamento confirmado,
 // o cliente recebe um lembrete pelo WhatsApp do salão. O dono liga/desliga e
@@ -51,7 +51,9 @@ export async function enviarLembretesDoDia(): Promise<number> {
     const antesMs = Math.min(24, Math.max(1, Number(w.remindersBeforeHours) || 2)) * 60 * 60_000;
     const vivo = await statusDaConexao(w).catch(() => null);
     if (!vivo || vivo.status !== "connected") {
-      const motivo = vivo ? `o WhatsApp do negócio está "${vivo.status}"` : "o atendys não respondeu";
+      // webhook perdido: o status ao vivo também vira faixa no painel e aviso ao dono
+      if (vivo) await espelharStatusVivo(adminDb, t.id, vivo).catch((e) => console.error(`[whatsapp] espelhar status ${t.id}`, e));
+      const motivo = vivo ? `o WhatsApp do negócio está ${ROTULO_STATUS[vivo.status] ?? vivo.status}` : "o serviço de WhatsApp não respondeu";
       await falhou(t.id, `Lembretes ligados, mas ${motivo}: nenhum lembrete sai até reconectar.`);
       return;
     }
@@ -94,7 +96,7 @@ export async function enviarLembretesDoDia(): Promise<number> {
         // devolve a reserva: o próximo ciclo tenta de novo
         await a.ref.update({ whatsappReminderSentAt: FieldValue.delete() }).catch(() => {});
         console.error(`[whatsapp] lembrete ${t.id}/${a.id}`, e);
-        await falhou(t.id, `O lembrete de ${nome || "um cliente"} (${a.get("serviceName")}, ${dia} às ${formatTime(start)}) não saiu: ${e instanceof Error ? e.message : String(e)}. Tenta de novo no próximo ciclo.`);
+        await falhou(t.id, `O lembrete de ${nome || "um cliente"} (${a.get("serviceName")}, ${dia} às ${formatTime(start)}) não saiu: ${motivoLegivel(e)}. Tenta de novo no próximo ciclo.`);
       }
     }
   });

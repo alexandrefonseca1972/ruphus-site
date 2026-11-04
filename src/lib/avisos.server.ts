@@ -62,15 +62,18 @@ export function quando(date: string, hora: string, hoje = todayIn()) {
 
 /** Manda o aviso a cada aparelho inscrito de quem ainda é membro do negócio (ou admin da plataforma).
  *  Inscrição vencida (404/410) ou de quem saiu da equipe é apagada. Devolve quantos receberam. */
-export async function avisar(db: Firestore, tenantId: string, aviso: { title: string; body: string; url: string; tag?: string }) {
+export async function avisar(db: Firestore, tenantId: string, aviso: { title: string; body: string; url: string; tag?: string }, opts: { soGestores?: boolean } = {}) {
   if (!configurar()) return 0;
   const t = db.collection("tenants").doc(tenantId);
-  const [inscritos, membros, admin] = await Promise.all([t.collection("avisos").get(), t.collection("members").select().get(), db.doc("config/admin").get()]);
+  const [inscritos, membros, admin] = await Promise.all([t.collection("avisos").get(), t.collection("members").select("role").get(), db.doc("config/admin").get()]);
   // admin da plataforma entra em qualquer negócio sem estar em members (como em requireMember)
   const ativos = new Set([...membros.docs.map((m) => m.id), ...((admin.get("uids") as string[] | undefined) ?? [])]);
+  // aviso de gestão (ex.: WhatsApp caiu): a equipe não tem o que fazer com ele
+  const gestores = new Set([...membros.docs.filter((m) => ["owner", "admin"].includes(m.get("role"))).map((m) => m.id), ...((admin.get("uids") as string[] | undefined) ?? [])]);
   let enviados = 0;
   await Promise.all(inscritos.docs.map(async (d) => {
     if (!ativos.has(String(d.get("uid")))) return d.ref.delete();
+    if (opts.soGestores && !gestores.has(String(d.get("uid")))) return;
     try {
       await webpush.sendNotification({ endpoint: d.get("endpoint"), keys: d.get("keys") }, JSON.stringify(aviso), { TTL: 6 * 3600, urgency: "high" });
       enviados++;

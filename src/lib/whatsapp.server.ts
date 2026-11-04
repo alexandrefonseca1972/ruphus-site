@@ -255,9 +255,14 @@ export async function espelharStatusDaInstancia(
   db: Firestore,
   slug: string,
   dados: { status?: unknown; phone?: unknown; reason?: unknown; at?: unknown },
-) {
+): Promise<{ caiu: boolean }> {
   const bruto = String(dados.status ?? "");
-  if (!bruto) return;
+  // só os três do contrato: um valor novo (connecting, reconnecting…) não pode virar
+  // "desconectado" e disparar faixa e aviso falsos
+  if (!["pending_qr", "connected", "disconnected"].includes(bruto)) {
+    if (bruto) console.warn(`[whatsapp] status desconhecido do atendys para ${slug}: ${bruto}`);
+    return { caiu: false };
+  }
   // "at" (ISO, dentro do corpo assinado) é a hora do evento no atendys: reentrega antiga ou
   // fora de ordem não desfaz um status mais novo (o "disconnected" de ontem reenviado hoje)
   const em = typeof dados.at === "string" ? Date.parse(dados.at) : NaN;
@@ -280,8 +285,9 @@ export async function espelharStatusDaInstancia(
           ...(reason ? { statusReason: reason } : {}),
           ...(typeof dados.phone === "string" && dados.phone ? { phone: dados.phone } : {}),
           ...(Number.isFinite(em) ? { statusAt: em } : {}),
-          // reconectou: a falha antiga ("desconectado, nenhum lembrete sai") não vale mais
-          ...(status === "connected" ? { lastNotifyError: FieldValue.delete() } : {}),
+          // reconectou: a falha antiga ("desconectado, nenhum lembrete sai") não vale mais;
+          // conectadoEm diz que já houve conexão (a faixa de "desconectou" só faz sentido aí)
+          ...(status === "connected" ? { lastNotifyError: FieldValue.delete(), conectadoEm: Date.now() } : {}),
           updatedAt: Date.now(),
         },
       },
@@ -289,16 +295,36 @@ export async function espelharStatusDaInstancia(
     );
     return String(doc.get("whatsapp.status") ?? "");
   });
-  // caiu (estava conectado e agora não): o dono fica sabendo na hora, no celular, em vez de
-  // descobrir dias depois que nenhum lembrete saiu. Falha no push não desfaz o espelho
-  if (antes === "connected" && status === "disconnected") {
-    await avisar(db, slug, {
+  // caiu = estava conectado e agora não: quem chama avisa (avisarQueda), fora da resposta
+  return { caiu: antes === "connected" && status === "disconnected" };
+}
+
+/** A conexão caiu: quem gere fica sabendo na hora, no celular, em vez de descobrir dias depois
+ *  que nenhum lembrete saiu. Gerenciado pela plataforma: o texto não manda reconectar.
+ *  Falha no push só vai para o log. */
+export async function avisarQueda(db: Firestore, slug: string) {
+  const plataforma = (await db.doc(`tenants/${slug}`).get()).get("whatsapp.ownerManaged") === false;
+  await avisar(
+    db,
+    slug,
+    {
       title: "Seu WhatsApp desconectou",
-      body: "Lembretes e avisos de agendamento pararam. Toque para reconectar.",
+      body: plataforma
+        ? "Lembretes e avisos de agendamento pararam. A Ruphus já foi avisada e vai reconectar."
+        : "Lembretes e avisos de agendamento pararam. Toque para reconectar.",
       url: `/${slug}/negocio#whatsapp`,
       tag: "whatsapp-desconectado",
-    }).catch((e) => console.error(`[whatsapp] aviso de queda de ${slug}`, e));
-  }
+    },
+    { soGestores: true },
+  ).catch((e) => console.error(`[whatsapp] aviso de queda de ${slug}`, e));
+}
+
+/** Estado lido ao vivo do atendys (polling, lembretes, agendamento) passa pelo mesmo espelho do
+ *  webhook: com o webhook perdido, a queda também vira status, faixa e aviso — e nunca grava a
+ *  conexão inteira de volta (isso ressuscitava a falha já limpa e voltava o statusAt). */
+export async function espelharStatusVivo(db: Firestore, slug: string, vivo: { status: string; phone: string | null }) {
+  const { caiu } = await espelharStatusDaInstancia(db, slug, { status: vivo.status === "qr" ? "pending_qr" : vivo.status, phone: vivo.phone });
+  if (caiu) await avisarQueda(db, slug);
 }
 
 /** Código curto do agendamento no aviso ao salão ("CONFIRMADO AB12"): é ele que diz a

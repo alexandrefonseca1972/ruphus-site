@@ -4,9 +4,9 @@ import { adminDb } from "@/lib/admin";
 import { book } from "@/lib/booking.server";
 import { MAX_DAYS_AHEAD, dentroDaJanela } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
-import { codigoDoAgendamento, lerConexao, registrarErroNotificacao } from "@/lib/whatsapp.server";
+import { codigoDoAgendamento, espelharStatusVivo, lerConexao, registrarErroNotificacao } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
-import { enviarTexto, OPTIN_DONO, statusDaConexao } from "@/lib/atendys";
+import { enviarTexto, motivoLegivel, OPTIN_DONO, ROTULO_STATUS, statusDaConexao } from "@/lib/atendys";
 
 // A reserva da página pública. Rota, não server action: o Next manda um server action
 // por vez, e com a rede travada a nova tentativa (e a agenda) ficava na fila atrás da
@@ -56,13 +56,14 @@ export async function POST(req: Request) {
         try {
           vivo = await statusDaConexao(conn);
         } catch (e) {
-          const motivo = e instanceof Error ? e.message : String(e);
-          await marcar(`Gateway WhatsApp sem resposta: ninguém foi avisado do agendamento de ${customerName.trim()}. Motivo: ${motivo}`);
+          await marcar(`O serviço de WhatsApp não respondeu: ninguém foi avisado do agendamento de ${customerName.trim()}. Motivo: ${motivoLegivel(e)}`);
           console.error("status do gateway para aviso de agendamento", e);
           return;
         }
         if (vivo.status !== "connected") {
-          await marcar(`WhatsApp do negócio está "${vivo.status}": ninguém foi avisado do agendamento de ${customerName.trim()}. Abra o painel e reconecte.`);
+          // webhook perdido: o status ao vivo também vira faixa no painel e aviso ao dono
+          await espelharStatusVivo(adminDb, tenantId, vivo).catch((e) => console.error("[whatsapp] espelhar status", e));
+          await marcar(`WhatsApp do negócio está ${ROTULO_STATUS[vivo.status] ?? vivo.status}: ninguém foi avisado do agendamento de ${customerName.trim()}. Abra o painel e reconecte.`);
           return;
         }
         const partes = [nova.serviceName, quando(nova.date, nova.time)];
@@ -90,7 +91,7 @@ export async function POST(req: Request) {
               OPTIN_DONO,
             );
           } catch (e) {
-            falhas.push(`aviso ao salão não chegou: ${e instanceof Error ? e.message : String(e)}`);
+            falhas.push(`aviso ao salão não chegou: ${motivoLegivel(e)}`);
             console.error("aviso de agendamento via WhatsApp", e);
           }
         } else {
@@ -110,7 +111,7 @@ export async function POST(req: Request) {
               { origem: "ruphus-agendamento-online", evidencia: `Número digitado por quem agendou no link de agendamento online de ${tenantId} (ruphus.site), para receber a confirmação do horário` },
             );
           } catch (e) {
-            falhas.push(`recibo ao cliente não chegou: ${e instanceof Error ? e.message : String(e)}`);
+            falhas.push(`recibo ao cliente não chegou: ${motivoLegivel(e)}`);
             console.error("recibo de agendamento via WhatsApp", e);
           }
         } else {
