@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Clientes de exemplo dos modelos claros: `npm run exemplos:nichos -- --aplicar` cria (ou atualiza) um site por ramo de pet, saúde e cursos (`exemplo-petshop`, `exemplo-vet`, `exemplo-odonto`, `exemplo-fisio`, `exemplo-psico`, `exemplo-nutri`, `exemplo-clinica`, `exemplo-cursos`), em Macapá, com telefones de teste e fora do funil, como a demonstração.
+
 - Modelos e seção Visual também para pet, saúde e aulas: na aba Site, o seletor de modelo (foto do topo + paleta, um por foto do ramo) e a seção Visual (fotos próprias, cores, fonte, textos e chat com IA) passam a valer no modelo claro. Tinta e destaque viram as cores principal e de realce do site; o Sobre próprio ganha uma seção; o topo, a galeria, a bio e a imagem do WhatsApp usam as fotos enviadas. Sites já no ar não mudam nada até o admin publicar.
 
 - Ramo novo em Aulas e cursos: **Cursos profissionalizantes** (informática, beleza, gastronomia, elétrica, costura…), com kit de fotos próprio, textos, FAQ e serviços padrão. "Escola de cabeleireiro" e "curso de manicure" caem nele, não no salão.

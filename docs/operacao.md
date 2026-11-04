@@ -239,6 +239,7 @@ Todo script que grava tem modo de simulação — rode sem `--aplicar` primeiro.
 ```bash
 npm run membros            # preenche e-mail e nome nos acessos antigos
 npm run gerar:sites -- planilha.xlsx   # gera sites da planilha (--aplicar grava)
+npm run exemplos:nichos -- --aplicar   # sites de exemplo de pet, saúde e cursos (exemplo-*), fora do funil
 npm run import:sites       # importa sites e cria os negócios
 npm run seed:agenda        # cria serviços e equipe a partir do site
 npm run vitrine            # atualiza a vitrine da landing
