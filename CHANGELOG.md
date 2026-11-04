@@ -5,6 +5,10 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Bio: o horário do dia e o "aberto agora" vêm da equipe toda (abre com o primeiro, fecha com o último). Antes valia só o primeiro profissional cadastrado, e a demo dizia "09h — 18h" com gente atendendo até 19h. Os "horários livres" da bio também passam a considerar qualquer profissional.
+
+- Link errado dentro do site do negócio (ex.: `negocio.ruphus.site/pagina-que-nao-existe`) abre a página "Página não encontrada" com caminho de volta para o início do site, no lugar do texto solto "Arquivo não encontrado".
+
 - Pet shop: a foto do topo do primeiro modelo era de um balcão no exterior; agora é uma tutora brasileira com o cão (`br-tutora-pit`). Vale para todo site de pet shop que usa esse modelo.
 
 - Clientes de exemplo dos modelos claros: `npm run exemplos:nichos -- --aplicar` cria (ou atualiza) um site por ramo de pet, saúde e cursos (`exemplo-petshop`, `exemplo-vet`, `exemplo-odonto`, `exemplo-fisio`, `exemplo-psico`, `exemplo-nutri`, `exemplo-clinica`, `exemplo-cursos`), em Macapá, com telefones de teste e fora do funil, como a demonstração.

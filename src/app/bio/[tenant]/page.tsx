@@ -3,8 +3,8 @@ import { type Dominio, urlDoSite } from "@/lib/dominio";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { adminDb } from "@/lib/admin";
-import { availableSlots, foraDoAr } from "@/lib/booking.server";
-import { addDays, formatBRL, linkWhatsApp, todayIn, weekday, WEEKDAYS, precoDe, type TipoPreco } from "@/lib/datetime";
+import { agendaDias, foraDoAr } from "@/lib/booking.server";
+import { addDays, formatBRL, fusoDaUF, linkWhatsApp, todayIn, weekday, WEEKDAYS, precoDe, type TipoPreco } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
@@ -26,7 +26,6 @@ type Bio = {
   foto: string | null;
   servicos: Servico[];
   expediente: Expediente[];
-  equipeId: string | null;
 };
 
 /** O que o minisite mostra: tudo já vem do tenant, nada de novo para cadastrar. */
@@ -38,12 +37,21 @@ const carregar = cache(async (slug: string): Promise<Bio | null> => {
   const [tenant, servicos, equipe] = await Promise.all([
     t.get(),
     t.collection("services").where("active", "==", true).get(),
-    t.collection("staff").where("active", "==", true).limit(1).get(),
+    t.collection("staff").where("active", "==", true).get(),
   ]);
   if (!tenant.exists) return null;
 
-  const staff = equipe.docs[0] && Staff.safeParse(equipe.docs[0].data());
-  const horas = staff && staff.success ? staff.data.hours : {};
+  // o horário do negócio é a união da equipe: abre com o primeiro e fecha com o último
+  const horas = new Map<number, { inicio: string; fim: string }>();
+  for (const d of equipe.docs) {
+    const p = Staff.safeParse(d.data());
+    if (!p.success) continue;
+    for (const [dia, j] of Object.entries(p.data.hours)) {
+      if (!j) continue;
+      const atual = horas.get(Number(dia));
+      horas.set(Number(dia), atual ? { inicio: j.start < atual.inicio ? j.start : atual.inicio, fim: j.end > atual.fim ? j.end : atual.fim } : { inicio: j.start, fim: j.end });
+    }
+  }
   return {
     // o endereço do site: o domínio próprio do cliente, quando ativo, senão o subdomínio
     site: urlDoSite(slug, tenant.get("dominio") as Dominio | undefined),
@@ -61,8 +69,7 @@ const carregar = cache(async (slug: string): Promise<Bio | null> => {
       const s = Service.safeParse(d.data());
       return s.success ? [{ id: d.id, nome: s.data.name, duracao: s.data.durationMin, preco: s.data.priceCents, tipoPreco: s.data.tipoPreco }] : [];
     }),
-    expediente: Object.entries(horas).flatMap(([dia, j]) => (j ? [{ dia: Number(dia), inicio: j.start, fim: j.end }] : [])),
-    equipeId: equipe.docs[0]?.id ?? null,
+    expediente: [...horas].map(([dia, j]) => ({ dia, ...j })),
   };
 });
 
@@ -70,15 +77,13 @@ const carregar = cache(async (slug: string): Promise<Bio | null> => {
  * Os dias candidatos são consultados juntos (antes era um por vez, até 8 idas ao banco em fila). */
 async function proximosHorarios(slug: string, bio: Bio) {
   const curto = [...bio.servicos].sort((a, b) => a.duracao - b.duracao)[0];
-  if (!curto || !bio.equipeId || !bio.expediente.length) return null;
-  const candidatos = Array.from({ length: 8 }, (_, i) => ({ i, date: addDays(todayIn(), i) }))
+  if (!curto || !bio.expediente.length) return null;
+  const candidatos = Array.from({ length: 8 }, (_, i) => ({ i, date: addDays(todayIn(fusoDaUF(bio.uf)), i) }))
     .filter(({ date }) => bio.expediente.some((e) => e.dia === weekday(date)))
     .slice(0, 3); // três dias de trabalho bastam para achar vaga; é o que a frase mostra
-  const grades = await Promise.all(
-    candidatos.map(({ date }) =>
-      availableSlots(adminDb, { tenantId: slug, serviceIds: [curto.id], staffId: bio.equipeId!, date }).catch(() => [] as string[]),
-    ),
-  );
+  // staffId vazio: qualquer profissional, como na página de agendamento
+  const dias = await agendaDias(adminDb, { tenantId: slug, serviceIds: [curto.id], staffId: "", from: candidatos[0]?.date ?? todayIn() }, candidatos.map((c) => c.date)).catch(() => []);
+  const grades = candidatos.map(({ date }) => dias.find((d) => d.date === date)?.horarios.map((h) => h.hora) ?? []);
   const achado = candidatos.findIndex((_, k) => grades[k].length);
   if (achado < 0) return null;
   const { i, date } = candidatos[achado];
