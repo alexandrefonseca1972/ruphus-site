@@ -151,16 +151,19 @@ export default function MeuNegocio() {
 
       {/* a página é longa no celular: atalhos para cada parte, cada uma com o seu Salvar */}
       <nav aria-label="Partes desta página" className="-mx-4 -mt-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden">
-        {[["#dados", "Dados"], ["#links", "Links"], ["#recado", "Recado"], ["#pix", "Pix"], ["#sinal", "Sinal"]].map(([href, rotulo]) => (
+        {[["#dados", "Dados"], ["#links", "Links"], ["#recado", "Recado"], ["#whatsapp", "WhatsApp"], ["#pix", "Pix"], ["#sinal", "Sinal"]].map(([href, rotulo]) => (
           <a key={href} href={href} className="flex h-9 shrink-0 items-center rounded-full border bg-card px-3.5 text-sm font-medium hover:bg-muted">{rotulo}</a>
         ))}
       </nav>
 
+      {/* Uma coluna com todos os formulários e, ao lado, só os links (fixos ao rolar). Antes o
+          WhatsApp morava no aside: com ele conectado a lateral passava da coluna de Dados e
+          sobrava um vão em branco à esquerda. No celular a ordem é a dos atalhos acima. */}
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <form
           id="dados"
           noValidate
-          className="grid scroll-mt-20 gap-5 rounded-2xl border bg-card p-5 sm:p-7"
+          className="grid scroll-mt-20 gap-5 rounded-2xl border bg-card p-5 sm:p-7 lg:col-start-1"
           onSubmit={(e) => {
             e.preventDefault();
             salvar();
@@ -192,7 +195,7 @@ export default function MeuNegocio() {
           </div>
         </form>
 
-        <aside id="links" className="grid scroll-mt-20 gap-4 rounded-2xl border bg-card p-5">
+        <aside id="links" className="grid scroll-mt-20 gap-4 rounded-2xl border bg-card p-5 lg:sticky lg:top-20 lg:col-start-2 lg:row-span-5 lg:row-start-1">
           {!fabrica && !publicado && (
             // o site do cadastro nasce como prévia: a faixa e o Google só mudam com a entrada paga
             <div className="grid gap-2.5 rounded-xl bg-muted p-4">
@@ -229,53 +232,56 @@ export default function MeuNegocio() {
               </li>
             ))}
           </ul>
-          <WhatsAppNegocio slug={slug} />
           <InstalarPainel />
         </aside>
-      </div>
 
-      <form
-        id="recado"
-        noValidate
-        className="grid scroll-mt-20 gap-4 rounded-2xl border bg-card p-5 sm:p-7 lg:max-w-[calc(100%-24rem)]"
-        onSubmit={(e) => {
-          e.preventDefault();
-          salvarRecado();
-        }}
-      >
-        <div className="grid gap-1">
-          <h2 className="text-[15px] font-semibold">Depois do agendamento</h2>
-          <p className="text-sm text-muted-foreground">
-            Opcional. O que o cliente lê logo depois de agendar. Em branco, ele vê: &ldquo;{nome || "O negócio"} vai te chamar no seu WhatsApp para confirmar.&rdquo;
-          </p>
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="negocio-recado">Recado para o cliente</Label>
-          <textarea
-            id="negocio-recado"
-            value={recado}
-            maxLength={RECADO_MAX}
-            rows={3}
-            placeholder="Ex.: Chegue 10 minutos antes. Aceitamos Pix e cartão."
-            onChange={(e) => {
-              setRecado(e.target.value);
-              setAvisoRecado(null);
-            }}
-            aria-describedby="negocio-recado-msg"
-            className="min-h-24 rounded-lg border border-input bg-card px-3.5 py-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:text-[15px]"
-          />
-          <p id="negocio-recado-msg" className="text-xs text-muted-foreground">{recado.length}/{RECADO_MAX} · o número do cliente continua aparecendo logo abaixo</p>
-        </div>
-        {avisoRecado && (
-          <p role={avisoRecado.ok ? "status" : "alert"} className={avisoRecado.ok ? "text-sm text-emerald-700 dark:text-emerald-300" : "text-sm text-destructive"}>
-            {avisoRecado.texto}
-          </p>
-        )}
-        <div className="flex items-center justify-end gap-3">
-          {mudouRecado && !busyRecado && <span className="text-xs text-muted-foreground">Alterações não salvas</span>}
-          <Button type="submit" disabled={busyRecado || !mudouRecado} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busyRecado ? "Salvando…" : "Salvar recado"}</Button>
-        </div>
-      </form>
+        <form
+          id="recado"
+          noValidate
+          className="grid scroll-mt-20 gap-4 rounded-2xl border bg-card p-5 sm:p-7 lg:col-start-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            salvarRecado();
+          }}
+        >
+          <div className="grid gap-1">
+            <h2 className="text-[15px] font-semibold">Depois do agendamento</h2>
+            <p className="text-sm text-muted-foreground">
+              Opcional. O que o cliente lê logo depois de agendar. Em branco, ele vê: &ldquo;{nome || "O negócio"} vai te chamar no seu WhatsApp para confirmar.&rdquo;
+            </p>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="negocio-recado">Recado para o cliente</Label>
+            <textarea
+              id="negocio-recado"
+              value={recado}
+              maxLength={RECADO_MAX}
+              rows={3}
+              placeholder="Ex.: Chegue 10 minutos antes. Aceitamos Pix e cartão."
+              onChange={(e) => {
+                setRecado(e.target.value);
+                setAvisoRecado(null);
+              }}
+              aria-describedby="negocio-recado-msg"
+              className="min-h-24 rounded-lg border border-input bg-card px-3.5 py-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:text-[15px]"
+            />
+            <p id="negocio-recado-msg" className="text-xs text-muted-foreground">{recado.length}/{RECADO_MAX} · o número do cliente continua aparecendo logo abaixo</p>
+          </div>
+          {avisoRecado && (
+            <p role={avisoRecado.ok ? "status" : "alert"} className={avisoRecado.ok ? "text-sm text-emerald-700 dark:text-emerald-300" : "text-sm text-destructive"}>
+              {avisoRecado.texto}
+            </p>
+          )}
+          <div className="flex items-center justify-end gap-3">
+            {mudouRecado && !busyRecado && <span className="text-xs text-muted-foreground">Alterações não salvas</span>}
+            <Button type="submit" disabled={busyRecado || !mudouRecado} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busyRecado ? "Salvando…" : "Salvar recado"}</Button>
+          </div>
+        </form>
+
+        <WhatsAppNegocio slug={slug} />
+        <PixNegocio cidadeSugerida={salvo?.campos.cidade ?? ""} />
+        <SinalNegocio />
+      </div>
 
       {mudou && (
         <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t bg-card/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-16px_rgba(0,0,0,0.25)] backdrop-blur sm:hidden">
@@ -283,8 +289,6 @@ export default function MeuNegocio() {
           <Button type="submit" form="dados" disabled={busy} className="h-11 px-5">{busy ? "Salvando…" : "Salvar"}</Button>
         </div>
       )}
-      <PixNegocio cidadeSugerida={salvo?.campos.cidade ?? ""} />
-      <SinalNegocio />
     </div>
   );
 }
