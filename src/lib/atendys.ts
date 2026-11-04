@@ -34,6 +34,26 @@ export type Envio = { messageId: string; status: string };
 // quem envia/recebe: precisa da apikey do tenant e do nome da instância
 export type ConexaoAtendys = { atendysApiKey: string; instanceId: string };
 
+/** Recusa do atendys: status HTTP e o código do contrato ({ error: { code } }), para quem chama
+ *  decidir (409 na instância, NOT_OPTED_IN no envio) sem ler a mensagem. */
+export class ErroAtendys extends ErroPrevisto {
+  constructor(message: string, readonly status: number, readonly codigo: string | null) {
+    super(message);
+  }
+}
+
+// O dono lê estas frases no painel; o corpo cru da resposta fica só no log do servidor
+// (podia trazer detalhe interno do atendys e não dizia nada a quem não é técnico).
+const MENSAGEM: Record<string, string> = {
+  NOT_OPTED_IN: "Este número ainda não autorizou receber mensagens do negócio.",
+  INVALID_NUMBER: "Número de WhatsApp inválido. Confira o DDD e os dígitos.",
+  NUMBER_NOT_ON_WHATSAPP: "Este número não tem WhatsApp.",
+  INSTANCE_DISCONNECTED: "O WhatsApp do negócio está desconectado. Reconecte pelo painel.",
+  INSTANCE_NOT_FOUND: "A conexão do WhatsApp não foi encontrada. Reconecte pelo painel.",
+  INVALID_API_KEY: "A credencial do WhatsApp foi recusada. Reconecte pelo painel.",
+  UNAUTHORIZED: "A credencial do WhatsApp foi recusada. Reconecte pelo painel.",
+};
+
 async function chamar<T>(auth: Record<string, string>, method: string, caminho: string, corpo?: unknown): Promise<T> {
   const headers: Record<string, string> = { ...auth };
   if (corpo !== undefined) headers["content-type"] = "application/json";
@@ -53,7 +73,24 @@ async function chamar<T>(auth: Record<string, string>, method: string, caminho: 
   }
   if (!res.ok) {
     const detalhe = await res.text().catch(() => "");
-    throw new ErroPrevisto(`O serviço de WhatsApp respondeu ${res.status}${detalhe ? `: ${detalhe.slice(0, 160)}` : ""}.`);
+    let codigo: string | null = null;
+    let doServidor = "";
+    try {
+      const e = (JSON.parse(detalhe) as { error?: { code?: unknown; message?: unknown } }).error;
+      codigo = typeof e?.code === "string" ? e.code : null;
+      doServidor = typeof e?.message === "string" ? e.message.slice(0, 200) : "";
+    } catch {
+      // corpo que não é JSON (proxy, HTML de erro): fica sem código
+    }
+    console.error(`[atendys] ${method} ${caminho} → ${res.status} ${detalhe.slice(0, 300)}`);
+    // limite (por minuto, por dia, por destinatário), categoria desligada e validação: o atendys
+    // já explica em português, e "espere um pouco" enganava quando o limite era o do dia
+    const usaDoServidor = codigo !== null && ["RATE_LIMITED", "FORBIDDEN", "VALIDATION_ERROR"].includes(codigo) && doServidor;
+    throw new ErroAtendys(
+      (usaDoServidor ? doServidor : codigo && MENSAGEM[codigo]) || `O serviço de WhatsApp recusou o pedido (${res.status}). Tente de novo em instantes.`,
+      res.status,
+      codigo,
+    );
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -87,19 +124,40 @@ const authTenant = (conn: ConexaoAtendys) => {
 export async function garantirTenant(
   slug: string,
   nomeNegocio: string,
-  opts: { reatribuirChave?: boolean; rotacionarSegredo?: boolean } = {},
-): Promise<{ tenantId: string; apikey: string; webhookSecret: string }> {
-  const lista = await chamarAdmin<Array<{ id: string; slug: string }>>("GET", "/admin/tenants");
-  const existente = lista.find((t) => t.slug === slug);
+  opts: { reatribuirChave?: boolean; rotacionarSegredo?: boolean; tenantId?: string; keyId?: string } = {},
+): Promise<{ tenantId: string; apikey: string; keyId: string; webhookSecret: string }> {
+  // o id já gravado do lado de cá evita baixar a lista de todos os tenants a cada conexão;
+  // 404 (tenant apagado no atendys) cai na procura por slug
+  const conhecido = opts.tenantId
+    ? await chamarAdmin<{ id: string; slug: string }>("GET", `/admin/tenants/${encodeURIComponent(opts.tenantId)}`).catch((e) => {
+        if (e instanceof ErroAtendys && e.status === 404) return null;
+        throw e;
+      })
+    : null;
+  const existente = conhecido ?? (await chamarAdmin<Array<{ id: string; slug: string }>>("GET", "/admin/tenants")).find((t) => t.slug === slug);
 
   let tenantId: string;
   let apikey: string;
+  let keyId = "";
   let novo = false;
+  // o tenant gravado sumiu e outro com o mesmo slug apareceu: a chave e o segredo guardados
+  // eram do antigo e não valem neste — emite os dois
+  const trocou = !!opts.tenantId && !!existente && existente.id !== opts.tenantId;
+  // a chave gravada foi revogada (ou sumiu) no atendys: sem isto, reconectar reaproveitava a
+  // chave morta para sempre e todo envio voltava 401
+  // Conexão gravada antes de guardarmos o id da chave: morta quando o tenant não tem mais
+  // nenhuma chave da Ruphus ativa.
+  const chaveMorta =
+    !!existente && !trocou && !opts.reatribuirChave &&
+    !(await chamarAdmin<Array<{ id: string; label: string; revokedAt: string | null }>>("GET", `/admin/tenants/${existente.id}/keys`)).some((k) =>
+      !k.revokedAt && (opts.keyId ? k.id === opts.keyId : ["default", "ruphus-recovery"].includes(k.label)),
+    );
   if (existente) {
     tenantId = existente.id;
-    if (opts.reatribuirChave) {
-      const chave = await chamarAdmin<{ apikey: string }>("POST", `/admin/tenants/${tenantId}/keys`, { label: "ruphus-recovery" });
+    if (opts.reatribuirChave || trocou || chaveMorta) {
+      const chave = await chamarAdmin<{ id: string; apikey: string }>("POST", `/admin/tenants/${tenantId}/keys`, { label: "ruphus-recovery" });
       apikey = chave.apikey;
+      keyId = chave.id;
     } else {
       // o caller reutiliza a apikey já gravada; o rotate abaixo devolve o segredo novo
       apikey = "";
@@ -116,20 +174,42 @@ export async function garantirTenant(
   }
 
   // tenant novo nunca teve segredo do lado de cá: rotaciona para conhecê-lo
-  if (!novo && !opts.rotacionarSegredo) return { tenantId, apikey, webhookSecret: "" };
+  if (!novo && !trocou && !opts.rotacionarSegredo) return { tenantId, apikey, keyId, webhookSecret: "" };
   const rotacionado = await chamarAdmin<{ webhookSecret: string }>("POST", `/admin/tenants/${tenantId}/webhook-secret/rotate`);
-  return { tenantId, apikey, webhookSecret: rotacionado.webhookSecret };
+  return { tenantId, apikey, keyId, webhookSecret: rotacionado.webhookSecret };
 }
 
-/** Cria a instância do número (uma por negócio). 409 = já existe → idempotente. */
-export async function criarInstancia(tenantId: string, slug: string): Promise<{ name: string }> {
-  const name = `${slug}-main`;
-  try {
-    await chamarAdmin("POST", `/admin/tenants/${tenantId}/instances`, { name: "main" });
-  } catch (e) {
-    if (!(e instanceof ErroPrevisto && /409/.test(e.message))) throw e;
+/** Depois de gravar uma chave nova: as emitidas pela Ruphus ANTES dela ("default" na criação,
+ *  "ruphus-recovery" nas recuperações) não servem a ninguém e ficavam ativas para sempre.
+ *  Só as mais antigas que a nova e nunca a que está gravada: duas conexões ao mesmo tempo
+ *  revogavam a chave uma da outra e o negócio ficava sem nenhuma. Chave manual (outro rótulo) fica. */
+export async function revogarChavesAntigas(tenantId: string, nova: string, gravada: () => Promise<string | undefined>) {
+  const chaves = await chamarAdmin<Array<{ id: string; label: string; createdAt: string; revokedAt: string | null }>>("GET", `/admin/tenants/${tenantId}/keys`);
+  const limite = chaves.find((k) => k.id === nova)?.createdAt;
+  if (!limite) return;
+  for (const k of chaves) {
+    if (k.id === nova || k.revokedAt || !["default", "ruphus-recovery"].includes(k.label)) continue;
+    if (!(Date.parse(k.createdAt) < Date.parse(limite))) continue;
+    // outra conexão gravou a chave dela depois: esta não é mais a dona, não revoga nada
+    const atual = await gravada();
+    if (atual !== nova) return;
+    await chamarAdmin("DELETE", `/admin/tenants/${tenantId}/keys/${encodeURIComponent(k.id)}`).catch((e) =>
+      console.error(`[atendys] revogar chave ${k.id} do tenant ${tenantId}`, e),
+    );
   }
-  return { name };
+}
+
+/** Cria a instância do número (uma por negócio). O nome vem da resposta do atendys; o 409 diz
+ *  que exatamente "{slug}-main" já existe (ele monta {slug do tenant}-{nome}, e o slug do tenant
+ *  é o nosso) — listar e pegar "a mais nova" podia prender o negócio a outra instância dele. */
+export async function criarInstancia(tenantId: string, slug: string): Promise<{ name: string }> {
+  try {
+    const r = await chamarAdmin<{ instance?: { name?: string } }>("POST", `/admin/tenants/${tenantId}/instances`, { name: "main" });
+    if (r?.instance?.name) return { name: r.instance.name };
+  } catch (e) {
+    if (!(e instanceof ErroAtendys && e.status === 409)) throw e;
+  }
+  return { name: `${slug}-main` };
 }
 
 /** Despareia o número (administrativo — o painel do dono desconecta via plataforma). */
@@ -157,8 +237,16 @@ export async function qrDaConexao(conn: ConexaoAtendys): Promise<SituacaoQr> {
 }
 
 // o atendys exige origem E evidência (texto livre) em todo consentimento (OptInDto);
-// sem evidência o opt-in volta 400 e o envio nunca sai
-const EVIDENCIA_PADRAO = "Número informado pelo próprio titular ao agendar pelo site do negócio (ruphus.site)";
+// sem evidência o opt-in volta 400 e o envio nunca sai. A evidência diz o que aconteceu de
+// fato: o cliente tem horário no negócio e o número está no cadastro do agendamento.
+const EVIDENCIA_PADRAO = "Cliente com horário agendado no negócio; número do cadastro do agendamento (ruphus.site)";
+
+/** Consentimento registrado quando o número ainda não tem: origem + evidência. null = não
+ *  registra (envio avulso, como o teste do dono, não pode alegar consentimento). */
+export type OptIn = { origem: string; evidencia: string } | null;
+const OPTIN_PADRAO: OptIn = { origem: "ruphus-agendamento", evidencia: EVIDENCIA_PADRAO };
+/** Aviso para o número do próprio negócio (self-chat) ou o WhatsApp pessoal do dono. */
+export const OPTIN_DONO: OptIn = { origem: "ruphus-aviso-dono", evidencia: "Número do próprio negócio ou do dono, cadastrado por ele no painel da Ruphus" };
 
 /**
  * Texto simples (confirmação, lembrete, recibo). O atendys exige o cabeçalho
@@ -167,7 +255,7 @@ const EVIDENCIA_PADRAO = "Número informado pelo próprio titular ao agendar pel
  * a evidência de que o titular forneceu o número para receber a comunicação do
  * agendamento. Falha de opt-in inscreve e repete o envio uma vez.
  */
-export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string): Promise<Envio> {
+export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn = OPTIN_PADRAO): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
   const auth = { ...authTenant(conn), instance: conn.instanceId };
   const enviar = () => chamar<{ id: string; status: string }>(auth, "POST", "/v1/message/send-text", { number: digits, text: message });
@@ -175,8 +263,8 @@ export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: 
     const r = await enviar();
     return { messageId: r.id, status: r.status };
   } catch (e) {
-    if (e instanceof ErroPrevisto && /NOT_OPTED_IN/.test(e.message)) {
-      await registrarOptIn(conn, digits, "ruphus-agendamento");
+    if (optIn && e instanceof ErroAtendys && e.codigo === "NOT_OPTED_IN") {
+      await registrarOptIn(conn, digits, optIn.origem, optIn.evidencia);
       const r = await enviar();
       return { messageId: r.id, status: r.status };
     }
