@@ -53,6 +53,7 @@ export async function POST(req: Request) {
         // pergunta ao gateway ao vivo em vez de confiar no status cacheado no
         // documento — ele pode ficar desatualizado se um webhook se perder
         let vivo;
+        const lidoEm = Date.now();
         try {
           vivo = await statusDaConexao(conn);
         } catch (e) {
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
         }
         if (vivo.status !== "connected") {
           // webhook perdido: o status ao vivo também vira faixa no painel e aviso ao dono
-          await espelharStatusVivo(adminDb, tenantId, vivo).catch((e) => console.error("[whatsapp] espelhar status", e));
+          await espelharStatusVivo(adminDb, tenantId, vivo, lidoEm).catch((e) => console.error("[whatsapp] espelhar status", e));
           await marcar(`WhatsApp do negócio está ${ROTULO_STATUS[vivo.status] ?? vivo.status}: ninguém foi avisado do agendamento de ${customerName.trim()}. Abra o painel e reconecte.`);
           return;
         }

@@ -929,8 +929,9 @@ export const refreshWhatsAppStatus = adminAction(async (_user, slug: string): Pr
   slugValido(slug);
   const salva = await lerConexao(adminDb, slug);
   if (!salva) return null;
+  const lidoEm = Date.now();
   const vivo = await statusDaConexao(salva);
-  await espelharStatusVivo(adminDb, slug, vivo);
+  await espelharStatusVivo(adminDb, slug, vivo, lidoEm);
   return paraTela(await lerConexao(adminDb, slug));
 });
 

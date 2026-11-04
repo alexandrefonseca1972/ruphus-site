@@ -50,6 +50,8 @@ export type ConexaoWhatsapp = ConexaoAtendys & {
   atendysWebhookSecret?: string;
   /** id da apikey em uso no atendys: as recuperações seguintes não revogam esta */
   atendysKeyId?: string;
+  /** já esteve conectada (a faixa "Seu WhatsApp desconectou" só aparece depois disso) */
+  conectadoEm?: number;
 };
 
 export { soDigitosComDDI };
@@ -118,6 +120,8 @@ export async function desligarConexao(db: Firestore, slug: string): Promise<void
       whatsapp: {
         instanceId: FieldValue.delete(),
         phone: FieldValue.delete(),
+        // conexão nova começa sem histórico: QR que expira sem ler não é "desconectou"
+        conectadoEm: FieldValue.delete(),
         status: "disconnected",
         statusReason: FieldValue.delete(),
         updatedAt: Date.now(),
@@ -187,6 +191,8 @@ export async function conectarNegocio(
     ownerManaged,
   };
   await gravarConexao(db, slug, conexao);
+  // ...atual trazia o conectadoEm da conexão anterior: esta ainda não conectou
+  await db.doc(`tenants/${slug}`).update({ "whatsapp.conectadoEm": FieldValue.delete() });
   // chave nova gravada: as antigas da Ruphus saem. Relê a gravada — outra conexão ao mesmo
   // tempo pode ter gravado a dela depois, e essa não pode ser revogada. Falha aqui não
   // desfaz a conexão (sobra só uma chave a mais, como antes)
@@ -288,6 +294,8 @@ export async function espelharStatusDaInstancia(
           // reconectou: a falha antiga ("desconectado, nenhum lembrete sai") não vale mais;
           // conectadoEm diz que já houve conexão (a faixa de "desconectou" só faz sentido aí)
           ...(status === "connected" ? { lastNotifyError: FieldValue.delete(), conectadoEm: Date.now() } : {}),
+          // conexão feita antes do marcador existir: estava conectada, então já houve conexão
+          ...(status !== "connected" && doc.get("whatsapp.status") === "connected" && !doc.get("whatsapp.conectadoEm") ? { conectadoEm: Date.now() } : {}),
           updatedAt: Date.now(),
         },
       },
@@ -322,8 +330,10 @@ export async function avisarQueda(db: Firestore, slug: string) {
 /** Estado lido ao vivo do atendys (polling, lembretes, agendamento) passa pelo mesmo espelho do
  *  webhook: com o webhook perdido, a queda também vira status, faixa e aviso — e nunca grava a
  *  conexão inteira de volta (isso ressuscitava a falha já limpa e voltava o statusAt). */
-export async function espelharStatusVivo(db: Firestore, slug: string, vivo: { status: string; phone: string | null }) {
-  const { caiu } = await espelharStatusDaInstancia(db, slug, { status: vivo.status === "qr" ? "pending_qr" : vivo.status, phone: vivo.phone });
+export async function espelharStatusVivo(db: Firestore, slug: string, vivo: { status: string; phone: string | null }, lidoEm: number) {
+  // lidoEm = antes de perguntar ao atendys: uma leitura que começou antes de um webhook mais novo
+  // ("connected" ao reconectar) é descartada pelo statusAt, em vez de desfazê-lo e avisar queda
+  const { caiu } = await espelharStatusDaInstancia(db, slug, { status: vivo.status === "qr" ? "pending_qr" : vivo.status, phone: vivo.phone, at: new Date(lidoEm).toISOString() });
   if (caiu) await avisarQueda(db, slug);
 }
 

@@ -275,8 +275,9 @@ export const refreshWhatsAppStatusDonoAction = memberAction(SoTenant, async ({ t
   await exigeGestor(tenantId, user.uid);
   const salva = await lerConexao(adminDb, tenantId);
   if (!salva) return null;
+  const lidoEm = Date.now();
   const vivo = await statusDaConexao(salva);
-  await espelharStatusVivo(adminDb, tenantId, vivo);
+  await espelharStatusVivo(adminDb, tenantId, vivo, lidoEm);
   return paraTela(await lerConfigWhatsApp(adminDb, tenantId));
 });
 

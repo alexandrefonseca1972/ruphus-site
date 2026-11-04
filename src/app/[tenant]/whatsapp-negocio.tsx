@@ -81,7 +81,8 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
   // na faixa "Seu WhatsApp desconectou" das outras páginas sem recarregar
   const tenant = useTenantSeHouver();
   useEffect(() => {
-    if (!tenant?.atualizar || cfg === undefined) return;
+    // undefined = carregando; null = a leitura falhou (não é "sem WhatsApp"): não mexe na faixa
+    if (!tenant?.atualizar || !cfg) return;
     const novo = { status: cfg?.status, instanceId: cfg?.instanceId, ownerManaged: cfg?.ownerManaged, conectadoEm: cfg?.conectadoEm };
     const atual = tenant.whatsapp ?? {};
     if ((Object.keys(novo) as (keyof typeof novo)[]).every((k) => novo[k] === atual[k])) return;

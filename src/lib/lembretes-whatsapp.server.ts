@@ -49,10 +49,11 @@ export async function enviarLembretesDoDia(): Promise<number> {
     const w = await lerConexao(adminDb, t.id);
     if (!w?.instanceId || w.remindersEnabled !== true) return;
     const antesMs = Math.min(24, Math.max(1, Number(w.remindersBeforeHours) || 2)) * 60 * 60_000;
+    const lidoEm = Date.now();
     const vivo = await statusDaConexao(w).catch(() => null);
     if (!vivo || vivo.status !== "connected") {
       // webhook perdido: o status ao vivo também vira faixa no painel e aviso ao dono
-      if (vivo) await espelharStatusVivo(adminDb, t.id, vivo).catch((e) => console.error(`[whatsapp] espelhar status ${t.id}`, e));
+      if (vivo) await espelharStatusVivo(adminDb, t.id, vivo, lidoEm).catch((e) => console.error(`[whatsapp] espelhar status ${t.id}`, e));
       const motivo = vivo ? `o WhatsApp do negócio está ${ROTULO_STATUS[vivo.status] ?? vivo.status}` : "o serviço de WhatsApp não respondeu";
       await falhou(t.id, `Lembretes ligados, mas ${motivo}: nenhum lembrete sai até reconectar.`);
       return;
