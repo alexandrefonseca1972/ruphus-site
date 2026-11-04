@@ -50,7 +50,6 @@ const MENSAGEM: Record<string, string> = {
   NUMBER_NOT_ON_WHATSAPP: "Este número não tem WhatsApp.",
   INSTANCE_DISCONNECTED: "O WhatsApp do negócio está desconectado. Reconecte pelo painel.",
   INSTANCE_NOT_FOUND: "A conexão do WhatsApp não foi encontrada. Reconecte pelo painel.",
-  RATE_LIMITED: "Muitas mensagens em pouco tempo. Espere um pouco e tente de novo.",
   INVALID_API_KEY: "A credencial do WhatsApp foi recusada. Reconecte pelo painel.",
   UNAUTHORIZED: "A credencial do WhatsApp foi recusada. Reconecte pelo painel.",
 };
@@ -75,15 +74,20 @@ async function chamar<T>(auth: Record<string, string>, method: string, caminho: 
   if (!res.ok) {
     const detalhe = await res.text().catch(() => "");
     let codigo: string | null = null;
+    let doServidor = "";
     try {
-      const c = (JSON.parse(detalhe) as { error?: { code?: unknown } }).error?.code;
-      codigo = typeof c === "string" ? c : null;
+      const e = (JSON.parse(detalhe) as { error?: { code?: unknown; message?: unknown } }).error;
+      codigo = typeof e?.code === "string" ? e.code : null;
+      doServidor = typeof e?.message === "string" ? e.message.slice(0, 200) : "";
     } catch {
       // corpo que não é JSON (proxy, HTML de erro): fica sem código
     }
     console.error(`[atendys] ${method} ${caminho} → ${res.status} ${detalhe.slice(0, 300)}`);
+    // limite (por minuto, por dia, por destinatário), categoria desligada e validação: o atendys
+    // já explica em português, e "espere um pouco" enganava quando o limite era o do dia
+    const usaDoServidor = codigo !== null && ["RATE_LIMITED", "FORBIDDEN", "VALIDATION_ERROR"].includes(codigo) && doServidor;
     throw new ErroAtendys(
-      (codigo && MENSAGEM[codigo]) ?? `O serviço de WhatsApp recusou o pedido (${res.status}). Tente de novo em instantes.`,
+      (usaDoServidor ? doServidor : codigo && MENSAGEM[codigo]) || `O serviço de WhatsApp recusou o pedido (${res.status}). Tente de novo em instantes.`,
       res.status,
       codigo,
     );
@@ -121,7 +125,7 @@ export async function garantirTenant(
   slug: string,
   nomeNegocio: string,
   opts: { reatribuirChave?: boolean; rotacionarSegredo?: boolean; tenantId?: string } = {},
-): Promise<{ tenantId: string; apikey: string; webhookSecret: string }> {
+): Promise<{ tenantId: string; apikey: string; keyId: string; webhookSecret: string }> {
   // o id já gravado do lado de cá evita baixar a lista de todos os tenants a cada conexão;
   // 404 (tenant apagado no atendys) cai na procura por slug
   const conhecido = opts.tenantId
@@ -134,13 +138,17 @@ export async function garantirTenant(
 
   let tenantId: string;
   let apikey: string;
+  let keyId = "";
   let novo = false;
+  // o tenant gravado sumiu e outro com o mesmo slug apareceu: a chave e o segredo guardados
+  // eram do antigo e não valem neste — emite os dois
+  const trocou = !!opts.tenantId && !!existente && existente.id !== opts.tenantId;
   if (existente) {
     tenantId = existente.id;
-    if (opts.reatribuirChave) {
+    if (opts.reatribuirChave || trocou) {
       const chave = await chamarAdmin<{ id: string; apikey: string }>("POST", `/admin/tenants/${tenantId}/keys`, { label: "ruphus-recovery" });
       apikey = chave.apikey;
-      await revogarChavesAntigas(tenantId, chave.id);
+      keyId = chave.id;
     } else {
       // o caller reutiliza a apikey já gravada; o rotate abaixo devolve o segredo novo
       apikey = "";
@@ -157,34 +165,37 @@ export async function garantirTenant(
   }
 
   // tenant novo nunca teve segredo do lado de cá: rotaciona para conhecê-lo
-  if (!novo && !opts.rotacionarSegredo) return { tenantId, apikey, webhookSecret: "" };
+  if (!novo && !trocou && !opts.rotacionarSegredo) return { tenantId, apikey, keyId, webhookSecret: "" };
   const rotacionado = await chamarAdmin<{ webhookSecret: string }>("POST", `/admin/tenants/${tenantId}/webhook-secret/rotate`);
-  return { tenantId, apikey, webhookSecret: rotacionado.webhookSecret };
+  return { tenantId, apikey, keyId, webhookSecret: rotacionado.webhookSecret };
 }
 
-/** A credencial gravada se perdeu e outra foi emitida: as anteriores emitidas pela Ruphus
- *  ("default" na criação, "ruphus-recovery" nas recuperações) não servem a ninguém e ficavam
- *  ativas para sempre. Chave criada à mão no painel do atendys, com outro rótulo, fica. */
-async function revogarChavesAntigas(tenantId: string, manter: string) {
-  const chaves = await chamarAdmin<Array<{ id: string; label: string; revokedAt: string | null }>>("GET", `/admin/tenants/${tenantId}/keys`);
+/** Depois de gravar uma chave nova: as emitidas pela Ruphus ANTES dela ("default" na criação,
+ *  "ruphus-recovery" nas recuperações) não servem a ninguém e ficavam ativas para sempre.
+ *  Só as mais antigas que a nova e nunca a que está gravada: duas conexões ao mesmo tempo
+ *  revogavam a chave uma da outra e o negócio ficava sem nenhuma. Chave manual (outro rótulo) fica. */
+export async function revogarChavesAntigas(tenantId: string, nova: string, gravada?: string) {
+  const chaves = await chamarAdmin<Array<{ id: string; label: string; createdAt: string; revokedAt: string | null }>>("GET", `/admin/tenants/${tenantId}/keys`);
+  const limite = chaves.find((k) => k.id === nova)?.createdAt;
+  if (!limite) return;
   for (const k of chaves) {
-    if (k.id === manter || k.revokedAt || !["default", "ruphus-recovery"].includes(k.label)) continue;
+    if (k.id === nova || k.id === gravada || k.revokedAt || !["default", "ruphus-recovery"].includes(k.label)) continue;
+    if (!(Date.parse(k.createdAt) < Date.parse(limite))) continue;
     await chamarAdmin("DELETE", `/admin/tenants/${tenantId}/keys/${encodeURIComponent(k.id)}`).catch((e) =>
       console.error(`[atendys] revogar chave ${k.id} do tenant ${tenantId}`, e),
     );
   }
 }
 
-/** Cria a instância do número (uma por negócio). O nome vem do atendys (hoje "{slug}-main");
- *  409 = já existe → procura a do tenant, e só sem ela vale a convenção. */
+/** Cria a instância do número (uma por negócio). O nome vem da resposta do atendys; o 409 diz
+ *  que exatamente "{slug}-main" já existe (ele monta {slug do tenant}-{nome}, e o slug do tenant
+ *  é o nosso) — listar e pegar "a mais nova" podia prender o negócio a outra instância dele. */
 export async function criarInstancia(tenantId: string, slug: string): Promise<{ name: string }> {
   try {
     const r = await chamarAdmin<{ instance?: { name?: string } }>("POST", `/admin/tenants/${tenantId}/instances`, { name: "main" });
     if (r?.instance?.name) return { name: r.instance.name };
   } catch (e) {
     if (!(e instanceof ErroAtendys && e.status === 409)) throw e;
-    const lista = await chamarAdmin<Array<{ name: string }>>("GET", `/admin/instances?tenantId=${encodeURIComponent(tenantId)}`).catch(() => []);
-    if (lista[0]?.name) return { name: lista[0].name };
   }
   return { name: `${slug}-main` };
 }
@@ -222,6 +233,8 @@ const EVIDENCIA_PADRAO = "Cliente com horário agendado no negócio; número do 
  *  registra (envio avulso, como o teste do dono, não pode alegar consentimento). */
 export type OptIn = { origem: string; evidencia: string } | null;
 const OPTIN_PADRAO: OptIn = { origem: "ruphus-agendamento", evidencia: EVIDENCIA_PADRAO };
+/** Aviso para o número do próprio negócio (self-chat) ou o WhatsApp pessoal do dono. */
+export const OPTIN_DONO: OptIn = { origem: "ruphus-aviso-dono", evidencia: "Número do próprio negócio ou do dono, cadastrado por ele no painel da Ruphus" };
 
 /**
  * Texto simples (confirmação, lembrete, recibo). O atendys exige o cabeçalho

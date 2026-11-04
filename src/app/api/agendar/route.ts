@@ -6,7 +6,7 @@ import { MAX_DAYS_AHEAD, dentroDaJanela } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 import { codigoDoAgendamento, lerConexao, registrarErroNotificacao } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
-import { enviarTexto, statusDaConexao } from "@/lib/atendys";
+import { enviarTexto, OPTIN_DONO, statusDaConexao } from "@/lib/atendys";
 
 // A reserva da página pública. Rota, não server action: o Next manda um server action
 // por vez, e com a rede travada a nova tentativa (e a agenda) ficava na fila atrás da
@@ -87,6 +87,7 @@ export async function POST(req: Request) {
               conn,
               avisoPara,
               `Novo agendamento (código ${codigoDoAgendamento(nova.id)}): ${customerName.trim()} · ${partes.join(" · ")} · tel ${b.data.customerPhone}. Responda CONFIRMADO ${codigoDoAgendamento(nova.id)} para confirmar ou RECUSAR ${codigoDoAgendamento(nova.id)} para recusar.`,
+              OPTIN_DONO,
             );
           } catch (e) {
             falhas.push(`aviso ao salão não chegou: ${e instanceof Error ? e.message : String(e)}`);

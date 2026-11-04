@@ -1,6 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { assinaturaValida } from "@/lib/atendys";
 import { adminDb } from "@/lib/admin";
+import { DEMO } from "@/lib/demo";
 import { espelharStatusDaInstancia, lerConexao, processarComandoAgendamento, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
 
 // Onde o atendys avisa o que acontece nas instâncias: mensagem recebida do
@@ -56,6 +57,9 @@ export async function POST(req: Request) {
   // o segredo é por tenant: localiza o negócio antes de verificar a assinatura
   const slug = await tenantDaInstancia(adminDb, evento.instance);
   if (!slug) return responder(200, { ok: true }); // instância órfã — ack rápido
+  // a demonstração não tem WhatsApp (lerConexao devolve null): ack, para o atendys não repetir
+  // cinco vezes cada evento de uma instância que ficou pareada de antes
+  if (slug === DEMO) return responder(200, { ok: true });
   const conexao = await lerConexao(adminDb, slug);
   const segredo = conexao?.atendysWebhookSecret;
   if (!segredo) return responder(401, { error: "Tenant sem segredo de webhook." });

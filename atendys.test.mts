@@ -3,9 +3,9 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
-import { assinaturaValida, criarInstancia, enviarTexto, ErroAtendys, garantirTenant, imagemDoQr } from "@/lib/atendys";
+import { assinaturaValida, criarInstancia, enviarTexto, ErroAtendys, garantirTenant, imagemDoQr, revogarChavesAntigas } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
-import { codigosUnicos, conectarNegocio, gravarConexao, lerConexao, lerConfigWhatsApp, lerComando } from "@/lib/whatsapp.server";
+import { codigosUnicos, conectarNegocio, gravarConexao, lerConexao, lerConfigWhatsApp, lerComando, processarComandoAgendamento } from "@/lib/whatsapp.server";
 
 // ── assinatura do webhook ──
 const corpo = JSON.stringify({ event: "message.received", instance: "casa-main" });
@@ -53,47 +53,60 @@ novo({
   "POST /admin/tenants": json({ tenant: { id: "t1" }, apikey: "k1" }),
   "POST /admin/tenants/t1/webhook-secret/rotate": json({ webhookSecret: "s1" }),
 });
-assert.deepEqual(await garantirTenant("casa", "Casa"), { tenantId: "t1", apikey: "k1", webhookSecret: "s1" });
+assert.deepEqual(await garantirTenant("casa", "Casa"), { tenantId: "t1", apikey: "k1", keyId: "", webhookSecret: "s1" });
 assert.equal(chamadas[0].headers["x-admin-key"], "chave-admin");
 
 // tenant que já existe, com segredo gravado do lado de cá: não rotaciona
 novo({ "GET /admin/tenants": json([{ id: "t1", slug: "casa" }]) });
-assert.deepEqual(await garantirTenant("casa", "Casa"), { tenantId: "t1", apikey: "", webhookSecret: "" });
+assert.deepEqual(await garantirTenant("casa", "Casa"), { tenantId: "t1", apikey: "", keyId: "", webhookSecret: "" });
 assert.ok(!chamadas.some((c) => c.caminho.endsWith("/rotate")), "reconexão não troca o segredo");
 
 // sem segredo gravado: rotaciona; sem apikey: emite outra
 novo({
   "GET /admin/tenants": json([{ id: "t1", slug: "casa" }]),
   "POST /admin/tenants/t1/keys": json({ id: "c3", apikey: "k2" }),
-  "GET /admin/tenants/t1/keys": json([
-    { id: "c3", label: "ruphus-recovery", revokedAt: null },
-    { id: "c1", label: "default", revokedAt: null },
-    { id: "c2", label: "ruphus-recovery", revokedAt: "2026-11-01T00:00:00Z" },
-    { id: "c9", label: "integração manual", revokedAt: null },
-  ]),
-  "DELETE /admin/tenants/t1/keys/c1": json({ revoked: true }),
   "POST /admin/tenants/t1/webhook-secret/rotate": json({ webhookSecret: "s2" }),
 });
-assert.deepEqual(await garantirTenant("casa", "Casa", { reatribuirChave: true, rotacionarSegredo: true }), { tenantId: "t1", apikey: "k2", webhookSecret: "s2" });
-assert.deepEqual(chamadas.filter((c) => c.metodo === "DELETE").map((c) => c.caminho), ["/admin/tenants/t1/keys/c1"], "revoga só a antiga da Ruphus: nem a nova, nem a já revogada, nem a manual");
+assert.deepEqual(await garantirTenant("casa", "Casa", { reatribuirChave: true, rotacionarSegredo: true }), { tenantId: "t1", apikey: "k2", keyId: "c3", webhookSecret: "s2" });
+assert.ok(!chamadas.some((c) => c.metodo === "DELETE"), "garantirTenant não revoga: só depois de gravar");
+
+// revogar: só as da Ruphus mais antigas que a nova, nunca a gravada. c4 é de uma conexão
+// simultânea (mais nova que c3): revogá-la deixava o negócio sem chave nenhuma
+novo({
+  "GET /admin/tenants/t1/keys": json([
+    { id: "c4", label: "ruphus-recovery", createdAt: "2026-11-04T10:00:02Z", revokedAt: null },
+    { id: "c3", label: "ruphus-recovery", createdAt: "2026-11-04T10:00:01Z", revokedAt: null },
+    { id: "c5", label: "ruphus-recovery", createdAt: "2026-11-03T10:00:00Z", revokedAt: null },
+    { id: "c1", label: "default", createdAt: "2026-11-01T10:00:00Z", revokedAt: null },
+    { id: "c2", label: "ruphus-recovery", createdAt: "2026-11-02T10:00:00Z", revokedAt: "2026-11-02T11:00:00Z" },
+    { id: "c9", label: "integração manual", createdAt: "2026-10-01T10:00:00Z", revokedAt: null },
+  ]),
+  "DELETE /admin/tenants/t1/keys/c1": json({ revoked: true }),
+});
+await revogarChavesAntigas("t1", "c3", "c5");
+assert.deepEqual(chamadas.filter((c) => c.metodo === "DELETE").map((c) => c.caminho), ["/admin/tenants/t1/keys/c1"], "nem a nova, nem a mais nova (c4), nem a gravada (c5), nem a revogada, nem a manual");
 
 // tenant já conhecido do lado de cá: busca pelo id, sem baixar a lista inteira
 novo({ "GET /admin/tenants/t1": json({ id: "t1", slug: "casa" }) });
-assert.deepEqual(await garantirTenant("casa", "Casa", { tenantId: "t1" }), { tenantId: "t1", apikey: "", webhookSecret: "" });
+assert.deepEqual(await garantirTenant("casa", "Casa", { tenantId: "t1" }), { tenantId: "t1", apikey: "", keyId: "", webhookSecret: "" });
 assert.ok(!chamadas.some((c) => c.caminho === "/admin/tenants"));
-// apagado no atendys (404): volta a procurar pelo slug
-novo({ "GET /admin/tenants/t1": () => Response.json({ error: { code: "TENANT_NOT_FOUND" } }, { status: 404 }), "GET /admin/tenants": json([{ id: "t2", slug: "casa" }]) });
-assert.equal((await garantirTenant("casa", "Casa", { tenantId: "t1" })).tenantId, "t2");
+// apagado no atendys (404) e recriado com o mesmo slug: chave e segredo do antigo não valem
+novo({
+  "GET /admin/tenants/t1": () => Response.json({ error: { code: "TENANT_NOT_FOUND" } }, { status: 404 }),
+  "GET /admin/tenants": json([{ id: "t2", slug: "casa" }]),
+  "POST /admin/tenants/t2/keys": json({ id: "d1", apikey: "k-t2" }),
+  "POST /admin/tenants/t2/webhook-secret/rotate": json({ webhookSecret: "s-t2" }),
+});
+assert.deepEqual(await garantirTenant("casa", "Casa", { tenantId: "t1" }), { tenantId: "t2", apikey: "k-t2", keyId: "d1", webhookSecret: "s-t2" });
 
 // instância: o nome vem da resposta (tenants.controller.ts devolve { instance: { name } });
-// 409 procura a do tenant; sem ela, a convenção {slug}-main. Outro erro sobe
+// 409 diz que exatamente {slug}-main existe (instances.service.ts monta {slug}-{nome}). Outro erro sobe
 novo({ "POST /admin/tenants/t1/instances": json({ instance: { id: "i1", name: "casa-main", status: "pending_qr" } }, 201) });
 assert.deepEqual(await criarInstancia("t1", "casa"), { name: "casa-main" });
 assert.deepEqual(chamadas[0].corpo, { name: "main" });
-novo({ "POST /admin/tenants/t1/instances": () => new Response("já existe", { status: 409 }), "GET /admin/instances": json([{ name: "casa-velha-main" }]) });
-assert.deepEqual(await criarInstancia("t1", "casa"), { name: "casa-velha-main" });
-novo({ "POST /admin/tenants/t1/instances": () => new Response("já existe", { status: 409 }) });
-assert.deepEqual(await criarInstancia("t1", "casa"), { name: "casa-main" });
+novo({ "POST /admin/tenants/t1/instances": () => Response.json({ error: { code: "VALIDATION_ERROR" } }, { status: 409 }), "GET /admin/instances": json([{ name: "casa-teste" }]) });
+assert.deepEqual(await criarInstancia("t1", "casa"), { name: "casa-main" }, "não pega outra instância do tenant");
+assert.equal(chamadas.length, 1);
 novo({ "POST /admin/tenants/t1/instances": () => new Response("fora", { status: 500 }) });
 await assert.rejects(criarInstancia("t1", "casa"), /500/);
 
@@ -141,6 +154,9 @@ assert.deepEqual(chamadas.map((c) => c.caminho), ["/v1/message/send-text"]);
 novo(atendys);
 await enviarTexto(conn, "5511900000002", "recibo", { origem: "ruphus-agendamento-online", evidencia: "digitado no agendamento online de casa" });
 assert.deepEqual(chamadas[1].corpo, { number: "5511900000002", source: "ruphus-agendamento-online", category: "transactional", evidence: "digitado no agendamento online de casa" });
+// limite: a explicação do atendys (o "espere um pouco" enganava no limite do dia)
+novo({ "POST /v1/message/send-text": () => Response.json({ error: { code: "RATE_LIMITED", message: "Limite diário de mensagens para este número atingido" } }, { status: 429 }) });
+await assert.rejects(enviarTexto(conn, "5511912345678", "x"), /Limite diário/);
 // corpo que não é JSON: frase genérica com o status
 novo({ "POST /v1/message/send-text": () => new Response("<html>bad gateway</html>", { status: 502 }) });
 await assert.rejects(enviarTexto(conn, "5511912345678", "x"), (e) => e instanceof ErroAtendys && e.codigo === null && /\(502\)/.test(e.message) && !/html/.test(e.message));
@@ -155,6 +171,35 @@ const depois = await lerConfigWhatsApp(db, "casa");
 assert.equal(depois?.atendysWebhookSecret, "s-antigo");
 assert.equal(depois?.atendysApiKey, "k1");
 assert.ok(!chamadas.some((c) => c.caminho.endsWith("/rotate")));
+
+// ── comando do salão no WhatsApp: remetente, palavra educada, códigos empatados ──
+await db.doc("tenants/salao").set({ name: "Salão" });
+await gravarConexao(db, "salao", { atendysTenantId: "t5", atendysApiKey: "k5", atendysWebhookSecret: "s5", instanceId: "salao-main", phone: "5511900000099", status: "connected", updatedAt: 0 });
+const daqui = new Date(Date.now() + 2 * 86_400_000);
+const marcar = (id: string) => db.doc(`tenants/salao/appointments/${id}`).set({ status: "booked", start: daqui, customerName: `Cliente ${id}`, customerPhone: "(11) 98888-0000", serviceName: "Corte" });
+const enviadas: { para: string; texto: string }[] = [];
+const salao = {
+  "GET /v1/instance/salao-main/status": json({ name: "salao-main", status: "connected", phone: "5511900000099" }),
+  "POST /v1/message/send-text": (corpo: unknown) => {
+    const c = corpo as { number: string; text: string };
+    enviadas.push({ para: c.number, texto: c.text });
+    return Response.json({ id: "m", status: "queued" });
+  },
+};
+const comando = (texto: string, de = "5511900000099") => processarComandoAgendamento(db, "salao", { phone: de, data: { text: texto } });
+novo(salao);
+await marcar("Xy99aa");
+assert.equal(await comando("confirmado", "5511977776666"), "ignorado", "cliente não confirma o próprio horário");
+assert.equal(await comando("Confirmado obrigado!"), "confirmado", "palavra educada depois do verbo não é código");
+assert.equal((await db.doc("tenants/salao/appointments/Xy99aa").get()).get("status"), "confirmed");
+await marcar("Ab12xQ");
+await marcar("aB12yR");
+enviadas.length = 0;
+assert.equal(await comando("confirmado ab12"), "sem pendente", "AB12 empata: pergunta");
+assert.match(enviadas.at(-1)!.texto, /AB12X: .*\n?AB12Y|AB12Y: .*AB12X|AB12X[\s\S]*AB12Y/);
+assert.equal(await comando("confirmado ab12y"), "confirmado");
+assert.equal((await db.doc("tenants/salao/appointments/aB12yR").get()).get("status"), "confirmed");
+assert.equal((await db.doc("tenants/salao/appointments/Ab12xQ").get()).get("status"), "booked");
 
 // ── demonstração: não conecta e nada sai dela, mesmo com conexão esquecida no documento ──
 await db.doc(`tenants/${DEMO}`).set({ name: "Demo" });
@@ -177,6 +222,8 @@ const entregar = (payload: Record<string, unknown>, segredo = "s-antigo") => {
 };
 // message.status não traz instância: 200 (400 fazia o atendys repetir 5 vezes cada status)
 assert.equal((await entregar({ event: "message.status", messageId: "m1", phone: "5511", status: "delivered", at: "2026-11-03T12:00:00Z" })).status, 200);
+// demonstração com instância esquecida pareada: ack sem processar (lerConexao dela é null)
+assert.equal((await entregar({ event: "instance.status", instance: "demo-main", status: "connected" }, "qualquer")).status, 200);
 // instância órfã: ack
 assert.equal((await entregar({ event: "instance.status", instance: "ninguem-main", status: "connected" })).status, 200);
 // assinatura com outro segredo: 401
