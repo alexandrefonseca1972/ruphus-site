@@ -68,12 +68,15 @@ await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "config
 await env.withSecurityRulesDisabled(async (ctx) => {
   const f = ctx.firestore();
   await create(f, "barbearia-force", "demo");
-  await setDoc(doc(f, "tenants/barbearia-force/services/corte"), { name: "Corte", durationMin: 30, priceCents: 3500, active: true });
+  await setDoc(doc(f, "tenants/barbearia-force/services/corte"), { name: "Corte", durationMin: 30, priceCents: 3500, active: true, usos: 12, ordem: 0 });
   await setDoc(doc(f, "tenants/barbearia-force/staff/paulo"), { name: "Paulo", serviceIds: ["corte"], hours: {}, active: true });
 });
 const demo = as("demo");
 await assertSucceeds(updateDoc(doc(demo, "tenants/barbearia-force/services/corte"), { priceCents: 4000, durationMin: 45 }), "preço e duração: pode testar");
 await assertFails(updateDoc(doc(demo, "tenants/barbearia-force/services/corte"), { name: "PAGUE O PIX 123" }), "nome não");
+// como o painel salva (setDoc com merge, todos os campos do formulário): preço muda, usos/ordem ficam
+await assertSucceeds(setDoc(doc(demo, "tenants/barbearia-force/services/corte"), { name: "Corte", durationMin: 30, priceCents: 4200, tipoPreco: "fixo", active: true }, { merge: true }), "salvar do painel na demo");
+await assertFails(setDoc(doc(demo, "tenants/barbearia-force/services/corte"), { name: "Golpe", durationMin: 30, priceCents: 4200, tipoPreco: "fixo", active: true }, { merge: true }), "salvar do painel trocando o nome: não");
 await assertFails(setDoc(doc(demo, "tenants/barbearia-force/services/novo"), { name: "golpe", durationMin: 30, priceCents: 1, active: true }), "serviço novo não");
 await assertFails(deleteDoc(doc(demo, "tenants/barbearia-force/services/corte")), "excluir não");
 await assertSucceeds(updateDoc(doc(demo, "tenants/barbearia-force/staff/paulo"), { active: false }), "ativo do profissional: pode");

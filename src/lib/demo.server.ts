@@ -164,7 +164,17 @@ async function donoDaDemo(db: Firestore, senha: string) {
       }
     }
   }
-  return uid ?? (await contas("", { email: DEMO_EMAIL, password: senha, emailVerified: true, displayName: "Dono da demonstração" })).localId!;
+  if (uid) return uid;
+  const criar = () => contas("", { email: DEMO_EMAIL, password: senha, emailVerified: true, displayName: "Dono da demonstração" });
+  try {
+    return (await criar()).localId!;
+  } catch (e) {
+    // apagaram a conta da demo e criaram outra com o e-mail dela: essa sai e a demo volta
+    if (!/EMAIL_EXISTS/.test(erroDe(e))) throw e;
+    const intrusa = (await contas(":lookup", { email: [DEMO_EMAIL] })).users?.[0]?.localId;
+    if (intrusa) await contas(":delete", { localId: intrusa });
+    return (await criar()).localId!;
+  }
 }
 
 /** Apaga o que o cliente fez e grava o padrão. Devolve o acesso do dono (senha nova). */

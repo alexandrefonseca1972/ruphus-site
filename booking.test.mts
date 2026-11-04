@@ -582,6 +582,13 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.equal((await contas(":lookup", { email: ["demo@ruphus.site"] })).users?.[0]?.localId, dono.id);
   assert.equal((await contas(":lookup", { localId: [intrusa] }).catch(() => ({ users: undefined }))).users?.length ?? 0, 0, "a intrusa foi apagada");
   assert.ok(await entra(r4.senha));
+  // apagaram a conta da demo e criaram outra com o e-mail dela: a restauração tira a intrusa e cria a demo de novo
+  await contas(":delete", { localId: dono.id });
+  const intrusa2 = (await contas("", { email: "demo@ruphus.site", password: "golpe123", emailVerified: false })).localId!;
+  const r5 = await restaurarDemo(db, { slug, adminUid: "admin" });
+  const nova = (await contas(":lookup", { email: ["demo@ruphus.site"] })).users?.[0]?.localId;
+  assert.ok(nova && nova !== intrusa2, "conta nova da demo, não a intrusa");
+  assert.ok(await entra(r5.senha));
 }
 
 // Negócio tirado do ar (cobrança): a agenda pública não abre nem reserva, por qualquer endereço
