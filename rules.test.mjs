@@ -50,6 +50,14 @@ await assertFails(getDoc(doc(alice, "config/pix")), "a chave Pix da Ruphus nao e
 await assertFails(getDoc(doc(alice, "config/integracoes")), "as chaves de SMS, e-mail e WhatsApp nao sao publicas");
 await assertFails(getDoc(doc(suporte, "cobrancas/acme-2026-10")), "nem o admin le pelo cliente: so o Admin SDK")
 await assertFails(setDoc(doc(suporte, "config/admin"), { uids: ["mallory"] })); // nem o admin escreve nela
+// sessão encerrada ("encerrar sessões" grava revogados[uid] em ms): o token emitido antes não lê mais
+const agoraS = Math.floor(Date.now() / 1000);
+const suporteAntigo = env.authenticatedContext("suporte", { email: "suporte@teste.dev", email_verified: true, auth_time: agoraS - 600 }).firestore();
+const suporteNovo = env.authenticatedContext("suporte", { email: "suporte@teste.dev", email_verified: true, auth_time: agoraS + 5 }).firestore();
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "config/admin"), { uids: ["suporte"], revogados: { suporte: (agoraS - 60) * 1000 } }));
+await assertFails(getDoc(doc(suporteAntigo, "tenants/acme")), "sessão de antes da revogação não lê");
+await assertSucceeds(getDoc(doc(suporteNovo, "tenants/acme")), "entrou de novo depois: lê");
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "config/admin"), { uids: ["suporte"] }));
 await assertFails(getDoc(doc(mallory, "tenants/acme/sites/s1")));
 await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), "tenants/acme")));
 

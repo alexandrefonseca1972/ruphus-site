@@ -6,9 +6,14 @@ service cloud.firestore {
     }
     // Quem administra a plataforma dá suporte em qualquer espaço. A lista fica em
     // config/admin, que nenhuma regra expõe: só o Admin SDK escreve nela.
+    // "Encerrar sessões" grava revogados[uid] (ms): o servidor já recusa na hora, e a regra também,
+    // senão o token emitido antes valia até uma hora lendo qualquer espaço pelo SDK do navegador.
     function ehAdminPlataforma() {
+      let cfg = get(/databases/$(database)/documents/config/admin).data;
       return request.auth != null
-        && request.auth.uid in get(/databases/$(database)/documents/config/admin).data.uids;
+        && request.auth.uid in cfg.uids
+        && (!(request.auth.uid in cfg.get('revogados', {}))
+            || request.auth.token.get('auth_time', 0) * 1000 > cfg.revogados[request.auth.uid]);
     }
     function isMember(t) {
       return request.auth != null && (exists(memberPath(t)) || ehAdminPlataforma());

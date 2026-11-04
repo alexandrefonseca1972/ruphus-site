@@ -135,12 +135,20 @@ export async function contas(acao: string, corpo: object) {
   return json;
 }
 
-/** A conta de dono da demonstração, com a senha dada. Sessões anteriores deixam de valer. */
+/** A conta de dono da demonstração, com a senha dada. Sessões anteriores deixam de valer.
+ *  Pelo uid guardado em config/demo, não pelo e-mail: quem tem a senha compartilhada pode trocar
+ *  o e-mail da conta, e a procura por DEMO_EMAIL criaria outra — deixando a antiga (com a senha
+ *  que só o golpista sabe) viva. O update devolve e-mail, senha e confirmação ao padrão. */
 async function donoDaDemo(db: Firestore, senha: string) {
-  const achado = (await contas(":lookup", { email: [DEMO_EMAIL] })).users?.[0]?.localId;
-  const uid = achado
-    ? (await contas(":update", { localId: achado, password: senha, disableUser: false, validSince: String(Math.floor(Date.now() / 1000)) })).localId!
-    : (await contas("", { email: DEMO_EMAIL, password: senha, emailVerified: true, displayName: "Dono da demonstração" })).localId!;
+  const guardado = (await db.doc("config/demo").get()).get("uid") as string | undefined;
+  const padrao = { email: DEMO_EMAIL, emailVerified: true, password: senha, disableUser: false, validSince: String(Math.floor(Date.now() / 1000)) };
+  let achado = guardado ?? (await contas(":lookup", { email: [DEMO_EMAIL] })).users?.[0]?.localId;
+  if (achado) {
+    // conta apagada no Firebase: cai na criação
+    achado = await contas(":update", { localId: achado, ...padrao }).then((r) => r.localId!, () => undefined);
+  }
+  const uid = achado ?? (await contas("", { email: DEMO_EMAIL, password: senha, emailVerified: true, displayName: "Dono da demonstração" })).localId!;
+  // o uid vai para config/demo junto com a senha nova, no fim de restaurarDemo
   // o token de quem testou antes ainda valeria até uma hora: a marca em config/admin o
   // recusa já (é o mesmo mecanismo de "encerrar sessão" do admin)
   if (achado) await db.doc("config/admin").set({ revogados: { [uid]: Date.now() } }, { merge: true });
@@ -248,7 +256,8 @@ export async function restaurarDemo(db: Firestore, opts: { slug?: string; adminU
   );
   if (!plano.ok) throw new Error(`Plano da demonstração: ${plano.error}`);
 
-  const acesso = { email: DEMO_EMAIL, senha, restauradoEm: FieldValue.serverTimestamp(), por: opts.adminUid };
+  // uid junto: a próxima restauração acha a conta por ele (ver donoDaDemo)
+  const acesso = { email: DEMO_EMAIL, senha, uid: dono.uid, restauradoEm: FieldValue.serverTimestamp(), por: opts.adminUid };
   // config/ não tem regra que abra para o navegador: só o servidor lê a senha
   await db.doc("config/demo").set(acesso);
   return { email: DEMO_EMAIL, senha, agendamentos: agenda.length };
