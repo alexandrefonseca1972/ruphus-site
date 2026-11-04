@@ -165,10 +165,11 @@ export const cancelarAvisosAction = memberAction(z.object({ tenantId: docIdStaff
   return { ok: true as const };
 });
 
-export const salvarRecadoAction = memberAction(z.object({ tenantId: docIdStaff, recado: Recado }), async (data, user) => {
+export const salvarRecadoAction = memberAction(z.object({ tenantId: docIdStaff, recado: Recado, online: z.boolean() }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid);
-  await adminDb.doc(`tenants/${data.tenantId}`).update({ "agenda.recado": data.recado });
+  await adminDb.doc(`tenants/${data.tenantId}`).update({ "agenda.recado": data.recado, "agenda.online": data.online });
   revalidatePath(`/agendar/${data.tenantId}`);
+  revalidatePath(`/bio/${data.tenantId}`);
   return { ok: true as const };
 });
 

@@ -20,6 +20,9 @@ export async function foraDoAr(db: Firestore, tenantId: string) {
   return (await db.doc(`crm/${tenantId}`).get()).get("publicado") === false;
 }
 const FORA_DO_AR = "Este negócio não está recebendo agendamentos online agora.";
+/** O dono desligou a agenda pelo link em Meu negócio (ausente = ligada). */
+export const agendaDesligada = (tenant: { get(campo: string): unknown }) => tenant.get("agenda.online") === false;
+const AGENDA_DESLIGADA = "Este negócio não marca horário pelo link. Fale com ele pelo WhatsApp.";
 
 export async function loadCatalog(db: Firestore, tenantId: string) {
   return (await lerCatalogo(db, tenantId))?.catalogo ?? null;
@@ -67,6 +70,8 @@ async function lerCatalogo(db: Firestore, tenantId: string) {
     siteUrl: urlDoSite(tenantId, tenant.get("dominio") as Dominio | undefined),
     // o recado do dono na confirmação; sem ele, a tela usa o texto padrão
     recadoDono: String(tenant.get("agenda.recado") ?? "").trim() || null,
+    // desligada: a página mostra o WhatsApp no lugar da grade
+    agendaOnline: !agendaDesligada(tenant),
     // sinal por Pix para reservar: a página avisa antes de o cliente confirmar
     sinal: ((): Pick<ConfigSinal, "tipo" | "valor" | "prazoMin"> | null => {
       const c = ConfigSinal.safeParse(tenant.get("sinal")).data;
@@ -80,7 +85,8 @@ async function lerCatalogo(db: Firestore, tenantId: string) {
         const s = Service.safeParse(d.data());
         const usos = typeof d.get("usos") === "number" ? (d.get("usos") as number) : 0;
         const ordem = typeof d.get("ordem") === "number" ? (d.get("ordem") as number) : 99;
-        return s.success && feitos.has(d.id) ? [{ id: d.id, name: s.data.name, durationMin: s.data.durationMin, priceCents: s.data.priceCents, tipoPreco: s.data.tipoPreco, usos, ordem }] : [];
+        // agenda desligada: a página só lista preços, então vale o serviço que ninguém faz
+        return s.success && (feitos.has(d.id) || agendaDesligada(tenant)) ? [{ id: d.id, name: s.data.name, durationMin: s.data.durationMin, priceCents: s.data.priceCents, tipoPreco: s.data.tipoPreco, usos, ordem }] : [];
       })
       .sort((a, b) => b.usos - a.usos || a.ordem - b.ordem || a.name.localeCompare(b.name, "pt-BR"))
       .map(({ usos, ordem, ...s }) => s),
@@ -508,6 +514,11 @@ export async function book(db: Firestore, input: BookingInput, ip?: string, aoCr
   if (await foraDoAr(db, input.tenantId)) {
     const ja = await reservaDoPedido((ref) => ref.get(), t, input);
     return ja ? { ok: true as const, ...ja } : { ok: false as const, error: FORA_DO_AR, field: true as const };
+  }
+  // agenda desligada pelo dono: mesma regra do fora do ar (a repetição ainda devolve a reserva)
+  if (agendaDesligada(await t.get())) {
+    const ja = await reservaDoPedido((ref) => ref.get(), t, input);
+    return ja ? { ok: true as const, ...ja } : { ok: false as const, error: AGENDA_DESLIGADA, field: true as const };
   }
   const r = await contended(() => db.runTransaction(async (tx) => {
     // antes da equipe e da grade, que podem ter mudado depois de reservado

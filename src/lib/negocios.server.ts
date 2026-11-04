@@ -99,6 +99,8 @@ export async function lerNegocio(db: Firestore, slug: string) {
     horario: s("gerado.horario"),
     /** recado da tela de confirmação do agendamento; vazio = texto padrão */
     recado: s("agenda.recado"),
+    /** agenda pelo link ligada; ausente = ligada (todo negócio nasce agendando) */
+    agendaOnline: t.get("agenda.online") !== false,
     fabrica: !t.get("gerado") && !!t.get("site.url"),
     /** entrada paga: sem faixa de proposta e no Google */
     publicado: !!t.get("gerado.publicadoEm"),

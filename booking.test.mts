@@ -576,6 +576,16 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.notEqual(await loadCatalog(db, "salao"), null, "de volta ao ar, abre de novo");
 }
 
+// Agenda desligada pelo dono: a página vira lista de preços e a reserva é recusada
+{
+  await db.doc("tenants/salao").update({ "agenda.online": false });
+  assert.equal((await loadCatalog(db, "salao"))?.agendaOnline, false);
+  const r = await book(db, { ...base, ...outro(), serviceIds: ["corte"], date: addDays(todayIn(), 9), time: "11:00" });
+  assert.deepEqual([r.ok, !r.ok && "field" in r], [false, true], "desligada, recusa com o aviso");
+  await db.doc("tenants/salao").update({ "agenda.online": true });
+  assert.equal((await loadCatalog(db, "salao"))?.agendaOnline, true, "religada, agenda de novo");
+}
+
 // "Qualquer profissional": o oferecido foi tomado, vale quem está livre na mesma hora
 {
   const dia = addDays(todayIn(), 10);
