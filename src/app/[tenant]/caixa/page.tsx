@@ -178,23 +178,26 @@ export default function CaixaPage() {
         </div>
       </PageTitle>
 
-      <dl className="grid grid-cols-3 gap-2 sm:gap-4">
+      {/* No celular, três cartões de ~115 px partiam "R$ 12.345,00" no meio: o Sobrou (o que o
+          dono quer saber) ocupa a linha de cima, maior, e Entrou/Saiu dividem a de baixo. */}
+      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4">
         {[
-          { label: "Entrou", valor: r.entrou, cor: "text-emerald-800 dark:text-emerald-300" },
-          { label: "Saiu", valor: r.saiu, cor: "text-red-800 dark:text-red-300" },
-          { label: "Sobrou", valor: r.sobrou, cor: r.sobrou < 0 ? "text-red-800 dark:text-red-300" : "" },
+          { label: "Entrou", valor: r.entrou, cor: "text-emerald-800 dark:text-emerald-300", destaque: false },
+          { label: "Saiu", valor: r.saiu, cor: "text-red-800 dark:text-red-300", destaque: false },
+          { label: "Sobrou", valor: r.sobrou, cor: r.sobrou < 0 ? "text-red-800 dark:text-red-300" : "", destaque: true },
         ].map((t) => (
-          // min-w-0 e quebra em qualquer ponto: em 320 px "R$ 12.345,00" passava da borda do cartão
-          <div key={t.label} className="grid min-w-0 gap-1.5 rounded-2xl border bg-card px-3 py-4 sm:px-5">
+          // min-w-0 e quebra em qualquer ponto: segurança para valores enormes em 320 px
+          <div key={t.label} className={cn("grid min-w-0 gap-1.5 rounded-2xl border bg-card px-4 py-4 sm:px-5", t.destaque && "max-sm:order-first max-sm:col-span-2")}>
             <dt className="text-[13px] text-muted-foreground">{t.label}</dt>
-            <dd className={cn("font-serifa text-xl leading-none tabular-nums [overflow-wrap:anywhere] max-[359px]:text-base sm:text-3xl", t.cor)}>{lancamentos ? formatBRL(t.valor) : "…"}</dd>
+            <dd className={cn("font-serifa leading-none tabular-nums [overflow-wrap:anywhere] sm:text-3xl", t.destaque ? "text-3xl" : "text-2xl max-[359px]:text-xl", t.cor)}>{lancamentos ? formatBRL(t.valor) : "…"}</dd>
           </div>
         ))}
       </dl>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Button className="h-12 text-base" onClick={() => setFolha({ modo: "novo", tipo: "entrada", data: diaNovo })}>+ Entrada</Button>
-        <Button variant="outline" className="h-12 text-base" onClick={() => setFolha({ modo: "novo", tipo: "saida", data: diaNovo })}>− Saída</Button>
+      {/* no computador, dois botões de meia tela pesavam mais que os números: largura do texto */}
+      <div className="grid grid-cols-2 gap-3 sm:flex">
+        <Button className="h-12 text-base sm:min-w-44" onClick={() => setFolha({ modo: "novo", tipo: "entrada", data: diaNovo })}>+ Entrada</Button>
+        <Button variant="outline" className="h-12 text-base sm:min-w-44" onClick={() => setFolha({ modo: "novo", tipo: "saida", data: diaNovo })}>− Saída</Button>
       </div>
 
       {aviso && (
@@ -213,9 +216,10 @@ export default function CaixaPage() {
       {pendentes.length > 0 && (
         <section aria-labelledby="fechar" className="overflow-hidden rounded-2xl border bg-card">
           <div className="grid gap-0.5 px-4 py-4 sm:px-6">
-            <h2 id="fechar" className="font-semibold">Fechar o dia</h2>
+            {/* "Fechar o dia" listava também os dias anteriores: o título diz o que é a lista */}
+            <h2 id="fechar" className="font-semibold">A receber da agenda</h2>
             <p className="text-sm text-muted-foreground">
-              {pendentes.length} atendimento{pendentes.length > 1 ? "s" : ""} sem recebimento · {formatBRL(aReceber)} na agenda
+              {pendentes.length} atendimento{pendentes.length > 1 ? "s" : ""} já feito{pendentes.length > 1 ? "s" : ""}, sem recebimento · {formatBRL(aReceber)}
             </p>
           </div>
           <ul>
@@ -294,7 +298,7 @@ export default function CaixaPage() {
         {!lancamentos ? (
           <p className="border-t px-6 py-8 text-sm text-muted-foreground">Carregando…</p>
         ) : porDia.length === 0 ? (
-          <p className="border-t px-6 py-10 text-center text-sm text-muted-foreground">Nada lançado neste mês. Use “+ Entrada” e “− Saída”, ou receba os atendimentos da agenda.</p>
+          <p className="border-t px-6 py-10 text-center text-sm text-muted-foreground">Nada lançado neste mês. Use “+ Entrada” e “− Saída”, ou receba os atendimentos da agenda.</p>
         ) : (
           porDia.map(([dia, itens]) => {
             const saldo = itens.reduce((t, l) => t + (l.tipo === "entrada" ? l.valorCents : -l.valorCents), 0);
