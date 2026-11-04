@@ -66,7 +66,7 @@ function memberAction<S extends z.ZodType<{ tenantId: string }>, R>(
 export const criarProfissionalAction = memberAction(
   z.object({ tenantId: docIdStaff, dados: Staff }),
   async (data, user) => {
-    await exigeGestor(data.tenantId, user.uid);
+    await exigeGestor(data.tenantId, user.uid, { publico: true });
     return { ok: true as const, id: await criarProfissional(adminDb, data.tenantId, data.dados) };
   },
 );
@@ -148,7 +148,7 @@ async function exigeGestor(tenantId: string, uid: string, opts: { publico?: bool
   // sinal, recado depois de agendar) não pode virar isca de golpe sob o domínio da Ruphus
   // até a restauração da madrugada. Só a plataforma muda; o resto da demo segue livre
   if (opts.publico && tenantId === DEMO && !daPlataforma) {
-    throw new UserError("Na demonstração, os dados do negócio, o Pix, o sinal e o recado ficam como estão: eles aparecem no site público. O resto pode testar à vontade.");
+    throw new UserError("Na demonstração, os dados do negócio, o Pix, o sinal, o recado e a equipe ficam como estão: eles aparecem no site público. O resto pode testar à vontade.");
   }
 }
 

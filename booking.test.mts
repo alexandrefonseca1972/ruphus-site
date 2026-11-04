@@ -574,6 +574,14 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   const r3 = await restaurarDemo(db, { slug, adminUid: "admin" });
   assert.equal((await contas(":lookup", { localId: [dono.id] })).users?.[0] && (await contas(":lookup", { email: ["demo@ruphus.site"] })).users?.[0]?.localId, dono.id, "a mesma conta, com o e-mail da demo de volta");
   assert.ok(await entra(r3.senha), "entra com a senha nova");
+  // e ainda cria outra conta com o e-mail da demo, para a restauração esbarrar em EMAIL_EXISTS:
+  // a intrusa sai, a conta guardada volta ao e-mail da demo (antes a restauração travava de vez)
+  await contas(":update", { localId: dono.id, email: "golpe2@teste.dev" });
+  const intrusa = (await contas("", { email: "demo@ruphus.site", password: "golpe123", emailVerified: true })).localId!;
+  const r4 = await restaurarDemo(db, { slug, adminUid: "admin" });
+  assert.equal((await contas(":lookup", { email: ["demo@ruphus.site"] })).users?.[0]?.localId, dono.id);
+  assert.equal((await contas(":lookup", { localId: [intrusa] }).catch(() => ({ users: undefined }))).users?.length ?? 0, 0, "a intrusa foi apagada");
+  assert.ok(await entra(r4.senha));
 }
 
 // Negócio tirado do ar (cobrança): a agenda pública não abre nem reserva, por qualquer endereço

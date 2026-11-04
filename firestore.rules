@@ -6,17 +6,26 @@ service cloud.firestore {
     }
     // Quem administra a plataforma dá suporte em qualquer espaço. A lista fica em
     // config/admin, que nenhuma regra expõe: só o Admin SDK escreve nela.
-    // "Encerrar sessões" grava revogados[uid] (ms): o servidor já recusa na hora, e a regra também,
-    // senão o token emitido antes valia até uma hora lendo qualquer espaço pelo SDK do navegador.
     function ehAdminPlataforma() {
-      let cfg = get(/databases/$(database)/documents/config/admin).data;
       return request.auth != null
-        && request.auth.uid in cfg.uids
-        && (!(request.auth.uid in cfg.get('revogados', {}))
-            || request.auth.token.get('auth_time', 0) * 1000 > cfg.revogados[request.auth.uid]);
+        && request.auth.uid in get(/databases/$(database)/documents/config/admin).data.uids
+        && naoRevogado();
+    }
+    // "Encerrar sessões" grava revogados[uid] (ms): o servidor já recusa na hora, e a regra também,
+    // senão o token emitido antes valia até uma hora lendo pelo SDK do navegador. Vale para todos
+    // (a conta da Ruphus é membro de verdade de milhares de espaços e passava pelo exists)
+    function naoRevogado() {
+      let r = get(/databases/$(database)/documents/config/admin).data.get('revogados', {});
+      return !(request.auth.uid in r) || request.auth.token.get('auth_time', 0) * 1000 > r[request.auth.uid];
     }
     function isMember(t) {
-      return request.auth != null && (exists(memberPath(t)) || ehAdminPlataforma());
+      return request.auth != null && naoRevogado() && (exists(memberPath(t)) || ehAdminPlataforma());
+    }
+    // A demonstração tem senha compartilhada: nome de serviço e de profissional aparece no site, na
+    // bio e no agendamento públicos — virava isca de golpe até a restauração. Lá, quem não é da
+    // plataforma muda só preço, duração, ativo, horários e quem faz o quê.
+    function demoProtegida(t) {
+      return t == 'barbearia-force' && !ehAdminPlataforma();
     }
     function hasRole(t, roles) {
       return isMember(t) && get(memberPath(t)).data.role in roles;
@@ -36,7 +45,7 @@ service cloud.firestore {
 
     // "Meus tenants": collectionGroup("members") where uid == me
     match /{path=**}/members/{uid} {
-      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow read: if request.auth != null && naoRevogado() && resource.data.uid == request.auth.uid;
     }
 
     match /tenants/{t} {
@@ -140,7 +149,9 @@ service cloud.firestore {
       // A equipe lê; preço, serviços e site só quem gere.
       match /services/{s} {
         allow read: if isMember(t);
-        allow write: if gere(t);
+        allow create, delete: if gere(t) && !demoProtegida(t);
+        allow update: if gere(t) && (!demoProtegida(t)
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['priceCents', 'durationMin', 'active', 'tipoPreco', 'ordem']));
       }
       // tenants/{t}/privado/* (credenciais do gateway de WhatsApp) e o resto sem match: só o servidor
       // Profissional novo é criado pelo servidor: é lá que o limite do plano é
@@ -148,7 +159,8 @@ service cloud.firestore {
       // leva junto o acesso de quem entrava como esse profissional. Editar segue aqui.
       match /staff/{s} {
         allow read: if isMember(t);
-        allow update: if gere(t);
+        allow update: if gere(t) && (!demoProtegida(t)
+          || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']));
         allow create, delete: if false;
       }
     }

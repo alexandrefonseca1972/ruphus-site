@@ -141,18 +141,30 @@ export async function contas(acao: string, corpo: object) {
  *  que só o golpista sabe) viva. O update devolve e-mail, senha e confirmação ao padrão. */
 async function donoDaDemo(db: Firestore, senha: string) {
   const guardado = (await db.doc("config/demo").get()).get("uid") as string | undefined;
-  const padrao = { email: DEMO_EMAIL, emailVerified: true, password: senha, disableUser: false, validSince: String(Math.floor(Date.now() / 1000)) };
-  let achado = guardado ?? (await contas(":lookup", { email: [DEMO_EMAIL] })).users?.[0]?.localId;
-  if (achado) {
-    // conta apagada no Firebase: cai na criação
-    achado = await contas(":update", { localId: achado, ...padrao }).then((r) => r.localId!, () => undefined);
+  const agoraS = String(Math.floor(Date.now() / 1000));
+  const padrao = { email: DEMO_EMAIL, emailVerified: true, password: senha, disableUser: false, validSince: agoraS };
+  const erroDe = (e: unknown) => (e instanceof Error ? e.message : String(e));
+  let uid = guardado ?? (await contas(":lookup", { email: [DEMO_EMAIL] })).users?.[0]?.localId;
+  if (uid) {
+    // corta quem usava a senha antes de qualquer outra coisa: se o resto falhar, a conta já não entra
+    await db.doc("config/admin").set({ revogados: { [uid]: Date.now() } }, { merge: true });
+    try {
+      await contas(":update", { localId: uid, ...padrao });
+    } catch (e) {
+      const msg = erroDe(e);
+      if (/USER_NOT_FOUND/.test(msg)) {
+        uid = undefined; // apagada no Firebase: cria de novo abaixo
+      } else if (/EMAIL_EXISTS/.test(msg)) {
+        // trocaram o e-mail desta conta e criaram outra com o da demo: essa intrusa sai
+        const intrusa = (await contas(":lookup", { email: [DEMO_EMAIL] })).users?.[0]?.localId;
+        if (intrusa && intrusa !== uid) await contas(":delete", { localId: intrusa });
+        await contas(":update", { localId: uid, ...padrao });
+      } else {
+        throw e; // erro passageiro do Firebase: não cria outra conta, tenta de novo na próxima
+      }
+    }
   }
-  const uid = achado ?? (await contas("", { email: DEMO_EMAIL, password: senha, emailVerified: true, displayName: "Dono da demonstração" })).localId!;
-  // o uid vai para config/demo junto com a senha nova, no fim de restaurarDemo
-  // o token de quem testou antes ainda valeria até uma hora: a marca em config/admin o
-  // recusa já (é o mesmo mecanismo de "encerrar sessão" do admin)
-  if (achado) await db.doc("config/admin").set({ revogados: { [uid]: Date.now() } }, { merge: true });
-  return uid;
+  return uid ?? (await contas("", { email: DEMO_EMAIL, password: senha, emailVerified: true, displayName: "Dono da demonstração" })).localId!;
 }
 
 /** Apaga o que o cliente fez e grava o padrão. Devolve o acesso do dono (senha nova). */
