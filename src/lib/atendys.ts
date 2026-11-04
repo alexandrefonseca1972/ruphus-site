@@ -23,6 +23,11 @@ const WEBHOOK_URL = () => `${SITE()}/api/webhooks/atendys`;
 // WhatsApp e leva 8–15s; 35s cobre o pior caso sem deixar a tela travada
 const TIMEOUT_MS = 35_000;
 
+/** O que vai para quem gere (lastNotifyError, painel): a frase prevista, nunca o texto técnico
+ *  de um erro inesperado (ex.: "Unexpected token '<'" de um proxy que devolveu HTML). */
+export const motivoLegivel = (e: unknown) => (e instanceof ErroPrevisto ? e.message : "erro inesperado no serviço de WhatsApp");
+export const ROTULO_STATUS: Record<string, string> = { connected: "conectado", disconnected: "desconectado", qr: "aguardando o QR" };
+
 /** Vocabularão do atendys: pending_qr vira "qr" no painel (QR aguardando leitura). */
 export type StatusConexao = "connected" | "disconnected" | "qr";
 
@@ -69,7 +74,7 @@ async function chamar<T>(auth: Record<string, string>, method: string, caminho: 
     if (e instanceof DOMException && e.name === "TimeoutError") {
       throw new ErroPrevisto(`O serviço de WhatsApp demorou mais de ${Math.round(TIMEOUT_MS / 1000)}s para responder. Tente de novo.`);
     }
-    throw new ErroPrevisto("O serviço de WhatsApp não respondeu. Verifique se o atendys está no ar.");
+    throw new ErroPrevisto("O serviço de WhatsApp não respondeu. Tente de novo em instantes.");
   }
   if (!res.ok) {
     const detalhe = await res.text().catch(() => "");

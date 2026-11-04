@@ -39,7 +39,7 @@ import { gerarNoBanco, lerSite, personalDe, publicarSite } from "@/lib/gerador.s
 import { PAGINAS_DEMO } from "@/lib/demo";
 import { acessoDemo, contas, restaurarDemo } from "@/lib/demo.server";
 import { deslogarInstancia, qrDaConexao, statusDaConexao, type SituacaoQr as QrWhatsApp } from "@/lib/atendys";
-import { apagarConexao, conectarNegocio, gravarGestaoDono, gravarOwnerPhone, lerConexao, paraTela, type ConexaoNaTela, type ConexaoWhatsapp, gravarConexao } from "@/lib/whatsapp.server";
+import { apagarConexao, conectarNegocio, espelharStatusVivo, gravarGestaoDono, gravarOwnerPhone, lerConexao, paraTela, type ConexaoNaTela } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { MODELOS, modeloDoId, NOMES_FONTE, Personal, renderEditorial, visualEditorial } from "@/lib/site-editorial";
 import { ehClaro, galeriaClaro, modeloClaroDoId, modelosClaro, renderClaro, visualClaro } from "@/lib/site-claro";
@@ -929,10 +929,10 @@ export const refreshWhatsAppStatus = adminAction(async (_user, slug: string): Pr
   slugValido(slug);
   const salva = await lerConexao(adminDb, slug);
   if (!salva) return null;
+  const lidoEm = Date.now();
   const vivo = await statusDaConexao(salva);
-  const conexao: ConexaoWhatsapp = { ...salva, phone: vivo.phone ?? salva.phone, status: vivo.status, updatedAt: Date.now() };
-  await gravarConexao(adminDb, slug, conexao);
-  return paraTela(conexao);
+  await espelharStatusVivo(adminDb, slug, vivo, lidoEm);
+  return paraTela(await lerConexao(adminDb, slug));
 });
 
 /** O QR de pareamento (data URL), ou o estado da conexão enquanto o QR não sai. */
@@ -947,8 +947,9 @@ export const qrWhatsApp = adminAction(async (_user, slug: string): Promise<QrWha
 export const desconectarWhatsApp = adminAction(async (_user, slug: string) => {
   slugValido(slug);
   const salva = await lerConexao(adminDb, slug);
-  if (salva) await deslogarInstancia(salva.instanceId).catch(() => {});
+  // solta o vínculo antes de despareiar: o "disconnected" do logout não acha o negócio
   await apagarConexao(adminDb, slug);
+  if (salva) await deslogarInstancia(salva.instanceId).catch(() => {});
   return "desconectado";
 });
 

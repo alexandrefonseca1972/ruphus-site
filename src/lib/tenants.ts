@@ -27,6 +27,11 @@ export const Tenant = z.object({
   // chave Pix do salão (o QR do balcão sai dela); só o servidor grava
   pix: z.object({ chave: z.string(), nome: z.string(), cidade: z.string() }).optional().catch(undefined),
   sinal: z.object({ ativo: z.boolean(), tipo: z.enum(["percentual", "fixo"]), valor: z.number(), prazoMin: z.number() }).optional().catch(undefined),
+  // estado da conexão do WhatsApp (sem credenciais: essas moram em privado/whatsapp)
+  whatsapp: z
+    .object({ status: z.string().optional(), instanceId: z.string().optional(), ownerManaged: z.boolean().optional(), conectadoEm: z.number().optional() })
+    .optional()
+    .catch(undefined),
 });
 export type Tenant = z.infer<typeof Tenant> & { id: string };
 

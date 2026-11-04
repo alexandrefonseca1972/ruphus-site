@@ -1,6 +1,6 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
-import { quando } from "@/lib/avisos.server";
+import { avisar, quando } from "@/lib/avisos.server";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { dateIn, formatTime } from "@/lib/datetime";
 import { DEMO } from "@/lib/demo";
@@ -50,6 +50,8 @@ export type ConexaoWhatsapp = ConexaoAtendys & {
   atendysWebhookSecret?: string;
   /** id da apikey em uso no atendys: as recuperações seguintes não revogam esta */
   atendysKeyId?: string;
+  /** já esteve conectada (a faixa "Seu WhatsApp desconectou" só aparece depois disso) */
+  conectadoEm?: number;
 };
 
 export { soDigitosComDDI };
@@ -118,6 +120,8 @@ export async function desligarConexao(db: Firestore, slug: string): Promise<void
       whatsapp: {
         instanceId: FieldValue.delete(),
         phone: FieldValue.delete(),
+        // conexão nova começa sem histórico: QR que expira sem ler não é "desconectou"
+        conectadoEm: FieldValue.delete(),
         status: "disconnected",
         statusReason: FieldValue.delete(),
         updatedAt: Date.now(),
@@ -187,6 +191,10 @@ export async function conectarNegocio(
     ownerManaged,
   };
   await gravarConexao(db, slug, conexao);
+  // ...atual trazia o conectadoEm da conexão anterior: esta ainda não conectou (nem no banco,
+  // nem no que volta para a tela)
+  await db.doc(`tenants/${slug}`).update({ "whatsapp.conectadoEm": FieldValue.delete() });
+  delete conexao.conectadoEm;
   // chave nova gravada: as antigas da Ruphus saem. Relê a gravada — outra conexão ao mesmo
   // tempo pode ter gravado a dela depois, e essa não pode ser revogada. Falha aqui não
   // desfaz a conexão (sobra só uma chave a mais, como antes)
@@ -255,9 +263,14 @@ export async function espelharStatusDaInstancia(
   db: Firestore,
   slug: string,
   dados: { status?: unknown; phone?: unknown; reason?: unknown; at?: unknown },
-) {
+): Promise<{ caiu: boolean }> {
   const bruto = String(dados.status ?? "");
-  if (!bruto) return;
+  // só os três do contrato: um valor novo (connecting, reconnecting…) não pode virar
+  // "desconectado" e disparar faixa e aviso falsos
+  if (!["pending_qr", "connected", "disconnected"].includes(bruto)) {
+    if (bruto) console.warn(`[whatsapp] status desconhecido do atendys para ${slug}: ${bruto}`);
+    return { caiu: false };
+  }
   // "at" (ISO, dentro do corpo assinado) é a hora do evento no atendys: reentrega antiga ou
   // fora de ordem não desfaz um status mais novo (o "disconnected" de ontem reenviado hoje)
   const em = typeof dados.at === "string" ? Date.parse(dados.at) : NaN;
@@ -265,11 +278,12 @@ export async function espelharStatusDaInstancia(
   const reason = typeof dados.reason === "string" && dados.reason ? dados.reason : null;
   const ref = db.doc(`tenants/${slug}`);
   // em transação: duas entregas ao mesmo tempo passavam ambas pela checagem e a mais velha
-  // podia gravar por último
-  await db.runTransaction(async (tx) => {
+  // podia gravar por último. Devolve o status de antes (null = evento descartado)
+  const antes = await db.runTransaction(async (tx) => {
+    const doc = await tx.get(ref);
     if (Number.isFinite(em)) {
-      const atual = (await tx.get(ref)).get("whatsapp.statusAt");
-      if (typeof atual === "number" && em <= atual) return;
+      const atual = doc.get("whatsapp.statusAt");
+      if (typeof atual === "number" && em <= atual) return null;
     }
     tx.set(
       ref,
@@ -279,12 +293,52 @@ export async function espelharStatusDaInstancia(
           ...(reason ? { statusReason: reason } : {}),
           ...(typeof dados.phone === "string" && dados.phone ? { phone: dados.phone } : {}),
           ...(Number.isFinite(em) ? { statusAt: em } : {}),
+          // reconectou: a falha antiga ("desconectado, nenhum lembrete sai") não vale mais;
+          // conectadoEm diz que já houve conexão (a faixa de "desconectou" só faz sentido aí)
+          ...(status === "connected" ? { lastNotifyError: FieldValue.delete(), conectadoEm: Date.now() } : {}),
+          // conexão feita antes do marcador existir: estava conectada, então já houve conexão
+          ...(status !== "connected" && doc.get("whatsapp.status") === "connected" && !doc.get("whatsapp.conectadoEm") ? { conectadoEm: Date.now() } : {}),
           updatedAt: Date.now(),
         },
       },
       { merge: true },
     );
+    return String(doc.get("whatsapp.status") ?? "");
   });
+  // caiu = estava conectado e agora não: quem chama avisa (avisarQueda), fora da resposta
+  return { caiu: antes === "connected" && status === "disconnected" };
+}
+
+/** A conexão caiu: quem gere fica sabendo na hora, no celular, em vez de descobrir dias depois
+ *  que nenhum lembrete saiu. Gerenciado pela plataforma: o texto não manda reconectar.
+ *  Falha no push só vai para o log. */
+export async function avisarQueda(db: Firestore, slug: string) {
+  const plataforma = (await db.doc(`tenants/${slug}`).get()).get("whatsapp.ownerManaged") === false;
+  await avisar(
+    db,
+    slug,
+    {
+      title: "Seu WhatsApp desconectou",
+      body: plataforma
+        ? "Lembretes e avisos de agendamento pararam. A Ruphus já foi avisada e vai reconectar."
+        : "Lembretes e avisos de agendamento pararam. Toque para reconectar.",
+      url: `/${slug}/negocio#whatsapp`,
+      tag: "whatsapp-desconectado",
+    },
+    { soGestores: true },
+  ).catch((e) => console.error(`[whatsapp] aviso de queda de ${slug}`, e));
+}
+
+/** Estado lido ao vivo do atendys (polling, lembretes, agendamento) passa pelo mesmo espelho do
+ *  webhook: com o webhook perdido, a queda também vira status, faixa e aviso — e nunca grava a
+ *  conexão inteira de volta (isso ressuscitava a falha já limpa e voltava o statusAt). */
+export async function espelharStatusVivo(db: Firestore, slug: string, vivo: { status: string; phone: string | null }, lidoEm: number) {
+  // lidoEm = antes de perguntar ao atendys: uma leitura que começou antes de um webhook mais novo
+  // ("connected" ao reconectar) é descartada pelo statusAt, em vez de desfazê-lo e avisar queda.
+  // 5 s de folga: o "at" do webhook vem do relógio do atendys, e um pouco atrasado não pode
+  // ter a queda verdadeira descartada por uma leitura nossa de instantes antes
+  const { caiu } = await espelharStatusDaInstancia(db, slug, { status: vivo.status === "qr" ? "pending_qr" : vivo.status, phone: vivo.phone, at: new Date(lidoEm - 5000).toISOString() });
+  if (caiu) await avisarQueda(db, slug);
 }
 
 /** Código curto do agendamento no aviso ao salão ("CONFIRMADO AB12"): é ele que diz a

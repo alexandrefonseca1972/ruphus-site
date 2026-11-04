@@ -132,6 +132,24 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
       </header>
       <main className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)] gap-7 px-4 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pt-10 sm:pb-16">
         <AppInstalado />
+        {/* conexão caiu: já esteve conectada (conectadoEm), a instância segue gravada (não foi o
+            dono que desconectou) e agora está desconectada. Lembretes e avisos param calados até
+            alguém abrir Meu negócio — a faixa avisa. Gerenciado pela plataforma: sem "Reconectar" */}
+        {state.podeGerir && state.whatsapp?.instanceId && state.whatsapp.conectadoEm && state.whatsapp.status === "disconnected" && !pathname.endsWith("/negocio") && (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+            <p>
+              <strong className="font-semibold">Seu WhatsApp desconectou.</strong>{" "}
+              {state.whatsapp.ownerManaged === false
+                ? "Lembretes e avisos de agendamento estão parados. A Ruphus já foi avisada e vai reconectar."
+                : "Lembretes e avisos de agendamento estão parados até reconectar."}
+            </p>
+            {state.whatsapp.ownerManaged !== false && (
+              <Link href={`/${slug}/negocio#whatsapp`} className="inline-flex h-10 shrink-0 items-center rounded-lg bg-amber-900 px-4 font-medium text-white hover:bg-amber-950 dark:bg-amber-200 dark:text-amber-950">
+                Reconectar
+              </Link>
+            )}
+          </div>
+        )}
         {children}
       </main>
       {/* Celular: as seções no alcance do polegar, sempre à vista. */}

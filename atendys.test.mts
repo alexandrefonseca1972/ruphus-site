@@ -2,10 +2,10 @@
 // simulado, Firestore no emulador)
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { getFirestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { assinaturaValida, criarInstancia, enviarTexto, ErroAtendys, garantirTenant, imagemDoQr, revogarChavesAntigas } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
-import { codigosUnicos, conectarNegocio, gravarConexao, lerConexao, lerConfigWhatsApp, lerComando, processarComandoAgendamento } from "@/lib/whatsapp.server";
+import { codigosUnicos, conectarNegocio, espelharStatusDaInstancia, gravarConexao, lerConexao, lerConfigWhatsApp, lerComando, processarComandoAgendamento } from "@/lib/whatsapp.server";
 
 // ── assinatura do webhook ──
 const corpo = JSON.stringify({ event: "message.received", instance: "casa-main" });
@@ -271,12 +271,39 @@ assert.equal((await lerConfigWhatsApp(db, "casa"))?.status, "qr");
 await entregar({ event: "instance.status", instance: "casa-main", status: "connected", at: "2026-11-04T12:00:05Z" });
 await entregar({ event: "instance.status", instance: "casa-main", status: "disconnected", at: "2026-11-04T12:00:00Z" });
 assert.equal((await lerConfigWhatsApp(db, "casa"))?.status, "connected");
-await entregar({ event: "instance.status", instance: "casa-main", status: "disconnected", at: "2026-11-04T12:00:09Z" });
+// a queda (connected → disconnected) devolve caiu: a rota manda o aviso no after(), que só existe
+// dentro de uma requisição do Next — aqui, a função direto
+assert.deepEqual(await espelharStatusDaInstancia(db, "casa", { status: "disconnected", at: "2026-11-04T12:00:09Z" }), { caiu: true });
 assert.equal((await lerConfigWhatsApp(db, "casa"))?.status, "disconnected", "o mais novo vale");
+assert.deepEqual(await espelharStatusDaInstancia(db, "casa", { status: "disconnected", at: "2026-11-04T12:00:10Z" }), { caiu: false }, "já estava desconectado: não avisa de novo");
+assert.deepEqual(await espelharStatusDaInstancia(db, "casa", { status: "connecting" }), { caiu: false }, "status fora do contrato não muda nada");
+assert.equal((await lerConfigWhatsApp(db, "casa"))?.status, "disconnected");
+// reconectou: a falha antiga some; caiu de novo: o aviso ao dono roda (sem VAPID no teste, não envia) e não quebra
+await db.doc("tenants/casa").set({ whatsapp: { lastNotifyError: { message: "WhatsApp desconectado: ninguém foi avisado", at: 1 } } }, { merge: true });
+assert.equal((await entregar({ event: "instance.status", instance: "casa-main", status: "connected", at: "2026-11-04T12:01:00Z" })).status, 200);
+assert.equal((await lerConfigWhatsApp(db, "casa"))?.lastNotifyError, undefined, "reconectar limpa a falha antiga");
+assert.equal(typeof (await lerConfigWhatsApp(db, "casa"))?.conectadoEm, "number", "marca que já houve conexão (a faixa depende disso)");
+// status ao vivo (polling/lembrete/agendamento) passa pelo mesmo espelho e não desfaz o statusAt
+const { espelharStatusVivo } = await import("@/lib/whatsapp.server");
 // mensagem recebida (mídia, sem comando) vai para a caixa de entrada uma vez só
 assert.equal((await entregar({ event: "message.received", instance: "casa-main", messageId: "ABC/1", phone: "5511999", type: "media", at: "2026-11-03T12:00:00Z" })).status, 200);
 assert.equal((await entregar({ event: "message.received", instance: "casa-main", messageId: "ABC/1", phone: "5511999", type: "media", at: "2026-11-03T12:00:00Z" })).status, 200);
 assert.equal((await db.collection("tenants/casa/whatsappInbox").get()).size, 1);
+// leitura ao vivo que começou ANTES do webhook "connected" mais novo: descartada (sem aviso falso ao reconectar)
+await espelharStatusVivo(db, "casa", { status: "disconnected", phone: null }, Date.parse("2026-11-04T12:00:30Z"));
+assert.equal((await lerConfigWhatsApp(db, "casa"))?.status, "connected", "leitura velha não desfaz o connected");
+// leitura ao vivo nova: vale (webhook perdido também vira status)
+await espelharStatusVivo(db, "casa", { status: "disconnected", phone: null }, Date.parse("2026-11-04T12:03:00Z"));
+assert.equal((await lerConfigWhatsApp(db, "casa"))?.status, "disconnected");
+
+// conexão anterior ao marcador (sem conectadoEm) que cai: ganha o marcador e a faixa aparece
+await db.doc("tenants/casa").update({ "whatsapp.status": "connected", "whatsapp.conectadoEm": FieldValue.delete(), "whatsapp.statusAt": FieldValue.delete() });
+assert.deepEqual(await espelharStatusDaInstancia(db, "casa", { status: "disconnected" }), { caiu: true });
+assert.equal(typeof (await lerConfigWhatsApp(db, "casa"))?.conectadoEm, "number");
+// desconectar zera o marcador: QR novo que expira sem ler não é "desconectou"
+const { desligarConexao } = await import("@/lib/whatsapp.server");
+await desligarConexao(db, "casa");
+assert.equal((await lerConfigWhatsApp(db, "casa"))?.conectadoEm, undefined);
 
 console.log("atendys ok");
 process.exit(0);
