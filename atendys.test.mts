@@ -73,17 +73,41 @@ assert.deepEqual(await criarInstancia("t1", "casa"), { name: "casa-main" });
 novo({ "POST /admin/tenants/t1/instances": () => new Response("fora", { status: 500 }) });
 await assert.rejects(criarInstancia("t1", "casa"), /500/);
 
-// envio: sem opt-in, inscreve e manda de novo uma vez
+// envio: sem opt-in, inscreve e manda de novo uma vez. O simulado cobra o que o atendys cobra
+// (apps/api/src/messages/messages.controller.ts, dto/index.ts): header `instance` no envio,
+// `source` + `evidence` no opt-in, NOT_OPTED_IN como 403 no envelope { error: { code } }
 const conn = { atendysApiKey: "k1", instanceId: "casa-main" };
-let tentativas = 0;
-novo({
-  "POST /v1/message/send-text": () => (++tentativas === 1 ? new Response('{"code":"NOT_OPTED_IN"}', { status: 422 }) : Response.json({ id: "m1", status: "queued" })),
-  "POST /v1/optin": json({ ok: true }),
-});
+const erro = (status: number, code: string) => Response.json({ error: { code, message: code } }, { status });
+const optados = new Set<string>();
+const atendys = {
+  "POST /v1/message/send-text": (corpo: unknown) => {
+    const ultima = chamadas[chamadas.length - 1]!;
+    if (!ultima.headers.instance) return erro(400, "VALIDATION_ERROR");
+    if (!optados.has((corpo as { number: string }).number)) return erro(403, "NOT_OPTED_IN");
+    return Response.json({ id: "m1", status: "queued" });
+  },
+  "POST /v1/optin": (corpo: unknown) => {
+    const c = corpo as { number: string; source?: string; evidence?: string };
+    if (!c.source?.trim() || !c.evidence?.trim()) return erro(400, "VALIDATION_ERROR");
+    optados.add(c.number);
+    return Response.json({ phone: c.number, status: "opted_in" });
+  },
+};
+novo(atendys);
 assert.deepEqual(await enviarTexto(conn, "+55 (11) 91234-5678", "oi"), { messageId: "m1", status: "queued" });
 assert.deepEqual(chamadas.map((c) => c.caminho), ["/v1/message/send-text", "/v1/optin", "/v1/message/send-text"]);
 assert.equal(chamadas[0].headers.apikey, "k1");
+assert.equal(chamadas[0].headers.instance, "casa-main", "o atendys exige o header instance");
 assert.deepEqual(chamadas[0].corpo, { number: "5511912345678", text: "oi" });
+assert.equal((chamadas[1].corpo as { category: string }).category, "transactional");
+// já optado: um envio só
+novo(atendys);
+await enviarTexto(conn, "5511912345678", "de novo");
+assert.deepEqual(chamadas.map((c) => c.caminho), ["/v1/message/send-text"]);
+// outro erro não tenta opt-in
+novo({ "POST /v1/message/send-text": () => erro(409, "INSTANCE_DISCONNECTED") });
+await assert.rejects(enviarTexto(conn, "5511912345678", "x"), /409.*INSTANCE_DISCONNECTED/);
+assert.equal(chamadas.length, 1);
 
 // ── reconectar mantém o segredo gravado (o webhook segue aceitando) ──
 const db = getFirestore();
@@ -95,6 +119,31 @@ const depois = await lerConfigWhatsApp(db, "casa");
 assert.equal(depois?.atendysWebhookSecret, "s-antigo");
 assert.equal(depois?.atendysApiKey, "k1");
 assert.ok(!chamadas.some((c) => c.caminho.endsWith("/rotate")));
+
+// ── webhook: o que o atendys entrega (queue-workers.service.ts: corpo = JSON.stringify(payload),
+// HMAC hex em x-atendys-signature, evento em x-atendys-event) ──
+const { POST } = await import("@/app/api/webhooks/atendys/route");
+const entregar = (payload: Record<string, unknown>, segredo = "s-antigo") => {
+  const body = JSON.stringify(payload);
+  return POST(new Request("http://x/api/webhooks/atendys", {
+    method: "POST",
+    headers: { "x-atendys-event": String(payload.event), "x-atendys-signature": assina(segredo, body), "content-type": "application/json" },
+    body,
+  }));
+};
+// message.status não traz instância: 200 (400 fazia o atendys repetir 5 vezes cada status)
+assert.equal((await entregar({ event: "message.status", messageId: "m1", phone: "5511", status: "delivered", at: "2026-11-03T12:00:00Z" })).status, 200);
+// instância órfã: ack
+assert.equal((await entregar({ event: "instance.status", instance: "ninguem-main", status: "connected" })).status, 200);
+// assinatura com outro segredo: 401
+assert.equal((await entregar({ event: "instance.status", instance: "casa-main", status: "connected" }, "errado")).status, 401);
+// assinada: espelha o status
+assert.equal((await entregar({ event: "instance.status", instance: "casa-main", status: "pending_qr" })).status, 200);
+assert.equal((await lerConfigWhatsApp(db, "casa"))?.status, "qr");
+// mensagem recebida (mídia, sem comando) vai para a caixa de entrada uma vez só
+assert.equal((await entregar({ event: "message.received", instance: "casa-main", messageId: "ABC/1", phone: "5511999", type: "media", at: "2026-11-03T12:00:00Z" })).status, 200);
+assert.equal((await entregar({ event: "message.received", instance: "casa-main", messageId: "ABC/1", phone: "5511999", type: "media", at: "2026-11-03T12:00:00Z" })).status, 200);
+assert.equal((await db.collection("tenants/casa/whatsappInbox").get()).size, 1);
 
 console.log("atendys ok");
 process.exit(0);

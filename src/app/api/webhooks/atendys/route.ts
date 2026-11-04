@@ -43,6 +43,9 @@ export async function POST(req: Request) {
   } catch {
     return responder(400, { error: "JSON inválido." });
   }
+  // message.status (acked/entregue/lida) não traz instância e ainda não tem espelho no
+  // ruphus: ack 200 sem verificar — responder 400 fazia o atendys repetir 5 vezes cada um
+  if (evento.event === "message.status") return responder(200, { ok: true });
   if (typeof evento.instance !== "string" || !evento.instance) {
     return responder(400, { error: "Evento sem instância." });
   }
@@ -80,9 +83,6 @@ export async function POST(req: Request) {
   } else if (evento.event === "instance.status") {
     await espelharStatusDaInstancia(adminDb, slug, { status: evento.status });
   }
-  // message.status (acked/entregue/lida) ainda não tem espelho no ruphus —
-  // a caixa de entrada e o polling cobrem o fluxo atual. Ack rápido em 200.
-
   return responder(200, { ok: true });
 }
 

@@ -10,7 +10,8 @@ import { integracao } from "@/lib/integracoes.server";
 // Dois níveis de autenticação:
 // - admin (X-Admin-Key, cadastrada no /admin ou no .env): provisionamento — criar o tenant
 //   do negócio, a instância do número, logout/reinício administrativo.
-// - tenant (header apikey, gravada no doc do negócio): status, QR, envio, opt-in.
+// - tenant (header apikey, gravada no doc do negócio): status, QR, envio (com o header
+//   instance = nome da instância), opt-in (origem + evidência obrigatórias).
 //
 // Contrato: https://<vps>:3002/docs (Swagger). Webhooks assinados por tenant
 // com HMAC-SHA256 em x-atendys-signature (segredo gravado no doc do negócio).
@@ -33,7 +34,7 @@ export type Envio = { messageId: string; status: string };
 // quem envia/recebe: precisa da apikey do tenant e do nome da instância
 export type ConexaoAtendys = { atendysApiKey: string; instanceId: string };
 
-async function chamar<T>(auth: { "x-admin-key": string } | { apikey: string }, method: string, caminho: string, corpo?: unknown): Promise<T> {
+async function chamar<T>(auth: Record<string, string>, method: string, caminho: string, corpo?: unknown): Promise<T> {
   const headers: Record<string, string> = { ...auth };
   if (corpo !== undefined) headers["content-type"] = "application/json";
   let res: Response;
@@ -155,28 +156,28 @@ export async function qrDaConexao(conn: ConexaoAtendys): Promise<SituacaoQr> {
   return { status: "connecting" };
 }
 
+// o atendys exige origem E evidência (texto livre) em todo consentimento (OptInDto);
+// sem evidência o opt-in volta 400 e o envio nunca sai
+const EVIDENCIA_PADRAO = "Número informado pelo próprio titular ao agendar pelo site do negócio (ruphus.site)";
+
 /**
- * Texto simples (confirmação, lembrete, recibo). O número do WhatsApp precisa
- * de opt-in no atendys (LGPD): quando o tenant exige consentimento e o número
- * ainda não tem, registramos com origem ruphus — o cliente forneceu o número
- * justamente para receber a comunicação do agendamento. Falha de opt-in
- * inscreve e repete o envio uma vez.
+ * Texto simples (confirmação, lembrete, recibo). O atendys exige o cabeçalho
+ * `instance` (qual número do tenant envia) e opt-in do destinatário (LGPD, sempre
+ * em produção): quando o número ainda não tem, registramos com origem ruphus e
+ * a evidência de que o titular forneceu o número para receber a comunicação do
+ * agendamento. Falha de opt-in inscreve e repete o envio uma vez.
  */
 export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
+  const auth = { ...authTenant(conn), instance: conn.instanceId };
+  const enviar = () => chamar<{ id: string; status: string }>(auth, "POST", "/v1/message/send-text", { number: digits, text: message });
   try {
-    const r = await chamar<{ id: string; status: string }>(authTenant(conn), "POST", "/v1/message/send-text", {
-      number: digits,
-      text: message,
-    });
+    const r = await enviar();
     return { messageId: r.id, status: r.status };
   } catch (e) {
     if (e instanceof ErroPrevisto && /NOT_OPTED_IN/.test(e.message)) {
-      await chamar(authTenant(conn), "POST", "/v1/optin", { number: digits, source: "ruphus-agendamento" });
-      const r = await chamar<{ id: string; status: string }>(authTenant(conn), "POST", "/v1/message/send-text", {
-        number: digits,
-        text: message,
-      });
+      await registrarOptIn(conn, digits, "ruphus-agendamento");
+      const r = await enviar();
       return { messageId: r.id, status: r.status };
     }
     throw e;
@@ -184,8 +185,13 @@ export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: 
 }
 
 /** Consentimento explícito (quando o fluxo pede, ex.: aceite no agendamento). */
-export function registrarOptIn(conn: ConexaoAtendys, phone: string, origem: string) {
-  return chamar(authTenant(conn), "POST", "/v1/optin", { number: phone.replace(/\D/g, ""), source: origem });
+export function registrarOptIn(conn: ConexaoAtendys, phone: string, origem: string, evidencia = EVIDENCIA_PADRAO) {
+  return chamar(authTenant(conn), "POST", "/v1/optin", {
+    number: phone.replace(/\D/g, ""),
+    source: origem,
+    category: "transactional",
+    evidence: evidencia,
+  });
 }
 
 /** Webhook do atendys: HMAC-SHA256 do corpo bruto com o segredo do tenant, em hex no cabeçalho
