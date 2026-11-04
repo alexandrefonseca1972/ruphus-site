@@ -460,7 +460,7 @@ export default function CaixaPage() {
       {faltou && (
         <ConfirmDialog
           title={`Registrar que ${faltou.nome} faltou?`}
-          description="O atendimento sai do fechamento do dia e fica no histórico do cliente."
+          description="O atendimento sai de “A receber da agenda” e fica no histórico do cliente."
           confirmLabel="Sim, registrar falta"
           onConfirm={() => registrarFalta(faltou.id)}
           onCancel={() => setFaltou(null)}
