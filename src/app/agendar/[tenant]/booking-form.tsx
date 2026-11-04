@@ -221,7 +221,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [lembrado, setLembrado] = useState(false);
-  const [touched, setTouched] = useState({ name: false, phone: false });
+  // enviou: depois de tentar confirmar, o "faltam N dígitos" também acusa (antes só informava)
+  const [touched, setTouched] = useState({ name: false, phone: false, enviou: false });
   const [slotError, setSlotError] = useState("");
   // falha ao carregar a semana: separado do "ocupado", some quando a próxima busca dá certo
   const [erroAgenda, setErroAgenda] = useState(false);
@@ -243,6 +244,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const atendente = staff.find((p) => p.id === escolha?.staffId);
   const errors = { name: erroNome(customerName), phone: phoneError(customerPhone) };
   const contatoOk = !errors.name && !errors.phone;
+  const foneInvalido = touched.phone && !!errors.phone && (touched.enviou || !faltamDigitos(customerPhone));
   const dia = agenda?.find((d) => d.date === date);
   // A grade começa com os primeiros horários; "ver todos" vale para o dia aberto. Se o
   // escolhido está além deles (voltou de outra etapa), a grade já abre inteira.
@@ -344,7 +346,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   async function confirmar() {
     if (!escolha) return;
     setSubmitError("");
-    setTouched({ name: true, phone: true });
+    setTouched({ name: true, phone: true, enviou: true });
     if (!contatoOk) {
       // no celular os campos ficam acima do botão, às vezes fora da tela: leva até o que falta
       setLembrado(false);
@@ -790,7 +792,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 setLembrado(false);
                 setCustomerName("");
                 setCustomerPhone("");
-                setTouched({ name: false, phone: false });
+                setTouched({ name: false, phone: false, enviou: false });
               }}
               className="h-11 shrink-0 text-xs text-[#2C6A53] underline underline-offset-[3px]"
             >
@@ -850,12 +852,12 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                   if (e.target.value.replace(/\D/g, "").length >= 10) setTouched((t) => ({ ...t, phone: true }));
                 }}
                 onBlur={() => setTouched((t) => ({ ...t, phone: true }))}
-                aria-invalid={touched.phone && !!errors.phone && !faltamDigitos(customerPhone)}
+                aria-invalid={foneInvalido}
                 aria-describedby="tel-aviso"
                 className={cn(
                   CAMPO,
                   MONO,
-                  touched.phone && errors.phone && !faltamDigitos(customerPhone) && "border-[#B4472F]",
+                  foneInvalido && "border-[#B4472F]",
                   !errors.phone && customerPhone && "border-[#2C6A53]",
                 )}
               />
@@ -865,7 +867,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 className={cn(
                   MONO,
                   "min-h-4 text-[10px]",
-                  touched.phone && errors.phone && !faltamDigitos(customerPhone)
+                  foneInvalido
                     ? "text-[#B4472F]"
                     : !errors.phone && customerPhone
                       ? "text-[#2C6A53]"

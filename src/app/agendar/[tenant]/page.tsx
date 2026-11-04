@@ -13,6 +13,8 @@ export async function generateMetadata({ params }: PageProps<"/agendar/[tenant]"
   const { tenant } = await params;
   const catalog = await getCatalog(tenant);
   if (!catalog) return { title: "Agendamento" };
+  // agenda desligada: a página é a lista de preços com o WhatsApp, não "Agendar online"
+  if (!catalog.agendaOnline) return { title: `Serviços e preços · ${catalog.name}`, description: `Serviços e preços de ${catalog.name}. Para marcar, fale pelo WhatsApp.` };
   const title = `Agendar online · ${catalog.name}`;
   const description = catalog.services.length
     ? `Escolha ${catalog.services.slice(0, 3).map((s) => s.name.toLowerCase()).join(", ")} e veja os horários livres. Sem cadastro, direto do celular.`
