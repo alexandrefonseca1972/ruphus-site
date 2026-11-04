@@ -176,7 +176,7 @@ export default function ManualDoUsuario() {
         <Lista
           itens={[
             <>
-              <Termo>Fechar o dia</Termo>: os atendimentos que já passaram aparecem com o valor da agenda. Toque em{" "}
+              <Termo>A receber da agenda</Termo>: os atendimentos que já passaram aparecem com o valor da agenda. Toque em{" "}
               <Termo>Recebi</Termo>, escolha Pix, dinheiro ou cartão, e a entrada está lançada. Se a pessoa não veio,{" "}
               <Termo>Não veio</Termo> registra a falta.
             </>,

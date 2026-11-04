@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Caixa: no celular, o "Sobrou" ocupa a linha de cima, maior, e Entrou/Saiu dividem a de baixo (três cartões estreitos partiam "R$ 12.345,00" no meio); no computador, os botões + Entrada / − Saída ficam do tamanho do texto; "Fechar o dia" virou "A receber da agenda" (a lista inclui dias anteriores); o texto de mês vazio não quebra mais entre o "−" e "Saída".
+
 - Detalhes do QA: no agendamento, depois de tocar em Confirmar, o WhatsApp incompleto ("faltam N dígitos") fica marcado como inválido também para leitor de tela; em Serviços, a chave de um serviço que ninguém faz fica apagada e se chama "Mostrar … no link" (antes dizia "aparece no link" sem aparecer); com a agenda desligada, a aba do /agendar se chama "Serviços e preços" em vez de "Agendar online".
 
 - Demonstração: a restauração diária desconecta o WhatsApp (despareia no atendys e limpa a conexão, mantendo o aceite do termo). Antes ela apagava só a credencial, e o painel mostrava "conectado" com o teste de envio dizendo "ainda não está conectado". A demo é compartilhada: um número conectado nela mandaria mensagem em nome de quem conectou.
