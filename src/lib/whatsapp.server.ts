@@ -191,8 +191,10 @@ export async function conectarNegocio(
     ownerManaged,
   };
   await gravarConexao(db, slug, conexao);
-  // ...atual trazia o conectadoEm da conexão anterior: esta ainda não conectou
+  // ...atual trazia o conectadoEm da conexão anterior: esta ainda não conectou (nem no banco,
+  // nem no que volta para a tela)
   await db.doc(`tenants/${slug}`).update({ "whatsapp.conectadoEm": FieldValue.delete() });
+  delete conexao.conectadoEm;
   // chave nova gravada: as antigas da Ruphus saem. Relê a gravada — outra conexão ao mesmo
   // tempo pode ter gravado a dela depois, e essa não pode ser revogada. Falha aqui não
   // desfaz a conexão (sobra só uma chave a mais, como antes)
@@ -332,8 +334,10 @@ export async function avisarQueda(db: Firestore, slug: string) {
  *  conexão inteira de volta (isso ressuscitava a falha já limpa e voltava o statusAt). */
 export async function espelharStatusVivo(db: Firestore, slug: string, vivo: { status: string; phone: string | null }, lidoEm: number) {
   // lidoEm = antes de perguntar ao atendys: uma leitura que começou antes de um webhook mais novo
-  // ("connected" ao reconectar) é descartada pelo statusAt, em vez de desfazê-lo e avisar queda
-  const { caiu } = await espelharStatusDaInstancia(db, slug, { status: vivo.status === "qr" ? "pending_qr" : vivo.status, phone: vivo.phone, at: new Date(lidoEm).toISOString() });
+  // ("connected" ao reconectar) é descartada pelo statusAt, em vez de desfazê-lo e avisar queda.
+  // 5 s de folga: o "at" do webhook vem do relógio do atendys, e um pouco atrasado não pode
+  // ter a queda verdadeira descartada por uma leitura nossa de instantes antes
+  const { caiu } = await espelharStatusDaInstancia(db, slug, { status: vivo.status === "qr" ? "pending_qr" : vivo.status, phone: vivo.phone, at: new Date(lidoEm - 5000).toISOString() });
   if (caiu) await avisarQueda(db, slug);
 }
 
