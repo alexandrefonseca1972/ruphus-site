@@ -56,10 +56,20 @@ const LOG = join(RAIZ, "worker.log");
 const NOME = process.env.COLETA_WORKER ?? hostname();
 const SEM_SINAL_MS = 3 * 60_000;
 
+// COLETA_SERVICO: o worker é um serviço da máquina (systemd na VPS). O admin liga e desliga
+// pelo systemctl, com a regra de sudo de deploy/sudoers-ruphus-coleta (só esses comandos).
+// Um spawn daqui entraria no cgroup do ruphus-site: deploy e vigia matariam a coleta no meio,
+// e o Chrome disputaria memória com o site sem o MemoryMax do serviço.
+const SERVICO = process.env.COLETA_SERVICO ? "ruphus-coleta" : null;
+function systemctl(acao: "start" | "stop" | "is-active") {
+  const r = spawnSync("sudo", ["-n", "systemctl", acao, SERVICO!], { timeout: 30_000, encoding: "utf8" });
+  if (acao !== "is-active" && r.status !== 0) throw new ErroPrevisto(`systemctl ${acao} falhou: ${(r.stderr || r.stdout || r.error?.message || "").trim().split("\n").pop()}`);
+  return r.stdout.trim() === "active";
+}
+
 let temNavegador: boolean | undefined;
 function podeLigarAqui() {
-  // COLETA_SERVICO: o worker é um serviço da máquina (systemd na VPS), não um processo do admin
-  if (process.env.COLETA_SERVICO) return false;
+  if (SERVICO) return true;
   temNavegador ??= spawnSync("agent-browser", ["--version"], { timeout: 10_000, stdio: "ignore" }).status === 0;
   return temNavegador;
 }
@@ -75,11 +85,16 @@ function pidVivo() {
     return null;
   }
 }
-const local = (): WorkerLocal => ({ pode: podeLigarAqui(), ligado: podeLigarAqui() && pidVivo() !== null, nome: NOME, log: LOG });
+const ligado = () => (SERVICO ? systemctl("is-active") : pidVivo() !== null);
+const local = (): WorkerLocal => ({ pode: podeLigarAqui(), ligado: podeLigarAqui() && ligado(), nome: NOME, log: SERVICO ? `journalctl -u ${SERVICO}` : LOG });
 
 export const ligarWorker = adminAction(async () => {
   if (!podeLigarAqui()) throw new ErroPrevisto("Daqui não dá para ligar: este servidor não tem o agent-browser. Rode npm run coletar -- --fila no Mac.");
-  if (pidVivo()) throw new ErroPrevisto("O worker já está ligado.");
+  if (ligado()) throw new ErroPrevisto("O worker já está ligado.");
+  if (SERVICO) {
+    systemctl("start");
+    return local();
+  }
   // ligado à mão no terminal (mesmo nome): dois iguais disputariam o mesmo pedido
   const batida = ms((await adminDb.collection("coletaWorkers").doc(NOME).get()).get("batidaEm"));
   if (batida && Date.now() - batida < SEM_SINAL_MS) throw new ErroPrevisto(`Já há um worker "${NOME}" no ar (talvez num terminal). Desligue o outro antes.`);
@@ -95,6 +110,11 @@ export const ligarWorker = adminAction(async () => {
 });
 
 export const desligarWorker = adminAction(async () => {
+  if (SERVICO) {
+    // o systemd manda o SIGINT do service (KillSignal): o worker fecha o navegador e sai
+    systemctl("stop");
+    return local();
+  }
   const pid = pidVivo();
   if (!pid) throw new ErroPrevisto("Este worker não foi ligado pelo admin (ou já parou). Se está num terminal, pare com Ctrl+C.");
   // SIGINT no grupo, como o Ctrl+C: o worker fecha o navegador e a coleta em curso continua quando ele voltar

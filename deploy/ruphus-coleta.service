@@ -1,7 +1,10 @@
 # Worker da coleta no Google Maps (aba Coleta do /admin): atende a fila do Firestore.
 # Divide a VPS com o site, então tem teto de memória e prioridade baixa: se a memória
 # acabar, cai o worker (e religa, continuando de onde parou), não o site.
-# Instalar: cp deploy/ruphus-coleta.service /etc/systemd/system/ && systemctl enable --now ruphus-coleta
+# Instalar: cp deploy/ruphus-coleta.service /etc/systemd/system/ && systemctl daemon-reload
+# Fica desligado (sem enable): o admin liga pelo botão da aba Coleta nas noites de coleta
+# e desliga ao terminar (regra de sudo em deploy/sudoers-ruphus-coleta). Parado, não gasta
+# a RAM que o site precisa; ligado e caído, o systemd religa.
 # Precisa do agent-browser (npm i -g agent-browser && agent-browser install --with-deps; e
 # `sudo -u ruphus -H agent-browser install`) e do perfil AppArmor /etc/apparmor.d/ab-chrome.
 [Unit]

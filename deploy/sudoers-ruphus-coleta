@@ -1,0 +1,4 @@
+# O admin (usuário ruphus, serviço ruphus-site) liga e desliga o worker da coleta pelo botão
+# da aba Coleta. Só estes três comandos, sem argumentos livres e sem senha.
+# Instalar: install -m 440 deploy/sudoers-ruphus-coleta /etc/sudoers.d/ruphus-coleta && visudo -c
+ruphus ALL=(root) NOPASSWD: /usr/bin/systemctl start ruphus-coleta, /usr/bin/systemctl stop ruphus-coleta, /usr/bin/systemctl is-active ruphus-coleta
