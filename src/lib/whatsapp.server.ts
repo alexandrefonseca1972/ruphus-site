@@ -344,13 +344,15 @@ export async function processarComandoAgendamento(
   const agora = Date.now();
   const startDe = (d: FirebaseFirestore.DocumentSnapshot): Date =>
     d.get("start") instanceof Date ? d.get("start") : (d.get("start") as FirebaseFirestore.Timestamp).toDate();
-  // todos os futuros, em qualquer status: o código de um já confirmado ou cancelado continua
+  // todos os recentes, em qualquer status: o código de um já confirmado ou cancelado continua
   // sendo código (reenviar "CONFIRMADO ABCDE" não pode cair no único pendente que sobrou)
-  const futuros = (await db.collection(`tenants/${slug}/appointments`).where("start", ">", new Date(agora)).get()).docs
-    .filter((d) => startDe(d).getTime() > agora);
+  // inclui os últimos 7 dias: "CONFIRMADO ABCDE" reenviado depois do horário passar também
+  // segue código. Pendente, só o que ainda vai acontecer
+  const recentes = (await db.collection(`tenants/${slug}/appointments`).where("start", ">", new Date(agora - 7 * 86_400_000)).get()).docs;
+  const futuros = recentes.filter((d) => startDe(d).getTime() > agora);
   // "confirmado obrigado": palavra longa que não começa o id de nenhum agendamento futuro é
   // conversa, não código (os códigos longos só existem para desempatar ids que começam igual)
-  if (codigo && codigo.length > 4 && !futuros.some((d) => d.id.toUpperCase().startsWith(codigo!))) codigo = undefined;
+  if (codigo && codigo.length > 4 && !recentes.some((d) => d.id.toUpperCase().startsWith(codigo!))) codigo = undefined;
   const pendentes = futuros.filter((d) => d.get("status") === "booked" && (!codigo || d.id.toUpperCase().startsWith(codigo)));
   if (pendentes.length === 0) {
     await enviarTexto(conexao, respostaPara, codigo ? `Não encontrei agendamento aguardando confirmação com o código ${codigo}.` : "Não encontrei agendamento aguardando confirmação.", OPTIN_DONO);
