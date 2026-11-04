@@ -566,6 +566,29 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.ok(await entra(r2.senha) && !(await entra(r1.senha)), "senha antiga não entra mais");
   assert.equal(typeof (await db.doc("config/admin").get()).get(`revogados.${dono.id}`), "number", "sessão de quem testou é recusada");
   assert.equal((await acessoDemo(db))?.senha, r2.senha);
+  // quem tem a senha compartilhada troca o e-mail da conta: a restauração acha pelo uid guardado,
+  // devolve o e-mail ao padrão e não cria outra conta (a antiga ficaria viva com a senha do golpista)
+  const { contas } = await import("@/lib/demo.server");
+  assert.equal((await db.doc("config/demo").get()).get("uid"), dono.id, "uid da conta da demo guardado");
+  await contas(":update", { localId: dono.id, email: "golpe@teste.dev" });
+  const r3 = await restaurarDemo(db, { slug, adminUid: "admin" });
+  assert.equal((await contas(":lookup", { localId: [dono.id] })).users?.[0] && (await contas(":lookup", { email: ["demo@ruphus.site"] })).users?.[0]?.localId, dono.id, "a mesma conta, com o e-mail da demo de volta");
+  assert.ok(await entra(r3.senha), "entra com a senha nova");
+  // e ainda cria outra conta com o e-mail da demo, para a restauração esbarrar em EMAIL_EXISTS:
+  // a intrusa sai, a conta guardada volta ao e-mail da demo (antes a restauração travava de vez)
+  await contas(":update", { localId: dono.id, email: "golpe2@teste.dev" });
+  const intrusa = (await contas("", { email: "demo@ruphus.site", password: "golpe123", emailVerified: true })).localId!;
+  const r4 = await restaurarDemo(db, { slug, adminUid: "admin" });
+  assert.equal((await contas(":lookup", { email: ["demo@ruphus.site"] })).users?.[0]?.localId, dono.id);
+  assert.equal((await contas(":lookup", { localId: [intrusa] }).catch(() => ({ users: undefined }))).users?.length ?? 0, 0, "a intrusa foi apagada");
+  assert.ok(await entra(r4.senha));
+  // apagaram a conta da demo e criaram outra com o e-mail dela: a restauração tira a intrusa e cria a demo de novo
+  await contas(":delete", { localId: dono.id });
+  const intrusa2 = (await contas("", { email: "demo@ruphus.site", password: "golpe123", emailVerified: false })).localId!;
+  const r5 = await restaurarDemo(db, { slug, adminUid: "admin" });
+  const nova = (await contas(":lookup", { email: ["demo@ruphus.site"] })).users?.[0]?.localId;
+  assert.ok(nova && nova !== intrusa2, "conta nova da demo, não a intrusa");
+  assert.ok(await entra(r5.senha));
 }
 
 // Negócio tirado do ar (cobrança): a agenda pública não abre nem reserva, por qualquer endereço

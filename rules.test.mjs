@@ -50,6 +50,38 @@ await assertFails(getDoc(doc(alice, "config/pix")), "a chave Pix da Ruphus nao e
 await assertFails(getDoc(doc(alice, "config/integracoes")), "as chaves de SMS, e-mail e WhatsApp nao sao publicas");
 await assertFails(getDoc(doc(suporte, "cobrancas/acme-2026-10")), "nem o admin le pelo cliente: so o Admin SDK")
 await assertFails(setDoc(doc(suporte, "config/admin"), { uids: ["mallory"] })); // nem o admin escreve nela
+// sessão encerrada ("encerrar sessões" grava revogados[uid] em ms): o token emitido antes não lê mais
+const agoraS = Math.floor(Date.now() / 1000);
+const suporteAntigo = env.authenticatedContext("suporte", { email: "suporte@teste.dev", email_verified: true, auth_time: agoraS - 600 }).firestore();
+const suporteNovo = env.authenticatedContext("suporte", { email: "suporte@teste.dev", email_verified: true, auth_time: agoraS + 5 }).firestore();
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "config/admin"), { uids: ["suporte"], revogados: { suporte: (agoraS - 60) * 1000 } }));
+await assertFails(getDoc(doc(suporteAntigo, "tenants/acme")), "sessão de antes da revogação não lê");
+await assertSucceeds(getDoc(doc(suporteNovo, "tenants/acme")), "entrou de novo depois: lê");
+// a conta da plataforma também é membro de verdade (dona) de milhares de espaços: revogada, não passa pelo exists
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/members/suporte"), { uid: "suporte", role: "owner" }));
+await assertFails(getDoc(doc(suporteAntigo, "tenants/acme")), "membro dono revogado também não lê");
+await assertFails(setDoc(doc(suporteAntigo, "tenants/acme/services/x"), { name: "x", durationMin: 30, priceCents: 1, active: true }), "nem grava");
+await assertSucceeds(getDoc(doc(suporteNovo, "tenants/acme")));
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "config/admin"), { uids: ["suporte"] }));
+
+// Demonstração (senha compartilhada): nome de serviço e profissional aparece no site público
+await env.withSecurityRulesDisabled(async (ctx) => {
+  const f = ctx.firestore();
+  await create(f, "barbearia-force", "demo");
+  await setDoc(doc(f, "tenants/barbearia-force/services/corte"), { name: "Corte", durationMin: 30, priceCents: 3500, active: true, usos: 12, ordem: 0 });
+  await setDoc(doc(f, "tenants/barbearia-force/staff/paulo"), { name: "Paulo", serviceIds: ["corte"], hours: {}, active: true });
+});
+const demo = as("demo");
+await assertSucceeds(updateDoc(doc(demo, "tenants/barbearia-force/services/corte"), { priceCents: 4000, durationMin: 45 }), "preço e duração: pode testar");
+await assertFails(updateDoc(doc(demo, "tenants/barbearia-force/services/corte"), { name: "PAGUE O PIX 123" }), "nome não");
+// como o painel salva (setDoc com merge, todos os campos do formulário): preço muda, usos/ordem ficam
+await assertSucceeds(setDoc(doc(demo, "tenants/barbearia-force/services/corte"), { name: "Corte", durationMin: 30, priceCents: 4200, tipoPreco: "fixo", active: true }, { merge: true }), "salvar do painel na demo");
+await assertFails(setDoc(doc(demo, "tenants/barbearia-force/services/corte"), { name: "Golpe", durationMin: 30, priceCents: 4200, tipoPreco: "fixo", active: true }, { merge: true }), "salvar do painel trocando o nome: não");
+await assertFails(setDoc(doc(demo, "tenants/barbearia-force/services/novo"), { name: "golpe", durationMin: 30, priceCents: 1, active: true }), "serviço novo não");
+await assertFails(deleteDoc(doc(demo, "tenants/barbearia-force/services/corte")), "excluir não");
+await assertSucceeds(updateDoc(doc(demo, "tenants/barbearia-force/staff/paulo"), { active: false }), "ativo do profissional: pode");
+await assertFails(updateDoc(doc(demo, "tenants/barbearia-force/staff/paulo"), { name: "golpe" }), "nome do profissional não");
+await assertSucceeds(updateDoc(doc(suporte, "tenants/barbearia-force/services/corte"), { name: "Corte masculino" }), "a plataforma muda");
 await assertFails(getDoc(doc(mallory, "tenants/acme/sites/s1")));
 await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), "tenants/acme")));
 

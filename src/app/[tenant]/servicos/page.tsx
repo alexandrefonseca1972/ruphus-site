@@ -162,7 +162,9 @@ export default function ServicesPage() {
   async function save(data: Service) {
     setError("");
     try {
-      await (editing ? setDoc(doc(col, editing.id), data) : addDoc(col, data));
+      // merge: o formulário manda sempre todos os campos do serviço; sem merge, o setDoc apagava
+      // usos e ordem (a ordem de popularidade da página pública), e na demo a regra recusava
+      await (editing ? setDoc(doc(col, editing.id), data, { merge: true }) : addDoc(col, data));
       setEditing(null);
     } catch (err) {
       setError(errorMessage(err));

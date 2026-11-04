@@ -135,16 +135,46 @@ export async function contas(acao: string, corpo: object) {
   return json;
 }
 
-/** A conta de dono da demonstração, com a senha dada. Sessões anteriores deixam de valer. */
+/** A conta de dono da demonstração, com a senha dada. Sessões anteriores deixam de valer.
+ *  Pelo uid guardado em config/demo, não pelo e-mail: quem tem a senha compartilhada pode trocar
+ *  o e-mail da conta, e a procura por DEMO_EMAIL criaria outra — deixando a antiga (com a senha
+ *  que só o golpista sabe) viva. O update devolve e-mail, senha e confirmação ao padrão. */
 async function donoDaDemo(db: Firestore, senha: string) {
-  const achado = (await contas(":lookup", { email: [DEMO_EMAIL] })).users?.[0]?.localId;
-  const uid = achado
-    ? (await contas(":update", { localId: achado, password: senha, disableUser: false, validSince: String(Math.floor(Date.now() / 1000)) })).localId!
-    : (await contas("", { email: DEMO_EMAIL, password: senha, emailVerified: true, displayName: "Dono da demonstração" })).localId!;
-  // o token de quem testou antes ainda valeria até uma hora: a marca em config/admin o
-  // recusa já (é o mesmo mecanismo de "encerrar sessão" do admin)
-  if (achado) await db.doc("config/admin").set({ revogados: { [uid]: Date.now() } }, { merge: true });
-  return uid;
+  const guardado = (await db.doc("config/demo").get()).get("uid") as string | undefined;
+  const agoraS = String(Math.floor(Date.now() / 1000));
+  const padrao = { email: DEMO_EMAIL, emailVerified: true, password: senha, disableUser: false, validSince: agoraS };
+  const erroDe = (e: unknown) => (e instanceof Error ? e.message : String(e));
+  let uid = guardado ?? (await contas(":lookup", { email: [DEMO_EMAIL] })).users?.[0]?.localId;
+  if (uid) {
+    // corta quem usava a senha antes de qualquer outra coisa: se o resto falhar, a conta já não entra
+    await db.doc("config/admin").set({ revogados: { [uid]: Date.now() } }, { merge: true });
+    try {
+      await contas(":update", { localId: uid, ...padrao });
+    } catch (e) {
+      const msg = erroDe(e);
+      if (/USER_NOT_FOUND/.test(msg)) {
+        uid = undefined; // apagada no Firebase: cria de novo abaixo
+      } else if (/EMAIL_EXISTS/.test(msg)) {
+        // trocaram o e-mail desta conta e criaram outra com o da demo: essa intrusa sai
+        const intrusa = (await contas(":lookup", { email: [DEMO_EMAIL] })).users?.[0]?.localId;
+        if (intrusa && intrusa !== uid) await contas(":delete", { localId: intrusa });
+        await contas(":update", { localId: uid, ...padrao });
+      } else {
+        throw e; // erro passageiro do Firebase: não cria outra conta, tenta de novo na próxima
+      }
+    }
+  }
+  if (uid) return uid;
+  const criar = () => contas("", { email: DEMO_EMAIL, password: senha, emailVerified: true, displayName: "Dono da demonstração" });
+  try {
+    return (await criar()).localId!;
+  } catch (e) {
+    // apagaram a conta da demo e criaram outra com o e-mail dela: essa sai e a demo volta
+    if (!/EMAIL_EXISTS/.test(erroDe(e))) throw e;
+    const intrusa = (await contas(":lookup", { email: [DEMO_EMAIL] })).users?.[0]?.localId;
+    if (intrusa) await contas(":delete", { localId: intrusa });
+    return (await criar()).localId!;
+  }
 }
 
 /** Apaga o que o cliente fez e grava o padrão. Devolve o acesso do dono (senha nova). */
@@ -248,7 +278,8 @@ export async function restaurarDemo(db: Firestore, opts: { slug?: string; adminU
   );
   if (!plano.ok) throw new Error(`Plano da demonstração: ${plano.error}`);
 
-  const acesso = { email: DEMO_EMAIL, senha, restauradoEm: FieldValue.serverTimestamp(), por: opts.adminUid };
+  // uid junto: a próxima restauração acha a conta por ele (ver donoDaDemo)
+  const acesso = { email: DEMO_EMAIL, senha, uid: dono.uid, restauradoEm: FieldValue.serverTimestamp(), por: opts.adminUid };
   // config/ não tem regra que abra para o navegador: só o servidor lê a senha
   await db.doc("config/demo").set(acesso);
   return { email: DEMO_EMAIL, senha, agendamentos: agenda.length };

@@ -9,6 +9,7 @@ import { PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
 import { deslogarInstancia, enviarTexto, qrDaConexao, statusDaConexao } from "@/lib/atendys";
+import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { soDigitosComDDI } from "@/lib/telefone";
@@ -65,7 +66,7 @@ function memberAction<S extends z.ZodType<{ tenantId: string }>, R>(
 export const criarProfissionalAction = memberAction(
   z.object({ tenantId: docIdStaff, dados: Staff }),
   async (data, user) => {
-    await exigeGestor(data.tenantId, user.uid);
+    await exigeGestor(data.tenantId, user.uid, { publico: true });
     return { ok: true as const, id: await criarProfissional(adminDb, data.tenantId, data.dados) };
   },
 );
@@ -138,10 +139,17 @@ export const excluirProfissionalAction = memberAction(z.object({ tenantId: docId
 });
 
 /** Dados do negócio só para quem gere: dono, admin do negócio ou da plataforma. */
-async function exigeGestor(tenantId: string, uid: string) {
+async function exigeGestor(tenantId: string, uid: string, opts: { publico?: boolean } = {}) {
   const [membro, plataforma] = await Promise.all([adminDb.doc(`tenants/${tenantId}/members/${uid}`).get(), adminDb.doc("config/admin").get()]);
-  const gere = ["owner", "admin"].includes(membro.get("role")) || ((plataforma.get("uids") as unknown[] | undefined)?.includes(uid) ?? false);
+  const daPlataforma = (plataforma.get("uids") as unknown[] | undefined)?.includes(uid) ?? false;
+  const gere = ["owner", "admin"].includes(membro.get("role")) || daPlataforma;
   if (!gere) throw new UserError("Só o dono ou um administrador do negócio pode mudar esses dados.");
+  // a senha da demonstração é compartilhada: o que aparece em público (dados do site, Pix do
+  // sinal, recado depois de agendar) não pode virar isca de golpe sob o domínio da Ruphus
+  // até a restauração da madrugada. Só a plataforma muda; o resto da demo segue livre
+  if (opts.publico && tenantId === DEMO && !daPlataforma) {
+    throw new UserError("Na demonstração, os dados do negócio, o Pix, o sinal, o recado e a equipe ficam como estão: eles aparecem no site público. O resto pode testar à vontade.");
+  }
 }
 
 export const lerNegocioAction = memberAction(z.object({ tenantId: docIdStaff }), async (data, user) => {
@@ -166,7 +174,7 @@ export const cancelarAvisosAction = memberAction(z.object({ tenantId: docIdStaff
 });
 
 export const salvarRecadoAction = memberAction(z.object({ tenantId: docIdStaff, recado: Recado, online: z.boolean() }), async (data, user) => {
-  await exigeGestor(data.tenantId, user.uid);
+  await exigeGestor(data.tenantId, user.uid, { publico: true });
   await adminDb.doc(`tenants/${data.tenantId}`).update({ "agenda.recado": data.recado, "agenda.online": data.online });
   revalidatePath(`/agendar/${data.tenantId}`);
   revalidatePath(`/bio/${data.tenantId}`);
@@ -178,7 +186,7 @@ export const salvarRecadoAction = memberAction(z.object({ tenantId: docIdStaff, 
 export const salvarPixAction = memberAction(
   z.object({ tenantId: docIdStaff, pix: z.object({ chave: z.string().max(100), nome: z.string().max(100), cidade: z.string().max(60) }) }),
   async (data, user) => {
-    await exigeGestor(data.tenantId, user.uid);
+    await exigeGestor(data.tenantId, user.uid, { publico: true });
     const t = adminDb.doc(`tenants/${data.tenantId}`);
     if (!data.pix.chave.trim()) {
       await t.update({ pix: FieldValue.delete(), "sinal.ativo": false });
@@ -194,7 +202,7 @@ export const salvarPixAction = memberAction(
 
 // Sinal do agendamento online: só com a chave Pix cadastrada (o QR sai dela)
 export const salvarSinalAction = memberAction(z.object({ tenantId: docIdStaff, sinal: ConfigSinal }), async (data, user) => {
-  await exigeGestor(data.tenantId, user.uid);
+  await exigeGestor(data.tenantId, user.uid, { publico: true });
   const t = adminDb.doc(`tenants/${data.tenantId}`);
   const pix = (await t.get()).get("pix");
   if (data.sinal.ativo && (!pix || typeof recebedorDe(pix) === "string")) throw new UserError("Cadastre uma chave Pix válida antes de ligar o sinal.");
@@ -211,7 +219,7 @@ export const confirmarSinalAction = memberAction(z.object({ tenantId: docIdStaff
 });
 
 export const salvarNegocioAction = memberAction(z.object({ tenantId: docIdStaff, dados: z.unknown() }), async (data, user) => {
-  await exigeGestor(data.tenantId, user.uid);
+  await exigeGestor(data.tenantId, user.uid, { publico: true });
   await salvarNegocio(adminDb, data.tenantId, data.dados);
   // o site, a imagem do WhatsApp e a bio mostram a mudança agora, não em até uma hora
   for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${data.tenantId}/${p}`);
