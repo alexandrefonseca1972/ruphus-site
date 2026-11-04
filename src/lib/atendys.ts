@@ -145,9 +145,13 @@ export async function garantirTenant(
   const trocou = !!opts.tenantId && !!existente && existente.id !== opts.tenantId;
   // a chave gravada foi revogada (ou sumiu) no atendys: sem isto, reconectar reaproveitava a
   // chave morta para sempre e todo envio voltava 401
+  // Conexão gravada antes de guardarmos o id da chave: morta quando o tenant não tem mais
+  // nenhuma chave da Ruphus ativa.
   const chaveMorta =
-    !!existente && !trocou && !opts.reatribuirChave && !!opts.keyId &&
-    !(await chamarAdmin<Array<{ id: string; revokedAt: string | null }>>("GET", `/admin/tenants/${existente.id}/keys`)).some((k) => k.id === opts.keyId && !k.revokedAt);
+    !!existente && !trocou && !opts.reatribuirChave &&
+    !(await chamarAdmin<Array<{ id: string; label: string; revokedAt: string | null }>>("GET", `/admin/tenants/${existente.id}/keys`)).some((k) =>
+      !k.revokedAt && (opts.keyId ? k.id === opts.keyId : ["default", "ruphus-recovery"].includes(k.label)),
+    );
   if (existente) {
     tenantId = existente.id;
     if (opts.reatribuirChave || trocou || chaveMorta) {

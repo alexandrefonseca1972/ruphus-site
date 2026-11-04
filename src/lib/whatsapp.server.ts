@@ -344,13 +344,14 @@ export async function processarComandoAgendamento(
   const agora = Date.now();
   const startDe = (d: FirebaseFirestore.DocumentSnapshot): Date =>
     d.get("start") instanceof Date ? d.get("start") : (d.get("start") as FirebaseFirestore.Timestamp).toDate();
-  const futuros = (await db.collection(`tenants/${slug}/appointments`).where("status", "==", "booked").get()).docs
+  // todos os futuros, em qualquer status: o código de um já confirmado ou cancelado continua
+  // sendo código (reenviar "CONFIRMADO ABCDE" não pode cair no único pendente que sobrou)
+  const futuros = (await db.collection(`tenants/${slug}/appointments`).where("start", ">", new Date(agora)).get()).docs
     .filter((d) => startDe(d).getTime() > agora);
-  // "confirmado obrigado": palavra só de letras, longa, que não começa nenhum pendente é
-  // conversa, não código. Código com dígito continua código mesmo sem pendente — "AB12X" já
-  // confirmado e reenviado responderia pelo outro pendente, e ia confirmar o cliente errado
-  if (codigo && codigo.length > 4 && !/\d/.test(codigo) && !futuros.some((d) => d.id.toUpperCase().startsWith(codigo!))) codigo = undefined;
-  const pendentes = futuros.filter((d) => !codigo || d.id.toUpperCase().startsWith(codigo));
+  // "confirmado obrigado": palavra longa que não começa o id de nenhum agendamento futuro é
+  // conversa, não código (os códigos longos só existem para desempatar ids que começam igual)
+  if (codigo && codigo.length > 4 && !futuros.some((d) => d.id.toUpperCase().startsWith(codigo!))) codigo = undefined;
+  const pendentes = futuros.filter((d) => d.get("status") === "booked" && (!codigo || d.id.toUpperCase().startsWith(codigo)));
   if (pendentes.length === 0) {
     await enviarTexto(conexao, respostaPara, codigo ? `Não encontrei agendamento aguardando confirmação com o código ${codigo}.` : "Não encontrei agendamento aguardando confirmação.", OPTIN_DONO);
     return "sem pendente";

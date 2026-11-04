@@ -57,7 +57,7 @@ assert.deepEqual(await garantirTenant("casa", "Casa"), { tenantId: "t1", apikey:
 assert.equal(chamadas[0].headers["x-admin-key"], "chave-admin");
 
 // tenant que já existe, com segredo gravado do lado de cá: não rotaciona
-novo({ "GET /admin/tenants": json([{ id: "t1", slug: "casa" }]) });
+novo({ "GET /admin/tenants": json([{ id: "t1", slug: "casa" }]), "GET /admin/tenants/t1/keys": json([{ id: "c0", label: "default", createdAt: "x", revokedAt: null }]) });
 assert.deepEqual(await garantirTenant("casa", "Casa"), { tenantId: "t1", apikey: "", keyId: "", webhookSecret: "" });
 assert.ok(!chamadas.some((c) => c.caminho.endsWith("/rotate")), "reconexão não troca o segredo");
 
@@ -103,8 +103,15 @@ novo({ "GET /admin/tenants/t1": json({ id: "t1", slug: "casa" }), "GET /admin/te
 assert.equal((await garantirTenant("casa", "Casa", { tenantId: "t1", keyId: "c3" })).apikey, "");
 
 // tenant já conhecido do lado de cá: busca pelo id, sem baixar a lista inteira
-novo({ "GET /admin/tenants/t1": json({ id: "t1", slug: "casa" }) });
+novo({ "GET /admin/tenants/t1": json({ id: "t1", slug: "casa" }), "GET /admin/tenants/t1/keys": json([{ id: "c0", label: "default", createdAt: "x", revokedAt: null }]) });
 assert.deepEqual(await garantirTenant("casa", "Casa", { tenantId: "t1" }), { tenantId: "t1", apikey: "", keyId: "", webhookSecret: "" });
+// conexão antiga (sem id da chave) num tenant sem nenhuma chave da Ruphus ativa: emite outra
+novo({
+  "GET /admin/tenants/t1": json({ id: "t1", slug: "casa" }),
+  "GET /admin/tenants/t1/keys": json([{ id: "c0", label: "default", createdAt: "x", revokedAt: "y" }, { id: "c9", label: "manual", createdAt: "x", revokedAt: null }]),
+  "POST /admin/tenants/t1/keys": json({ id: "c8", apikey: "k8" }),
+});
+assert.equal((await garantirTenant("casa", "Casa", { tenantId: "t1" })).apikey, "k8");
 assert.ok(!chamadas.some((c) => c.caminho === "/admin/tenants"));
 // apagado no atendys (404) e recriado com o mesmo slug: chave e segredo do antigo não valem
 novo({
@@ -181,7 +188,7 @@ await assert.rejects(enviarTexto(conn, "5511912345678", "x"), (e) => e instanceo
 const db = getFirestore();
 await db.doc("tenants/casa").set({ name: "Casa" });
 await gravarConexao(db, "casa", { atendysTenantId: "t1", atendysApiKey: "k1", atendysWebhookSecret: "s-antigo", instanceId: "casa-main", phone: null, status: "disconnected", updatedAt: 0 });
-novo({ "GET /admin/tenants/t1": json({ id: "t1", slug: "casa" }), "POST /admin/tenants/t1/instances": () => new Response("já existe", { status: 409 }) });
+novo({ "GET /admin/tenants/t1": json({ id: "t1", slug: "casa" }), "GET /admin/tenants/t1/keys": json([{ id: "c0", label: "default", createdAt: "x", revokedAt: null }]), "POST /admin/tenants/t1/instances": () => new Response("já existe", { status: 409 }) });
 await conectarNegocio(db, "casa", "Casa", true);
 const depois = await lerConfigWhatsApp(db, "casa");
 assert.equal(depois?.atendysWebhookSecret, "s-antigo");
@@ -220,6 +227,12 @@ assert.equal((await db.doc("tenants/salao/appointments/Ab12xQ").get()).get("stat
 assert.equal(await comando("confirmado ab12y"), "sem pendente");
 assert.equal((await db.doc("tenants/salao/appointments/Ab12xQ").get()).get("status"), "booked", "AB12X continua aguardando");
 assert.match(enviadas.at(-1)!.texto, /código AB12Y/);
+// código só de letras (~40% dos ids): reenviado depois de confirmado, também não cai no outro
+await marcar("Bcdefq");
+await marcar("bCdegr");
+assert.equal(await comando("confirmado bcdef"), "confirmado");
+assert.equal(await comando("confirmado bcdef"), "sem pendente");
+assert.equal((await db.doc("tenants/salao/appointments/bCdegr").get()).get("status"), "booked", "BCDEG continua aguardando");
 
 // ── demonstração: não conecta e nada sai dela, mesmo com conexão esquecida no documento ──
 await db.doc(`tenants/${DEMO}`).set({ name: "Demo" });
