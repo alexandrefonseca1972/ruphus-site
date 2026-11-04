@@ -317,9 +317,10 @@ export default function CaixaPage() {
                         className="flex w-full items-center gap-3 border-t px-4 py-3 text-left first:border-t-0 hover:bg-muted/50 sm:px-6"
                       >
                         <span className="grid min-w-0 flex-1 gap-0.5">
-                          <span className="truncate font-medium">{l.customerName ?? l.descricao ?? l.categoria}</span>
+                          <span className="truncate font-medium">{l.customerName || l.descricao || l.categoria}</span>
                           <span className="truncate text-[13px] text-muted-foreground">
-                            {[recebidos.has(idDoEstorno(l.id)) && "Estornado", l.categoria, l.customerName && l.descricao, l.staffName, ROTULO_FORMA[l.forma]].filter(Boolean).join(" · ")}
+                            {/* sem cliente nem descrição, a categoria já é o título: não repete embaixo */}
+                            {[recebidos.has(idDoEstorno(l.id)) && "Estornado", (l.customerName || l.descricao) && l.categoria, l.customerName && l.descricao, l.staffName, ROTULO_FORMA[l.forma]].filter(Boolean).join(" · ")}
                           </span>
                         </span>
                         <span className={cn("tabular-nums font-semibold", l.tipo === "saida" ? "text-red-800 dark:text-red-300" : "text-emerald-800 dark:text-emerald-300")}>
