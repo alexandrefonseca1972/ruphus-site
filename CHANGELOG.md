@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Demonstração: a restauração diária desconecta o WhatsApp (despareia no atendys e limpa a conexão, mantendo o aceite do termo). Antes ela apagava só a credencial, e o painel mostrava "conectado" com o teste de envio dizendo "ainda não está conectado". A demo é compartilhada: um número conectado nela mandaria mensagem em nome de quem conectou.
+
 - Agendamento online desligável: em Meu negócio, a parte "Agendamento online" ganhou a chave "Receber agendamentos pelo link". Desligada, a bio troca "Agendar online" por "Falar no WhatsApp" (e os serviços levam ao WhatsApp), e o link de agendamento, que o site ainda aponta, mostra a lista de preços com o botão do WhatsApp em vez da grade. A reserva pela API também é recusada. Para quem só quer mostrar serviços e preços.
 
 - Meu negócio: o WhatsApp saiu da lateral e entrou na coluna principal (Dados, Recado, WhatsApp, Pix, Sinal); a lateral ficou só com a prévia e os links, fixa ao rolar. Com o WhatsApp conectado, a lateral passava da coluna de Dados e sobrava um vão em branco. Atalho "WhatsApp" no topo, no celular.
