@@ -61,6 +61,9 @@ export { soDigitosComDDI };
 // painel baixa esse documento inteiro no navegador. Em tenants/{slug}/privado/whatsapp nenhuma regra
 // abre a leitura: só o servidor (Admin SDK) lê. Para a tela, `paraTela` tira as três.
 const SEGREDOS = ["atendysApiKey", "atendysWebhookSecret", "atendysTenantId", "atendysKeyId"] as const;
+// Fora do documento do negócio, mas mostrado a quem gere (pelas ações do servidor, que checam o papel):
+// o WhatsApp PESSOAL do dono — a equipe lê tenants/{slug} inteiro pelo navegador e não deve vê-lo.
+const SO_SERVIDOR = [...SEGREDOS, "ownerPhone"] as const;
 type Segredo = (typeof SEGREDOS)[number];
 export type ConexaoNaTela = Omit<ConexaoWhatsapp, Segredo>;
 const privado = (db: Firestore, slug: string) => db.doc(`tenants/${slug}/privado/whatsapp`);
@@ -138,11 +141,13 @@ export async function gravarGestaoDono(db: Firestore, slug: string, permitir: bo
 
 /** Grava a conexão: as credenciais no doc privado, o resto no negócio (e as antigas saem dele). */
 export async function gravarConexao(db: Firestore, slug: string, conexao: ConexaoWhatsapp) {
-  const segredos = Object.fromEntries(SEGREDOS.filter((k) => conexao[k] !== undefined).map((k) => [k, conexao[k]]));
+  const segredos = Object.fromEntries(SO_SERVIDOR.filter((k) => conexao[k] !== undefined).map((k) => [k, conexao[k]]));
+  const { ownerPhone: _pessoal, ...publico } = paraTela(conexao);
+  void _pessoal;
   const lote = db.batch();
   lote.set(
     db.doc(`tenants/${slug}`),
-    { whatsapp: { ...paraTela(conexao), ...Object.fromEntries(SEGREDOS.map((k) => [k, FieldValue.delete()])) } },
+    { whatsapp: { ...publico, ...Object.fromEntries(SO_SERVIDOR.map((k) => [k, FieldValue.delete()])) } },
     { merge: true },
   );
   if (Object.keys(segredos).length) lote.set(privado(db, slug), segredos, { merge: true });
@@ -209,7 +214,11 @@ export async function conectarNegocio(
 
 /** O número pessoal do dono: recebe os avisos e confirma respondendo. Vazio desliga. */
 export async function gravarOwnerPhone(db: Firestore, slug: string, ownerPhone: string | null) {
-  await db.doc(`tenants/${slug}`).set({ whatsapp: { ownerPhone } }, { merge: true });
+  // no privado (a equipe lê o documento do negócio); o antigo, se houver, sai do documento
+  const lote = db.batch();
+  lote.set(privado(db, slug), { ownerPhone }, { merge: true });
+  lote.set(db.doc(`tenants/${slug}`), { whatsapp: { ownerPhone: FieldValue.delete() } }, { merge: true });
+  await lote.commit();
 }
 
 /** Aviso de novo agendamento não chegou ao dono: grava para a gaveta mostrar
