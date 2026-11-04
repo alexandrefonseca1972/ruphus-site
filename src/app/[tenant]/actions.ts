@@ -11,6 +11,7 @@ import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.ser
 import { deslogarInstancia, enviarTexto, qrDaConexao, statusDaConexao } from "@/lib/atendys";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
+import { soDigitosComDDI } from "@/lib/telefone";
 import { aceitarTermoWhatsApp, conectarNegocio, desligarConexao, lerConfigWhatsApp, lerConexao, gravarConexao, paraTela } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
@@ -225,14 +226,15 @@ const FONE_INTERNACIONAL = /^\d{10,15}$/;
 export const enviarWhatsAppAction = memberAction(
   z.object({
     tenantId: docIdStaff,
-    phone: z.string().regex(FONE_INTERNACIONAL, "Use só números, com DDI e DDD (ex.: 5511998887777)."),
+    phone: z.string().regex(FONE_INTERNACIONAL, "Use só números, com DDD (ex.: 11998887777)."),
     message: z.string().trim().min(1, "Escreva a mensagem.").max(1000, "Mensagem longa demais (máx. 1000)."),
   }),
   async (data, user) => {
     await exigeGestor(data.tenantId, user.uid);
     const conexao = await lerConexao(adminDb, data.tenantId);
     if (!conexao) throw new UserError("O WhatsApp do negócio ainda não está conectado.");
-    const envio = await enviarTexto(conexao, data.phone, data.message);
+    // número do Brasil sem o 55 (como todo mundo digita) ganha o DDI; estrangeiro vai como veio
+    const envio = await enviarTexto(conexao, soDigitosComDDI(data.phone) ?? data.phone, data.message);
     return { ok: true as const, messageId: envio.messageId };
   },
 );

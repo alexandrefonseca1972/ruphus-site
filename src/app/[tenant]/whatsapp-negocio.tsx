@@ -153,12 +153,12 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     setCfg((c) => (c ? { ...c, remindersEnabled: enabled, remindersBeforeHours: hours } : c));
   }
 
-  if (cfg === undefined) return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  if (cfg === undefined) return <p id="whatsapp" className="text-sm text-muted-foreground lg:col-start-1">Carregando…</p>;
 
   // 1) termo de risco antes de qualquer uso — é o que isenta a plataforma
   if (!cfg?.termsAcceptedAt) {
     return (
-      <section className="grid gap-3 rounded-xl border bg-card p-4" aria-label="WhatsApp do negócio">
+      <section id="whatsapp" className="grid scroll-mt-20 gap-3 rounded-2xl border bg-card p-5 sm:p-7 lg:col-start-1" aria-label="WhatsApp do negócio">
         <h2 className="text-[15px] font-semibold">WhatsApp do negócio</h2>
         <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
           <p className="mb-1.5 font-semibold text-foreground">{TERMO_WHATSAPP.titulo}</p>
@@ -189,7 +189,7 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
   }
 
   return (
-    <section className="grid gap-3 rounded-xl border bg-card p-4" aria-label="WhatsApp do negócio">
+    <section id="whatsapp" className="grid scroll-mt-20 gap-3 rounded-2xl border bg-card p-5 sm:p-7 lg:col-start-1" aria-label="WhatsApp do negócio">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-[15px] font-semibold">WhatsApp do negócio</h2>
         <span className="rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground">{rotulo(cfg?.status)}</span>
@@ -323,7 +323,7 @@ function TesteEnvio(p: {
           value={p.para}
           maxLength={15}
           onChange={(e) => p.setPara(e.target.value.replace(/\D/g, ""))}
-          placeholder="5511998887777"
+          placeholder="11998887777"
           className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]"
         />
       </div>

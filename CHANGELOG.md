@@ -5,6 +5,10 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Meu negócio: o WhatsApp saiu da lateral e entrou na coluna principal (Dados, Recado, WhatsApp, Pix, Sinal); a lateral ficou só com a prévia e os links, fixa ao rolar. Com o WhatsApp conectado, a lateral passava da coluna de Dados e sobrava um vão em branco. Atalho "WhatsApp" no topo, no celular.
+
+- Teste rápido do WhatsApp no painel: número sem o 55 (como todo mundo digita) ganha o DDI antes de enviar.
+
 - WhatsApp (atendys): nenhum envio saía — o atendys exige o cabeçalho `instance` no envio e `evidence` no opt-in, e o cliente não mandava nenhum dos dois (400 em todo aviso, recibo, lembrete e resposta). Corrigido; o teste `npm run test:atendys` agora simula o contrato real e cobre o webhook. Também: o webhook aceita `message.status` com 200 (antes 400, e o atendys repetia 5 vezes cada um) e a entrega repetida da mesma mensagem recebida deixa de dar erro 500.
 
 - Bio: o horário do dia e o "aberto agora" vêm da equipe toda (abre com o primeiro, fecha com o último). Antes valia só o primeiro profissional cadastrado, e a demo dizia "09h — 18h" com gente atendendo até 19h. Os "horários livres" da bio também passam a considerar qualquer profissional.

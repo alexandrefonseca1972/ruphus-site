@@ -66,7 +66,7 @@ export function PixNegocio({ cidadeSugerida = "" }: { cidadeSugerida?: string })
     <form
       id="pix"
       noValidate
-      className="grid scroll-mt-20 gap-4 rounded-2xl border bg-card p-5 sm:p-7 lg:max-w-[calc(100%-24rem)]"
+      className="grid scroll-mt-20 gap-4 rounded-2xl border bg-card p-5 sm:p-7 lg:col-start-1"
       onSubmit={(e) => {
         e.preventDefault();
         void salvar();
@@ -155,7 +155,7 @@ export function SinalNegocio() {
   // sem chave não há QR: em vez de sumir, a parte diz o que falta
   if (!tenant.pix) {
     return (
-      <section id="sinal" aria-labelledby="sinal-t" className="grid scroll-mt-20 gap-2 rounded-2xl border border-dashed bg-card p-5 sm:p-7 lg:max-w-[calc(100%-24rem)]">
+      <section id="sinal" aria-labelledby="sinal-t" className="grid scroll-mt-20 gap-2 rounded-2xl border border-dashed bg-card p-5 sm:p-7 lg:col-start-1">
         <h2 id="sinal-t" className="text-[15px] font-semibold">Sinal no agendamento online</h2>
         <p className="text-sm text-muted-foreground">
           Para pedir um sinal por Pix a quem agenda pelo link, cadastre primeiro a sua chave em{" "}
@@ -183,7 +183,7 @@ export function SinalNegocio() {
     <form
       id="sinal"
       noValidate
-      className="grid scroll-mt-20 gap-4 rounded-2xl border bg-card p-5 sm:p-7 lg:max-w-[calc(100%-24rem)]"
+      className="grid scroll-mt-20 gap-4 rounded-2xl border bg-card p-5 sm:p-7 lg:col-start-1"
       onSubmit={(e) => {
         e.preventDefault();
         void salvar();
