@@ -234,8 +234,9 @@ export const enviarWhatsAppAction = memberAction(
     await exigeGestor(data.tenantId, user.uid);
     const conexao = await lerConexao(adminDb, data.tenantId);
     if (!conexao) throw new UserError("O WhatsApp do negócio ainda não está conectado.");
-    // número do Brasil sem o 55 (como todo mundo digita) ganha o DDI; estrangeiro vai como veio
-    const envio = await enviarTexto(conexao, soDigitosComDDI(data.phone) ?? data.phone, data.message);
+    // número do Brasil sem o 55 (como todo mundo digita) ganha o DDI; estrangeiro vai como veio.
+    // Teste avulso não registra consentimento (null): sem opt-in, a tela diz que o número não autorizou
+    const envio = await enviarTexto(conexao, soDigitosComDDI(data.phone) ?? data.phone, data.message, null);
     return { ok: true as const, messageId: envio.messageId };
   },
 );

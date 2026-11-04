@@ -104,6 +104,9 @@ export async function POST(req: Request) {
               cliente,
               recadoDono ||
                 `Olá, ${nomeCurto}! Recebemos seu pedido de agendamento: ${partes.join(" · ")}. O salão vai confirmar em breve — avisamos por aqui.`,
+              // a evidência diz o que houve: o número foi digitado no agendamento online deste
+              // negócio (pode ser de outra pessoa; os limites por telefone/aparelho seguram o abuso)
+              { origem: "ruphus-agendamento-online", evidencia: `Número digitado por quem agendou no link de agendamento online de ${tenantId} (ruphus.site), para receber a confirmação do horário` },
             );
           } catch (e) {
             falhas.push(`recibo ao cliente não chegou: ${e instanceof Error ? e.message : String(e)}`);

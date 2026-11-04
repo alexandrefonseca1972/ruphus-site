@@ -5,6 +5,14 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- WhatsApp (atendys), revisão da integração:
+  - A demonstração não conecta WhatsApp e nenhum envio sai dela (recibo, lembrete, confirmação, teste), mesmo com conexão esquecida no documento: ela é aberta a qualquer pessoa e os clientes de exemplo têm números de verdade.
+  - Opt-in honesto: o teste rápido do dono não registra consentimento (sem opt-in, a tela diz que o número não autorizou); o recibo do agendamento online registra que o número foi digitado no link do negócio; os demais envios, que o cliente tem horário no negócio.
+  - Erros do atendys viram frases claras (número inválido, sem WhatsApp, sem autorização, desconectado, muitas mensagens); o corpo cru da resposta fica só no log do servidor.
+  - Webhook: assinatura sem formato de HMAC é recusada antes de ler o banco; status de conexão reentregue fora de ordem não desfaz um mais novo.
+  - Recuperar a credencial revoga as chaves antigas emitidas pela Ruphus; reconectar busca o tenant pelo id em vez de baixar a lista inteira; o nome da instância vem da resposta do atendys.
+  - Código do agendamento no "CONFIRMADO AB12" cresce quando dois agendamentos começam com as mesmas 4 letras.
+
 - Caixa: os avisos de apagar recebimento e de "Não veio" usam o nome novo da lista ("A receber da agenda") no lugar de "fechamento do dia".
 
 - Caixa: lançamento sem cliente nem descrição não repete a categoria ("Atendimento" em cima e "Atendimento · Pix" embaixo); embaixo fica só a forma de pagamento.

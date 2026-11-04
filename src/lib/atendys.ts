@@ -34,6 +34,27 @@ export type Envio = { messageId: string; status: string };
 // quem envia/recebe: precisa da apikey do tenant e do nome da instância
 export type ConexaoAtendys = { atendysApiKey: string; instanceId: string };
 
+/** Recusa do atendys: status HTTP e o código do contrato ({ error: { code } }), para quem chama
+ *  decidir (409 na instância, NOT_OPTED_IN no envio) sem ler a mensagem. */
+export class ErroAtendys extends ErroPrevisto {
+  constructor(message: string, readonly status: number, readonly codigo: string | null) {
+    super(message);
+  }
+}
+
+// O dono lê estas frases no painel; o corpo cru da resposta fica só no log do servidor
+// (podia trazer detalhe interno do atendys e não dizia nada a quem não é técnico).
+const MENSAGEM: Record<string, string> = {
+  NOT_OPTED_IN: "Este número ainda não autorizou receber mensagens do negócio.",
+  INVALID_NUMBER: "Número de WhatsApp inválido. Confira o DDD e os dígitos.",
+  NUMBER_NOT_ON_WHATSAPP: "Este número não tem WhatsApp.",
+  INSTANCE_DISCONNECTED: "O WhatsApp do negócio está desconectado. Reconecte pelo painel.",
+  INSTANCE_NOT_FOUND: "A conexão do WhatsApp não foi encontrada. Reconecte pelo painel.",
+  RATE_LIMITED: "Muitas mensagens em pouco tempo. Espere um pouco e tente de novo.",
+  INVALID_API_KEY: "A credencial do WhatsApp foi recusada. Reconecte pelo painel.",
+  UNAUTHORIZED: "A credencial do WhatsApp foi recusada. Reconecte pelo painel.",
+};
+
 async function chamar<T>(auth: Record<string, string>, method: string, caminho: string, corpo?: unknown): Promise<T> {
   const headers: Record<string, string> = { ...auth };
   if (corpo !== undefined) headers["content-type"] = "application/json";
@@ -53,7 +74,19 @@ async function chamar<T>(auth: Record<string, string>, method: string, caminho: 
   }
   if (!res.ok) {
     const detalhe = await res.text().catch(() => "");
-    throw new ErroPrevisto(`O serviço de WhatsApp respondeu ${res.status}${detalhe ? `: ${detalhe.slice(0, 160)}` : ""}.`);
+    let codigo: string | null = null;
+    try {
+      const c = (JSON.parse(detalhe) as { error?: { code?: unknown } }).error?.code;
+      codigo = typeof c === "string" ? c : null;
+    } catch {
+      // corpo que não é JSON (proxy, HTML de erro): fica sem código
+    }
+    console.error(`[atendys] ${method} ${caminho} → ${res.status} ${detalhe.slice(0, 300)}`);
+    throw new ErroAtendys(
+      (codigo && MENSAGEM[codigo]) ?? `O serviço de WhatsApp recusou o pedido (${res.status}). Tente de novo em instantes.`,
+      res.status,
+      codigo,
+    );
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -87,10 +120,17 @@ const authTenant = (conn: ConexaoAtendys) => {
 export async function garantirTenant(
   slug: string,
   nomeNegocio: string,
-  opts: { reatribuirChave?: boolean; rotacionarSegredo?: boolean } = {},
+  opts: { reatribuirChave?: boolean; rotacionarSegredo?: boolean; tenantId?: string } = {},
 ): Promise<{ tenantId: string; apikey: string; webhookSecret: string }> {
-  const lista = await chamarAdmin<Array<{ id: string; slug: string }>>("GET", "/admin/tenants");
-  const existente = lista.find((t) => t.slug === slug);
+  // o id já gravado do lado de cá evita baixar a lista de todos os tenants a cada conexão;
+  // 404 (tenant apagado no atendys) cai na procura por slug
+  const conhecido = opts.tenantId
+    ? await chamarAdmin<{ id: string; slug: string }>("GET", `/admin/tenants/${encodeURIComponent(opts.tenantId)}`).catch((e) => {
+        if (e instanceof ErroAtendys && e.status === 404) return null;
+        throw e;
+      })
+    : null;
+  const existente = conhecido ?? (await chamarAdmin<Array<{ id: string; slug: string }>>("GET", "/admin/tenants")).find((t) => t.slug === slug);
 
   let tenantId: string;
   let apikey: string;
@@ -98,8 +138,9 @@ export async function garantirTenant(
   if (existente) {
     tenantId = existente.id;
     if (opts.reatribuirChave) {
-      const chave = await chamarAdmin<{ apikey: string }>("POST", `/admin/tenants/${tenantId}/keys`, { label: "ruphus-recovery" });
+      const chave = await chamarAdmin<{ id: string; apikey: string }>("POST", `/admin/tenants/${tenantId}/keys`, { label: "ruphus-recovery" });
       apikey = chave.apikey;
+      await revogarChavesAntigas(tenantId, chave.id);
     } else {
       // o caller reutiliza a apikey já gravada; o rotate abaixo devolve o segredo novo
       apikey = "";
@@ -121,15 +162,31 @@ export async function garantirTenant(
   return { tenantId, apikey, webhookSecret: rotacionado.webhookSecret };
 }
 
-/** Cria a instância do número (uma por negócio). 409 = já existe → idempotente. */
-export async function criarInstancia(tenantId: string, slug: string): Promise<{ name: string }> {
-  const name = `${slug}-main`;
-  try {
-    await chamarAdmin("POST", `/admin/tenants/${tenantId}/instances`, { name: "main" });
-  } catch (e) {
-    if (!(e instanceof ErroPrevisto && /409/.test(e.message))) throw e;
+/** A credencial gravada se perdeu e outra foi emitida: as anteriores emitidas pela Ruphus
+ *  ("default" na criação, "ruphus-recovery" nas recuperações) não servem a ninguém e ficavam
+ *  ativas para sempre. Chave criada à mão no painel do atendys, com outro rótulo, fica. */
+async function revogarChavesAntigas(tenantId: string, manter: string) {
+  const chaves = await chamarAdmin<Array<{ id: string; label: string; revokedAt: string | null }>>("GET", `/admin/tenants/${tenantId}/keys`);
+  for (const k of chaves) {
+    if (k.id === manter || k.revokedAt || !["default", "ruphus-recovery"].includes(k.label)) continue;
+    await chamarAdmin("DELETE", `/admin/tenants/${tenantId}/keys/${encodeURIComponent(k.id)}`).catch((e) =>
+      console.error(`[atendys] revogar chave ${k.id} do tenant ${tenantId}`, e),
+    );
   }
-  return { name };
+}
+
+/** Cria a instância do número (uma por negócio). O nome vem do atendys (hoje "{slug}-main");
+ *  409 = já existe → procura a do tenant, e só sem ela vale a convenção. */
+export async function criarInstancia(tenantId: string, slug: string): Promise<{ name: string }> {
+  try {
+    const r = await chamarAdmin<{ instance?: { name?: string } }>("POST", `/admin/tenants/${tenantId}/instances`, { name: "main" });
+    if (r?.instance?.name) return { name: r.instance.name };
+  } catch (e) {
+    if (!(e instanceof ErroAtendys && e.status === 409)) throw e;
+    const lista = await chamarAdmin<Array<{ name: string }>>("GET", `/admin/instances?tenantId=${encodeURIComponent(tenantId)}`).catch(() => []);
+    if (lista[0]?.name) return { name: lista[0].name };
+  }
+  return { name: `${slug}-main` };
 }
 
 /** Despareia o número (administrativo — o painel do dono desconecta via plataforma). */
@@ -157,8 +214,14 @@ export async function qrDaConexao(conn: ConexaoAtendys): Promise<SituacaoQr> {
 }
 
 // o atendys exige origem E evidência (texto livre) em todo consentimento (OptInDto);
-// sem evidência o opt-in volta 400 e o envio nunca sai
-const EVIDENCIA_PADRAO = "Número informado pelo próprio titular ao agendar pelo site do negócio (ruphus.site)";
+// sem evidência o opt-in volta 400 e o envio nunca sai. A evidência diz o que aconteceu de
+// fato: o cliente tem horário no negócio e o número está no cadastro do agendamento.
+const EVIDENCIA_PADRAO = "Cliente com horário agendado no negócio; número do cadastro do agendamento (ruphus.site)";
+
+/** Consentimento registrado quando o número ainda não tem: origem + evidência. null = não
+ *  registra (envio avulso, como o teste do dono, não pode alegar consentimento). */
+export type OptIn = { origem: string; evidencia: string } | null;
+const OPTIN_PADRAO: OptIn = { origem: "ruphus-agendamento", evidencia: EVIDENCIA_PADRAO };
 
 /**
  * Texto simples (confirmação, lembrete, recibo). O atendys exige o cabeçalho
@@ -167,7 +230,7 @@ const EVIDENCIA_PADRAO = "Número informado pelo próprio titular ao agendar pel
  * a evidência de que o titular forneceu o número para receber a comunicação do
  * agendamento. Falha de opt-in inscreve e repete o envio uma vez.
  */
-export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string): Promise<Envio> {
+export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn = OPTIN_PADRAO): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
   const auth = { ...authTenant(conn), instance: conn.instanceId };
   const enviar = () => chamar<{ id: string; status: string }>(auth, "POST", "/v1/message/send-text", { number: digits, text: message });
@@ -175,8 +238,8 @@ export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: 
     const r = await enviar();
     return { messageId: r.id, status: r.status };
   } catch (e) {
-    if (e instanceof ErroPrevisto && /NOT_OPTED_IN/.test(e.message)) {
-      await registrarOptIn(conn, digits, "ruphus-agendamento");
+    if (optIn && e instanceof ErroAtendys && e.codigo === "NOT_OPTED_IN") {
+      await registrarOptIn(conn, digits, optIn.origem, optIn.evidencia);
       const r = await enviar();
       return { messageId: r.id, status: r.status };
     }

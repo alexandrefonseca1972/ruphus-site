@@ -36,6 +36,9 @@ export async function POST(req: Request) {
   const eventoHeader = req.headers.get("x-atendys-event");
   const assinatura = req.headers.get("x-atendys-signature");
   if (!eventoHeader || !assinatura) return responder(401, { error: "Assinatura ausente." });
+  // HMAC-SHA256 em hex tem 64 caracteres: o resto nem chega a ler o Firestore (cada POST
+  // sem assinatura plausível custava uma consulta antes da recusa)
+  if (!/^[0-9a-f]{64}$/i.test(assinatura)) return responder(401, { error: "Assinatura inválida." });
 
   let evento: Evento;
   try {
@@ -81,7 +84,7 @@ export async function POST(req: Request) {
       );
     }
   } else if (evento.event === "instance.status") {
-    await espelharStatusDaInstancia(adminDb, slug, { status: evento.status });
+    await espelharStatusDaInstancia(adminDb, slug, { status: evento.status, at: evento.at });
   }
   return responder(200, { ok: true });
 }

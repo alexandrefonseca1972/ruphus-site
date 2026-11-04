@@ -3,6 +3,8 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { quando } from "@/lib/avisos.server";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { dateIn, formatTime } from "@/lib/datetime";
+import { DEMO } from "@/lib/demo";
+import { ErroPrevisto } from "@/lib/erro-previsto";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { criarInstancia, enviarTexto, garantirTenant, statusDaConexao, type ConexaoAtendys } from "@/lib/atendys";
 
@@ -81,6 +83,9 @@ async function lerInteira(db: Firestore, slug: string): Promise<ConexaoWhatsapp 
 }
 
 export async function lerConexao(db: Firestore, slug: string): Promise<ConexaoWhatsapp | null> {
+  // a demonstração é compartilhada e os clientes dela têm números de verdade: nada sai dela
+  // (recibo, lembrete, confirmação, teste), mesmo que uma conexão tenha ficado no documento
+  if (slug === DEMO) return null;
   const w = await lerInteira(db, slug);
   // sem atendysApiKey é resto do protólogo antigo (wtsfy): para o app é como se
   // não houvesse conexão — o dono reconecta e o provisionamento atendys roda do zero.
@@ -156,10 +161,14 @@ export async function conectarNegocio(
   nomeNegocio: string,
   ownerManaged: boolean,
 ): Promise<ConexaoWhatsapp> {
+  if (slug === DEMO) {
+    throw new ErroPrevisto("A demonstração não conecta WhatsApp: ela é aberta a qualquer pessoa e mandaria mensagens para os números de exemplo. Teste num negócio de verdade.");
+  }
   const atual = await lerConfigWhatsApp(db, slug);
   const credenciais = await garantirTenant(slug, nomeNegocio || slug, {
     reatribuirChave: !(atual?.atendysTenantId && atual.atendysApiKey),
     rotacionarSegredo: !atual?.atendysWebhookSecret,
+    tenantId: atual?.atendysTenantId,
   });
   const { name } = await criarInstancia(credenciais.tenantId, slug);
   const conexao: ConexaoWhatsapp = {
@@ -232,10 +241,17 @@ export async function registrarMensagemRecebida(
 export async function espelharStatusDaInstancia(
   db: Firestore,
   slug: string,
-  dados: { status?: unknown; phone?: unknown; reason?: unknown },
+  dados: { status?: unknown; phone?: unknown; reason?: unknown; at?: unknown },
 ) {
   const bruto = String(dados.status ?? "");
   if (!bruto) return;
+  // "at" (ISO, dentro do corpo assinado) é a hora do evento no atendys: reentrega antiga ou
+  // fora de ordem não desfaz um status mais novo (o "disconnected" de ontem reenviado hoje)
+  const em = typeof dados.at === "string" ? Date.parse(dados.at) : NaN;
+  if (Number.isFinite(em)) {
+    const atual = (await db.doc(`tenants/${slug}`).get()).get("whatsapp.statusAt");
+    if (typeof atual === "number" && em <= atual) return;
+  }
   const status = bruto === "pending_qr" ? "qr" : bruto === "connected" ? "connected" : "disconnected";
   const reason = typeof dados.reason === "string" && dados.reason ? dados.reason : null;
   await db.doc(`tenants/${slug}`).set(
@@ -244,6 +260,7 @@ export async function espelharStatusDaInstancia(
         status,
         ...(reason ? { statusReason: reason } : {}),
         ...(typeof dados.phone === "string" && dados.phone ? { phone: dados.phone } : {}),
+        ...(Number.isFinite(em) ? { statusAt: em } : {}),
         updatedAt: Date.now(),
       },
     },
@@ -253,13 +270,21 @@ export async function espelharStatusDaInstancia(
 
 /** Código curto do agendamento no aviso ao salão ("CONFIRMADO AB12"): é ele que diz a
  *  qual aviso o dono respondeu quando há mais de um pendente. */
-export const codigoDoAgendamento = (id: string) => id.slice(0, 4).toUpperCase();
+export const codigoDoAgendamento = (id: string, tamanho = 4) => id.slice(0, tamanho).toUpperCase();
+
+/** Códigos para uma lista de pendentes: 4 letras, mais quando dois ids começam igual (ids do
+ *  Firestore diferem em maiúscula/minúscula, e "Ab12…" e "aB12…" davam o mesmo AB12). */
+export function codigosUnicos(ids: string[]): Map<string, string> {
+  let tamanho = 4;
+  while (tamanho < 20 && new Set(ids.map((id) => codigoDoAgendamento(id, tamanho))).size < ids.length) tamanho++;
+  return new Map(ids.map((id) => [id, codigoDoAgendamento(id, tamanho)]));
+}
 
 /** "CONFIRMADO", "recusar ab12"… → o comando; qualquer outra mensagem → null.
  *  "recusar" é o verbo de recusa: "cancelar" fica de fora de propósito — é stop
  *  word do gateway (opt-out de cliente) e colidiria com o comando. */
 export function lerComando(texto: string): { verbo: string; recusar: boolean; codigo?: string } | null {
-  const m = /^(confirmado|recusar|recuso|recusado)\b(?:\s+([a-z0-9]{4})\b)?/i.exec(texto.trim());
+  const m = /^(confirmado|recusar|recuso|recusado)\b(?:\s+([a-z0-9]{4,12})\b)?/i.exec(texto.trim());
   if (!m) return null;
   return { verbo: m[1].toUpperCase(), recusar: m[1].toLowerCase() !== "confirmado", codigo: m[2]?.toUpperCase() };
 }
@@ -301,17 +326,18 @@ export async function processarComandoAgendamento(
     d.get("start") instanceof Date ? d.get("start") : (d.get("start") as FirebaseFirestore.Timestamp).toDate();
   const pendentes = (await db.collection(`tenants/${slug}/appointments`).where("status", "==", "booked").get()).docs
     .filter((d) => startDe(d).getTime() > agora)
-    .filter((d) => !codigo || codigoDoAgendamento(d.id) === codigo);
+    .filter((d) => !codigo || d.id.toUpperCase().startsWith(codigo));
   if (pendentes.length === 0) {
     await enviarTexto(conexao, respostaPara, codigo ? `Não encontrei agendamento aguardando confirmação com o código ${codigo}.` : "Não encontrei agendamento aguardando confirmação.");
     return "sem pendente";
   }
   if (pendentes.length > 1) {
+    const codigos = codigosUnicos(pendentes.map((d) => d.id));
     const lista = pendentes
       .sort((x, y) => startDe(x).getTime() - startDe(y).getTime())
-      .map((d) => `${codigoDoAgendamento(d.id)}: ${String(d.get("customerName") ?? "").trim()} · ${d.get("serviceName")} · ${quando(dateIn(startDe(d)), formatTime(startDe(d)))}`)
+      .map((d) => `${codigos.get(d.id)}: ${String(d.get("customerName") ?? "").trim()} · ${d.get("serviceName")} · ${quando(dateIn(startDe(d)), formatTime(startDe(d)))}`)
       .join("\n");
-    await enviarTexto(conexao, respostaPara, `Há mais de um agendamento aguardando. Responda com o código, por exemplo ${comando.verbo} ${codigoDoAgendamento(pendentes[0].id)}:\n${lista}`);
+    await enviarTexto(conexao, respostaPara, `Há mais de um agendamento aguardando. Responda com o código, por exemplo ${comando.verbo} ${codigos.get(pendentes[0].id)}:\n${lista}`);
     return "sem pendente";
   }
   const a = pendentes[0];
