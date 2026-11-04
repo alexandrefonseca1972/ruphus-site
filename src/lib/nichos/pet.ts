@@ -18,6 +18,7 @@ export const PALETAS_PET: [string, string][] = [
 // todas 1400×933 com versão -800
 const FOTOS: Record<string, string> = {
   "loja-balcao": "Atendimento no balcão de um pet shop",
+  "br-tutora-pit": "Tutora abraçando seu cão no gramado",
   "loja-coleiras": "Coleiras e acessórios expostos no pet shop",
   "banho-banheira": "Cão tomando banho na banheira do pet shop",
   "tosa-mesa": "Profissional tosando um cão na mesa de banho e tosa",
@@ -72,7 +73,7 @@ export const PET: Record<"petshop" | "vet", Conteudo> = {
     ...BASE,
     rotulo: "Pet shop",
     padrao: ["Banho", "Tosa"],
-    topo: ["loja-balcao", "banho-banheira", "tosa-mesa", "tosa-salao"],
+    topo: ["br-tutora-pit", "banho-banheira", "tosa-mesa", "tosa-salao"],
     galeria: ["feliz-colo", "tosa-pente", "feliz-lambida", "hotel-corrida", "loja-coleiras", "banho-banheira"],
     passos: [
     ["banho-banheira", "Banho com produto certo", "Shampoo e condicionador escolhidos pelo tipo de pelo e pela pele do seu pet, com secagem sem pressa."],

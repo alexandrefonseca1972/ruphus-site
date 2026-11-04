@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Pet shop: a foto do topo do primeiro modelo era de um balcão no exterior; agora é uma tutora brasileira com o cão (`br-tutora-pit`). Vale para todo site de pet shop que usa esse modelo.
+
 - Clientes de exemplo dos modelos claros: `npm run exemplos:nichos -- --aplicar` cria (ou atualiza) um site por ramo de pet, saúde e cursos (`exemplo-petshop`, `exemplo-vet`, `exemplo-odonto`, `exemplo-fisio`, `exemplo-psico`, `exemplo-nutri`, `exemplo-clinica`, `exemplo-cursos`), em Macapá, com telefones de teste e fora do funil, como a demonstração.
 
 - Modelos e seção Visual também para pet, saúde e aulas: na aba Site, o seletor de modelo (foto do topo + paleta, um por foto do ramo) e a seção Visual (fotos próprias, cores, fonte, textos e chat com IA) passam a valer no modelo claro. Tinta e destaque viram as cores principal e de realce do site; o Sobre próprio ganha uma seção; o topo, a galeria, a bio e a imagem do WhatsApp usam as fotos enviadas. Sites já no ar não mudam nada até o admin publicar.
