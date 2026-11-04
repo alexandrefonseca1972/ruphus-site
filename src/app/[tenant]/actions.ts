@@ -9,6 +9,7 @@ import { PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
 import { deslogarInstancia, enviarTexto, qrDaConexao, statusDaConexao } from "@/lib/atendys";
+import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { aceitarTermoWhatsApp, conectarNegocio, desligarConexao, lerConfigWhatsApp, lerConexao, gravarConexao, paraTela } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
@@ -50,8 +51,9 @@ function memberAction<S extends z.ZodType<{ tenantId: string }>, R>(
     try {
       return await run(parsed.data, await requireMember(verifyFirebaseToken, adminDb, idToken, parsed.data.tenantId));
     } catch (err) {
-      // Só mensagens previstas chegam ao navegador; o resto vai para o log do servidor
-      if (err instanceof UserError) return { ok: false as const, error: err.message };
+      // Só mensagens previstas chegam ao navegador (UserError e os ErroPrevisto do
+      // atendys/gateways, como o /admin já faz); o resto vai para o log do servidor
+      if (err instanceof ErroPrevisto) return { ok: false as const, error: err.message };
       console.error("[painel] erro inesperado em ação do tenant", err);
       return { ok: false as const, error: "Não foi possível concluir agora. Tente de novo." };
     }
