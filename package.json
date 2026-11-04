@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "gerar:sites": "tsx --conditions=react-server --env-file=.env.local scripts/gerar-sites.mts",
+    "exemplos:nichos": "tsx --conditions=react-server --env-file=.env.local scripts/exemplos-nichos.mts",
     "import:sites": "tsx --env-file=.env.local scripts/import-sites.mts",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-siteflow 'node rules.test.mjs'",
     "test:booking": "firebase emulators:exec --only firestore,auth --project demo-siteflow 'tsx --conditions=react-server booking.test.mts'",
