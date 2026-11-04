@@ -82,9 +82,25 @@ novo({
     { id: "c9", label: "integração manual", createdAt: "2026-10-01T10:00:00Z", revokedAt: null },
   ]),
   "DELETE /admin/tenants/t1/keys/c1": json({ revoked: true }),
+  "DELETE /admin/tenants/t1/keys/c5": json({ revoked: true }),
 });
-await revogarChavesAntigas("t1", "c3", "c5");
-assert.deepEqual(chamadas.filter((c) => c.metodo === "DELETE").map((c) => c.caminho), ["/admin/tenants/t1/keys/c1"], "nem a nova, nem a mais nova (c4), nem a gravada (c5), nem a revogada, nem a manual");
+await revogarChavesAntigas("t1", "c3", async () => "c3");
+assert.deepEqual(chamadas.filter((c) => c.metodo === "DELETE").map((c) => c.caminho), ["/admin/tenants/t1/keys/c5", "/admin/tenants/t1/keys/c1"], "as antigas da Ruphus (c1, c5); nem a nova, nem a mais nova (c4), nem a revogada, nem a manual");
+// outra conexão gravou a chave dela (c4) no meio: esta (c3) não é mais a dona e não revoga nada
+novo({ ...rotas });
+await revogarChavesAntigas("t1", "c3", async () => "c4");
+assert.ok(!chamadas.some((c) => c.metodo === "DELETE"));
+
+// chave gravada revogada no atendys: reconectar emite outra (antes ficava 401 para sempre)
+novo({
+  "GET /admin/tenants/t1": json({ id: "t1", slug: "casa" }),
+  "GET /admin/tenants/t1/keys": json([{ id: "c3", label: "ruphus-recovery", createdAt: "2026-11-04T10:00:01Z", revokedAt: "2026-11-04T11:00:00Z" }]),
+  "POST /admin/tenants/t1/keys": json({ id: "c7", apikey: "k7" }),
+});
+assert.deepEqual(await garantirTenant("casa", "Casa", { tenantId: "t1", keyId: "c3" }), { tenantId: "t1", apikey: "k7", keyId: "c7", webhookSecret: "" });
+// chave gravada viva: nada muda
+novo({ "GET /admin/tenants/t1": json({ id: "t1", slug: "casa" }), "GET /admin/tenants/t1/keys": json([{ id: "c3", label: "ruphus-recovery", createdAt: "x", revokedAt: null }]) });
+assert.equal((await garantirTenant("casa", "Casa", { tenantId: "t1", keyId: "c3" })).apikey, "");
 
 // tenant já conhecido do lado de cá: busca pelo id, sem baixar a lista inteira
 novo({ "GET /admin/tenants/t1": json({ id: "t1", slug: "casa" }) });
@@ -200,6 +216,10 @@ assert.match(enviadas.at(-1)!.texto, /AB12X: .*\n?AB12Y|AB12Y: .*AB12X|AB12X[\s\
 assert.equal(await comando("confirmado ab12y"), "confirmado");
 assert.equal((await db.doc("tenants/salao/appointments/aB12yR").get()).get("status"), "confirmed");
 assert.equal((await db.doc("tenants/salao/appointments/Ab12xQ").get()).get("status"), "booked");
+// reenviar o código já confirmado não pode cair no único pendente que sobrou (o cliente errado)
+assert.equal(await comando("confirmado ab12y"), "sem pendente");
+assert.equal((await db.doc("tenants/salao/appointments/Ab12xQ").get()).get("status"), "booked", "AB12X continua aguardando");
+assert.match(enviadas.at(-1)!.texto, /código AB12Y/);
 
 // ── demonstração: não conecta e nada sai dela, mesmo com conexão esquecida no documento ──
 await db.doc(`tenants/${DEMO}`).set({ name: "Demo" });

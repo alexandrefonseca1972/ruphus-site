@@ -124,7 +124,7 @@ const authTenant = (conn: ConexaoAtendys) => {
 export async function garantirTenant(
   slug: string,
   nomeNegocio: string,
-  opts: { reatribuirChave?: boolean; rotacionarSegredo?: boolean; tenantId?: string } = {},
+  opts: { reatribuirChave?: boolean; rotacionarSegredo?: boolean; tenantId?: string; keyId?: string } = {},
 ): Promise<{ tenantId: string; apikey: string; keyId: string; webhookSecret: string }> {
   // o id já gravado do lado de cá evita baixar a lista de todos os tenants a cada conexão;
   // 404 (tenant apagado no atendys) cai na procura por slug
@@ -143,9 +143,14 @@ export async function garantirTenant(
   // o tenant gravado sumiu e outro com o mesmo slug apareceu: a chave e o segredo guardados
   // eram do antigo e não valem neste — emite os dois
   const trocou = !!opts.tenantId && !!existente && existente.id !== opts.tenantId;
+  // a chave gravada foi revogada (ou sumiu) no atendys: sem isto, reconectar reaproveitava a
+  // chave morta para sempre e todo envio voltava 401
+  const chaveMorta =
+    !!existente && !trocou && !opts.reatribuirChave && !!opts.keyId &&
+    !(await chamarAdmin<Array<{ id: string; revokedAt: string | null }>>("GET", `/admin/tenants/${existente.id}/keys`)).some((k) => k.id === opts.keyId && !k.revokedAt);
   if (existente) {
     tenantId = existente.id;
-    if (opts.reatribuirChave || trocou) {
+    if (opts.reatribuirChave || trocou || chaveMorta) {
       const chave = await chamarAdmin<{ id: string; apikey: string }>("POST", `/admin/tenants/${tenantId}/keys`, { label: "ruphus-recovery" });
       apikey = chave.apikey;
       keyId = chave.id;
@@ -174,13 +179,16 @@ export async function garantirTenant(
  *  "ruphus-recovery" nas recuperações) não servem a ninguém e ficavam ativas para sempre.
  *  Só as mais antigas que a nova e nunca a que está gravada: duas conexões ao mesmo tempo
  *  revogavam a chave uma da outra e o negócio ficava sem nenhuma. Chave manual (outro rótulo) fica. */
-export async function revogarChavesAntigas(tenantId: string, nova: string, gravada?: string) {
+export async function revogarChavesAntigas(tenantId: string, nova: string, gravada: () => Promise<string | undefined>) {
   const chaves = await chamarAdmin<Array<{ id: string; label: string; createdAt: string; revokedAt: string | null }>>("GET", `/admin/tenants/${tenantId}/keys`);
   const limite = chaves.find((k) => k.id === nova)?.createdAt;
   if (!limite) return;
   for (const k of chaves) {
-    if (k.id === nova || k.id === gravada || k.revokedAt || !["default", "ruphus-recovery"].includes(k.label)) continue;
+    if (k.id === nova || k.revokedAt || !["default", "ruphus-recovery"].includes(k.label)) continue;
     if (!(Date.parse(k.createdAt) < Date.parse(limite))) continue;
+    // outra conexão gravou a chave dela depois: esta não é mais a dona, não revoga nada
+    const atual = await gravada();
+    if (atual !== nova) return;
     await chamarAdmin("DELETE", `/admin/tenants/${tenantId}/keys/${encodeURIComponent(k.id)}`).catch((e) =>
       console.error(`[atendys] revogar chave ${k.id} do tenant ${tenantId}`, e),
     );

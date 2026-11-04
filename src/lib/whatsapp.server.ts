@@ -171,6 +171,7 @@ export async function conectarNegocio(
     reatribuirChave: !(atual?.atendysTenantId && atual.atendysApiKey),
     rotacionarSegredo: !atual?.atendysWebhookSecret,
     tenantId: atual?.atendysTenantId,
+    keyId: atual?.atendysKeyId,
   });
   const { name } = await criarInstancia(credenciais.tenantId, slug);
   const conexao: ConexaoWhatsapp = {
@@ -190,7 +191,9 @@ export async function conectarNegocio(
   // tempo pode ter gravado a dela depois, e essa não pode ser revogada. Falha aqui não
   // desfaz a conexão (sobra só uma chave a mais, como antes)
   if (credenciais.keyId) {
-    const gravada = (await lerConfigWhatsApp(db, slug))?.atendysKeyId;
+    // só quem ainda é a chave gravada revoga; a cada DELETE confere de novo (outra conexão ao
+    // mesmo tempo pode gravar a dela no meio — e essa não pode cair)
+    const gravada = async () => (await lerConfigWhatsApp(db, slug))?.atendysKeyId;
     await revogarChavesAntigas(credenciais.tenantId, credenciais.keyId, gravada).catch((e) => console.error(`[atendys] revogar chaves de ${slug}`, e));
   }
   return conexao;
@@ -343,9 +346,10 @@ export async function processarComandoAgendamento(
     d.get("start") instanceof Date ? d.get("start") : (d.get("start") as FirebaseFirestore.Timestamp).toDate();
   const futuros = (await db.collection(`tenants/${slug}/appointments`).where("status", "==", "booked").get()).docs
     .filter((d) => startDe(d).getTime() > agora);
-  // "confirmado obrigado": mais de 4 letras que não começam nenhum pendente é conversa, não
-  // código (os códigos longos só existem para desempatar ids que começam igual)
-  if (codigo && codigo.length > 4 && !futuros.some((d) => d.id.toUpperCase().startsWith(codigo!))) codigo = undefined;
+  // "confirmado obrigado": palavra só de letras, longa, que não começa nenhum pendente é
+  // conversa, não código. Código com dígito continua código mesmo sem pendente — "AB12X" já
+  // confirmado e reenviado responderia pelo outro pendente, e ia confirmar o cliente errado
+  if (codigo && codigo.length > 4 && !/\d/.test(codigo) && !futuros.some((d) => d.id.toUpperCase().startsWith(codigo!))) codigo = undefined;
   const pendentes = futuros.filter((d) => !codigo || d.id.toUpperCase().startsWith(codigo));
   if (pendentes.length === 0) {
     await enviarTexto(conexao, respostaPara, codigo ? `Não encontrei agendamento aguardando confirmação com o código ${codigo}.` : "Não encontrei agendamento aguardando confirmação.", OPTIN_DONO);
