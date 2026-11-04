@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Caixa: os avisos de apagar recebimento e de "Não veio" usam o nome novo da lista ("A receber da agenda") no lugar de "fechamento do dia".
+
 - Caixa: lançamento sem cliente nem descrição não repete a categoria ("Atendimento" em cima e "Atendimento · Pix" embaixo); embaixo fica só a forma de pagamento.
 
 - Caixa: no celular, o "Sobrou" ocupa a linha de cima, maior, e Entrou/Saiu dividem a de baixo (três cartões estreitos partiam "R$ 12.345,00" no meio); no computador, os botões + Entrada / − Saída ficam do tamanho do texto; "Fechar o dia" virou "A receber da agenda" (a lista inclui dias anteriores); o texto de mês vazio não quebra mais entre o "−" e "Saída".

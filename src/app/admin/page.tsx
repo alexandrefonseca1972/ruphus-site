@@ -2077,7 +2077,7 @@ export default function AdminPage() {
             {/* Módulo opcional por cliente: desligar só esconde, os lançamentos ficam */}
             <label className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-[#E2DDD3] p-4 text-xs text-[#6F6A5E]">
               <span>
-                <b className="font-semibold text-[#17150F]">Caixa (financeiro)</b> · entradas, saídas e fechamento do dia no painel do dono
+                <b className="font-semibold text-[#17150F]">Caixa (financeiro)</b> · entradas, saídas e atendimentos a receber no painel do dono
               </span>
               <input type="checkbox" className="size-5 accent-[#17150F]" checked={aberto.caixa} onChange={(e) => mudarCaixa(aberto.slug, aberto.nome, e.target.checked)} />
             </label>

@@ -246,11 +246,11 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose }: 
           {apagar && folha.modo === "editar" && (
             <ConfirmDialog
               title={`Apagar ${folha.lancamento.tipo === "entrada" ? "entrada" : "saída"} de ${formatBRL(folha.lancamento.valorCents)}?`}
-              description={eEstorno ? "O dinheiro volta a contar como recebido, e a comissão também." : eSinal ? "O sinal sai do Caixa. Se o atendimento ainda não foi recebido, ele entra junto no recebimento." : daAgenda ? "O atendimento volta para o fechamento do dia." : ePagamento ? "O pagamento volta a aparecer para pagar neste mês." : "O lançamento sai do Caixa e não dá para desfazer."}
+              description={eEstorno ? "O dinheiro volta a contar como recebido, e a comissão também." : eSinal ? "O sinal sai do Caixa. Se o atendimento ainda não foi recebido, ele entra junto no recebimento." : daAgenda ? "O atendimento volta para “A receber da agenda”." : ePagamento ? "O pagamento volta a aparecer para pagar neste mês." : "O lançamento sai do Caixa e não dá para desfazer."}
               confirmLabel="Sim, apagar"
               onConfirm={async () => {
                 setApagar(false);
-                await rodar(async () => excluirLancamentoAction(await idToken(), { tenantId, id: folha.lancamento.id }), eEstorno ? "Estorno apagado: o recebimento voltou a valer." : eSinal ? "Sinal apagado do Caixa." : daAgenda ? "Recebimento apagado: o atendimento voltou para o fechamento do dia." : ePagamento ? "Pagamento apagado: voltou para as contas do mês." : "Lançamento apagado.");
+                await rodar(async () => excluirLancamentoAction(await idToken(), { tenantId, id: folha.lancamento.id }), eEstorno ? "Estorno apagado: o recebimento voltou a valer." : eSinal ? "Sinal apagado do Caixa." : daAgenda ? "Recebimento apagado: o atendimento voltou para “A receber da agenda”." : ePagamento ? "Pagamento apagado: voltou para as contas do mês." : "Lançamento apagado.");
               }}
               onCancel={() => setApagar(false)}
             />
