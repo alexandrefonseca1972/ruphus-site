@@ -38,6 +38,9 @@ export default function MeuNegocio() {
   // o recado da confirmação do agendamento: salva à parte, não mexe no site
   const [recado, setRecado] = useState("");
   const [recadoSalvo, setRecadoSalvo] = useState("");
+  // agenda pelo link: desligada, a bio e a página de agendar levam ao WhatsApp
+  const [online, setOnline] = useState(true);
+  const [onlineSalvo, setOnlineSalvo] = useState(true);
   const [busyRecado, setBusyRecado] = useState(false);
   const [avisoRecado, setAvisoRecado] = useState<{ ok: boolean; texto: string } | null>(null);
 
@@ -49,9 +52,11 @@ export default function MeuNegocio() {
       const r = await idToken().then((t) => lerNegocioAction(t, { tenantId: slug })).catch(() => null);
       if (!atual) return;
       if (!r?.ok) return setEstado("erro");
-      const { name, fabrica, publicado, recado, ...resto } = r.dados;
+      const { name, fabrica, publicado, recado, agendaOnline, ...resto } = r.dados;
       setRecado(recado);
       setRecadoSalvo(recado);
+      setOnline(agendaOnline);
+      setOnlineSalvo(agendaOnline);
       const lidos = { ...VAZIO, ...resto, telefone: resto.telefone ? formatarFone(resto.telefone) : "" };
       setNome(name);
       setFabrica(fabrica);
@@ -68,7 +73,7 @@ export default function MeuNegocio() {
   const erros = errosDe(campos);
   const erroNome = nome.trim().length < 2 ? "Informe o nome do negócio" : "";
   const mudou = !!salvo && (nome !== salvo.nome || (Object.keys(VAZIO) as (keyof Valores)[]).some((c) => campos[c] !== salvo.campos[c]));
-  const mudouRecado = recado.trim() !== recadoSalvo.trim();
+  const mudouRecado = recado.trim() !== recadoSalvo.trim() || online !== onlineSalvo;
 
   // sair com alteração não salva: o navegador pergunta antes
   useEffect(() => {
@@ -101,13 +106,19 @@ export default function MeuNegocio() {
   async function salvarRecado() {
     setAvisoRecado(null);
     setBusyRecado(true);
-    const r = await idToken().then((t) => salvarRecadoAction(t, { tenantId: slug, recado })).catch(() => null);
+    const r = await idToken().then((t) => salvarRecadoAction(t, { tenantId: slug, recado, online })).catch(() => null);
     setBusyRecado(false);
     if (!r) return setAvisoRecado({ ok: false, texto: "Não foi possível salvar. Verifique a conexão e tente de novo." });
     if (!r.ok) return setAvisoRecado({ ok: false, texto: r.error });
     setRecado(recado.trim());
     setRecadoSalvo(recado.trim());
-    setAvisoRecado({ ok: true, texto: recado.trim() ? "Salvo. Quem agendar já vê o seu recado." : "Salvo. Quem agendar vê o texto padrão." });
+    setOnlineSalvo(online);
+    setAvisoRecado({
+      ok: true,
+      texto: !online
+        ? "Salvo. A bio e o link de agendamento agora levam ao seu WhatsApp."
+        : recado.trim() ? "Salvo. Quem agendar já vê o seu recado." : "Salvo. Quem agendar vê o texto padrão.",
+    });
   }
 
   if (!tenant.podeGerir) return <p className="text-muted-foreground">Só o dono ou um administrador do negócio pode ver esta tela.</p>;
@@ -151,7 +162,7 @@ export default function MeuNegocio() {
 
       {/* a página é longa no celular: atalhos para cada parte, cada uma com o seu Salvar */}
       <nav aria-label="Partes desta página" className="-mx-4 -mt-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden">
-        {[["#dados", "Dados"], ["#links", "Links"], ["#recado", "Recado"], ["#whatsapp", "WhatsApp"], ["#pix", "Pix"], ["#sinal", "Sinal"]].map(([href, rotulo]) => (
+        {[["#dados", "Dados"], ["#links", "Links"], ["#recado", "Agendamento"], ["#whatsapp", "WhatsApp"], ["#pix", "Pix"], ["#sinal", "Sinal"]].map(([href, rotulo]) => (
           <a key={href} href={href} className="flex h-9 shrink-0 items-center rounded-full border bg-card px-3.5 text-sm font-medium hover:bg-muted">{rotulo}</a>
         ))}
       </nav>
@@ -245,12 +256,28 @@ export default function MeuNegocio() {
           }}
         >
           <div className="grid gap-1">
-            <h2 className="text-[15px] font-semibold">Depois do agendamento</h2>
+            <h2 className="text-[15px] font-semibold">Agendamento online</h2>
+            <p className="text-sm text-muted-foreground">
+              Desligado, a bio e o link de agendamento mostram os serviços e levam o cliente ao seu WhatsApp, sem marcar horário.
+            </p>
+          </div>
+          <label className="flex items-center gap-3 text-[15px] font-medium">
+            <input
+              type="checkbox"
+              checked={online}
+              onChange={(e) => {
+                setOnline(e.target.checked);
+                setAvisoRecado(null);
+              }}
+              className="size-5 accent-primary"
+            />
+            Receber agendamentos pelo link
+          </label>
+          {online && (
+          <div className="grid gap-1.5">
             <p className="text-sm text-muted-foreground">
               Opcional. O que o cliente lê logo depois de agendar. Em branco, ele vê: &ldquo;{nome || "O negócio"} vai te chamar no seu WhatsApp para confirmar.&rdquo;
             </p>
-          </div>
-          <div className="grid gap-1.5">
             <Label htmlFor="negocio-recado">Recado para o cliente</Label>
             <textarea
               id="negocio-recado"
@@ -267,6 +294,7 @@ export default function MeuNegocio() {
             />
             <p id="negocio-recado-msg" className="text-xs text-muted-foreground">{recado.length}/{RECADO_MAX} · o número do cliente continua aparecendo logo abaixo</p>
           </div>
+          )}
           {avisoRecado && (
             <p role={avisoRecado.ok ? "status" : "alert"} className={avisoRecado.ok ? "text-sm text-emerald-700 dark:text-emerald-300" : "text-sm text-destructive"}>
               {avisoRecado.texto}
@@ -274,7 +302,7 @@ export default function MeuNegocio() {
           )}
           <div className="flex items-center justify-end gap-3">
             {mudouRecado && !busyRecado && <span className="text-xs text-muted-foreground">Alterações não salvas</span>}
-            <Button type="submit" disabled={busyRecado || !mudouRecado} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busyRecado ? "Salvando…" : "Salvar recado"}</Button>
+            <Button type="submit" disabled={busyRecado || !mudouRecado} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busyRecado ? "Salvando…" : "Salvar"}</Button>
           </div>
         </form>
 

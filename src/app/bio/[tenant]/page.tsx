@@ -3,7 +3,7 @@ import { type Dominio, urlDoSite } from "@/lib/dominio";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { adminDb } from "@/lib/admin";
-import { agendaDias, foraDoAr } from "@/lib/booking.server";
+import { agendaDesligada, agendaDias, foraDoAr } from "@/lib/booking.server";
 import { addDays, formatBRL, fusoDaUF, linkWhatsApp, todayIn, weekday, WEEKDAYS, precoDe, type TipoPreco } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 
@@ -26,6 +26,7 @@ type Bio = {
   foto: string | null;
   servicos: Servico[];
   expediente: Expediente[];
+  agendaOnline: boolean;
 };
 
 /** O que o minisite mostra: tudo já vem do tenant, nada de novo para cadastrar. */
@@ -70,6 +71,7 @@ const carregar = cache(async (slug: string): Promise<Bio | null> => {
       return s.success ? [{ id: d.id, nome: s.data.name, duracao: s.data.durationMin, preco: s.data.priceCents, tipoPreco: s.data.tipoPreco }] : [];
     }),
     expediente: [...horas].map(([dia, j]) => ({ dia, ...j })),
+    agendaOnline: !agendaDesligada(tenant),
   };
 });
 
@@ -77,7 +79,7 @@ const carregar = cache(async (slug: string): Promise<Bio | null> => {
  * Os dias candidatos são consultados juntos (antes era um por vez, até 8 idas ao banco em fila). */
 async function proximosHorarios(slug: string, bio: Bio) {
   const curto = [...bio.servicos].sort((a, b) => a.duracao - b.duracao)[0];
-  if (!curto || !bio.expediente.length) return null;
+  if (!curto || !bio.expediente.length || !bio.agendaOnline) return null;
   const candidatos = Array.from({ length: 8 }, (_, i) => ({ i, date: addDays(todayIn(fusoDaUF(bio.uf)), i) }))
     .filter(({ date }) => bio.expediente.some((e) => e.dia === weekday(date)))
     .slice(0, 3); // três dias de trabalho bastam para achar vaga; é o que a frase mostra
@@ -194,6 +196,8 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
 
   const local = [bio.cidade, bio.uf].filter(Boolean).join("/");
   const agendar = `${bio.site}agendar`;
+  // sem catálogo ou com a agenda desligada pelo dono, a barra leva ao WhatsApp
+  const agenda = bio.servicos.length > 0 && bio.agendaOnline;
   const mapa = bio.endereco
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${bio.nome} ${bio.endereco}`)}`
     : null;
@@ -284,7 +288,7 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
           <ul>
             {bio.servicos.map((sv, i) => (
               <li key={sv.id}>
-                <a href={agendar} className={`flex min-h-15 items-center gap-3 px-4 py-2.5 hover:bg-[#FAF8F4] ${i ? "border-t border-[#EFEBE3]" : ""}`}>
+                <a href={agenda ? agendar : (linkWhatsApp(bio.telefone, `Olá! Quero saber do serviço ${sv.nome}.`) ?? agendar)} className={`flex min-h-15 items-center gap-3 px-4 py-2.5 hover:bg-[#FAF8F4] ${i ? "border-t border-[#EFEBE3]" : ""}`}>
                   <span className="min-w-0 grow">
                     <span className="block text-[15px] font-semibold leading-tight">{sv.nome}</span>
                     <span className="block text-[13px] leading-snug text-[#6F6A5E]">{duracao(sv.duracao)}</span>
@@ -340,16 +344,16 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
       {/* a barra fica à vista o tempo todo: agendar é o motivo de a pessoa ter vindo do Instagram.
           Sem catálogo não há o que marcar, e prometer agendamento levaria a pessoa a uma página
           vazia — nesse caso a barra leva ao WhatsApp, que é o que o negócio tem para oferecer. */}
-      {(bio.servicos.length > 0 ? agendar : zap) && (
+      {(agenda ? agendar : zap) && (
         <div className="fixed inset-x-0 bottom-0 border-t border-[#E7E2D8] bg-[#F7F5F1]/95 backdrop-blur">
           <div className="mx-auto w-full max-w-[520px] px-4 pt-2.5 pb-[max(1rem,env(safe-area-inset-bottom))]">
             <a
-              href={bio.servicos.length > 0 ? agendar : zap!}
+              href={agenda ? agendar : zap!}
               className="flex min-h-[54px] flex-col items-center justify-center rounded-2xl px-5 py-2.5 text-center"
               style={{ background: acento, color: "#FFFFFF" }}
             >
-              <span className="text-[15px] font-bold">{bio.servicos.length > 0 ? "Agendar online" : "Falar no WhatsApp"}</span>
-              {bio.servicos.length > 0 && livres && (
+              <span className="text-[15px] font-bold">{agenda ? "Agendar online" : "Falar no WhatsApp"}</span>
+              {agenda && livres && (
                 <span className="text-xs opacity-85">
                   livre {livres.quando} às {livres.horarios.join(", ")}
                 </span>

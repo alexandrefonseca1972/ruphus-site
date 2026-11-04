@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Agendamento online desligável: em Meu negócio, a parte "Agendamento online" ganhou a chave "Receber agendamentos pelo link". Desligada, a bio troca "Agendar online" por "Falar no WhatsApp" (e os serviços levam ao WhatsApp), e o link de agendamento, que o site ainda aponta, mostra a lista de preços com o botão do WhatsApp em vez da grade. A reserva pela API também é recusada. Para quem só quer mostrar serviços e preços.
+
 - Meu negócio: o WhatsApp saiu da lateral e entrou na coluna principal (Dados, Recado, WhatsApp, Pix, Sinal); a lateral ficou só com a prévia e os links, fixa ao rolar. Com o WhatsApp conectado, a lateral passava da coluna de Dados e sobrava um vão em branco. Atalho "WhatsApp" no topo, no celular.
 
 - Teste rápido do WhatsApp no painel: número sem o 55 (como todo mundo digita) ganha o DDI antes de enviar.
