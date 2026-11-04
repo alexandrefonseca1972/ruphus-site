@@ -1,6 +1,6 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
-import { quando } from "@/lib/avisos.server";
+import { avisar, quando } from "@/lib/avisos.server";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { dateIn, formatTime } from "@/lib/datetime";
 import { DEMO } from "@/lib/demo";
@@ -265,11 +265,12 @@ export async function espelharStatusDaInstancia(
   const reason = typeof dados.reason === "string" && dados.reason ? dados.reason : null;
   const ref = db.doc(`tenants/${slug}`);
   // em transação: duas entregas ao mesmo tempo passavam ambas pela checagem e a mais velha
-  // podia gravar por último
-  await db.runTransaction(async (tx) => {
+  // podia gravar por último. Devolve o status de antes (null = evento descartado)
+  const antes = await db.runTransaction(async (tx) => {
+    const doc = await tx.get(ref);
     if (Number.isFinite(em)) {
-      const atual = (await tx.get(ref)).get("whatsapp.statusAt");
-      if (typeof atual === "number" && em <= atual) return;
+      const atual = doc.get("whatsapp.statusAt");
+      if (typeof atual === "number" && em <= atual) return null;
     }
     tx.set(
       ref,
@@ -279,12 +280,25 @@ export async function espelharStatusDaInstancia(
           ...(reason ? { statusReason: reason } : {}),
           ...(typeof dados.phone === "string" && dados.phone ? { phone: dados.phone } : {}),
           ...(Number.isFinite(em) ? { statusAt: em } : {}),
+          // reconectou: a falha antiga ("desconectado, nenhum lembrete sai") não vale mais
+          ...(status === "connected" ? { lastNotifyError: FieldValue.delete() } : {}),
           updatedAt: Date.now(),
         },
       },
       { merge: true },
     );
+    return String(doc.get("whatsapp.status") ?? "");
   });
+  // caiu (estava conectado e agora não): o dono fica sabendo na hora, no celular, em vez de
+  // descobrir dias depois que nenhum lembrete saiu. Falha no push não desfaz o espelho
+  if (antes === "connected" && status === "disconnected") {
+    await avisar(db, slug, {
+      title: "Seu WhatsApp desconectou",
+      body: "Lembretes e avisos de agendamento pararam. Toque para reconectar.",
+      url: `/${slug}/negocio#whatsapp`,
+      tag: "whatsapp-desconectado",
+    }).catch((e) => console.error(`[whatsapp] aviso de queda de ${slug}`, e));
+  }
 }
 
 /** Código curto do agendamento no aviso ao salão ("CONFIRMADO AB12"): é ele que diz a

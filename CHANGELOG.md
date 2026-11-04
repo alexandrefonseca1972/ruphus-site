@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- WhatsApp desconectado não passa mais calado: faixa "Seu WhatsApp desconectou" no topo de todo o painel (para quem gere), com o botão Reconectar; aviso no celular do dono na hora em que a conexão cai; em Meu negócio → WhatsApp, o último aviso ou lembrete que não saiu (antes só o /admin via) e o texto "A conexão caiu" junto do QR. Reconectar limpa a falha antiga.
+
 - WhatsApp (atendys), revisão da integração:
   - A demonstração não conecta WhatsApp e nenhum envio sai dela (recibo, lembrete, confirmação, teste), mesmo com conexão esquecida no documento: ela é aberta a qualquer pessoa e os clientes de exemplo têm números de verdade.
   - Opt-in honesto: o teste rápido do dono não registra consentimento (sem opt-in, a tela diz que o número não autorizou); o recibo do agendamento online registra que o número foi digitado no link do negócio; os demais envios, que o cliente tem horário no negócio.

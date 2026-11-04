@@ -273,6 +273,12 @@ await entregar({ event: "instance.status", instance: "casa-main", status: "disco
 assert.equal((await lerConfigWhatsApp(db, "casa"))?.status, "connected");
 await entregar({ event: "instance.status", instance: "casa-main", status: "disconnected", at: "2026-11-04T12:00:09Z" });
 assert.equal((await lerConfigWhatsApp(db, "casa"))?.status, "disconnected", "o mais novo vale");
+// reconectou: a falha antiga some; caiu de novo: o aviso ao dono roda (sem VAPID no teste, não envia) e não quebra
+await db.doc("tenants/casa").set({ whatsapp: { lastNotifyError: { message: "WhatsApp desconectado: ninguém foi avisado", at: 1 } } }, { merge: true });
+assert.equal((await entregar({ event: "instance.status", instance: "casa-main", status: "connected", at: "2026-11-04T12:01:00Z" })).status, 200);
+assert.equal((await lerConfigWhatsApp(db, "casa"))?.lastNotifyError, undefined, "reconectar limpa a falha antiga");
+assert.equal((await entregar({ event: "instance.status", instance: "casa-main", status: "disconnected", at: "2026-11-04T12:02:00Z" })).status, 200);
+assert.equal((await lerConfigWhatsApp(db, "casa"))?.status, "disconnected");
 // mensagem recebida (mídia, sem comando) vai para a caixa de entrada uma vez só
 assert.equal((await entregar({ event: "message.received", instance: "casa-main", messageId: "ABC/1", phone: "5511999", type: "media", at: "2026-11-03T12:00:00Z" })).status, 200);
 assert.equal((await entregar({ event: "message.received", instance: "casa-main", messageId: "ABC/1", phone: "5511999", type: "media", at: "2026-11-03T12:00:00Z" })).status, 200);

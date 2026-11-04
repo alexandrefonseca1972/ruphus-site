@@ -31,6 +31,8 @@ type Config = {
   termsAcceptedAt?: number | null;
   remindersEnabled?: boolean;
   remindersBeforeHours?: number | null;
+  // último aviso que não saiu (gateway fora, desconectado…); some quando um aviso sai
+  lastNotifyError?: { message: string; at: number } | null;
 };
 
 // memberAction devolve o payload direto no sucesso e { ok: false, error } na falha
@@ -195,6 +197,14 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
         <span className="rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground">{rotulo(cfg?.status)}</span>
       </div>
 
+      {/* antes só o /admin via: o dono não sabia que um aviso ou lembrete tinha falhado */}
+      {cfg?.lastNotifyError?.message && (
+        <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          <span className="font-semibold">Último aviso que não saiu</span>
+          {cfg.lastNotifyError.at ? ` (${new Date(cfg.lastNotifyError.at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })})` : ""}: {cfg.lastNotifyError.message}
+        </p>
+      )}
+
       {adminGerencia ? (
         <>
           <p className="text-sm text-muted-foreground">
@@ -210,7 +220,9 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
             {conectado
               ? `Número ${cfg.phone ?? ""} conectado. As mensagens dos clientes chegam pela plataforma e os avisos de
                  agendamento chegam em "Mensagens para você" deste número — responda CONFIRMADO ou RECUSAR lá.`
-              : "Abra o WhatsApp do número, toque em Aparelhos conectados e leia o QR:"}
+              : cfg.status === "disconnected"
+                ? "A conexão caiu: lembretes e avisos de agendamento estão parados. Abra o WhatsApp do número, toque em Aparelhos conectados e leia o QR de novo:"
+                : "Abra o WhatsApp do número, toque em Aparelhos conectados e leia o QR:"}
           </p>
           {qr && !conectado && (
             // eslint-disable-next-line @next/next/no-img-element -- QR em data URL vindo do gateway
