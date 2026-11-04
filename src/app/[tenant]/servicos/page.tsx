@@ -258,11 +258,14 @@ export default function ServicesPage() {
                       checked={s.active}
                       disabled={!tenant.podeGerir}
                       onChange={() => run(updateDoc(doc(col, s.id), { active: !s.active }))}
-                      aria-label={`${s.name} aparece no link de agendamento`}
+                      // a chave é a vontade do dono ("mostrar"); se ninguém faz, ligada fica apagada
+                      // e o texto ao lado diz por quê — antes ela dizia "aparece" sem aparecer
+                      aria-label={`Mostrar ${s.name} no link de agendamento`}
+                      aria-describedby={`sv-link-${s.id}`}
                       className="peer sr-only"
                     />
-                    <span aria-hidden="true" className="relative h-6 w-11 shrink-0 rounded-full bg-input transition-colors peer-checked:bg-primary peer-focus-visible:ring-3 peer-focus-visible:ring-ring/50 after:absolute after:top-0.5 after:left-0.5 after:size-5 after:rounded-full after:bg-card after:transition-transform peer-checked:after:translate-x-5" />
-                    {!s.active ? "Oculto" : noLink(s) ? "No link" : "Fora do link até alguém fazer"}
+                    <span aria-hidden="true" className={`relative h-6 w-11 shrink-0 rounded-full bg-input transition-colors ${noLink(s) ? "peer-checked:bg-primary" : "peer-checked:bg-muted-foreground/40"} peer-focus-visible:ring-3 peer-focus-visible:ring-ring/50 after:absolute after:top-0.5 after:left-0.5 after:size-5 after:rounded-full after:bg-card after:transition-transform peer-checked:after:translate-x-5`} />
+                    <span id={`sv-link-${s.id}`}>{!s.active ? "Oculto" : noLink(s) ? "No link" : "Fora do link até alguém fazer"}</span>
                   </label>
                   {tenant.podeGerir && <div className="flex items-center justify-end gap-1">
                     <Button variant="ghost" className="h-10 px-3" onClick={() => setEditing(s)}>Editar</Button>

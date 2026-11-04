@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Detalhes do QA: no agendamento, depois de tocar em Confirmar, o WhatsApp incompleto ("faltam N dígitos") fica marcado como inválido também para leitor de tela; em Serviços, a chave de um serviço que ninguém faz fica apagada e se chama "Mostrar … no link" (antes dizia "aparece no link" sem aparecer); com a agenda desligada, a aba do /agendar se chama "Serviços e preços" em vez de "Agendar online".
+
 - Demonstração: a restauração diária desconecta o WhatsApp (despareia no atendys e limpa a conexão, mantendo o aceite do termo). Antes ela apagava só a credencial, e o painel mostrava "conectado" com o teste de envio dizendo "ainda não está conectado". A demo é compartilhada: um número conectado nela mandaria mensagem em nome de quem conectou.
 
 - Agendamento online desligável: em Meu negócio, a parte "Agendamento online" ganhou a chave "Receber agendamentos pelo link". Desligada, a bio troca "Agendar online" por "Falar no WhatsApp" (e os serviços levam ao WhatsApp), e o link de agendamento, que o site ainda aponta, mostra a lista de preços com o botão do WhatsApp em vez da grade. A reserva pela API também é recusada. Para quem só quer mostrar serviços e preços.
