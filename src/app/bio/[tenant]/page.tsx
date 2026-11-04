@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { adminDb } from "@/lib/admin";
 import { agendaDias, foraDoAr } from "@/lib/booking.server";
-import { addDays, formatBRL, linkWhatsApp, todayIn, weekday, WEEKDAYS, precoDe, type TipoPreco } from "@/lib/datetime";
+import { addDays, formatBRL, fusoDaUF, linkWhatsApp, todayIn, weekday, WEEKDAYS, precoDe, type TipoPreco } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
@@ -78,7 +78,7 @@ const carregar = cache(async (slug: string): Promise<Bio | null> => {
 async function proximosHorarios(slug: string, bio: Bio) {
   const curto = [...bio.servicos].sort((a, b) => a.duracao - b.duracao)[0];
   if (!curto || !bio.expediente.length) return null;
-  const candidatos = Array.from({ length: 8 }, (_, i) => ({ i, date: addDays(todayIn(), i) }))
+  const candidatos = Array.from({ length: 8 }, (_, i) => ({ i, date: addDays(todayIn(fusoDaUF(bio.uf)), i) }))
     .filter(({ date }) => bio.expediente.some((e) => e.dia === weekday(date)))
     .slice(0, 3); // três dias de trabalho bastam para achar vaga; é o que a frase mostra
   // staffId vazio: qualquer profissional, como na página de agendamento
