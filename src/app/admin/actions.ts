@@ -16,6 +16,7 @@ import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNe
 import { DIAS_CONVITE, LIMITE_STAFF_MAX, MINUTOS_MAX } from "@/lib/limites";
 import { dadosDoEnvio, destinatarioDoEnvio, gerarProposta } from "@/lib/proposta.server";
 import { enviarEmail } from "@/lib/email.server";
+import { verificarIntegracoes } from "@/lib/verificar-integracoes.server";
 import { emailDaProposta } from "@/lib/proposta-email";
 import { emailDoConvite } from "@/lib/convite-email";
 import { saudeDe } from "@/lib/saude.server";
@@ -1013,6 +1014,19 @@ export const salvarIntegracao = adminAction(async (_user, nome: unknown, valor: 
 });
 
 /** SMS de teste com a chave em uso: confere chave e crédito na Comtele sem esperar um agendamento. */
+/** Situação ao vivo de cada grupo de Ajustes: nada é enviado nem cobrado. */
+export const verificarAjustes = adminAction(async () => verificarIntegracoes());
+
+/** Manda um e-mail de teste pelo caminho de sempre (Resend, e o Gmail se o Resend falhar). */
+export const testarEmail = adminAction(async (_user, para: unknown) => {
+  const destino = z.string().trim().email("Informe um e-mail válido.").max(200).parse(para);
+  await enviarEmail({ para: destino, assunto: "Ruphus: e-mail de teste", texto: "E-mail de teste do /admin da Ruphus. Se chegou, o envio de e-mails está funcionando." }).catch((e) => {
+    // tela só do admin da plataforma: o motivo da recusa ajuda a consertar a chave
+    throw e instanceof ErroPrevisto ? e : new ErroPrevisto(`O envio falhou: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}`);
+  });
+  return destino;
+});
+
 export const testarSms = adminAction(async (_user, telefone: unknown) => {
   const numero = numeroSms(z.string().max(30).parse(telefone));
   if (!numero) throw new ErroPrevisto("Use um celular com DDD, como (91) 98888-7777. Fixo não recebe SMS.");

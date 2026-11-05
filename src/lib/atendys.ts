@@ -217,6 +217,11 @@ export async function criarInstancia(tenantId: string, slug: string): Promise<{ 
   return { name: `${slug}-main` };
 }
 
+/** A chave de administração funciona? Lista os tenants (só leitura) e devolve quantos são. */
+export async function verificarChaveAdmin(): Promise<number> {
+  return (await chamarAdmin<unknown[]>("GET", "/admin/tenants")).length;
+}
+
 /** Despareia o número (administrativo — o painel do dono desconecta via plataforma). */
 export function deslogarInstancia(instanceId: string) {
   return chamarAdmin("POST", `/admin/instances/${encodeURIComponent(instanceId)}/logout`, {});

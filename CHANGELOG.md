@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Ajustes do /admin: cada serviço mostra se a chave está **válida**, **com problema** (e por quê: recusada, sem saldo, domínio não verificado…) ou **não configurada**, conferido ao vivo sem enviar nada nem gastar crédito (saldo da Comtele, domínios do Resend, login do Gmail, atendys, Anthropic), com "Verificar de novo". Novos testes de envio: e-mail (pelo Resend, com o Gmail de reserva) e alerta (para o destino dos alertas).
+
 - Equipe sem o WhatsApp pessoal do dono: o número que recebe os avisos de agendamento sai do documento do negócio (que a equipe lê pelo navegador) e vai para a área que só o servidor lê; o dono e o admin continuam vendo e editando. Rode `npm run mover:segredos-whatsapp -- --aplicar` uma vez para mover os que já estão gravados.
 
 - Segurança (revisão de isolamento entre negócios — nenhuma falha entre negócios encontrada): na demonstração, cuja senha é compartilhada, os dados do negócio, o Pix, o sinal e o recado não mudam mais (aparecem no site público e virariam isca de golpe até a restauração); a conta da demo é restaurada pelo uid guardado, e trocar o e-mail dela não a deixa viva com outra senha; "encerrar sessões" do admin da plataforma passa a valer também nas regras do Firestore, na hora.
