@@ -1074,8 +1074,8 @@ button,a,input{touch-action:manipulation}
   <section class="wrap sec" id="brasil" aria-labelledby="brasil-t">
     <div class="sec-cab">
       <span class="tag">Pelo Brasil</span>
-      <h2 class="sec-t revela" id="brasil-t">Sites prontos em <span id="br-estados">vários</span> estados.</h2>
-      <p class="revela" style="--atraso:80ms">Cada estado mostra quantos negócios já têm a página montada, esperando o dono abrir e decidir. Passe o dedo ou o mouse no mapa para ver o número.</p>
+      <h2 class="sec-t revela" id="brasil-t">Já atendemos em <span id="br-estados">vários</span> estados.</h2>
+      <p class="revela" style="--atraso:80ms">Já montamos a página de <span id="br-total-sub">centenas de</span> negócios em <span id="br-estados-sub">vários</span> estados. Toque no seu e veja quantos estão prontos.</p>
     </div>
     <div class="br">
       <div class="br-mapa revela" style="--atraso:120ms">
@@ -1605,6 +1605,8 @@ function iniciarPalco(){
       var com=Object.keys(ufs).filter(function(u){return geo.s[u];}).sort(function(a,b){return ufs[b]-ufs[a];});
       document.getElementById('br-estados').textContent=com.length;
       document.getElementById('br-total').textContent=fmt(total);
+      document.getElementById('br-estados-sub').textContent=com.length;
+      document.getElementById('br-total-sub').textContent=fmt(total);
       rank.innerHTML=com.slice(0,8).map(function(uf){ return '<li data-uf="'+uf+'"><span class="s">'+uf+'</span><span class="n">'+geo.s[uf].n+'</span><span class="q">'+fmt(ufs[uf])+'</span></li>'; }).join('');
       [].forEach.call(rank.children,function(li){ li.addEventListener('pointerenter',function(){mostra(li.dataset.uf);}); li.addEventListener('pointerleave',function(){mostra(null);}); });
       var resto=com.length-8; var sem=document.getElementById('br-sem');
