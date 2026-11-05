@@ -31,6 +31,16 @@ const CAMPO = "h-10 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-[1
 const MINI = "h-8 rounded-lg border border-[#D8D2C6] bg-white px-2.5 font-semibold hover:border-[#17150F] disabled:opacity-40 disabled:hover:border-[#D8D2C6]";
 const SEM_SINAL_MS = 3 * 60_000; // o worker dá sinal a cada 20 s enquanto coleta e a cada 30 s parado
 
+// A lista em blocos, na ordem em que pedem atenção. A nota do bloco diz uma vez o que
+// antes se repetia em cada cartão da fila.
+const GRUPOS: [string, Coleta["estado"][], ((semWorker: boolean) => string) | null][] = [
+  ["Em andamento", ["coletando"], null],
+  ["Na fila", ["fila"], (semWorker) => (semWorker ? "Param até o worker ser ligado (aviso no topo)." : "Começam sozinhas, uma por vez, na ordem abaixo.")],
+  ["Para gerar", ["pronta", "gerando"], null],
+  ["Com erro", ["erro"], null],
+  ["Encerradas", ["concluida", "cancelada"], null],
+];
+
 const ESTADOS: Record<Coleta["estado"], [string, string]> = {
   fila: ["Na fila", "bg-[#F1EEE7] text-[#6F6A5E]"],
   coletando: ["Coletando", "bg-[#EAF0F7] text-[#2F4E73]"],
@@ -407,20 +417,48 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: (sl
 
       {erroPainel && <Alerta tom="atencao">{erroPainel}</Alerta>}
 
-      <section aria-label="Coletas" className="flex flex-col gap-3">
+      <section aria-label="Coletas" className="flex flex-col gap-5">
         {coletas === null ? (
           <p className="text-[13px] text-[#6F6A5E]">Carregando…</p>
         ) : coletas.length === 0 ? (
           <p className="text-[13px] text-[#6F6A5E]">Nenhuma coleta ainda.</p>
         ) : (
-          coletas.map((c) => <Cartao key={c.id} c={c} agora={agora} semWorker={!vivos.length} aoMudar={atualizar} aoGerar={aoGerar} />)
+          GRUPOS.map(([titulo, estados, nota]) => {
+            const itens = coletas.filter((c) => estados.includes(c.estado));
+            if (!itens.length) return null;
+            // a fila na ordem em que o worker atende (mais antiga primeiro); o resto, mais recente primeiro
+            if (titulo === "Na fila") itens.sort((a, b) => (a.criadaEm ?? 0) - (b.criadaEm ?? 0));
+            const cartoes = itens.map((c, i) => <Cartao key={c.id} c={c} agora={agora} posicao={titulo === "Na fila" ? i + 1 : null} aoMudar={atualizar} aoGerar={aoGerar} />);
+            const cabecalho = (
+              <>
+                <span className="font-semibold text-[#17150F]">{titulo}</span>
+                <span className="rounded-full bg-[#F1EEE7] px-2 py-0.5 text-[11px] font-semibold tabular-nums text-[#6F6A5E]">{itens.length}</span>
+                {nota && <span className="text-[12px] text-[#8B8578]">{nota(!vivos.length)}</span>}
+              </>
+            );
+            // encerradas recolhidas: são as mais numerosas e as que menos pedem ação
+            return titulo === "Encerradas" ? (
+              <details key={titulo} className="group flex flex-col gap-2">
+                <summary className="flex cursor-pointer list-none items-center gap-2 text-[13px] [&::-webkit-details-marker]:hidden">
+                  <span aria-hidden="true" className="text-[10px] text-[#8B8578] transition-transform group-open:rotate-90">▶</span>
+                  {cabecalho}
+                </summary>
+                <div className="mt-2 flex flex-col gap-2">{cartoes}</div>
+              </details>
+            ) : (
+              <div key={titulo} className="flex flex-col gap-2">
+                <h3 className="flex items-center gap-2 text-[13px]">{cabecalho}</h3>
+                {cartoes}
+              </div>
+            );
+          })
         )}
       </section>
     </div>
   );
 }
 
-function Cartao({ c, agora, semWorker, aoMudar, aoGerar }: { c: Coleta; agora: number; semWorker: boolean; aoMudar: () => void; aoGerar: (slugs: string[]) => void }) {
+function Cartao({ c, agora, posicao, aoMudar, aoGerar }: { c: Coleta; agora: number; posicao: number | null; aoMudar: () => void; aoGerar: (slugs: string[]) => void }) {
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState("");
   const [previa, setPrevia] = useState<LinhaDaPrevia[] | null>(null);
@@ -523,20 +561,21 @@ function Cartao({ c, agora, semWorker, aoMudar, aoGerar }: { c: Coleta; agora: n
   const totalNovos = c.resumo?.novos ?? 0;
 
   return (
-    <article className="flex flex-col gap-2.5 rounded-2xl border border-[#E2DDD3] bg-white p-4 text-[12.5px]">
+    <article className={`flex flex-col gap-2.5 rounded-2xl border border-[#E2DDD3] bg-white text-[12.5px] ${c.estado === "fila" ? "px-4 py-2.5" : "p-4"}`}>
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-[15px] font-semibold">{c.cidade}/{c.uf}</h3>
+        {posicao !== null && <span className="w-6 text-right text-[13px] tabular-nums text-[#8B8578]">{posicao}º</span>}
+        <h4 className="text-[15px] font-semibold">{c.cidade}/{c.uf}</h4>
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${cor}`}>{rotulo}</span>
         <span className="text-[#8B8578]">
           pedida {haQuanto(c.criadaEm, agora)} · {c.bairros.length ? qtd(c.bairros.length, "bairro", "bairros") : "bairros automáticos"} · {c.termos.join(", ")}
         </span>
+        {/* na fila, o cartão é uma linha: o cancelar fica nela, sem rodapé */}
+        {c.estado === "fila" && (
+          <button type="button" disabled={ocupado} onClick={async () => (await confirmar({ titulo: `Cancelar a coleta de ${c.cidade}?`, texto: "O que já foi coletado fica guardado se ela for recolocada na fila.", acao: "Cancelar a coleta" })) && acao(async () => cancelarColeta(await tokenFresco(), c.id), aoMudar)} className={`${MINI} ml-auto text-[12px]`}>
+            Cancelar
+          </button>
+        )}
       </div>
-
-      {c.estado === "fila" && (
-        <p className={semWorker ? "text-[#7A5A2E]" : "text-[#6F6A5E]"}>
-          {semWorker ? "Parada: nenhum worker no ar. Ligue o worker (aviso no topo) e ela começa sozinha." : "Esperando um worker livre."}
-        </p>
-      )}
 
       {c.estado === "coletando" && (
         <div className="flex flex-col gap-2">
@@ -632,7 +671,7 @@ function Cartao({ c, agora, semWorker, aoMudar, aoGerar }: { c: Coleta; agora: n
       {erro && <Alerta tom="erro" fechar={() => setErro("")}>{erro}</Alerta>}
 
       <div className="flex flex-wrap items-center gap-2">
-        {(c.estado === "fila" || c.estado === "coletando") && (
+        {c.estado === "coletando" && (
           <button type="button" disabled={ocupado} onClick={async () => (await confirmar({ titulo: `Cancelar a coleta de ${c.cidade}?`, texto: "O que já foi coletado fica guardado se ela for recolocada na fila.", acao: "Cancelar a coleta" })) && acao(async () => cancelarColeta(await tokenFresco(), c.id), aoMudar)} className={`${BOTAO} border border-[#D8D2C6] bg-white hover:border-[#17150F] disabled:opacity-50`}>
             Cancelar
           </button>
