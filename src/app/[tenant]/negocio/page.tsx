@@ -70,7 +70,7 @@ export default function MeuNegocio() {
     };
   }, [slug, tentativa]);
 
-  const erros = errosDe(campos);
+  const erros = errosDe(campos, fabrica);
   const erroNome = nome.trim().length < 2 ? "Informe o nome do negócio" : "";
   const mudou = !!salvo && (nome !== salvo.nome || (Object.keys(VAZIO) as (keyof Valores)[]).some((c) => campos[c] !== salvo.campos[c]));
   const mudouRecado = recado.trim() !== recadoSalvo.trim() || online !== onlineSalvo;
@@ -92,7 +92,11 @@ export default function MeuNegocio() {
   async function salvar() {
     setTentou(true);
     setAviso(null);
-    if (erroNome || Object.keys(erros).length) return;
+    if (erroNome || Object.keys(erros).length) {
+      // o foco vai ao primeiro campo com erro: teclado e leitor de tela não ficam presos no botão
+      setTimeout(() => document.querySelector<HTMLElement>('#dados [aria-invalid="true"]')?.focus(), 0);
+      return;
+    }
     setBusy(true);
     const r = await idToken().then((t) => salvarNegocioAction(t, { tenantId: slug, dados: { name: nome, ...campos } })).catch(() => null);
     setBusy(false);
@@ -194,7 +198,7 @@ export default function MeuNegocio() {
             />
             <p id="negocio-nome-msg" aria-live="polite" className="min-h-4 text-xs text-destructive">{tentou || nomeVisto ? erroNome : ""}</p>
           </div>
-          <CamposNegocio valores={campos} onChange={editar(setCampos)} erros={erros} mostrarTodos={tentou} completo />
+          <CamposNegocio valores={campos} onChange={editar(setCampos)} erros={erros} mostrarTodos={tentou} completo fabrica={fabrica} />
           {aviso && (
             <p role={aviso.ok ? "status" : "alert"} className={aviso.ok ? "text-sm text-emerald-700 dark:text-emerald-300" : "text-sm text-destructive"}>
               {aviso.texto}
@@ -329,7 +333,8 @@ function CopiarLink({ url, rotulo }: { url: string; rotulo: string }) {
       type="button"
       aria-label={`Copiar o link: ${rotulo}`}
       onClick={async () => {
-        const certo = await navigator.clipboard.writeText(url).then(() => true, () => false);
+        // sem clipboard (HTTP, navegador antigo) o writeText nem existe: "Não deu", não erro mudo
+        const certo = await Promise.resolve().then(() => navigator.clipboard.writeText(url)).then(() => true, () => false);
         setOk(certo);
         setTimeout(() => setOk(null), 2000);
       }}
@@ -342,6 +347,8 @@ function CopiarLink({ url, rotulo }: { url: string; rotulo: string }) {
 
 /** 5596991234567 → (96) 99123-4567, para o campo mostrar o número como a pessoa digita */
 function formatarFone(t: string) {
-  const d = t.startsWith("55") ? t.slice(2) : t;
+  const digitos = t.replace(/\D/g, "");
+  const d = digitos.length > 11 && digitos.startsWith("55") ? digitos.slice(2) : digitos;
+  if (d.length < 10 || d.length > 11) return t;
   return `(${d.slice(0, 2)}) ${d.slice(2, -4)}-${d.slice(-4)}`;
 }

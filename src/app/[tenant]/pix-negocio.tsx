@@ -22,6 +22,11 @@ export function PixNegocio({ cidadeSugerida = "" }: { cidadeSugerida?: string })
   const [pix, setPix] = useState(tenant.pix ? inicial : { ...inicial, cidade: cidadeSugerida });
   const [tentou, setTentou] = useState(false);
   const [salvo, setSalvo] = useState(tenant.pix ? inicial : { ...inicial, cidade: cidadeSugerida });
+  // sem chave e sem a cidade mexida: a cidade segue a de Dados quando o dono a muda e salva lá
+  if (!salvo.chave && pix.cidade === salvo.cidade && pix.cidade !== cidadeSugerida) {
+    setPix({ ...pix, cidade: cidadeSugerida });
+    setSalvo({ ...salvo, cidade: cidadeSugerida });
+  }
   const [busy, setBusy] = useState(false);
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const mudou = pix.chave !== salvo.chave || pix.nome !== salvo.nome || pix.cidade !== salvo.cidade;
@@ -144,6 +149,15 @@ export function SinalNegocio() {
   const [sinal, setSinal] = useState(inicial);
   const [valor, setValor] = useState(inicial.tipo === "fixo" ? formatBRL(inicial.valor) : String(inicial.valor));
   const [salvo, setSalvo] = useState(JSON.stringify(inicial));
+  // o servidor mudou o sinal por fora (remover a chave Pix desliga): a tela segue o contexto,
+  // senão "Pedir sinal" fica marcado aqui e desligado lá
+  const [visto, setVisto] = useState(JSON.stringify(tenant.sinal ?? null));
+  if (JSON.stringify(tenant.sinal ?? null) !== visto) {
+    setVisto(JSON.stringify(tenant.sinal ?? null));
+    setSinal(inicial);
+    setValor(inicial.tipo === "fixo" ? formatBRL(inicial.valor) : String(inicial.valor));
+    setSalvo(JSON.stringify(inicial));
+  }
   const [busy, setBusy] = useState(false);
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const numero = Number(valor.replace(/\D/g, "")) || 0;
