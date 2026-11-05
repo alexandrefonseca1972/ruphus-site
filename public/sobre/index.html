@@ -630,16 +630,44 @@ button,a,input{touch-action:manipulation}
 .calc-in:focus-within{outline:2px solid var(--preto);outline-offset:2px}
 .calc-r{font-size:16px;line-height:1.4}
 .calc-r b{font-family:var(--disp);font-weight:400;font-size:40px;line-height:1;display:block;letter-spacing:0}
-.tabela-c{overflow-x:auto;background:var(--branco);border-radius:32px;padding:8px clamp(8px,2vw,24px)}
-.compara{width:100%;border-collapse:separate;border-spacing:0;min-width:620px;font-size:15px}
-.compara th,.compara td{padding:16px 12px;text-align:left;border-bottom:1px solid var(--nevoa);vertical-align:middle}
-.compara tbody tr:last-child th,.compara tbody tr:last-child td{border-bottom:0}
-.compara thead th{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:-.03em;color:var(--ardosia);font-weight:400}
-.compara tbody th{font-weight:500;max-width:30ch}
-.compara td{color:var(--ardosia)}
-.compara .nos{background:var(--volt);color:var(--preto);font-weight:600}
-.compara thead .nos{color:var(--preto);font-weight:700;border-radius:14px 14px 0 0}
-.compara tbody tr:last-child .nos{border-radius:0 0 14px 14px}
+.legenda{list-style:none;display:flex;flex-wrap:wrap;gap:16px;margin-bottom:14px;font-family:var(--mono);font-size:12px;text-transform:uppercase;color:var(--ardosia)}
+.legenda li{display:flex;align-items:center;gap:8px}
+.tabela-c{background:var(--branco);border-radius:32px;padding:clamp(8px,2vw,24px)}
+.compara{width:100%;border-collapse:separate;border-spacing:0;font-size:15px;table-layout:fixed}
+.compara th,.compara td{padding:16px 14px;text-align:left;border-bottom:1px solid var(--nevoa);vertical-align:middle}
+.compara thead th{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:-.03em;color:var(--ardosia);font-weight:400;padding-bottom:14px}
+.compara thead th:first-child{width:30%}
+.compara tbody th{font-weight:500;line-height:1.3}
+.compara td{color:var(--ardosia);line-height:1.3}
+.cel{display:flex;align-items:flex-start;gap:10px}
+.cel .nota{padding-top:2px}
+.ic{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;font-size:13px;font-weight:700;flex:none;line-height:1}
+.ic.sim{background:var(--preto);color:var(--volt)}
+.ic.par{background:transparent;color:var(--ardosia);box-shadow:0 0 0 1.5px var(--fumo) inset}
+.ic.nao{background:var(--nevoa);color:var(--fumo)}
+.compara .nos{background:#fffbd6;color:var(--preto)}
+.compara thead .nos{background:var(--volt);color:var(--preto);font-weight:700;border-radius:16px 16px 0 0}
+.compara tbody tr:last-child .nos{border-radius:0 0 16px 16px}
+.compara .nos .nota{font-weight:500}
+.compara tr.custo th,.compara tr.custo td{border-bottom:0;padding-top:20px}
+.compara tr.custo th{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:-.03em;font-weight:400;color:var(--ardosia)}
+.compara tr.custo .nos b{font-family:var(--disp);font-weight:400;font-size:26px;letter-spacing:0;display:block;line-height:1}
+/* celular: cada recurso vira um cartão, com as três respostas uma embaixo da outra */
+@media (max-width:720px){
+  .tabela-c{padding:4px 16px}
+  .compara,.compara tbody,.compara tr,.compara th,.compara td{display:block;width:auto}
+  .compara thead{display:none}
+  .compara tr{padding:16px 0;border-bottom:1px solid var(--nevoa)}
+  .compara tbody tr:last-child{border-bottom:0}
+  .compara th,.compara td{border:0;padding:0}
+  .compara tbody th{font-size:16px;margin-bottom:10px}
+  .compara td{display:grid;grid-template-columns:5.5rem minmax(0,1fr);gap:4px 10px;align-items:center;padding:7px 10px;border-radius:12px;font-size:14px}
+  .compara td::before{content:attr(data-l);font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:-.03em;color:var(--fumo)}
+  .compara .nos,.compara tbody tr:last-child .nos{border-radius:12px}
+  .compara tr.custo .nos b{font-size:22px}
+  .cel .ic{width:22px;height:22px;font-size:12px}
+  .cel .nota{padding-top:1px}
+}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 </style>
 <noscript><style>.revela,.entra,.h1 span{opacity:1;transform:none;animation:none}.hero-flutua{display:none}</style></noscript>
@@ -1019,16 +1047,20 @@ button,a,input{touch-action:manipulation}
       <h2 class="sec-t revela" id="compara-t">O que a agenda precisa, num preço fixo.</h2>
       <p class="revela" style="--atraso:80ms">Comparado a marcar tudo no WhatsApp e no caderno, ou a um aplicativo de agendamento comum.</p>
     </div>
-    <div class="tabela-c revela" style="--atraso:120ms" role="region" aria-labelledby="compara-t" tabindex="0">
+    <ul class="legenda revela" style="--atraso:100ms" aria-label="Legenda">
+      <li><span class="ic sim" aria-hidden="true">✓</span>tem</li><li><span class="ic par" aria-hidden="true">~</span>depende</li><li><span class="ic nao" aria-hidden="true">✕</span>não tem</li>
+    </ul>
+    <div class="tabela-c revela" style="--atraso:120ms">
       <table class="compara">
         <thead><tr><th scope="col"><span class="sr">Recurso</span></th><th scope="col">WhatsApp e caderno</th><th scope="col">App de agendamento comum</th><th scope="col" class="nos">Ruphus</th></tr></thead>
         <tbody>
-          <tr><th scope="row">Site com o nome e as fotos do seu negócio</th><td><span aria-hidden="true">—</span><span class="sr">não</span></td><td>perfil dentro do app</td><td class="nos">✓ incluso</td></tr>
-          <tr><th scope="row">Cliente marca sozinho, 24 horas, sem baixar nada</th><td><span aria-hidden="true">—</span><span class="sr">não</span></td><td>✓</td><td class="nos">✓</td></tr>
-          <tr><th scope="row">Lembrete pelo WhatsApp do seu negócio</th><td>só se você lembrar</td><td>varia</td><td class="nos">✓</td></tr>
-          <tr><th scope="row">Sinal pelo Pix, direto na sua conta</th><td><span aria-hidden="true">—</span><span class="sr">não</span></td><td>varia</td><td class="nos">✓</td></tr>
-          <tr><th scope="row">Taxa por agendamento ou comissão</th><td>nenhuma</td><td>em alguns</td><td class="nos">nenhuma</td></tr>
-          <tr><th scope="row">Ajuda para montar e atualizar</th><td><span aria-hidden="true">—</span><span class="sr">não</span></td><td>você configura</td><td class="nos">✓ a gente monta com você</td></tr>
+          <tr><th scope="row">O cliente marca sozinho, 24 horas</th><td data-l="Caderno"><span class="cel"><span class="ic nao" aria-hidden="true">✕</span><span class="sr">não tem: </span><span class="nota">só quando você responde</span></span></td><td data-l="App comum"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">pelo app ou link</span></span></td><td class="nos" data-l="Ruphus"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">pelo link, sem cadastro nem app</span></span></td></tr>
+          <tr><th scope="row">Lembrete automático antes do horário</th><td data-l="Caderno"><span class="cel"><span class="ic nao" aria-hidden="true">✕</span><span class="sr">não tem: </span><span class="nota">você manda um por um</span></span></td><td data-l="App comum"><span class="cel"><span class="ic par" aria-hidden="true">~</span><span class="sr">depende: </span><span class="nota">depende do app</span></span></td><td class="nos" data-l="Ruphus"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">pelo WhatsApp do seu negócio</span></span></td></tr>
+          <tr><th scope="row">Sinal pelo Pix para segurar o horário</th><td data-l="Caderno"><span class="cel"><span class="ic nao" aria-hidden="true">✕</span><span class="sr">não tem: </span><span class="nota">cobrar na conversa</span></span></td><td data-l="App comum"><span class="cel"><span class="ic par" aria-hidden="true">~</span><span class="sr">depende: </span><span class="nota">depende do app</span></span></td><td class="nos" data-l="Ruphus"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">direto na sua chave Pix</span></span></td></tr>
+          <tr><th scope="row">Site com o nome e as fotos do negócio</th><td data-l="Caderno"><span class="cel"><span class="ic nao" aria-hidden="true">✕</span><span class="sr">não tem: </span><span class="nota">só o perfil do Instagram</span></span></td><td data-l="App comum"><span class="cel"><span class="ic par" aria-hidden="true">~</span><span class="sr">depende: </span><span class="nota">perfil dentro do app</span></span></td><td class="nos" data-l="Ruphus"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">site próprio e link da bio</span></span></td></tr>
+          <tr><th scope="row">Sem taxa por agendamento</th><td data-l="Caderno"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">sem custo, mas toma seu tempo</span></span></td><td data-l="App comum"><span class="cel"><span class="ic par" aria-hidden="true">~</span><span class="sr">depende: </span><span class="nota">alguns cobram por agendamento</span></span></td><td class="nos" data-l="Ruphus"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">mensalidade fixa</span></span></td></tr>
+          <tr><th scope="row">Alguém monta com você</th><td data-l="Caderno"><span class="cel"><span class="ic nao" aria-hidden="true">✕</span><span class="sr">não tem: </span><span class="nota">você faz tudo</span></span></td><td data-l="App comum"><span class="cel"><span class="ic par" aria-hidden="true">~</span><span class="sr">depende: </span><span class="nota">geralmente você configura</span></span></td><td class="nos" data-l="Ruphus"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">a gente monta com você</span></span></td></tr>
+          <tr class="custo"><th scope="row">Quanto custa</th><td data-l="Caderno"><span class="nota">grátis, mais o seu tempo</span></td><td data-l="App comum"><span class="nota">mensalidade, às vezes com taxas</span></td><td class="nos" data-l="Ruphus"><span class="nota"><b>R$ 89,90/mês</b> fixo · R$ 250 para publicar</span></td></tr>
         </tbody>
       </table>
     </div>
@@ -1242,7 +1274,7 @@ function linha(o, i){
   const a = document.createElement('a');
   a.className = 'unidade revela';
   a.style.setProperty('--atraso', Math.min(i, 8) * 40 + 'ms');
-  a.href = '/s/' + o.s;
+  a.href = '/s/' + o.s; a.target = '_blank'; a.rel = 'noopener';   // a landing fica aberta para voltar e contratar
   const n = document.createElement('span'); n.className = 'un-n';
   n.textContent = String((o.i ?? SITES.indexOf(o)) + 1).padStart(3, '0');
   a.appendChild(n);
@@ -1298,7 +1330,7 @@ function mostrarAchados(termos, achados, quantos){
   else {
     const itens = achados.slice(0, 5).map(o => {
       const li = document.createElement('li'), a = document.createElement('a');
-      a.href = '/s/' + o.s;
+      a.href = '/s/' + o.s; a.target = '_blank'; a.rel = 'noopener';
       const txt = document.createElement('span'); txt.className = 'ac-txt';
       const n = document.createElement('span'); n.className = 'ac-nome'; n.textContent = o.n; txt.appendChild(n);
       if (o.d){ const d = document.createElement('span'); d.className = 'ac-d'; d.textContent = o.d; txt.appendChild(d); }
