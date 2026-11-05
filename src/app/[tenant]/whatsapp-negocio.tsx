@@ -100,7 +100,9 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     (async () => {
       const t = await token();
       const r = t ? await lerWhatsAppDoNegocioAction(t, { tenantId: slug }).catch(() => null) : null;
-      if (atual) setCfg(r && !falhou(r) ? r : null);
+      if (!atual) return;
+      if (r && !falhou(r)) confirmado.current = { on: r.remindersEnabled === true, hours: r.remindersBeforeHours ?? 2 };
+      setCfg(r && !falhou(r) ? r : null);
     })();
     return () => {
       atual = false;
@@ -201,7 +203,6 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
   // O último valor confirmado fica num ref: o `cfg` do clique é velho quando a fila anda
   const filaLembretes = useRef<Promise<void>>(Promise.resolve());
   const confirmado = useRef<{ on: boolean; hours: number } | null>(null);
-  if (cfg && !confirmado.current) confirmado.current = { on: cfg.remindersEnabled === true, hours: cfg.remindersBeforeHours ?? 2 };
   function salvarLembretes(enabled: boolean, hours: number) {
     setAviso(null);
     filaLembretes.current = filaLembretes.current.then(async () => {
