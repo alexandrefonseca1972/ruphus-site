@@ -5,7 +5,7 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
-- Landing: os sites da busca e da grade "Alguns deles" abrem numa aba nova; a landing fica aberta para o visitante voltar e contratar.
+- Landing: os sites da busca e da grade "Alguns deles" abrem numa aba nova; a landing fica aberta para o visitante voltar e contratar. Comparativo refeito: ícones consistentes (tem · depende · não tem) com nota curta, linha "Quanto custa" e, no celular, um cartão por recurso em vez de rolar para o lado.
 
 - Landing mais comercial: manchete pelo resultado ("Agenda cheia, menos falta"), preço e "sem taxa por agendamento" já no topo, selos de garantia junto da busca, nova seção com as três dores do dia a dia e o que muda, calculadora de quanto a falta custa por mês, comparativo com WhatsApp/caderno e app de agendamento comum, foco em beleza no lugar de "PMEs" e "fábrica", e duas perguntas novas (taxa por agendamento e tipos de negócio).
 
