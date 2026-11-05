@@ -13,25 +13,33 @@ export type EmailSaida = { para: string; assunto: string; texto: string; html?: 
 
 const REMETENTE = "Ruphus <noreply@ruphus.site>";
 
+// O endereço de contato (EMAIL_CONTATO, ex.: contato@ruphus.site): quem responde fala com ele, e no
+// Gmail ele é o remetente — o Gmail só respeita isso se o endereço estiver em "Enviar e-mail como"
+// na conta; sem ele, a conta do Gmail responde e assina, como antes.
+const contas = async () => {
+  const [chave, usuario, senha, contato] = await Promise.all([integracao("RESEND_API_KEY"), integracao("GMAIL_USER"), integracao("GMAIL_APP_PASSWORD"), integracao("EMAIL_CONTATO")]);
+  return { chave, usuario, senha, contato: contato || usuario };
+};
+
 export async function enviarEmail(email: EmailSaida) {
-  const [chave, usuario, senha] = await Promise.all([integracao("RESEND_API_KEY"), integracao("GMAIL_USER"), integracao("GMAIL_APP_PASSWORD")]);
-  if (!chave) return peloGmail(email, usuario, senha);
+  const { chave, usuario, senha, contato } = await contas();
+  if (!chave) return peloGmail(email, usuario, senha, contato);
   try {
-    await pelaResend(chave, email, usuario);
+    await pelaResend(chave, email, contato);
   } catch (err) {
     // Resend fora do ar ou lento: o Gmail, se configurado, leva o e-mail
     if (!usuario || !senha) throw err;
     console.error("[email] Resend falhou, enviando pelo Gmail", err);
-    await peloGmail(email, usuario, senha);
+    await peloGmail(email, usuario, senha, contato);
   }
 }
 
 /** Teste do /admin: força um canal (o de sempre tenta o Resend e cai no Gmail sem avisar qual saiu). */
 export async function enviarEmailPor(canal: "resend" | "gmail", email: EmailSaida) {
-  const [chave, usuario, senha] = await Promise.all([integracao("RESEND_API_KEY"), integracao("GMAIL_USER"), integracao("GMAIL_APP_PASSWORD")]);
-  if (canal === "gmail") return peloGmail(email, usuario, senha);
+  const { chave, usuario, senha, contato } = await contas();
+  if (canal === "gmail") return peloGmail(email, usuario, senha, contato);
   if (!chave) throw new EmailNaoConfigurado("Sem a chave do Resend: cadastre-a acima para testar este canal.");
-  return pelaResend(chave, email, usuario);
+  return pelaResend(chave, email, contato);
 }
 
 async function pelaResend(chave: string, { para, assunto, texto, html }: EmailSaida, responderPara: string) {
@@ -45,7 +53,7 @@ async function pelaResend(chave: string, { para, assunto, texto, html }: EmailSa
   if (!r.ok) throw new Error(`Resend recusou o e-mail (${r.status}): ${(await r.text()).slice(0, 300)}`);
 }
 
-async function peloGmail({ para, assunto, texto, html }: EmailSaida, usuario: string, senha: string) {
+async function peloGmail({ para, assunto, texto, html }: EmailSaida, usuario: string, senha: string, remetente = usuario) {
   if (!usuario || !senha) {
     throw new EmailNaoConfigurado("E-mail não configurado: cadastre a chave do Resend (ou a conta e a senha de app do Gmail) no /admin, em Ajustes.");
   }
@@ -57,5 +65,5 @@ async function peloGmail({ para, assunto, texto, html }: EmailSaida, usuario: st
     auth: { user: usuario, pass: senha },
   });
   // Com HTML, o texto puro segue junto: é ele que aparece onde o HTML não é exibido
-  await transporte.sendMail({ from: `"Ruphus" <${usuario}>`, to: para, subject: assunto, text: texto, html });
+  await transporte.sendMail({ from: `"Ruphus" <${remetente}>`, replyTo: remetente, to: para, subject: assunto, text: texto, html });
 }
