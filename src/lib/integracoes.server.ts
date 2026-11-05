@@ -15,6 +15,8 @@ export const INTEGRACOES = {
   RESEND_API_KEY: { grupo: "E-mail", rotulo: "Chave do Resend", secreta: true },
   GMAIL_USER: { grupo: "E-mail", rotulo: "Conta do Gmail (reserva)", secreta: false },
   GMAIL_APP_PASSWORD: { grupo: "E-mail", rotulo: "Senha de app do Gmail", secreta: true },
+  // quem responde fala com ele; no Gmail é o remetente (precisa estar em "Enviar e-mail como" na conta)
+  EMAIL_CONTATO: { grupo: "E-mail", rotulo: "Endereço de contato (remetente do Gmail e resposta)", secreta: false },
   ATENDYS_ADMIN_KEY: { grupo: "WhatsApp (atendys)", rotulo: "Chave de administração", secreta: true },
   // sem ele, os alertas vão para a conta do Gmail acima
   ALERTA_EMAIL: { grupo: "Alertas", rotulo: "E-mail para alertas do sistema", secreta: false },
