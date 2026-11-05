@@ -1,7 +1,7 @@
 "use client";
 
 import { confirmar } from "@/components/confirmar";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,9 +51,15 @@ const ROTULO: Record<string, string> = {
   banned: "banido pelo WhatsApp",
 };
 const rotulo = (s?: string) => (s ? (ROTULO[s] ?? s) : "não conectado");
+// token que não vem (sessão caiu, sem rede) é falha como outra qualquer: o botão não pode ficar preso
+const token = () => idToken().catch(() => null);
+const POLL_MS = 4000;
+const POLL_MAX_MS = 10 * 60_000; // o QR fica na tela por até 10 min; depois, o dono reabre
 
 export function WhatsAppNegocio({ slug }: { slug: string }) {
+  // undefined = carregando; null = a leitura falhou (não é "sem termo aceito")
   const [cfg, setCfg] = useState<Config | null | undefined>(undefined);
+  const [tentativa, setTentativa] = useState(0);
   const [busy, setBusy] = useState(false);
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const [li, setLi] = useState(false);
@@ -92,45 +98,76 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
   useEffect(() => {
     let atual = true;
     (async () => {
-      const r = await lerWhatsAppDoNegocioAction(await idToken(), { tenantId: slug }).catch(() => null);
-      if (atual) setCfg(r && !falhou(r) ? r : null);
+      const t = await token();
+      const r = t ? await lerWhatsAppDoNegocioAction(t, { tenantId: slug }).catch(() => null) : null;
+      if (!atual) return;
+      if (r && !falhou(r)) confirmado.current = { on: r.remindersEnabled === true, hours: r.remindersBeforeHours ?? 2 };
+      setCfg(r && !falhou(r) ? r : null);
     })();
     return () => {
       atual = false;
     };
-  }, [slug]);
+  }, [slug, tentativa]);
 
-  // enquanto não conecta, pergunta ao gateway de 4 em 4s e renova o QR (ele expira)
+  // enquanto não conecta, pergunta ao gateway e renova o QR (ele expira): uma chamada por vez,
+  // só com a aba visível, e por no máximo POLL_MAX_MS
   useEffect(() => {
     if (!cfg?.instanceId || conectado || adminGerencia) return;
-    const id = setInterval(async () => {
-      const t = await idToken();
-      const r = await refreshWhatsAppStatusDonoAction(t, { tenantId: slug }).catch(() => null);
-      if (!r || falhou(r)) return;
-      setCfg(r);
-      const q = await qrWhatsAppDonoAction(t, { tenantId: slug }).catch(() => null);
-      setQr(q && !falhou(q) && q.status === "qr" ? q.imagem : null);
-    }, 4000);
-    return () => clearInterval(id);
+    let vivo = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const inicio = Date.now();
+    let emVoo = false;
+    const tique = async () => {
+      // voltar à aba no meio de um tique não abre uma segunda cadeia de polling
+      if (!vivo || emVoo || Date.now() - inicio > POLL_MAX_MS) return;
+      emVoo = true;
+      if (!document.hidden) {
+        const t = await token();
+        const r = t ? await refreshWhatsAppStatusDonoAction(t, { tenantId: slug }).catch(() => null) : null;
+        if (r && !falhou(r) && vivo) {
+          setCfg(r);
+          const q = await qrWhatsAppDonoAction(t!, { tenantId: slug }).catch(() => null);
+          if (vivo) setQr(q && !falhou(q) && q.status === "qr" ? q.imagem : null);
+        }
+      }
+      emVoo = false;
+      if (vivo) timer = setTimeout(tique, POLL_MS);
+    };
+    timer = setTimeout(tique, POLL_MS);
+    const aoVoltar = () => {
+      if (!document.hidden) {
+        clearTimeout(timer);
+        void tique();
+      }
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => {
+      vivo = false;
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", aoVoltar);
+    };
   }, [slug, cfg?.instanceId, conectado, adminGerencia]);
 
   async function aceitarTermo() {
     setBusy(true);
     setAviso(null);
-    const r = await aceitarTermoWhatsAppAction(await idToken(), { tenantId: slug }).catch(() => null);
+    const t = await token();
+    const r = t ? await aceitarTermoWhatsAppAction(t, { tenantId: slug }).catch(() => null) : null;
     setBusy(false);
     if (!r || falhou(r)) return setAviso({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
-    setCfg((c) => ({ phone: null, status: "disconnected", ...(c ?? {}), termsAcceptedAt: Date.now() }));
+    // sem status: o selo diz "não conectado", não "desconectado" (nunca houve conexão)
+    setCfg((c) => ({ phone: null, ...(c ?? {}), termsAcceptedAt: Date.now() }));
   }
 
   async function conectar() {
     setBusy(true);
     setAviso(null);
-    const r = await conectarWhatsAppDonoAction(await idToken(), { tenantId: slug }).catch(() => null);
+    const t = await token();
+    const r = t ? await conectarWhatsAppDonoAction(t, { tenantId: slug }).catch(() => null) : null;
     setBusy(false);
     if (!r || falhou(r)) return setAviso({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
     setCfg({ ...r });
-    const q = await qrWhatsAppDonoAction(await idToken(), { tenantId: slug }).catch(() => null);
+    const q = await qrWhatsAppDonoAction(t!, { tenantId: slug }).catch(() => null);
     setQr(q && !falhou(q) && q.status === "qr" ? q.imagem : null);
   }
 
@@ -138,41 +175,69 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     if (!(await confirmar({ titulo: "Desconectar o WhatsApp do negócio?", texto: "O número sai do gateway e para de responder pela plataforma.", acao: "Desconectar" }))) return;
     setBusy(true);
     setAviso(null);
-    const r = await desconectarWhatsAppDonoAction(await idToken(), { tenantId: slug }).catch(() => null);
+    const t = await token();
+    const r = t ? await desconectarWhatsAppDonoAction(t, { tenantId: slug }).catch(() => null) : null;
     setBusy(false);
     if (falhou(r)) return setAviso({ ok: false, texto: r.error });
     if (!r) return setAviso({ ok: false, texto: "Sem conexão. Tente de novo." });
     setCfg((c) => (c ? { ...c, instanceId: undefined, phone: null, status: "disconnected" } : c));
     setQr(null);
+    // o vínculo foi solto, mas o gateway não confirmou: o número pode seguir logado lá
+    if (r === "desconectado-sem-confirmacao") {
+      setAviso({ ok: false, texto: "Desconectado aqui, mas o gateway não confirmou a saída do número. Antes de conectar de novo, abra o WhatsApp, Aparelhos conectados, e saia da sessão da plataforma." });
+    }
   }
 
   async function enviarTeste() {
     setBusyEnvio(true);
     setAviso(null);
-    const r = await enviarWhatsAppAction(await idToken(), { tenantId: slug, phone: para, message: mensagem }).catch(() => null);
+    const t = await token();
+    const r = t ? await enviarWhatsAppAction(t, { tenantId: slug, phone: para, message: mensagem }).catch(() => null) : null;
     setBusyEnvio(false);
     if (!r || falhou(r)) return setAviso({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
     setAviso({ ok: true, texto: "Enviado pelo seu WhatsApp." });
     setMensagem("");
   }
 
-  async function salvarLembretes(enabled: boolean, hours: number) {
+  // uma gravação de cada vez: cliques rápidos em checkbox e hora não disputam, a última fica.
+  // O último valor confirmado fica num ref: o `cfg` do clique é velho quando a fila anda
+  const filaLembretes = useRef<Promise<void>>(Promise.resolve());
+  const confirmado = useRef<{ on: boolean; hours: number } | null>(null);
+  function salvarLembretes(enabled: boolean, hours: number) {
     setAviso(null);
-    const r = await configurarLembretesWhatsAppAction(await idToken(), { tenantId: slug, enabled, hours }).catch(() => null);
-    if (falhou(r)) {
-      setAviso({ ok: false, texto: r.error });
-      setLembretes(cfg?.remindersEnabled === true);
-      setHorasLembretes(cfg?.remindersBeforeHours ?? 2);
-      return;
-    }
-    if (!r) setAviso({ ok: false, texto: "Sem conexão. Tente de novo." });
-    setCfg((c) => (c ? { ...c, remindersEnabled: enabled, remindersBeforeHours: hours } : c));
+    filaLembretes.current = filaLembretes.current.then(async () => {
+      const t = await token();
+      const r = t ? await configurarLembretesWhatsAppAction(t, { tenantId: slug, enabled, hours }).catch(() => null) : null;
+      if (!r || falhou(r)) {
+        // nada foi gravado: a tela volta ao último valor que o servidor confirmou
+        setAviso({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
+        setLembretes(confirmado.current?.on ?? false);
+        setHorasLembretes(confirmado.current?.hours ?? 2);
+        return;
+      }
+      confirmado.current = { on: enabled, hours };
+      setCfg((c) => (c ? { ...c, remindersEnabled: enabled, remindersBeforeHours: hours } : c));
+    });
   }
 
   if (cfg === undefined) return <p id="whatsapp" className="text-sm text-muted-foreground lg:col-start-1">Carregando…</p>;
 
+  // a leitura falhou: não é "sem termo aceito". Mostrar o termo aqui gravaria um aceite novo por
+  // uma queda de rede
+  if (cfg === null) {
+    return (
+      <section id="whatsapp" role="alert" className="grid scroll-mt-20 gap-3 rounded-2xl border bg-card p-5 sm:p-7 lg:col-start-1" aria-label="WhatsApp do negócio">
+        <h2 className="text-[15px] font-semibold">WhatsApp do negócio</h2>
+        <p className="text-sm text-muted-foreground">Não foi possível carregar a configuração do WhatsApp. Confira a internet e tente de novo.</p>
+        <div>
+          <Button type="button" variant="outline" onClick={() => (setCfg(undefined), setTentativa((n) => n + 1))} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">Tentar de novo</Button>
+        </div>
+      </section>
+    );
+  }
+
   // 1) termo de risco antes de qualquer uso — é o que isenta a plataforma
-  if (!cfg?.termsAcceptedAt) {
+  if (!cfg.termsAcceptedAt) {
     return (
       <section id="whatsapp" className="grid scroll-mt-20 gap-3 rounded-2xl border bg-card p-5 sm:p-7 lg:col-start-1" aria-label="WhatsApp do negócio">
         <h2 className="text-[15px] font-semibold">WhatsApp do negócio</h2>

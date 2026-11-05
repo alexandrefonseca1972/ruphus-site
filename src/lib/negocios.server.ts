@@ -2,7 +2,7 @@ import "server-only";
 import { type DocumentSnapshot, FieldValue, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { UserError } from "@/lib/booking.server";
-import { DadosNegocio, leadDoDono, NegocioInput, type Sub, SUBS, UtmInput } from "@/lib/gerador";
+import { DadosFabrica, DadosNegocio, leadDoDono, NegocioInput, type Sub, SUBS, UtmInput } from "@/lib/gerador";
 import { personalDe, registrosDoSite } from "@/lib/gerador.server";
 import { limiteStaffDe } from "@/lib/limites";
 
@@ -93,10 +93,11 @@ export async function lerNegocio(db: Firestore, slug: string) {
     telefone: s("site.phone"),
     cidade: s("site.city"),
     uf: s("site.uf"),
-    bairro: s("gerado.bairro"),
+    // site da fábrica não tem gerado.*: bairro e horário ficam em site.*
+    bairro: s("gerado.bairro") || s("site.bairro"),
     endereco: s("site.address"),
     instagram: s("site.instagram"),
-    horario: s("gerado.horario"),
+    horario: s("gerado.horario") || s("site.horario"),
     /** recado da tela de confirmação do agendamento; vazio = texto padrão */
     recado: s("agenda.recado"),
     /** agenda pelo link ligada; ausente = ligada (todo negócio nasce agendando) */
@@ -134,15 +135,16 @@ export type Mudanca = { campo: string; antes: string; depois: string };
 
 /** O que salvarNegocio mudaria, campo a campo, sem gravar: o admin confere antes de publicar. */
 export async function previaDoSite(db: Firestore, slug: string, input: unknown, google: Google) {
-  const parsed = DadosNegocio.safeParse(input);
-  if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
-  const d = parsed.data;
   const atual = await lerSiteDoNegocio(db, slug);
   const fabrica = atual.tipo === "fabrica";
+  // o mesmo schema que salvarNegocio aplica: fábrica não tem ramo
+  const parsed = (fabrica ? DadosFabrica : DadosNegocio).safeParse(input);
+  if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
+  const d = parsed.data as DadosNegocio;
   const n = (v: number | null) => (v == null ? "" : String(v).replace(".", ","));
   const pares: [string, string, string, boolean][] = [
     ["Nome", atual.name, d.name, true],
-    ["Ramo", atual.sub ? SUBS[atual.sub as Sub].rotulo : "", SUBS[d.sub].rotulo, !fabrica],
+    ["Ramo", atual.sub ? SUBS[atual.sub as Sub].rotulo : "", fabrica ? "" : SUBS[d.sub].rotulo, !fabrica],
     ["WhatsApp", atual.telefone, d.telefone, true],
     ["Cidade", atual.cidade, d.cidade, true],
     ["UF", atual.uf, d.uf, true],
@@ -162,21 +164,25 @@ export async function previaDoSite(db: Firestore, slug: string, input: unknown, 
  *  mande em `google`. Negócio criado antes do site automático ganha o site aqui,
  *  quando o dono escolhe o ramo. */
 export async function salvarNegocio(db: Firestore, slug: string, input: unknown, google?: Google) {
-  const parsed = DadosNegocio.safeParse(input);
-  if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
-  const d = parsed.data;
   const ref = db.doc(`tenants/${slug}`);
   const t = await ref.get();
   if (!t.exists) throw new UserError("Negócio não encontrado.");
 
   if (!t.get("gerado") && t.get("site.url")) {
-    // site da fábrica: a página é um arquivo; muda o que a bio e o agendamento leem
+    // site da fábrica: a página é um arquivo e não tem ramo (não há modelo a escolher);
+    // o que o dono edita vale para a bio e o agendamento, e fica em site.*
+    const parsed = DadosFabrica.safeParse(input);
+    if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
+    const d = parsed.data;
     await ref.set({
       name: d.name,
-      site: { phone: d.telefone, city: d.cidade, uf: d.uf, address: d.endereco || null, instagram: d.instagram || null },
+      site: { phone: d.telefone, city: d.cidade, uf: d.uf, address: d.endereco || null, instagram: d.instagram || null, bairro: d.bairro || null, horario: d.horario || null },
     }, { merge: true });
     return;
   }
+  const parsed = DadosNegocio.safeParse(input);
+  if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
+  const d = parsed.data;
   const origem = t.get("gerado.origem") === "cadastro" || !t.get("gerado") ? "cadastro" : "prospeccao";
   // o modelo (kit e cor) é de um ramo: noutro ramo os índices apontam para fotos e
   // paletas que não existem. Trocou o ramo, volta ao visual padrão do ramo novo.

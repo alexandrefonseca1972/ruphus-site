@@ -15,10 +15,10 @@ export type Valores = { sub: string; telefone: string; cidade: string; uf: strin
 export const VAZIO: Valores = { sub: "", telefone: "", cidade: "", uf: "", bairro: "", endereco: "", instagram: "", horario: "" };
 type Campo = keyof Valores;
 
-/** Erro de cada campo, pelo schema; só os que a tela mostra. */
-export function errosDe(v: Valores): Partial<Record<Campo, string>> {
+/** Erro de cada campo, pelo schema; só os que a tela mostra. Site da fábrica não tem ramo. */
+export function errosDe(v: Valores, fabrica = false): Partial<Record<Campo, string>> {
   const e: Partial<Record<Campo, string>> = {};
-  for (const c of ["sub", "telefone", "cidade", "uf"] as const) {
+  for (const c of fabrica ? (["telefone", "cidade", "uf"] as const) : (["sub", "telefone", "cidade", "uf"] as const)) {
     const r = DadosNegocio.shape[c].safeParse(v[c]);
     if (!r.success) e[c] = r.error.issues[0].message;
   }
@@ -40,7 +40,7 @@ const MASCARA: Partial<Record<Campo, (v: string) => string>> = {
 };
 
 export function CamposNegocio({
-  valores, onChange, erros: todos, mostrarTodos, completo = false,
+  valores, onChange, erros: todos, mostrarTodos, completo = false, fabrica = false,
 }: {
   valores: Valores;
   onChange: (v: Valores) => void;
@@ -49,6 +49,8 @@ export function CamposNegocio({
   mostrarTodos: boolean;
   /** a aba "Meu negócio" também edita endereço, Instagram e horário */
   completo?: boolean;
+  /** site feito pela fábrica: a página é fixa, não há ramo (modelo) a escolher */
+  fabrica?: boolean;
 }) {
   // O erro aparece ao sair do campo e, daí em diante, a cada tecla: acusar quem ainda digita é ruído
   const [vistos, setVistos] = useState<ReadonlySet<Campo>>(new Set());
@@ -72,6 +74,7 @@ export function CamposNegocio({
 
   return (
     <>
+      {!fabrica && (
       <div className="grid gap-1.5">
         <Label htmlFor="negocio-sub">Ramo</Label>
         <select
@@ -94,6 +97,7 @@ export function CamposNegocio({
           {erros.sub ? <span className="text-destructive">{erros.sub}</span> : <span className="text-muted-foreground">Define o modelo do site e os serviços iniciais da agenda.</span>}
         </p>
       </div>
+      )}
       {texto("telefone", "WhatsApp do negócio", { type: "tel", inputMode: "tel", autoComplete: "tel", placeholder: "(00) 90000-0000", maxLength: 20 })}
       <div className="grid grid-cols-[1fr_6.5rem] gap-3">
         {texto("cidade", "Cidade", { autoComplete: "address-level2", maxLength: 60 })}

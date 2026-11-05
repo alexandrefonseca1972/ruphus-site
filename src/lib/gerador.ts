@@ -351,6 +351,8 @@ export const DadosNegocio = z.object({
   horario: z.string().trim().max(120).default(""),
 });
 export type DadosNegocio = z.infer<typeof DadosNegocio>;
+/** Site feito pela fábrica: página estática, sem ramo a escolher. */
+export const DadosFabrica = DadosNegocio.omit({ sub: true });
 export const NegocioInput = DadosNegocio.extend({ slug: TenantInput.shape.slug });
 
 /** Os dados do dono no formato que o gerador grava (o mesmo de uma linha da planilha). */

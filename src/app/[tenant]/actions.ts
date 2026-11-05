@@ -196,6 +196,8 @@ export const salvarPixAction = memberAction(
     const pix = recebedorDe(data.pix);
     if (typeof pix === "string") throw new UserError(pix);
     await t.update({ pix });
+    // o QR do sinal na página de agendar sai desta chave: a página em cache seguiria com a antiga
+    revalidatePath(`/agendar/${data.tenantId}`);
     return { ok: true as const, pix };
   },
 );
@@ -224,6 +226,8 @@ export const salvarNegocioAction = memberAction(z.object({ tenantId: docIdStaff,
   // o site, a imagem do WhatsApp e a bio mostram a mudança agora, não em até uma hora
   for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${data.tenantId}/${p}`);
   revalidatePath(`/bio/${data.tenantId}`);
+  // o nome e o WhatsApp também aparecem na página de agendar e na imagem do link dela (cache de 1 dia)
+  revalidatePath(`/agendar/${data.tenantId}`);
   return { ok: true as const };
 });
 
@@ -266,17 +270,30 @@ export const aceitarTermoWhatsAppAction = memberAction(SoTenant, async ({ tenant
   return true;
 });
 
+// ponytail: trava em memória por negócio (um processo na VPS); vira doc de lock se houver mais de um processo
+const conectando = new Map<string, Promise<unknown>>();
+
 export const conectarWhatsAppDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
   await exigeGestor(tenantId, user.uid);
-  const config = await lerConfigWhatsApp(adminDb, tenantId);
-  if (config?.ownerManaged === false) {
-    throw new UserError("O WhatsApp do seu negócio é gerenciado pela plataforma. Fale com o suporte para conectar ou alterar.");
+  // dois cliques seguidos passavam os dois pelo "já existe conexão?" e criavam duas instâncias
+  if (conectando.has(tenantId)) throw new UserError("Já estamos conectando. Aguarde o QR.");
+  const tarefa = (async () => {
+    const config = await lerConfigWhatsApp(adminDb, tenantId);
+    if (config?.ownerManaged === false) {
+      throw new UserError("O WhatsApp do seu negócio é gerenciado pela plataforma. Fale com o suporte para conectar ou alterar.");
+    }
+    if (!config?.termsAcceptedAt) {
+      throw new UserError("Leia e aceite o termo sobre o WhatsApp antes de conectar.");
+    }
+    if (await lerConexao(adminDb, tenantId)) throw new UserError("Já existe um WhatsApp conectado. Desconecte antes de trocar de número.");
+    return paraTela(await conectarNegocio(adminDb, tenantId, tenantId, true));
+  })();
+  conectando.set(tenantId, tarefa);
+  try {
+    return await tarefa;
+  } finally {
+    conectando.delete(tenantId);
   }
-  if (!config?.termsAcceptedAt) {
-    throw new UserError("Leia e aceite o termo sobre o WhatsApp antes de conectar.");
-  }
-  if (await lerConexao(adminDb, tenantId)) throw new UserError("Já existe um WhatsApp conectado. Desconecte antes de trocar de número.");
-  return paraTela(await conectarNegocio(adminDb, tenantId, tenantId, true));
 });
 
 export const refreshWhatsAppStatusDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
@@ -306,8 +323,13 @@ export const desconectarWhatsAppDonoAction = memberAction(SoTenant, async ({ ten
   // solta o vínculo ANTES de despareiar: o "disconnected" que o atendys manda no logout chega
   // sem negócio para achar, e o dono não recebe "seu WhatsApp desconectou" pelo que ele pediu
   await desligarConexao(adminDb, tenantId);
-  if (salva) await deslogarInstancia(salva.instanceId).catch(() => {});
-  return "desconectado";
+  if (salva) {
+    // o gateway não respondeu: o número pode seguir logado lá, e reconectar criaria uma segunda
+    // instância. O vínculo já foi solto; o dono precisa saber, não ler "desconectado"
+    const saiu = await deslogarInstancia(salva.instanceId).then(() => true, () => false);
+    if (!saiu) return "desconectado-sem-confirmacao" as const;
+  }
+  return "desconectado" as const;
 });
 
 /** Lembretes de horário: o dono liga/desliga e escolhe quantas horas antes de
@@ -320,6 +342,8 @@ export const configurarLembretesWhatsAppAction = memberAction(
   }),
   async ({ tenantId, enabled, hours }, user) => {
     await exigeGestor(tenantId, user.uid);
+    // a tela esconde quando a plataforma gerencia; o servidor também tem que recusar
+    if ((await lerConfigWhatsApp(adminDb, tenantId))?.ownerManaged === false) throw new UserError("Gerenciado pela plataforma — quem configura os lembretes é o suporte.");
     if (!(await lerConexao(adminDb, tenantId))) throw new UserError("Conecte o WhatsApp do negócio antes de ligar os lembretes.");
     await adminDb.doc(`tenants/${tenantId}`).set({ whatsapp: { remindersEnabled: enabled, remindersBeforeHours: hours } }, { merge: true });
     return { enabled, hours };
