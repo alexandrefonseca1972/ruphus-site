@@ -258,6 +258,31 @@ assert.deepEqual([endLog.type, endLog.reason], ["cancelled", "plan_ended"]);
 assert.equal((await t.collection("plans").doc(plan.planId).get()).get("status"), "ended");
 assert.equal((await endPlan(db, { tenantId: "salao", planId: plan.planId }, actor)).ok, false);
 
+// "Qualquer um": a semana em que a Bia está ocupada vai para a Ana (livre no mesmo horário), em vez de
+// pular. Janela própria (~100 dias à frente, longe dos outros testes) para não depender do relógio do CI
+{
+  const inicio = addDays(todayIn(), 100);
+  const tercas = planDates(inicio, 2, 4);
+  const base4 = { ...planInput, weekday: 2, time: "11:00", startDate: inicio, weeks: 4 }; // expediente de teste: 9h–12h
+  // a Bia fica ocupada só na 2ª terça (plano de uma semana, para outro cliente)
+  const ocupa = await createPlan(db, { ...base4, customerName: "Ocupante", customerPhone: "(11) 95555-1212" /* exclusivo deste bloco */, startDate: tercas[1], weeks: 1 }, actor);
+  assert.deepEqual(ocupa.ok && ocupa.created, [tercas[1]]);
+  const revezado = await createPlan(db, { ...base4, qualquer: true }, actor);
+  assert.ok(revezado.ok);
+  assert.deepEqual([revezado.created, revezado.skipped], [tercas, []], "nenhuma semana pulada");
+  assert.deepEqual(revezado.outros, [{ date: tercas[1], nome: "Ana" }]);
+  const doPlano = await t.collection("appointments").where("planId", "==", revezado.planId).orderBy("start").get();
+  assert.deepEqual(doPlano.docs.map((d) => d.get("staffId")), ["bia", "ana", "bia", "bia"]);
+  assert.deepEqual(doPlano.docs.map((d) => d.get("staffName")), ["Bia", "Ana", "Bia", "Bia"]);
+  assert.equal((await t.collection("plans").doc(revezado.planId).get()).get("staffName"), "Bia, Ana");
+  // sem "Qualquer um", a mesma situação pula a semana (como antes)
+  assert.equal((await endPlan(db, { tenantId: "salao", planId: revezado.planId }, actor)).ok, true);
+  const fixo = await createPlan(db, base4, actor);
+  assert.ok(fixo.ok);
+  assert.deepEqual([fixo.skipped, fixo.outros], [[tercas[1]], []]);
+  for (const id of [fixo.planId, ocupa.ok ? ocupa.planId : ""]) assert.equal((await endPlan(db, { tenantId: "salao", planId: id }, actor)).ok, true);
+}
+
 // Limites contra reservas em massa (telefone e dispositivo)
 // Longe da janela do plano (hoje+14 a hoje+35): com hoje+20, o 3º dia deste bloco
 // caía em segundas[1] às 10:00 sempre que o teste rodava num domingo, e a recusa

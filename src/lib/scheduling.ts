@@ -96,6 +96,9 @@ export const PlanInput = z.object({
   time: hhmm,
   startDate: z.iso.date(),
   weeks: z.number().int().min(1, "O plano precisa de pelo menos 1 semana").max(52, "O plano vai até 52 semanas"),
+  // "Qualquer um": staffId é quem atende de preferência (o do primeiro dia); a semana em que ele
+  // está ocupado vai para outro profissional livre no mesmo horário, em vez de ser pulada
+  qualquer: z.boolean().optional(),
 });
 export type PlanInput = z.infer<typeof PlanInput>;
 

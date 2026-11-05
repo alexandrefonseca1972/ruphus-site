@@ -594,74 +594,73 @@ async function criarPlano(db: Firestore, input: PlanInput, actor: Actor) {
   return contended(() => db.runTransaction(async (tx) => {
     const dates = planDates(input.startDate, input.weekday, input.weeks);
     const t = db.collection("tenants").doc(input.tenantId);
-    // Uma leitura só para o negócio, o profissional e os serviços, e uma consulta para toda a janela do plano
-    const [tenantSnap, staffSnap, ...svcSnaps] = await tx.getAll(
-      t,
-      t.collection("staff").doc(input.staffId),
-      ...input.serviceIds.map((id) => t.collection("services").doc(id)),
-    );
-    const staff = Staff.safeParse(staffSnap.data());
+    // Uma leitura só para o negócio, a equipe e os serviços, e uma consulta para toda a janela do plano
+    const [tenantSnap, ...svcSnaps] = await tx.getAll(t, ...input.serviceIds.map((id) => t.collection("services").doc(id)));
+    const equipeSnap = await tx.get(t.collection("staff"));
     const services = svcSnaps.map((s) => Service.safeParse(s.data()));
-    if (
-      !staff.success ||
-      !staff.data.active ||
-      !input.serviceIds.every((id) => staff.data.serviceIds.includes(id)) ||
-      services.some((s) => !s.success || !s.data.active)
-    ) {
-      return { ok: false as const, error: "Serviço ou profissional indisponível." };
-    }
+    if (services.some((s) => !s.success || !s.data.active)) return { ok: false as const, error: "Serviço ou profissional indisponível." };
     const svc = services.map((s) => s.data!);
     const durationMin = svc.reduce((sum, s) => sum + s.durationMin, 0);
-    const ctx: WriteContext = { t, svc, durationMin, staff: staff.data };
+    // quem pode atender: o escolhido e, no "Qualquer um", os outros ativos que fazem todos os serviços
+    const aptos = equipeSnap.docs
+      .map((d) => ({ id: d.id, s: Staff.safeParse(d.data()) }))
+      .filter((p) => p.s.success && p.s.data.active && input.serviceIds.every((id) => p.s.data!.serviceIds.includes(id)))
+      .map((p) => ({ id: p.id, staff: p.s.data! }));
+    const principal = aptos.find((p) => p.id === input.staffId);
+    if (!principal) return { ok: false as const, error: "Serviço ou profissional indisponível." };
+    const candidatos = input.qualquer ? [principal, ...aptos.filter((p) => p.id !== principal.id)] : [principal];
     // ponytail: uma consulta para toda a janela trava o período inteiro do plano;
     // se planos longos começarem a falhar por disputa, quebre em blocos mensais
-    const booked = await tx.get(
-      t
-        .collection("appointments")
-        .where("staffId", "==", input.staffId)
-        .where("start", ">=", zonedTime(dates[0], "00:00"))
-        .where("start", "<", zonedTime(addDays(dates.at(-1)!, 1), "00:00")),
-    );
-    const busy = booked.docs
-      .filter((d) => d.get("status") !== "cancelled")
-      .map((d) => ({ start: (d.get("start") as Timestamp).toDate(), end: (d.get("end") as Timestamp).toDate() }));
+    // com profissional escolhido, só a agenda dele (como antes); no "Qualquer um", a da equipe
+    const janela = t.collection("appointments").where("start", ">=", zonedTime(dates[0], "00:00")).where("start", "<", zonedTime(addDays(dates.at(-1)!, 1), "00:00"));
+    const booked = await tx.get(input.qualquer ? janela : janela.where("staffId", "==", principal.id));
+    const ocupado = new Map<string, { start: Date; end: Date }[]>();
+    for (const d of booked.docs) {
+      if (d.get("status") === "cancelled") continue;
+      const lista = ocupado.get(d.get("staffId")) ?? [];
+      lista.push({ start: (d.get("start") as Timestamp).toDate(), end: (d.get("end") as Timestamp).toDate() });
+      ocupado.set(d.get("staffId"), lista);
+    }
     const now = agoraNaParede(fusoDaUF(tenantSnap.get("site.uf") as string | undefined));
-    const free: string[] = [];
+    const free: { date: string; quem: (typeof aptos)[number] }[] = [];
     const skipped: string[] = [];
     for (const date of dates) {
-      const slots = freeSlots({
-        date,
-        window: staff.data.hours[String(weekday(date)) as keyof Staff["hours"]],
-        durationMin,
-        busy,
-        now,
-      });
-      (slots.includes(input.time) ? free : skipped).push(date);
+      const quem = candidatos.find((p) =>
+        freeSlots({ date, window: p.staff.hours[String(weekday(date)) as keyof Staff["hours"]], durationMin, busy: ocupado.get(p.id) ?? [], now }).includes(input.time),
+      );
+      if (quem) free.push({ date, quem });
+      else skipped.push(date);
     }
     if (free.length === 0) {
-      return { ok: false as const, error: "Nenhuma das datas tem esse horário livre com o profissional." };
+      return { ok: false as const, error: input.qualquer ? "Nenhuma das datas tem esse horário livre com a equipe." : "Nenhuma das datas tem esse horário livre com o profissional." };
     }
     const plan = t.collection("plans").doc();
     const by = { by: actor.uid, byName: actor.email ?? actor.uid };
+    const nomes = [...new Set(free.map((f) => f.quem.staff.name))];
     tx.create(plan, {
       customerKey: customerKey(input.customerPhone),
       customerName: input.customerName,
       serviceIds: input.serviceIds,
       serviceName: svc.map((s) => s.name).join(" + "),
-      staffId: input.staffId,
-      staffName: staff.data.name,
+      staffId: principal.id,
+      // com revezamento, o nome mostra todos que atendem (o agendamento de cada semana tem o seu)
+      staffName: nomes.join(", "),
+      ...(input.qualquer && { qualquer: true }),
       weekday: input.weekday,
       time: input.time,
-      firstDate: free[0],
-      lastDate: free.at(-1)!,
+      firstDate: free[0].date,
+      lastDate: free.at(-1)!.date,
       count: free.length,
       skipped,
       status: "active",
       createdAt: FieldValue.serverTimestamp(),
       createdBy: by.byName,
     });
-    for (const date of free) writeAppointment(tx, ctx, { ...input, date }, by, { planId: plan.id, renameCustomer: true });
-    return { ok: true as const, planId: plan.id, created: free, skipped };
+    for (const { date, quem } of free) {
+      const ctx: WriteContext = { t, svc, durationMin, staff: quem.staff };
+      writeAppointment(tx, ctx, { ...input, staffId: quem.id, date }, by, { planId: plan.id, renameCustomer: true });
+    }
+    return { ok: true as const, planId: plan.id, created: free.map((f) => f.date), skipped, outros: free.filter((f) => f.quem.id !== principal.id).map((f) => ({ date: f.date, nome: f.quem.staff.name })) };
   }, TX));
 }
 

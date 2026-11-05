@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Plano recorrente: dia aberto sem vaga aparece como "sem vaga", não "fechado"; apagar o número de semanas para digitar outro não vira "1" no meio; no celular, os primeiros 12 horários e "Ver todos"; o resumo mostra o valor ("até 12 atendimentos · R$ 420,00"); com "Qualquer um", a semana em que o profissional do primeiro dia está ocupado vai para outro livre no mesmo horário, em vez de ser pulada (a tela de confirmação diz quais).
+
 - Ajustes: campo opcional vazio (Gmail de reserva, endereço de contato, e-mail de alertas) aparece como "Opcional · não configurado", em cinza, não como erro; no teste de e-mail, o canal fica numa linha própria e o destinatário ganha espaço.
 
 - Admin, gaveta do site → Visual: Tinta e Destaque lado a lado e a fonte dos títulos numa linha inteira embaixo. Em tela grande a gaveta punha três colunas espremidas e o seletor de fonte passava da borda.
