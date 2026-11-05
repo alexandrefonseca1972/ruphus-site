@@ -53,7 +53,6 @@ import { Ajustes } from "./ajustes";
 import { WhatsAppDoNegocio } from "./whatsapp-gaveta";
 import { EnviarPorEmail } from "./enviar-email";
 import { Carteira } from "./carteira";
-import { Gerador } from "./gerador";
 import { ColetaMaps } from "./coleta";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
@@ -156,10 +155,10 @@ export default function AdminPage() {
   const levantamento = eventos?.find(doLevantamento)?.detalhe ?? null;
   // qual negócio está sendo marcado como perdido (pela gaveta ou soltando no funil)
   const [perdendo, setPerdendo] = useState<string | null>(null);
-  const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca" | "gerador" | "coleta" | "ajustes">("lista");
-  // Gerador, Coleta e Ajustes são ferramentas, não recortes da lista: sem visões, filtros nem alertas do funil
-  const ferramenta = tela === "gerador" || tela === "coleta" || tela === "ajustes";
-  // os sites novos (do Gerador ou da Coleta) entram na lista e no funil na próxima página; o índice
+  const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca" | "coleta" | "ajustes">("lista");
+  // Coleta e Ajustes são ferramentas, não recortes da lista: sem visões, filtros nem alertas do funil
+  const ferramenta = tela === "coleta" || tela === "ajustes";
+  // os sites novos (da Coleta) entram na lista e no funil na próxima página; o índice
   // do servidor os recebe pelo listener (~1 s), daí a segunda recarga
   function juntarGerados(slugs: string[]) {
     if (!slugs.length) return;
@@ -723,7 +722,7 @@ export default function AdminPage() {
         </span>
 
         <div role="group" aria-label="Visão" className="hidden rounded-[10px] bg-[#EFEBE2] p-[3px] sm:flex">
-          {(["lista", "funil", "clientes", "cobranca", "gerador", "coleta", "ajustes"] as const).map((v) => (
+          {(["lista", "funil", "clientes", "cobranca", "coleta", "ajustes"] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -731,7 +730,7 @@ export default function AdminPage() {
               onClick={() => setTela(v)}
               className={`h-8 rounded-lg px-3 text-[12px] ${tela === v ? "bg-white font-semibold shadow-[0_1px_2px_rgba(23,21,15,.12)]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
             >
-              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : v === "clientes" ? "Clientes" : v === "cobranca" ? "Cobrança" : v === "gerador" ? "Gerador" : v === "coleta" ? "Coleta" : "Ajustes"}
+              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : v === "clientes" ? "Clientes" : v === "cobranca" ? "Cobrança" : v === "coleta" ? "Coleta" : "Ajustes"}
               {v === "cobranca" && atrasadas > 0 && (
                 <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${tela === v ? "bg-[#FBF0EE] text-[#8A2F2F]" : "bg-[#F1E7E7] text-[#8A2F2F]"}`}>
                   {atrasadas}
@@ -1198,9 +1197,7 @@ export default function AdminPage() {
           <Atrasadas idToken={idToken} aviso={setAviso} cortar={(slug) => mudarNegocio(slug, { publicado: false })} aoContar={setAtrasadas} />
         </div>
 
-        {tela === "cobranca" ? null : tela === "gerador" ? (
-          <Gerador aoGerar={juntarGerados} />
-        ) : tela === "coleta" ? (
+        {tela === "cobranca" ? null : tela === "coleta" ? (
           <ColetaMaps idToken={idToken} aoGerar={juntarGerados} />
         ) : tela === "ajustes" ? (
           <Ajustes idToken={idToken} />
@@ -1496,14 +1493,13 @@ export default function AdminPage() {
       </main>
 
       {/* No celular as telas moram embaixo, ao alcance do polegar: no topo não cabiam */}
-      <nav aria-label="Telas do admin" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-7 border-t border-[#E2DDD3] bg-white pb-[env(safe-area-inset-bottom)] sm:hidden">
+      <nav aria-label="Telas do admin" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-6 border-t border-[#E2DDD3] bg-white pb-[env(safe-area-inset-bottom)] sm:hidden">
         {(
           [
             ["lista", "Lista", <path key="l" d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />],
             ["funil", "Funil", <path key="f" d="M3 5h18l-7 8v6l-4-2v-4z" />],
             ["clientes", "Clientes", <><circle key="c" cx="12" cy="8" r="3.5" /><path key="p" d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" /></>],
             ["cobranca", "Cobrança", <><rect key="r" x="3" y="6" width="18" height="12" rx="2" /><path key="p" d="M3 10h18M7 15h3" /></>],
-            ["gerador", "Gerador", <path key="g" d="M12 3v18M3 12h18" />],
             ["coleta", "Coleta", <><path key="p" d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" /><circle key="c" cx="12" cy="10" r="2.3" /></>],
             ["ajustes", "Ajustes", <><circle key="c" cx="12" cy="12" r="3" /><path key="p" d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" /></>],
           ] as const

@@ -247,6 +247,15 @@ assert.deepEqual([planLog.type, planLog.planId, planLog.byName], ["created", pla
 assert.equal((await t.collection("customers").doc("5511977770000").get()).get("name"), "Xavier");
 assert.equal((await createPlan(db, planInput, actor)).ok, false, "mesmo plano de novo: tudo ocupado");
 
+// Conta da equipe presa à Ana: não remarca, não cria nem encerra plano de outra agenda
+await t.collection("members").doc("da-ana").set({ uid: "da-ana", role: "member", staffId: "ana" });
+const daAna = { uid: "da-ana", email: "ana@teste.dev" };
+assert.equal((await endPlan(db, { tenantId: "salao", planId: plan.planId }, daAna)).ok, false, "equipe não encerra plano da Bia");
+assert.equal((await createPlan(db, planInput, daAna)).ok, false, "equipe não cria plano na agenda da Bia");
+assert.equal((await createPlan(db, { ...planInput, staffId: "ana", qualquer: true }, daAna)).ok, false, "equipe não usa Qualquer um");
+assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: planAppts.docs[0].id, date: segundas[0], time: "10:30" }, daAna)).ok, false, "equipe não remarca horário da Bia");
+await t.collection("members").doc("da-ana").delete();
+
 // Encerrar plano: cancela os futuros, com histórico; não encerra duas vezes
 await planAppts.docs[2].ref.update({ status: "no_show" }); // não ativo: fica como está
 const ended = await endPlan(db, { tenantId: "salao", planId: plan.planId }, actor);
@@ -276,6 +285,11 @@ assert.equal((await endPlan(db, { tenantId: "salao", planId: plan.planId }, acto
   assert.deepEqual(doPlano.docs.map((d) => d.get("staffName")), ["Bia", "Ana", "Bia", "Bia"]);
   assert.equal((await t.collection("plans").doc(revezado.planId).get()).get("staffName"), "Bia, Ana");
   // sem "Qualquer um", a mesma situação pula a semana (como antes)
+  // a conta da equipe do profissional principal não encerra: semanas dele foram para outros
+  const principal = (await t.collection("plans").doc(revezado.planId).get()).get("staffId");
+  await t.collection("members").doc("do-principal").set({ uid: "do-principal", role: "member", staffId: principal });
+  assert.equal((await endPlan(db, { tenantId: "salao", planId: revezado.planId }, { uid: "do-principal" })).ok, false, "equipe não encerra plano Qualquer um");
+  await t.collection("members").doc("do-principal").delete();
   assert.equal((await endPlan(db, { tenantId: "salao", planId: revezado.planId }, actor)).ok, true);
   const fixo = await createPlan(db, base4, actor);
   assert.ok(fixo.ok);

@@ -6,6 +6,7 @@ import { dateIn, formatTime } from "@/lib/datetime";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { soDigitosComDDI } from "@/lib/telefone";
+import { emParalelo } from "@/lib/paralelo";
 import { criarInstancia, enviarTexto, garantirTenant, OPTIN_DONO, revogarChavesAntigas, statusDaConexao, type ConexaoAtendys } from "@/lib/atendys";
 
 // O WhatsApp que o dono conectou ao próprio negócio: qual instância da
@@ -348,6 +349,31 @@ export async function espelharStatusVivo(db: Firestore, slug: string, vivo: { st
   // ter a queda verdadeira descartada por uma leitura nossa de instantes antes
   const { caiu } = await espelharStatusDaInstancia(db, slug, { status: vivo.status === "qr" ? "pending_qr" : vivo.status, phone: vivo.phone, at: new Date(lidoEm - 5000).toISOString() });
   if (caiu) await avisarQueda(db, slug);
+  return caiu;
+}
+
+/** Webhook de queda perdido num negócio sem lembretes nem agendamento novo: ninguém lia o
+ *  status ao vivo, e a faixa e o aviso só vinham quando o dono abrisse o painel. O cron
+ *  pergunta ao atendys, de hora em hora, por toda conexão que consta como conectada.
+ *  Devolve quantas caíram. */
+export async function vigiarConexoes(db: Firestore): Promise<number> {
+  const conectados = await db.collection("tenants").where("whatsapp.status", "==", "connected").get();
+  let caidas = 0;
+  await emParalelo(conectados.docs, 5, async (t) => {
+    try {
+      const conexao = await lerConexao(db, t.id);
+      if (!conexao?.instanceId) return;
+      const lidoEm = Date.now();
+      const vivo = await statusDaConexao(conexao).catch(() => null);
+      // atendys fora do ar não é queda do negócio, e "qr" pode ser uma reconexão de passagem
+      // (connecting): só a desconexão vira status. O resto fica para a próxima rodada
+      if (vivo?.status !== "disconnected") return;
+      if (await espelharStatusVivo(db, t.id, vivo, lidoEm)) caidas++;
+    } catch (e) {
+      console.error(`[whatsapp] vigia ${t.id}`, e);
+    }
+  });
+  return caidas;
 }
 
 /** Código curto do agendamento no aviso ao salão ("CONFIRMADO AB12"): é ele que diz a

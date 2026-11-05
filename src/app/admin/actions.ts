@@ -36,7 +36,7 @@ import type { Crm } from "@/lib/crm-tipos";
 import { diaCurto, hojeISO, mensalidadeDe } from "@/lib/crm-tipos";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import { competenciaAtual } from "@/lib/pix";
-import { gerarNoBanco, lerSite, personalDe, publicarSite } from "@/lib/gerador.server";
+import { lerSite, personalDe, publicarSite } from "@/lib/gerador.server";
 import { PAGINAS_DEMO } from "@/lib/demo";
 import { acessoDemo, contas, restaurarDemo } from "@/lib/demo.server";
 import { deslogarInstancia, qrDaConexao, statusDaConexao, type SituacaoQr as QrWhatsApp } from "@/lib/atendys";
@@ -873,19 +873,6 @@ export const montarSite = adminAction(async (_user, slug: string, dados: unknown
   for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${slug}/${p}`);
   revalidatePath(`/bio/${slug}`);
   return previa;
-});
-
-/** Da planilha lida no navegador aos sites no ar. Com aplicar=false só diz o que faria. */
-export const gerarSites = adminAction(async (user, entrada: unknown, aplicar: boolean) => {
-  const linhas = await gerarNoBanco(adminDb, entrada, aplicar, process.env.OWNER_UID || user.uid);
-  // o site e a bio saem do cache agora, não em até um minuto
-  if (aplicar) for (const { slug } of linhas.filter((l) => l.acao !== "pular")) {
-    revalidatePath(`/s/${slug}/index.html`);
-    revalidatePath(`/s/${slug}/og.jpg`);
-    revalidatePath(`/bio/${slug}`);
-  }
-  if (aplicar) await noIndice(...linhas.filter((l) => l.acao !== "pular").map((l) => l.slug));
-  return linhas;
 });
 
 // ─── Demonstração ────────────────────────────────────────────────────────────

@@ -21,7 +21,6 @@ export default function ManualDoVendedor() {
           ["fechar", "Fechar e perder"],
           ["implantacao", "Implantação e saúde"],
           ["cobranca", "Cobrança"],
-          ["gerador", "Gerador de sites"],
           ["ajustes", "Ajustes e limites"],
         ]}
       />
@@ -328,43 +327,6 @@ export default function ManualDoVendedor() {
               agendamentos, mas com a faixa “ainda não publicado” e fora do Google.
             </>,
             <>Cobrança cancelada libera o mês para gerar outra.</>,
-          ]}
-        />
-      </Secao>
-
-      <Secao id="gerador" titulo="Gerador de sites">
-        <P>
-          O <Termo>Gerador</Termo> transforma uma planilha de leads (.xlsx) em sites prontos para prospectar, cada um
-          com agenda online e já na lista como Novo.
-        </P>
-        <Passos
-          itens={[
-            <>
-              Suba a planilha. O gerador reconhece os nomes de coluna mais comuns do levantamento — nome (ou “Nome da
-              Empresa”), telefone/WhatsApp, categoria ou nicho, endereço, bairro, cidade, UF, nota, avaliações,
-              Instagram, horário, score e abordagem.
-            </>,
-            <>
-              Confira a <Termo>prévia</Termo>: o que vai ser criado, atualizado ou pulado, e as linhas que ficam de
-              fora, com o motivo.
-            </>,
-            <>
-              Aplique. Os sites entram no ar como proposta, e o score e a abordagem viram o cartão Levantamento da
-              gaveta.
-            </>,
-          ]}
-        />
-        <Lista
-          itens={[
-            <>
-              <Termo>Sem telefone, não entra.</Termo> Sem contato não há proposta nem agendamento. Telefone fixo entra,
-              com aviso: o botão de WhatsApp do site não vai funcionar.
-            </>,
-            <>
-              <Termo>O telefone identifica o negócio.</Termo> Subir a mesma planilha de novo atualiza os sites, não
-              duplica. Quem já tem site da fábrica ou é cliente do cadastro fica de fora.
-            </>,
-            <>O gerador faz sites de beleza e de pet; outros ramos ficam de fora na leitura.</>,
           ]}
         />
       </Secao>

@@ -35,6 +35,11 @@ service cloud.firestore {
     function gere(t) {
       return ehAdminPlataforma() || hasRole(t, ['owner', 'admin']);
     }
+    // A conta da equipe presa a um profissional (convite dele) vê a agenda toda, mas só
+    // muda o status dos horários dele. Membro sem profissional segue como antes.
+    function mexeNoHorario(t, staffId) {
+      return gere(t) || get(memberPath(t)).data.get('staffId', null) in [null, staffId];
+    }
 
     // Minutos de inatividade até o logout automático: qualquer pessoa logada
     // precisa ler (o painel aplica a regra), e só o servidor escreve.
@@ -72,6 +77,7 @@ service cloud.firestore {
       match /appointments/{a} {
         allow read: if isMember(t);
         allow update: if isMember(t)
+          && mexeNoHorario(t, resource.data.staffId)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'lastHistoryId'])
           && resource.data.status in ['booked', 'confirmed']
           && request.resource.data.status in ['confirmed', 'cancelled', 'no_show']

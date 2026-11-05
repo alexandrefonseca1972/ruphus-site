@@ -130,7 +130,7 @@ de `npm audit fix` desfeito sem reinstalar.
 4. Confira com `npm run site -- baixar <slug> /tmp/x`. Se não estiver, publique
    de novo (`npm run site -- publicar <slug> <pasta> --aplicar`, ou
    `npm run sync:sites` para a fábrica inteira) — **a menos que seja um site
-   do gerador** (aba Gerador do `/admin`): esses não têm pasta, são montados do
+   do gerador** (da Coleta ou de `npm run gerar:sites`): esses não têm pasta, são montados do
    Firestore. Se um deles some, confira se o tenant ainda tem o campo `gerado`.
 
 ### Um cliente se cadastrou sozinho
@@ -142,9 +142,9 @@ proposta.
 
 ### Gerar sites a partir de uma planilha
 
-`/admin` → aba **Gerador** → escolha o `.xlsx` (há um modelo para baixar). A
-tela mostra o que vai acontecer com cada linha antes de gravar; só grava no
-botão "Gerar". Todas as abas com cabeçalho são lidas (levas de um mesmo
+A aba Gerador saiu do `/admin` (os leads novos vêm da Coleta). Planilha, só pela
+linha de comando: `npm run gerar:sites -- planilha.xlsx` mostra o que vai
+acontecer com cada linha; com `--aplicar` grava. Todas as abas com cabeçalho são lidas (levas de um mesmo
 levantamento); aba de notas é pulada.
 
 O telefone identifica o negócio: se ele já tem site da fábrica ou conta, a linha

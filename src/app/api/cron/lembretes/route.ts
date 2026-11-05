@@ -4,6 +4,7 @@ import { enviarLembretesDoDia } from "@/lib/lembretes-whatsapp.server";
 import { segredoIgual } from "@/lib/segredo.server";
 import { expirarSinais } from "@/lib/sinal.server";
 import { enviarLembretesPorSms } from "@/lib/sms-agendamento.server";
+import { vigiarConexoes } from "@/lib/whatsapp.server";
 
 // Lembretes de horário pelo WhatsApp do salão (deploy/crontab.txt: a cada 10 min). O cron
 // da VPS chama com "Authorization: Bearer $CRON_SECRET"; sem o segredo, ninguém dispara.
@@ -17,5 +18,7 @@ export async function GET(request: NextRequest) {
   const enviados = await enviarLembretesDoDia();
   // SMS depois do WhatsApp: um falhar não impede o outro
   const sms = await enviarLembretesPorSms(adminDb).catch((e) => (console.error("[cron] lembretes por SMS", e), 0));
-  return Response.json({ ok: true, sinaisVencidos, enviados, sms });
+  // uma vez por hora (o cron roda a cada 10 min): conexão que caiu sem o webhook chegar
+  const conexoesCaidas = new Date().getMinutes() < 10 ? await vigiarConexoes(adminDb).catch((e) => (console.error("[cron] vigiar conexões", e), 0)) : null;
+  return Response.json({ ok: true, sinaisVencidos, enviados, sms, conexoesCaidas });
 }

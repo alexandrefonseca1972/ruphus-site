@@ -97,6 +97,8 @@ export default function AgendaPage() {
   const items = daSemana?.filter((a) => dateIn(a.start.toDate()) === date) ?? null;
   // Caixa ligado: o que já foi recebido na semana (só quem gere lê dinheiro)
   const caixa = tenant.podeGerir && tenant.modulos?.financeiro === true;
+  // quem é da equipe vê a agenda toda, mas só mexe nos próprios horários (o servidor e as regras conferem)
+  const meu = (a: { staffId: string }) => tenant.podeGerir || !tenant.staffId || a.staffId === tenant.staffId;
   const [recebidosDaSemana] = useCollection(
     caixa ? tenant.id : "",
     "lancamentos",
@@ -314,12 +316,12 @@ export default function AgendaPage() {
                     </Button>
                   )}
                   {/* Confirmar só antes do horário: depois dele já não há o que combinar com o cliente */}
-                  {a.status === "booked" && a.start.toMillis() > now && (
+                  {a.status === "booked" && a.start.toMillis() > now && meu(a) && (
                     <Button className="h-10 px-4" disabled={pending === a.id} onClick={() => notifyAndChange(a, "confirmed", confirmationText(a, tenant.name))}>
                       {pending === a.id ? "Confirmando…" : "Confirmar pelo WhatsApp"}
                     </Button>
                   )}
-                  {ATIVO(a) && (
+                  {ATIVO(a) && meu(a) && (
                     <Button variant="outline" className="h-10 px-4" aria-expanded={rescheduling === a.id} onClick={() => setRescheduling(rescheduling === a.id ? null : a.id)}>
                       Remarcar
                     </Button>
@@ -331,8 +333,8 @@ export default function AgendaPage() {
                         ? [{ label: "Recebido", onClick: () => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, serviceName: a.serviceName, priceCents: restanteDe(a), sinalCents: a.sinal?.status === "pago" ? a.sinal.cents : 0 } }) }]
                         : []),
                       // recebido no Caixa não vira falta: a entrada contaria um atendimento que não houve
-                      ...(ATIVO(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Faltou", onClick: () => setConfirming({ id: a.id, kind: "no_show" as const }) }] : []),
-                      ...(ATIVO(a) ? [{ label: "Cancelar horário", danger: true, onClick: () => setConfirming({ id: a.id, kind: "cancel" as const }) }] : []),
+                      ...(ATIVO(a) && meu(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Faltou", onClick: () => setConfirming({ id: a.id, kind: "no_show" as const }) }] : []),
+                      ...(ATIVO(a) && meu(a) ? [{ label: "Cancelar horário", danger: true, onClick: () => setConfirming({ id: a.id, kind: "cancel" as const }) }] : []),
                       { label: showHistory === a.id ? "Esconder histórico" : "Histórico", onClick: () => setShowHistory(showHistory === a.id ? null : a.id) },
                     ]}
                   />
