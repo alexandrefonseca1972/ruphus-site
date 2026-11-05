@@ -67,7 +67,10 @@ export default function MeusNegocios() {
         setUser(u);
         minhaCota(await u.getIdToken()).then((c) => c.ok && setCota({ usados: c.usados, limite: c.limite }));
         try {
-          setNegocios(await myTenants());
+          const meus = await myTenants();
+          // um negócio só (o caso comum): a lista seria uma tela a mais entre o login e a agenda
+          if (meus.length === 1) return router.replace(`/${meus[0].id}`);
+          setNegocios(meus);
         } catch (err) {
           setErro(errorMessage(err));
           setNegocios([]);
