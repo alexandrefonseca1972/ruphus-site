@@ -826,13 +826,13 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
 }
 
 // /painel: os negócios da conta, pelo servidor, por nome; "members" fora de tenants/ não conta
-await db.doc("tenants/zeta").set({ name: "Zeta" });
+await db.doc("tenants/zeta").set({ name: "Alfa" }); // nome antes do slug: a ordem é a do nome
 await db.doc("tenants/zeta/members/lista").set({ uid: "lista", role: "admin" });
 await db.doc("tenants/salao/members/lista").set({ uid: "lista", role: "estranho" });
 await db.doc("outros/x/members/lista").set({ uid: "lista", role: "owner" });
 const lista = await negociosDe(db, "lista");
 assert.deepEqual(Object.fromEntries(lista.map((n) => [n.id, n.role])), { salao: "member", zeta: "admin" }, "papel desconhecido vira member");
-assert.deepEqual(lista.map((n) => n.name), lista.map((n) => n.name).sort((x, y) => x.localeCompare(y, "pt-BR")), "por nome");
+assert.deepEqual(lista.map((n) => n.id), ["zeta", "salao"], "por nome");
 assert.deepEqual(await negociosDe(db, "ninguem"), []);
 
 console.log("booking ok");

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { auth, idToken } from "@/lib/firebase";
-import { loginComMotivo } from "@/lib/sessao";
+import { loginComMotivo, sair } from "@/lib/sessao";
 import { mascaraSlug, slugify, TenantInput, type Role } from "@/lib/tenant-input";
 import { cn } from "@/lib/utils";
 import { registrarServiceWorker } from "@/lib/versao";
@@ -68,6 +68,8 @@ export default function MeusNegocios() {
         // falha ao ler (rede, site reiniciando) não é "nenhum negócio": mostrar o cadastro do
         // primeiro negócio aqui mandava o dono preencher tudo para esbarrar na cota no fim
         const r = await meusNegocios(await u.getIdToken()).catch(() => ({ ok: false as const, error: "Confira a internet e tente de novo." }));
+        // sessão encerrada pelo admin: sai da conta e o onAuthStateChanged leva ao login
+        if (!r.ok && "sair" in r) return void sair();
         if (!r.ok) return setErro(r.error);
         // um negócio só (o caso comum): a lista seria uma tela a mais entre o login e a agenda
         if (r.negocios.length === 1) return router.replace(`/${r.negocios[0].id}`);

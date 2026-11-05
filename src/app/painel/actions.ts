@@ -41,7 +41,8 @@ export async function meusNegocios(idToken: string) {
     const { uid, authTimeMs } = await quem(idToken);
     const plataforma = await adminDb.doc("config/admin").get();
     // "encerrar sessões" vale aqui como nas regras: token antigo não lista nada
-    if (sessaoRevogada(plataforma.get("revogados"), uid, authTimeMs)) throw new UserError("Sua sessão foi encerrada. Entre novamente.");
+    // a tela sai da conta (tentar de novo não adiantaria)
+    if (sessaoRevogada(plataforma.get("revogados"), uid, authTimeMs)) return { ok: false as const, error: "Sua sessão foi encerrada. Entre novamente.", sair: true };
     const negocios = await negociosDe(adminDb, uid);
     return { ok: true as const, negocios };
   } catch (err) {
