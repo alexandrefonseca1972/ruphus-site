@@ -669,6 +669,36 @@ button,a,input{touch-action:manipulation}
   .cel .nota{padding-top:1px}
 }
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* ——— mapa: sites prontos por estado (dados ao vivo do /api/catalogo) ——— */
+:root{--br0:#efefef;--br1:#d4d4d4;--br2:#a8a8a8;--br3:#6e6e6e;--br4:#2f2f2f;--br5:#000000}
+.br{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:860px){.br{grid-template-columns:minmax(0,1fr)}}
+.br-mapa{position:relative;background:var(--branco);border-radius:32px;padding:clamp(16px,2.5vw,32px);min-width:0}
+.br-mapa svg{display:block;width:100%;height:auto;max-width:100%;aspect-ratio:1117/1101}
+.br-uf{stroke:var(--branco);stroke-width:2.5;stroke-linejoin:round;cursor:pointer;transition:fill .15s}
+.br-uf:focus-visible{outline:none}
+.br-uf.on{fill:var(--volt)!important}
+.br-rot{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.5px;pointer-events:none;text-anchor:middle;dominant-baseline:central}
+.br-dica{position:absolute;top:clamp(16px,2.5vw,32px);left:clamp(16px,2.5vw,32px);background:var(--preto);color:var(--branco);border-radius:16px;padding:10px 14px;opacity:0;transition:opacity .12s;pointer-events:none}
+.br-dica.on{opacity:1}
+.br-dica b{display:block;font-family:var(--disp);font-weight:400;font-size:26px;line-height:1;text-transform:uppercase}
+.br-dica span{font-family:var(--mono);font-size:12px;text-transform:uppercase;color:var(--volt)}
+.br-legenda{list-style:none;display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.br-legenda li{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:-.03em;background:var(--nevoa);border-radius:64px;padding:7px 12px}
+.br-legenda i{width:12px;height:12px;border-radius:50%;flex:none;box-shadow:0 0 0 1px var(--cinza) inset}
+.br-lado{background:var(--preto);color:var(--branco);border-radius:32px;padding:clamp(20px,2.5vw,32px);display:flex;flex-direction:column;gap:18px;min-width:0}
+.br-total{display:flex;flex-direction:column;gap:6px}
+.br-total b{font-family:var(--disp);font-weight:400;font-size:clamp(3rem,6vw,4.5rem);line-height:.9;color:var(--volt)}
+.br-total span{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:-.03em;color:var(--cinza)}
+.br-rank{list-style:none;display:flex;flex-direction:column;border-top:1px solid var(--grafite)}
+.br-rank li{display:grid;grid-template-columns:2.4rem minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--grafite);cursor:default}
+.br-rank li.on{background:var(--grafite)}
+.br-rank .s{font-family:var(--mono);font-size:12px;color:var(--volt)}
+.br-rank .n{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.br-rank .q{font-family:var(--disp);font-size:24px;line-height:1;font-variant-numeric:tabular-nums}
+.br-sem{font-size:13px;line-height:1.45;color:var(--fumo)}
+.br-lado .bt{align-self:flex-start}
+@media (prefers-reduced-motion:reduce){.br-uf,.br-dica{transition:none}}
 </style>
 <noscript><style>.revela,.entra,.h1 span{opacity:1;transform:none;animation:none}.hero-flutua{display:none}</style></noscript>
 </head>
@@ -1038,6 +1068,29 @@ button,a,input{touch-action:manipulation}
       <b>Ainda não tem um site com esse nome.</b>
       <p>Mande o nome do negócio e o Instagram no WhatsApp. A gente faz o seu e devolve pronto para você olhar antes de decidir.</p>
       <a class="bt bt-cheio" style="align-self:flex-start" href="https://wa.me/5511948680554?text=Oi!%20Quero%20ver%20o%20site%20do%20meu%20neg%C3%B3cio.">Pedir o meu no WhatsApp</a>
+    </div>
+  </section>
+
+  <section class="wrap sec" id="brasil" aria-labelledby="brasil-t">
+    <div class="sec-cab">
+      <span class="tag">Pelo Brasil</span>
+      <h2 class="sec-t revela" id="brasil-t">Sites prontos em <span id="br-estados">vários</span> estados.</h2>
+      <p class="revela" style="--atraso:80ms">Cada estado mostra quantos negócios já têm a página montada, esperando o dono abrir e decidir. Passe o dedo ou o mouse no mapa para ver o número.</p>
+    </div>
+    <div class="br">
+      <div class="br-mapa revela" style="--atraso:120ms">
+        <svg id="br-svg" role="img" aria-labelledby="br-svg-t" viewBox="-16 -16 1117 1101"><title id="br-svg-t">Mapa do Brasil com a quantidade de sites prontos por estado</title><g id="br-ufs"></g><g id="br-rots"></g></svg>
+        <div class="br-dica" id="br-dica" role="status" aria-live="polite"></div>
+        <ul class="br-legenda" aria-label="Legenda">
+          <li><i style="background:var(--br1)"></i>até 49</li><li><i style="background:var(--br2)"></i>50 a 499</li><li><i style="background:var(--br3)"></i>500 a 1.499</li><li><i style="background:var(--br4)"></i>1.500 a 2.999</li><li><i style="background:var(--br5)"></i>3.000 ou mais</li>
+        </ul>
+      </div>
+      <div class="br-lado revela" style="--atraso:180ms">
+        <p class="br-total"><b id="br-total">—</b><span>sites prontos esperando o dono</span></p>
+        <ol class="br-rank" id="br-rank" aria-label="Estados com mais sites"></ol>
+        <p class="br-sem" id="br-sem" hidden></p>
+        <a class="bt bt-cheio" href="#q">Procurar o meu negócio</a>
+      </div>
     </div>
   </section>
 
@@ -1508,6 +1561,58 @@ function iniciarPalco(){
       : 'Equivale a '+(frac>=0.5?'quase '+(inteiro+1):inteiro)+(inteiro+(frac>=0.5?1:0)===1?' mensalidade':' mensalidades')+' da Ruphus.';
   }
   v.addEventListener('input',conta); f.addEventListener('input',conta); conta();
+})();
+</script>
+<script>
+// mapa de sites por estado: geometria estática (/sobre/mapa-br.json) e números do catálogo,
+// baixados quando a seção chega perto da tela. Sem os números, a seção some.
+(function(){
+  var sec=document.getElementById('brasil'); if(!sec) return;
+  var FAIXAS=[[1,49,'--br1'],[50,499,'--br2'],[500,1499,'--br3'],[1500,2999,'--br4'],[3000,1e9,'--br5']];
+  var fmt=function(n){return n.toLocaleString('pt-BR');};
+  function cor(n){ if(!n) return 'var(--br0)'; for(var i=0;i<FAIXAS.length;i++){ if(n>=FAIXAS[i][0]&&n<=FAIXAS[i][1]) return 'var('+FAIXAS[i][2]+')'; } }
+  function iniciar(){
+    Promise.all([fetch('/sobre/mapa-br.json').then(function(r){return r.ok?r.json():null;}), fetch('/api/catalogo').then(function(r){return r.ok?r.json():null;})])
+    .then(function(res){
+      var geo=res[0], cat=res[1];
+      if(!geo||!cat||!cat.ufs||!Object.keys(cat.ufs).length){ sec.hidden=true; return; }
+      var ufs=cat.ufs, total=0; for(var k in ufs) total+=ufs[k];
+      var ns='http://www.w3.org/2000/svg', gU=document.getElementById('br-ufs'), gR=document.getElementById('br-rots'), dica=document.getElementById('br-dica');
+      document.getElementById('br-svg').setAttribute('viewBox','-16 -16 '+(geo.w+32)+' '+(geo.h+32));
+      var els={}, rots={};
+      Object.keys(geo.s).forEach(function(uf){
+        var e=geo.s[uf], n=ufs[uf]||0, p=document.createElementNS(ns,'path');
+        p.setAttribute('d',e.d); p.setAttribute('class','br-uf'); p.setAttribute('fill',cor(n)); p.setAttribute('tabindex','0');
+        p.setAttribute('aria-label',e.n+': '+(n?fmt(n)+' sites prontos':'nenhum site ainda')); p.dataset.uf=uf; gU.appendChild(p); els[uf]=p;
+        if(uf==='DF'||uf==='SE') return;   // pequenos demais para a sigla: ficam na dica e no ranking
+        var t=document.createElementNS(ns,'text'); t.setAttribute('x',e.c[0]); t.setAttribute('y',e.c[1]); t.setAttribute('class','br-rot');
+        t.textContent=uf; gR.appendChild(t); rots[uf]=t;
+      });
+      function pintaRotulos(foco){ Object.keys(rots).forEach(function(uf){ var n=ufs[uf]||0; rots[uf].setAttribute('fill', uf===foco?'#000':(!n?'#979797':(n>=500?'#fff':'#000'))); }); }
+      pintaRotulos(null);
+      var rank=document.getElementById('br-rank');
+      function mostra(uf){
+        Object.keys(els).forEach(function(k){ els[k].classList.toggle('on',k===uf); });
+        [].forEach.call(rank.children,function(li){ li.classList.toggle('on',li.dataset.uf===uf); });
+        pintaRotulos(uf);
+        if(!uf){ dica.classList.remove('on'); return; }
+        var n=ufs[uf]||0; dica.innerHTML='<b>'+geo.s[uf].n+'</b><span>'+(n?fmt(n)+' sites prontos':'nenhum site ainda')+'</span>'; dica.classList.add('on');
+      }
+      gU.addEventListener('pointerover',function(e){ if(e.target.dataset&&e.target.dataset.uf) mostra(e.target.dataset.uf); });
+      gU.addEventListener('pointerleave',function(){ mostra(null); });
+      gU.addEventListener('focusin',function(e){ mostra(e.target.dataset.uf); });
+      gU.addEventListener('focusout',function(){ mostra(null); });
+      var com=Object.keys(ufs).filter(function(u){return geo.s[u];}).sort(function(a,b){return ufs[b]-ufs[a];});
+      document.getElementById('br-estados').textContent=com.length;
+      document.getElementById('br-total').textContent=fmt(total);
+      rank.innerHTML=com.slice(0,8).map(function(uf){ return '<li data-uf="'+uf+'"><span class="s">'+uf+'</span><span class="n">'+geo.s[uf].n+'</span><span class="q">'+fmt(ufs[uf])+'</span></li>'; }).join('');
+      [].forEach.call(rank.children,function(li){ li.addEventListener('pointerenter',function(){mostra(li.dataset.uf);}); li.addEventListener('pointerleave',function(){mostra(null);}); });
+      var resto=com.length-8; var sem=document.getElementById('br-sem');
+      if(resto>0){ sem.textContent='E mais '+resto+(resto===1?' estado':' estados')+' com sites prontos. O seu ainda não está no mapa? Mande o nome do negócio que a gente monta.'; sem.hidden=false; }
+    }).catch(function(){ sec.hidden=true; });
+  }
+  if('IntersectionObserver' in window){ var io=new IntersectionObserver(function(es){ if(es.some(function(e){return e.isIntersecting;})){ io.disconnect(); iniciar(); } },{rootMargin:'800px 0px'}); io.observe(sec); }
+  else iniciar();
 })();
 </script>
 </body>
