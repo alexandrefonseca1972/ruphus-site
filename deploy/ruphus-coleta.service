@@ -25,7 +25,9 @@ Environment=COLETA_PASTA=/opt/ruphus-site/coleta
 Environment=TZ=America/Sao_Paulo
 # o worker trata SIGINT como o Ctrl+C: fecha o navegador e avisa o admin que saiu
 KillSignal=SIGINT
-TimeoutStopSec=20
+# fechar o navegador leva até 15 s e avisar o admin mais 3: com 20 s o systemd matava na
+# força e deixava a unidade como failed
+TimeoutStopSec=45
 Restart=always
 RestartSec=30
 MemoryMax=1500M
