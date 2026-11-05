@@ -9,7 +9,7 @@ import { DadosCliente } from "@/lib/cliente-dados";
 import { addDays, agoraNaParede, customerKey, formatPhone, fusoDaUF, maskBRL, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 import { cotaDe, criarNegocio, definirLimite, negociosDe } from "@/lib/negocios.server";
-import { anotar, linhaDoTempo, pedirRemocao, propostaRemovivel, registrarMensagem, salvarCrm } from "@/lib/crm";
+import { anotar, linhaDoTempo, marcarContato, pedirRemocao, propostaRemovivel, registrarMensagem, registrarVistaDaProposta, salvarCrm } from "@/lib/crm";
 import { saudeDe } from "@/lib/saude.server";
 
 // Funções puras
@@ -521,6 +521,88 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   await salvarCrm(db, slug, { origem: "indicacao", indicadoPor: "Jéssica" });
   await assert.rejects(salvarCrm(db, slug, { origem: "tv" as never }));
   assert.equal((await crmDoc()).get("origem"), "indicacao");
+}
+
+// Cadência: cada toque agenda o próximo; resposta para a cadência; pedir para parar bloqueia
+{
+  const slug = "cadencia-teste";
+  const crmDoc = async () => (await db.doc(`crm/${slug}`).get());
+  const hoje = todayIn();
+  await registrarMensagem(db, slug, "Primeiro contato", "a recepção", "vendedor@teste.dev");
+  let d = await crmDoc();
+  assert.equal(d.get("toques"), 1);
+  assert.equal(d.get("proximaAcao"), "Lembrete");
+  assert.equal(d.get("proximaData"), addDays(hoje, 3));
+  await registrarMensagem(db, slug, "Lembrete", "a recepção", "vendedor@teste.dev");
+  d = await crmDoc();
+  assert.equal(d.get("toques"), 2);
+  assert.equal(d.get("proximaData"), addDays(hoje, 7));
+  // mensagem fora da cadência não conta toque nem mexe no combinado
+  await registrarMensagem(db, slug, "Cobrança de 2026-11", "o dono", "vendedor@teste.dev");
+  assert.equal((await crmDoc()).get("toques"), 2);
+
+  await marcarContato(db, slug, "respondeu", "vendedor@teste.dev");
+  d = await crmDoc();
+  assert.ok(d.get("respondeuEm"));
+  assert.equal(d.get("proximaData"), hoje, "respondeu: o próximo passo é falar com ele hoje");
+  assert.equal(d.get("proximaAcao"), "Responder e mandar a proposta");
+  await registrarMensagem(db, slug, "Última tentativa", "a recepção", "vendedor@teste.dev");
+  assert.equal((await crmDoc()).get("toques"), 2, "depois da resposta, não é mais cadência");
+
+  // combinado pelo vendedor sobrevive à resposta
+  await salvarCrm(db, slug, { proximaAcao: "ligar às 10h", proximaData: "2030-01-10" });
+  await marcarContato(db, slug, "respondeu", "vendedor@teste.dev");
+  assert.equal((await crmDoc()).get("proximaData"), "2030-01-10");
+
+  await marcarContato(db, slug, "parar", "vendedor@teste.dev");
+  d = await crmDoc();
+  assert.ok(d.get("naoContatarEm"));
+  assert.equal(d.get("estagio"), "perdido");
+  assert.equal(d.get("motivoPerda"), "sem_interesse");
+  assert.equal(d.get("proximaData"), undefined);
+  await assert.rejects(registrarMensagem(db, slug, "Lembrete", "a recepção", "vendedor@teste.dev"), /pediu para não receber/);
+  await marcarContato(db, slug, "liberar", "vendedor@teste.dev");
+  d = await crmDoc();
+  assert.equal(d.get("naoContatarEm"), undefined);
+  assert.equal(d.get("estagio"), "novo", "desfazer o pedido devolve ao funil");
+  assert.equal(d.get("motivoPerda"), undefined);
+
+  // a primeira vista da proposta vira evento, as seguintes não
+  await registrarVistaDaProposta(db, slug);
+  const primeira = (await crmDoc()).get("propostaVistaEm");
+  await registrarVistaDaProposta(db, slug);
+  assert.ok((await crmDoc()).get("propostaVistaEm").isEqual(primeira));
+  const linha = await linhaDoTempo(db, slug);
+  const vistas = linha.filter((e) => e.titulo === "Abriu a proposta");
+  assert.equal(vistas.length, 1);
+  assert.equal(vistas[0].autor, "o dono, pelo link", "o que o dono fez não aparece como da Ruphus");
+  assert.equal(linha.filter((e) => e.titulo === "Novo → Perdido").length, 1);
+}
+
+// Cadência não pisa no combinado à mão; encerrar como perdido tira o toque agendado
+{
+  const slug = "cadencia-manual";
+  const crmDoc = async () => (await db.doc(`crm/${slug}`).get());
+  await salvarCrm(db, slug, { proximaAcao: "ligar terça", proximaData: "2030-02-05" });
+  await registrarMensagem(db, slug, "Primeiro contato", "a recepção", "vendedor@teste.dev");
+  let d = await crmDoc();
+  assert.equal(d.get("proximaData"), "2030-02-05");
+  assert.equal(d.get("toques"), 1, "o toque conta mesmo sem agendar");
+  await salvarCrm(db, slug, { proximaAcao: null, proximaData: null });
+  await registrarMensagem(db, slug, "Última tentativa", "a recepção", "vendedor@teste.dev");
+  assert.ok((await crmDoc()).get("proximaData"));
+  await salvarCrm(db, slug, { estagio: "perdido", motivoPerda: "nao_respondeu" });
+  d = await crmDoc();
+  assert.equal(d.get("proximaData"), undefined, "perdido não volta em Atrasados");
+  assert.equal(d.get("proximaAcao"), undefined);
+}
+
+// salvarCrm concorrente: a mudança de estágio vira um evento só
+{
+  const slug = "corrida-teste";
+  await Promise.all([salvarCrm(db, slug, { estagio: "oferta" }), salvarCrm(db, slug, { estagio: "oferta" })]);
+  const eventos = await db.collection(`crm/${slug}/eventos`).get();
+  assert.equal(eventos.size, 1, "duas gravações iguais ao mesmo tempo, um evento");
 }
 
 // Saúde: implantação lida do tenant, cobrança aberta vencida vira risco

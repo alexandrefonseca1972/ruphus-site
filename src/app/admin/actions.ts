@@ -31,7 +31,7 @@ import {
   pixCadastrado,
   salvarPix,
 } from "@/lib/cobranca";
-import { anotar, CrmInput, lerCrm, lerFechados, linhaDoTempo, listarNotas, registrarMensagem, salvarCrm } from "@/lib/crm";
+import { anotar, CrmInput, lerCrm, lerFechados, linhaDoTempo, listarNotas, marcarContato, registrarMensagem, salvarCrm } from "@/lib/crm";
 import type { Crm } from "@/lib/crm-tipos";
 import { diaCurto, hojeISO, mensalidadeDe } from "@/lib/crm-tipos";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
@@ -180,12 +180,21 @@ export const marcarEstagio = adminAction(async (user, slugs: string[], estagio: 
   // fechado e perdido são desfechos: o lote não os desfaz (sair de "fechado" tira o
   // negócio da cobrança do mês). Mudar um desfecho é pela gaveta, um a um.
   const pedidos = limpar(slugs);
-  if (!pedidos.length) return 0;
+  if (!pedidos.length) return { feitos: 0, falhas: 0 };
   const crms = await adminDb.getAll(...pedidos.map((s) => adminDb.collection("crm").doc(s)));
   const alvos = crms.filter((d) => !["fechado", "perdido"].includes(d.get("estagio"))).map((d) => d.id);
-  for (const slug of alvos) await salvarCrm(adminDb, slug, { estagio: estagio as CrmInput["estagio"] }, user.email ?? user.uid);
-  await noIndice(...alvos);
-  return alvos.length;
+  // um que falhe não para o lote: os outros seguem, e a tela diz quantos ficaram para trás
+  const ok: string[] = [];
+  for (const slug of alvos) {
+    try {
+      await salvarCrm(adminDb, slug, { estagio: estagio as CrmInput["estagio"] }, user.email ?? user.uid);
+      ok.push(slug);
+    } catch (e) {
+      console.error(`marcarEstagio ${slug}`, e);
+    }
+  }
+  await noIndice(...ok);
+  return { feitos: ok.length, falhas: alvos.length - ok.length };
 });
 
 /** Link de convite: só a conta do dono abre, e entrar por ele torna essa conta
@@ -426,7 +435,19 @@ export const registrarEnvio = adminAction(async (user, slug: string, modelo: str
   if (!SLUG.test(slug)) throw new Error("negócio inválido");
   await registrarMensagem(adminDb, slug, modelo, para, user.email ?? user.uid);
   await noIndice(slug);
-  return linhaDoTempo(adminDb, slug);
+  // o doc também: a cadência acabou de agendar o próximo toque, e a gaveta mostra
+  const [eventos, crm] = await Promise.all([linhaDoTempo(adminDb, slug), lerCrm(adminDb, [slug])]);
+  return { eventos, crm: crm[slug] ?? null };
+});
+
+/** O lead respondeu, ou pediu para parar (ou voltou atrás). */
+export const marcarContatoDo = adminAction(async (user, slug: string, oque: string) => {
+  slugValido(slug);
+  if (oque !== "respondeu" && oque !== "parar" && oque !== "liberar") throw new ErroPrevisto("Ação inválida.");
+  await marcarContato(adminDb, slug, oque, user.email ?? user.uid);
+  await noIndice(slug);
+  const [eventos, crm] = await Promise.all([linhaDoTempo(adminDb, slug), lerCrm(adminDb, [slug])]);
+  return { eventos, crm: crm[slug] ?? null };
 });
 
 export const anotarNegocio = adminAction(async (user, slug: string, texto: string) => {

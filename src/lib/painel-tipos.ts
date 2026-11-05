@@ -59,7 +59,7 @@ export type Ordem = (typeof ORDENS)[number];
 export const SITUACOES = ["ativo", "pendente"] as const;
 export type Situacao = (typeof SITUACOES)[number];
 export const PRAZOS = ["atrasada", "hoje", "futura"] as const satisfies readonly Prazo[];
-export const ALERTAS = ["sem_proxima", "parado", "implantacao", "destaque"] as const satisfies readonly Alerta["id"][];
+export const ALERTAS = ["viu_proposta", "sem_proxima", "parado", "sem_toque", "implantacao", "destaque"] as const satisfies readonly Alerta["id"][];
 
 /** Itens por página da lista; "mostrar mais" pede múltiplos disto. */
 export const PAGINA = 40;

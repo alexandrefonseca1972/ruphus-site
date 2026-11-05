@@ -6,7 +6,7 @@ import { cents } from "@/lib/dinheiro";
 import { formatBRL, formatPhone, linkWhatsApp } from "@/lib/datetime";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { ROTULO_SAUDE } from "@/lib/saude";
-import { diaCurto, MOTIVOS_PERDA, ORIGENS, PRECO_PADRAO, type Crm, type Evento, type MotivoPerda, type Origem } from "@/lib/crm-tipos";
+import { DIAS_PROPOSTA, diaCurto, hojeISO, MOTIVOS_PERDA, TOQUES_MAX, ORIGENS, PRECO_PADRAO, type Crm, type Evento, type MotivoPerda, type Origem } from "@/lib/crm-tipos";
 
 // Partes da gaveta do negócio que formam o CRM: quem decide, o que dizer a ele,
 // o que já aconteceu e por que se perdeu. Fora de page.tsx, que já passa de mil linhas.
@@ -23,6 +23,12 @@ const Zap = () => (
   </svg>
 );
 
+/** Pediu para parar e não é cliente: nenhum botão abre conversa de prospecção */
+/** "dd/mm" do instante, no fuso de quem olha */
+const diaDe = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+
+const bloqueado = (crm: Crm) => !!crm.naoContatarEm && crm.estagio !== "fechado";
+
 type Negocio = { slug: string; nome: string; telefone: string | null; nota?: number | null; avaliacoes?: number | null };
 
 /** Quem decide. O telefone do site é o da recepção: proposta e cobrança vão para o dono. */
@@ -32,7 +38,7 @@ export function ContatoDono({ negocio, crm, salvar }: { negocio: Negocio; crm: C
   const erroEmail = email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? "E-mail incompleto" : "";
   const digitos = zap.replace(/\D/g, "");
   const erroZap = digitos && (digitos.length < 10 || digitos.length > 11) ? "Número com DDD: 10 ou 11 dígitos" : "";
-  const link = crm.donoWhatsapp && linkWhatsApp(crm.donoWhatsapp, `Olá${crm.donoNome ? `, ${crm.donoNome.split(" ")[0]}` : ""}!`);
+  const link = !bloqueado(crm) && crm.donoWhatsapp && linkWhatsApp(crm.donoWhatsapp, `Olá${crm.donoNome ? `, ${crm.donoNome.split(" ")[0]}` : ""}!`);
 
   return (
     <section aria-labelledby="contato-t" className="flex flex-col gap-3.5 rounded-2xl border border-[#E2DDD3] p-4">
@@ -259,9 +265,6 @@ export function Destaque({ crm, hoje, salvar }: { crm: Crm; hoje: string; salvar
 const MODELOS = ["Primeiro contato", "Lembrete", "Última tentativa", "Proposta", "Boas-vindas"] as const;
 type Modelo = (typeof MODELOS)[number];
 
-/** Mesmo valor de DIAS_PROPOSTA (proposta.server.ts, só servidor): a mensagem fala do prazo. */
-const PRAZO_PROPOSTA_DIAS = 7;
-
 /** Quem assina as mensagens: definido uma vez pelo admin da plataforma (config/crm). */
 export const MARCA_NOME = "[SEU NOME]";
 
@@ -297,7 +300,7 @@ export function mensagem(modelo: Modelo, negocio: Negocio, crm: Crm, vendedor?: 
     case "Última tentativa":
       return `${oi} Não vou insistir. A prévia fica no ar em ${site}. Se quiser ver depois, é só responder.`;
     case "Proposta":
-      return `${oi} Combinado: o ${negocio.nome} em ${site}.\n\nInclui serviços com preço e duração, horário de cada profissional e link na bio do Instagram.\n\nValores: ${entrada} para publicar e ${mensal} por mês, sem taxa por agendamento.${linkProposta ? `\n\nProposta completa, válida por ${PRAZO_PROPOSTA_DIAS} dias: ${linkProposta}` : ""}\n\nPosso liberar seu acesso para testar com um cliente hoje?`;
+      return `${oi} Combinado: o ${negocio.nome} em ${site}.\n\nInclui serviços com preço e duração, horário de cada profissional e link na bio do Instagram.\n\nValores: ${entrada} para publicar e ${mensal} por mês, sem taxa por agendamento.${linkProposta ? `\n\nProposta completa, válida por ${DIAS_PROPOSTA} dias: ${linkProposta}` : ""}\n\nPosso liberar seu acesso para testar com um cliente hoje?`;
     case "Boas-vindas":
       return `${oi} Que bom. A agenda do ${negocio.nome} está em ${site}.\n\nVamos finalizar juntos: serviços, horários da equipe e link na bio. Qual horário funciona para você hoje ou amanhã?`;
   }
@@ -357,11 +360,17 @@ export function MensagensProntas({
   onCopiar,
   onPronto,
   linkProposta,
+  onMarcar,
+  onEncerrar,
 }: {
   negocio: Negocio;
   crm: Crm;
   assinatura: string;
   onEnviar: (modelo: Modelo, para: string) => void;
+  /** O lead respondeu, pediu para parar, ou voltou atrás */
+  onMarcar: (oque: "respondeu" | "parar" | "liberar") => void;
+  /** Fim da cadência: perdido por não responder */
+  onEncerrar: () => void;
   onCopiar: (texto: string) => void;
   /** Avisa a gaveta do que está pronto para enviar: é o que alimenta a barra fixa */
   onPronto?: (m: { modelo: Modelo; texto: string; link: string | null; para: string }) => void;
@@ -371,14 +380,21 @@ export function MensagensProntas({
   // "Primeiro contato" é mensagem fria: só para quem nunca recebeu contato
   const jaContatado = !!crm.ultimoContatoEm;
   const modelos = MODELOS.filter((m) => m !== "Primeiro contato" || !jaContatado);
-  const [modelo, setModelo] = useState<Modelo>(crm.estagio === "fechado" ? "Boas-vindas" : crm.estagio === "novo" ? (jaContatado ? "Lembrete" : "Primeiro contato") : "Proposta");
+  // na prospecção, o modelo sugerido é o próximo toque da cadência
+  const prospectando = crm.estagio === "novo" && !crm.respondeuEm;
+  const proximoToque: Modelo = !jaContatado ? "Primeiro contato" : crm.toques >= 2 ? "Última tentativa" : "Lembrete";
+  const esgotou = prospectando && crm.toques >= TOQUES_MAX;
+  const [modelo, setModelo] = useState<Modelo>(crm.estagio === "fechado" ? "Boas-vindas" : crm.estagio === "novo" ? (crm.respondeuEm ? "Proposta" : proximoToque) : "Proposta");
   const [texto, setTexto] = useState<{ para: Modelo; valor: string } | null>(null);
   const atual = texto?.para === modelo ? texto.valor : mensagem(modelo, negocio, crm, assinatura, linkProposta);
   const numero = crm.donoWhatsapp ?? negocio.telefone;
   // Mandar "[SEU NOME]" para o cliente é pior do que não mandar nada
   const faltaNome = atual.includes(MARCA_NOME);
-  const link = numero && !faltaNome ? linkWhatsApp(numero, atual) : null;
+  const parou = bloqueado(crm);
+  const link = numero && !faltaNome && !parou ? linkWhatsApp(numero, atual) : null;
   const para = crm.donoNome ?? (crm.donoWhatsapp ? "o dono" : "a recepção");
+  // fixo com DDD tem 10 dígitos: pode ter WhatsApp Business, mas costuma não ter
+  const fixo = (numero ?? "").replace(/\D/g, "").replace(/^55(?=\d{10}$)/, "").length === 10;
   // em efeito, não no render: avisar o pai durante o render derruba o React
   useEffect(() => {
     onPronto?.({ modelo, texto: atual, link, para });
@@ -405,7 +421,27 @@ export function MensagensProntas({
           </button>
         ))}
       </div>
-      <p className="text-xs text-[#6F6A5E]">Quando mandar: {QUANDO[modelo]}.</p>
+      <p className="text-xs text-[#6F6A5E]">
+        Quando mandar: {QUANDO[modelo]}.
+        {prospectando && crm.toques > 0 && ` ${crm.toques} de ${TOQUES_MAX} toques enviados.`}
+      </p>
+      {fixo && !parou && <p className="text-xs text-[#7A5A2E]">Número fixo: pode não ter WhatsApp. Se a conversa não abrir, ligue.</p>}
+      {esgotou && !parou && (
+        <div className="flex flex-wrap items-center gap-2 rounded-[10px] bg-[#FBF3DC] px-3 py-2.5 text-xs text-[#7A5A2E]">
+          <span className="grow">{TOQUES_MAX} toques sem resposta: insistir vira spam.</span>
+          <button type="button" onClick={onEncerrar} className="h-9 rounded-[8px] border border-[#D8D2C6] bg-white px-2.5 font-semibold text-[#8A2F2F] hover:border-[#8A2F2F]">
+            Encerrar · não respondeu
+          </button>
+        </div>
+      )}
+      {parou && (
+        <div className="flex flex-wrap items-center gap-2 rounded-[10px] bg-[#F7EFEF] px-3 py-2.5 text-xs text-[#8A2F2F]">
+          <span className="grow">Pediu para não receber mensagens{crm.naoContatarEm ? ` em ${diaDe(crm.naoContatarEm)}` : ""}. As mensagens prontas não abrem o WhatsApp.</span>
+          <button type="button" onClick={() => onMarcar("liberar")} className="h-9 rounded-[8px] border border-[#D8D2C6] bg-white px-2.5 text-[#17150F] hover:border-[#17150F]">
+            Desfazer
+          </button>
+        </div>
+      )}
       {modelo === "Proposta" && !linkProposta && (
         <p className="text-xs text-[#8A2F2F]">Sem link da proposta: gere-o acima para incluí-lo na mensagem.</p>
       )}
@@ -429,13 +465,31 @@ export function MensagensProntas({
           </a>
         ) : (
           <span className={`${BOTAO} grow border border-dashed border-[#D8D2C6] text-[#8B8578]`}>
-            {faltaNome ? "Defina quem assina, no topo" : "Cadastre o WhatsApp do dono"}
+            {parou ? "Pediu para parar" : faltaNome ? "Defina quem assina, no topo" : "Cadastre o WhatsApp do dono"}
           </span>
         )}
-        <button type="button" disabled={faltaNome} onClick={() => onCopiar(atual)} className={`${BOTAO_CLARO} disabled:cursor-not-allowed disabled:opacity-50`}>
+        <button type="button" disabled={faltaNome || parou} onClick={() => onCopiar(atual)} className={`${BOTAO_CLARO} disabled:cursor-not-allowed disabled:opacity-50`}>
           Copiar
         </button>
       </div>
+      {/* O que o lead fez: é o que para a cadência, ou tira o negócio de todas as filas */}
+      {!parou && crm.estagio !== "fechado" && crm.estagio !== "perdido" && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-[#EFEBE3] pt-3 text-xs text-[#6F6A5E]">
+          {crm.respondeuEm ? (
+            <span className="grow">Respondeu em {diaDe(crm.respondeuEm)}.</span>
+          ) : (
+            <>
+              <span className="grow">O lead respondeu?</span>
+              <button type="button" onClick={() => onMarcar("respondeu")} className="h-9 rounded-[8px] border border-[#2C6A53] bg-white px-2.5 font-semibold text-[#2C6A53] hover:bg-[#EEF2F0]">
+                Respondeu
+              </button>
+            </>
+          )}
+          <button type="button" onClick={() => onMarcar("parar")} className="h-9 rounded-[8px] border border-[#D8D2C6] bg-white px-2.5 text-[#8A2F2F] hover:border-[#8A2F2F]">
+            Pediu para parar
+          </button>
+        </div>
+      )}
     </section>
   );
 }
@@ -608,7 +662,7 @@ export function MotivoDaPerda({
           </label>
           <label className={ROTULO_CAMPO}>
             Voltar a procurar em (opcional)
-            <input type="date" value={volta} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setVolta(e.target.value)} className={CAMPO} />
+            <input type="date" value={volta} min={hojeISO()} onChange={(e) => setVolta(e.target.value)} className={CAMPO} />
             <span>Vira a próxima ação: o negócio reaparece em “Para hoje” nessa data.</span>
           </label>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Instrument_Serif } from "next/font/google";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { adminDb } from "@/lib/admin";
+import { registrarVistaDaProposta } from "@/lib/crm";
 import { diaCurto } from "@/lib/crm-tipos";
 import { formatBRL, formatPhone, linkWhatsApp } from "@/lib/datetime";
 import { CONTRATO_URL } from "@/lib/contrato";
@@ -12,6 +14,9 @@ import { Imprimir } from "./imprimir";
 // login: o token do link é a credencial, como na cobrança e no convite. Link
 // errado e negócio inexistente respondem a mesma coisa, para não virar sonda.
 export const metadata: Metadata = { title: "Proposta · Ruphus", robots: { index: false, follow: false } };
+
+// robôs de prévia de link (WhatsApp, Facebook, Telegram, Slack…) e buscadores
+const ROBO = /bot|crawl|spider|preview|whatsapp|facebookexternalhit|telegram|slack|discord|skype/i;
 
 const serifa = Instrument_Serif({ weight: "400", subsets: ["latin"], variable: "--fonte-serifa" });
 
@@ -35,11 +40,15 @@ export default async function Proposta({
   searchParams,
 }: {
   params: Promise<{ tenant: string }>;
-  searchParams: Promise<{ t?: string; pdf?: string }>;
+  searchParams: Promise<{ t?: string; pdf?: string; admin?: string }>;
 }) {
-  const [{ tenant }, { t, pdf }] = await Promise.all([params, searchParams]);
+  const [{ tenant }, { t, pdf, admin }] = await Promise.all([params, searchParams]);
   const p = await abrirProposta(adminDb, tenant, t ?? "");
   if (!p) notFound();
+  // Vista do dono, não do vendedor (o painel abre com admin=1 ou pdf=1) nem do robô que
+  // monta a prévia do link no WhatsApp assim que a mensagem sai
+  const ua = (await headers()).get("user-agent") ?? "";
+  if (!admin && !pdf && !ROBO.test(ua)) await registrarVistaDaProposta(adminDb, tenant).catch(() => {});
 
   const fechar = linkWhatsApp(
     p.whatsapp,

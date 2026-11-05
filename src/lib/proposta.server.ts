@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { ErroPrevisto } from "@/lib/erro-previsto";
-import { PRECO_PADRAO } from "@/lib/crm-tipos";
+import { DIAS_PROPOSTA, PRECO_PADRAO } from "@/lib/crm-tipos";
 import { pixCadastrado } from "@/lib/cobranca";
 
 /** A proposta é uma página com link, e o PDF é essa mesma página impressa.
@@ -17,8 +17,6 @@ export class PropostaErro extends ErroPrevisto {}
 
 const RAIZ = "crm";
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
-/** Quanto tempo a proposta fica de pé. Curto de propósito: proposta sem prazo não fecha. */
-export const DIAS_PROPOSTA = 7;
 
 export type PropostaPublica = {
   slug: string;
@@ -50,7 +48,9 @@ export async function gerarProposta(db: Firestore, slug: string, refazer = false
   const guardado = String(atual.get("propostaToken") ?? "");
   const token = !refazer && guardado ? guardado : randomBytes(16).toString("hex");
   const valeAte = diaMais(DIAS_PROPOSTA);
-  await ref.set({ propostaToken: token, propostaValeAte: valeAte, propostaEm: FieldValue.serverTimestamp() }, { merge: true });
+  // link novo: a vista do link anterior não diz nada sobre este
+  const vista = token !== guardado ? { propostaVistaEm: FieldValue.delete() } : {};
+  await ref.set({ propostaToken: token, propostaValeAte: valeAte, propostaEm: FieldValue.serverTimestamp(), ...vista }, { merge: true });
   return { token, valeAte, nova: token !== guardado };
 }
 

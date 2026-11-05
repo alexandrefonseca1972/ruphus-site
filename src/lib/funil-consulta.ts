@@ -1,7 +1,7 @@
 // O funil em números e colunas, a partir dos negócios já filtrados pela consulta do painel.
 // Puro, sem Firestore: a rota GET /api/admin/painel?funil=1 o calcula (fase 4 do
 // docs/plano-paginacao-admin.md). Saiu do useMemo de src/app/admin/funil.tsx.
-import { campanhaDe, ORIGENS, prazoDe, PRECO_PADRAO, type Crm, type Estagio, type MotivoPerda, type Origem } from "@/lib/crm-tipos";
+import { campanhaDe, mensal, ORIGENS, prazoDe, type Crm, type Estagio, type MotivoPerda, type Origem } from "@/lib/crm-tipos";
 import type { Espaco } from "@/lib/painel-tipos";
 
 export const COLUNAS = ["novo", "oferta", "negociando", "fechado"] as const satisfies readonly Estagio[];
@@ -13,7 +13,6 @@ export const PERIODOS = { mes: "Este mês", "30": "Últimos 30 dias", "90": "Úl
 export type Periodo = keyof typeof PERIODOS;
 export const ehPeriodo = (s: string): s is Periodo => Object.hasOwn(PERIODOS, s);
 
-export const mensal = (c: Crm | undefined) => c?.mensalCents ?? PRECO_PADRAO.mensalCents;
 export const origemDe = (c: Crm | undefined): Origem => c?.origem ?? "importado";
 
 /** Meia-noite do dia `dia` (AAAA-MM-DD) no fuso, como ISO em UTC. Sem fuso, o da máquina. */
