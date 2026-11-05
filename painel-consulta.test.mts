@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { alertas } from "@/lib/alertas";
-import { ESTAGIOS, ETAPAS, mensalidadeDe, prazoDe, type Crm, type Estagio } from "@/lib/crm-tipos";
+import { ESTAGIOS, mensalidadeDe, prazoDe, PRECO_PADRAO, type Crm, type Estagio } from "@/lib/crm-tipos";
 import { consultar, diaLocal, local, semAcento, visaoDe, VISOES, type ResultadoPainel } from "@/lib/painel-consulta";
 import { ORDENS, SEM_FILTROS, type Espaco, type Filtros } from "@/lib/painel-tipos";
 
@@ -12,6 +12,7 @@ const VAZIO: Crm = {
   estagio: "novo", entradaCents: null, mensalCents: null, caixaCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
   donoNome: null, donoPapel: null, donoWhatsapp: null, donoEmail: null, outrosContatos: [], motivoPerda: null, detalhePerda: null,
   origem: null, indicadoPor: null, entrouEm: null, perdidoEm: null, ultimoContatoEm: null, fixadoAte: null, utm: null,
+  toques: 0, respondeuEm: null, naoContatarEm: null, propostaVistaEm: null,
 };
 const espaco = (slug: string, e: Partial<Espaco> = {}): Espaco => ({
   slug, nome: slug, telefone: null, nicho: "Barbearia", cidade: "Belém", uf: "PA", nota: null, avaliacoes: null, acessos: 1, limiteStaff: 2, caixa: false, ...e,
@@ -195,7 +196,7 @@ function antigo(espacos: Espaco[], x: Filtros, crm: Record<string, Crm>, dataDeH
     visoes,
     totais: {
       contratadoCents: espacos.reduce((t, e) => t + (crm[e.slug]?.estagio === "fechado" ? mensalidadeDe(crm[e.slug], e.caixa) : 0), 0),
-      negociacaoCents: espacos.reduce((t, e) => t + ((ETAPAS as readonly string[]).includes(crm[e.slug]?.estagio ?? "novo") ? crm[e.slug]?.mensalCents ?? 0 : 0), 0),
+      negociacaoCents: espacos.reduce((t, e) => t + (["oferta", "negociando"].includes(crm[e.slug]?.estagio ?? "novo") ? crm[e.slug]?.mensalCents ?? PRECO_PADRAO.mensalCents : 0), 0),
     },
   };
 }

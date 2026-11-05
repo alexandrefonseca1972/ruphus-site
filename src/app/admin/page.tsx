@@ -19,6 +19,7 @@ import {
   gerarConvites,
   linhaDoTempoDo,
   registrarEnvio,
+  marcarContatoDo,
   marcarEstagio,
   salvarNegocio,
   revogarAcesso,
@@ -63,7 +64,7 @@ const VAZIO: Crm = {
   estagio: "novo", entradaCents: null, mensalCents: null, caixaCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
   donoNome: null, donoPapel: null, donoWhatsapp: null, donoEmail: null, outrosContatos: [], motivoPerda: null, detalhePerda: null,
   origem: null, indicadoPor: null, entrouEm: null, perdidoEm: null, ultimoContatoEm: null, fixadoAte: null,
-  utm: null,
+  utm: null, toques: 0, respondeuEm: null, naoContatarEm: null, propostaVistaEm: null,
 };
 const CIDADES_VISIVEIS = 5;
 // antes da primeira página: chips, visões e alertas zerados (a lista mostra "carregando")
@@ -554,7 +555,23 @@ export default function AdminPage() {
   async function enviouMensagem(slug: string, modelo: string, para: string) {
     const r = await registrarEnvio(await token(), slug, modelo, para);
     setRecarga((x) => x + 1);
-    if (r.ok) setEventos(r.dados);
+    if (!r.ok) return setAviso(r.error);
+    contatoMudou(slug, r.dados);
+  }
+
+  // o servidor devolve o doc já com o próximo toque agendado (ou o pedido de parar): a gaveta segue
+  function contatoMudou(slug: string, d: { eventos: Evento[]; crm: Crm | null }) {
+    if (d.crm) setCrm((c) => ({ ...c, [slug]: d.crm! }));
+    if (aberto?.slug === slug) setEventos(d.eventos);
+  }
+
+  async function marcarResposta(slug: string, oque: "respondeu" | "parar" | "liberar") {
+    if (oque === "parar" && !(await confirmar({ titulo: "Pediu para não receber mensagens?", texto: "O negócio vai para Perdido e as mensagens prontas deixam de abrir o WhatsApp. Dá para desfazer depois.", acao: "Confirmar", tom: "normal" }))) return;
+    marcarPendente(slug);
+    const r = await marcarContatoDo(await token(), slug, oque).finally(() => soltarPendente(slug));
+    setRecarga((x) => x + 1);
+    if (!r.ok) return setAviso(r.error);
+    contatoMudou(slug, r.dados);
   }
 
   // Sai da conta da Ruphus e não tem volta: a confirmação fica aqui, não no botão.
@@ -636,7 +653,7 @@ export default function AdminPage() {
       setCrm((c) => ({ ...c, ...Object.fromEntries([...antes].filter(([, v]) => v).map(([k, v]) => [k, v!])) }));
       return;
     }
-    setAviso(`${r.dados} negócio(s) marcados como ${ROTULO[estagio].toLowerCase()}.`);
+    setAviso(`${r.dados.feitos} negócio(s) marcados como ${ROTULO[estagio].toLowerCase()}.${r.dados.falhas ? ` ${r.dados.falhas} não foram: tente de novo.` : ""}`);
     setMarcados(new Set());
   }
 
@@ -1703,7 +1720,7 @@ export default function AdminPage() {
               {/* No celular a data desce: lado a lado sobram 140px para "o que fazer" */}
               <div className="flex flex-col gap-2 sm:flex-row">
                 <input
-                  key={`acao-${aberto.slug}`}
+                  key={`acao-${aberto.slug}-${crm[aberto.slug]?.proximaAcao ?? ""}`}
                   type="text"
                   maxLength={120}
                   aria-label="O que fazer"
@@ -1713,7 +1730,7 @@ export default function AdminPage() {
                   className="h-11 min-w-0 grow rounded-[10px] border border-[#C9DACF] bg-white px-3 text-sm text-[#17150F] outline-none focus:border-[#2C6A53]"
                 />
                 <input
-                  key={`quando-${aberto.slug}`}
+                  key={`quando-${aberto.slug}-${crm[aberto.slug]?.proximaData ?? ""}`}
                   type="date"
                   aria-label="Quando"
                   defaultValue={crm[aberto.slug]?.proximaData ?? ""}
@@ -1812,7 +1829,7 @@ export default function AdminPage() {
             </details>
 
             <MensagensProntas
-              key={`msg-${aberto.slug}`}
+              key={`msg-${aberto.slug}-${crm[aberto.slug]?.toques ?? 0}-${crm[aberto.slug]?.respondeuEm ?? ""}`}
               negocio={aberto}
               crm={crm[aberto.slug] ?? VAZIO}
               assinatura={assinatura}
@@ -1820,6 +1837,8 @@ export default function AdminPage() {
               onCopiar={(texto) => copiar(texto, "mensagem")}
               onPronto={setPronto}
               linkProposta={proposta?.slug === aberto.slug ? proposta.url : null}
+              onMarcar={(oque) => marcarResposta(aberto.slug, oque)}
+              onEncerrar={() => mudarNegocio(aberto.slug, { estagio: "perdido", motivoPerda: "nao_respondeu" })}
             />
 
             {/* Preço só importa ao propor e ao fechar: fica a um clique */}
@@ -1871,7 +1890,7 @@ export default function AdminPage() {
                             onEnviar={(para) => enviarPropostaEmail(aberto.slug, para)}
                           />
                         </div>
-                        <a className={MENOR} href={proposta.url} target="_blank" rel="noreferrer">Ver como o dono vê</a>
+                        <a className={MENOR} href={`${proposta.url}&admin=1`} target="_blank" rel="noreferrer">Ver como o dono vê</a>
                         {/* O PDF é a mesma proposta impressa: abre a caixa de
                             impressão para salvar o arquivo e anexar no e-mail
                             ou no WhatsApp de quem prefere anexo a link. */}

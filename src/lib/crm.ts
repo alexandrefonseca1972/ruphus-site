@@ -1,7 +1,7 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
-import { todayIn } from "@/lib/datetime";
+import { addDays, todayIn } from "@/lib/datetime";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 
 // O CRM mora fora do tenant: nenhuma regra expõe a coleção "crm", então valor,
@@ -10,7 +10,7 @@ import { ErroPrevisto } from "@/lib/erro-previsto";
 const RAIZ = "crm";
 
 export { ESTAGIOS, ROTULO } from "@/lib/crm-tipos";
-import { ESTAGIOS as LISTA, MOTIVOS_PERDA, ORIGENS, ROTULO, type Crm, type Evento, type MotivoPerda, type Nota, type Origem, type Utm } from "@/lib/crm-tipos";
+import { CADENCIA, daCadencia, DEPOIS_DA_RESPOSTA, DETALHE_PAROU, ESTAGIOS as LISTA, MOTIVOS_PERDA, ORIGENS, ROTULO, type Crm, type Evento, type MotivoPerda, type Nota, type Origem, type Utm } from "@/lib/crm-tipos";
 export type { Crm, Evento, Nota };
 
 /** Erro previsto: a mensagem chega à tela como está (o resto vira "não foi possível") */
@@ -72,6 +72,10 @@ export function negocio(d: { get: (campo: string) => unknown }): Crm {
     ultimoContatoEm: (d.get("ultimoContatoEm") as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null,
     fixadoAte: (d.get("fixadoAte") as string | null) ?? null,
     utm: (d.get("utm") as Utm | null) ?? null,
+    toques: (d.get("toques") as number | null) ?? 0,
+    respondeuEm: (d.get("respondeuEm") as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null,
+    naoContatarEm: (d.get("naoContatarEm") as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null,
+    propostaVistaEm: (d.get("propostaVistaEm") as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null,
   };
 }
 
@@ -176,39 +180,51 @@ export async function salvarCrm(db: Firestore, slug: string, entrada: CrmInput, 
   if (!parsed.success) throw new CrmErro(parsed.error.issues[0].message);
   const dados = parsed.data;
   const ref = db.collection(RAIZ).doc(slug);
-  const atual = await ref.get();
-  const antes = (atual.get("estagio") as Crm["estagio"] | undefined) ?? "novo";
-  const mudou = dados.estagio && dados.estagio !== antes;
-  // Sem o porquê, a perda não ensina nada: o motivo vem junto ou a mudança não passa
-  if (mudou && dados.estagio === "perdido" && !dados.motivoPerda) throw new CrmErro("Escolha o motivo da perda.");
-  // Voltando ao funil, o motivo antigo deixa de valer
-  const saiuDePerdido = mudou && antes === "perdido";
-  const virouFechado = dados.estagio === "fechado" && atual.get("estagio") !== "fechado";
-  if (mudou) {
-    await evento(db, slug, {
-      tipo: "estagio",
-      titulo: `${ROTULO[antes]} → ${ROTULO[dados.estagio!]}`,
-      detalhe:
-        dados.estagio === "perdido"
-          ? [MOTIVOS_PERDA[dados.motivoPerda!], dados.detalhePerda].filter(Boolean).join(" · ")
-          : null,
-      autor,
-    });
-  }
-  await ref.set(
-    {
-      ...dados,
-      // a data de fechamento é gravada quando o negócio entra em "fechado" e some se sair
-      ...(virouFechado ? { fechadoEm: FieldValue.serverTimestamp() } : {}),
-      ...(dados.estagio && dados.estagio !== "fechado" ? { fechadoEm: FieldValue.delete() } : {}),
-      ...(saiuDePerdido ? { motivoPerda: FieldValue.delete(), detalhePerda: FieldValue.delete(), perdidoEm: FieldValue.delete() } : {}),
-      ...(mudou && dados.estagio === "perdido" ? { perdidoEm: FieldValue.serverTimestamp() } : {}),
-      // o primeiro passo para fora de "novo" marca o começo da negociação, uma vez só
-      ...(mudou && antes === "novo" && !atual.get("entrouEm") ? { entrouEm: FieldValue.serverTimestamp() } : {}),
-      atualizadoEm: FieldValue.serverTimestamp(),
-    },
-    { merge: true },
-  );
+  // Numa transação: dois salvamentos ao mesmo tempo liam o mesmo estágio de antes e gravavam
+  // a mudança duas vezes na linha do tempo; e evento sem o doc gravado ficava órfão
+  await db.runTransaction(async (tx) => {
+    const atual = await tx.get(ref);
+    const antes = (atual.get("estagio") as Crm["estagio"] | undefined) ?? "novo";
+    const mudou = dados.estagio && dados.estagio !== antes;
+    // Sem o porquê, a perda não ensina nada: o motivo vem junto ou a mudança não passa
+    if (mudou && dados.estagio === "perdido" && !dados.motivoPerda) throw new CrmErro("Escolha o motivo da perda.");
+    // Voltando ao funil, o motivo antigo deixa de valer
+    const saiuDePerdido = mudou && antes === "perdido";
+    const virouFechado = dados.estagio === "fechado" && atual.get("estagio") !== "fechado";
+    // fechou ou perdeu: o toque que a cadência agendou não vale mais (sem isto o perdido voltava em "Atrasados")
+    const saiDaCadencia =
+      mudou && (dados.estagio === "fechado" || dados.estagio === "perdido") && daCadencia(atual.get("proximaAcao")) && dados.proximaData === undefined
+        ? { proximaAcao: FieldValue.delete(), proximaData: FieldValue.delete() }
+        : {};
+    if (mudou) {
+      tx.set(ref.collection("eventos").doc(), {
+        tipo: "estagio",
+        titulo: `${ROTULO[antes]} → ${ROTULO[dados.estagio!]}`,
+        detalhe:
+          dados.estagio === "perdido"
+            ? [MOTIVOS_PERDA[dados.motivoPerda!], dados.detalhePerda].filter(Boolean).join(" · ")
+            : null,
+        autor,
+        quando: FieldValue.serverTimestamp(),
+      });
+    }
+    tx.set(
+      ref,
+      {
+        ...dados,
+        ...saiDaCadencia,
+        // a data de fechamento é gravada quando o negócio entra em "fechado" e some se sair
+        ...(virouFechado ? { fechadoEm: FieldValue.serverTimestamp() } : {}),
+        ...(dados.estagio && dados.estagio !== "fechado" ? { fechadoEm: FieldValue.delete() } : {}),
+        ...(saiuDePerdido ? { motivoPerda: FieldValue.delete(), detalhePerda: FieldValue.delete(), perdidoEm: FieldValue.delete() } : {}),
+        ...(mudou && dados.estagio === "perdido" ? { perdidoEm: FieldValue.serverTimestamp() } : {}),
+        // o primeiro passo para fora de "novo" marca o começo da negociação, uma vez só
+        ...(mudou && antes === "novo" && !atual.get("entrouEm") ? { entrouEm: FieldValue.serverTimestamp() } : {}),
+        atualizadoEm: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  });
 }
 
 export async function listarNotas(db: Firestore, slug: string): Promise<Nota[]> {
@@ -232,16 +248,97 @@ export async function anotar(db: Firestore, slug: string, texto: string, autor: 
   return doc.id;
 }
 
-async function evento(db: Firestore, slug: string, e: { tipo: "estagio" | "mensagem"; titulo: string; detalhe: string | null; autor: string }) {
-  await db.collection(`${RAIZ}/${slug}/eventos`).add({ ...e, quando: FieldValue.serverTimestamp() });
-}
-
-/** Mensagem pronta aberta no WhatsApp: fica na linha do tempo como contato feito. */
+/** Mensagem pronta aberta no WhatsApp: fica na linha do tempo como contato feito.
+ *
+ * Mensagem da cadência de prospecção, para quem ainda não respondeu, já agenda o próximo
+ * toque: sem isso o lead contatado e calado sumia de todas as filas. Quem pediu para parar
+ * não recebe prospecção — só cliente fechado segue recebendo (cobrança, implantação). */
 export async function registrarMensagem(db: Firestore, slug: string, modelo: string, para: string, autor: string) {
   const m = z.string().trim().min(1).max(80).parse(modelo.slice(0, 80));
-  await evento(db, slug, { tipo: "mensagem", titulo: `Mensagem enviada: ${m}`, detalhe: para ? `para ${String(para).slice(0, 80)}` : null, autor });
-  // No doc do negócio também: a lista do /admin não carrega os eventos de 600 negócios
-  await db.doc(`${RAIZ}/${slug}`).set({ ultimoContatoEm: FieldValue.serverTimestamp() }, { merge: true });
+  const ref = db.doc(`${RAIZ}/${slug}`);
+  await db.runTransaction(async (tx) => {
+    const atual = await tx.get(ref);
+    const estagio = (atual.get("estagio") as Crm["estagio"] | undefined) ?? "novo";
+    // a prospecção pelo WhatsApp; e-mail de proposta e cobrança são pedidos pelo vendedor, um a um
+    const prospeccao = !!CADENCIA[m] || m === "Proposta";
+    if (prospeccao && atual.get("naoContatarEm") && estagio !== "fechado") throw new CrmErro("Este contato pediu para não receber mensagens.");
+    // o que o vendedor combinou à mão fica; a cadência só ocupa o espaço vazio ou o dela mesma
+    const livre = !atual.get("proximaData") || daCadencia(atual.get("proximaAcao"));
+    const passo = estagio === "novo" && !atual.get("respondeuEm") && livre ? CADENCIA[m] : undefined;
+    tx.set(ref.collection("eventos").doc(), {
+      tipo: "mensagem",
+      titulo: `Mensagem enviada: ${m}`,
+      detalhe: para ? `para ${String(para).slice(0, 80)}` : null,
+      autor,
+      quando: FieldValue.serverTimestamp(),
+    });
+    // No doc do negócio também: a lista do /admin não carrega os eventos de 600 negócios
+    tx.set(
+      ref,
+      {
+        ultimoContatoEm: FieldValue.serverTimestamp(),
+        ...(estagio === "novo" && !atual.get("respondeuEm") && CADENCIA[m] ? { toques: FieldValue.increment(1) } : {}),
+        ...(passo ? { proximaAcao: passo.proxima, proximaData: addDays(todayIn(), passo.dias) } : {}),
+      },
+      { merge: true },
+    );
+  });
+}
+
+/** O que o lead fez com a prospecção: respondeu, ou pediu para parar. "liberar" desfaz o pedido. */
+export async function marcarContato(db: Firestore, slug: string, oque: "respondeu" | "parar" | "liberar", autor: string) {
+  const ref = db.doc(`${RAIZ}/${slug}`);
+  await db.runTransaction(async (tx) => {
+    const atual = await tx.get(ref);
+    const estagio = (atual.get("estagio") as Crm["estagio"] | undefined) ?? "novo";
+    const agora = FieldValue.serverTimestamp();
+    // o próximo passo agendado pela cadência deixa de valer; o que o vendedor combinou fica
+    const livre = !atual.get("proximaData") || daCadencia(atual.get("proximaAcao"));
+    const novo = (dados: Record<string, unknown>, titulo: string, detalhe: string | null = null) => {
+      tx.set(ref, { ...dados, atualizadoEm: agora }, { merge: true });
+      tx.set(ref.collection("eventos").doc(), { tipo: dados.estagio ? "estagio" : "mensagem", titulo, detalhe, autor, quando: agora });
+    };
+    // Respondeu: a cadência para, e o próximo passo é falar com ele hoje — sem isto o melhor lead
+    // ficava sem data e sem alerta. Conta como contato: o alerta da proposta vista se resolve
+    if (oque === "respondeu")
+      return novo({ respondeuEm: agora, ultimoContatoEm: agora, ...(livre ? { proximaAcao: DEPOIS_DA_RESPOSTA, proximaData: todayIn() } : {}) }, "Respondeu");
+    if (oque === "liberar") {
+      // perdido pelo próprio "pediu para parar": desfazer devolve ao funil
+      const pelaParada = estagio === "perdido" && atual.get("detalhePerda") === DETALHE_PAROU;
+      return novo(
+        {
+          naoContatarEm: FieldValue.delete(),
+          ...(pelaParada ? { estagio: "novo", motivoPerda: FieldValue.delete(), detalhePerda: FieldValue.delete(), perdidoEm: FieldValue.delete() } : {}),
+        },
+        pelaParada ? `${ROTULO.perdido} → ${ROTULO.novo}` : "Pode receber mensagens de novo",
+        pelaParada ? "Pode receber mensagens de novo" : null,
+      );
+    }
+    // Pediu para parar: sai do funil como perdido, e nenhuma fila volta a mostrá-lo
+    const sai = estagio !== "fechado" && estagio !== "perdido";
+    novo(
+      {
+        naoContatarEm: agora,
+        proximaAcao: FieldValue.delete(),
+        proximaData: FieldValue.delete(),
+        ...(sai ? { estagio: "perdido", motivoPerda: "sem_interesse", detalhePerda: DETALHE_PAROU, perdidoEm: agora, fechadoEm: FieldValue.delete() } : {}),
+      },
+      sai ? `${ROTULO[estagio]} → ${ROTULO.perdido}` : DETALHE_PAROU,
+      sai ? `${MOTIVOS_PERDA.sem_interesse} · ${DETALHE_PAROU}` : null,
+    );
+  });
+}
+
+/** O dono abriu o link da proposta: a primeira vez vira evento, e é o melhor momento para falar. */
+export async function registrarVistaDaProposta(db: Firestore, slug: string) {
+  const ref = db.doc(`${RAIZ}/${slug}`);
+  await db.runTransaction(async (tx) => {
+    const atual = await tx.get(ref);
+    if (atual.get("propostaVistaEm")) return;
+    const agora = FieldValue.serverTimestamp();
+    tx.set(ref, { propostaVistaEm: agora }, { merge: true });
+    tx.set(ref.collection("eventos").doc(), { tipo: "mensagem", titulo: "Abriu a proposta", detalhe: null, autor: "o dono, pelo link", quando: agora });
+  });
 }
 
 const iso = (v: unknown) => (v as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null;
@@ -275,7 +372,8 @@ export async function linhaDoTempo(db: Firestore, slug: string): Promise<Evento[
       tipo: d.get("tipo") as Evento["tipo"],
       titulo: String(d.get("titulo") ?? ""),
       detalhe: (d.get("detalhe") as string | null) ?? null,
-      autor: PELA_RUPHUS,
+      // o que o próprio negócio fez pelo link (abriu a proposta, pediu remoção) diz quem foi
+      autor: String(d.get("autor") ?? "").startsWith("o ") ? String(d.get("autor")) : PELA_RUPHUS,
       quando: iso(d.get("quando")) ?? "",
     })),
     ...membros.docs.flatMap((d) => {

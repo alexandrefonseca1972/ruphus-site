@@ -8,7 +8,7 @@
 // sobram com os OUTROS filtros ligados. Somar tudo fazia um chip prometer 115 e
 // entregar lista vazia.
 import { alertas, type Alerta } from "@/lib/alertas";
-import { ETAPAS, mensalidadeDe, prazoDe, type Crm, type Estagio, type Prazo } from "@/lib/crm-tipos";
+import { mensal, mensalidadeDe, prazoDe, type Crm, type Estagio, type Prazo } from "@/lib/crm-tipos";
 import type { Espaco, Filtros, Ordem, Situacao } from "@/lib/painel-tipos";
 
 export const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -195,7 +195,8 @@ export function consultar(espacos: readonly Espaco[], f: Filtros, { crm, hoje, f
       }
     }
     if (estagio === "fechado") contratadoCents += mensalidadeDe(c, e.caixa);
-    if ((ETAPAS as readonly string[]).includes(estagio)) negociacaoCents += c?.mensalCents ?? 0;
+    // a mesma conta do funil: oferta e negociação, com o preço padrão onde nada foi combinado
+    if (estagio === "oferta" || estagio === "negociando") negociacaoCents += mensal(c);
   }
 
   const posicao = posicaoPorNome(espacos);

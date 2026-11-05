@@ -68,6 +68,10 @@ assert.deepEqual(magro, {
   ultimoContatoEm: null,
   fixadoAte: null,
   utm: null,
+  toques: 0,
+  respondeuEm: null,
+  naoContatarEm: null,
+  propostaVistaEm: null,
 });
 
 // estágio desconhecido não quebra a tela nem pinta chip inexistente
@@ -139,6 +143,11 @@ console.log("saude: ok");
     "nunca-entrou": { ...base, estagio: "fechado" as const, fechadoEm: dias(20) },
     "fechou-ontem": { ...base, estagio: "fechado" as const, fechadoEm: dias(1) },
     "no-topo": { ...base, estagio: "novo" as const, fixadoAte: hoje },
+    "calado": { ...base, estagio: "novo" as const, ultimoContatoEm: dias(5) },
+    "com-toque": { ...base, estagio: "novo" as const, ultimoContatoEm: dias(1), proximaData: "2026-09-25" },
+    "parou": { ...base, estagio: "novo" as const, ultimoContatoEm: dias(5), naoContatarEm: dias(4) },
+    "viu": { ...base, estagio: "oferta" as const, proximaData: "2026-09-25", ultimoContatoEm: dias(3), propostaVistaEm: dias(1) },
+    "viu-antes": { ...base, estagio: "oferta" as const, proximaData: "2026-09-25", ultimoContatoEm: dias(1), propostaVistaEm: dias(3) },
   };
   const lista = [
     { slug: "sem-passo", acessos: 1 },
@@ -148,12 +157,19 @@ console.log("saude: ok");
     { slug: "fechou-ontem", acessos: 1 },
     { slug: "no-topo", acessos: 1 },
     { slug: "cliente-ativo", acessos: 3 },
+    { slug: "calado", acessos: 1 },
+    { slug: "com-toque", acessos: 1 },
+    { slug: "parou", acessos: 1 },
+    { slug: "viu", acessos: 1 },
+    { slug: "viu-antes", acessos: 1 },
   ];
   const por = Object.fromEntries(alertas(lista, crm, hoje).map((a) => [a.id, a.slugs]));
   assert.deepEqual(por.sem_proxima, ["sem-passo"], "só negociação sem data combinada");
   assert.deepEqual(por.parado, ["parado"], "9 dias sem contato entra, 2 dias não");
   assert.deepEqual(por.implantacao, ["nunca-entrou"], "fechado há 20 dias sem o dono entrar");
   assert.deepEqual(por.destaque, ["no-topo"], "destaque que vence hoje");
+  assert.deepEqual(por.sem_toque, ["calado"], "contatado, sem resposta e sem toque agendado; quem pediu para parar fica fora");
+  assert.deepEqual(por.viu_proposta, ["viu"], "abriu a proposta depois do último contato");
   assert.equal(alertas([], {}, hoje).length, 0, "sem negócio, sem alerta");
 }
 console.log("alertas: ok");

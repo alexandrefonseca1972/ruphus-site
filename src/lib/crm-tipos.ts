@@ -27,6 +27,26 @@ export const COR: Record<Estagio, string> = {
  *  landing anuncia ("R$ 250 + R$ 89,90/mes"): um negocio novo ja nasce com ele
  *  no cartao, e so se digita quando o acerto sai do padrao. */
 export const PRECO_PADRAO = { entradaCents: 250_00, mensalCents: 89_90 } as const;
+/** A mensalidade que o negócio vale no funil: a combinada, ou a padrão enquanto nada foi combinado. */
+export const mensal = (c: Pick<Crm, "mensalCents"> | undefined) => c?.mensalCents ?? PRECO_PADRAO.mensalCents;
+/** Quanto tempo a proposta fica de pé. Curto de propósito: proposta sem prazo não fecha. */
+export const DIAS_PROPOSTA = 7;
+
+/** Os toques da prospecção: cada mensagem enviada agenda a próxima, e a terceira sem
+ *  resposta agenda o encerramento. Poucos e com saída, como manda o playbook. */
+export const CADENCIA: Record<string, { proxima: string; dias: number }> = {
+  "Primeiro contato": { proxima: "Lembrete", dias: 3 },
+  Lembrete: { proxima: "Última tentativa", dias: 7 },
+  "Última tentativa": { proxima: "Sem resposta: encerrar como perdido", dias: 7 },
+};
+/** O próximo passo foi agendado pela cadência (não combinado pelo vendedor) */
+export const daCadencia = (acao: unknown) => Object.values(CADENCIA).some((p) => p.proxima === acao);
+/** Respondeu: o próximo passo vira falar com ele hoje */
+export const DEPOIS_DA_RESPOSTA = "Responder e mandar a proposta";
+/** O detalhe da perda que "Pediu para parar" grava; é por ele que "Desfazer" sabe devolver ao funil */
+export const DETALHE_PAROU = "Pediu para não receber mensagens";
+/** Depois disto, sem resposta, insistir vira spam */
+export const TOQUES_MAX = 3;
 
 /** O que se cobra por mês: a mensalidade mais o Caixa, quando o módulo está ligado no negócio. */
 export const mensalidadeDe = (c: Pick<Crm, "mensalCents" | "caixaCents"> | undefined, caixaLigado: boolean) =>
@@ -91,6 +111,14 @@ export type Crm = {
   fixadoAte: string | null;
   /** O anúncio de onde veio o cadastro (utm_* do link), quando veio de um */
   utm: Utm | null;
+  /** Mensagens da cadência de prospecção já enviadas (Primeiro contato, Lembrete, Última tentativa) */
+  toques: number;
+  /** Quando o lead respondeu: a cadência para aqui */
+  respondeuEm: string | null;
+  /** Pediu para não receber mais mensagens: nenhum contato de prospecção sai daqui */
+  naoContatarEm: string | null;
+  /** Primeira vez que o dono abriu o link da proposta atual */
+  propostaVistaEm: string | null;
 };
 
 export type Contato = { nome: string; whatsapp: string };

@@ -112,6 +112,7 @@ for (let semente = 1; semente <= 300; semente++) {
         origem: talvez(0.7, () => (r() < 0.05 ? ("velha" as Origem) : um(Object.keys(ORIGENS) as Origem[]))), indicadoPor: null,
         entrouEm: talvez(0.6, () => iso(r)), perdidoEm: talvez(0.6, () => iso(r)), ultimoContatoEm: null, fixadoAte: null,
         utm: talvez(0.2, () => ({ source: "meta", medium: "cpc", campaign: um(["verao", "Verão", "beleza"]), content: null, term: null })) as Crm["utm"],
+        toques: 0, respondeuEm: null, naoContatarEm: null, propostaVistaEm: null,
       };
   }
   const periodo = um(Object.keys(PERIODOS) as Periodo[]);
