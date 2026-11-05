@@ -1,7 +1,7 @@
 "use client";
 
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { collectionGroup, doc, getDoc, getDocs, limit, query, where } from "firebase/firestore";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, use, useEffect, useState } from "react";
@@ -22,7 +22,9 @@ import { cn } from "@/lib/utils";
 // quem decide de verdade é o servidor/as regras. adminPlataforma: entrou sem ser da equipe.
 // staffId: o profissional de quem entrou pelo convite da equipe (a agenda abre na dele)
 // atualizar: o que uma tela gravou no servidor (a chave Pix) vale nas outras sem recarregar
-type TenantCtx = Tenant & { podeGerir: boolean; adminPlataforma: boolean; staffId?: string; atualizar?: (parcial: Partial<Tenant>) => void };
+// varios: a conta tem mais de um negócio. Com um só, "Meus negócios" não existe (o /painel
+// já manda direto para ele) e o logo leva à agenda
+type TenantCtx = Tenant & { podeGerir: boolean; adminPlataforma: boolean; varios: boolean; staffId?: string; atualizar?: (parcial: Partial<Tenant>) => void };
 const TenantContext = createContext<TenantCtx | null>(null);
 
 export function useTenant() {
@@ -54,14 +56,17 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
         // As regras negam a leitura para quem não é membro
         // O admin da plataforma pode ser membro (é dono dos sites da fábrica até o cliente
         // entrar) ou não: só o servidor sabe (config/admin), e pergunta junto com as leituras
-        const [snap, member, plataforma] = await Promise.all([
+        const [snap, member, plataforma, membros] = await Promise.all([
           getDoc(doc(db, "tenants", slug)),
           getDoc(doc(db, "tenants", slug, "members", user.uid)),
           user.getIdToken().then(ehAdminDaPlataforma).catch(() => ({ ok: false })),
+          // só precisa saber se há um segundo negócio: duas linhas bastam
+          getDocs(query(collectionGroup(db, "members"), where("uid", "==", user.uid), limit(2))).catch(() => null),
         ]);
         const adminPlataforma = plataforma.ok;
         const podeGerir = adminPlataforma || ["owner", "admin"].includes(member.get("role"));
-        value = snap.exists() ? { id: snap.id, ...Tenant.parse(snap.data()), podeGerir, adminPlataforma, staffId: (member.get("staffId") as string | undefined) || undefined } : "denied";
+        const varios = (membros?.size ?? 2) > 1;
+        value = snap.exists() ? { id: snap.id, ...Tenant.parse(snap.data()), podeGerir, adminPlataforma, varios, staffId: (member.get("staffId") as string | undefined) || undefined } : "denied";
       } catch {
         value = "denied";
       }
@@ -99,10 +104,9 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
         <MonitorConexao />
       <header className="sticky top-0 z-10 border-b bg-card pt-[env(safe-area-inset-top)] sm:static">
         <div className="mx-auto flex max-w-6xl items-center gap-x-6 px-4">
-          {/* O nome era o unico link que parecia subir um nivel, e levava para "/",
-              que e a landing page da Ruphus. Vai para /painel, que lista os
-              negocios de quem entrou — ate aqui nao havia caminho de volta. */}
-          <Link href={state.adminPlataforma ? "/admin" : "/painel"} className="flex h-14 min-w-0 flex-1 items-center gap-2.5 sm:h-16 sm:flex-none">
+          {/* O logo e o nome levam à página inicial do negócio (a agenda), para todo mundo.
+              Trocar de negócio e voltar ao admin ficam no menu da conta. */}
+          <Link href={`/${slug}`} className="flex h-14 min-w-0 flex-1 items-center gap-2.5 sm:h-16 sm:flex-none">
             <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary font-serifa text-xl text-primary-foreground">
               {state.name.charAt(0)}
             </span>

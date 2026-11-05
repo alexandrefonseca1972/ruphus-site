@@ -33,7 +33,8 @@ export function AccountMenu() {
                 Voltar ao admin
               </Menu.LinkItem>
             ) : (
-              tenant && (
+              // com um negócio só não há para onde trocar: o /painel voltaria para cá
+              tenant?.varios && (
                 <Menu.LinkItem render={<Link href="/painel" />} className={ITEM}>
                   Meus negócios
                 </Menu.LinkItem>
