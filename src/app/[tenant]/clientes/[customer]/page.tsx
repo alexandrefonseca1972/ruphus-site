@@ -32,6 +32,8 @@ const Appointment = z.object({
 
 const Plan = z.object({
   serviceName: z.string(),
+  staffId: z.string().optional(),
+  qualquer: z.boolean().optional(),
   staffName: z.string(),
   weekday: z.number(),
   time: z.string(),
@@ -327,7 +329,8 @@ export default function CustomerPage() {
                     </p>
                     <p className="text-xs text-muted-foreground">Criado por {p.createdBy}</p>
                   </div>
-                  {p.status === "active" && p.lastDate >= dateIn(new Date(now)) && (
+                  {/* a equipe encerra só os planos da própria agenda (o servidor confere) */}
+                  {p.status === "active" && p.lastDate >= dateIn(new Date(now)) && (tenant.podeGerir || !tenant.staffId || (p.staffId === tenant.staffId && !p.qualquer)) && (
                     <Button variant="outline" size="sm" onClick={() => setEndingPlan(p.id)}>Encerrar plano</Button>
                   )}
                   </div>

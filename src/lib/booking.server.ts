@@ -196,6 +196,15 @@ async function exigeDono(db: Firestore, tenantId: string, uid: string, oque: str
   }
 }
 
+/** O profissional a que a conta da equipe está presa (entrou pelo convite dele): ela vê a
+ *  agenda toda, mas só mexe nos horários dele. Dono, admin e membro sem profissional: null. */
+async function profissionalDaConta(db: Firestore, tenantId: string, uid: string): Promise<string | null> {
+  const m = await db.doc(`tenants/${tenantId}/members/${uid}`).get();
+  const staffId = m.get("staffId");
+  return m.get("role") === "member" && typeof staffId === "string" && staffId ? staffId : null;
+}
+const DE_OUTRO = "Esse horário é de outro profissional: só quem gere o negócio mexe nele.";
+
 export async function requireMember(verify: VerifyToken, db: Firestore, idToken: string, tenantId: string) {
   const user = await verify(idToken).catch(() => {
     throw new UserError("Sessão expirada. Entre novamente.");
@@ -585,6 +594,8 @@ async function contarUso(db: Firestore, tenantId: string, serviceIds: string[], 
 
 /** Cria o plano e um agendamento por semana. Datas ocupadas (ou já passadas) são puladas e devolvidas. */
 export async function createPlan(db: Firestore, input: PlanInput, actor: Actor) {
+  const preso = await profissionalDaConta(db, input.tenantId, actor.uid);
+  if (preso && (input.staffId !== preso || input.qualquer)) return { ok: false as const, error: "Plano da equipe é só na sua agenda: escolha você como profissional." };
   const r = await criarPlano(db, input, actor);
   if (r.ok && r.created.length) await contarUso(db, input.tenantId, input.serviceIds, r.created.length);
   return r;
@@ -666,10 +677,13 @@ async function criarPlano(db: Firestore, input: PlanInput, actor: Actor) {
 
 /** Encerra o plano: cancela os agendamentos futuros dele, com registro no histórico. */
 export async function endPlan(db: Firestore, input: { tenantId: string; planId: string }, actor: Actor) {
+  const preso = await profissionalDaConta(db, input.tenantId, actor.uid);
   return contended(() => db.runTransaction(async (tx) => {
     const t = db.collection("tenants").doc(input.tenantId);
     const plan = await tx.get(t.collection("plans").doc(input.planId));
     if (!plan.exists || plan.get("status") !== "active") return { ok: false as const, error: "Plano não encontrado ou já encerrado." };
+    // "Qualquer um" espalha semanas por outros profissionais: encerrar cancelaria horários deles
+    if (preso && (plan.get("staffId") !== preso || plan.get("qualquer"))) return { ok: false as const, error: "Esse plano é de outro profissional: só quem gere o negócio encerra." };
     const future = await tx.get(
       t.collection("appointments").where("planId", "==", input.planId).where("start", ">", new Date()),
     );
@@ -699,9 +713,11 @@ export async function rescheduleSlots(db: Firestore, q: Omit<RescheduleInput, "t
 }
 
 export async function reschedule(db: Firestore, input: RescheduleInput, actor: Actor) {
+  const preso = await profissionalDaConta(db, input.tenantId, actor.uid);
   return contended(() => db.runTransaction(async (tx) => {
     const ctx = await rescheduleContext(tx, db, input);
     if (!ctx) return { ok: false as const, error: "Agendamento, serviço ou profissional indisponível." };
+    if (preso && ctx.appt.get("staffId") !== preso) return { ok: false as const, error: DE_OUTRO };
     if (!ctx.slots.includes(input.time)) return { ok: false as const, error: "Esse horário não está livre. Escolha outro." };
     const start = zonedTime(input.date, input.time);
     const end = new Date(start.getTime() + ctx.durationMin * 60_000);

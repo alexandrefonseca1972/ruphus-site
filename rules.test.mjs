@@ -138,6 +138,17 @@ await assertSucceeds(changeStatus(bob, "bob", "confirmed"));
 await assertSucceeds(changeStatus(alice, "alice", "no_show"));
 await assertFails(changeStatus(alice, "alice", "confirmed")); // falta é final no painel
 await assertFails(updateDoc(doc(alice, "tenants/acme/history/old"), { type: "x" }));
+// Conta da equipe presa a um profissional: muda só o status dos horários dele
+await env.withSecurityRulesDisabled(async (ctx) => {
+  const db = ctx.firestore();
+  await setDoc(doc(db, "tenants/acme/members/dani"), { uid: "dani", role: "member", staffId: "ana" });
+  await setDoc(doc(db, "tenants/acme/appointments/da-ana"), { status: "booked", staffId: "ana", start: new Date(), customerName: "Y" });
+  await setDoc(doc(db, "tenants/acme/appointments/da-bia"), { status: "booked", staffId: "bia", start: new Date(), customerName: "Z" });
+});
+const dani = as("dani");
+await assertFails(changeStatus(dani, "dani", "cancelled", { apptId: "da-bia" })); // horário de outro profissional
+await assertSucceeds(changeStatus(dani, "dani", "confirmed", { apptId: "da-ana" }));
+await assertSucceeds(changeStatus(bob, "bob", "cancelled", { apptId: "da-bia" })); // quem gere muda qualquer um
 await assertFails(deleteDoc(doc(alice, "tenants/acme/history/old")));
 await assertFails(deleteDoc(doc(alice, "tenants/acme/appointments/a1")));
 await assertFails(setDoc(doc(alice, "tenants/acme/appointments/novo"), { status: "booked" })); // só o servidor cria

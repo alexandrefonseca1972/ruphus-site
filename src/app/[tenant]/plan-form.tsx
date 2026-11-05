@@ -13,6 +13,7 @@ import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
 import { createPlanAction } from "./actions";
+import { useTenant } from "./painel-layout";
 
 // fechado: ninguém atende neste dia da semana; sem ele e sem horário, o dia só está sem vaga
 type Dia = { date: string; horarios: { hora: string; staffId: string }[]; fechado?: boolean };
@@ -39,7 +40,10 @@ export function PlanForm(props: {
   const [services] = useCollection(tenantId, "services", Service, [orderBy("name")]);
   const [staff] = useCollection(tenantId, "staff", Staff, [orderBy("name")]);
   const [serviceIds, setServiceIds] = useState<string[]>([]);
-  const [staffId, setStaffId] = useState("");
+  // quem é da equipe faz plano só na própria agenda (o servidor confere)
+  const tenant = useTenant();
+  const preso = !tenant.podeGerir && tenant.staffId ? tenant.staffId : "";
+  const [staffId, setStaffId] = useState(preso);
   const [hoje] = useState(todayIn);
   const [from, setFrom] = useState(hoje);
   const [buscado, setBuscado] = useState<{ para: string; dias: Dia[] } | null>(null);
@@ -55,7 +59,7 @@ export function PlanForm(props: {
   const [busy, setBusy] = useState(false);
 
   const activeServices = services?.filter((s) => s.active) ?? [];
-  const professionals = staff?.filter((p) => p.active && serviceIds.every((id) => p.serviceIds.includes(id))) ?? [];
+  const professionals = staff?.filter((p) => p.active && (!preso || p.id === preso) && serviceIds.every((id) => p.serviceIds.includes(id))) ?? [];
   const escolhidos = activeServices.filter((s) => serviceIds.includes(s.id));
   // A agenda recebida vale para esta combinação; trocar qualquer parte volta ao "carregando"
   const chave = `${serviceIds.join(",")}|${staffId}|${from}`;
@@ -92,7 +96,7 @@ export function PlanForm(props: {
     // Ordem do catálogo, não dos cliques
     const ids = activeServices.map((s) => s.id).filter((s) => (s === id ? !serviceIds.includes(id) : serviceIds.includes(s)));
     setServiceIds(ids);
-    if (staffId && !ids.every((s) => staff?.find((p) => p.id === staffId)?.serviceIds.includes(s))) setStaffId("");
+    if (staffId && !ids.every((s) => staff?.find((p) => p.id === staffId)?.serviceIds.includes(s))) setStaffId(preso);
     setEscolha(null);
   }
 

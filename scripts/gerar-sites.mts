@@ -1,5 +1,5 @@
-// Gera os sites de uma planilha de leads pela linha de comando — o mesmo que a aba
-// Gerador do /admin faz, para lotes grandes ou sem abrir o navegador. Simula por padrão.
+// Gera os sites de uma planilha de leads pela linha de comando (a aba Gerador do /admin
+// saiu: os leads novos vêm da Coleta). Simula por padrão.
 //
 //   npm run gerar:sites -- planilha.xlsx             # só a prévia
 //   npm run gerar:sites -- planilha.xlsx --aplicar   # grava

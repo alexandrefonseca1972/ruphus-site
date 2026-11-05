@@ -319,5 +319,18 @@ const { desligarConexao } = await import("@/lib/whatsapp.server");
 await desligarConexao(db, "casa");
 assert.equal((await lerConfigWhatsApp(db, "casa"))?.conectadoEm, undefined);
 
+// vigia do cron: conexão que consta conectada, mas caiu sem o webhook chegar, vira desconectada
+const { vigiarConexoes } = await import("@/lib/whatsapp.server");
+await gravarConexao(db, "vigia", { atendysTenantId: "t9", atendysApiKey: "k9", atendysWebhookSecret: "s9", instanceId: "vigia-main", phone: "5511900000088", status: "connected", updatedAt: 0 });
+novo({ ...salao, "GET /v1/instance/vigia-main/status": json({ name: "vigia-main", status: "disconnected", phone: null }) });
+assert.equal(await vigiarConexoes(db), 1, "só a que caiu conta");
+assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "disconnected");
+assert.equal((await lerConfigWhatsApp(db, "salao"))?.status, "connected", "a conectada fica como está");
+// atendys fora do ar não derruba ninguém
+await db.doc("tenants/vigia").update({ "whatsapp.status": "connected", "whatsapp.statusAt": FieldValue.delete() });
+novo({});
+assert.equal(await vigiarConexoes(db), 0);
+assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
+
 console.log("atendys ok");
 process.exit(0);

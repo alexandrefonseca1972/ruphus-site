@@ -5,6 +5,12 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Equipe na agenda: quem entrou pelo convite de um profissional continua vendo a agenda toda, mas só confirma, remarca, cancela ou marca falta nos horários dele, e só cria ou encerra plano recorrente na própria agenda (sem "Qualquer um"). Os botões dos horários dos outros somem, e o servidor e as regras recusam. Quem gere segue mexendo em tudo.
+
+- WhatsApp que cai sem o aviso do atendys chegar: de hora em hora o servidor confere toda conexão que consta como conectada; a que caiu ganha a faixa no painel e o aviso no celular do dono, mesmo sem lembretes ligados nem agendamento novo.
+
+- Admin: a aba Gerador saiu (os leads novos vêm da Coleta). Planilha, só por `npm run gerar:sites`.
+
 - Plano recorrente: dia aberto sem vaga aparece como "sem vaga", não "fechado"; apagar o número de semanas para digitar outro não vira "1" no meio; no celular, os primeiros 12 horários e "Ver todos"; o resumo mostra o valor ("até 12 atendimentos · R$ 420,00"); com "Qualquer um", a semana em que o profissional do primeiro dia está ocupado vai para outro livre no mesmo horário, em vez de ser pulada (a tela de confirmação diz quais).
 
 - Ajustes: campo opcional vazio (Gmail de reserva, endereço de contato, e-mail de alertas) aparece como "Opcional · não configurado", em cinza, não como erro; no teste de e-mail, o canal fica numa linha própria e o destinatário ganha espaço.
