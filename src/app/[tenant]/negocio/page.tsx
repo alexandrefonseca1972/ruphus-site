@@ -1,7 +1,9 @@
 "use client";
 
 import { urlDoSite } from "@/lib/dominio";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { confirmar } from "@/components/confirmar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -75,13 +77,27 @@ export default function MeuNegocio() {
   const mudou = !!salvo && (nome !== salvo.nome || (Object.keys(VAZIO) as (keyof Valores)[]).some((c) => campos[c] !== salvo.campos[c]));
   const mudouRecado = recado.trim() !== recadoSalvo.trim() || online !== onlineSalvo;
 
-  // sair com alteração não salva: o navegador pergunta antes
+  // sair com alteração não salva: o navegador pergunta antes de fechar ou recarregar, e a
+  // tela pergunta antes de um link do painel (o menu trocava de página e descartava tudo)
+  const router = useRouter();
   useEffect(() => {
     if (!mudou && !mudouRecado) return;
     const segura = (e: BeforeUnloadEvent) => e.preventDefault();
+    const aoClicar = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement).closest("a[href]");
+      if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || (a as HTMLAnchorElement).target === "_blank") return;
+      const href = a.getAttribute("href") ?? "";
+      if (href.startsWith("#") || !href.startsWith("/")) return;
+      e.preventDefault();
+      void confirmar({ titulo: "Sair sem salvar?", texto: "As alterações desta página serão perdidas.", acao: "Sair sem salvar" }).then((sim) => sim && router.push(href));
+    };
     window.addEventListener("beforeunload", segura);
-    return () => window.removeEventListener("beforeunload", segura);
-  }, [mudou, mudouRecado]);
+    document.addEventListener("click", aoClicar, true);
+    return () => {
+      window.removeEventListener("beforeunload", segura);
+      document.removeEventListener("click", aoClicar, true);
+    };
+  }, [mudou, mudouRecado, router]);
 
   // editar de novo tira o "Salvo." da tela
   const editar = <T,>(set: (v: T) => void) => (v: T) => {
