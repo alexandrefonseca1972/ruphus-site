@@ -135,15 +135,16 @@ export type Mudanca = { campo: string; antes: string; depois: string };
 
 /** O que salvarNegocio mudaria, campo a campo, sem gravar: o admin confere antes de publicar. */
 export async function previaDoSite(db: Firestore, slug: string, input: unknown, google: Google) {
-  const parsed = DadosNegocio.safeParse(input);
-  if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
-  const d = parsed.data;
   const atual = await lerSiteDoNegocio(db, slug);
   const fabrica = atual.tipo === "fabrica";
+  // o mesmo schema que salvarNegocio aplica: fábrica não tem ramo
+  const parsed = (fabrica ? DadosFabrica : DadosNegocio).safeParse(input);
+  if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
+  const d = parsed.data as DadosNegocio;
   const n = (v: number | null) => (v == null ? "" : String(v).replace(".", ","));
   const pares: [string, string, string, boolean][] = [
     ["Nome", atual.name, d.name, true],
-    ["Ramo", atual.sub ? SUBS[atual.sub as Sub].rotulo : "", SUBS[d.sub].rotulo, !fabrica],
+    ["Ramo", atual.sub ? SUBS[atual.sub as Sub].rotulo : "", fabrica ? "" : SUBS[d.sub].rotulo, !fabrica],
     ["WhatsApp", atual.telefone, d.telefone, true],
     ["Cidade", atual.cidade, d.cidade, true],
     ["UF", atual.uf, d.uf, true],

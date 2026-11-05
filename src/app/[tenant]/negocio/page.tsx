@@ -87,7 +87,10 @@ export default function MeuNegocio() {
       const a = (e.target as HTMLElement).closest("a[href]");
       if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || (a as HTMLAnchorElement).target === "_blank") return;
       const href = a.getAttribute("href") ?? "";
-      if (href.startsWith("#") || !href.startsWith("/")) return;
+      if (!href.startsWith("/")) return;
+      // âncora da própria página ("#dados" ou "/x/negocio#dados"): não é sair
+      const destino = new URL(href, location.href);
+      if (destino.pathname === location.pathname && destino.hash) return;
       e.preventDefault();
       void confirmar({ titulo: "Sair sem salvar?", texto: "As alterações desta página serão perdidas.", acao: "Sair sem salvar" }).then((sim) => sim && router.push(href));
     };

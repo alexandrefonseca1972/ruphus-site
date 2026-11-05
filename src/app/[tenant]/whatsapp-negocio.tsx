@@ -114,20 +114,22 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     let vivo = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const inicio = Date.now();
+    let emVoo = false;
     const tique = async () => {
-      if (!vivo || Date.now() - inicio > POLL_MAX_MS) return;
+      // voltar à aba no meio de um tique não abre uma segunda cadeia de polling
+      if (!vivo || emVoo || Date.now() - inicio > POLL_MAX_MS) return;
+      emVoo = true;
       if (!document.hidden) {
         const t = await token();
         const r = t ? await refreshWhatsAppStatusDonoAction(t, { tenantId: slug }).catch(() => null) : null;
-        if (!vivo) return;
-        if (r && !falhou(r)) {
+        if (r && !falhou(r) && vivo) {
           setCfg(r);
           const q = await qrWhatsAppDonoAction(t!, { tenantId: slug }).catch(() => null);
-          if (!vivo) return;
-          setQr(q && !falhou(q) && q.status === "qr" ? q.imagem : null);
+          if (vivo) setQr(q && !falhou(q) && q.status === "qr" ? q.imagem : null);
         }
       }
-      timer = setTimeout(tique, POLL_MS);
+      emVoo = false;
+      if (vivo) timer = setTimeout(tique, POLL_MS);
     };
     timer = setTimeout(tique, POLL_MS);
     const aoVoltar = () => {
@@ -178,6 +180,10 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     if (!r) return setAviso({ ok: false, texto: "Sem conexão. Tente de novo." });
     setCfg((c) => (c ? { ...c, instanceId: undefined, phone: null, status: "disconnected" } : c));
     setQr(null);
+    // o vínculo foi solto, mas o gateway não confirmou: o número pode seguir logado lá
+    if (r === "desconectado-sem-confirmacao") {
+      setAviso({ ok: false, texto: "Desconectado aqui, mas o gateway não confirmou a saída do número. Antes de conectar de novo, abra o WhatsApp, Aparelhos conectados, e saia da sessão da plataforma." });
+    }
   }
 
   async function enviarTeste() {
@@ -191,20 +197,24 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     setMensagem("");
   }
 
-  // uma gravação de cada vez: cliques rápidos em checkbox e hora não disputam, a última fica
+  // uma gravação de cada vez: cliques rápidos em checkbox e hora não disputam, a última fica.
+  // O último valor confirmado fica num ref: o `cfg` do clique é velho quando a fila anda
   const filaLembretes = useRef<Promise<void>>(Promise.resolve());
+  const confirmado = useRef<{ on: boolean; hours: number } | null>(null);
+  if (cfg && !confirmado.current) confirmado.current = { on: cfg.remindersEnabled === true, hours: cfg.remindersBeforeHours ?? 2 };
   function salvarLembretes(enabled: boolean, hours: number) {
     setAviso(null);
     filaLembretes.current = filaLembretes.current.then(async () => {
       const t = await token();
       const r = t ? await configurarLembretesWhatsAppAction(t, { tenantId: slug, enabled, hours }).catch(() => null) : null;
       if (!r || falhou(r)) {
-        // nada foi gravado: a tela volta ao que o servidor tem
+        // nada foi gravado: a tela volta ao último valor que o servidor confirmou
         setAviso({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
-        setLembretes(cfg?.remindersEnabled === true);
-        setHorasLembretes(cfg?.remindersBeforeHours ?? 2);
+        setLembretes(confirmado.current?.on ?? false);
+        setHorasLembretes(confirmado.current?.hours ?? 2);
         return;
       }
+      confirmado.current = { on: enabled, hours };
       setCfg((c) => (c ? { ...c, remindersEnabled: enabled, remindersBeforeHours: hours } : c));
     });
   }

@@ -326,11 +326,10 @@ export const desconectarWhatsAppDonoAction = memberAction(SoTenant, async ({ ten
   if (salva) {
     // o gateway não respondeu: o número pode seguir logado lá, e reconectar criaria uma segunda
     // instância. O vínculo já foi solto; o dono precisa saber, não ler "desconectado"
-    await deslogarInstancia(salva.instanceId).catch(() => {
-      throw new UserError("O vínculo foi desfeito, mas o gateway não confirmou a saída do número. Antes de conectar de novo, abra o WhatsApp, Aparelhos conectados, e saia da sessão da plataforma.");
-    });
+    const saiu = await deslogarInstancia(salva.instanceId).then(() => true, () => false);
+    if (!saiu) return "desconectado-sem-confirmacao" as const;
   }
-  return "desconectado";
+  return "desconectado" as const;
 });
 
 /** Lembretes de horário: o dono liga/desliga e escolhe quantas horas antes de

@@ -149,20 +149,22 @@ export function SinalNegocio() {
   const [sinal, setSinal] = useState(inicial);
   const [valor, setValor] = useState(inicial.tipo === "fixo" ? formatBRL(inicial.valor) : String(inicial.valor));
   const [salvo, setSalvo] = useState(JSON.stringify(inicial));
-  // o servidor mudou o sinal por fora (remover a chave Pix desliga): a tela segue o contexto,
-  // senão "Pedir sinal" fica marcado aqui e desligado lá
-  const [visto, setVisto] = useState(JSON.stringify(tenant.sinal ?? null));
-  if (JSON.stringify(tenant.sinal ?? null) !== visto) {
-    setVisto(JSON.stringify(tenant.sinal ?? null));
-    setSinal(inicial);
-    setValor(inicial.tipo === "fixo" ? formatBRL(inicial.valor) : String(inicial.valor));
-    setSalvo(JSON.stringify(inicial));
-  }
   const [busy, setBusy] = useState(false);
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const numero = Number(valor.replace(/\D/g, "")) || 0;
   const atual = { ...sinal, valor: numero };
   const mudou = JSON.stringify(atual) !== salvo;
+  // o servidor mudou o sinal por fora (remover a chave Pix desliga): a tela segue o contexto,
+  // senão "Pedir sinal" fica marcado aqui e desligado lá. Edição em andamento não é apagada
+  const [visto, setVisto] = useState(JSON.stringify(tenant.sinal ?? null));
+  if (JSON.stringify(tenant.sinal ?? null) !== visto) {
+    setVisto(JSON.stringify(tenant.sinal ?? null));
+    if (!mudou) {
+      setSinal(inicial);
+      setValor(inicial.tipo === "fixo" ? formatBRL(inicial.valor) : String(inicial.valor));
+      setSalvo(JSON.stringify(inicial));
+    }
+  }
   const muda = (p: Partial<typeof sinal>) => (setSinal({ ...sinal, ...p }), setAviso(null));
   useAvisoAoSair(mudou && !!tenant.pix);
 
