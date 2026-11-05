@@ -72,8 +72,9 @@ export default function MeusNegocios() {
           if (meus.length === 1) return router.replace(`/${meus[0].id}`);
           setNegocios(meus);
         } catch (err) {
+          // falha ao ler (rede, site reiniciando) não é "nenhum negócio": mostrar o cadastro do
+          // primeiro negócio aqui mandava o dono preencher tudo para esbarrar na cota no fim
           setErro(errorMessage(err));
-          setNegocios([]);
         }
       }),
     [router],
@@ -103,7 +104,15 @@ export default function MeusNegocios() {
 
       <main className="mx-auto grid w-full max-w-5xl gap-6 px-4 pt-7 pb-16 sm:gap-7 sm:pt-12">
         {!negocios ? (
-          <p className="text-sm text-muted-foreground">Carregando…</p>
+          erro ? (
+            <div role="alert" className="grid max-w-md gap-3 rounded-2xl border bg-card p-5">
+              <p className="font-medium">Não foi possível carregar os seus negócios.</p>
+              <p className="text-sm text-muted-foreground">{erro}</p>
+              <Button className="h-11 justify-self-start px-5" onClick={() => location.reload()}>Tentar de novo</Button>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Carregando…</p>
+          )
         ) : primeiro ? (
           <>
             <Titulo titulo="Seu primeiro negócio" sub="Três passos até o link começar a receber agendamentos." />
