@@ -1242,7 +1242,7 @@ function linha(o, i){
   const a = document.createElement('a');
   a.className = 'unidade revela';
   a.style.setProperty('--atraso', Math.min(i, 8) * 40 + 'ms');
-  a.href = '/s/' + o.s;
+  a.href = '/s/' + o.s; a.target = '_blank'; a.rel = 'noopener';   // a landing fica aberta para voltar e contratar
   const n = document.createElement('span'); n.className = 'un-n';
   n.textContent = String((o.i ?? SITES.indexOf(o)) + 1).padStart(3, '0');
   a.appendChild(n);
@@ -1298,7 +1298,7 @@ function mostrarAchados(termos, achados, quantos){
   else {
     const itens = achados.slice(0, 5).map(o => {
       const li = document.createElement('li'), a = document.createElement('a');
-      a.href = '/s/' + o.s;
+      a.href = '/s/' + o.s; a.target = '_blank'; a.rel = 'noopener';
       const txt = document.createElement('span'); txt.className = 'ac-txt';
       const n = document.createElement('span'); n.className = 'ac-nome'; n.textContent = o.n; txt.appendChild(n);
       if (o.d){ const d = document.createElement('span'); d.className = 'ac-d'; d.textContent = o.d; txt.appendChild(d); }
