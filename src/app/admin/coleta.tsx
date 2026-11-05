@@ -259,7 +259,9 @@ export function ColetaMaps({ idToken, aoGerar }: { idToken: string; aoGerar: (sl
             </>
           )}
         </p>
-        {local?.pode && (local.ligado || !vivos.length) && (
+        {/* o botão some quando OUTRO worker está no ar (dois iguais disputariam a fila); o sinal
+            velho do próprio worker daqui (parou sem conseguir apagá-lo) não esconde o Ligar */}
+        {local?.pode && (local.ligado || vivos.every((w) => w.nome === local.nome)) && (
           <button
             type="button"
             disabled={ligando}
