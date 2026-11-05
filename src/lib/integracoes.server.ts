@@ -13,13 +13,13 @@ import { adminDb } from "@/lib/admin";
 export const INTEGRACOES = {
   COMTELE_API_KEY: { grupo: "SMS (Comtele)", rotulo: "Chave da API", secreta: true },
   RESEND_API_KEY: { grupo: "E-mail", rotulo: "Chave do Resend", secreta: true },
-  GMAIL_USER: { grupo: "E-mail", rotulo: "Conta do Gmail (reserva)", secreta: false },
-  GMAIL_APP_PASSWORD: { grupo: "E-mail", rotulo: "Senha de app do Gmail", secreta: true },
+  GMAIL_USER: { grupo: "E-mail", rotulo: "Conta do Gmail (reserva)", secreta: false, opcional: true },
+  GMAIL_APP_PASSWORD: { grupo: "E-mail", rotulo: "Senha de app do Gmail", secreta: true, opcional: true },
   // quem responde fala com ele; no Gmail é o remetente (precisa estar em "Enviar e-mail como" na conta)
-  EMAIL_CONTATO: { grupo: "E-mail", rotulo: "Endereço de contato (remetente do Gmail e resposta)", secreta: false },
+  EMAIL_CONTATO: { grupo: "E-mail", rotulo: "Endereço de contato (remetente do Gmail e resposta)", secreta: false, opcional: true },
   ATENDYS_ADMIN_KEY: { grupo: "WhatsApp (atendys)", rotulo: "Chave de administração", secreta: true },
   // sem ele, os alertas vão para a conta do Gmail acima
-  ALERTA_EMAIL: { grupo: "Alertas", rotulo: "E-mail para alertas do sistema", secreta: false },
+  ALERTA_EMAIL: { grupo: "Alertas", rotulo: "E-mail para alertas do sistema", secreta: false, opcional: true },
   // o assistente da seção "Visual" da gaveta do site (src/lib/ia.server.ts)
   ANTHROPIC_API_KEY: { grupo: "IA (Anthropic)", rotulo: "Chave da API", secreta: true },
 } as const;
@@ -62,6 +62,8 @@ export type IntegracaoNaTela = {
   grupo: string;
   rotulo: string;
   secreta: boolean;
+  /** sem ele o serviço funciona (reserva, endereço extra): "não configurada" não é problema */
+  opcional: boolean;
   origem: "painel" | "env" | "nenhuma";
   /** secreta: só os 4 últimos caracteres; o valor inteiro nunca volta ao navegador */
   mostra: string;
@@ -71,12 +73,13 @@ export async function integracoesNaTela(): Promise<IntegracaoNaTela[]> {
   const painel = await doPainel();
   return (Object.keys(INTEGRACOES) as NomeIntegracao[]).map((nome) => {
     const { grupo, rotulo, secreta } = INTEGRACOES[nome];
+    const opcional = "opcional" in INTEGRACOES[nome];
     const p = painel[nome];
     const valor = typeof p === "string" && p ? p : (process.env[nome] ?? "");
     const origem = typeof p === "string" && p ? "painel" : valor ? "env" : "nenhuma";
     // segredo curto não mostra nem o final: 4 letras de 8 já entregam metade
     const mostra = !valor ? "" : !secreta ? valor : valor.length >= 12 ? `••••${valor.slice(-4)}` : "••••";
-    return { nome, grupo, rotulo, secreta, origem, mostra };
+    return { nome, grupo, rotulo, secreta, opcional, origem, mostra };
   });
 }
 
