@@ -341,24 +341,26 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, temIA, o
         <p className={DICA}>JPG, PNG ou WebP até 12 MB; o servidor redimensiona. Do celular, abre a galeria ou a câmera.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <div className="grid gap-1.5">
+      {/* duas colunas sempre: a gaveta é estreita mesmo em tela grande, e o sm: (largura da tela)
+          punha três colunas espremidas — a fonte estourava a gaveta */}
+      <div className="grid grid-cols-2 items-start gap-3">
+        <div className="grid min-w-0 content-start gap-1.5">
           <Label htmlFor="visual-ink">Tinta</Label>
           <input id="visual-ink" type="color" value={corAtual.ink} onChange={(e) => cor("ink", e.target.value)} className="h-11 w-full cursor-pointer rounded-[10px] border border-[#D8D2C6] bg-white p-1" />
           <p className={DICA}>Fundo do topo e dos botões.</p>
         </div>
-        <div className="grid gap-1.5">
+        <div className="grid min-w-0 content-start gap-1.5">
           <Label htmlFor="visual-acc">Destaque</Label>
           <input id="visual-acc" type="color" value={corAtual.acc} onChange={(e) => cor("acc", e.target.value)} className="h-11 w-full cursor-pointer rounded-[10px] border border-[#D8D2C6] bg-white p-1" />
           <p className={DICA}>Detalhes, itálico e a cor da bio.</p>
         </div>
-        <div className="col-span-2 grid gap-1.5 sm:col-span-1">
+        <div className="col-span-2 grid min-w-0 gap-1.5">
           <Label htmlFor="visual-fonte">Fonte dos títulos</Label>
           <select
             id="visual-fonte"
             value={rascunho.fonte ?? ""}
             onChange={(e) => setRascunho((p) => (e.target.value ? { ...p, fonte: e.target.value } : (({ fonte: _f, ...resto }) => resto)(p)))}
-            className="h-11 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-[15px]"
+            className="h-11 w-full min-w-0 rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-[15px]"
           >
             <option value="">Do modelo ({doModelo.fonte})</option>
             {fontes.map((f) => (
@@ -367,7 +369,7 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, temIA, o
           </select>
         </div>
         {rascunho.cores && Object.keys(rascunho.cores).length > 0 && (
-          <button type="button" className="col-span-2 justify-self-start text-xs text-[#4A4639] underline sm:col-span-3" onClick={() => setRascunho((p) => (({ cores: _c, ...resto }) => resto)(p))}>
+          <button type="button" className="col-span-2 justify-self-start text-xs text-[#4A4639] underline" onClick={() => setRascunho((p) => (({ cores: _c, ...resto }) => resto)(p))}>
             Usar as cores do modelo
           </button>
         )}

@@ -130,8 +130,9 @@ function Campo({ item, aoSalvar }: { item: IntegracaoNaTela; aoSalvar: (l: Integ
       <label htmlFor={id} className="text-xs font-medium text-[#17150F]">
         {item.rotulo} <span className="font-normal text-[#8B8578]">· {item.nome}</span>
       </label>
-      <p className={`text-xs ${item.origem === "nenhuma" ? "text-[#8A2F2F]" : "text-[#6F6A5E]"}`}>
-        {ORIGEM[item.origem]}
+      {/* opcional vazio (reserva, endereço extra) não é problema: cinza, não vermelho */}
+      <p className={`text-xs ${item.origem === "nenhuma" && !item.opcional ? "text-[#8A2F2F]" : "text-[#6F6A5E]"}`}>
+        {item.origem === "nenhuma" && item.opcional ? "Opcional · não configurado" : ORIGEM[item.origem]}
         {item.mostra && <span className="ml-1.5 font-mono text-[#17150F]">{item.mostra}</span>}
       </p>
       <div className="flex flex-wrap gap-2">
@@ -257,8 +258,9 @@ function TesteEmail({ sugestao, rotulo, ajuda, canais = false }: { sugestao: str
       <label htmlFor={id} className="text-xs font-medium text-[#17150F]">{rotulo}</label>
       <p className="text-xs text-[#6F6A5E]">{ajuda}</p>
       <div className="flex flex-wrap gap-2">
+        {/* o canal numa linha só dele: ao lado, espremia o campo do destinatário */}
         {canais && (
-          <select aria-label="Por qual canal" value={canal} onChange={(e) => setCanal(e.target.value as typeof canal)} className="h-11 rounded-[10px] border border-[#D8D2C6] bg-white px-2 text-sm">
+          <select aria-label="Por qual canal" value={canal} onChange={(e) => setCanal(e.target.value as typeof canal)} className="h-11 basis-full rounded-[10px] border border-[#D8D2C6] bg-white px-2 text-sm">
             <option value="auto">Automático (Resend, reserva Gmail)</option>
             <option value="resend">Só o Resend</option>
             <option value="gmail">Só o Gmail de reserva</option>
