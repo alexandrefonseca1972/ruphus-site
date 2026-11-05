@@ -171,6 +171,8 @@ async function worker() {
     try {
       const resumo = await gravarResultado(doc.id, nome, paraGerador(await coletar(p, aoAvancar)));
       console.log(`✓ ${p.cidade}/${p.uf}: ${resumo.novos} novos, ${resumo.conferir} conferir, ${resumo.fora} fora`);
+      // o próximo pedido pode vir semanas depois: um Chrome parado segura mais de 1 GB da VPS
+      fecharNavegador();
     } catch (e) {
       fecharNavegador();
       if (e instanceof Interrompida) process.exit(130);
