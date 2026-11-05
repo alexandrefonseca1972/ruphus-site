@@ -1,0 +1,14 @@
+// O admin (usuário ruphus, serviço ruphus-site) liga e desliga o worker da coleta pelo botão
+// da aba Coleta. O serviço roda com NoNewPrivileges, então sudo não funciona; o systemctl
+// fala com o systemd por D-Bus e esta regra libera só start e stop desta unidade.
+// Instalar: install -m 644 deploy/polkit-ruphus-coleta.rules /etc/polkit-1/rules.d/50-ruphus-coleta.rules
+polkit.addRule(function (action, subject) {
+  if (
+    action.id == "org.freedesktop.systemd1.manage-units" &&
+    action.lookup("unit") == "ruphus-coleta.service" &&
+    subject.user == "ruphus"
+  ) {
+    var verb = action.lookup("verb");
+    if (verb == "start" || verb == "stop") return polkit.Result.YES;
+  }
+});

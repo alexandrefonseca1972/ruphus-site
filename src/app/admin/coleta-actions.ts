@@ -57,12 +57,13 @@ const NOME = process.env.COLETA_WORKER ?? hostname();
 const SEM_SINAL_MS = 3 * 60_000;
 
 // COLETA_SERVICO: o worker é um serviço da máquina (systemd na VPS). O admin liga e desliga
-// pelo systemctl, com a regra de sudo de deploy/sudoers-ruphus-coleta (só esses comandos).
+// pelo systemctl, com a regra polkit de deploy/polkit-ruphus-coleta.rules (só start e stop
+// desta unidade; sudo não serve: o ruphus-site roda com NoNewPrivileges).
 // Um spawn daqui entraria no cgroup do ruphus-site: deploy e vigia matariam a coleta no meio,
 // e o Chrome disputaria memória com o site sem o MemoryMax do serviço.
 const SERVICO = process.env.COLETA_SERVICO ? "ruphus-coleta" : null;
 function systemctl(acao: "start" | "stop" | "is-active") {
-  const r = spawnSync("sudo", ["-n", "systemctl", acao, SERVICO!], { timeout: 30_000, encoding: "utf8" });
+  const r = spawnSync("systemctl", [acao, SERVICO!], { timeout: 30_000, encoding: "utf8" });
   if (acao !== "is-active" && r.status !== 0) throw new ErroPrevisto(`systemctl ${acao} falhou: ${(r.stderr || r.stdout || r.error?.message || "").trim().split("\n").pop()}`);
   return r.stdout.trim() === "active";
 }
