@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ruphus — agenda online, site e lembrete no WhatsApp para salões e barbearias</title>
-<meta name="description" content="Agenda online 24 horas, site próprio e lembrete no WhatsApp para salões, barbearias, estética e unhas. R$ 89,90 por mês, sem taxa por agendamento e sem fidelidade. Seu site já pode estar pronto: procure o nome.">
-<meta property="og:title" content="Ruphus — site, agenda online e gestão">
+<meta name="description" content="Agenda online 24 horas, site próprio e lembrete no WhatsApp para salões, barbearias, estética e unhas. R$ 89,90 por mês e R$ 250 para publicar, sem taxa por agendamento e sem fidelidade. Seu site já pode estar pronto: procure o nome.">
+<meta property="og:title" content="Ruphus — agenda online, site e lembrete no WhatsApp">
 <meta property="og:description" content="Agenda online 24 horas, site próprio e lembrete no WhatsApp. Sem taxa por agendamento. Seu site já pode estar pronto.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://www.ruphus.site/">
@@ -17,7 +17,7 @@
 <meta name="twitter:image:alt" content="Seu site já saiu da fábrica — marca Ruphus">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://www.ruphus.site/marca/og.jpg">
-<meta name="twitter:title" content="Ruphus — site, agenda online e gestão">
+<meta name="twitter:title" content="Ruphus — agenda online, site e lembrete no WhatsApp">
 <meta name="twitter:description" content="Agenda online 24 horas, site próprio e lembrete no WhatsApp. Sem taxa por agendamento. Seu site já pode estar pronto.">
 <meta name="theme-color" content="#e5e5e5">
 <meta name="color-scheme" content="light">
@@ -623,7 +623,7 @@ button,a,input{touch-action:manipulation}
 .calc-r{font-size:16px;line-height:1.4}
 .calc-r b{font-family:var(--disp);font-weight:400;font-size:40px;line-height:1;display:block;letter-spacing:0}
 .tabela-c{overflow-x:auto;background:var(--branco);border-radius:32px;padding:8px clamp(8px,2vw,24px)}
-.compara{width:100%;border-collapse:collapse;min-width:620px;font-size:15px}
+.compara{width:100%;border-collapse:separate;border-spacing:0;min-width:620px;font-size:15px}
 .compara th,.compara td{padding:16px 12px;text-align:left;border-bottom:1px solid var(--nevoa);vertical-align:middle}
 .compara tbody tr:last-child th,.compara tbody tr:last-child td{border-bottom:0}
 .compara thead th{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:-.03em;color:var(--ardosia);font-weight:400}
@@ -665,7 +665,7 @@ button,a,input{touch-action:manipulation}
         <span style="--i:0">Agenda</span> <span style="--i:1">cheia,</span><br>
         <span style="--i:2">menos</span> <span style="--i:3"><mark>falta.</mark></span>
       </h1>
-      <p class="hero-p entra" style="--atraso:700ms">O cliente marca sozinho, a qualquer hora, e recebe lembrete no WhatsApp para não esquecer. Site próprio, agenda online e painel no celular por <b>R$ 89,90 por mês</b>, sem taxa por agendamento. <b>O seu site já pode estar pronto</b>: procure o nome, abra e só pague se quiser publicar.</p>
+      <p class="hero-p entra" style="--atraso:700ms">O cliente marca sozinho, a qualquer hora, e recebe lembrete no WhatsApp para não esquecer. Site próprio, agenda online e painel no celular por <b>R$ 89,90 por mês</b> (mais R$ 250 uma vez para publicar), sem taxa por agendamento. <b>O seu site já pode estar pronto</b>: procure o nome, abra e só pague se quiser publicar.</p>
 
       <ul class="atalhos entra" style="--atraso:800ms" aria-label="O que vem junto">
         <li><a href="#faz">Site <small>no endereço nome.ruphus.site</small></a></li>
@@ -847,13 +847,13 @@ button,a,input{touch-action:manipulation}
           <li><b>lembrete</b><span>O cliente recebe um aviso no WhatsApp do seu negócio antes do horário — você escolhe quantas horas antes. Quem ia esquecer, lembra; quem não pode vir, responde e libera a vaga.</span></li>
           <li><b>sinal pelo pix</b><span>Na hora de reservar, o cliente paga um sinal pelo Pix: uma porcentagem do serviço ou um valor fixo, você decide. O horário fica guardado pelo prazo que você definir, esperando o pagamento.</span></li>
         </ul>
-        <div class="calc revela" style="--atraso:200ms" aria-labelledby="calc-t">
+        <div class="calc revela" style="--atraso:200ms" role="group" aria-labelledby="calc-t">
           <p class="mono" id="calc-t">Faça a conta do seu negócio</p>
           <div class="calc-campos">
             <label>Valor médio do serviço<span class="calc-in"><small>R$</small><input id="calc-v" type="number" inputmode="numeric" min="10" max="2000" step="5" value="60"></span></label>
             <label>Faltas por semana<span class="calc-in"><input id="calc-f" type="number" inputmode="numeric" min="0" max="50" step="1" value="1"></span></label>
           </div>
-          <p class="calc-r" aria-live="polite"><b id="calc-perda">R$ 240</b> por mês em cadeira vazia. <span id="calc-comp">Quase 3 mensalidades da Ruphus.</span></p>
+          <p class="calc-r" aria-live="polite" aria-atomic="true"><b id="calc-perda">R$ 240</b> por mês em cadeira vazia. <span id="calc-comp">Equivale a quase 3 mensalidades da Ruphus.</span></p>
         </div>
       </div>
 
@@ -1007,22 +1007,23 @@ button,a,input{touch-action:manipulation}
   <section class="wrap sec" id="compara" aria-labelledby="compara-t">
     <div class="sec-cab">
       <span class="tag">Por que a Ruphus</span>
-      <h2 class="sec-t revela" id="compara-t">Tudo o que a agenda precisa, num preço fixo.</h2>
+      <h2 class="sec-t revela" id="compara-t">O que a agenda precisa, num preço fixo.</h2>
       <p class="revela" style="--atraso:80ms">Comparado a marcar tudo no WhatsApp e no caderno, ou a um aplicativo de agendamento comum.</p>
     </div>
-    <div class="tabela-c revela" style="--atraso:120ms">
+    <div class="tabela-c revela" style="--atraso:120ms" role="region" aria-labelledby="compara-t" tabindex="0">
       <table class="compara">
         <thead><tr><th scope="col"><span class="sr">Recurso</span></th><th scope="col">WhatsApp e caderno</th><th scope="col">App de agendamento comum</th><th scope="col" class="nos">Ruphus</th></tr></thead>
         <tbody>
-          <tr><th scope="row">Site com o nome e as fotos do seu negócio</th><td>—</td><td>perfil dentro do app</td><td class="nos">✓ incluso</td></tr>
-          <tr><th scope="row">Cliente marca sozinho, 24 horas, sem baixar nada</th><td>—</td><td>✓</td><td class="nos">✓</td></tr>
+          <tr><th scope="row">Site com o nome e as fotos do seu negócio</th><td><span aria-hidden="true">—</span><span class="sr">não</span></td><td>perfil dentro do app</td><td class="nos">✓ incluso</td></tr>
+          <tr><th scope="row">Cliente marca sozinho, 24 horas, sem baixar nada</th><td><span aria-hidden="true">—</span><span class="sr">não</span></td><td>✓</td><td class="nos">✓</td></tr>
           <tr><th scope="row">Lembrete pelo WhatsApp do seu negócio</th><td>só se você lembrar</td><td>varia</td><td class="nos">✓</td></tr>
-          <tr><th scope="row">Sinal pelo Pix, direto na sua conta</th><td>—</td><td>varia</td><td class="nos">✓</td></tr>
-          <tr><th scope="row">Taxa por agendamento ou comissão</th><td>nenhuma</td><td>comum</td><td class="nos">nenhuma</td></tr>
-          <tr><th scope="row">Alguém monta e atualiza para você</th><td>—</td><td>você configura</td><td class="nos">✓ a gente faz</td></tr>
+          <tr><th scope="row">Sinal pelo Pix, direto na sua conta</th><td><span aria-hidden="true">—</span><span class="sr">não</span></td><td>varia</td><td class="nos">✓</td></tr>
+          <tr><th scope="row">Taxa por agendamento ou comissão</th><td>nenhuma</td><td>em alguns</td><td class="nos">nenhuma</td></tr>
+          <tr><th scope="row">Ajuda para montar e atualizar</th><td><span aria-hidden="true">—</span><span class="sr">não</span></td><td>você configura</td><td class="nos">✓ a gente monta com você</td></tr>
         </tbody>
       </table>
     </div>
+    <p class="mono revela" style="--atraso:160ms;color:var(--ardosia);font-size:11px;line-height:1.5;margin-top:12px">Lembrete e sinal são ligados por você no painel; o lembrete usa o WhatsApp do próprio negócio. Detalhes e limites nos <a href="/termos">Termos</a>.</p>
   </section>
 
   <section class="wrap sec" id="preco" data-demo="https://barbearia-force.ruphus.site/agendar" data-demo-rot="Ver uma agenda" data-demo-txt="agenda mediante configuração" aria-labelledby="preco-t">
@@ -1430,13 +1431,17 @@ function iniciarPalco(){
 (function(){
   var v=document.getElementById('calc-v'), f=document.getElementById('calc-f');
   if(!v||!f) return;
-  var brl=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
+  var brl=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0,maximumFractionDigits:0});
   function conta(){
-    var perda=Math.max(0,Number(v.value)||0)*Math.max(0,Number(f.value)||0)*4, m=perda/89.9;
-    document.getElementById('calc-perda').textContent=brl.format(perda);
-    document.getElementById('calc-comp').textContent= perda<=0 ? 'Sem falta, ótimo: o lembrete ajuda a manter assim.'
+    var perda=document.getElementById('calc-perda'), comp=document.getElementById('calc-comp');
+    if(v.value===''||f.value===''){ perda.textContent='R$ —'; comp.textContent='Preencha os dois campos.'; return; }
+    var valor=Math.min(2000,Math.max(0,Number(v.value)||0)), faltas=Math.min(50,Math.max(0,Number(f.value)||0));
+    var total=valor*faltas*4, m=total/89.9, inteiro=Math.floor(m), frac=m-inteiro;
+    perda.textContent=brl.format(total);
+    comp.textContent= faltas===0 ? 'Sem falta, ótimo: o lembrete ajuda a manter assim.'
+      : total===0 ? 'Informe o valor médio do serviço.'
       : m<1 ? 'Menos que uma mensalidade, e o lembrete ainda tira trabalho de você.'
-      : 'Isso paga '+(m<2?'a mensalidade da Ruphus':(Math.floor(m)+' mensalidades da Ruphus'))+'.';
+      : 'Equivale a '+(frac>=0.5?'quase '+(inteiro+1):inteiro)+(inteiro+(frac>=0.5?1:0)===1?' mensalidade':' mensalidades')+' da Ruphus.';
   }
   v.addEventListener('input',conta); f.addEventListener('input',conta); conta();
 })();
