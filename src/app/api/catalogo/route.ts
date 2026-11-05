@@ -11,7 +11,7 @@ import { SUBS, type Sub } from "@/lib/gerador";
 // busca. A lista mora na memória do processo e é relida a cada 6 h: cada releitura custa uma
 // leitura por site.
 
-type Item = { s: string; n: string; d: string; t: string; c: string };
+type Item = { s: string; n: string; d: string; t: string; c: string; u: string };
 type Catalogo = { em: number; lista: Item[]; chaves: string[]; fora: string[] };
 
 const VALIDADE_MS = 6 * 3_600_000;
@@ -25,7 +25,7 @@ let lendo: Promise<Catalogo> | null = null;
 
 async function ler(): Promise<Catalogo> {
   const [snap, fora] = await Promise.all([
-    adminDb.collection("tenants").where("gerado.sub", "!=", null).select("name", "site.city", "gerado.sub", "gerado.bairro").get(),
+    adminDb.collection("tenants").where("gerado.sub", "!=", null).select("name", "site.city", "site.uf", "gerado.sub", "gerado.bairro").get(),
     desativados(adminDb).catch(() => [] as string[]),
   ]);
   const tirar = new Set(fora);
@@ -34,7 +34,7 @@ async function ler(): Promise<Catalogo> {
     .map((d): Item => {
       const rotulo = SUBS[d.get("gerado.sub") as Sub]?.rotulo ?? "";
       const bairro = String(d.get("gerado.bairro") ?? "");
-      return { s: d.id, n: String(d.get("name") ?? d.id), d: [rotulo, bairro].filter(Boolean).join(" · "), t: `/s/${d.id}/og.jpg`, c: String(d.get("site.city") ?? "") };
+      return { s: d.id, n: String(d.get("name") ?? d.id), d: [rotulo, bairro].filter(Boolean).join(" · "), t: `/s/${d.id}/og.jpg`, c: String(d.get("site.city") ?? ""), u: String(d.get("site.uf") ?? "").trim().toUpperCase() };
     });
   return { em: Date.now(), lista, chaves: lista.map((o) => norm(`${o.n} ${o.d} ${o.s} ${o.c}`)), fora };
 }
@@ -66,7 +66,10 @@ function resumo(c: Catalogo, mostrados: Set<string>) {
   const nichos = new Set<string>();
   const bairros = new Set<string>();
   const cidades = new Set<string>();
+  // sites por estado: o mapa da landing
+  const ufs: Record<string, number> = {};
   for (const o of c.lista) {
+    if (/^[A-Z]{2}$/.test(o.u)) ufs[o.u] = (ufs[o.u] ?? 0) + 1;
     const [nicho, bairro] = o.d.split("·").map((x) => x.trim());
     if (nicho) nichos.add(nicho.toLowerCase());
     if (bairro) bairros.add(bairro.toLowerCase());
@@ -78,6 +81,7 @@ function resumo(c: Catalogo, mostrados: Set<string>) {
     cidades: [...cidades],
     nichos: nichos.size,
     bairros: bairros.size,
+    ufs,
     // os nomes da esteira, espalhados pela lista para as cidades se misturarem
     amostra: c.lista.filter((_, i) => i % passo === 0).slice(0, AMOSTRA).map(({ n, d }) => ({ n, d })),
     // quem saiu do ar ou pediu remoção: a landing tira da vitrine que vem no HTML
@@ -91,12 +95,12 @@ export async function GET(req: Request) {
   const busca = new URL(req.url).searchParams.get("q")?.slice(0, 80) ?? "";
   const termos = norm(busca.trim()).split(/\s+/).filter(Boolean);
   if (!termos.length) return NextResponse.json(resumo(c, await naVitrine().catch(() => new Set(c.fora))), { headers: { "cache-control": "public, max-age=300, stale-while-revalidate=3600" } });
-  const achados: (Item & { i: number })[] = [];
+  const achados: (Omit<Item, "u"> & { i: number })[] = [];
   let total = 0;
   c.chaves.forEach((k, i) => {
     if (!termos.every((t) => k.includes(t))) return;
     total++;
-    if (achados.length < LIMITE) achados.push({ ...c.lista[i], i });
+    if (achados.length < LIMITE) { const { u: _u, ...item } = c.lista[i]; achados.push({ ...item, i }); }
   });
   return NextResponse.json({ total, itens: achados }, { headers: { "cache-control": "public, max-age=60" } });
 }
