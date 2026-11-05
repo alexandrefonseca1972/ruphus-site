@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- /painel: a lista de negócios da conta vem do servidor, não do cache do Firestore no navegador. Com várias abas abertas o cache às vezes recusava ("Erro: failed-precondition") e a tela parava em "Não foi possível carregar os seus negócios"; o /painel também deixa de baixar o Firestore.
+
 - Equipe na agenda: quem entrou pelo convite de um profissional continua vendo a agenda toda, mas só confirma, remarca, cancela ou marca falta nos horários dele, e só cria ou encerra plano recorrente na própria agenda (sem "Qualquer um"). Os botões dos horários dos outros somem, e o servidor e as regras recusam. Quem gere segue mexendo em tudo.
 
 - WhatsApp que cai sem o aviso do atendys chegar: de hora em hora o servidor confere toda conexão que consta como conectada; a que caiu ganha a faixa no painel e o aviso no celular do dono, mesmo sem lembretes ligados nem agendamento novo.
