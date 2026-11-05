@@ -10,19 +10,18 @@ import { serifa, useSerifaNoBody } from "@/app/fonte-serifa";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { errorMessage } from "@/lib/auth-errors";
 import { auth, idToken } from "@/lib/firebase";
 import { loginComMotivo } from "@/lib/sessao";
-import { mascaraSlug, myTenants, slugify, TenantInput, type Role } from "@/lib/tenants";
+import { mascaraSlug, slugify, TenantInput, type Role } from "@/lib/tenant-input";
 import { cn } from "@/lib/utils";
 import { registrarServiceWorker } from "@/lib/versao";
 import { AceiteContrato } from "@/components/aceite-contrato";
 import { CONTRATO_RECUSADO } from "@/lib/contrato";
-import { criarNegocioAction, minhaCota, slugLivre } from "./actions";
+import { criarNegocioAction, meusNegocios, minhaCota, slugLivre } from "./actions";
 import { lerUtm, pixel } from "@/lib/anuncios";
 import { CamposNegocio, errosDe, VAZIO } from "@/components/campos-negocio";
 
-type Negocio = Awaited<ReturnType<typeof myTenants>>[number];
+type Negocio = { id: string; name: string; role: Role };
 
 const PAPEL: Record<Role, string> = { owner: "Dono", admin: "Admin", member: "Equipe" };
 
@@ -66,16 +65,13 @@ export default function MeusNegocios() {
         if (admin.ok) return router.replace("/admin");
         setUser(u);
         minhaCota(await u.getIdToken()).then((c) => c.ok && setCota({ usados: c.usados, limite: c.limite }));
-        try {
-          const meus = await myTenants();
-          // um negócio só (o caso comum): a lista seria uma tela a mais entre o login e a agenda
-          if (meus.length === 1) return router.replace(`/${meus[0].id}`);
-          setNegocios(meus);
-        } catch (err) {
-          // falha ao ler (rede, site reiniciando) não é "nenhum negócio": mostrar o cadastro do
-          // primeiro negócio aqui mandava o dono preencher tudo para esbarrar na cota no fim
-          setErro(errorMessage(err));
-        }
+        // falha ao ler (rede, site reiniciando) não é "nenhum negócio": mostrar o cadastro do
+        // primeiro negócio aqui mandava o dono preencher tudo para esbarrar na cota no fim
+        const r = await meusNegocios(await u.getIdToken()).catch(() => ({ ok: false as const, error: "Confira a internet e tente de novo." }));
+        if (!r.ok) return setErro(r.error);
+        // um negócio só (o caso comum): a lista seria uma tela a mais entre o login e a agenda
+        if (r.negocios.length === 1) return router.replace(`/${r.negocios[0].id}`);
+        setNegocios(r.negocios);
       }),
     [router],
   );

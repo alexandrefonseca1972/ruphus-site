@@ -8,7 +8,7 @@ import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, 
 import { DadosCliente } from "@/lib/cliente-dados";
 import { addDays, agoraNaParede, customerKey, formatPhone, fusoDaUF, maskBRL, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
-import { cotaDe, criarNegocio, definirLimite } from "@/lib/negocios.server";
+import { cotaDe, criarNegocio, definirLimite, negociosDe } from "@/lib/negocios.server";
 import { anotar, linhaDoTempo, pedirRemocao, propostaRemovivel, registrarMensagem, salvarCrm } from "@/lib/crm";
 import { saudeDe } from "@/lib/saude.server";
 
@@ -824,6 +824,16 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.equal(configSms({ horasAntes: 5 }).horasAntes, 2, "valor fora da lista volta ao padrão");
   console.log("sms no agendamento: ok");
 }
+
+// /painel: os negócios da conta, pelo servidor, por nome; "members" fora de tenants/ não conta
+await db.doc("tenants/zeta").set({ name: "Zeta" });
+await db.doc("tenants/zeta/members/lista").set({ uid: "lista", role: "admin" });
+await db.doc("tenants/salao/members/lista").set({ uid: "lista", role: "estranho" });
+await db.doc("outros/x/members/lista").set({ uid: "lista", role: "owner" });
+const lista = await negociosDe(db, "lista");
+assert.deepEqual(Object.fromEntries(lista.map((n) => [n.id, n.role])), { salao: "member", zeta: "admin" }, "papel desconhecido vira member");
+assert.deepEqual(lista.map((n) => n.name), lista.map((n) => n.name).sort((x, y) => x.localeCompare(y, "pt-BR")), "por nome");
+assert.deepEqual(await negociosDe(db, "ninguem"), []);
 
 console.log("booking ok");
 process.exit(0);

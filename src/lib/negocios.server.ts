@@ -5,6 +5,7 @@ import { UserError } from "@/lib/booking.server";
 import { DadosFabrica, DadosNegocio, leadDoDono, NegocioInput, type Sub, SUBS, UtmInput } from "@/lib/gerador";
 import { personalDe, registrosDoSite } from "@/lib/gerador.server";
 import { limiteStaffDe } from "@/lib/limites";
+import { Role } from "@/lib/tenant-input";
 
 /** Negócios que cada conta pode ter, até o admin da plataforma liberar mais. */
 export const LIMITE_PADRAO = 1;
@@ -219,4 +220,16 @@ export async function criarProfissional(db: Firestore, tenantId: string, dados: 
     tx.create(novo, dados);
   });
   return novo.id;
+}
+
+/** Os negócios de uma conta, com o nome e o papel de cada um, por nome. */
+export async function negociosDe(db: Firestore, uid: string) {
+  const snap = await db.collectionGroup("members").where("uid", "==", uid).get();
+  // só membros em tenants/{id}/members (defesa contra coleções "members" aninhadas)
+  const membros = snap.docs.filter((d) => d.ref.parent.parent?.parent.id === "tenants");
+  // ponytail: uma leitura por negócio; quem tem muitos (o admin da plataforma) vai para o /admin antes
+  const docs = membros.length ? await db.getAll(...membros.map((d) => d.ref.parent.parent!)) : [];
+  return membros
+    .map((d, i) => ({ id: d.ref.parent.parent!.id, name: (docs[i].get("name") as string | undefined) ?? d.ref.parent.parent!.id, role: Role.catch("member").parse(d.get("role")) }))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }
