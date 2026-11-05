@@ -138,10 +138,11 @@ async function worker() {
   const eu = adminDb.collection("coletaWorkers").doc(nome);
   manterAcordado();
   process.on("SIGINT", async () => {
+    // primeiro o sinal de vida (o admin vê na hora que ele saiu, em vez de esperar 3 min),
+    // depois o navegador: fechar leva até 15 s, e o apagar do sinal perdia o prazo na VPS carregada
+    await Promise.race([eu.set({ batidaEm: null, ocupado: null }, { merge: true }), esperar(8000)]).catch(() => {});
     fecharNavegador();
     console.log("\nworker parado: o pedido em andamento continua quando ele voltar");
-    // o admin vê na hora que ele saiu, em vez de esperar 3 min sem sinal
-    await Promise.race([eu.set({ batidaEm: null, ocupado: null }, { merge: true }), esperar(3000)]).catch(() => {});
     process.exit(130);
   });
   console.log(`worker ${nome}: esperando pedidos (Ctrl+C para parar)`);
