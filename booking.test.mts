@@ -258,6 +258,26 @@ assert.deepEqual([endLog.type, endLog.reason], ["cancelled", "plan_ended"]);
 assert.equal((await t.collection("plans").doc(plan.planId).get()).get("status"), "ended");
 assert.equal((await endPlan(db, { tenantId: "salao", planId: plan.planId }, actor)).ok, false);
 
+// "Qualquer um": a semana em que a Bia está ocupada vai para a Ana (livre no mesmo horário), em vez de pular
+{
+  const revezado = await createPlan(db, { ...planInput, qualquer: true }, actor);
+  assert.ok(revezado.ok);
+  assert.deepEqual(revezado.created, segundas, "nenhuma semana pulada");
+  assert.deepEqual(revezado.skipped, []);
+  // a 2ª (reservada pelo "Outro") e a 4ª (o "não veio" do plano anterior segue ocupando) vão para a Ana
+  assert.deepEqual(revezado.outros, [{ date: segundas[1], nome: "Ana" }, { date: segundas[3], nome: "Ana" }]);
+  const doPlano = await t.collection("appointments").where("planId", "==", revezado.planId).orderBy("start").get();
+  assert.deepEqual(doPlano.docs.map((d) => d.get("staffId")), ["bia", "ana", "bia", "ana"]);
+  assert.deepEqual(doPlano.docs.map((d) => d.get("staffName")), ["Bia", "Ana", "Bia", "Ana"]);
+  assert.equal((await t.collection("plans").doc(revezado.planId).get()).get("staffName"), "Bia, Ana");
+  // sem "Qualquer um", a mesma situação pula a semana (como antes)
+  assert.equal((await endPlan(db, { tenantId: "salao", planId: revezado.planId }, actor)).ok, true);
+  const fixo = await createPlan(db, planInput, actor);
+  assert.ok(fixo.ok);
+  assert.deepEqual([fixo.skipped, fixo.outros], [[segundas[1], segundas[3]], []]);
+  assert.equal((await endPlan(db, { tenantId: "salao", planId: fixo.planId }, actor)).ok, true);
+}
+
 // Limites contra reservas em massa (telefone e dispositivo)
 // Longe da janela do plano (hoje+14 a hoje+35): com hoje+20, o 3º dia deste bloco
 // caía em segundas[1] às 10:00 sempre que o teste rodava num domingo, e a recusa

@@ -14,7 +14,9 @@ import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
 import { createPlanAction } from "./actions";
 
-type Dia = { date: string; horarios: { hora: string; staffId: string }[] };
+// fechado: ninguém atende neste dia da semana; sem ele e sem horário, o dia só está sem vaga
+type Dia = { date: string; horarios: { hora: string; staffId: string }[]; fechado?: boolean };
+const PRIMEIROS = 12;
 
 const shortDate = (date: string) =>
   new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
@@ -44,7 +46,10 @@ export function PlanForm(props: {
   const [date, setDate] = useState("");
   const [escolha, setEscolha] = useState<{ hora: string; staffId: string } | null>(null);
   const [phone, setPhone] = useState("");
-  const [weeks, setWeeks] = useState(12);
+  // texto do campo: apagar para digitar outro número não pode virar "1" no meio da digitação
+  const [semanasTexto, setSemanasTexto] = useState("12");
+  const weeks = Math.min(52, Math.max(1, Number(semanasTexto) || 1));
+  const [verTodos, setVerTodos] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
   const [busy, setBusy] = useState(false);
@@ -79,6 +84,10 @@ export function PlanForm(props: {
     setDate(agenda.find((d) => d.horarios.length)?.date ?? agenda[0]?.date ?? ""); // eslint-disable-line react-hooks/set-state-in-effect -- segue a agenda recebida
   }, [agenda, date]);
 
+  const quem = staffId ? professionals.find((p) => p.id === staffId)?.name : staff?.find((p) => p.id === escolha?.staffId)?.name;
+  // valor do plano no resumo: cada semana com o preço da soma dos serviços ("até": semana sem vaga não entra)
+  const precoPlano = escolhidos.length ? precoDe(...Array.from({ length: weeks }, () => escolhidos).flat()) : "";
+
   function toggleService(id: string) {
     // Ordem do catálogo, não dos cliques
     const ids = activeServices.map((s) => s.id).filter((s) => (s === id ? !serviceIds.includes(id) : serviceIds.includes(s)));
@@ -100,6 +109,8 @@ export function PlanForm(props: {
         customerPhone: customer?.phone ?? phone,
         serviceIds,
         staffId: staffId || escolha.staffId,
+        // "Qualquer um": a semana em que ele estiver ocupado vai para outro livre no mesmo horário
+        qualquer: !staffId,
         weekday: wd,
         time: escolha.hora,
         startDate: date,
@@ -109,6 +120,7 @@ export function PlanForm(props: {
       const dates = res.created;
       setResult(
         `${dates.length} agendamento(s) criado(s): ${WEEKDAYS[wd].toLowerCase()}s de ${shortDate(dates[0])} a ${shortDate(dates.at(-1)!)}.` +
+          (res.outros.length ? ` Com outro profissional, porque ${quem ?? "o primeiro"} estava ocupado: ${res.outros.map((o) => `${shortDate(o.date)} (${o.nome})`).join(", ")}.` : "") +
           (res.skipped.length ? ` Datas puladas por falta de horário livre: ${res.skipped.map(shortDate).join(", ")}.` : ""),
       );
     } catch (err) {
@@ -127,8 +139,6 @@ export function PlanForm(props: {
       </div>
     );
   }
-
-  const quem = staffId ? professionals.find((p) => p.id === staffId)?.name : staff?.find((p) => p.id === escolha?.staffId)?.name;
 
   return (
     <form
@@ -223,6 +233,7 @@ export function PlanForm(props: {
               {(agenda ?? Array.from({ length: 7 }, (_, i) => ({ date: addDays(from, i), horarios: [] }))).map((d) => {
                 const sel = d.date === date;
                 const vazio = !d.horarios.length;
+                const fechado = vazio && !!(d as Dia).fechado;
                 const rotulo = d.date === hoje ? "hoje" : d.date === addDays(hoje, 1) ? "amanhã" : parte(d.date, { weekday: "short" });
                 return (
                   <button
@@ -233,8 +244,9 @@ export function PlanForm(props: {
                     onClick={() => {
                       setDate(d.date);
                       setEscolha(null);
+                      setVerTodos(false);
                     }}
-                    aria-label={`${formatLongDate(zonedTime(d.date, "12:00"))}, ${agenda ? (vazio ? "sem horário" : `${d.horarios.length} horários livres`) : "carregando"}`}
+                    aria-label={`${formatLongDate(zonedTime(d.date, "12:00"))}, ${agenda ? (vazio ? (fechado ? "fechado" : "sem vaga") : `${d.horarios.length} horários livres`) : "carregando"}`}
                     className={cn(
                       CHIP,
                       "flex min-h-[72px] w-[62px] shrink-0 flex-col items-center justify-center gap-0.5 sm:w-auto",
@@ -244,7 +256,7 @@ export function PlanForm(props: {
                     <span className="text-[11px] tracking-wider uppercase opacity-75">{rotulo}</span>
                     <span className="font-serifa text-2xl leading-none">{parte(d.date, { day: "numeric" })}</span>
                     <span className={cn("text-[11px]", sel ? "opacity-80" : vazio ? "" : "text-emerald-800 dark:text-emerald-300")}>
-                      {agenda ? (vazio ? "fechado" : `${d.horarios.length} livres`) : "—"}
+                      {agenda ? (vazio ? (fechado ? "fechado" : "sem vaga") : `${d.horarios.length} livres`) : "—"}
                     </span>
                   </button>
                 );
@@ -284,7 +296,8 @@ export function PlanForm(props: {
               <p className="text-sm text-muted-foreground">Nenhum horário livre nesta data. Os dias com vaga estão marcados acima.</p>
             ) : (
               <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
-                {dia.horarios.map((h) => (
+                {/* como na página de agendamento: os primeiros e "ver todos" (no celular eram 10 linhas de botões) */}
+                {(verTodos || dia.horarios.length <= PRIMEIROS + 2 ? dia.horarios : dia.horarios.slice(0, PRIMEIROS)).map((h) => (
                   <button
                     key={h.hora}
                     type="button"
@@ -295,6 +308,11 @@ export function PlanForm(props: {
                     {h.hora}
                   </button>
                 ))}
+                {!verTodos && dia.horarios.length > PRIMEIROS + 2 && (
+                  <button type="button" onClick={() => setVerTodos(true)} className="col-span-full h-11 rounded-xl border border-dashed text-sm font-medium hover:border-foreground/40">
+                    Ver todos os {dia.horarios.length} horários
+                  </button>
+                )}
               </div>
             )}
           </fieldset>
@@ -307,15 +325,17 @@ export function PlanForm(props: {
                 type="number"
                 min={1}
                 max={52}
-                value={weeks}
-                onChange={(e) => setWeeks(Math.min(52, Math.max(1, Number(e.target.value) || 1)))}
+                value={semanasTexto}
+                onChange={(e) => setSemanasTexto(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                onBlur={() => setSemanasTexto(String(weeks))}
                 className="h-11 w-28 bg-card px-3.5 text-[15px] tabular-nums"
               />
             </div>
             {escolha && date && (
               <p className="pb-3 text-sm">
                 <span className="font-semibold">{planLabel(weekday(date), escolha.hora)}</span>
-                {quem && ` com ${quem}`}, de {shortDate(date)} a {shortDate(addDays(date, (weeks - 1) * 7))}.
+                {quem && ` com ${quem}`}{!staffId && " (ou quem estiver livre)"}, de {shortDate(date)} a {shortDate(addDays(date, (weeks - 1) * 7))}
+                {precoPlano && <>: até {weeks} atendimento{weeks > 1 ? "s" : ""} · <span className="tabular-nums">{precoPlano}</span></>}.
               </p>
             )}
           </div>
