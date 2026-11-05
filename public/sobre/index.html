@@ -283,6 +283,14 @@ button{font:inherit;color:inherit}
 #q:focus{outline:none;border-color:var(--preto)}
 .busca-n{margin-top:12px;font-size:14px;line-height:1.3;color:var(--ardosia)}
 .busca-n b{font-weight:500;color:var(--preto)}
+.achados{list-style:none;margin-top:10px;background:var(--branco);border-radius:20px;padding:6px;display:flex;flex-direction:column}
+.achados a{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;text-decoration:none;min-height:44px}
+.achados a:hover,.achados a:focus-visible{background:var(--nevoa)}
+.achados .ac-nome{font-weight:500;font-size:15px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.achados .ac-d{font-size:13px;color:var(--ardosia);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.achados .ac-txt{display:flex;flex-direction:column;min-width:0;flex:1}
+.achados .ac-ir{font-family:var(--mono);font-size:12px;text-transform:uppercase;color:var(--ardosia);flex:none}
+.achados .ac-todos{justify-content:center;font-family:var(--mono);font-size:12px;text-transform:uppercase;color:var(--preto);border-top:1px solid var(--nevoa);border-radius:0 0 14px 14px}
 
 /* o objeto do hero: cartão preto de topo arqueado com o telefone dentro */
 .hero-flutua{align-self:end;min-width:0;position:relative;z-index:2}
@@ -321,7 +329,7 @@ button{font:inherit;color:inherit}
 /* ——— esteira: os nomes de verdade passam como numa linha de produção ——— */
 .esteira{background:var(--preto);color:var(--branco);overflow:hidden;padding-block:18px;border-top:1px solid var(--grafite);
   margin-top:-76px;padding-top:94px;position:relative;z-index:1}
-.esteira-faixa{display:flex;gap:0;width:max-content;animation:desliza 5s linear 1}
+.esteira-faixa{display:flex;gap:0;width:max-content;animation:desliza 90s linear infinite}
 .esteira:hover .esteira-faixa{animation-play-state:paused}
 .esteira-faixa span{font-family:var(--mono);font-size:12px;letter-spacing:-.03em;text-transform:uppercase;white-space:nowrap;padding-inline:20px;color:var(--cinza)}
 .esteira-faixa span b{font-weight:400;color:var(--branco)}
@@ -682,6 +690,7 @@ button,a,input{touch-action:manipulation}
                  aria-describedby="contagem" aria-controls="grade">
         </div>
         <p class="busca-n" id="contagem" aria-live="polite"></p>
+        <ul class="achados" id="achados" hidden></ul>
       </div>
       <ul class="selos entra" style="--atraso:1000ms" aria-label="Sem risco">
         <li>Só paga se publicar</li><li>Sem taxa por agendamento</li><li>Sem fidelidade</li><li>7 dias para desistir</li>
@@ -1214,6 +1223,8 @@ function montarEsteira(){
   const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const faixa = amostra.map(o => '<span><b>' + esc(o.n) + '</b>' + (o.d ? ' · ' + esc(o.d) : '') + '</span>').join('');
   esteira.innerHTML = faixa + faixa;   // duas voltas: a animação anda metade e recomeça sem emenda
+  // ~45 px/s em qualquer tela: com a duração fixa, faixa curta corria e faixa longa arrastava
+  esteira.style.animationDuration = Math.max(20, esteira.scrollWidth / 2 / 45) + 's';
 }
 // montada uma vez, quando o catálogo chega (ou falha): remontar com a faixa andando dava um salto
 
@@ -1281,6 +1292,27 @@ function mostrarAchados(termos, achados, quantos){
   grade.querySelectorAll('.revela').forEach(el => olho.observe(el));
   vazio.hidden = quantos > 0;
   const termo = q.value.trim();
+  // os primeiros achados logo abaixo do campo: a grade completa fica lá embaixo, fora da vista
+  const achadosEl = document.getElementById('achados');
+  if (!termos.length || !quantos){ achadosEl.hidden = true; achadosEl.replaceChildren(); }
+  else {
+    const itens = achados.slice(0, 5).map(o => {
+      const li = document.createElement('li'), a = document.createElement('a');
+      a.href = '/s/' + o.s;
+      const txt = document.createElement('span'); txt.className = 'ac-txt';
+      const n = document.createElement('span'); n.className = 'ac-nome'; n.textContent = o.n; txt.appendChild(n);
+      if (o.d){ const d = document.createElement('span'); d.className = 'ac-d'; d.textContent = o.d; txt.appendChild(d); }
+      const ir = document.createElement('span'); ir.className = 'ac-ir'; ir.textContent = 'abrir ↗';
+      a.append(txt, ir); li.appendChild(a); return li;
+    });
+    if (quantos > 5){
+      const li = document.createElement('li'), a = document.createElement('a');
+      a.className = 'ac-todos'; a.href = '#grade-t';
+      a.textContent = 'Ver todos os ' + quantos + ' resultados ↓';
+      li.appendChild(a); itens.push(li);
+    }
+    achadosEl.replaceChildren(...itens); achadosEl.hidden = false;
+  }
   contagem.innerHTML = !termos.length
     ? '<b>' + TOTAL + ' exemplos e propostas</b> em ' + CIDADES + ' cidades'
     : quantos === 0 ? 'Nenhum site com esse nome'
