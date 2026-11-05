@@ -234,6 +234,20 @@ assert.equal(await comando("confirmado bcdef"), "confirmado");
 assert.equal(await comando("confirmado bcdef"), "sem pendente");
 assert.equal((await db.doc("tenants/salao/appointments/bCdegr").get()).get("status"), "booked", "BCDEG continua aguardando");
 
+// ── WhatsApp pessoal do dono: fora do documento do negócio (a equipe o lê pelo navegador) ──
+{
+  const { gravarOwnerPhone, paraTela } = await import("@/lib/whatsapp.server");
+  await db.doc("tenants/salao").set({ whatsapp: { ownerPhone: "5511911112222" } }, { merge: true }); // legado
+  await gravarOwnerPhone(db, "salao", "5511933334444");
+  assert.equal((await db.doc("tenants/salao").get()).get("whatsapp.ownerPhone"), undefined, "sai do documento que a equipe lê");
+  assert.equal((await db.doc("tenants/salao/privado/whatsapp").get()).get("ownerPhone"), "5511933334444");
+  const c = await lerConexao(db, "salao");
+  assert.equal(c?.ownerPhone, "5511933334444", "o servidor (comando CONFIRMADO, aviso) continua vendo");
+  assert.equal(paraTela(c)?.ownerPhone, "5511933334444", "e a tela de quem gere, pela ação do servidor");
+  await gravarConexao(db, "salao", { ...c!, status: "connected" });
+  assert.equal((await db.doc("tenants/salao").get()).get("whatsapp.ownerPhone"), undefined, "regravar a conexão não o devolve ao documento");
+}
+
 // ── demonstração: não conecta e nada sai dela, mesmo com conexão esquecida no documento ──
 await db.doc(`tenants/${DEMO}`).set({ name: "Demo" });
 novo({});

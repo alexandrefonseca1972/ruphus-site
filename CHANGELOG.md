@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Equipe sem o WhatsApp pessoal do dono: o número que recebe os avisos de agendamento sai do documento do negócio (que a equipe lê pelo navegador) e vai para a área que só o servidor lê; o dono e o admin continuam vendo e editando. Rode `npm run mover:segredos-whatsapp -- --aplicar` uma vez para mover os que já estão gravados.
+
 - Segurança (revisão de isolamento entre negócios — nenhuma falha entre negócios encontrada): na demonstração, cuja senha é compartilhada, os dados do negócio, o Pix, o sinal e o recado não mudam mais (aparecem no site público e virariam isca de golpe até a restauração); a conta da demo é restaurada pelo uid guardado, e trocar o e-mail dela não a deixa viva com outra senha; "encerrar sessões" do admin da plataforma passa a valer também nas regras do Firestore, na hora.
 
 - WhatsApp desconectado não passa mais calado: faixa "Seu WhatsApp desconectou" no topo de todo o painel (para quem gere), com o botão Reconectar; aviso no celular do dono na hora em que a conexão cai; em Meu negócio → WhatsApp, o último aviso ou lembrete que não saiu (antes só o /admin via) e o texto "A conexão caiu" junto do QR. Reconectar limpa a falha antiga.
