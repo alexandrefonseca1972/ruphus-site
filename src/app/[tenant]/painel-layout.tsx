@@ -104,10 +104,9 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
         <MonitorConexao />
       <header className="sticky top-0 z-10 border-b bg-card pt-[env(safe-area-inset-top)] sm:static">
         <div className="mx-auto flex max-w-6xl items-center gap-x-6 px-4">
-          {/* O nome era o unico link que parecia subir um nivel, e levava para "/",
-              que e a landing page da Ruphus. Vai para /painel, que lista os
-              negocios de quem entrou — ate aqui nao havia caminho de volta. */}
-          <Link href={state.adminPlataforma ? "/admin" : state.varios ? "/painel" : `/${slug}`} className="flex h-14 min-w-0 flex-1 items-center gap-2.5 sm:h-16 sm:flex-none">
+          {/* O logo e o nome levam à página inicial do negócio (a agenda), para todo mundo.
+              Trocar de negócio e voltar ao admin ficam no menu da conta. */}
+          <Link href={`/${slug}`} className="flex h-14 min-w-0 flex-1 items-center gap-2.5 sm:h-16 sm:flex-none">
             <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary font-serifa text-xl text-primary-foreground">
               {state.name.charAt(0)}
             </span>
