@@ -26,6 +26,14 @@ export async function enviarEmail(email: EmailSaida) {
   }
 }
 
+/** Teste do /admin: força um canal (o de sempre tenta o Resend e cai no Gmail sem avisar qual saiu). */
+export async function enviarEmailPor(canal: "resend" | "gmail", email: EmailSaida) {
+  const [chave, usuario, senha] = await Promise.all([integracao("RESEND_API_KEY"), integracao("GMAIL_USER"), integracao("GMAIL_APP_PASSWORD")]);
+  if (canal === "gmail") return peloGmail(email, usuario, senha);
+  if (!chave) throw new EmailNaoConfigurado("Sem a chave do Resend: cadastre-a acima para testar este canal.");
+  return pelaResend(chave, email, usuario);
+}
+
 async function pelaResend(chave: string, { para, assunto, texto, html }: EmailSaida, responderPara: string) {
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",

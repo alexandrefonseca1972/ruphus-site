@@ -15,7 +15,7 @@ import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNegocio as salvarSite } from "@/lib/negocios.server";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX, MINUTOS_MAX } from "@/lib/limites";
 import { dadosDoEnvio, destinatarioDoEnvio, gerarProposta } from "@/lib/proposta.server";
-import { enviarEmail } from "@/lib/email.server";
+import { enviarEmail, enviarEmailPor } from "@/lib/email.server";
 import { verificarIntegracoes } from "@/lib/verificar-integracoes.server";
 import { emailDaProposta } from "@/lib/proposta-email";
 import { emailDoConvite } from "@/lib/convite-email";
@@ -1018,9 +1018,12 @@ export const salvarIntegracao = adminAction(async (_user, nome: unknown, valor: 
 export const verificarAjustes = adminAction(async () => verificarIntegracoes());
 
 /** Manda um e-mail de teste pelo caminho de sempre (Resend, e o Gmail se o Resend falhar). */
-export const testarEmail = adminAction(async (_user, para: unknown) => {
+export const testarEmail = adminAction(async (_user, para: unknown, canalBruto?: unknown) => {
   const destino = z.string().trim().email("Informe um e-mail válido.").max(200).parse(para);
-  await enviarEmail({ para: destino, assunto: "Ruphus: e-mail de teste", texto: "E-mail de teste do /admin da Ruphus. Se chegou, o envio de e-mails está funcionando." }).catch((e) => {
+  const canal = z.enum(["auto", "resend", "gmail"]).catch("auto").parse(canalBruto);
+  const nome = { auto: "pelo caminho de sempre", resend: "pelo Resend", gmail: "pelo Gmail de reserva" }[canal];
+  const email = { para: destino, assunto: `Ruphus: e-mail de teste (${nome})`, texto: `E-mail de teste do /admin da Ruphus, enviado ${nome}. Se chegou, este canal está funcionando.` };
+  await (canal === "auto" ? enviarEmail(email) : enviarEmailPor(canal, email)).catch((e) => {
     // tela só do admin da plataforma: o motivo da recusa ajuda a consertar a chave
     throw e instanceof ErroPrevisto ? e : new ErroPrevisto(`O envio falhou: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}`);
   });

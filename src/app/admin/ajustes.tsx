@@ -89,7 +89,7 @@ export function Ajustes({ idToken }: { idToken: string }) {
             <Campo key={i.nome} item={i} aoSalvar={(l) => (setLista(l), void conferir())} />
           ))}
           {g === "SMS (Comtele)" && <TesteSms pronto={lista!.some((i) => i.nome === "COMTELE_API_KEY" && i.origem !== "nenhuma")} />}
-          {g === "E-mail" && <TesteEmail sugestao={lista!.find((i) => i.nome === "GMAIL_USER")?.mostra ?? ""} rotulo="Testar envio" ajuda="Manda um e-mail de teste pelo caminho de sempre (Resend, e o Gmail se o Resend falhar)." />}
+          {g === "E-mail" && <TesteEmail sugestao={lista!.find((i) => i.nome === "GMAIL_USER")?.mostra ?? ""} rotulo="Testar envio" ajuda="Manda um e-mail de teste. Escolha o canal para conferir cada um: o automático usa o Resend e só cai no Gmail se o Resend falhar." canais />}
           {g === "Alertas" && (
             <TesteEmail
               sugestao={lista!.find((i) => i.nome === "ALERTA_EMAIL")?.mostra || lista!.find((i) => i.nome === "GMAIL_USER")?.mostra || ""}
@@ -236,8 +236,9 @@ function TesteSms({ pronto }: { pronto: boolean }) {
 }
 
 /** Manda um e-mail de verdade para conferir o envio (e se ele chega, inclusive fora do spam). */
-function TesteEmail({ sugestao, rotulo, ajuda }: { sugestao: string; rotulo: string; ajuda: string }) {
+function TesteEmail({ sugestao, rotulo, ajuda, canais = false }: { sugestao: string; rotulo: string; ajuda: string; canais?: boolean }) {
   const [para, setPara] = useState(sugestao);
+  const [canal, setCanal] = useState<"auto" | "resend" | "gmail">("auto");
   const [busy, setBusy] = useState(false);
   const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
   const id = `teste-${rotulo.replace(/\W+/g, "-")}`;
@@ -248,7 +249,7 @@ function TesteEmail({ sugestao, rotulo, ajuda }: { sugestao: string; rotulo: str
         e.preventDefault();
         setBusy(true);
         setResultado(null);
-        const r = await testarEmail(await tokenAtual(), para).catch(() => null);
+        const r = await testarEmail(await tokenAtual(), para, canal).catch(() => null);
         setBusy(false);
         setResultado(r?.ok ? { ok: true, texto: `Enviado para ${r.dados}. Confira a caixa de entrada (e o spam).` } : { ok: false, texto: r?.error ?? "Não foi possível enviar agora." });
       }}
@@ -256,6 +257,13 @@ function TesteEmail({ sugestao, rotulo, ajuda }: { sugestao: string; rotulo: str
       <label htmlFor={id} className="text-xs font-medium text-[#17150F]">{rotulo}</label>
       <p className="text-xs text-[#6F6A5E]">{ajuda}</p>
       <div className="flex flex-wrap gap-2">
+        {canais && (
+          <select aria-label="Por qual canal" value={canal} onChange={(e) => setCanal(e.target.value as typeof canal)} className="h-11 rounded-[10px] border border-[#D8D2C6] bg-white px-2 text-sm">
+            <option value="auto">Automático (Resend, reserva Gmail)</option>
+            <option value="resend">Só o Resend</option>
+            <option value="gmail">Só o Gmail de reserva</option>
+          </select>
+        )}
         <input id={id} type="email" value={para} onChange={(e) => setPara(e.target.value)} placeholder="voce@exemplo.com" className="h-11 min-w-0 flex-1 rounded-[10px] border border-[#D8D2C6] px-3 text-sm" />
         <button type="submit" disabled={busy || !para.trim()} className={BOTAO_CLARO}>{busy ? "Enviando…" : "Enviar teste"}</button>
       </div>
