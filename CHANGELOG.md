@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Admin, gaveta do site → Visual: Tinta e Destaque lado a lado e a fonte dos títulos numa linha inteira embaixo. Em tela grande a gaveta punha três colunas espremidas e o seletor de fonte passava da borda.
+
 - Ajustes do /admin: cada serviço mostra se a chave está **válida**, **com problema** (e por quê: recusada, sem saldo, domínio não verificado…) ou **não configurada**, conferido ao vivo sem enviar nada nem gastar crédito (saldo da Comtele, domínios do Resend, login do Gmail, atendys, Anthropic), com "Verificar de novo". Novos testes de envio: e-mail, escolhendo o canal (automático, só Resend, só Gmail), e alerta. Novo ajuste "Endereço de contato" (ex.: contato@ruphus.site): é o "responder para" dos e-mails e o remetente do Gmail de reserva (o endereço precisa estar em "Enviar e-mail como" na conta do Gmail).
 
 - Equipe sem o WhatsApp pessoal do dono: o número que recebe os avisos de agendamento sai do documento do negócio (que a equipe lê pelo navegador) e vai para a área que só o servidor lê; o dono e o admin continuam vendo e editando. Rode `npm run mover:segredos-whatsapp -- --aplicar` uma vez para mover os que já estão gravados.
