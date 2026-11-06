@@ -11,6 +11,7 @@ import { RUPHUS } from "@/lib/catalogo";
 import { CamposNegocio, errosDe, VAZIO, type Valores } from "@/components/campos-negocio";
 import { idToken } from "@/lib/firebase";
 import { RECADO_MAX } from "@/lib/scheduling";
+import { QrDoLink } from "../qr-link";
 import { lerNegocioAction, salvarNegocioAction, salvarRecadoAction } from "../actions";
 import { InstalarPainel } from "../app-instalado";
 import { useTenant } from "../painel-layout";
@@ -263,6 +264,7 @@ export default function MeuNegocio() {
                   <a href={url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate py-2 font-medium underline underline-offset-2">{url.replace("https://", "")}</a>
                   <CopiarLink url={url} rotulo={rotulo} />
                 </div>
+                <QrDoLink url={url} rotulo={`${rotulo} de ${nome}`} arquivo={`qr-${rotulo === "Site" ? "site" : rotulo === "Agenda online" ? "agenda" : "bio"}-${slug}`} />
               </li>
             ))}
           </ul>

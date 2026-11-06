@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { openExternal } from "@/lib/utils";
+import { QrDoLink } from "./qr-link";
 
 /** Divulgação: o link de agendamento vive em bio do Instagram, status do WhatsApp e posts. */
 export function ShareLink({ tenantId, name }: { tenantId: string; name: string }) {
@@ -51,6 +52,7 @@ export function ShareLink({ tenantId, name }: { tenantId: string; name: string }
             )}
             <Button size="sm" variant="ghost" onClick={() => openExternal(url)}>Abrir página</Button>
           </div>
+          {url && <QrDoLink url={url} rotulo={`Agendamento de ${name}`} arquivo={`qr-agenda-${tenantId}`} />}
         </div>
       )}
     </div>
