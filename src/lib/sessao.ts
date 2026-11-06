@@ -31,7 +31,9 @@ export function loginComMotivo(base = "/login") {
 
 /** Sai da conta e apaga do aparelho os dados que o painel guardou para funcionar
  *  sem internet. O Firestore é carregado só aqui, e só se a página já o usava:
- *  o login e o admin não o baixam. Quem chama recarrega a página depois. */
+ *  o login e o admin não o baixam. Termina recarregando em /login: o Firestore encerrado
+ *  não volta, e navegar sem recarregar (router) deixava o painel seguinte quebrado com
+ *  "The client has already been terminated". */
 export async function sair() {
   // aparelho compartilhado: quem entrar depois não recebe os avisos deste negócio
   try {
@@ -47,6 +49,7 @@ export async function sair() {
   } catch {
     // sem IndexedDB (aba anônima antiga): não havia cache para apagar
   }
+  window.location.replace("/login");
 }
 
 const EVENTOS = ["pointerdown", "keydown", "scroll", "touchstart"] as const;

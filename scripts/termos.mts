@@ -15,6 +15,11 @@ if (pendente) falha(`Contrato com campo a preencher: ${[...new Set(pendente)].jo
 const versao = /\*\*Versão ([\d.]+)/.exec(corpo)?.[1];
 if (versao !== CONTRATO_VERSAO) falha(`O contrato diz versão ${versao}, e CONTRATO_VERSAO é ${CONTRATO_VERSAO}: deixe as duas iguais.`);
 
+// O texto do contrato: é o que o aceite congela. A moldura (estilo, cabeçalho, rodapé) segue
+// a identidade atual do ruphus.site e pode mudar sem subir a versão.
+const contrato = `<h1>${titulo}</h1>
+${(marked.parse(corpo) as string).replace(/<table>/g, '<div class="tabela"><table>').replace(/<\/table>/g, "</table></div>")}`;
+
 const html = `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -23,42 +28,16 @@ const html = `<!doctype html>
 <title>Termos de Contratação · Ruphus</title>
 <meta name="description" content="Contrato de prestação de serviço de site e agenda online da Ruphus.">
 <link rel="canonical" href="https://www.ruphus.site/termos">
-<meta name="theme-color" content="#171013">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Bodoni+Moda:opsz,wght@6..96,500;6..96,700&display=swap" rel="stylesheet">
-<style>
-:root{--noite:#171013;--borda:#372b30;--luz:#f2b56b;--osso:#f0e7e2;--fumo:#a2918d;
-  --disp:'Bodoni Moda',Georgia,serif;--corpo:'Archivo',system-ui,sans-serif}
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--noite);color:var(--osso);font-family:var(--corpo);font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
-a{color:var(--luz)}
-:focus-visible{outline:2px solid var(--luz);outline-offset:3px;border-radius:4px}
-.wrap{max-width:760px;margin:0 auto;padding:28px clamp(16px,5vw,32px) 80px}
-.topo{padding-bottom:22px;border-bottom:1px solid var(--borda);margin-bottom:36px}
-.marca{font-family:var(--disp);font-size:1.6rem;font-weight:700;color:var(--osso);text-decoration:none}
-h1{font-family:var(--disp);font-weight:500;font-size:clamp(2rem,5vw,2.8rem);line-height:1.1;margin:0 0 16px}
-h2{font-family:var(--disp);font-weight:500;font-size:1.4rem;margin:36px 0 10px}
-h3{font-size:1.05rem;font-weight:600;margin:24px 0 8px}
-p{margin:10px 0}
-ul,ol{padding-left:1.4em;margin:8px 0 16px}
-li{margin:6px 0}
-hr{border:0;border-top:1px solid var(--borda);margin:32px 0}
-.tabela{overflow-x:auto;margin:12px 0 18px}
-table{border-collapse:collapse;width:100%;font-size:.94rem}
-th,td{border:1px solid var(--borda);padding:8px 10px;text-align:left;vertical-align:top}
-th{color:var(--fumo);font-weight:600}
-code{font-size:.9em}
-blockquote{border:1px solid var(--luz);border-radius:10px;padding:4px 18px;margin:18px 0;background:#221a1e}
-blockquote p:first-child strong{color:var(--luz)}
-@media print{body{background:#fff;color:#000}a{color:#000}th,td{border-color:#999}.topo{display:none}}
-</style>
+<meta name="theme-color" content="#e5e5e5">
+<link rel="stylesheet" href="/marca/legal.css">
+<link rel="icon" type="image/svg+xml" href="/marca/icone.svg">
 </head>
 <body>
-<main class="wrap">
-  <div class="topo"><a class="marca" href="/sobre">Ruphus</a></div>
-  <h1>${titulo}</h1>
-${(marked.parse(corpo) as string).replace(/<table>/g, '<div class="tabela"><table>').replace(/<\/table>/g, "</table></div>")}
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+<main class="wrap" id="conteudo" tabindex="-1">
+  <header class="topo"><a class="marca" href="/" aria-label="Ruphus, início">ruphus</a><nav aria-label="Navegação institucional"><a href="/">Início</a><a href="/termos">Termos</a><a href="/privacidade">Privacidade</a></nav></header>
+  ${contrato}
+<footer><span>Ruphus · Fonseca Gestão e Tecnologia Ltda.</span><a href="/">Voltar ao início</a></footer>
 </main>
 </body>
 </html>
@@ -68,20 +47,11 @@ const fixa = `public/termos/${versao}/index.html`;
 // a versão publicada é a do git, não só a do disco: apagar o arquivo não libera reescrever
 const noGit = (() => { try { return execFileSync("git", ["show", `HEAD:${fixa}`], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }); } catch { return null; } })();
 const publicada = noGit ?? (existsSync(fixa) ? readFileSync(fixa, "utf8") : null);
-if (publicada !== null && publicada !== html) {
+// só o texto conta: quem aceitou leu aquele contrato, não aquele CSS
+if (publicada !== null && !publicada.includes(contrato)) {
   falha(`A versão ${versao} já foi publicada com outro texto. Quem aceitou leu aquela: suba a versão.`);
 }
 mkdirSync(`public/termos/${versao}`, { recursive: true });
 writeFileSync(fixa, html);
-// A apresentação atual não altera o arquivo da versão que o cliente aceitou.
-const atual = html
-  .replace(/<link[^>]+(?:fonts.googleapis.com|fonts.gstatic.com)[^>]*>\n/g, "")
-  .replace(/<style>[\s\S]*?<\/style>/, '<link rel="stylesheet" href="/marca/legal.css">')
-  .replace('content="#171013"', 'content="#e5e5e5"')
-  .replace("</head>", '<link rel="icon" type="image/svg+xml" href="/marca/icone.svg">\n</head>')
-  .replace("<body>", '<body>\n<a class="pular" href="#conteudo">Pular para o conteúdo</a>')
-  .replace('<main class="wrap">', '<main class="wrap" id="conteudo" tabindex="-1">')
-  .replace(/<div class="topo">[\s\S]*?<\/div>/, '<header class="topo"><a class="marca" href="/" aria-label="Ruphus, início">ruphus</a><nav aria-label="Navegação institucional"><a href="/">Início</a><a href="/termos">Termos</a><a href="/privacidade">Privacidade</a></nav></header>')
-  .replace("</main>", '<footer><span>Ruphus · Fonseca Gestão e Tecnologia Ltda.</span><a href="/">Voltar ao início</a></footer>\n</main>');
-writeFileSync("public/termos/index.html", atual);
+writeFileSync("public/termos/index.html", html);
 console.log(`${fixa} e public/termos/index.html gerados`);
