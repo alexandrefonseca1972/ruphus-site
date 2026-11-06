@@ -531,7 +531,7 @@ export default function AdminPage() {
     }
     if (d.cobrarEntrada) {
       const r = await cobrar(t, slug, "entrada", null);
-      feito.push(r.ok ? "cobrança da entrada gerada (aba Cobrança)" : `entrada não gerada: ${r.error}`);
+      feito.push(r.ok ? "cobrança da taxa de ativação gerada (aba Cobrança)" : `taxa de ativação não gerada: ${r.error}`);
     }
     if (janela) {
       const c = { ...(crm[slug] ?? VAZIO), entradaCents: d.entradaCents, mensalCents: d.mensalCents, estagio: "fechado" as const };
@@ -1844,7 +1844,7 @@ export default function AdminPage() {
             {/* Preço só importa ao propor e ao fechar: fica a um clique */}
             <details key={`precos-${aberto.slug}`} className="rounded-2xl border border-[#E2DDD3] px-4 py-3">
               <summary className="cursor-pointer text-[12.5px] text-[#4A4639]">
-                Proposta · {formatBRL(crm[aberto.slug]?.entradaCents ?? PRECO_PADRAO.entradaCents)} de entrada + {formatBRL(crm[aberto.slug]?.mensalCents ?? PRECO_PADRAO.mensalCents)}/mês
+                Proposta · {formatBRL(crm[aberto.slug]?.entradaCents ?? PRECO_PADRAO.entradaCents)} de ativação + {formatBRL(crm[aberto.slug]?.mensalCents ?? PRECO_PADRAO.mensalCents)}/mês
               </summary>
               <div className="mt-3 flex flex-col gap-3">
                 {/* O link é a proposta: o dono abre no celular, lê e fecha pelo
@@ -1915,7 +1915,7 @@ export default function AdminPage() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {(
                   [
-                    { id: "entrada", rotulo: "Entrada", campo: "entradaCents", padrao: PRECO_PADRAO.entradaCents, sufixo: "" },
+                    { id: "entrada", rotulo: "Taxa de ativação", campo: "entradaCents", padrao: PRECO_PADRAO.entradaCents, sufixo: "" },
                     { id: "mensal", rotulo: "Mensalidade", campo: "mensalCents", padrao: PRECO_PADRAO.mensalCents, sufixo: "/mês" },
                   ] as const
                 ).map((c) => (

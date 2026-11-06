@@ -492,7 +492,7 @@ async function enviaveis(cobrancas: Cobranca[]): Promise<CobrancaEnviavel[]> {
     const { nome, telefone } = nomes.get(c.slug) ?? { nome: c.slug, telefone: null };
     const primeiro = dono.get(c.slug)?.nome?.split(" ")[0];
     const url = `${base}/pagar/${c.id}?t=${c.token}`;
-    const oque = c.tipo === "entrada" ? "a entrada" : `a mensalidade de ${mesLongo(c.competencia)}`;
+    const oque = c.tipo === "entrada" ? "a taxa de ativação" : `a mensalidade de ${mesLongo(c.competencia)}`;
     const texto = `Olá${primeiro ? `, ${primeiro}` : ""}! Aqui é da Ruphus. Segue o Pix ${oque} do ${nome}: ${formatBRL(c.valorCents)}, com vencimento em ${diaCurto(c.vencimento)}.\n\nO QR e o copia e cola estão aqui: ${url}\n\nDepois de pagar, me manda o comprovante por aqui que eu confirmo.`;
     return { ...c, nome, telefone, url, whatsapp: linkWhatsApp(telefone, texto) };
   });

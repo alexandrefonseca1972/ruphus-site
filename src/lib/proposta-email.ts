@@ -61,7 +61,7 @@ export function emailDaProposta(p: {
       `A Ruphus resolve isso: a agenda fica aberta o dia inteiro, e o horário ocupado some para o próximo cliente.`,
       `O que está incluído:\n${FUNCIONALIDADES.map(([t, d]) => `• ${t}: ${d}`).join("\n")}`,
       `Por que a Ruphus:\n${VANTAGENS.map((v) => `• ${v}`).join("\n")}`,
-      `Investimento:\nPara publicar: ${entrada}, uma vez, com a implantação feita junto com você.\nPor mês: ${mensal}, com agenda no ar, atualizações e suporte.`,
+      `Investimento:\nTaxa de ativação: ${entrada}, uma vez, com a implantação feita junto com você.\nPor mês: ${mensal}, com agenda no ar, atualizações e suporte.`,
       `Como começa:\n${COMECA.map((c, i) => `${i + 1}. ${c}`).join("\n")}\nLeva menos de um dia entre o sim e a agenda recebendo marcação.`,
       `Proposta completa, com tudo em uma página: ${p.url}`,
       `Ela vale até ${prazo}. Qualquer dúvida, é só responder este e-mail.`,
@@ -117,7 +117,7 @@ ${VANTAGENS.map((v) => `<li style="margin:0 0 4px;">${esc(v)}</li>`).join("\n")}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E2DDD3;border-radius:12px;">
 <tr>
 <td width="50%" style="padding:18px 20px;border-right:1px solid #E2DDD3;vertical-align:top;">
-<p style="margin:0 0 4px;font-size:12px;color:#6F6A5E;">Para publicar</p>
+<p style="margin:0 0 4px;font-size:12px;color:#6F6A5E;">Taxa de ativação</p>
 <p style="margin:0;font-size:22px;font-weight:700;">${esc(entrada)}</p>
 <p style="margin:4px 0 0;font-size:12px;line-height:1.5;color:#6F6A5E;">uma vez, com a implantação feita junto com você</p>
 </td>

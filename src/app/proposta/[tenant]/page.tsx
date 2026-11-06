@@ -97,7 +97,7 @@ export default async function Proposta({
           <h2 id="preco" className="font-[family-name:var(--fonte-serifa)] text-[24px] leading-none">Quanto custa</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1 rounded-xl bg-[#F7F5EF] p-4">
-              <span className="font-[family-name:var(--font-geist-mono)] text-[10px] tracking-[0.12em] text-[#6B6555] uppercase">Para publicar</span>
+              <span className="font-[family-name:var(--font-geist-mono)] text-[10px] tracking-[0.12em] text-[#6B6555] uppercase">Taxa de ativação</span>
               <span className="font-[family-name:var(--fonte-serifa)] text-[30px] leading-none tabular-nums">{formatBRL(p.entradaCents)}</span>
               <span className="text-[13px] text-[#4A4639]">uma vez, com a implantação feita junto com você</span>
             </div>

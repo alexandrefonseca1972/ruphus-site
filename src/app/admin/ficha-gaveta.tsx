@@ -60,7 +60,7 @@ export function FichaDoNegocio({ slug, token }: { slug: string; token: () => Pro
     ["Origem", ORIGEM[ficha.tipo]],
     ["Entrou em", dia(ficha.criadoEm)],
     ["Dados do site de", dia(ficha.atualizadoEm)],
-    ["Site", ficha.publicado ? "Publicado (entrada paga)" : "Com faixa de proposta"],
+    ["Site", ficha.publicado ? "Publicado (ativação paga)" : "Com faixa de proposta"],
     ["WhatsApp conectado", ficha.whatsapp ? `${ficha.whatsapp.status}${ficha.whatsapp.phone ? ` · ${formatPhone(ficha.whatsapp.phone)}` : ""}` : "Não"],
   ];
 

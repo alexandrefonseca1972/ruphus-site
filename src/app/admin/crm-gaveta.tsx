@@ -300,7 +300,7 @@ export function mensagem(modelo: Modelo, negocio: Negocio, crm: Crm, vendedor?: 
     case "Última tentativa":
       return `${oi} Não vou insistir. A prévia fica no ar em ${site}. Se quiser ver depois, é só responder.`;
     case "Proposta":
-      return `${oi} Combinado: o ${negocio.nome} em ${site}.\n\nInclui serviços com preço e duração, horário de cada profissional e link na bio do Instagram.\n\nValores: ${entrada} para publicar e ${mensal} por mês, sem taxa por agendamento.${linkProposta ? `\n\nProposta completa, válida por ${DIAS_PROPOSTA} dias: ${linkProposta}` : ""}\n\nPosso liberar seu acesso para testar com um cliente hoje?`;
+      return `${oi} Combinado: o ${negocio.nome} em ${site}.\n\nInclui serviços com preço e duração, horário de cada profissional e link na bio do Instagram.\n\nValores: taxa de ativação de ${entrada} e ${mensal} por mês, sem taxa por agendamento.${linkProposta ? `\n\nProposta completa, válida por ${DIAS_PROPOSTA} dias: ${linkProposta}` : ""}\n\nPosso liberar seu acesso para testar com um cliente hoje?`;
     case "Boas-vindas":
       return `${oi} Que bom. A agenda do ${negocio.nome} está em ${site}.\n\nVamos finalizar juntos: serviços, horários da equipe e link na bio. Qual horário funciona para você hoje ou amanhã?`;
   }
@@ -826,7 +826,7 @@ export function VendaFechada({
   const invalido = !(cents(mensal) > 0) || Number.isNaN(entradaCents) || entradaCents < 0;
 
   const opcoes = [
-    { id: "cobrar", rotulo: "Gerar a cobrança da entrada", detalhe: "Pix com link", on: cobrarEntrada, set: setCobrarEntrada, mostrar: entradaCents > 0 },
+    { id: "cobrar", rotulo: "Gerar a cobrança da taxa de ativação", detalhe: "Pix com link", on: cobrarEntrada, set: setCobrarEntrada, mostrar: entradaCents > 0 },
     { id: "boas", rotulo: "Enviar boas-vindas no WhatsApp", detalhe: crm.donoNome ? `para ${crm.donoNome.split(" ")[0]}` : "para o dono", on: boasVindas, set: setBoasVindas, mostrar: true },
     { id: "convite", rotulo: "Incluir o convite do painel", detalhe: "o dono ainda não entrou", on: convite, set: setConvite, mostrar: precisaConvite },
   ];
@@ -843,7 +843,7 @@ export function VendaFechada({
           <div className="grid grid-cols-2 gap-3">
             {(
               [
-                ["Entrada", entrada, setEntrada],
+                ["Taxa de ativação", entrada, setEntrada],
                 ["Mensalidade", mensal, setMensal],
               ] as const
             ).map(([rotulo, valor, set]) => (
@@ -861,7 +861,7 @@ export function VendaFechada({
               </label>
             ))}
           </div>
-          {invalido && <p role="alert" className="text-xs text-[#8A2F2F]">Informe a mensalidade (e a entrada, se houver).</p>}
+          {invalido && <p role="alert" className="text-xs text-[#8A2F2F]">Informe a mensalidade (e a taxa de ativação, se houver).</p>}
           <fieldset className="grid gap-2">
             <legend className="mb-2 text-xs text-[#6F6A5E]">Já fazer agora</legend>
             {opcoes
