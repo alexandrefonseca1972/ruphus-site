@@ -192,4 +192,4 @@ export function paraGerador(sep: Separacao) {
 }
 
 /** "já temos: Fulano (site x)" e "gerador: Não reconheci o nicho (…)" contam juntos no resumo. */
-export const motivoCurto = (m: string) => m.replace(/^gerador: /, "").replace(/[:(“].*/, "").trim();
+export const motivoCurto = (m: string) => m.replace(/^gerador: /, "").replace(/[:(“].*/, "").replace(/ em\s*$/, "").trim();
