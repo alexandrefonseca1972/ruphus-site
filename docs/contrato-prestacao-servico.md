@@ -5,7 +5,7 @@
      CONTRATO_VERSAO em src/lib/contrato.ts. O script recusa sobrescrever uma versão
      já publicada e recusa gerar com marcador [[...]] pendente. -->
 
-**Versão 1.0 — vigente a partir de 1º de novembro de 2026**
+**Versão 1.1 — vigente a partir de 6 de novembro de 2026**
 
 Estes Termos são o contrato de prestação de serviço entre a Ruphus e quem
 contrata o site e a agenda online. Ao marcar "Li e aceito", o Cliente declara
@@ -15,7 +15,7 @@ que leu, entendeu e concorda com eles.
 >
 > - **Sem fidelidade:** cancele quando quiser, sem multa.
 > - **7 dias para desistir:** dentro desse prazo, devolvemos tudo o que você pagou.
-> - **Preço:** taxa de implantação e mensalidade pré-paga, com vencimento no dia 10,
+> - **Preço:** taxa de ativação e mensalidade pré-paga, com vencimento no dia 10,
 >   nos valores da proposta ou do Anexo I. Reajuste só uma vez por ano, pelo IPCA.
 > - **Atraso:** depois de 10 dias de atraso, o site e o agendamento podem sair do
 >   ar. Nada é apagado.
@@ -86,7 +86,7 @@ qualquer integração com sistemas de terceiros não listados acima.
    O convite é pessoal e só abre com aquele e-mail; ao abri-lo, o responsável
    aceita estes Termos. Se o convite vencer, a Ruphus envia outro.
 2. As partes cadastram juntas os serviços, os profissionais e os horários.
-3. O pagamento da taxa de implantação **publica o site**: ele deixa de ser
+3. O pagamento da taxa de ativação **publica o site**: ele deixa de ser
    demonstração e passa a aparecer nos buscadores.
 4. A implantação é considerada concluída quando o site está publicado e o painel
    está acessível ao Cliente, o que ocorrerá em até **5 dias úteis** contados do
@@ -94,7 +94,7 @@ qualquer integração com sistemas de terceiros não listados acima.
    ocorrer por último.
 5. **Cadastro pelo próprio Cliente.** Quem cria a conta e o negócio direto no
    site da Ruphus monta o site no painel, mas **não há período de avaliação**:
-   até o pagamento da taxa de implantação o site é só demonstração, fora dos
+   até o pagamento da taxa de ativação o site é só demonstração, fora dos
    buscadores. Pago a taxa, vale o item 3. Sem pagamento em 14 dias corridos do
    cadastro, a Ruphus pode tirar a demonstração do ar, e os dados são apagados
    90 dias depois, salvo pedido de cópia (cláusula 12.5).
@@ -201,7 +201,7 @@ com o Cliente; o endereço `{nome}.ruphus.site` deixa de responder por ele.
 1. **Valores.** Os valores são os da **proposta comercial** enviada ao Cliente.
    Na falta dela, valem os do **Anexo I**. A proposta vale para preço e condições
    comerciais; para todo o resto, valem estes Termos.
-2. **Taxa de implantação.** Paga à vista, remunera a configuração e a publicação
+2. **Taxa de ativação.** Paga à vista, remunera a configuração e a publicação
    do site. O uso até o primeiro vencimento da mensalidade é cortesia.
 3. **Mensalidade pré-paga.** Vence todo dia **10** e cobre o próprio mês. A
    primeira vence no dia 10 do mês seguinte à publicação do site.
@@ -316,7 +316,7 @@ com o Cliente; o endereço `{nome}.ruphus.site` deixa de responder por ele.
 
 1. **Sem fidelidade.** O contrato vale por prazo indeterminado a partir do aceite.
 2. **Direito de desistência.** O Cliente pode desistir em até **7 dias
-   corridos**, contados do aceite ou do pagamento da taxa de implantação, o que
+   corridos**, contados do aceite ou do pagamento da taxa de ativação, o que
    ocorrer por último, por WhatsApp ou e-mail. Ele recebe de volta **tudo o que
    pagou**, em até 10 dias, pelo mesmo meio de pagamento, e o site e o
    agendamento saem do ar.
@@ -326,7 +326,7 @@ com o Cliente; o endereço `{nome}.ruphus.site` deixa de responder por ele.
 > 3. **Cancelamento pelo Cliente.** A qualquer tempo, sem multa, por mensagem no
 >    WhatsApp ou e-mail da Ruphus. O serviço continua até o fim do mês já pago, e
 >    **não há devolução proporcional** da mensalidade em curso. Ressalvado o
->    direito de desistência do item 2, a **taxa de implantação não é devolvida**
+>    direito de desistência do item 2, a **taxa de ativação não é devolvida**
 >    após a publicação do site.
 
 4. **Encerramento pela Ruphus.** Com aviso de 30 dias, ou imediatamente em caso
@@ -394,7 +394,7 @@ trouxer outro valor.
 
 | Item | Valor | Cobrança |
 |---|---|---|
-| Taxa de implantação | R$ 250,00 | uma vez, à vista |
+| Taxa de ativação | R$ 250,00 | uma vez, à vista |
 | Mensalidade | R$ 89,90 | por mês, pré-paga, dia 10 |
 | Domínio próprio | R$ 100,00 | uma vez, pela configuração |
 | Lembretes por WhatsApp | incluído | — |
