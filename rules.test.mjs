@@ -149,6 +149,15 @@ const dani = as("dani");
 await assertFails(changeStatus(dani, "dani", "cancelled", { apptId: "da-bia" })); // horário de outro profissional
 await assertSucceeds(changeStatus(dani, "dani", "confirmed", { apptId: "da-ana" }));
 await assertSucceeds(changeStatus(bob, "bob", "cancelled", { apptId: "da-bia" })); // quem gere muda qualquer um
+// recebido no Caixa: não cancela nem vira falta (o dinheiro ficaria contando); confirmar ainda pode
+await env.withSecurityRulesDisabled(async (ctx) => {
+  const db = ctx.firestore();
+  await setDoc(doc(db, "tenants/acme/appointments/pago"), { status: "booked", start: new Date(), customerName: "W" });
+  await setDoc(doc(db, "tenants/acme/lancamentos/ag-pago"), { tipo: "entrada", valorCents: 1000 });
+});
+await assertFails(changeStatus(bob, "bob", "cancelled", { apptId: "pago" }));
+await assertFails(changeStatus(bob, "bob", "no_show", { apptId: "pago" }));
+await assertSucceeds(changeStatus(bob, "bob", "confirmed", { apptId: "pago" }));
 await assertFails(deleteDoc(doc(alice, "tenants/acme/history/old")));
 await assertFails(deleteDoc(doc(alice, "tenants/acme/appointments/a1")));
 await assertFails(setDoc(doc(alice, "tenants/acme/appointments/novo"), { status: "booked" })); // só o servidor cria

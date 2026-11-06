@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { addDays, todayIn, zonedTime } from "@/lib/datetime";
-import { categorias, comissoesDoMes, csvDoMes, diaNoMes, pctDoTexto, idDaBaixa, idDoEstorno, idDoPagamento, resumoDoMes } from "@/lib/financeiro";
-import { adicionarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
+import { categorias, comissoesDoMes, csvDoMes, diaNoMes, pctDoTexto, idDaBaixa, idDoEstorno, idDoPagamento, fixaNoMes, LancamentoInput, mesDaComissao, resumoDoMes } from "@/lib/financeiro";
+import { adicionarFixa, editarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
 const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
 const quem = { uid: "dona", email: "dona@teste.dev" };
@@ -102,7 +102,7 @@ assert.deepEqual([cfg.fixas.map((f: { nome: string }) => f.nome), cfg.comissoes]
 assert.equal(cfg.fixas[0].desde, mes, "a conta nasce no mês em que foi criada");
 const aluguel = cfg.fixas[0].id as string;
 await removerFixa(db, "salao", cfg.fixas[1].id);
-assert.equal((await db.doc("tenants/salao/caixa/config").get()).get("fixas").length, 1);
+assert.equal((await db.doc("tenants/salao/caixa/config").get()).get("fixas").filter((f: { ate?: string }) => !f.ate).length, 1, "tirada fica só até este mês");
 assert.deepEqual((await db.doc("tenants/salao/caixa/config").get()).get("comissoes"), { bia: 40, leo: 30 }, "tirar conta não mexe na comissão");
 await pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes, valorCents: 119000, forma: "pix" }, quem);
 const fx = (await db.doc(`tenants/salao/lancamentos/${idDoPagamento("fixa", aluguel, mes)}`).get()).data()!;
@@ -115,12 +115,31 @@ await assert.rejects(pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes: "2
 await db.doc("tenants/salao/caixa/config").update({ fixas: (await db.doc("tenants/salao/caixa/config").get()).get("fixas").map((f: object) => ({ ...f, desde: "2026-01" })) });
 await pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes: "2026-02", valorCents: 120000, forma: "pix" }, quem);
 assert.equal((await db.doc(`tenants/salao/lancamentos/${idDoPagamento("fixa", aluguel, "2026-02")}`).get()).get("data"), "2026-02-05");
+// editar a conta (o aluguel subiu) mantém o id: o mês já pago continua pago
+await editarFixa(db, "salao", aluguel, { nome: "Aluguel", valorCents: 150000, dia: 5, categoria: "Aluguel" });
+const editada = (await db.doc("tenants/salao/caixa/config").get()).get("fixas")[0];
+assert.deepEqual([editada.id, editada.valorCents, editada.desde], [aluguel, 150000, "2026-01"]);
+// mês que ainda não chegou não se paga
+const proximo = new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 15)).toISOString().slice(0, 7);
+await assert.rejects(pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes: proximo, valorCents: 150000, forma: "pix" }, quem), /ainda não chegou/);
+// tirar: some deste mês em diante, os meses de antes continuam
+await removerFixa(db, "salao", aluguel);
+const tirada = (await db.doc("tenants/salao/caixa/config").get()).get("fixas")[0];
+assert.deepEqual([tirada.id, tirada.ate], [aluguel, proximo], "a deste mês continua a pagar");
+await removerFixa(db, "salao", aluguel);
+assert.equal((await db.doc("tenants/salao/caixa/config").get()).get("fixas")[0].ate, proximo, "tirar de novo não mexe");
+await pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes: "2026-03", valorCents: 120000, forma: "pix" }, quem);
+await assert.rejects(editarFixa(db, "salao", aluguel, { nome: "x", valorCents: 1, dia: 1, categoria: "Aluguel" }), /não encontrada/);
+assert.equal(fixaNoMes(tirada, "2026-03"), true);
+assert.equal(fixaNoMes(tirada, mes), true);
+assert.equal(fixaNoMes(tirada, proximo), false);
 await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "ninguem", mes, valorCents: 1680, forma: "pix" }, quem), /Profissional não encontrado/);
 // a Bia saiu da equipe (sem staff/bia), mas atendeu no mês: a comissão sai com o nome da baixa
 const mesBia = addDays(hoje, -1).slice(0, 7); // o mês do atendimento "passado"
 await pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: mesBia, valorCents: 1680, forma: "dinheiro" }, quem);
 const cm = (await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "bia", mesBia)}`).get()).data()!;
 assert.deepEqual([cm.tipo, cm.categoria, cm.descricao, cm.staffId, cm.staffName], ["saida", "Comissão/salário", "Comissão Bia", "bia", "Bia"], "o nome vai para a coluna Profissional da planilha");
+assert.equal(typeof cm.pctComissao, "number", "o % do pagamento fica gravado para os ajustes de depois");
 await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: mesBia, valorCents: 1680, forma: "pix" }, quem), /já foi paga/);
 
 // estorno: saída de hoje ligada à entrada, com o profissional dela, uma vez só e até o valor recebido
@@ -155,6 +174,8 @@ const ce = comissoesDoMes(
   { bia: 1500, leo: 3000, ana: -500 },
 );
 assert.deepEqual(ce.map((c) => [c.staffId, c.bruto, c.abatido, c.valor]), [["bia", 4000, 1500, 2500], ["leo", 1000, 1000, 0], ["ana", 100, -500, 600]]);
+// crédito sem atendimento no mês (saiu da equipe): a linha aparece para pagar
+assert.deepEqual(comissoesDoMes([], { rui: 30 }, { rui: -5000, bia: 300 }, { rui: "Rui" }).map((c) => [c.staffId, c.nome, c.valor]), [["rui", "Rui", 5000]]);
 assert.deepEqual(
   resumoDoMes([
     { tipo: "entrada", valorCents: 10000, categoria: "Atendimento", forma: "pix", staffName: "Bia" },
@@ -162,22 +183,42 @@ assert.deepEqual(
   ]).porProfissional,
   [["Bia", 7000]],
 );
+// por id: duas "Ana" ficam separadas, a renomeada fica uma linha com o nome novo; por forma sem estorno
+const rp = resumoDoMes([
+  { tipo: "entrada", valorCents: 1000, categoria: "Atendimento", forma: "pix", staffId: "a1", staffName: "Ana", data: "2026-11-01" },
+  { tipo: "entrada", valorCents: 2000, categoria: "Atendimento", forma: "pix", staffId: "a2", staffName: "Ana", data: "2026-11-01" },
+  { tipo: "entrada", valorCents: 3000, categoria: "Atendimento", forma: "dinheiro", staffId: "b1", staffName: "Bia", data: "2026-11-01" },
+  { tipo: "entrada", valorCents: 4000, categoria: "Atendimento", forma: "dinheiro", staffId: "b1", staffName: "Beatriz", data: "2026-11-20" },
+  { tipo: "saida", valorCents: 500, categoria: "Estorno", forma: "pix", staffId: "a1", staffName: "Ana", estornoDe: "x", data: "2026-11-21" },
+]);
+assert.deepEqual(rp.porProfissional, [["Beatriz", 7000], ["Ana", 2000], ["Ana", 500]]);
+assert.deepEqual(rp.porForma, [["Dinheiro", 7000], ["Pix", 2500]]);
 // pagar a comissão abate o guardado, nunca mais do que há; R$ 0 só quando o estorno zerou a comissão
 await db.doc("tenants/salao/staff/bia").set({ name: "Bia" });
-// atendimentos da Bia: 2027-01 rende R$ 10 de comissão (40% de 25), 2027-03 rende R$ 20
+// atendimentos da Bia: 2025-01 rende R$ 10 de comissão (40% de 25), 2025-03 rende R$ 20
 const atendimento = (id: string, mes: string, valorCents: number) =>
   db.doc(`tenants/salao/lancamentos/${id}`).set({ tipo: "entrada", valorCents, mes, data: `${mes}-10`, categoria: "Atendimento", forma: "pix", staffId: "bia", staffName: "Bia" });
-await atendimento("t1", "2027-01", 2500);
-await atendimento("t3", "2027-03", 5000);
-await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2027-02", valorCents: 0, forma: "pix" }, quem), /Informe o valor/);
-await pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2027-01", valorCents: 0, forma: "pix", descontoCents: 1000 }, quem);
-assert.equal((await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "bia", "2027-01")}`).get()).get("descontoCents"), 1000);
+await atendimento("t1", "2025-01", 2500);
+await atendimento("t3", "2025-03", 5000);
+await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2025-02", valorCents: 0, forma: "pix" }, quem), /Não há comissão a pagar/);
+await pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2025-01", valorCents: 0, forma: "pix", descontoCents: 1000 }, quem);
+assert.equal((await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "bia", "2025-01")}`).get()).get("descontoCents"), 1000);
 assert.equal(await descontoBia(), 680, "o resto fica para o próximo");
-await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2027-03", valorCents: 0, forma: "pix", descontoCents: 680 }, quem), /Informe o valor/, "R$ 0 só quando o estorno cobre a comissão toda");
-await pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2027-03", valorCents: 100, forma: "pix", descontoCents: 99999 }, quem);
-assert.equal(await descontoBia(), 0, "não abate mais do que está guardado");
+// o pagamento de R$ 0 (todo abatido) ainda se corrige; outro lançamento não fica com R$ 0
+await editar(db, "salao", idDoPagamento("comissao", "bia", "2025-01"), { tipo: "saida", valorCents: 0, data: "2025-01-31", categoria: "Comissão/salário", forma: "dinheiro" }, quem);
+assert.equal((await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "bia", "2025-01")}`).get()).get("forma"), "dinheiro");
+await assert.rejects(editar(db, "salao", "t1", { tipo: "entrada", valorCents: 0, data: "2025-01-10", categoria: "Atendimento", forma: "pix" }, quem), /Informe o valor/);
+await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2025-03", valorCents: 0, forma: "pix", descontoCents: 680 }, quem), /comissão deste mês é R\$\s?13,20/, "R$ 0 só quando o estorno cobre a comissão toda");
+// pagar a menos não quita o mês: o servidor só aceita o valor que a conta dá
+await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2025-03", valorCents: 100, forma: "pix", descontoCents: 680 }, quem), /comissão deste mês é/);
+// tela desatualizada (o desconto que ela via já foi abatido em outro pagamento): recusa, não paga o valor errado
+await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2025-03", valorCents: 100, forma: "pix", descontoCents: 99999 }, quem), /mudou enquanto a tela/);
+await pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2025-03", valorCents: 1320, forma: "pix", descontoCents: 680 }, quem);
+assert.equal(await descontoBia(), 0, "abateu o que estava guardado");
+// comissão de mês que ainda não chegou não se paga
+await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: "2099-01", valorCents: 100, forma: "pix" }, quem), /ainda não pode ser paga/);
 // apagar o pagamento devolve o que ele abateu; apagar o estorno tira o desconto dele (o já abatido volta ao profissional)
-await excluir(db, "salao", idDoPagamento("comissao", "bia", "2027-03"));
+await excluir(db, "salao", idDoPagamento("comissao", "bia", "2025-03"));
 assert.equal(await descontoBia(), 680);
 // apagar o estorno: o recebimento volta a valer e pode ser estornado de novo
 await excluir(db, "salao", es);
@@ -185,7 +226,7 @@ assert.equal(await descontoBia(), -1000, "1000 já abatidos de um estorno desfei
 await estornar(db, "salao", { lancamentoId: recebido, valorCents: 4200, forma: "dinheiro" }, quem);
 assert.equal(await descontoBia(), 680);
 await excluir(db, "salao", es);
-await excluir(db, "salao", idDoPagamento("comissao", "bia", "2027-01"));
+await excluir(db, "salao", idDoPagamento("comissao", "bia", "2025-01"));
 assert.equal(await descontoBia(), 0);
 await db.doc("tenants/salao/staff/bia").delete();
 await db.doc("tenants/salao/lancamentos/t1").delete();
@@ -218,13 +259,100 @@ assert.equal((await db.doc(`tenants/salao/lancamentos/${idDaBaixa("sinal-no-caix
 // sinal fora do Caixa (confirmado com ele desligado): entra junto na baixa
 await comSinal("sinal-fora");
 await baixarAgendamento(db, "salao", { appointmentId: "sinal-fora", valorCents: 7000, forma: "dinheiro", sinalCents: 3000 }, quem);
+// o sinal entra como o lançamento dele, por Pix; a baixa fica com o que entrou no balcão
 const fora = (await db.doc(`tenants/salao/lancamentos/${idDaBaixa("sinal-fora")}`).get()).data()!;
-assert.equal(fora.valorCents, 10000);
-assert.match(fora.descricao, /com sinal de R\$\s?30,00/);
+const snFora = (await db.doc("tenants/salao/lancamentos/sn-sinal-fora").get()).data()!;
+assert.deepEqual([fora.valorCents, fora.forma], [7000, "dinheiro"]);
+assert.deepEqual([snFora.valorCents, snFora.forma, snFora.staffId, snFora.data], [3000, "pix", "bia", fora.data]);
+// depois da baixa, apagar o sinal o perderia de vez
+await assert.rejects(excluir(db, "salao", "sn-sinal-fora"), /Apague o recebimento do atendimento antes/);
+await assert.rejects(excluir(db, "salao", "sn-sinal-no-caixa"), /Apague o recebimento do atendimento antes/);
+// sinal de horário ainda marcado não se devolve pelo estorno: a baixa ainda o descontaria
+await comSinal("sinal-vivo");
+await db.doc("tenants/salao/lancamentos/sn-sinal-vivo").set({ tipo: "entrada", valorCents: 3000, data: hoje, mes: hoje.slice(0, 7), categoria: "Atendimento", forma: "pix", staffId: "bia" });
+await assert.rejects(estornar(db, "salao", { lancamentoId: "sn-sinal-vivo", valorCents: 3000, forma: "pix" }, quem), /Cancele o agendamento/);
+await db.doc("tenants/salao/appointments/sinal-vivo").update({ status: "cancelled" });
+await estornar(db, "salao", { lancamentoId: "sn-sinal-vivo", valorCents: 3000, forma: "pix" }, quem);
+// data impossível não cria um mês que nenhuma tela mostra
+assert.equal(LancamentoInput.safeParse({ ...entrada, data: "2026-13-45" }).success, false);
+assert.equal(LancamentoInput.safeParse({ ...entrada, data: "2026-02-30" }).success, false);
+assert.equal(LancamentoInput.safeParse({ ...entrada, data: "2028-02-29" }).success, true);
+// recebimento apagado ou corrigido depois de paga a comissão do mês: a diferença vai para o desconto
+await db.doc("tenants/salao/caixa/config").set({ comissoes: { leo: 50 }, descontos: { leo: 0 } }, { merge: true });
+const leo = (id: string, valorCents: number) => db.doc(`tenants/salao/lancamentos/${id}`).set({ tipo: "entrada", valorCents, mes: "2025-05", data: "2025-05-10", categoria: "Atendimento", forma: "pix", staffId: "leo", staffName: "Léo", appointmentId: id.slice(3) });
+await leo("ag-leo1", 10000);
+await leo("ag-leo2", 4000);
+const descontoLeo = async () => (await db.doc("tenants/salao/caixa/config").get()).get("descontos.leo");
+await editar(db, "salao", "ag-leo1", { ...entrada, valorCents: 8000 }, quem);
+assert.equal(await descontoLeo(), 0, "comissão ainda não paga: nada a guardar");
+// pago a 50%; depois o % muda para 10: o ajuste segue o % do pagamento
+await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "leo", "2025-05")}`).set({ tipo: "saida", valorCents: 6000, mes: "2025-05", staffId: "leo", pctComissao: 50 });
+await db.doc("tenants/salao/caixa/config").set({ comissoes: { leo: 10 } }, { merge: true });
+await editar(db, "salao", "ag-leo1", { ...entrada, valorCents: 6000 }, quem);
+assert.equal(await descontoLeo(), 1000, "50% dos 2000 a menos");
+await excluir(db, "salao", "ag-leo2");
+assert.equal(await descontoLeo(), 3000, "mais 50% dos 4000 apagados");
+await editar(db, "salao", "ag-leo1", { ...entrada, valorCents: 7000 }, quem);
+assert.equal(await descontoLeo(), 2500, "valor subiu: a comissão a mais volta");
+// apagar o pagamento desfaz os ajustes dele: pagar de novo usa só o faturamento de agora
+assert.equal((await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "leo", "2025-05")}`).get()).get("ajusteCents"), 2500);
+await excluir(db, "salao", idDoPagamento("comissao", "leo", "2025-05"));
+assert.equal(await descontoLeo(), 0, "sem pagamento, nada a descontar");
+// recebimento que cai num mês de comissão já paga (o atendimento do dia 31 recebido depois): fica devendo ao Léo
+await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "leo", "2025-05")}`).set({ tipo: "saida", valorCents: 3000, mes: "2025-05", staffId: "leo", pctComissao: 50 });
+await db.doc("tenants/salao/appointments/leo-tarde").set({ status: "confirmed", start: zonedTime("2025-05-31", "19:00"), serviceName: "Barba", priceCents: 2000, staffId: "leo", staffName: "Léo", customerName: "Rui" });
+await baixarAgendamento(db, "salao", { appointmentId: "leo-tarde", valorCents: 2000, forma: "pix", sinalCents: 0 }, quem);
+assert.equal(await descontoLeo(), -1000, "50% dos 2000 recebidos depois do pagamento: a pagar ao Léo");
+// apagar o recebimento e receber de novo não conta duas vezes
+await excluir(db, "salao", idDaBaixa("leo-tarde"));
+assert.equal(await descontoLeo(), 0);
+await baixarAgendamento(db, "salao", { appointmentId: "leo-tarde", valorCents: 2000, forma: "pix", sinalCents: 0 }, quem);
+assert.equal(await descontoLeo(), -1000);
 // o lançamento do sinal fica preso ao atendimento: entrada, no dia dele
 await assert.rejects(editar(db, "salao", "sn-sinal-no-caixa", { tipo: "saida", valorCents: 3000, data: hoje, categoria: "Atendimento", forma: "pix" }, quem), /sempre entrada/);
 await editar(db, "salao", "sn-sinal-no-caixa", { tipo: "entrada", valorCents: 3000, data: addDays(hoje, -40), categoria: "Atendimento", forma: "pix" }, quem);
 assert.equal((await db.doc("tenants/salao/lancamentos/sn-sinal-no-caixa").get()).get("data"), hoje, "a data não muda");
+
+// [1] corrigir o sinal muda também o agendamento: o restante do balcão sai dele
+await comSinal("sinal-edita");
+await db.doc("tenants/salao/lancamentos/sn-sinal-edita").set({ tipo: "entrada", valorCents: 3000, data: hoje, mes: hoje.slice(0, 7), categoria: "Atendimento", forma: "pix", staffId: "bia" });
+await editar(db, "salao", "sn-sinal-edita", { tipo: "entrada", valorCents: 2000, data: hoje, categoria: "Atendimento", forma: "pix" }, quem);
+assert.equal((await db.doc("tenants/salao/appointments/sinal-edita").get()).get("sinal.cents"), 2000);
+await assert.rejects(editar(db, "salao", "sn-sinal-no-caixa", { tipo: "entrada", valorCents: 2000, data: hoje, categoria: "Atendimento", forma: "pix" }, quem), /apague o recebimento antes/);
+// [5] editar e desfazer não deixa centavo de desconto (50% já pago no mês do Léo)
+const antesLeo = await descontoLeo();
+await editar(db, "salao", idDaBaixa("leo-tarde"), { ...entrada, valorCents: 2001 }, quem);
+await editar(db, "salao", idDaBaixa("leo-tarde"), { ...entrada, valorCents: 2000 }, quem);
+assert.equal(await descontoLeo(), antesLeo, "100,00 → 100,01 → 100,00 volta a zero");
+// [2] estorno de entrada de mês com comissão paga: o desconto vai pelo % do pagamento (50), não pelo de hoje (10)
+await estornar(db, "salao", { lancamentoId: idDaBaixa("leo-tarde"), valorCents: 2000, forma: "pix" }, quem);
+assert.equal(await descontoLeo(), antesLeo + 1000);
+assert.equal((await db.doc(`tenants/salao/lancamentos/${idDoEstorno(idDaBaixa("leo-tarde"))}`).get()).get("pctComissao"), 50);
+// [4] crédito a devolver sem atendimento no mês (saiu da equipe): paga-se o crédito
+await db.doc("tenants/salao/caixa/config").set({ descontos: { rui: -5000 } }, { merge: true });
+await pagar(db, "salao", { tipo: "comissao", alvoId: "rui", mes: hoje.slice(0, 7), valorCents: 5000, forma: "pix", descontoCents: -5000 }, quem);
+assert.equal((await db.doc("tenants/salao/caixa/config").get()).get("descontos.rui"), 0);
+
+// o sinal só conta para a comissão quando o atendimento é recebido; falta ou cancelamento, fica com o salão
+const sinalDe = async (id: string) => (await db.doc(`tenants/salao/lancamentos/sn-${id}`).get()).data()!;
+await db.doc("tenants/salao/staff/rui").set({ name: "Rui" });
+await db.doc("tenants/salao/appointments/rui-sinal").set({ status: "confirmed", start: zonedTime("2025-07-10", "10:00"), serviceName: "Corte", priceCents: 10000, staffId: "rui", staffName: "Rui", customerName: "Lia", sinal: { cents: 3000, status: "pago" } });
+await db.doc("tenants/salao/lancamentos/sn-rui-sinal").set({ tipo: "entrada", valorCents: 3000, data: "2025-06-28", mes: "2025-06", categoria: "Atendimento", forma: "pix", staffId: "rui", staffName: "Rui" });
+await db.doc("tenants/salao/caixa/config").set({ comissoes: { rui: 50 }, descontos: { rui: 0 } }, { merge: true });
+assert.equal(mesDaComissao({ id: "sn-rui-sinal", mes: "2025-06" }), null, "sinal ainda não conta");
+await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "rui", mes: "2025-06", valorCents: 1500, forma: "pix" }, quem), /Não há comissão a pagar/, "junho: só o sinal, que não conta");
+await baixarAgendamento(db, "salao", { appointmentId: "rui-sinal", valorCents: 7000, forma: "dinheiro", sinalCents: 3000 }, quem);
+assert.equal((await sinalDe("rui-sinal")).mesComissao, "2025-07", "recebido em julho: o sinal conta em julho");
+// julho: 50% de 7000 + 3000 = 5000
+await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "rui", mes: "2025-07", valorCents: 3500, forma: "pix" }, quem), /comissão deste mês é R\$\s?50,00/);
+// apagar o recebimento: o sinal volta a não contar
+await excluir(db, "salao", idDaBaixa("rui-sinal"));
+assert.equal((await sinalDe("rui-sinal")).mesComissao, undefined);
+await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "rui", mes: "2025-07", valorCents: 5000, forma: "pix" }, quem), /Não há comissão a pagar/);
+// recebido com a comissão de julho já paga: o atendimento inteiro (com o sinal) fica devendo ao Rui
+await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "rui", "2025-07")}`).set({ tipo: "saida", valorCents: 0, mes: "2025-07", staffId: "rui", pctComissao: 50 });
+await baixarAgendamento(db, "salao", { appointmentId: "rui-sinal", valorCents: 7000, forma: "dinheiro", sinalCents: 3000 }, quem);
+assert.equal((await db.doc("tenants/salao/caixa/config").get()).get("descontos.rui"), -5000);
 
 console.log("financeiro ok");
 process.exit(0);

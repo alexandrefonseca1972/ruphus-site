@@ -23,7 +23,7 @@ import { ConfigSinal } from "@/lib/sinal-config";
 import { confirmarSinal } from "@/lib/sinal.server";
 import { FieldValue } from "firebase-admin/firestore";
 import { BaixaInput, EstornoInput, FixaInput, ID_AVULSO, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
-import { adicionarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
+import { adicionarFixa, editarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
 // Chamáveis por POST direto: valida entrada e membro do tenant em toda chamada
 const SlotsInput = RescheduleInput.omit({ time: true });
@@ -70,6 +70,18 @@ export const criarProfissionalAction = memberAction(
     return { ok: true as const, id: await criarProfissional(adminDb, data.tenantId, data.dados) };
   },
 );
+
+/** O contrato que esta conta aceitou para o negócio: a versão e quando. Quem entrou pela
+ *  equipe não aceitou nada (null). Só o próprio aceite: IP e e-mail ficam no servidor. */
+export const meuContratoAction = memberAction(z.object({ tenantId: docIdStaff }), async (data, user) => {
+  // ponytail: filtra o slug em memória (poucos aceites por conta); índice composto se crescer
+  const docs = (await adminDb.collection("aceites").where("uid", "==", user.uid).get()).docs
+    .map((d) => d.data())
+    .filter((a) => a.slug === data.tenantId && typeof a.versao === "string")
+    .sort((a, b) => (b.em?.toMillis?.() ?? 0) - (a.em?.toMillis?.() ?? 0));
+  const a = docs[0];
+  return { ok: true as const, contrato: a ? { versao: a.versao as string, em: (a.em?.toMillis?.() as number | undefined) ?? null } : null };
+});
 
 export const rescheduleAppointment = memberAction(RescheduleInput, (data, user) => reschedule(adminDb, data, user));
 export const createPlanAction = memberAction(PlanInput, (data, user) => createPlan(adminDb, data, user));
@@ -358,7 +370,8 @@ export const lancarAction = memberAction(z.object({ tenantId: docIdStaff, lancam
   return { ok: true as const, id: await lancar(adminDb, data.tenantId, data.lancamento, user, data.id) };
 });
 
-export const editarLancamentoAction = memberAction(z.object({ tenantId: docIdStaff, id: docId, lancamento: LancamentoInput }), async (data, user) => {
+// R$ 0 passa aqui só para a comissão toda abatida por estorno: o servidor confere (editar)
+export const editarLancamentoAction = memberAction(z.object({ tenantId: docIdStaff, id: docId, lancamento: LancamentoInput.extend({ valorCents: z.number().int().min(0).max(99_999_99, "Valor alto demais.") }) }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid);
   await editar(adminDb, data.tenantId, data.id, data.lancamento, user);
   return { ok: true as const };
@@ -379,6 +392,12 @@ export const baixarAgendamentoAction = memberAction(z.object({ tenantId: docIdSt
 export const adicionarFixaAction = memberAction(z.object({ tenantId: docIdStaff, fixa: FixaInput }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid);
   await adicionarFixa(adminDb, data.tenantId, data.fixa);
+  return { ok: true as const };
+});
+
+export const editarFixaAction = memberAction(z.object({ tenantId: docIdStaff, fixaId: docId, fixa: FixaInput }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  await editarFixa(adminDb, data.tenantId, data.fixaId, data.fixa);
   return { ok: true as const };
 });
 

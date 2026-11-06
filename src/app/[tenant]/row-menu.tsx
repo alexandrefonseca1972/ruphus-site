@@ -22,7 +22,7 @@ export function RowMenu({ label, actions }: { label: string; actions: RowAction[
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner align="end" sideOffset={6} className="z-20">
-          <Menu.Popup className="grid min-w-48 gap-0.5 rounded-lg border bg-popover p-1 text-sm text-popover-foreground shadow-lg outline-none">
+          <Menu.Popup className="grid max-h-[var(--available-height)] min-w-48 gap-0.5 overflow-y-auto rounded-lg border bg-popover p-1 text-sm text-popover-foreground shadow-lg outline-none">
             {actions.map((a) => (
               <Menu.Item
                 key={a.label}

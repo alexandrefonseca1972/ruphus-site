@@ -315,11 +315,11 @@ export default function CustomersPage() {
                 ))}
               </select>
             </label>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-2 max-sm:w-full max-sm:justify-between">
               <Button variant="outline" className="h-10 px-3" disabled={atual <= 1} onClick={() => setPagina(atual - 1)}>
                 Anterior
               </Button>
-              <span aria-live="polite" className="tabular-nums whitespace-nowrap">Página {atual} de {paginas}</span>
+              <span aria-live="polite" className="min-w-0 text-center tabular-nums">Página {atual} de {paginas}</span>
               <Button variant="outline" className="h-10 px-3" disabled={atual >= paginas} onClick={() => setPagina(atual + 1)}>
                 Próxima
               </Button>

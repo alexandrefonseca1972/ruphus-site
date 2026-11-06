@@ -21,6 +21,8 @@ export async function confirmarSinal(db: Firestore, tenantId: string, appointmen
     if (!["booked", "confirmed"].includes(a.get("status"))) throw new UserError("Este horário já foi cancelado. Combine a devolução do sinal com o cliente.");
     const cents = Number(a.get("sinal.cents"));
     if (!Number.isInteger(cents) || cents <= 0) throw new UserError("O valor do sinal deste agendamento está inválido. Fale com o suporte.");
+    // o sinal entra hoje no Caixa, mas só conta para a comissão quando o atendimento for recebido
+    const entraNoCaixa = tenant.get("modulos.financeiro") === true && !baixa.exists;
     const mudanca: Record<string, unknown> = { "sinal.status": "pago", "sinal.pagoEm": FieldValue.serverTimestamp() };
     if (a.get("status") === "booked") {
       const historico = t.collection("history").doc();
@@ -29,7 +31,7 @@ export async function confirmarSinal(db: Firestore, tenantId: string, appointmen
     }
     tx.update(agendamento, mudanca);
     // recebido no Caixa antes de confirmar o sinal: o valor já entrou lá, não conta duas vezes
-    if (tenant.get("modulos.financeiro") === true && !baixa.exists) {
+    if (entraNoCaixa) {
       const data = todayIn();
       tx.create(t.collection("lancamentos").doc(idDoSinal(appointmentId)), {
         tipo: "entrada",

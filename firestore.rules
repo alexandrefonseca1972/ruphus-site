@@ -82,6 +82,8 @@ service cloud.firestore {
           && resource.data.status in ['booked', 'confirmed']
           && request.resource.data.status in ['confirmed', 'cancelled', 'no_show']
           && request.resource.data.status != resource.data.status
+          // recebido no Caixa não se cancela nem vira falta: o dinheiro ficaria contando
+          && (request.resource.data.status == 'confirmed' || !exists(/databases/$(database)/documents/tenants/$(t)/lancamentos/$('ag-' + a)))
           && !exists(/databases/$(database)/documents/tenants/$(t)/history/$(request.resource.data.lastHistoryId))
           && getAfter(/databases/$(database)/documents/tenants/$(t)/history/$(request.resource.data.lastHistoryId)).data.appointmentId == a;
       }

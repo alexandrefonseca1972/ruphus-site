@@ -53,11 +53,13 @@ const lembrarForma = (tipo: string, forma: string) => {
 const POUCO = 100;
 
 /** Folha curta do Caixa: valor primeiro, o resto em toques. Fecha sozinha ao salvar. */
-export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose }: { tenantId: string; nicho?: string; folha: Folha; estornado?: boolean; onClose: (aviso?: string) => void }) {
+export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, onRecibo }: { tenantId: string; nicho?: string; folha: Folha; estornado?: boolean; onClose: (aviso?: string) => void; onRecibo?: () => void }) {
   const base = folha.modo === "editar" ? folha.lancamento : null;
   const tipo = folha.modo === "novo" ? folha.tipo : folha.modo === "baixa" ? "entrada" : folha.modo === "pagar" ? "saida" : folha.lancamento.tipo;
   const valorInicial = base?.valorCents ?? (folha.modo === "baixa" ? folha.atendimento.priceCents : folha.modo === "pagar" ? folha.valorCents : 0);
   const [valor, setValor] = useState(valorInicial ? formatBRL(valorInicial) : "");
+  // comissão: o servidor só aceita o valor que a conta dá; para mudar, muda o % ou os recebimentos
+  const comissao = folha.modo === "pagar" && folha.pagamento.tipo === "comissao";
   const [categoria, setCategoria] = useState(base?.categoria ?? (folha.modo === "baixa" ? "Atendimento" : ""));
   const [forma, setForma] = useState<(typeof FORMAS)[number]>(() => base?.forma ?? ultimaForma(tipo));
   // entrada/saída avulsa: o id nasce aqui, e repetir o envio (a resposta caiu) não duplica
@@ -71,6 +73,8 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose }: 
   const [apagar, setApagar] = useState(false);
   // "Estornar" troca a folha de correção pela de devolução: valor (todo ou parte) e forma
   const [estornando, setEstornando] = useState(false);
+  // o valor digitado antes de tocar em "Estornar": "Voltar" devolve ele, não o original
+  const [valorAntes, setValorAntes] = useState("");
   const [confirmarEstorno, setConfirmarEstorno] = useState(false);
   const centavos = Number(valor.replace(/\D/g, "")) || 0;
   const eSinal = ehSinal(base?.id ?? "");
@@ -103,7 +107,10 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose }: 
 
   function salvar() {
     // comissão toda abatida por estorno: R$ 0 registra o acerto do mês
-    const zeroPorEstorno = folha.modo === "pagar" && folha.valorCents === 0 && (folha.pagamento.descontoCents ?? 0) > 0;
+    const zeroPorEstorno =
+      (folha.modo === "pagar" && folha.valorCents === 0 && (folha.pagamento.descontoCents ?? 0) > 0) ||
+      // o mesmo pagamento de R$ 0 depois, para corrigir a forma ou a descrição
+      (folha.modo === "editar" && folha.lancamento.id.startsWith("cm-") && (folha.lancamento.descontoCents ?? 0) > 0);
     if (!centavos && !zeroPorEstorno) return setErro("Informe o valor.");
     if (centavos && centavos < POUCO && !confirmouPouco) {
       setConfirmouPouco(true);
@@ -121,9 +128,12 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose }: 
     }
     if (!categoria) return setErro("Escolha a categoria.");
     const lancamento = { tipo, valorCents: centavos, data, categoria, forma, descricao: descricao.trim() || undefined };
+    // datado em outro mês, some da tela aberta: o aviso diz onde ficou
+    const mesDaTela = (folha.modo === "novo" ? folha.data : folha.lancamento.data).slice(0, 7);
+    const outroMes = data.slice(0, 7) !== mesDaTela ? ` Ficou em ${data.split("-").reverse().join("/")}: mude o mês para ver.` : "";
     return folha.modo === "editar"
-      ? rodar(async () => editarLancamentoAction(await idToken(), { tenantId, id: folha.lancamento.id, lancamento }), "Lançamento corrigido.")
-      : rodar(async () => lancarAction(await idToken(), { tenantId, lancamento, id: idNovo }), `${tipo === "entrada" ? "Entrada" : "Saída"} de ${formatBRL(centavos)} lançada.`);
+      ? rodar(async () => editarLancamentoAction(await idToken(), { tenantId, id: folha.lancamento.id, lancamento }), `Lançamento corrigido.${outroMes}`)
+      : rodar(async () => lancarAction(await idToken(), { tenantId, lancamento, id: idNovo }), `${tipo === "entrada" ? "Entrada" : "Saída"} de ${formatBRL(centavos)} lançada.${outroMes}`);
   }
 
   return (
@@ -144,15 +154,16 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose }: 
           <label className="grid gap-1.5">
             <span className="text-sm font-medium">Valor</span>
             <Input
-              autoFocus
+              autoFocus={!comissao}
+              readOnly={comissao}
               inputMode="numeric"
               placeholder="R$ 0,00"
               value={valor}
               aria-describedby="valor-dica"
-              onChange={(e) => (setValor(maskBRL(e.target.value)), setConfirmouPouco(false))}
+              onChange={(e) => (setValor(maskBRL(e.target.value)), setConfirmouPouco(false), setMostrarPix(false))}
               className={cn("h-14 font-serifa text-3xl tabular-nums md:text-3xl", (tipo === "saida" || estornando) && "text-red-700 dark:text-red-300")}
             />
-            <span id="valor-dica" className="text-xs text-muted-foreground">Só números, com os centavos: 3500 = R$ 35,00</span>
+            <span id="valor-dica" className="text-xs text-muted-foreground">{comissao ? "Calculado pelo que o profissional faturou no mês e pelo % dele." : "Só números, com os centavos: 3500 = R$ 35,00"}</span>
           </label>
 
           {!vinculado && !estornando && (
@@ -208,9 +219,13 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose }: 
 
           {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
 
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+          {/* no celular os botões ficam presos no rodapé da folha: com o teclado aberto, Lançar
+              continua à vista (o teclado numérico do iPhone não tem Enter) */}
+          <div className="flex flex-col-reverse gap-2 max-sm:sticky max-sm:-bottom-[calc(1.25rem+env(safe-area-inset-bottom))] max-sm:-mx-5 max-sm:-mb-[calc(1.25rem+env(safe-area-inset-bottom))] max-sm:border-t max-sm:bg-popover max-sm:px-5 max-sm:pt-3 max-sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:flex-row sm:justify-between">
             {folha.modo === "editar" && !estornando ? (
-              <div className="flex gap-2 max-sm:justify-between">
+              <div className="flex flex-wrap gap-2 max-sm:justify-between">
+                {/* recibo do que entrou: impressão, WhatsApp ou e-mail */}
+                {tipo === "entrada" && onRecibo && <Button type="button" variant="outline" className="h-11 px-4" disabled={ocupado} onClick={onRecibo}>Recibo</Button>}
                 {/* estornado não se apaga: primeiro apaga o estorno */}
                 {!estornado && <Button
                   type="button"
@@ -227,15 +242,15 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose }: 
                     variant="ghost"
                     className="h-11 px-4"
                     disabled={ocupado}
-                    onClick={() => (setErro(""), setValor(formatBRL(folha.lancamento.valorCents)), setEstornando(true))}
+                    onClick={() => (setErro(""), setConfirmouPouco(false), setValorAntes(valor), setValor(formatBRL(folha.lancamento.valorCents)), setEstornando(true))}
                   >
                     Estornar
                   </Button>
                 )}
               </div>
             ) : <span />}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row">
-              <Button type="button" variant="outline" className="h-11 px-4" disabled={ocupado} onClick={() => (estornando ? (setErro(""), setValor(formatBRL(valorInicial)), setForma(base?.forma ?? "pix"), setEstornando(false)) : onClose())}>Voltar</Button>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row">
+              <Button type="button" variant="outline" className="h-11 px-4" disabled={ocupado} onClick={() => (estornando ? (setErro(""), setConfirmouPouco(false), setValor(valorAntes), setForma(base?.forma ?? "pix"), setEstornando(false)) : onClose())}>Voltar</Button>
               <Button type="submit" className="h-11 px-5" disabled={ocupado}>
                 {ocupado ? "Salvando…" : estornando ? "Estornar" : folha.modo === "baixa" ? "Recebi" : folha.modo === "pagar" ? "Paguei" : folha.modo === "novo" ? `Lançar ${tipo === "entrada" ? "entrada" : "saída"}` : "Salvar"}
               </Button>

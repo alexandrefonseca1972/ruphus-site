@@ -203,3 +203,35 @@ body:has(.painel) {
     scroll-behavior: auto !important;
   }
 }
+
+/* Recibo do Caixa: na impressão só o cupom aparece, no alto da folha (A4 ou bobina de 80 mm).
+   O resto do painel sai do fluxo (display), senão viraria páginas em branco depois do cupom. */
+@media print {
+  @page {
+    margin: 4mm;
+  }
+  /* a janela trava a rolagem pondo altura e overflow no body: na impressão isso cortaria o cupom */
+  body:has(.recibo-impressao) {
+    background: #fff;
+    min-height: 0;
+    height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+  body:has(.recibo-impressao) > :not(:has(.recibo-impressao)) {
+    display: none !important;
+  }
+  body:has(.recibo-impressao) * {
+    visibility: hidden;
+  }
+  body:has(.recibo-impressao) .recibo-impressao,
+  body:has(.recibo-impressao) .recibo-impressao * {
+    visibility: visible;
+  }
+  body:has(.recibo-impressao) .recibo-impressao {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 72mm;
+  }
+}

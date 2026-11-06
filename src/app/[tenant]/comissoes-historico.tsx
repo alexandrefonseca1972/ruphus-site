@@ -4,7 +4,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { where } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { formatBRL } from "@/lib/datetime";
-import { Lancamento } from "@/lib/financeiro";
+import { Lancamento, mesDaComissao } from "@/lib/financeiro";
 import { useCollection } from "@/lib/use-collection";
 
 const nomeCurto = (mes: string) => {
@@ -21,13 +21,16 @@ export function ComissoesHistorico({ tenantId, staffId, nome, pct, guardado, onC
 
   const meses = new Map<string, { faturou: number; pago?: number; abatido: number; estornado: number }>();
   for (const l of itens ?? []) {
-    const m = meses.get(l.mes) ?? { faturou: 0, abatido: 0, estornado: 0 };
+    // a entrada conta no mês da comissão; sinal de atendimento não recebido não conta
+    const mesDaLinha = l.tipo === "entrada" ? mesDaComissao(l) : l.mes;
+    if (!mesDaLinha) continue;
+    const m = meses.get(mesDaLinha) ?? { faturou: 0, abatido: 0, estornado: 0 };
     if (l.tipo === "entrada") m.faturou += l.valorCents;
     else if (l.id.startsWith("cm-")) {
       m.pago = l.valorCents;
       m.abatido = l.descontoCents ?? 0;
     } else if (l.estornoDe) m.estornado += l.valorCents;
-    meses.set(l.mes, m);
+    meses.set(mesDaLinha, m);
   }
   const linhas = [...meses].sort((a, b) => b[0].localeCompare(a[0])).slice(0, 12);
   const totalPago = linhas.reduce((t, [, m]) => t + (m.pago ?? 0), 0);

@@ -141,10 +141,10 @@ export default function StaffPage() {
           )}
           {staff?.map((p) => (
             <article key={p.id} className={cn("grid gap-4 rounded-2xl border bg-card p-5 sm:p-6", !p.active && "opacity-70")}>
-              <div className="flex items-center gap-3.5">
+              <div className="flex flex-wrap items-center gap-3.5">
                 <span aria-hidden="true" className="grid size-12 shrink-0 place-items-center rounded-full bg-muted font-serifa text-2xl">{p.name.charAt(0)}</span>
-                <div className="grid min-w-0 flex-1 gap-0.5">
-                  <h2 className="flex flex-wrap items-center gap-2 text-[17px] font-semibold">
+                <div className="grid min-w-0 flex-1 basis-40 gap-0.5">
+                  <h2 className="flex flex-wrap items-center gap-2 text-[17px] font-semibold break-words">
                     {p.name}
                     {!p.active && <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">Fora do link</span>}
                   </h2>
@@ -154,7 +154,7 @@ export default function StaffPage() {
                   </span>
                 </div>
                 {tenant.podeGerir && (
-                  <>
+                  <div className="ml-auto flex items-center gap-2">
                     <Button variant="outline" className="h-10 px-4" onClick={() => { setEditing(p); document.getElementById("form-prof")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Editar</Button>
                     <RowMenu
                       label={`Mais ações: ${p.name}`}
@@ -163,7 +163,7 @@ export default function StaffPage() {
                         { label: "Excluir", danger: true, onClick: () => setExcluindo(p) },
                       ]}
                     />
-                  </>
+                  </div>
                 )}
               </div>
               {!!p.serviceIds.length && (
@@ -173,7 +173,7 @@ export default function StaffPage() {
                   ))}
                 </ul>
               )}
-              <dl className="grid grid-cols-7 gap-1.5">
+              <dl className="grid grid-cols-4 gap-1.5 sm:grid-cols-7">
                 {DAYS.map((d) => {
                   const h = p.hours[d];
                   return (
@@ -227,7 +227,7 @@ export default function StaffPage() {
                     <Input type="time" name={`end-${d}`} aria-label={`Fim ${WEEKDAYS[Number(d)]}`} defaultValue={hours[d]?.end ?? "18:00"} step={900} className="h-10 bg-card px-2 tabular-nums group-has-[input[type=checkbox]:not(:checked)]:opacity-40" />
                   </div>
                 ))}
-                <button type="button" onClick={repetirSegunda} className="mt-1 min-h-9 justify-self-start text-[13px] underline underline-offset-4 hover:text-muted-foreground">
+                <button type="button" onClick={repetirSegunda} className="mt-1 min-h-10 justify-self-start text-[13px] underline underline-offset-4 hover:text-muted-foreground">
                   Repetir o horário de segunda nos outros dias marcados
                 </button>
               </fieldset>
@@ -300,7 +300,7 @@ function ServiceChecks({ services, initial }: { services: (Service & { id: strin
           <button
             type="button"
             onClick={() => setMarcados(todos ? new Set() : new Set(services.map((sv) => sv.id)))}
-            className="min-h-9 text-[13px] font-normal underline underline-offset-4 hover:text-muted-foreground"
+            className="min-h-10 text-[13px] font-normal underline underline-offset-4 hover:text-muted-foreground"
           >
             {todos ? "Desmarcar todos" : "Marcar todos"}
           </button>

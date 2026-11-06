@@ -150,7 +150,7 @@ export function CamposNegocio({
             <span className="text-xs text-muted-foreground">Opcionais: aparecem no site e na bio quando preenchidos.</span>
           </div>
           {texto("endereco", "Endereço", { autoComplete: "street-address", maxLength: 160, placeholder: "Rua, número" })}
-          {texto("instagram", "Instagram", { placeholder: "@seunegocio", maxLength: 60 }, valores.instagram.replace("@", "") ? `instagram.com/${valores.instagram.replace("@", "")}` : undefined)}
+          {texto("instagram", "Instagram", { placeholder: "@seunegocio", maxLength: 60, autoCapitalize: "none", autoCorrect: "off", spellCheck: false }, valores.instagram.replace("@", "") ? `instagram.com/${valores.instagram.replace("@", "")}` : undefined)}
           {texto("horario", "Horário de funcionamento", { placeholder: "Seg a sex, 9h às 18h", maxLength: 120 })}
         </fieldset>
       )}

@@ -253,7 +253,7 @@ export default function ServicesPage() {
                       </>
                     )}
                   </span>
-                  <label className="order-last col-span-2 flex items-center gap-2.5 text-[13px] text-muted-foreground sm:order-none sm:col-span-1">
+                  <label className="order-last col-span-2 flex min-h-11 items-center gap-2.5 text-[13px] text-muted-foreground sm:order-none sm:col-span-1">
                     <input
                       type="checkbox"
                       role="switch"

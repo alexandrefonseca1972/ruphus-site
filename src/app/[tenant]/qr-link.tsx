@@ -9,6 +9,15 @@ export function QrDoLink({ url, rotulo, arquivo }: { url: string; rotulo: string
   // guardado com o link: trocar o endereço não mostra o QR do antigo
   const [qr, setQr] = useState<{ url: string; png: string | null } | null>(null);
   const png = qr?.url === url ? qr.png : undefined;
+  const [copiou, setCopiou] = useState<boolean | null>(null);
+
+  // A imagem vai como Promise dentro do ClipboardItem: o Safari só aceita a cópia
+  // se ela começar no próprio clique, sem esperar o fetch antes.
+  const copiar = (p: string) =>
+    navigator.clipboard
+      .write([new ClipboardItem({ "image/png": fetch(p).then((r) => r.blob()) })])
+      .then(() => setCopiou(true), () => setCopiou(false))
+      .finally(() => setTimeout(() => setCopiou(null), 2000));
 
   return (
     <details
@@ -20,7 +29,7 @@ export function QrDoLink({ url, rotulo, arquivo }: { url: string; rotulo: string
           .catch(() => setQr({ url, png: null }));
       }}
     >
-      <summary className="cursor-pointer py-1 font-medium text-muted-foreground hover:text-foreground">QR code</summary>
+      <summary className="flex min-h-10 cursor-pointer items-center font-medium text-muted-foreground hover:text-foreground">QR code</summary>
       <div className="mt-2 grid justify-items-center gap-2 rounded-lg border bg-white p-3">
         {png ? (
           // eslint-disable-next-line @next/next/no-img-element -- PNG gerado aqui mesmo, em data URL
@@ -31,9 +40,16 @@ export function QrDoLink({ url, rotulo, arquivo }: { url: string; rotulo: string
           <div className="size-40 animate-pulse rounded bg-muted" aria-hidden="true" />
         )}
         {png && (
-          <a href={png} download={`${arquivo}.png`} className="inline-flex h-9 items-center rounded-lg border px-3 font-medium text-[#17150F] hover:bg-muted">
-            Baixar para imprimir
-          </a>
+          <div className="flex flex-wrap justify-center gap-2">
+            {typeof ClipboardItem !== "undefined" && (
+              <button type="button" onClick={() => copiar(png)} className="inline-flex h-11 items-center rounded-lg border px-3 sm:h-9 font-medium text-[#17150F] hover:bg-muted">
+                {copiou === true ? "Copiado" : copiou === false ? "Não deu para copiar" : "Copiar imagem"}
+              </button>
+            )}
+            <a href={png} download={`${arquivo}.png`} className="inline-flex h-11 items-center rounded-lg border px-3 sm:h-9 font-medium text-[#17150F] hover:bg-muted">
+              Baixar para imprimir
+            </a>
+          </div>
         )}
       </div>
     </details>

@@ -8,7 +8,7 @@ import { formatBRL, maskBRL } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
 import { categorias, type Fixa } from "@/lib/financeiro";
 import { cn } from "@/lib/utils";
-import { adicionarFixaAction, removerFixaAction } from "./actions";
+import { adicionarFixaAction, editarFixaAction, removerFixaAction } from "./actions";
 import { ConfirmDialog } from "./confirm-dialog";
 
 /** Cadastro das contas que se repetem todo mês. Cada mudança grava na hora, uma de cada vez. */
@@ -20,6 +20,10 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [tirar, setTirar] = useState<Fixa | null>(null);
+  // corrigir a conta (aluguel subiu) mantém o id: o mês já pago continua pago
+  const [editando, setEditando] = useState<Fixa | null>(null);
+  const limpar = () => (setEditando(null), setNome(""), setValor(""), setDia("10"), setCategoria("Aluguel"));
+  const editar = (f: Fixa) => (setErro(""), setEditando(f), setNome(f.nome), setValor(formatBRL(f.valorCents)), setDia(String(f.dia)), setCategoria(f.categoria));
 
   async function gravar(f: () => Promise<{ ok: boolean; error?: string }>) {
     setErro("");
@@ -36,10 +40,9 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
     if (!nome.trim()) return setErro("Dê um nome à conta.");
     if (!centavos) return setErro("Informe o valor.");
     if (!Number.isInteger(d) || d < 1 || d > 31) return setErro("O dia vai de 1 a 31.");
-    if (await gravar(async () => adicionarFixaAction(await idToken(), { tenantId, fixa: { nome: nome.trim(), valorCents: centavos, dia: d, categoria } }))) {
-      setNome("");
-      setValor("");
-    }
+    const fixa = { nome: nome.trim(), valorCents: centavos, dia: d, categoria };
+    const id = editando?.id;
+    if (await gravar(async () => (id ? editarFixaAction(await idToken(), { tenantId, fixaId: id, fixa }) : adicionarFixaAction(await idToken(), { tenantId, fixa })))) limpar();
   }
 
   return (
@@ -57,12 +60,15 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
           {fixas.length > 0 && (
             <ul className="grid rounded-xl border">
               {fixas.map((f) => (
-                <li key={f.id} className="flex items-center gap-3 border-t px-3 py-2.5 first:border-t-0">
-                  <span className="grid min-w-0 flex-1">
+                <li key={f.id} className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-3 py-2.5 first:border-t-0", editando?.id === f.id && "bg-muted")}>
+                  <span className="grid min-w-0 flex-1 basis-32">
                     <span className="truncate font-medium">{f.nome}</span>
                     <span className="text-[13px] text-muted-foreground">dia {f.dia} · {f.categoria}</span>
                   </span>
                   <span className="tabular-nums">{formatBRL(f.valorCents)}</span>
+                  <Button type="button" variant="ghost" size="sm" className="h-10" disabled={ocupado} onClick={() => editar(f)} aria-label={`Editar ${f.nome}`}>
+                    Editar
+                  </Button>
                   <Button type="button" variant="ghost" size="sm" className="h-10 text-destructive" disabled={ocupado} onClick={() => setTirar(f)} aria-label={`Tirar ${f.nome}`}>
                     Tirar
                   </Button>
@@ -72,7 +78,7 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
           )}
 
           <fieldset className="grid gap-3">
-            <legend className="mb-1 text-sm font-medium">Nova conta</legend>
+            <legend className="mb-1 text-sm font-medium">{editando ? `Editar ${editando.nome}` : "Nova conta"}</legend>
             <Input aria-label="Nome da conta" value={nome} maxLength={40} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Aluguel da sala" className="h-11" />
             <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-3">
               <label className="grid gap-1.5 text-sm text-muted-foreground">
@@ -81,7 +87,7 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
               </label>
               <label className="grid gap-1.5 text-sm text-muted-foreground">
                 Vence dia
-                <Input type="number" min={1} max={31} value={dia} onChange={(e) => setDia(e.target.value)} className="h-11 text-foreground" />
+                <Input type="number" inputMode="numeric" min={1} max={31} value={dia} onChange={(e) => setDia(e.target.value)} className="h-11 text-foreground" />
               </label>
             </div>
             <span className="text-xs text-muted-foreground">Só números, com os centavos: 150000 = R$ 1.500,00</span>
@@ -103,18 +109,19 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
           {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" className="h-11 px-4" disabled={ocupado} onClick={onClose}>Fechar</Button>
-            <Button type="submit" className="h-11 px-5" disabled={ocupado}>{ocupado ? "Salvando…" : "Adicionar conta"}</Button>
+            <Button type="button" variant="outline" className="h-11 px-4" disabled={ocupado} onClick={editando ? limpar : onClose}>{editando ? "Cancelar" : "Fechar"}</Button>
+            <Button type="submit" className="h-11 px-5" disabled={ocupado}>{ocupado ? "Salvando…" : editando ? "Salvar conta" : "Adicionar conta"}</Button>
           </div>
           </form>
           {tirar && (
             <ConfirmDialog
               title={`Tirar ${tirar.nome}?`}
-              description="A conta deixa de aparecer nos próximos meses. O que já foi pago continua no Caixa."
+              description="A conta deste mês continua em “Contas do mês” e some a partir do próximo. O que já foi pago fica no Caixa. Para mudar o valor, use Editar."
               confirmLabel="Sim, tirar"
               onConfirm={async () => {
                 const id = tirar.id;
                 setTirar(null);
+                if (editando?.id === id) limpar();
                 await gravar(async () => removerFixaAction(await idToken(), { tenantId, fixaId: id }));
               }}
               onCancel={() => setTirar(null)}
