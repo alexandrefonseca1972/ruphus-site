@@ -32,6 +32,8 @@ const MUNICIPIOS = MUNICIPIOS_JSON as Record<string, string[]>;
 const UF = z.enum(Object.keys(UFS) as [keyof typeof UFS, ...(keyof typeof UFS)[]]);
 // id de documento do Firestore: sem "/", senão "x/leads/y" apontaria para dentro de outra coleta
 const Id = z.string().regex(/^[A-Za-z0-9]{1,40}$/);
+// lead: o worker usa o placeId do Maps com ":" trocado por "_" (0x…_0x…) ou "sem-id-N"
+const LeadId = z.string().regex(/^[A-Za-z0-9_-]{1,80}$/);
 
 /** Municípios do estado, da lista oficial do IBGE guardada no projeto (src/lib/municipios.json).
  *  O IBGE não responde para o IP da VPS, e a lista muda quase nunca (um município novo a cada
@@ -220,7 +222,7 @@ export type LinhaDaPrevia = LinhaGerada & { leadId: string };
  *  O resumo da coleta acompanha: sai dos novos e entra em "fora", com o motivo. */
 async function mudarSituacao(id: string, leadId: string, de: "novo" | "excluido", para: "novo" | "excluido") {
   const ref = coletas().doc(Id.parse(id));
-  const lead = ref.collection("leads").doc(Id.parse(leadId));
+  const lead = ref.collection("leads").doc(LeadId.parse(leadId));
   await adminDb.runTransaction(async (tx) => {
     const [c, l] = await Promise.all([tx.get(ref), tx.get(lead)]);
     if (c.get("estado") !== "pronta" || ((c.get("geradosAte") as number | undefined) ?? 0) > 0) {
