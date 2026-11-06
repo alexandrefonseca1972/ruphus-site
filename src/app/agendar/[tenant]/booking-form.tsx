@@ -50,6 +50,8 @@ type Props = {
   fuso?: string;
   services: { id: string; name: string; durationMin: number; priceCents: number; tipoPreco?: TipoPreco }[];
   staff: { id: string; name: string; serviceIds: string[]; workDays: number[] }[];
+  /** vindo da bio (?servico=&data=&hora=): serviço marcado e, se ainda livre, o horário */
+  inicial?: { servico: string; data?: string; hora?: string } | null;
 };
 
 type Dia = { date: string; horarios: { hora: string; staffId: string }[]; fechado?: boolean };
@@ -205,17 +207,21 @@ function Passo({ estado, ultimo, children }: { estado: "feito" | "agora" | "depo
   );
 }
 
-export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, sinal, fuso, services, staff }: Props) {
+export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, sinal, fuso, services, staff, inicial }: Props) {
   // Nada vem marcado: quem agenda diz o que quer, e só então a agenda aparece.
   // Os serviços chegam do servidor na ordem do que mais se agenda.
-  const [serviceIds, setServiceIds] = useState<string[]>([]);
+  // A exceção é quem tocou num serviço ou num horário da bio: chega com ele escolhido.
+  const [serviceIds, setServiceIds] = useState<string[]>(inicial ? [inicial.servico] : []);
   const [staffId, setStaffId] = useState("");
-  const [from, setFrom] = useState(today);
+  // a faixa mostra 7 dias a partir de hoje: um dia da bio além dela abre a faixa nele
+  const [from, setFrom] = useState(inicial?.data && inicial.data > addDays(today, 6) ? inicial.data : today);
   const [versao, setVersao] = useState(0);
   const chave = `${serviceIds.join(",")}|${staffId}|${from}|${versao}`;
   const [buscado, setBuscado] = useState<{ para: string; dias: Dia[] } | null>(null);
   const agenda = buscado?.para === chave ? buscado.dias : null;
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(inicial?.data ?? "");
+  // o horário da bio é aplicado uma vez, na primeira agenda que chegar
+  const horaInicial = useRef(inicial?.data && inicial.hora ? { data: inicial.data, hora: inicial.hora } : null);
   const [escolha, setEscolha] = useState<{ hora: string; staffId: string } | null>(null);
   const [etapa, setEtapa] = useState<"escolha" | "confirmar">("escolha");
   const [customerName, setCustomerName] = useState("");
@@ -289,8 +295,15 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   // O primeiro dia com horário é o dia aberto: ninguém precisa caçar um que tenha vaga
   useEffect(() => {
     if (!agenda) return;
+    const pedido = horaInicial.current;
+    if (pedido) {
+      horaInicial.current = null;
+      // ocupado desde que a bio foi gerada (cache de 1 min): fica só o dia, sem horário marcado
+      const vaga = agenda.find((d) => d.date === pedido.data)?.horarios.find((h) => h.hora === pedido.hora);
+      if (vaga) setEscolha(vaga);
+    }
     if (agenda.some((d) => d.date === date && d.horarios.length)) return;
-    setDate(agenda.find((d) => d.horarios.length)?.date ?? agenda[0]?.date ?? ""); // eslint-disable-line react-hooks/set-state-in-effect -- segue a agenda recebida
+    setDate(agenda.find((d) => d.horarios.length)?.date ?? agenda[0]?.date ?? "");
   }, [agenda, date]);
 
   // Trocar de profissional não apaga o horário escolhido: se ele segue livre com

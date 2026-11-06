@@ -28,13 +28,27 @@ export async function generateMetadata({ params }: PageProps<"/agendar/[tenant]"
   };
 }
 
-export default async function BookingPage({ params }: PageProps<"/agendar/[tenant]">) {
+export default async function BookingPage({ params, searchParams }: PageProps<"/agendar/[tenant]">) {
   const { tenant } = await params;
   const catalog = await getCatalog(tenant);
   if (!catalog) notFound();
   if (!catalog.agendaOnline) return <SemAgenda {...catalog} />;
   const fuso = fusoDaUF(catalog.uf);
-  return <BookingForm tenantId={tenant} today={todayIn(fuso)} fuso={fuso} {...catalog} />;
+  const today = todayIn(fuso);
+  return <BookingForm tenantId={tenant} today={today} fuso={fuso} inicial={inicial(await searchParams, catalog.services, today)} {...catalog} />;
+}
+
+const um = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
+/** Link da bio: ?servico=<id>&data=AAAA-MM-DD&hora=HH:MM. Só vale serviço do catálogo e dia
+ *  de hoje em diante; o resto é ignorado e a página abre como sempre. */
+function inicial(q: Record<string, string | string[] | undefined>, services: { id: string }[], today: string) {
+  const servico = um(q.servico);
+  if (!servico || !services.some((s) => s.id === servico)) return null;
+  const data = um(q.data);
+  const hora = um(q.hora);
+  if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data) || data < today) return { servico };
+  return { servico, data, hora: hora && /^\d{2}:\d{2}$/.test(hora) ? hora : undefined };
 }
 
 type Catalogo = NonNullable<Awaited<ReturnType<typeof loadCatalog>>>;
