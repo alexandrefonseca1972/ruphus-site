@@ -13,7 +13,7 @@ import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { soDigitosComDDI } from "@/lib/telefone";
-import { aceitarTermoWhatsApp, conectarNegocio, desligarConexao, espelharStatusVivo, lerConfigWhatsApp, lerConexao, paraTela } from "@/lib/whatsapp.server";
+import { aceitarTermoWhatsApp, conectarNegocio, type ConexaoWhatsapp, desligarConexao, espelharStatusVivo, lerConfigWhatsApp, lerConexao, paraTela } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { criarConvite, revogarConvitesDaEquipe, tirarAcessosDoProfissional } from "@/lib/convite";
@@ -261,7 +261,9 @@ const SoTenant = z.object({ tenantId: docIdStaff });
 
 export const lerWhatsAppDoNegocioAction = memberAction(SoTenant, async ({ tenantId }, user) => {
   await exigeGestor(tenantId, user.uid);
-  return paraTela(await lerConfigWhatsApp(adminDb, tenantId));
+  // negócio novo ainda não tem configuração: {} (nada ligado), não null, que a tela lê como falha
+  const vazia: Partial<ConexaoWhatsapp> = {};
+  return paraTela((await lerConfigWhatsApp(adminDb, tenantId)) ?? vazia);
 });
 
 export const aceitarTermoWhatsAppAction = memberAction(SoTenant, async ({ tenantId }, user) => {

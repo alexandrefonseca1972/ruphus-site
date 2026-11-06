@@ -682,7 +682,7 @@ export default function AdminPage() {
           <p className="mt-2 text-sm text-[#6F6A5E]">
             {email ? `${email} não administra a plataforma.` : "Esta conta não administra a plataforma."}
           </p>
-          <button className={`${BOTAO_CLARO} mt-5`} onClick={() => sair().then(() => router.replace("/login"))}>
+          <button className={`${BOTAO_CLARO} mt-5`} onClick={() => void sair()}>
             Entrar com outra conta
           </button>
         </div>
@@ -919,7 +919,7 @@ export default function AdminPage() {
                   <button
                     type="button"
                     className="h-11 rounded-[10px] border border-[#D8D2C6] px-3.5 text-[13px] font-semibold text-[#8A2F2F] hover:border-[#8A2F2F]"
-                    onClick={() => sair().then(() => router.replace("/login"))}
+                    onClick={() => void sair()}
                   >
                     Sair
                   </button>

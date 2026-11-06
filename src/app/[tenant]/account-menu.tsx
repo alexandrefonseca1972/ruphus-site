@@ -45,7 +45,7 @@ export function AccountMenu() {
             </Menu.LinkItem>
             {tenant && <ItemAvisos tenantId={tenant.id} />}
             {/* recarga de verdade: o Firestore foi encerrado para apagar o cache do aparelho */}
-            <Menu.Item onClick={() => sair().then(() => window.location.replace("/login"))} className={`${ITEM} text-destructive`}>
+            <Menu.Item onClick={() => void sair()} className={`${ITEM} text-destructive`}>
               Sair
             </Menu.Item>
           </Menu.Popup>

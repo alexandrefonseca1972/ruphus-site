@@ -4,15 +4,15 @@
 // lados renderizam.
 
 export const TERMO_WHATSAPP = {
-  titulo: "Sobre o WhatsApp do seu negócio — leia antes de conectar",
+  titulo: "Antes de conectar o WhatsApp",
   paragrafos: [
-    "Esta integração usa a tecnologia de aparelhos conectados do WhatsApp por um protocolo alternativo. O WhatsApp pode restringir, suspender ou banir números que usam esse tipo de acesso, a qualquer momento e sem aviso prévio.",
-    "A Ruphus aplica boas práticas que reduzem o risco (envio gradualmente aquecido, ritmo entre mensagens, respeito a opt-out, limites diários), mas não controla e não pode garantir a continuidade do canal. Por depender de tecnologia de terceiros fora do nosso controle, a Ruphus não se responsabiliza por bloqueios, suspensões, banimentos ou instabilidade do WhatsApp, nem pela indisponibilidade temporária ou definitiva desta integração.",
+    "A conexão funciona como o WhatsApp Web: o número do negócio fica ligado à Ruphus como um aparelho conectado, e as confirmações e lembretes saem dele, com o nome do seu negócio. Como não é a API oficial do WhatsApp Business, o WhatsApp pode limitar ou bloquear o número se entender que os envios estão automáticos demais.",
+    "Para reduzir esse risco, a Ruphus envia aos poucos, com intervalo entre as mensagens, limite por dia e respeito a quem pede para não receber. A decisão final é do WhatsApp: a Ruphus não garante que o canal fique sempre disponível e não responde por limitação, bloqueio ou instabilidade do número.",
   ],
   itens: [
-    "Use um número dedicado ao negócio — nunca o seu número pessoal principal.",
-    "Mantenha um canal alternativo visível no site (telefone ou e-mail).",
-    "A agenda e o histórico ficam salvos aqui no painel, mesmo se o WhatsApp cair.",
-    "Se o número for bloqueado, conecte outro número nesta tela — a agenda continua de pé.",
+    "Prefira um número só do negócio, não o seu número pessoal.",
+    "Deixe outro contato visível no site (telefone ou e-mail).",
+    "A agenda e o histórico ficam salvos no painel, mesmo se o WhatsApp parar.",
+    "Se o número for bloqueado, é só conectar outro nesta tela: a agenda continua funcionando.",
   ],
 };
