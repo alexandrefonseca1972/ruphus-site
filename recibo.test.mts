@@ -1,6 +1,6 @@
 // npm run test:recibo — o texto do recibo, sem banco
 import assert from "node:assert/strict";
-import { erroDoEmail, sugestaoDeEmail, itensDoRecibo, linhasDoRecibo, numeroDoRecibo, textoDoRecibo, valorPorExtenso } from "@/lib/recibo";
+import { erroDoEmail, htmlDoRecibo, sugestaoDeEmail, itensDoRecibo, linhasDoRecibo, numeroDoRecibo, textoDoRecibo, valorPorExtenso } from "@/lib/recibo";
 
 const casos: [number, string][] = [
   [100, "um real"],
@@ -55,6 +55,10 @@ assert.deepEqual(visita.pagamentos.map((p) => [p.rotulo, p.detalhe, p.valor.repl
 assert.match(visita.declaracao, /cento e quarenta reais\), referente aos serviços acima\.$/);
 assert.match(textoDoRecibo(visita), /Pagamento\n• Sinal no agendamento \(Pix · 30% do serviço\): R\$/);
 assert.deepEqual(itensDoRecibo({ ...l, customerKey: null as string | null }, doMes as (typeof l & { customerKey: string | null })[]).map((i) => i.id), ["ag-x1", "sn-x1"], "avulso fica sozinho, mas o sinal do atendimento vem");
+// o sinal pago hoje para um horário futuro (ainda não recebido) não entra no recibo de hoje
+const comFuturo = [...doMes, { ...l, id: "sn-futuro", valorCents: 450, descricao: "Sinal · Corte" }];
+assert.deepEqual(itensDoRecibo(comFuturo[2], comFuturo).map((i) => i.id), ["ag-x1", "ag-x2", "sn-x1"]);
+assert.deepEqual(itensDoRecibo(comFuturo[6], comFuturo).map((i) => i.id), ["ag-x1", "ag-x2", "sn-futuro", "sn-x1"], "o recibo do próprio sinal mostra ele");
 // só um forma, sem sinal: "Pix", sem "no atendimento"
 assert.deepEqual(r.pagamentos.map((p) => p.rotulo), ["Pix"]);
 
@@ -67,5 +71,15 @@ assert.equal(erroDoEmail(" ana.souza@gmail.com "), "");
 assert.equal(erroDoEmail("ana@empresa.com.br"), "");
 assert.equal(sugestaoDeEmail("Ana@Gmial.com"), "ana@gmail.com");
 assert.equal(sugestaoDeEmail("ana@gmail.com"), "");
+
+// o e-mail: o cupom em HTML, com o que veio do banco escapado
+{
+  const h = htmlDoRecibo(linhasDoRecibo(juntos, { nome: "Salão <X> & Cia" }));
+  assert.match(h, /Salão &lt;X&gt; &amp; Cia/);
+  assert.ok(!h.includes("<X>"), "nome do negócio não vira HTML");
+  assert.match(h, /TOTAL[\s\S]*R\$\s140,00/);
+  assert.match(h, /Sinal no agendamento[\s\S]*Restante no atendimento/);
+  if (process.env.PREVIA) (await import("node:fs")).writeFileSync(process.env.PREVIA, h);
+}
 
 console.log("recibo ok");

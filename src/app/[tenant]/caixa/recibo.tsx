@@ -11,6 +11,8 @@ import { db } from "@/lib/firebase-db";
 import { idDoEstorno, Lancamento } from "@/lib/financeiro";
 import { erroDoEmail, type Emissor, linhasDoRecibo, sugestaoDeEmail, textoDoRecibo } from "@/lib/recibo";
 import { openExternal } from "@/lib/utils";
+import { idToken } from "@/lib/firebase";
+import { enviarReciboEmailAction } from "../actions";
 
 /** Recibo de um recebimento: para imprimir, mandar no WhatsApp do cliente ou por e-mail.
  *  O texto sai do lançamento; o cabeçalho, dos dados do negócio (os mesmos do site). */
@@ -73,13 +75,18 @@ export function Recibo({ tenantId, itens, onClose }: { tenantId: string; itens: 
   const erroEmail = tocouEmail ? erroDoEmail(email) : "";
   const sugestao = sugestaoDeEmail(email);
   const foneCliente = lancamento.customerKey ? formatPhone(lancamento.customerKey) : "";
-  function porEmail(e: React.FormEvent) {
+  // pela plataforma: o servidor remonta o recibo do banco e manda no formato do cupom, de contato@ruphus.site
+  const [envio, setEnvio] = useState<{ para: string; estado: "enviando" | "enviado" | "erro"; msg?: string } | null>(null);
+  async function porEmail(e: React.FormEvent) {
     e.preventDefault();
     setTocouEmail(true);
-    if (!r || erroDoEmail(email)) return;
-    // pelo app de e-mail do aparelho: sai do endereço do próprio salão, e o cliente responde para ele.
-    // O @ vai legível: alguns apps de e-mail não decodificam %40 no destinatário
-    window.location.assign(`mailto:${encodeURIComponent(email.trim()).replace(/%40/g, "@")}?subject=${encodeURIComponent(`${r.titulo} · ${r.emissor[0] ?? ""}`)}&body=${encodeURIComponent(textoDoRecibo(r))}`);
+    if (!r || erroDoEmail(email) || envio?.estado === "enviando") return;
+    const para = email.trim();
+    setEnvio({ para, estado: "enviando" });
+    const res = await idToken()
+      .then((t) => enviarReciboEmailAction(t, { tenantId, ids: ids.split(","), email: para }))
+      .catch(() => ({ ok: false as const, error: "Sem conexão. Tente de novo." }));
+    setEnvio(res.ok ? { para, estado: "enviado" } : { para, estado: "erro", msg: res.error ?? "O e-mail não saiu. Tente de novo." });
   }
 
   return (
@@ -191,17 +198,20 @@ export function Recibo({ tenantId, itens, onClose }: { tenantId: string; itens: 
                     aria-describedby="recibo-email-msg"
                     className="h-12 min-w-0 flex-1 sm:h-11"
                   />
-                  <Button type="submit" variant="outline" className="h-12 shrink-0 px-4 sm:h-11" disabled={!r}>Enviar</Button>
+                  <Button type="submit" variant="outline" className="h-12 shrink-0 px-4 sm:h-11" disabled={!r || envio?.estado === "enviando"}>
+                    {envio?.estado === "enviando" ? "Enviando…" : "Enviar"}
+                  </Button>
                 </div>
-                <p id="recibo-email-msg" className={erroEmail ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+                <p id="recibo-email-msg" aria-live="polite" className={erroEmail || envio?.estado === "erro" ? "text-xs text-destructive" : envio?.estado === "enviado" && envio.para === email.trim() ? "text-xs text-emerald-800 dark:text-emerald-300" : "text-xs text-muted-foreground"}>
                   {erroEmail ||
+                    (envio?.estado === "erro" ? envio.msg : envio?.estado === "enviado" && envio.para === email.trim() ? `Recibo enviado para ${envio.para}.` : null) ||
                     (sugestao ? (
                       <>
                         Você quis dizer{" "}
                         <button type="button" className="font-medium text-foreground underline underline-offset-2" onClick={() => setEmail(sugestao)}>{sugestao}</button>?
                       </>
                     ) : (
-                      "Abre o seu app de e-mail com o recibo pronto para enviar."
+                      "O recibo vai pela Ruphus, no formato acima, em nome do seu negócio."
                     ))}
                 </p>
               </form>

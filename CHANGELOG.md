@@ -5,6 +5,9 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Recibo por e-mail pela plataforma: "Enviar" manda o recibo no formato do cupom, de contato@ruphus.site com o nome do negócio, sem abrir o app de e-mail do aparelho. O servidor monta o recibo do banco.
+- Recibo: o sinal pago hoje para um horário que ainda não foi atendido não entra mais no recibo da visita de hoje (o total saía somado a mais).
+
 - Vale: o profissional com % de comissão aparece em Comissões mesmo antes de faturar no mês, para receber vale no dia 1; o aviso de e-mail vazio fala do profissional (não do cliente); o recibo diz "pagos em dinheiro".
 
 - Caixa: "Lançamentos do mês" ganhou Tudo / Entradas / Saídas, com o total de cada lado. Contas fixas, compras, comissões e vales ficam em Saídas, longe dos atendimentos.

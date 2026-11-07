@@ -9,9 +9,13 @@ import { integracao } from "@/lib/integracoes.server";
 // duas, o envio recusa com mensagem clara em vez de falhar no meio.
 export class EmailNaoConfigurado extends ErroPrevisto {}
 
-export type EmailSaida = { para: string; assunto: string; texto: string; html?: string };
+/** de: o nome que aparece como remetente (o negócio, no recibo): sai de contato@ruphus.site, não do noreply */
+export type EmailSaida = { para: string; assunto: string; texto: string; html?: string; de?: string };
 
 const REMETENTE = "Ruphus <noreply@ruphus.site>";
+const CONTATO = "contato@ruphus.site";
+// nome no cabeçalho From: sem aspas, <>, nem quebra de linha (injeção de cabeçalho)
+const nomeDe = (de: string) => de.replace(/["<>\r\n\\]/g, "").trim().slice(0, 60);
 
 // O endereço de contato (EMAIL_CONTATO, ex.: contato@ruphus.site): quem responde fala com ele, e no
 // Gmail ele é o remetente — o Gmail só respeita isso se o endereço estiver em "Enviar e-mail como"
@@ -42,18 +46,19 @@ export async function enviarEmailPor(canal: "resend" | "gmail", email: EmailSaid
   return pelaResend(chave, email, contato);
 }
 
-async function pelaResend(chave: string, { para, assunto, texto, html }: EmailSaida, responderPara: string) {
+async function pelaResend(chave: string, { para, assunto, texto, html, de }: EmailSaida, responderPara: string) {
+  const from = de ? `"${nomeDe(de)}" <${CONTATO}>` : REMETENTE;
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
     // noreply não lê resposta: quem responder fala com a conta da Ruphus, se houver
     signal: AbortSignal.timeout(10_000),
-    body: JSON.stringify({ from: REMETENTE, to: [para], subject: assunto, text: texto, html, ...(responderPara && { reply_to: responderPara }) }),
+    body: JSON.stringify({ from, to: [para], subject: assunto, text: texto, html, ...(responderPara && { reply_to: responderPara }) }),
   });
   if (!r.ok) throw new Error(`Resend recusou o e-mail (${r.status}): ${(await r.text()).slice(0, 300)}`);
 }
 
-async function peloGmail({ para, assunto, texto, html }: EmailSaida, usuario: string, senha: string, remetente = usuario) {
+async function peloGmail({ para, assunto, texto, html, de }: EmailSaida, usuario: string, senha: string, remetente = usuario) {
   if (!usuario || !senha) {
     throw new EmailNaoConfigurado("E-mail não configurado: cadastre a chave do Resend (ou a conta e a senha de app do Gmail) no /admin, em Ajustes.");
   }
@@ -65,5 +70,5 @@ async function peloGmail({ para, assunto, texto, html }: EmailSaida, usuario: st
     auth: { user: usuario, pass: senha },
   });
   // Com HTML, o texto puro segue junto: é ele que aparece onde o HTML não é exibido
-  await transporte.sendMail({ from: `"Ruphus" <${remetente}>`, replyTo: remetente, to: para, subject: assunto, text: texto, html });
+  await transporte.sendMail({ from: `"${de ? nomeDe(de) : "Ruphus"}" <${remetente}>`, replyTo: remetente, to: para, subject: assunto, text: texto, html });
 }

@@ -13,6 +13,8 @@ import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { enviarEmail } from "@/lib/email.server";
+import { htmlDoRecibo, textoDoRecibo } from "@/lib/recibo";
+import { reciboDoBanco } from "@/lib/recibo.server";
 import { formatBRL } from "@/lib/datetime";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { aceitarTermoWhatsApp, conectarNegocio, type ConexaoWhatsapp, desligarConexao, espelharStatusVivo, lerConfigWhatsApp, lerConexao, paraTela } from "@/lib/whatsapp.server";
@@ -453,6 +455,18 @@ export const darValeAction = memberAction(z.object({ tenantId: docIdStaff, vale:
   }).then(() => true, (err) => (console.error("[vale] e-mail", err), false));
   return { ok: true as const, emailEnviado };
 });
+
+/** Recibo por e-mail, pela plataforma: sai de contato@ruphus.site com o nome do negócio, no
+ *  formato do cupom (HTML) e com o texto junto para quem não abre HTML. */
+export const enviarReciboEmailAction = memberAction(
+  z.object({ tenantId: docIdStaff, ids: z.array(z.string().min(4).max(160)).min(1).max(20), email: z.string().trim().toLowerCase().email("E-mail inválido.").max(254) }),
+  async (data, user) => {
+    await exigeGestor(data.tenantId, user.uid);
+    const r = await reciboDoBanco(adminDb, data.tenantId, data.ids);
+    await enviarEmail({ para: data.email, de: r.emissor[0] || "Ruphus", assunto: `${r.titulo} · ${r.emissor[0] ?? ""}`, texto: textoDoRecibo(r), html: htmlDoRecibo(r) });
+    return { ok: true as const };
+  },
+);
 
 export const estornarAction = memberAction(z.object({ tenantId: docIdStaff, estorno: EstornoInput }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid);
