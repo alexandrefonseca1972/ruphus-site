@@ -7,7 +7,7 @@ import { verifyFirebaseToken } from "@/lib/verify-token";
 import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, LIMITS, loadCatalog, redeDoIp, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
 import { addDays, agoraNaParede, customerKey, formatPhone, fusoDaUF, maskBRL, freeSlots, phoneError, planDates, datasDoPlano, todayIn, weekday, zonedTime } from "@/lib/datetime";
-import { BookingInput } from "@/lib/scheduling";
+import { BookingInput, PlanInput } from "@/lib/scheduling";
 import { cotaDe, criarNegocio, definirLimite, negociosDe } from "@/lib/negocios.server";
 import { anotar, linhaDoTempo, marcarContato, pedirRemocao, propostaRemovivel, registrarMensagem, registrarVistaDaProposta, salvarCrm } from "@/lib/crm";
 import { saudeDe } from "@/lib/saude.server";
@@ -250,6 +250,15 @@ assert.equal(planAppts.docs[0].get("customerKey"), "5511977770000");
 const planLog = (await t.collection("history").doc(planAppts.docs[0].get("lastHistoryId")).get()).data()!;
 assert.deepEqual([planLog.type, planLog.planId, planLog.byName], ["created", plan.planId, "dono@teste.dev"]);
 assert.equal((await t.collection("customers").doc("5511977770000").get()).get("name"), "Xavier");
+// e-mail opcional no plano: limpo como na ficha; inválido é recusado; informado, vai para a ficha
+assert.equal(PlanInput.parse({ ...planInput, email: " Xavier@Gmail.COM " }).email, "xavier@gmail.com");
+assert.equal(PlanInput.safeParse({ ...planInput, email: "xavier@" }).success, false);
+assert.equal((await t.collection("customers").doc("5511977770000").get()).get("email"), undefined, "sem e-mail no plano, nada gravado");
+{
+  const comEmail = await createPlan(db, { ...planInput, customerName: "Yara", customerPhone: "(11) 96666-0101", startDate: planDates(addDays(todayIn(), 60), 1, 1)[0], weeks: 1, email: "yara@exemplo.com" }, actor);
+  assert.ok(comEmail.ok, "plano com e-mail");
+  assert.equal((await t.collection("customers").doc("5511966660101").get()).get("email"), "yara@exemplo.com");
+}
 assert.equal((await createPlan(db, planInput, actor)).ok, false, "mesmo plano de novo: tudo ocupado");
 
 // Conta da equipe presa à Ana: não remarca, não cria nem encerra plano de outra agenda

@@ -671,6 +671,8 @@ async function criarPlano(db: Firestore, input: PlanInput, actor: Actor) {
       const ctx: WriteContext = { t, svc, durationMin, staff: quem.staff };
       writeAppointment(tx, ctx, { ...input, staffId: quem.id, date }, by, { planId: plan.id, renameCustomer: true });
     }
+    // e-mail informado no plano vai para a ficha do cliente; em branco, o que já existe fica
+    if (input.email) tx.set(t.collection("customers").doc(customerKey(input.customerPhone)), { email: input.email }, { merge: true });
     return { ok: true as const, planId: plan.id, created: free.map((f) => f.date), skipped, outros: free.filter((f) => f.quem.id !== principal.id).map((f) => ({ date: f.date, nome: f.quem.staff.name })) };
   }, TX));
 }

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { idToken } from "@/lib/firebase";
+import { erroEmail, mascaraEmail } from "@/lib/cliente-dados";
 import { MAX_DAYS_AHEAD, WEEKDAYS, addDays, datasDoPlano, formatDuration, formatLongDate, formatPhone, planDates, todayIn, weekday, zonedTime, precoDe } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
@@ -50,6 +51,10 @@ export function PlanForm(props: {
   const [date, setDate] = useState("");
   const [escolha, setEscolha] = useState<{ hora: string; staffId: string } | null>(null);
   const [phone, setPhone] = useState("");
+  // opcional: a máscara limpa enquanto digita; o erro aparece ao sair do campo
+  const [email, setEmail] = useState("");
+  const [emailTocado, setEmailTocado] = useState(false);
+  const emailErro = emailTocado ? erroEmail(email) : "";
   // texto do campo: apagar para digitar outro número não pode virar "1" no meio da digitação
   const [semanasTexto, setSemanasTexto] = useState("12");
   // o dia da semana do plano: segue o primeiro dia até o dono escolher outro (ex.: começa no
@@ -105,6 +110,7 @@ export function PlanForm(props: {
 
   async function submit(form: FormData) {
     if (!escolha || !date) return setError("Escolha o dia e o horário.");
+    if (erroEmail(email)) return (setEmailTocado(true), setError("Confira o e-mail do cliente ou deixe em branco."));
     setError("");
     setResult("");
     setBusy(true);
@@ -122,6 +128,7 @@ export function PlanForm(props: {
         time: escolha.hora,
         startDate: date,
         weeks,
+        ...(email && { email }),
       });
       if (!res.ok) return setError(res.error);
       const dates = res.created;
@@ -158,7 +165,7 @@ export function PlanForm(props: {
       <h2 className="font-serifa text-2xl leading-tight">Novo plano recorrente{customer && ` para ${customer.name}`}</h2>
 
       {!customer && (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="grid gap-1.5">
             <Label htmlFor="plan-name">Nome do cliente</Label>
             <Input id="plan-name" name="customerName" required minLength={2} maxLength={80} className="h-11 bg-card px-3.5 text-[15px]" />
@@ -176,6 +183,29 @@ export function PlanForm(props: {
               onChange={(e) => setPhone(formatPhone(e.target.value))}
               className="h-11 bg-card px-3.5 text-[15px] tabular-nums"
             />
+          </div>
+          <div className="grid gap-1.5 sm:col-span-2 lg:col-span-1">
+            <Label htmlFor="plan-email">
+              E-mail <span className="font-normal text-muted-foreground">(opcional)</span>
+            </Label>
+            <Input
+              id="plan-email"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              maxLength={254}
+              placeholder="nome@gmail.com"
+              value={email}
+              onChange={(e) => setEmail(mascaraEmail(e.target.value))}
+              onBlur={() => email && setEmailTocado(true)}
+              aria-invalid={!!emailErro}
+              aria-describedby="plan-email-msg"
+              className="h-11 bg-card px-3.5 text-[15px]"
+            />
+            <p id="plan-email-msg" className={cn("min-h-4 text-xs", emailErro ? "text-destructive" : "text-muted-foreground")}>{emailErro || "Fica na ficha do cliente, para o recibo."}</p>
           </div>
         </div>
       )}
