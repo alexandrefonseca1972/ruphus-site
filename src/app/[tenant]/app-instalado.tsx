@@ -20,10 +20,10 @@ type ConviteInstalar = Event & { prompt: () => Promise<void>; userChoice: Promis
 // O Chrome manda o convite de instalar uma vez por carregamento, em geral antes de o painel
 // existir (no /login). O script do layout raiz guarda em window.__conviteInstalar; aqui fora,
 // serve à faixa do topo e ao cartão fixo de Meu negócio.
-type Instalacao = { convite: ConviteInstalar | null; instalado: boolean; dispensado: boolean; ios: boolean };
+type Instalacao = { convite: ConviteInstalar | null; instalado: boolean; dispensado: boolean; ios: boolean; celular: boolean };
 let instalacao: Instalacao | null = null;
 const ouvintes = new Set<() => void>();
-const NO_SERVIDOR: Instalacao = { convite: null, instalado: true, dispensado: true, ios: false };
+const NO_SERVIDOR: Instalacao = { convite: null, instalado: true, dispensado: true, ios: false, celular: false };
 
 const dispensadoEm = (chave: string) => {
   try {
@@ -49,6 +49,8 @@ const atual = () =>
     dispensado: dispensadoEm(DISPENSADO),
     // Safari do iPhone/iPad não tem o evento de instalar: lá o caminho é pelo menu Compartilhar
     ios: /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1),
+    // o convite é para o celular (e o tablet): no computador, com mouse, ele não aparece
+    celular: matchMedia("(pointer: coarse)").matches,
   });
 const mudar = (m: Partial<Instalacao>) => {
   instalacao = { ...atual(), ...m };
@@ -68,7 +70,7 @@ function useInstalar() {
   const i = useSyncExternalStore(assinar, atual, () => NO_SERVIDOR);
   return {
     ...i,
-    pode: !i.instalado && (!!i.convite || i.ios),
+    pode: i.celular && !i.instalado && (!!i.convite || i.ios),
     async instalar() {
       if (!i.convite) return;
       await i.convite.prompt();
