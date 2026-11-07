@@ -1,6 +1,7 @@
 "use client";
 
 import { orderBy, Timestamp, where } from "firebase/firestore";
+import { TituloOrdenavel } from "@/components/titulo-ordenavel";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { z } from "zod";
@@ -110,12 +111,7 @@ export default function CustomersPage() {
     setPagina(1);
   };
   const cabecalho = (por: Ordem, rotulo: string, direita = false) => (
-    <span role="columnheader" aria-sort={ordem.por === por ? (ordem.sobe ? "ascending" : "descending") : "none"} className={cn(direita && "text-right")}>
-      <button type="button" onClick={() => ordenar(por)} className={cn("inline-flex items-center gap-1 uppercase hover:text-foreground", ordem.por === por && "text-foreground")}>
-        {rotulo}
-        <span aria-hidden="true" className={cn("text-[10px]", ordem.por !== por && "opacity-0")}>{ordem.sobe ? "▲" : "▼"}</span>
-      </button>
-    </span>
+    <TituloOrdenavel rotulo={rotulo} ativo={ordem.por === por} sobe={ordem.sobe} onClick={() => ordenar(por)} className={cn(direita && "text-right")} />
   );
 
   // Quem tem horário marcado pela frente não sumiu, mesmo sem visita passada (cliente novo)

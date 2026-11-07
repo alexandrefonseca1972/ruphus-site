@@ -15,6 +15,7 @@ import { useTenant } from "../painel-layout";
 import { PageTitle } from "../page-title";
 import { ConfirmDialog } from "../confirm-dialog";
 import { RowMenu } from "../row-menu";
+import { TituloOrdenavel } from "@/components/titulo-ordenavel";
 import { cn, handleSubmit } from "@/lib/utils";
 
 const toCents = (masked: string) => Number(masked.replace(/\D/g, ""));
@@ -245,13 +246,8 @@ export default function ServicesPage() {
     setOrdem((o) => ({ por, sobe: o.por === por ? !o.sobe : por === "nome" }));
     setPagina(1);
   };
-  const cabecalho = (por: Ordem, rotulo: string) => (
-    <span role="columnheader" aria-sort={ordem.por === por ? (ordem.sobe ? "ascending" : "descending") : "none"}>
-      <button type="button" onClick={() => ordenar(por)} className={cn("inline-flex items-center gap-1 uppercase hover:text-foreground", ordem.por === por && "text-foreground")}>
-        {rotulo}
-        <span aria-hidden="true" className={cn("text-[10px]", ordem.por !== por && "opacity-0")}>{ordem.sobe ? "▲" : "▼"}</span>
-      </button>
-    </span>
+  const cabecalho = (por: Ordem, rotulo: string, className?: string) => (
+    <TituloOrdenavel rotulo={rotulo} ativo={ordem.por === por} sobe={ordem.sobe} onClick={() => ordenar(por)} className={className} />
   );
 
   return (
@@ -336,15 +332,16 @@ export default function ServicesPage() {
       {!!lista.length && (
         <section aria-label="Serviços cadastrados" className="overflow-hidden rounded-2xl border bg-card">
           {/* clicar no título ordena; de novo, inverte */}
-          <div className="hidden grid-cols-[minmax(0,1fr)_7rem_8rem_11rem_7rem] gap-4 bg-background px-6 py-3 text-xs font-medium tracking-wider text-muted-foreground uppercase sm:grid">
+          <div role="row" className="hidden items-center gap-4 border-b bg-background px-6 py-2.5 text-xs font-medium tracking-wider text-muted-foreground uppercase sm:grid sm:grid-cols-[minmax(0,1fr)_7rem_8rem_11rem_7rem] lg:grid-cols-[minmax(0,1fr)_6rem_8rem_6.5rem_11rem_7rem]">
             {cabecalho("nome", "Serviço")}
             {cabecalho("duracao", "Duração")}
             {cabecalho("preco", "Preço")}
+            {cabecalho("usos", "Agendados", "hidden lg:block")}
             <span>Link de agendamento</span>
             <span />
           </div>
-          {/* a ordem também num seletor: no celular os títulos somem, e "mais agendados" não tem coluna */}
-          <div className="flex items-center gap-2 border-b bg-background px-4 py-2.5 text-[13px] sm:border-t sm:px-6">
+          {/* no celular os títulos somem: a ordem vai num seletor */}
+          <div className="flex items-center gap-2 border-b bg-background px-4 py-2.5 text-[13px] sm:hidden">
             <label htmlFor="ordem-servicos" className="shrink-0 text-muted-foreground">Ordenar por</label>
             <select
               id="ordem-servicos"
@@ -354,7 +351,7 @@ export default function ServicesPage() {
                 setOrdem({ por: por as Ordem, sobe: dir === "sobe" });
                 setPagina(1);
               }}
-              className="h-10 min-w-0 flex-1 rounded-md border bg-card px-2 sm:max-w-64 sm:flex-none"
+              className="h-11 min-w-0 flex-1 rounded-md border bg-card px-2"
             >
               {ORDENS.flatMap(({ id, rotulo }) =>
                 id === "nome"
@@ -369,7 +366,7 @@ export default function ServicesPage() {
             {lista.slice(inicio, inicio + porPagina).map((s) => {
               const quem = fazem(s.id);
               return (
-                <li key={s.id} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-t px-4 py-4 sm:grid-cols-[minmax(0,1fr)_7rem_8rem_11rem_7rem] sm:px-6", !s.active && "text-muted-foreground")}>
+                <li key={s.id} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-t px-4 py-4 sm:grid-cols-[minmax(0,1fr)_7rem_8rem_11rem_7rem] lg:grid-cols-[minmax(0,1fr)_6rem_8rem_6.5rem_11rem_7rem] sm:px-6", !s.active && "text-muted-foreground")}>
                   <div className="grid min-w-0 gap-0.5">
                     <span className="flex flex-wrap items-center gap-2 text-[15px] font-semibold">
                       {s.name}
@@ -393,6 +390,7 @@ export default function ServicesPage() {
                       </>
                     )}
                   </span>
+                  <span className="hidden tabular-nums lg:block" title="Vezes que foi agendado">{s.usos ?? 0}</span>
                   <label className="order-last col-span-2 flex min-h-11 items-center gap-2.5 text-[13px] text-muted-foreground sm:order-none sm:col-span-1">
                     <input
                       type="checkbox"
