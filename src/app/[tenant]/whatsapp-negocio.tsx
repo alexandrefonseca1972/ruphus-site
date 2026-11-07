@@ -374,8 +374,8 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
       )}
 
       <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-        Integração por protocolo alternativo: o WhatsApp pode bloquear o número a qualquer momento e a plataforma
-        não garante o funcionamento contínuo do canal. Termo aceito
+        Conexão como aparelho conectado, fora da API oficial: o WhatsApp pode limitar ou bloquear o número, e a
+        Ruphus não garante o canal sempre disponível. Termo aceito
         {cfg?.termsAcceptedAt ? ` em ${new Date(cfg.termsAcceptedAt).toLocaleString("pt-BR")}.` : "."}
       </p>
       {aviso && (

@@ -68,7 +68,7 @@ export default function MeusNegocios() {
         // falha ao ler (rede, site reiniciando) não é "nenhum negócio": mostrar o cadastro do
         // primeiro negócio aqui mandava o dono preencher tudo para esbarrar na cota no fim
         const r = await meusNegocios(await u.getIdToken()).catch(() => ({ ok: false as const, error: "Confira a internet e tente de novo." }));
-        // sessão encerrada pelo admin: sai da conta e o onAuthStateChanged leva ao login
+        // sessão encerrada pelo admin: sai da conta e recarrega no login
         if (!r.ok && "sair" in r) return void sair();
         if (!r.ok) return setErro(r.error);
         // um negócio só (o caso comum): a lista seria uma tela a mais entre o login e a agenda
@@ -251,6 +251,7 @@ function NegocioForm({
   const [slug, setSlug] = useState("");
   // Enquanto a pessoa não mexe no endereço, ele acompanha o nome
   const [slugEditado, setSlugEditado] = useState(false);
+  const [slugAberto, setSlugAberto] = useState(false);
   const [touched, setTouched] = useState({ name: false, slug: false });
   const [campos, setCampos] = useState(VAZIO);
   // os campos do negócio só mostram erro depois da primeira tentativa de criar
@@ -342,7 +343,7 @@ function NegocioForm({
         </div>
 
         <div className="grid gap-1.5">
-          <Label htmlFor="negocio-slug">Endereço do link</Label>
+          <Label htmlFor="negocio-slug">Link do seu site</Label>
           <div
             className={cn(
               "flex h-12 items-center overflow-hidden rounded-lg border border-input bg-card focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 sm:h-11",
@@ -357,6 +358,13 @@ function NegocioForm({
               id="negocio-slug"
               value={slug}
               inputMode="url"
+              // O Chrome preenchia este campo com o endereço salvo da pessoa ("Rua Um, 37") ao
+              // completar cidade e bairro, ignorando autocomplete="off". Ele não preenche campo
+              // só leitura: o campo abre ao receber o foco, e mudança sem foco (o preenchimento
+              // automático disparado em outro campo) é descartada.
+              autoComplete="off"
+              readOnly={!slugAberto}
+              onFocus={() => setSlugAberto(true)}
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
@@ -364,6 +372,7 @@ function NegocioForm({
               aria-invalid={!!msgSlug}
               aria-describedby="negocio-slug-msg"
               onChange={(e) => {
+                if (document.activeElement !== e.target) return;
                 setSlug(mascaraSlug(e.target.value));
                 setSlugEditado(true);
               }}

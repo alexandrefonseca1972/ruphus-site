@@ -53,6 +53,9 @@ export function CamposNegocio({
   fabrica?: boolean;
 }) {
   // O erro aparece ao sair do campo e, daí em diante, a cada tecla: acusar quem ainda digita é ruído
+  // com ramo escolhido (ou carregado depois, na aba "Meu negócio"), a área sai dele
+  const [areaSemRamo, setArea] = useState("");
+  const area = GRUPOS.find(([, subs]) => (subs as string[]).includes(valores.sub))?.[0] ?? areaSemRamo;
   const [vistos, setVistos] = useState<ReadonlySet<Campo>>(new Set());
   const ver = (c: Campo) => () => setVistos((v) => (v.has(c) ? v : new Set(v).add(c)));
   const erros = Object.fromEntries(Object.entries(todos).filter(([c]) => mostrarTodos || vistos.has(c as Campo))) as Partial<Record<Campo, string>>;
@@ -76,23 +79,41 @@ export function CamposNegocio({
     <>
       {!fabrica && (
       <div className="grid gap-1.5">
-        <Label htmlFor="negocio-sub">Ramo</Label>
-        <select
-          id="negocio-sub"
-          value={valores.sub}
-          onChange={muda("sub")}
-          onBlur={ver("sub")}
-          aria-invalid={!!erros.sub}
-          aria-describedby="negocio-sub-msg"
-          className={cn(SELETOR, erros.sub && "border-destructive")}
-        >
-          <option value="" disabled>Escolha o ramo do negócio</option>
-          {GRUPOS.map(([grupo, subs]) => (
-            <optgroup key={grupo} label={grupo}>
-              {subs.map((s) => <option key={s} value={s}>{SUBS[s].rotulo}</option>)}
-            </optgroup>
-          ))}
-        </select>
+        {/* área e ramo em dois selects curtos: os 27 ramos num só passavam da altura da tela,
+            e o macOS abria a lista nativa na tela inteira, com rolagem */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-1.5">
+            <Label htmlFor="negocio-area">Área</Label>
+            <select
+              id="negocio-area"
+              value={area}
+              onChange={(e) => {
+                setArea(e.target.value);
+                if (valores.sub) onChange({ ...valores, sub: "" });
+              }}
+              className={cn(SELETOR, erros.sub && !area && "border-destructive")}
+            >
+              <option value="" disabled>Escolha</option>
+              {GRUPOS.map(([grupo]) => <option key={grupo} value={grupo}>{grupo}</option>)}
+            </select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="negocio-sub">Ramo</Label>
+            <select
+              id="negocio-sub"
+              value={valores.sub}
+              onChange={muda("sub")}
+              onBlur={ver("sub")}
+              disabled={!area}
+              aria-invalid={!!erros.sub}
+              aria-describedby="negocio-sub-msg"
+              className={cn(SELETOR, "disabled:opacity-60", erros.sub && "border-destructive")}
+            >
+              <option value="" disabled>{area ? "Escolha" : "Escolha a área"}</option>
+              {(GRUPOS.find(([g]) => g === area)?.[1] ?? []).map((s) => <option key={s} value={s}>{SUBS[s].rotulo}</option>)}
+            </select>
+          </div>
+        </div>
         <p id="negocio-sub-msg" aria-live="polite" className="min-h-4 text-xs">
           {erros.sub ? <span className="text-destructive">{erros.sub}</span> : <span className="text-muted-foreground">Define o modelo do site e os serviços iniciais da agenda.</span>}
         </p>
