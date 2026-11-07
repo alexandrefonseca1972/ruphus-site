@@ -8,7 +8,8 @@ import { formatBRL, maskBRL, todayIn } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
 import { categorias, ehSinal, ehVinculado, FORMAS, ROTULO_FORMA, type Lancamento } from "@/lib/financeiro";
 import { cn } from "@/lib/utils";
-import { baixarAgendamentoAction, editarLancamentoAction, estornarAction, excluirLancamentoAction, lancarAction, pagarAction } from "./actions";
+import { baixarAgendamentoAction, editarLancamentoAction, enviarPixWhatsappAction, estornarAction, excluirLancamentoAction, lancarAction, pagarAction } from "./actions";
+import { whatsappDoNegocio } from "@/lib/tenants";
 import { ConfirmDialog } from "./confirm-dialog";
 import { PixQr } from "@/components/pix-qr";
 import { txidLivre } from "@/lib/pix";
@@ -86,7 +87,8 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
   const podeEstornar = !!base && base.tipo === "entrada" && !estornado;
   const deQuem = base?.customerName ?? base?.descricao ?? base?.categoria ?? "";
   // receber por Pix na hora: o QR com o valor, na chave do salão
-  const { pix, id: slug, podeGerir } = useTenant();
+  const tenant = useTenant();
+  const { pix, id: slug, podeGerir } = tenant;
   const [mostrarPix, setMostrarPix] = useState(false);
   const [txid] = useState(() => txidLivre(slug));
   const podePix = !!pix && forma === "pix" && !estornando && (folha.modo === "baixa" || (folha.modo === "novo" && tipo === "entrada"));
@@ -195,7 +197,14 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
 
           {podePix && pix && (
             mostrarPix && centavos ? (
-              <PixQr recebedor={pix} valorCents={centavos} txid={txid} />
+              <PixQr
+                key={centavos} // valor novo: o "Enviado" do valor antigo não vale
+                recebedor={pix}
+                valorCents={centavos}
+                txid={txid}
+                // atendimento com WhatsApp do negócio conectado: o código vai direto ao cliente
+                enviar={folha.modo === "baixa" && whatsappDoNegocio(tenant) ? () => idToken().then((t) => enviarPixWhatsappAction(t, { tenantId: slug, appointmentId: folha.atendimento.id, valorCents: centavos, txid })) : undefined}
+              />
             ) : (
               <Button type="button" variant="outline" className="h-11" disabled={!centavos} onClick={() => setMostrarPix(true)}>
                 Mostrar QR do Pix

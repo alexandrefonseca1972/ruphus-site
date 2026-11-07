@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { OCULTO, useValores } from "@/lib/valores";
 import { orderBy, Timestamp, where } from "firebase/firestore";
 import { Fragment, useEffect, useState } from "react";
 import { z } from "zod";
@@ -8,7 +9,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
-import { addDays, customerKey, dateIn, formatBRL, formatLongDate, formatTime, todayIn, weekday, WEEKDAYS, whatsappLink, zonedTime, precoDe } from "@/lib/datetime";
+import { addDays, customerKey, dateIn, formatLongDate, formatTime, todayIn, weekday, WEEKDAYS, whatsappLink, zonedTime, precoDe } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { cn, openExternal } from "@/lib/utils";
@@ -16,6 +17,8 @@ import { ConfirmDialog } from "./confirm-dialog";
 import { History } from "./history";
 import { type Folha, LancamentoFolha } from "./lancamento-folha";
 import { idDaBaixa, Lancamento } from "@/lib/financeiro";
+import { itensDoRecibo } from "@/lib/recibo";
+import { Recibo } from "./caixa/recibo";
 import { useTenant } from "./painel-layout";
 import { PageTitle } from "./page-title";
 import { Reschedule } from "./reschedule";
@@ -25,7 +28,7 @@ import { mudarStatus, STATUS } from "./status";
 import { avisarClienteWhatsappAction, avisarConfirmacaoSmsAction, confirmarSinalAction } from "./actions";
 import { idToken } from "@/lib/firebase";
 import { restanteDe } from "@/lib/sinal";
-import { DEMO } from "@/lib/demo";
+import { whatsappDoNegocio } from "@/lib/tenants";
 import { type AvisoCliente, textoAvisoCliente } from "@/lib/mensagens";
 
 const Appointment = z.object({
@@ -54,6 +57,7 @@ const BOTAO_AVISO = "inline-flex h-10 items-center rounded-md bg-emerald-700 px-
 
 export default function AgendaPage() {
   const tenant = useTenant();
+  const { brl, oculto } = useValores();
   const [date, setDate] = useState(todayIn);
   const [error, setError] = useState("");
   const [rescheduling, setRescheduling] = useState<string | null>(null);
@@ -64,12 +68,10 @@ export default function AgendaPage() {
   const [staffFilter, setStaffFilter] = useState(tenant.staffId ?? "");
   const [staff] = useCollection(tenant.id, "staff", Staff, [orderBy("name")]);
   // aviso no topo; com a mensagem, oferece mandar ao cliente (manual: pelo WhatsApp do aparelho)
-  const [notice, setNotice] = useState<{ text: string; aviso?: { a: Appointment; tipo: AvisoCliente; start: Date }; manual?: boolean } | null>(null);
-  // WhatsApp do negócio conectado (atendys): a mensagem sai por ele, sem abrir o WhatsApp do aparelho.
-  // A demonstração nunca manda nada (lerConexao), então nela vai direto ao WhatsApp do aparelho.
-  // ponytail: a conexão antiga (wtsfy, sem apikey) também parece conectada aqui; o servidor recusa
-  // e o aviso oferece o wa.me. Expor um "atendys" no doc público se isso voltar a existir.
-  const peloNegocio = tenant.id !== DEMO && !!tenant.whatsapp?.instanceId && tenant.whatsapp.status === "connected";
+  // recibo: id do lançamento recebido agora; o aviso oferece o recibo dele
+  const [notice, setNotice] = useState<{ text: string; aviso?: { a: Appointment; tipo: AvisoCliente; start: Date }; manual?: boolean; recibo?: string } | null>(null);
+  // WhatsApp do negócio conectado (atendys): a mensagem sai por ele, sem abrir o WhatsApp do aparelho
+  const peloNegocio = whatsappDoNegocio(tenant);
   const mensagem = (a: Appointment, tipo: AvisoCliente, start = a.start.toDate()) =>
     textoAvisoCliente(tipo, { ...a, start }, tenant.name, `${location.origin}/agendar/${tenant.id}`);
   const aviso = notice?.aviso;
@@ -104,6 +106,12 @@ export default function AgendaPage() {
   );
   const recebidos = new Set(recebidosDaSemana?.map((l) => l.id));
   const [folha, setFolha] = useState<Folha | null>(null);
+  const [recibo, setRecibo] = useState<Lancamento[] | null>(null);
+  // o mesmo recibo do Caixa: o atendimento, o sinal e o que o cliente pagou no mesmo dia
+  const abrirRecibo = (id: string) => {
+    const l = recebidosDaSemana?.find((x) => x.id === id);
+    if (l) setRecibo(itensDoRecibo(l, recebidosDaSemana!));
+  };
 
   // Toda mudança de status grava um registro no histórico no mesmo batch (exigido pelas regras)
   /** Devolve true quando gravou; só então o cliente pode ser avisado. */
@@ -190,12 +198,12 @@ export default function AgendaPage() {
     { label: "Horários", value: active.length },
     { label: "Confirmados", value: active.filter((a) => a.status === "confirmed").length },
     { label: "Aguardando", value: active.filter((a) => a.status === "booked").length },
-    { label: "Previsto", value: formatBRL(active.reduce((sum, a) => sum + a.priceCents, 0)) },
+    { label: "Previsto", value: brl(active.reduce((sum, a) => sum + a.priceCents, 0)) },
   ];
 
   return (
     <>
-      <PageTitle title="Agenda" sub={capitaliza(formatLongDate(zonedTime(date, "12:00")))}>
+      <PageTitle title="Agenda" valores sub={capitaliza(formatLongDate(zonedTime(date, "12:00")))}>
         <div className="flex w-full items-center gap-2 sm:w-auto">
           <Button variant="outline" size="icon-lg" className="size-10 max-sm:size-11" onClick={() => setDate(addDays(date, -7))} aria-label="Semana anterior">‹</Button>
           <Label htmlFor="agenda-date" className="sr-only">Data</Label>
@@ -262,6 +270,9 @@ export default function AgendaPage() {
                 Avisar pelo WhatsApp
               </a>
             ))}
+            {notice.recibo && recebidos.has(notice.recibo) && (
+              <Button variant="outline" size="sm" onClick={() => abrirRecibo(notice.recibo!)}>Recibo</Button>
+            )}
             <Button variant="ghost" size="sm" onClick={() => setNotice(null)}>Fechar</Button>
           </div>
         </div>
@@ -330,14 +341,14 @@ export default function AgendaPage() {
                     {a.planId && <span className="rounded-full border px-2.5 py-0.5 text-xs">Recorrente</span>}
                     {a.sinal?.status === "pendente" && ATIVO(a) && (
                       <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                        Sinal de {formatBRL(a.sinal.cents)} até {a.sinal.hora}
+                        Sinal de {brl(a.sinal.cents)} até {a.sinal.hora}
                       </span>
                     )}
-                    {a.sinal?.status === "pago" && <span className="rounded-full border px-2.5 py-0.5 text-xs">Sinal pago · {formatBRL(a.sinal.cents)}</span>}
+                    {a.sinal?.status === "pago" && <span className="rounded-full border px-2.5 py-0.5 text-xs">Sinal pago · {brl(a.sinal.cents)}</span>}
                     {recebidos.has(idDaBaixa(a.id)) && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">Recebido</span>}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {[a.serviceName, `com ${a.staffName}`, precoDe({ priceCents: a.priceCents, tipoPreco: a.precoAberto ? "aPartir" : "fixo" })].filter(Boolean).join(" · ")} ·{" "}
+                    {[a.serviceName, `com ${a.staffName}`, (oculto ? OCULTO : precoDe({ priceCents: a.priceCents, tipoPreco: a.precoAberto ? "aPartir" : "fixo" }))].filter(Boolean).join(" · ")} ·{" "}
                     <a href={whatsappLink(a.customerPhone)} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline">
                       {a.customerPhone}
                     </a>
@@ -368,6 +379,7 @@ export default function AgendaPage() {
                       ...(caixa && recebidosDaSemana && ATIVO(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) && restanteDe(a) > 0
                         ? [{ label: "Recebido", onClick: () => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, serviceName: a.serviceName, priceCents: restanteDe(a), sinalCents: a.sinal?.status === "pago" ? a.sinal.cents : 0 } }) }]
                         : []),
+                      ...(caixa && recebidos.has(idDaBaixa(a.id)) ? [{ label: "Recibo", onClick: () => abrirRecibo(idDaBaixa(a.id)) }] : []),
                       // recebido no Caixa não vira falta: a entrada contaria um atendimento que não houve
                       ...(ATIVO(a) && meu(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Faltou", onClick: () => setConfirming({ id: a.id, kind: "no_show" as const }) }] : []),
                       ...(ATIVO(a) && meu(a) && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Cancelar horário", danger: true, onClick: () => setConfirming({ id: a.id, kind: "cancel" as const }) }] : []),
@@ -379,7 +391,7 @@ export default function AgendaPage() {
               {confirming?.id === a.id && confirming.kind === "cancel" && (
                 <ConfirmDialog
                   title={`Cancelar o agendamento de ${a.customerName}?`}
-                  description={`${formatLongDate(a.start.toDate())} às ${formatTime(a.start.toDate())} · ${a.serviceName} com ${a.staffName}. O horário volta a ficar livre.${a.sinal?.status === "pago" ? ` O sinal de ${formatBRL(a.sinal.cents)} foi pago: combine a devolução com o cliente.` : ""}`}
+                  description={`${formatLongDate(a.start.toDate())} às ${formatTime(a.start.toDate())} · ${a.serviceName} com ${a.staffName}. O horário volta a ficar livre.${a.sinal?.status === "pago" ? ` O sinal de ${brl(a.sinal.cents)} foi pago: combine a devolução com o cliente.` : ""}`}
                   notifyLabel="Avisar o cliente pelo WhatsApp"
                   confirmLabel="Sim, cancelar"
                   onConfirm={(notify) => cancel(a, notify)}
@@ -389,7 +401,7 @@ export default function AgendaPage() {
               {/* marcar dinheiro como recebido não tem volta pelo painel: confere antes */}
               {confirming?.id === a.id && confirming.kind === "sinal" && a.sinal && (
                 <ConfirmDialog
-                  title={`O sinal de ${formatBRL(a.sinal.cents)} caiu na sua conta?`}
+                  title={`O sinal de ${brl(a.sinal.cents)} caiu na sua conta?`}
                   description={`Confira no app do banco o Pix de ${a.customerName}. Confirmando, o horário fica confirmado${caixa ? " e o sinal entra no Caixa" : ""}.`}
                   confirmLabel="Sim, recebi"
                   tom="normal"
@@ -440,9 +452,14 @@ export default function AgendaPage() {
           tenantId={tenant.id}
           nicho={tenant.gerado?.nicho}
           folha={folha}
-          onClose={() => setFolha(null)} // o "Recebido" aparece na linha: não precisa de aviso
+          onClose={(aviso) => {
+            // recebeu: o aviso oferece o recibo (o "Recebido" também aparece na linha)
+            if (aviso && folha.modo === "baixa") setNotice({ text: `${folha.atendimento.customerName}: ${aviso}`, recibo: idDaBaixa(folha.atendimento.id) });
+            setFolha(null);
+          }}
         />
       )}
+      {recibo && <Recibo tenantId={tenant.id} itens={recibo} onClose={() => setRecibo(null)} />}
     </>
   );
 }

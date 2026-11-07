@@ -1,13 +1,14 @@
 "use client";
 
 import { orderBy, Timestamp, where } from "firebase/firestore";
+import { useValores } from "@/lib/valores";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { errorMessage } from "@/lib/auth-errors";
-import { formatBRL, formatLongDate, formatTime, todayIn, zonedTime } from "@/lib/datetime";
+import { formatLongDate, formatTime, todayIn, zonedTime } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
 import { CaixaConfig, comissoesDoMes, diaNoMes, fixaNoMes, mesDaComissao, pctDoTexto, csvDoMes, idDaBaixa, idDoEstorno, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
 import { useCollection } from "@/lib/use-collection";
@@ -47,6 +48,7 @@ const nomeDoMes = (mes: string) => {
 };
 
 export default function CaixaPage() {
+  const { brl } = useValores();
   const tenant = useTenant();
   const [mes, setMes] = useState(() => todayIn().slice(0, 7));
   const [folha, setFolha] = useState<Folha | null>(null);
@@ -195,7 +197,7 @@ export default function CaixaPage() {
 
   return (
     <>
-      <PageTitle title="Caixa" sub={nomeDoMes(mes)}>
+      <PageTitle title="Caixa" valores sub={nomeDoMes(mes)}>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon-lg" className="size-10 max-sm:size-11" onClick={() => setMes(mesSeguinte(mes, -1))} aria-label="Mês anterior">‹</Button>
           <Button variant="outline" size="icon-lg" className="size-10 max-sm:size-11" onClick={() => setMes(mesSeguinte(mes, 1))} aria-label="Próximo mês">›</Button>
@@ -214,7 +216,7 @@ export default function CaixaPage() {
           // min-w-0 e quebra em qualquer ponto: segurança para valores enormes em 320 px
           <div key={t.label} className={cn("grid min-w-0 gap-1.5 rounded-2xl border bg-card px-4 py-4 sm:px-5", t.destaque && "max-sm:order-first max-sm:col-span-2")}>
             <dt className="text-[13px] text-muted-foreground">{t.label}</dt>
-            <dd className={cn("font-serifa leading-none tabular-nums [overflow-wrap:anywhere] sm:text-3xl", t.destaque ? "text-3xl" : "text-2xl max-[359px]:text-xl", t.cor)}>{lancamentos ? formatBRL(t.valor) : "…"}</dd>
+            <dd className={cn("font-serifa leading-none tabular-nums [overflow-wrap:anywhere] sm:text-3xl", t.destaque ? "text-3xl" : "text-2xl max-[359px]:text-xl", t.cor)}>{lancamentos ? brl(t.valor) : "…"}</dd>
           </div>
         ))}
       </dl>
@@ -247,7 +249,7 @@ export default function CaixaPage() {
             {/* "Fechar o dia" listava também os dias anteriores: o título diz o que é a lista */}
             <h2 id="fechar" className="font-semibold">A receber da agenda</h2>
             <p className="text-sm text-muted-foreground">
-              {pendentes.length} atendimento{pendentes.length > 1 ? "s" : ""} já feito{pendentes.length > 1 ? "s" : ""}, sem recebimento · {formatBRL(aReceber)}
+              {pendentes.length} atendimento{pendentes.length > 1 ? "s" : ""} já feito{pendentes.length > 1 ? "s" : ""}, sem recebimento · {brl(aReceber)}
             </p>
           </div>
           <ul>
@@ -257,11 +259,11 @@ export default function CaixaPage() {
                   <span className="font-semibold">{a.customerName}</span>
                   <span className="text-sm text-muted-foreground">
                     {formatLongDate(a.start.toDate())}, {formatTime(a.start.toDate())} · {a.serviceName} · {a.staffName}
-                    {sinalDe(a) > 0 && ` · sinal de ${formatBRL(sinalDe(a))} já pago`}
+                    {sinalDe(a) > 0 && ` · sinal de ${brl(sinalDe(a))} já pago`}
                   </span>
                 </div>
                 {/* serviço sem preço no cadastro: o valor se digita ao receber */}
-                <span className="font-serifa text-xl tabular-nums max-sm:mr-auto">{restanteDe(a) ? formatBRL(restanteDe(a)) : "a combinar"}</span>
+                <span className="font-serifa text-xl tabular-nums max-sm:mr-auto">{restanteDe(a) ? brl(restanteDe(a)) : "a combinar"}</span>
                 <div className="flex gap-2">
                   <Button className="h-10 px-4" onClick={() => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, serviceName: a.serviceName, priceCents: restanteDe(a), sinalCents: sinalDe(a) } })}>Recebi</Button>
                   <Button variant="outline" className="h-10 px-4" onClick={() => setFaltou({ id: a.id, nome: a.customerName })}>Não veio</Button>
@@ -293,7 +295,7 @@ export default function CaixaPage() {
                   ? "Nenhuma conta fixa neste mês."
                   : contas.length === 0
                     ? "Tudo pago neste mês."
-                  : `${contas.length} a pagar · ${formatBRL(contas.reduce((t, f) => t + f.valorCents, 0))}`}
+                  : `${contas.length} a pagar · ${brl(contas.reduce((t, f) => t + f.valorCents, 0))}`}
             </p>
           </div>
           <Button variant="outline" className="h-10 px-3 max-sm:h-11" disabled={!configPronta} onClick={() => setVerFixas(true)}>Contas fixas</Button>
@@ -306,7 +308,7 @@ export default function CaixaPage() {
                   <span className="truncate font-medium">{f.nome}</span>
                   <span className="text-[13px] text-muted-foreground">vence dia {Number(diaNoMes(mes, f.dia).slice(8))} · {f.categoria}</span>
                 </span>
-                <span className="shrink-0 whitespace-nowrap font-serifa text-lg tabular-nums">{formatBRL(f.valorCents)}</span>
+                <span className="shrink-0 whitespace-nowrap font-serifa text-lg tabular-nums">{brl(f.valorCents)}</span>
                 <Button
                   className="h-10 px-4"
                   onClick={() => setFolha({ modo: "pagar", titulo: `Pagar ${f.nome}`, detalhe: `${f.categoria} · ${nomeDoMes(mes)}`, valorCents: f.valorCents, pagamento: { tipo: "fixa", alvoId: f.id, mes } })}
@@ -335,7 +337,7 @@ export default function CaixaPage() {
               <div key={dia} className="border-t">
                 <div className="flex justify-between gap-3 bg-muted/40 px-4 py-2 text-[13px] text-muted-foreground sm:px-6">
                   <span className="min-w-0">{formatLongDate(zonedTime(dia, "12:00"))}{dia === hoje ? " · hoje" : ""}</span>
-                  <span className="shrink-0 whitespace-nowrap tabular-nums">{saldo >= 0 ? "+" : "−"} {formatBRL(Math.abs(saldo))}</span>
+                  <span className="shrink-0 whitespace-nowrap tabular-nums">{saldo >= 0 ? "+" : "−"} {brl(Math.abs(saldo))}</span>
                 </div>
                 <ul>
                   {itens.map((l) => (
@@ -353,7 +355,7 @@ export default function CaixaPage() {
                           </span>
                         </span>
                         <span className={cn("shrink-0 whitespace-nowrap tabular-nums font-semibold", l.tipo === "saida" ? "text-red-800 dark:text-red-300" : "text-emerald-800 dark:text-emerald-300")}>
-                          {l.tipo === "saida" ? "−" : "+"} {formatBRL(l.valorCents)}
+                          {l.tipo === "saida" ? "−" : "+"} {brl(l.valorCents)}
                         </span>
                       </button>
                     </li>
@@ -399,7 +401,7 @@ export default function CaixaPage() {
               ].map((t) => (
                 <div key={t.label} className="grid min-w-0 gap-0.5 border-l px-2.5 py-3 first:border-l-0 sm:px-6">
                   <dt className="text-[13px] text-muted-foreground">{t.label}</dt>
-                  <dd className="font-serifa text-base tabular-nums [overflow-wrap:anywhere] sm:text-lg">{formatBRL(t.valor)}</dd>
+                  <dd className="font-serifa text-base tabular-nums [overflow-wrap:anywhere] sm:text-lg">{brl(t.valor)}</dd>
                 </div>
               ))}
             </dl>
@@ -418,13 +420,13 @@ export default function CaixaPage() {
                       {c.nome}
                     </button>
                     <span className="text-[13px] text-muted-foreground tabular-nums">
-                      faturou {formatBRL(c.faturado)}
-                      {!paga && c.abatido > 0 && ` · menos ${formatBRL(c.abatido)} de estorno`}
-                      {!paga && c.abatido < 0 && ` · mais ${formatBRL(-c.abatido)} de estorno desfeito`}
+                      faturou {brl(c.faturado)}
+                      {!paga && c.abatido > 0 && ` · menos ${brl(c.abatido)} de estorno`}
+                      {!paga && c.abatido < 0 && ` · mais ${brl(-c.abatido)} de estorno desfeito`}
                       {/* paga antes de novos recebimentos ou de mudar o %: o dono vê a diferença */}
-                      {paga && paga.valorCents !== devido && ` · pago ${formatBRL(paga.valorCents)}, a conta dá ${formatBRL(devido)}`}
-                      {fica > 0 && ` · ${formatBRL(fica)} de estorno a descontar no próximo pagamento`}
-                      {fica < 0 && ` · ${formatBRL(-fica)} de estorno desfeito a devolver no próximo pagamento`}
+                      {paga && paga.valorCents !== devido && ` · pago ${brl(paga.valorCents)}, a conta dá ${brl(devido)}`}
+                      {fica > 0 && ` · ${brl(fica)} de estorno a descontar no próximo pagamento`}
+                      {fica < 0 && ` · ${brl(-fica)} de estorno desfeito a devolver no próximo pagamento`}
                     </span>
                   </span>
                   <label className="flex items-center gap-1.5 text-sm max-sm:mr-auto">
@@ -445,7 +447,7 @@ export default function CaixaPage() {
                     />
                     %
                   </label>
-                  <span className="text-right font-serifa text-lg tabular-nums sm:w-24">{formatBRL(paga ? paga.valorCents : c.valor)}</span>
+                  <span className="text-right font-serifa text-lg tabular-nums sm:w-24">{brl(paga ? paga.valorCents : c.valor)}</span>
                   {paga ? (
                     <span className="text-center text-sm text-emerald-800 sm:w-24 dark:text-emerald-300">Paga</span>
                   ) : (
@@ -458,7 +460,7 @@ export default function CaixaPage() {
                         setFolha({
                           modo: "pagar",
                           titulo: `Pagar comissão de ${c.nome}`,
-                          detalhe: `${String(c.pct).replace(".", ",")}% de ${formatBRL(c.faturado)}${c.abatido > 0 ? ` − ${formatBRL(c.abatido)} de estorno` : c.abatido < 0 ? ` + ${formatBRL(-c.abatido)} de estorno desfeito` : ""} · ${nomeDoMes(mes)}`,
+                          detalhe: `${String(c.pct).replace(".", ",")}% de ${brl(c.faturado)}${c.abatido > 0 ? ` − ${brl(c.abatido)} de estorno` : c.abatido < 0 ? ` + ${brl(-c.abatido)} de estorno desfeito` : ""} · ${nomeDoMes(mes)}`,
                           valorCents: c.valor,
                           pagamento: { tipo: "comissao", alvoId: c.staffId, mes, descontoCents: c.abatido },
                         })
@@ -502,6 +504,7 @@ export default function CaixaPage() {
 
 /** Uma lista de valores com a barra proporcional ao maior: o resumo lido de relance. */
 function Bloco({ titulo, linhas, vazio = "Nada neste mês." }: { titulo: string; linhas: [string, number][]; vazio?: string }) {
+  const { brl } = useValores();
   const maior = linhas[0]?.[1] ?? 0;
   return (
     <div className="grid content-start gap-2.5">
@@ -513,7 +516,7 @@ function Bloco({ titulo, linhas, vazio = "Nada neste mês." }: { titulo: string;
           <div key={nome} className="grid gap-1">
             <div className="flex justify-between gap-3 text-sm">
               <span className="truncate">{nome}</span>
-              <span className="tabular-nums">{formatBRL(valor)}</span>
+              <span className="tabular-nums">{brl(valor)}</span>
             </div>
             <div className="h-1.5 rounded-full bg-muted">
               <div className="h-full rounded-full bg-primary" style={{ width: `${maior ? (valor / maior) * 100 : 0}%` }} />

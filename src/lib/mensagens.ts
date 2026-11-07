@@ -1,4 +1,4 @@
-import { formatLongDate, formatTime } from "@/lib/datetime";
+import { formatBRL, formatLongDate, formatTime } from "@/lib/datetime";
 
 // Textos que vão ao cliente e à equipe. Um lugar só: o servidor monta a mensagem que sai pelo
 // WhatsApp do negócio e o painel monta a mesma para o wa.me, sem as duas cópias divergirem.
@@ -15,6 +15,11 @@ export function textoAvisoCliente(tipo: AvisoCliente, a: Horario, negocio: strin
   if (tipo === "confirmado") return `${oi} Seu horário na ${negocio} está confirmado: ${a.serviceName} com ${a.staffName}, ${quando}. Até lá!`;
   if (tipo === "cancelado") return `${oi} Seu horário na ${negocio} de ${quando} (${a.serviceName} com ${a.staffName}) foi cancelado. Para marcar outro horário: ${urlAgendar}`;
   return `${oi} Seu horário na ${negocio} foi remarcado para ${quando} (${a.serviceName} com ${a.staffName}). Se não puder, é só responder esta mensagem.`;
+}
+
+/** O Pix copia e cola para o cliente, pelo WhatsApp (do negócio ou do aparelho). */
+export function textoPix(c: { valorCents: number; nome: string; codigo: string; mensagem?: string }) {
+  return `${c.mensagem ?? `Pix de ${formatBRL(c.valorCents)} para ${c.nome}`}. Copie o código abaixo e cole no app do banco, em "Pix copia e cola":\n\n${c.codigo}`;
 }
 
 export function textoConvite(c: { nome: string; negocio: string; url: string; email: string; dias: number }) {

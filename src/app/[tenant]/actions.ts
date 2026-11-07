@@ -19,12 +19,12 @@ import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { criarConvite, revogarConvitesDaEquipe, tirarAcessosDoProfissional } from "@/lib/convite";
 import { DIAS_CONVITE } from "@/lib/limites";
-import { recebedorDe } from "@/lib/pix";
+import { brCode, PixInvalido, recebedorDe } from "@/lib/pix";
 import { ConfigSinal } from "@/lib/sinal-config";
 import { confirmarSinal } from "@/lib/sinal.server";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { after } from "next/server";
-import { textoAvisoCliente, textoConvite } from "@/lib/mensagens";
+import { textoAvisoCliente, textoConvite, textoPix } from "@/lib/mensagens";
 import { BaixaInput, EstornoInput, FixaInput, ID_AVULSO, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
 import { adicionarFixa, editarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
@@ -450,6 +450,38 @@ export const estornarAction = memberAction(z.object({ tenantId: docIdStaff, esto
 export const avisarConfirmacaoSmsAction = memberAction(z.object({ tenantId: docIdStaff, appointmentId: docIdStaff }), async (data) => {
   return { ok: true as const, resultado: await avisarConfirmacaoPorSms(adminDb, data.tenantId, data.appointmentId) };
 });
+
+/** O Pix de um atendimento direto no WhatsApp do cliente, pelo WhatsApp que o negócio conectou
+ *  (atendys). Número, chave e texto saem do servidor; do navegador vêm só o valor (até o preço
+ *  do horário) e o txid do QR na tela, para o código ser o mesmo. Sem conexão, recusa: a tela
+ *  então abre o WhatsApp do aparelho. */
+export const enviarPixWhatsappAction = memberAction(
+  z.object({ tenantId: docIdStaff, appointmentId: docIdStaff, valorCents: z.number().int().positive(), txid: z.string().max(25) }),
+  async (data, user) => {
+    await exigeGestor(data.tenantId, user.uid);
+    const [ag, tenant] = await Promise.all([
+      adminDb.doc(`tenants/${data.tenantId}/appointments/${data.appointmentId}`).get(),
+      adminDb.doc(`tenants/${data.tenantId}`).get(),
+    ]);
+    if (!ag.exists) throw new UserError("Esse horário não existe mais.");
+    if (data.valorCents > Number(ag.get("priceCents") ?? 0)) throw new UserError("O valor passa do preço do atendimento.");
+    const recebedor = tenant.get("pix") ? recebedorDe(tenant.get("pix")) : "Cadastre a chave Pix em Meu negócio.";
+    if (typeof recebedor === "string") throw new UserError(recebedor);
+    const cliente = soDigitosComDDI(String(ag.get("customerPhone") ?? ""));
+    if (!cliente) throw new UserError("O cliente não tem WhatsApp válido.");
+    const w = await lerConexao(adminDb, data.tenantId);
+    if (!w?.instanceId || w.status !== "connected") throw new UserError("O WhatsApp do negócio não está conectado.");
+    let codigo: string;
+    try {
+      codigo = brCode({ ...recebedor, valorCents: data.valorCents, txid: data.txid });
+    } catch (e) {
+      if (e instanceof PixInvalido) throw new UserError(e.message);
+      throw e;
+    }
+    await enviarTexto(w, cliente, textoPix({ valorCents: data.valorCents, nome: recebedor.nome, codigo }));
+    return { ok: true as const };
+  },
+);
 
 /** Mensagem ao cliente de um horário (confirmação, cancelamento, remarcação) pelo WhatsApp que o
  *  negócio conectou (atendys). O texto e o número saem do agendamento, não do navegador: o painel

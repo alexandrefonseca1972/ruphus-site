@@ -5,6 +5,12 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Privacidade dos valores: um olho ao lado do título da Agenda, do Caixa e de Clientes esconde os valores em dinheiro ("R$ ••••") para atender com o cliente do lado. A escolha fica neste aparelho e vale para as três telas.
+
+- Recibo pela agenda: depois de "Recebido", o aviso no topo traz o botão "Recibo" (imprimir, WhatsApp ou e-mail, o mesmo do Caixa), e o menu de cada horário já recebido ganha "Recibo".
+
+- Pix do atendimento pelo WhatsApp do negócio: com o WhatsApp conectado, "Enviar por WhatsApp" no QR do Pix manda o código direto ao número do cliente do horário. Sem conexão, ou se não sair, abre o WhatsApp do aparelho como antes.
+
 - Agendar pelo link: o dono escolhe em "Meu negócio" quantos serviços (até 10; padrão 5) e quanto tempo somado (até 8 h; padrão 4 h) o cliente marca de uma vez. Na página, o serviço que passaria do limite fica apagado e diz por quê, com o contador "3 de 5 escolhidos"; o servidor recusa a reserva que passa. Um serviço sozinho mais longo que o limite continua valendo. Pelo painel não há limite.
 
 - Aviso ao cliente pelo WhatsApp do negócio: o painel diz só qual aviso é (confirmado, cancelado, remarcado) e o servidor monta o texto a partir do horário, recusando aviso que não bate com o estado (ex.: "confirmado" de um horário cancelado) ou de horário que já passou. Sem conexão no meio do envio, o painel não afirma que a mensagem não saiu: pede para conferir antes de mandar de novo. Na demonstração, vai direto ao WhatsApp do aparelho.
