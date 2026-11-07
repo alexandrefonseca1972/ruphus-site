@@ -3,7 +3,7 @@ import { emParalelo } from "@/lib/paralelo";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
 import { agoraNaParede, dateIn, formatTime, fusoDe, todayIn, zonedTime } from "@/lib/datetime";
-import { enviarTexto, motivoLegivel, ROTULO_STATUS, statusDaConexao } from "@/lib/atendys";
+import { enviarSemOperador, motivoLegivel, ROTULO_STATUS, statusDaConexao } from "@/lib/atendys";
 import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { espelharStatusVivo, lerConexao, registrarErroNotificacao, soDigitosComDDI } from "@/lib/whatsapp.server";
 
@@ -87,12 +87,15 @@ export async function enviarLembretesDoDia(): Promise<number> {
       });
       if (!reservado) continue;
       try {
-        await enviarTexto(
+        const e = await enviarSemOperador(
           w,
           cliente,
           `Olá, ${nome}! Lembrete do seu horário ${dia} às ${formatTime(start)}: ${a.get("serviceName")} no ${nomeNegocio}. Qualquer imprevisto, responda aqui pelo WhatsApp.`,
+          undefined,
+          start, // lembrete que sairia depois do horário não serve: fica parado
         );
-        enviados += 1;
+        // parado na cota: não é falha (aguarda decisão do dono); a reserva fica, para não reenviar a cada ciclo
+        if (e.destino !== "parada") enviados += 1;
       } catch (e) {
         // devolve a reserva: o próximo ciclo tenta de novo
         await a.ref.update({ whatsappReminderSentAt: FieldValue.delete() }).catch(() => {});

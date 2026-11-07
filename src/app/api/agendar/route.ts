@@ -2,11 +2,11 @@ import { after, NextResponse } from "next/server";
 import { avisar, quando } from "@/lib/avisos.server";
 import { adminDb } from "@/lib/admin";
 import { book } from "@/lib/booking.server";
-import { MAX_DAYS_AHEAD, dentroDaJanela } from "@/lib/datetime";
+import { MAX_DAYS_AHEAD, dentroDaJanela, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 import { codigoDoAgendamento, espelharStatusVivo, lerConexao, registrarErroNotificacao } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
-import { enviarTexto, motivoLegivel, OPTIN_DONO, ROTULO_STATUS, statusDaConexao } from "@/lib/atendys";
+import { enviarSemOperador, motivoLegivel, OPTIN_DONO, ROTULO_STATUS, statusDaConexao } from "@/lib/atendys";
 
 // A reserva da página pública. Rota, não server action: o Next manda um server action
 // por vez, e com a rede travada a nova tentativa (e a agenda) ficava na fila atrás da
@@ -68,6 +68,8 @@ export async function POST(req: Request) {
           return;
         }
         const partes = [nova.serviceName, quando(nova.date, nova.time)];
+        // mensagem parada na cota só volta à fila se ainda sai antes do horário
+        const prazo = zonedTime(nova.date, nova.time);
         if (nova.staffName) partes.push(`com ${nova.staffName}`);
         const nomeCurto = customerName.trim().split(/\s+/)[0] ?? customerName.trim();
         // o recado do dono (agenda.recado) é a mensagem da tela de confirmação:
@@ -85,11 +87,12 @@ export async function POST(req: Request) {
         const avisoPara = conn.phone ?? conn.ownerPhone;
         if (avisoPara) {
           try {
-            await enviarTexto(
+            await enviarSemOperador(
               conn,
               avisoPara,
               `Novo agendamento (código ${codigoDoAgendamento(nova.id)}): ${customerName.trim()} · ${partes.join(" · ")} · tel ${b.data.customerPhone}. Responda CONFIRMADO ${codigoDoAgendamento(nova.id)} para confirmar ou RECUSAR ${codigoDoAgendamento(nova.id)} para recusar.`,
               OPTIN_DONO,
+              prazo,
             );
           } catch (e) {
             falhas.push(`aviso ao salão não chegou: ${motivoLegivel(e)}`);
@@ -102,7 +105,7 @@ export async function POST(req: Request) {
         const cliente = soDigitosComDDI(b.data.customerPhone);
         if (cliente) {
           try {
-            await enviarTexto(
+            await enviarSemOperador(
               conn,
               cliente,
               recadoDono ||
@@ -110,6 +113,7 @@ export async function POST(req: Request) {
               // a evidência diz o que houve: o número foi digitado no agendamento online deste
               // negócio (pode ser de outra pessoa; os limites por telefone/aparelho seguram o abuso)
               { origem: "ruphus-agendamento-online", evidencia: `Número digitado por quem agendou no link de agendamento online de ${tenantId} (ruphus.site), para receber a confirmação do horário` },
+              prazo,
             );
           } catch (e) {
             falhas.push(`recibo ao cliente não chegou: ${motivoLegivel(e)}`);

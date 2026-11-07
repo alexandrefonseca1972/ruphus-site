@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { OCULTO, useValores } from "@/lib/valores";
-import { orderBy, Timestamp, where } from "firebase/firestore";
+import { doc, getDoc, orderBy, Timestamp, where } from "firebase/firestore";
+import { db } from "@/lib/firebase-db";
+import { CotaWhatsapp, quandoSai } from "@/components/cota-whatsapp";
+import { MensagensParadas } from "./mensagens-paradas";
 import { Fragment, useEffect, useState } from "react";
 import { z } from "zod";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
-import { addDays, customerKey, dateIn, formatLongDate, formatTime, todayIn, weekday, WEEKDAYS, whatsappLink, zonedTime, precoDe } from "@/lib/datetime";
+import { addDays, customerKey, dateIn, formatLongDate, formatTime, todayIn, weekday, WEEKDAYS, whatsappLink, zonedTime, precoDe, fusoDe } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { cn, openExternal } from "@/lib/utils";
@@ -69,15 +72,17 @@ export default function AgendaPage() {
   const [staff] = useCollection(tenant.id, "staff", Staff, [orderBy("name")]);
   // aviso no topo; com a mensagem, oferece mandar ao cliente (manual: pelo WhatsApp do aparelho)
   // recibo: id do lançamento recebido agora; o aviso oferece o recibo dele
-  const [notice, setNotice] = useState<{ text: string; aviso?: { a: Appointment; tipo: AvisoCliente; start: Date }; manual?: boolean; recibo?: string } | null>(null);
+  const [notice, setNotice] = useState<{ text: string; aviso?: { a: Appointment; tipo: AvisoCliente; start: Date }; manual?: boolean; recibo?: string; cota?: { messageId: string; retryAt: string | null } } | null>(null);
   // WhatsApp do negócio conectado (atendys): a mensagem sai por ele, sem abrir o WhatsApp do aparelho
   const peloNegocio = whatsappDoNegocio(tenant);
+  const fuso = fusoDe(tenant.site);
   const mensagem = (a: Appointment, tipo: AvisoCliente, start = a.start.toDate()) =>
     textoAvisoCliente(tipo, { ...a, start }, tenant.name, `${location.origin}/agendar/${tenant.id}`);
   const aviso = notice?.aviso;
   // o aviso some sozinho: só texto em 6 s; com botão (avisar, recibo) fica 20 s para dar tempo de tocar
   useEffect(() => {
-    if (!notice) return;
+    // parada na cota espera a decisão do dono: não some sozinha
+    if (!notice || notice.cota) return;
     const t = setTimeout(() => setNotice(null), notice.aviso || notice.recibo ? 20_000 : 6_000);
     return () => clearTimeout(t);
   }, [notice]);
@@ -114,9 +119,13 @@ export default function AgendaPage() {
   const [folha, setFolha] = useState<Folha | null>(null);
   const [recibo, setRecibo] = useState<Lancamento[] | null>(null);
   // o mesmo recibo do Caixa: o atendimento, o sinal e o que o cliente pagou no mesmo dia
-  const abrirRecibo = (id: string) => {
-    const l = recebidosDaSemana?.find((x) => x.id === id);
-    if (l) setRecibo(itensDoRecibo(l, recebidosDaSemana!));
+  // Recebido agora e a lista ainda sem ele (escuta atrasada ou caída): lê o lançamento direto
+  const abrirRecibo = async (id: string) => {
+    const daLista = recebidosDaSemana?.find((x) => x.id === id);
+    const lido = daLista ? null : await getDoc(doc(db, "tenants", tenant.id, "lancamentos", id)).catch(() => null);
+    const l = daLista ?? (lido?.exists() ? (() => { const r = Lancamento.safeParse(lido.data()); return r.success ? { ...r.data, id } : null; })() : null);
+    if (!l) return setError("Não foi possível abrir o recibo agora. Recarregue a página e tente de novo.");
+    setRecibo(itensDoRecibo(l, [...(recebidosDaSemana ?? []).filter((x) => x.id !== id), l]));
   };
 
   // Toda mudança de status grava um registro no histórico no mesmo batch (exigido pelas regras)
@@ -142,7 +151,11 @@ export default function AgendaPage() {
       .then((t) => avisarClienteWhatsappAction(t, { tenantId: tenant.id, appointmentId: a.id, tipo: aviso.tipo }))
       .catch(() => null);
     setPending(null);
-    if (r?.ok) return setNotice({ text: `Mensagem enviada a ${a.customerName} pelo WhatsApp do negócio.` });
+    if (r?.ok) {
+      const s = r.situacao;
+      if (s.estado === "cota") return setNotice({ text: `A mensagem para ${a.customerName} ainda não saiu.`, cota: { messageId: s.messageId, retryAt: s.retryAt } });
+      return setNotice({ text: s.estado === "agendada" ? `Mensagem para ${a.customerName} na fila do WhatsApp do negócio: sai ${quandoSai(s.retryAt, fuso)}.` : `Mensagem enviada a ${a.customerName} pelo WhatsApp do negócio.` });
+    }
     // sem resposta não quer dizer que não saiu: a queda pode ter vindo depois do envio
     const text = r
       ? `A mensagem para ${a.customerName} não saiu pelo WhatsApp do negócio: ${r.error} Mande pelo seu WhatsApp.`
@@ -263,9 +276,16 @@ export default function AgendaPage() {
         </dl>
       )}
 
+      {/* gestor com WhatsApp do negócio: as que pararam na cota sem ninguém olhando */}
+      {tenant.podeGerir && peloNegocio && <MensagensParadas tenantId={tenant.id} fuso={fuso} />}
       {notice && (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950">
           <span>{notice.text}</span>
+          {notice.cota && (
+            <div className="basis-full">
+              <CotaWhatsapp tenantId={tenant.id} messageId={notice.cota.messageId} retryAt={notice.cota.retryAt} fuso={fuso} onFim={(text) => setNotice({ text })} />
+            </div>
+          )}
           <div className="flex gap-2">
             {aviso && (peloNegocio && !notice.manual ? (
               <button type="button" disabled={pending === aviso.a.id} onClick={() => avisarPeloNegocio(aviso)} className={BOTAO_AVISO}>
@@ -276,7 +296,7 @@ export default function AgendaPage() {
                 Avisar pelo WhatsApp
               </a>
             ))}
-            {notice.recibo && recebidos.has(notice.recibo) && (
+            {notice.recibo && (
               <Button variant="outline" size="sm" onClick={() => abrirRecibo(notice.recibo!)}>Recibo</Button>
             )}
             <Button variant="ghost" size="sm" onClick={() => setNotice(null)}>Fechar</Button>

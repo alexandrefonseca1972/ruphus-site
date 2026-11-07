@@ -18,6 +18,8 @@ export const Tenant = z.object({
   dominio: z.object({ host: z.string(), status: z.enum(["pendente", "ativo"]) }).optional().catch(undefined),
   // chave Pix do salão (o QR do balcão sai dela); só o servidor grava
   pix: z.object({ chave: z.string(), nome: z.string(), cidade: z.string() }).optional().catch(undefined),
+  // UF e fuso escolhido: o painel mostra no fuso do negócio a hora em que a mensagem sai (fusoDe)
+  site: z.object({ uf: z.string().nullish(), fuso: z.string().nullish() }).optional().catch(undefined),
   sinal: z.object({ ativo: z.boolean(), tipo: z.enum(["percentual", "fixo"]), valor: z.number(), prazoMin: z.number() }).optional().catch(undefined),
   // estado da conexão do WhatsApp (sem credenciais: essas moram em privado/whatsapp)
   whatsapp: z

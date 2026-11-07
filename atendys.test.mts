@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { assinaturaValida, criarInstancia, enviarTexto, ErroAtendys, garantirTenant, imagemDoQr, revogarChavesAntigas } from "@/lib/atendys";
+import { assinaturaValida, assumirEnvio, criarInstancia, enviarSemOperador, enviarTexto, ErroAtendys, manterAgendada, garantirTenant, imagemDoQr, revogarChavesAntigas } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { codigosUnicos, conectarNegocio, espelharStatusDaInstancia, gravarConexao, lerConexao, lerConfigWhatsApp, lerComando, processarComandoAgendamento } from "@/lib/whatsapp.server";
 
@@ -331,6 +331,80 @@ await db.doc("tenants/vigia").update({ "whatsapp.status": "connected", "whatsapp
 novo({});
 assert.equal(await vigiarConexoes(db), 0);
 assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
+
+// ── cota do dia: awaiting_manual não é envio; handoff e resume; quem envia sem operador decide ──
+{
+  const ID = "1bd4d428-4361-4153-bc2c-60db816d8b77";
+  const parada = { id: ID, status: "awaiting_manual", retryAt: "2026-11-08T03:00:00.000Z", manualHandoffRequired: true, manualHandoffUrl: "https://wa.me/5511987654321?text=oi" };
+  novo({ "POST /v1/message/send-text": json(parada, 202), [`POST /v1/message/${ID}/resume`]: json({ id: ID, status: "queued", retryAt: parada.retryAt }), [`POST /v1/message/${ID}/manual-handoff`]: json({ id: ID, status: "manual_started", manualHandoffUrl: parada.manualHandoffUrl, manualHandoffAt: "x" }) });
+  const e = await enviarTexto(conn, "5511987654321", "oi");
+  assert.deepEqual(e, { messageId: ID, status: "awaiting_manual", retryAt: parada.retryAt, manualHandoffRequired: true, manualHandoffUrl: parada.manualHandoffUrl });
+  const { situacaoDe } = await import("@/lib/envio-whatsapp");
+  assert.deepEqual(situacaoDe(e), { estado: "cota", messageId: ID, retryAt: parada.retryAt });
+  assert.deepEqual(situacaoDe({ messageId: "m", status: "queued", retryAt: "2026-11-07T21:10:00Z" }), { estado: "agendada", retryAt: "2026-11-07T21:10:00Z" });
+  assert.deepEqual(situacaoDe({ messageId: "m", status: "queued" }), { estado: "enviada" });
+
+  // handoff e resume: POST com {} e a apikey do negócio
+  assert.equal((await assumirEnvio(conn, ID)).status, "manual_started");
+  assert.deepEqual([chamadas.at(-1)!.caminho, chamadas.at(-1)!.corpo, chamadas.at(-1)!.headers.apikey], [`/v1/message/${ID}/manual-handoff`, {}, "k1"]);
+  assert.equal((await manterAgendada(conn, ID)).status, "queued");
+  await assert.rejects(assumirEnvio(conn, "../admin/tenants"), /Mensagem inválida/, "id fora do formato não vira caminho");
+
+  // sem operador: retryAt antes do prazo volta à fila; depois do prazo fica parada
+  chamadas = [];
+  assert.equal((await enviarSemOperador(conn, "5511987654321", "oi", null, new Date("2026-11-08T12:00:00Z"))).destino, "agendada");
+  assert.ok(chamadas.some((c) => c.caminho.endsWith("/resume")));
+  chamadas = [];
+  assert.equal((await enviarSemOperador(conn, "5511987654321", "oi", null, new Date("2026-11-08T01:00:00Z"))).destino, "parada");
+  assert.ok(!chamadas.some((c) => c.caminho.endsWith("/resume")), "lembrete que sairia depois do horário não volta à fila");
+  chamadas = [];
+  assert.equal((await enviarSemOperador(conn, "5511987654321", "oi", null)).destino, "parada", "sem prazo não reagenda para amanhã");
+  assert.ok(!chamadas.some((c) => c.caminho.endsWith("/resume")));
+  // envio comum segue "enviada"
+  novo({ "POST /v1/message/send-text": json({ id: "m9", status: "queued" }) });
+  assert.equal((await enviarSemOperador(conn, "5511987654321", "oi", null)).destino, "enviada");
+}
+
+// ── fase 2: parada registrada para o painel; webhook de status acha o negócio pelo índice ──
+{
+  const { paradasDoNegocio, negocioDaMensagem } = await import("@/lib/mensagens-paradas.server");
+  const ID = "5b4707a3-aab9-48fe-94fb-aadd0232c0a6";
+  await db.doc("tenants/loja").set({ name: "Loja" });
+  await gravarConexao(db, "loja", { atendysTenantId: "t5", atendysApiKey: "k5", atendysWebhookSecret: "s-loja", instanceId: "loja-main", phone: null, status: "connected", updatedAt: 0 });
+  const casa = (await lerConexao(db, "loja"))!;
+  assert.equal(casa.slug, "loja", "lerConexao diz de qual negócio é");
+  novo({ "POST /v1/message/send-text": json({ id: ID, status: "awaiting_manual", retryAt: "2026-11-08T03:00:00.000Z", manualHandoffRequired: true, manualHandoffUrl: "https://wa.me/5511987654321?text=Ol%C3%A1" }, 202) });
+  await enviarTexto(casa, "5511987654321", "Olá, Ana! Lembrete do seu horário", null);
+  assert.equal(await negocioDaMensagem(ID), "loja");
+  const [p] = await paradasDoNegocio("loja");
+  assert.deepEqual([p.messageId, p.para, p.resumo, p.retryAt], [ID, "••••4321", "Olá, Ana! Lembrete do seu horário", "2026-11-08T03:00:00.000Z"]);
+  assert.ok(!JSON.stringify(p).includes("wa.me"), "o link com número e texto não é guardado");
+  // envio comum não registra
+  novo({ "POST /v1/message/send-text": json({ id: "m-comum", status: "queued" }) });
+  await enviarTexto(casa, "5511987654321", "oi", null);
+  assert.equal(await negocioDaMensagem("m-comum"), null);
+  // status assinado com o segredo do negócio: grava; assinatura errada: 401 e nada muda
+  assert.equal((await entregar({ event: "message.status", messageId: ID, phone: "x", status: "manual_started" }, "errado")).status, 200, "recusada responde como desconhecida");
+  assert.equal((await paradasDoNegocio("loja")).length, 1);
+  assert.equal((await entregar({ event: "message.status", messageId: ID, phone: "x", status: "manual_started" }, "s-loja")).status, 200);
+  assert.equal((await paradasDoNegocio("loja")).length, 0, "decidida sai da lista");
+  assert.equal((await db.doc(`tenants/loja/mensagens/${ID}`).get()).get("status"), "manual_started");
+  // webhook atrasado (at anterior à decisão) não traz de volta a pendência
+  assert.equal((await entregar({ event: "message.status", messageId: ID, status: "awaiting_manual", at: "2020-01-01T00:00:00Z" }, "s-loja")).status, 200);
+  assert.equal((await paradasDoNegocio("loja")).length, 0, "fato velho não desfaz a decisão");
+
+  // sem operador e com prazo útil: volta à fila e sai da lista; com prazo vencido, some da lista
+  const ID2 = "2bd4d428-4361-4153-bc2c-60db816d8b77", ID3 = "3bd4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: ID2, status: "awaiting_manual", retryAt: "2026-11-08T03:00:00.000Z" }, 202), [`POST /v1/message/${ID2}/resume`]: json({ id: ID2, status: "queued" }) });
+  assert.equal((await enviarSemOperador(casa, "5511987654321", "lembrete", null, new Date("2026-11-08T12:00:00Z"))).destino, "agendada");
+  assert.equal((await db.doc(`tenants/loja/mensagens/${ID2}`).get()).get("status"), "queued");
+  novo({ "POST /v1/message/send-text": json({ id: ID3, status: "awaiting_manual", retryAt: "2099-01-01T00:00:00.000Z" }, 202) });
+  assert.equal((await enviarSemOperador(casa, "5511987654321", "lembrete", null, new Date("2020-01-01T00:00:00Z"))).destino, "parada");
+  assert.equal((await paradasDoNegocio("loja")).length, 0, "lembrete de horário que já passou não fica pedindo decisão");
+
+  // status de mensagem fora do índice: 200 sem gravar
+  assert.equal((await entregar({ event: "message.status", messageId: "1bd4d428-4361-4153-bc2c-60db816d8b77", status: "sent" }, "qualquer")).status, 200);
+}
 
 console.log("atendys ok");
 process.exit(0);

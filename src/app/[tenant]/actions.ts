@@ -8,11 +8,13 @@ import { z } from "zod";
 import { LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
-import { deslogarInstancia, enviarTexto, qrDaConexao, statusDaConexao } from "@/lib/atendys";
+import { assumirEnvio, deslogarInstancia, enviarTexto, manterAgendada, qrDaConexao, statusDaConexao } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { enviarEmail } from "@/lib/email.server";
+import { situacaoDe } from "@/lib/envio-whatsapp";
+import { atualizarParada, paradasDoNegocio } from "@/lib/mensagens-paradas.server";
 import { htmlDoRecibo, textoDoRecibo } from "@/lib/recibo";
 import { reciboDoBanco } from "@/lib/recibo.server";
 import { formatBRL } from "@/lib/datetime";
@@ -283,7 +285,7 @@ export const enviarWhatsAppAction = memberAction(
     // número do Brasil sem o 55 (como todo mundo digita) ganha o DDI; estrangeiro vai como veio.
     // Teste avulso não registra consentimento (null): sem opt-in, a tela diz que o número não autorizou
     const envio = await enviarTexto(conexao, soDigitosComDDI(data.phone) ?? data.phone, data.message, null);
-    return { ok: true as const, messageId: envio.messageId };
+    return { ok: true as const, messageId: envio.messageId, situacao: situacaoDe(envio) };
   },
 );
 
@@ -508,8 +510,8 @@ export const enviarPixWhatsappAction = memberAction(
       if (e instanceof PixInvalido) throw new UserError(e.message);
       throw e;
     }
-    await enviarTexto(w, cliente, textoPix({ valorCents: data.valorCents, nome: recebedor.nome, codigo }));
-    return { ok: true as const };
+    const envio = await enviarTexto(w, cliente, textoPix({ valorCents: data.valorCents, nome: recebedor.nome, codigo }));
+    return { ok: true as const, situacao: situacaoDe(envio) };
   },
 );
 
@@ -545,7 +547,34 @@ export const avisarClienteWhatsappAction = memberAction(
       String(tenant.get("name") ?? data.tenantId),
       `${base}/agendar/${data.tenantId}`,
     );
-    await enviarTexto(w, cliente, texto);
-    return { ok: true as const };
+    const envio = await enviarTexto(w, cliente, texto);
+    return { ok: true as const, situacao: situacaoDe(envio) };
   },
 );
+
+/** Mensagem parada na cota do dia: "Enviar agora" (o atendys marca a ação manual e devolve o
+ *  wa.me, que a tela abre só depois desta resposta) ou "Manter agendada" (volta à fila para o
+ *  retryAt). Quem pode avisar o cliente pode decidir; o atendys confere que a mensagem é do negócio. */
+export const decidirEnvioAction = memberAction(
+  z.object({ tenantId: docIdStaff, messageId: z.string().uuid(), acao: z.enum(["agora", "agendar"]) }),
+  async (data) => {
+    const w = await lerConexao(adminDb, data.tenantId);
+    if (!w?.instanceId) throw new UserError("O WhatsApp do negócio não está conectado.");
+    if (data.acao === "agora") {
+      const r = await assumirEnvio(w, data.messageId);
+      // manual_started: ação manual iniciada, não "enviada"; sai da lista de pendentes
+      await atualizarParada(data.tenantId, data.messageId, "manual_started");
+      return { ok: true as const, url: r.manualHandoffUrl, retryAt: null };
+    }
+    const r = await manterAgendada(w, data.messageId);
+    await atualizarParada(data.tenantId, data.messageId, "queued", r.retryAt);
+    return { ok: true as const, url: null, retryAt: r.retryAt };
+  },
+);
+
+/** Mensagens que pararam na cota sem ninguém olhando (lembrete, aviso de agendamento, robô):
+ *  o painel lista para o dono decidir. Só quem gere (texto e número do cliente). */
+export const mensagensParadasAction = memberAction(SoTenant, async ({ tenantId }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  return { ok: true as const, mensagens: await paradasDoNegocio(tenantId) };
+});

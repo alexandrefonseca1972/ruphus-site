@@ -195,7 +195,10 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     const r = t ? await enviarWhatsAppAction(t, { tenantId: slug, phone: para, message: mensagem }).catch(() => null) : null;
     setBusyEnvio(false);
     if (!r || falhou(r)) return setAviso({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
-    setAviso({ ok: true, texto: "Enviado pelo seu WhatsApp." });
+    // teste parado na cota não pede decisão: diz que não saiu (enviar o teste à mão não testa nada)
+    const s = r.situacao;
+    if (s.estado === "cota") return setAviso({ ok: false, texto: "O teste não saiu: a cota diária do WhatsApp do negócio foi atingida. Tente de novo amanhã." });
+    setAviso({ ok: true, texto: s.estado === "agendada" ? "Aceito: o teste está na fila e sai em alguns minutos pelo seu WhatsApp." : "Enviado pelo seu WhatsApp." });
     setMensagem("");
   }
 

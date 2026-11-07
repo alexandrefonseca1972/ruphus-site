@@ -7,7 +7,7 @@ import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { emParalelo } from "@/lib/paralelo";
-import { criarInstancia, enviarTexto, garantirTenant, OPTIN_DONO, revogarChavesAntigas, statusDaConexao, type ConexaoAtendys } from "@/lib/atendys";
+import { criarInstancia, enviarSemOperador, garantirTenant, OPTIN_DONO, revogarChavesAntigas, statusDaConexao, type ConexaoAtendys } from "@/lib/atendys";
 
 // O WhatsApp que o dono conectou ao próprio negócio: qual instância da
 // plataforma (atendys), o número pareado e o estado da conexão. Campo
@@ -97,7 +97,7 @@ export async function lerConexao(db: Firestore, slug: string): Promise<ConexaoWh
   const w = await lerInteira(db, slug);
   // sem atendysApiKey é resto do protólogo antigo (wtsfy): para o app é como se
   // não houvesse conexão — o dono reconecta e o provisionamento atendys roda do zero.
-  return w?.instanceId && w?.atendysApiKey ? w : null;
+  return w?.instanceId && w?.atendysApiKey ? { ...w, slug } : null;
 }
 
 /** O mapa whatsapp inteiro, com ou sem conexão — o termo pode estar aceito sem
@@ -444,7 +444,7 @@ export async function processarComandoAgendamento(
   if (codigo && codigo.length > 4 && !recentes.some((d) => d.id.toUpperCase().startsWith(codigo!))) codigo = undefined;
   const pendentes = futuros.filter((d) => d.get("status") === "booked" && (!codigo || d.id.toUpperCase().startsWith(codigo)));
   if (pendentes.length === 0) {
-    await enviarTexto(conexao, respostaPara, codigo ? `Não encontrei agendamento aguardando confirmação com o código ${codigo}.` : "Não encontrei agendamento aguardando confirmação.", OPTIN_DONO);
+    await enviarSemOperador(conexao, respostaPara, codigo ? `Não encontrei agendamento aguardando confirmação com o código ${codigo}.` : "Não encontrei agendamento aguardando confirmação.", OPTIN_DONO);
     return "sem pendente";
   }
   if (pendentes.length > 1) {
@@ -453,7 +453,7 @@ export async function processarComandoAgendamento(
       .sort((x, y) => startDe(x).getTime() - startDe(y).getTime())
       .map((d) => `${codigos.get(d.id)}: ${String(d.get("customerName") ?? "").trim()} · ${d.get("serviceName")} · ${quando(dateIn(startDe(d)), formatTime(startDe(d)))}`)
       .join("\n");
-    await enviarTexto(conexao, respostaPara, `Há mais de um agendamento aguardando. Responda com o código, por exemplo ${comando.verbo} ${codigos.get(pendentes[0].id)}:\n${lista}`, OPTIN_DONO);
+    await enviarSemOperador(conexao, respostaPara, `Há mais de um agendamento aguardando. Responda com o código, por exemplo ${comando.verbo} ${codigos.get(pendentes[0].id)}:\n${lista}`, OPTIN_DONO);
     return "sem pendente";
   }
   const a = pendentes[0];
@@ -474,7 +474,7 @@ export async function processarComandoAgendamento(
     });
   };
   const mudou = async (ok: boolean) => {
-    if (!ok) await enviarTexto(conexao, respostaPara, `O agendamento de ${nome} (${servico}) já não estava aguardando confirmação. Nada foi alterado.`, OPTIN_DONO).catch(() => {});
+    if (!ok) await enviarSemOperador(conexao, respostaPara, `O agendamento de ${nome} (${servico}) já não estava aguardando confirmação. Nada foi alterado.`, OPTIN_DONO).catch(() => {});
     return ok;
   };
 
@@ -485,14 +485,18 @@ export async function processarComandoAgendamento(
       try {
         const base = (process.env.PUBLIC_SITE_URL ?? `https://${slug}.ruphus.site`).replace(/\/+$/, "");
         const link = `${base}/agendar/${slug}`;
-        await enviarTexto(conexao, cliente, `Olá, ${nome}. O salão não conseguiu confirmar seu horário de ${servico}. Chame aqui pelo WhatsApp para remarcar ou agende outro horário pelo link: ${link}`);
+        const e = await enviarSemOperador(conexao, cliente, `Olá, ${nome}. O salão não conseguiu confirmar seu horário de ${servico}. Chame aqui pelo WhatsApp para remarcar ou agende outro horário pelo link: ${link}`, undefined, startDe(a));
+        if (e.destino === "parada") {
+          await enviarSemOperador(conexao, respostaPara, `Agendamento de ${nome} recusado. O aviso ao cliente parou na cota diária do WhatsApp: decida em Mensagens no painel.`, OPTIN_DONO).catch(() => {});
+          return "recusado";
+        }
       } catch (e) {
         const motivo = e instanceof Error ? e.message : String(e);
-        await enviarTexto(conexao, respostaPara, `Agendamento de ${nome} recusado, mas o aviso ao cliente falhou: ${motivo}`, OPTIN_DONO).catch(() => {});
+        await enviarSemOperador(conexao, respostaPara, `Agendamento de ${nome} recusado, mas o aviso ao cliente falhou: ${motivo}`, OPTIN_DONO).catch(() => {});
         throw e;
       }
     }
-    await enviarTexto(conexao, respostaPara, `Agendamento de ${nome} (${servico}) recusado. O cliente foi avisado.`, OPTIN_DONO).catch(() => {});
+    await enviarSemOperador(conexao, respostaPara, `Agendamento de ${nome} (${servico}) recusado. O cliente foi avisado.`, OPTIN_DONO).catch(() => {});
     return "recusado";
   }
 
@@ -503,12 +507,14 @@ export async function processarComandoAgendamento(
   const cliente = soDigitosComDDI(String(a.get("customerPhone") ?? ""));
   if (cliente) {
     try {
-      await enviarTexto(conexao, cliente, `Olá, ${nome}! Seu agendamento está confirmado: ${servico}. Te esperamos!`);
+      const e = await enviarSemOperador(conexao, cliente, `Olá, ${nome}! Seu agendamento está confirmado: ${servico}. Te esperamos!`, undefined, startDe(a));
+      // parada na cota: quem opera o salão precisa saber que o cliente ainda não foi avisado
+      if (e.destino === "parada") await enviarSemOperador(conexao, respostaPara, `Agendamento de ${nome} confirmado. O aviso ao cliente parou na cota diária do WhatsApp: decida em Mensagens no painel.`, OPTIN_DONO).catch(() => {});
     } catch (e) {
       // o agendamento já está confirmado; quem precisa saber que o cliente não
       // foi avisado é quem opera o salão (self-chat), que está esperando o eco
       const motivo = e instanceof Error ? e.message : String(e);
-      await enviarTexto(conexao, respostaPara, `Agendamento de ${nome} confirmado, mas o aviso ao cliente falhou: ${motivo}`, OPTIN_DONO).catch(() => {});
+      await enviarSemOperador(conexao, respostaPara, `Agendamento de ${nome} confirmado, mas o aviso ao cliente falhou: ${motivo}`, OPTIN_DONO).catch(() => {});
       throw e;
     }
   }

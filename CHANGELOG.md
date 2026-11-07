@@ -5,6 +5,11 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- WhatsApp do negócio com cota do dia (atendys): mensagem parada (awaiting_manual) não aparece mais como enviada. Na agenda e no Pix, o dono vê "A cota diária foi atingida. Envie agora pelo WhatsApp ou mantenha a mensagem agendada." — "Enviar agora" abre o WhatsApp só depois que o atendys confirma a ação manual; "Manter agendada" mostra a hora em que sai, no fuso do negócio. Mensagem na fila mostra a hora de saída em vez de "enviada".
+- Envios sem ninguém olhando (lembrete, aviso de agendamento, robô de confirmação) parados na cota voltam sozinhos à fila quando ainda saem antes do horário; senão aparecem na agenda em "mensagens do WhatsApp aguardando decisão". O status das mensagens paradas chega pelo webhook (assinatura conferida pelo negócio da mensagem).
+
+- Agenda: depois de "Recebi", o aviso sempre traz "Recibo"; se a lista ainda não mostrou o recebimento, o recibo lê direto do banco. Escuta do banco que cai (erro passageiro) tenta de novo até 3 vezes e deixa o erro no console, em vez de congelar a tela até recarregar.
+
 - Recibo por e-mail pela plataforma: "Enviar" manda o recibo no formato do cupom, de contato@ruphus.site com o nome do negócio, sem abrir o app de e-mail do aparelho. O servidor monta o recibo do banco.
 - Recibo: o sinal pago hoje para um horário que ainda não foi atendido não entra mais no recibo da visita de hoje (o total saía somado a mais).
 

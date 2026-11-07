@@ -4,12 +4,13 @@ import { Dialog } from "@base-ui/react/dialog";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatBRL, maskBRL, todayIn } from "@/lib/datetime";
+import { formatBRL, fusoDe, maskBRL, todayIn } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
 import { categorias, ehSinal, ehVinculado, FORMAS, ROTULO_FORMA, type Lancamento } from "@/lib/financeiro";
 import { cn } from "@/lib/utils";
 import { baixarAgendamentoAction, editarLancamentoAction, enviarPixWhatsappAction, estornarAction, excluirLancamentoAction, lancarAction, pagarAction } from "./actions";
 import { whatsappDoNegocio } from "@/lib/tenants";
+import { CotaWhatsapp, quandoSai } from "@/components/cota-whatsapp";
 import { ConfirmDialog } from "./confirm-dialog";
 import { PixQr } from "@/components/pix-qr";
 import { txidLivre } from "@/lib/pix";
@@ -203,7 +204,14 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
                 valorCents={centavos}
                 txid={txid}
                 // atendimento com WhatsApp do negócio conectado: o código vai direto ao cliente
-                enviar={folha.modo === "baixa" && whatsappDoNegocio(tenant) ? () => idToken().then((t) => enviarPixWhatsappAction(t, { tenantId: slug, appointmentId: folha.atendimento.id, valorCents: centavos, txid })) : undefined}
+                enviar={folha.modo === "baixa" && whatsappDoNegocio(tenant) ? () => idToken().then((t) => enviarPixWhatsappAction(t, { tenantId: slug, appointmentId: folha.atendimento.id, valorCents: centavos, txid })).then((r) => {
+                  if (!r.ok || r.situacao.estado === "enviada") return r.ok ? { ok: true as const } : r;
+                  const s = r.situacao;
+                  // na fila ou parado na cota do dia: não é "enviado"
+                  return s.estado === "agendada"
+                    ? { ok: true as const, pendente: { texto: `Na fila do WhatsApp do negócio: sai ${quandoSai(s.retryAt, fusoDe(tenant.site))}.` } }
+                    : { ok: true as const, pendente: { texto: "O Pix ainda não saiu.", acao: <CotaWhatsapp tenantId={slug} messageId={s.messageId} retryAt={s.retryAt} fuso={fusoDe(tenant.site)} /> } };
+                }) : undefined}
               />
             ) : (
               <Button type="button" variant="outline" className="h-11" disabled={!centavos} onClick={() => setMostrarPix(true)}>

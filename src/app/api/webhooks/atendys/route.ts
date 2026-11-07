@@ -2,6 +2,7 @@ import { after, NextResponse } from "next/server";
 import { assinaturaValida } from "@/lib/atendys";
 import { adminDb } from "@/lib/admin";
 import { DEMO } from "@/lib/demo";
+import { atualizarParada, negocioDaMensagem } from "@/lib/mensagens-paradas.server";
 import { avisarQueda, espelharStatusDaInstancia, lerConexao, processarComandoAgendamento, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
 
 // Onde o atendys avisa o que acontece nas instâncias: mensagem recebida do
@@ -13,7 +14,8 @@ import { avisarQueda, espelharStatusDaInstancia, lerConexao, processarComandoAge
 //   x-atendys-event: message.received | instance.status | message.status
 //   message.received: { instance, messageId, phone, type: "text"|"media", text? }
 //   instance.status:  { instance, status: pending_qr|connected|disconnected }
-//   message.status:   { messageId, phone, status, errorCode?, errorMessage? }
+//   message.status:   { messageId, phone, status, errorCode?, errorMessage?, retryAt? } — sem instância:
+//     o negócio sai do índice mensagensWhatsapp (só as que pararam na cota estão lá)
 
 type Evento = {
   event?: string;
@@ -25,8 +27,12 @@ type Evento = {
   status?: string;
   errorCode?: string | null;
   errorMessage?: string | null;
+  retryAt?: string | null;
   at?: string;
 };
+
+// os estados do atendys que o painel acompanha; qualquer outro texto não é gravado
+const STATUS_MENSAGEM = new Set(["queued", "awaiting_manual", "manual_started", "sent", "delivered", "read", "failed"]);
 
 function responder(status: number, corpo: unknown) {
   return NextResponse.json(corpo, { status });
@@ -47,9 +53,23 @@ export async function POST(req: Request) {
   } catch {
     return responder(400, { error: "JSON inválido." });
   }
-  // message.status (acked/entregue/lida) não traz instância e ainda não tem espelho no
-  // ruphus: ack 200 sem verificar — responder 400 fazia o atendys repetir 5 vezes cada um
-  if (evento.event === "message.status") return responder(200, { ok: true });
+  // message.status não traz instância: o negócio vem do índice das mensagens que pararam na
+  // cota. Fora dele (envio comum), ack 200 sem gravar nada — 400 fazia o atendys repetir 5 vezes
+  if (evento.event === "message.status") {
+    const id = evento.messageId;
+    const slugDaMensagem = typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id) ? await negocioDaMensagem(id) : null;
+    if (!slugDaMensagem || !STATUS_MENSAGEM.has(String(evento.status))) return responder(200, { ok: true });
+    const segredoDaMensagem = (await lerConexao(adminDb, slugDaMensagem))?.atendysWebhookSecret;
+    // assinatura conferida antes de gravar qualquer coisa. Recusada, responde 200 como a desconhecida
+    // (um 401 só aqui diria a quem não assina que esse id é de uma mensagem parada)
+    if (!segredoDaMensagem || !assinaturaValida(segredoDaMensagem, bruto, assinatura)) {
+      console.warn(`[webhook atendys] message.status com assinatura inválida para ${slugDaMensagem}`);
+      return responder(200, { ok: true });
+    }
+    const at = Date.parse(evento.at ?? "");
+    await atualizarParada(slugDaMensagem, id!, String(evento.status), evento.retryAt === undefined ? undefined : (evento.retryAt ?? null), Number.isNaN(at) ? Date.now() : at);
+    return responder(200, { ok: true });
+  }
   if (typeof evento.instance !== "string" || !evento.instance) {
     return responder(400, { error: "Evento sem instância." });
   }
