@@ -75,6 +75,12 @@ export default function AgendaPage() {
   const mensagem = (a: Appointment, tipo: AvisoCliente, start = a.start.toDate()) =>
     textoAvisoCliente(tipo, { ...a, start }, tenant.name, `${location.origin}/agendar/${tenant.id}`);
   const aviso = notice?.aviso;
+  // o aviso some sozinho: só texto em 6 s; com botão (avisar, recibo) fica 20 s para dar tempo de tocar
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), notice.aviso || notice.recibo ? 20_000 : 6_000);
+    return () => clearTimeout(t);
+  }, [notice]);
   // O relógio anda a cada minuto: com a agenda aberta o dia todo, o horário que passa perde
   // o "Confirmar" e ganha o "Faltou", e a linha do "agora" desce, sem recarregar a página
   const [now, setNow] = useState(Date.now);

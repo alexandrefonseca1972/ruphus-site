@@ -46,16 +46,40 @@ export const formatTime = (d: Date, tz = TIMEZONE) =>
 // Fuso de cada estado. Os horários da agenda são gravados como hora de parede no fuso de
 // referência (TIMEZONE): é o que o dono e o cliente leem, no painel e no WhatsApp. O fuso
 // real do negócio só entra onde a hora vira instante de verdade: esconder o horário que já
-// passou e exportar para o calendário do cliente. Os estados não listados seguem Brasília.
+// passou e exportar para o calendário do cliente.
 const FUSO_UF: Record<string, string> = {
-  AM: "America/Manaus",
-  RR: "America/Boa_Vista",
-  RO: "America/Porto_Velho",
-  MT: "America/Cuiaba",
-  MS: "America/Campo_Grande",
-  AC: "America/Rio_Branco",
+  AC: "America/Rio_Branco", AL: "America/Maceio", AP: "America/Belem", AM: "America/Manaus", BA: "America/Bahia",
+  CE: "America/Fortaleza", DF: "America/Sao_Paulo", ES: "America/Sao_Paulo", GO: "America/Sao_Paulo", MA: "America/Fortaleza",
+  MT: "America/Cuiaba", MS: "America/Campo_Grande", MG: "America/Sao_Paulo", PA: "America/Belem", PB: "America/Fortaleza",
+  PR: "America/Sao_Paulo", PE: "America/Recife", PI: "America/Fortaleza", RJ: "America/Sao_Paulo", RN: "America/Fortaleza",
+  RS: "America/Sao_Paulo", RO: "America/Porto_Velho", RR: "America/Boa_Vista", SC: "America/Sao_Paulo", SP: "America/Sao_Paulo",
+  SE: "America/Maceio", TO: "America/Araguaina",
 };
 export const fusoDaUF = (uf?: string | null) => FUSO_UF[(uf ?? "").toUpperCase()] ?? TIMEZONE;
+
+/** Fusos do Brasil que o dono pode escolher à mão (operação centralizada noutra região). */
+export const FUSOS: Record<string, string> = {
+  "America/Noronha": "Fernando de Noronha (UTC−2)",
+  "America/Sao_Paulo": "Brasília, Sul e Sudeste (UTC−3)",
+  "America/Bahia": "Bahia (UTC−3)",
+  "America/Fortaleza": "Fortaleza, MA, PI, RN, PB (UTC−3)",
+  "America/Recife": "Recife (UTC−3)",
+  "America/Maceio": "Maceió, Sergipe (UTC−3)",
+  "America/Belem": "Belém, Amapá (UTC−3)",
+  "America/Santarem": "Santarém, oeste do Pará (UTC−3)",
+  "America/Araguaina": "Tocantins (UTC−3)",
+  "America/Cuiaba": "Mato Grosso (UTC−4)",
+  "America/Campo_Grande": "Mato Grosso do Sul (UTC−4)",
+  "America/Manaus": "Amazonas (UTC−4)",
+  "America/Porto_Velho": "Rondônia (UTC−4)",
+  "America/Boa_Vista": "Roraima (UTC−4)",
+  "America/Rio_Branco": "Acre (UTC−5)",
+  "America/Eirunepe": "Oeste do Amazonas (UTC−5)",
+};
+
+/** Fuso do negócio: o escolhido à mão (site.fuso) ou, sem ele, o da UF. */
+export const fusoDe = (site?: { uf?: string | null; fuso?: string | null } | null) =>
+  site?.fuso && site.fuso in FUSOS ? site.fuso : fusoDaUF(site?.uf);
 
 /** Agora, como hora de parede do fuso dado, na convenção em que a agenda grava. Em Manaus,
  *  às 10h05, é "10:05" — sem isto os horários sumiam uma hora antes. */

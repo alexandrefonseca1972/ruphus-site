@@ -2,7 +2,7 @@ import "server-only";
 import { emParalelo } from "@/lib/paralelo";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
-import { agoraNaParede, dateIn, formatTime, fusoDaUF, todayIn, zonedTime } from "@/lib/datetime";
+import { agoraNaParede, dateIn, formatTime, fusoDe, todayIn, zonedTime } from "@/lib/datetime";
 import { enviarTexto, motivoLegivel, ROTULO_STATUS, statusDaConexao } from "@/lib/atendys";
 import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { espelharStatusVivo, lerConexao, registrarErroNotificacao, soDigitosComDDI } from "@/lib/whatsapp.server";
@@ -36,7 +36,7 @@ export async function enviarLembretesDoDia(): Promise<number> {
   // 5 negócios de cada vez: em fila, ~100 negócios estouravam os 120 s do curl do cron
   await emParalelo(tenants.docs, 5, async (t) => {
     // tudo no fuso do endereço do negócio — salão em Manaus não segue horário de SP
-    const tz = fusoDaUF(t.get("site.uf") as string | undefined);
+    const tz = fusoDe(t.get("site"));
     const hoje = todayIn(tz);
     const inicioDoDia = zonedTime(hoje, "00:00");
     const fimDoDia = zonedTime(hoje, "23:59");

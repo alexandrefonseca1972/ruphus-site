@@ -23,7 +23,7 @@ export type Folha =
   | { modo: "baixa"; atendimento: { id: string; customerName: string; serviceName: string; priceCents: number; sinalCents: number } }
   | { modo: "pagar"; titulo: string; detalhe: string; valorCents: number; pagamento: { tipo: "fixa" | "comissao"; alvoId: string; mes: string; descontoCents?: number } };
 
-const Chip = ({ ativo, onClick, children }: { ativo: boolean; onClick: () => void; children: React.ReactNode }) => (
+export const Chip = ({ ativo, onClick, children }: { ativo: boolean; onClick: () => void; children: React.ReactNode }) => (
   <button
     type="button"
     aria-pressed={ativo}

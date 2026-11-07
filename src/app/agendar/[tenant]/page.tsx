@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { adminDb } from "@/lib/admin";
 import { loadCatalog } from "@/lib/booking.server";
-import { todayIn, fusoDaUF, linkWhatsApp, precoDe } from "@/lib/datetime";
+import { todayIn, linkWhatsApp, precoDe } from "@/lib/datetime";
 import { BookingForm } from "./booking-form";
 
 // Metadata e página compartilham a mesma leitura
@@ -33,9 +33,9 @@ export default async function BookingPage({ params, searchParams }: PageProps<"/
   const catalog = await getCatalog(tenant);
   if (!catalog) notFound();
   if (!catalog.agendaOnline) return <SemAgenda {...catalog} />;
-  const fuso = fusoDaUF(catalog.uf);
+  const fuso = catalog.fuso;
   const today = todayIn(fuso);
-  return <BookingForm tenantId={tenant} today={today} fuso={fuso} inicial={inicial(await searchParams, catalog.services, today)} {...catalog} />;
+  return <BookingForm tenantId={tenant} today={today} inicial={inicial(await searchParams, catalog.services, today)} {...catalog} />;
 }
 
 const um = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);

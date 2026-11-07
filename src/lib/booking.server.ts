@@ -4,7 +4,7 @@ import { sessaoRevogada } from "@/lib/revogacao";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
-import { addDays, agoraNaParede, customerKey, datasDoPlano, dateIn, dentroDaJanela, formatTime, freeSlots, fusoDaUF, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import { addDays, agoraNaParede, customerKey, datasDoPlano, dateIn, dentroDaJanela, formatTime, freeSlots, fusoDe, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import type { DadosCliente } from "@/lib/cliente-dados";
 import { prazoDoSinal, type SinalDoAgendamento, valorDoSinal } from "@/lib/sinal";
 import { ConfigSinal } from "@/lib/sinal-config";
@@ -62,6 +62,8 @@ async function lerCatalogo(db: Firestore, tenantId: string) {
     city: (tenant.get("site.city") as string | null) ?? null,
     // o "Como chegar" depois de agendar: sem rua, bairro e cidade já apontam no mapa
     uf: (tenant.get("site.uf") as string | null) ?? null,
+    // fuso do negócio (o escolhido à mão ou o da UF): o "agora" do link
+    fuso: fusoDe(tenant.get("site")),
     address: (tenant.get("site.address") as string | null) ?? null,
     bairro: (tenant.get("gerado.bairro") as string | null) || null,
     // tem página própria (fábrica ou gerador): o nome no topo leva a ela no computador
@@ -261,10 +263,10 @@ async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery, exclude
       .filter((d) => d.get("status") !== "cancelled" && d.id !== excludeId)
       .map((d) => ({ start: (d.get("start") as Timestamp).toDate(), end: (d.get("end") as Timestamp).toDate() })),
     // o que já passou é pela hora local do negócio (Manaus está 1h atrás de Brasília)
-    now: agoraNaParede(fusoDaUF(tenantSnap.get("site.uf") as string | undefined)),
+    now: agoraNaParede(fusoDe(tenantSnap.get("site"))),
   });
   // a chave Pix e o sinal do negócio: a reserva online cobra o sinal quando os dois existem
-  const cfg = { pix: tenantSnap.get("pix") as SinalDoAgendamento["pix"] | undefined, sinal: ConfigSinal.safeParse(tenantSnap.get("sinal")).data, fuso: fusoDaUF(tenantSnap.get("site.uf") as string | undefined) };
+  const cfg = { pix: tenantSnap.get("pix") as SinalDoAgendamento["pix"] | undefined, sinal: ConfigSinal.safeParse(tenantSnap.get("sinal")).data, fuso: fusoDe(tenantSnap.get("site")) };
   return { t, svc, durationMin, staff: staff.data, slots, cfg, limites: limitesDe(tenantSnap.get("agenda")) };
 }
 
@@ -289,7 +291,7 @@ export async function agendaDias(db: Firestore, q: AgendaQuery, dias: string[]) 
   const { catalogo, horas } = lido;
   // aba aberta desde ontem (ou "ontem" de Brasília que ainda não é hoje no negócio): a faixa
   // começa no hoje do negócio, do mesmo tamanho
-  const hoje = todayIn(fusoDaUF(catalogo.uf ?? undefined));
+  const hoje = todayIn(catalogo.fuso);
   if (dias[0] < hoje) dias = Array.from({ length: dias.length }, (_, i) => addDays(hoje, i)).filter(dentroDaJanela);
   if (!dias.length) return [];
   const svc = q.serviceIds.map((id) => catalogo.services.find((s) => s.id === id));
@@ -318,7 +320,7 @@ export async function agendaDias(db: Firestore, q: AgendaQuery, dias: string[]) 
     ocupado.set(d.get("staffId"), lista);
   }
   // o que já passou é pela hora local do negócio (Manaus está 1h atrás de Brasília)
-  const agora = agoraNaParede(fusoDaUF(catalogo.uf ?? undefined));
+  const agora = agoraNaParede(catalogo.fuso);
   return dias.map((date) => {
     // Só quem atende neste dia da semana entra na conta
     const doDia = equipe.filter((p) => p.workDays.includes(weekday(date)));
@@ -639,7 +641,7 @@ async function criarPlano(db: Firestore, input: PlanInput, actor: Actor) {
       lista.push({ start: (d.get("start") as Timestamp).toDate(), end: (d.get("end") as Timestamp).toDate() });
       ocupado.set(d.get("staffId"), lista);
     }
-    const now = agoraNaParede(fusoDaUF(tenantSnap.get("site.uf") as string | undefined));
+    const now = agoraNaParede(fusoDe(tenantSnap.get("site")));
     const free: { date: string; quem: (typeof aptos)[number] }[] = [];
     const skipped: string[] = [];
     for (const date of dates) {

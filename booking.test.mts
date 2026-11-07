@@ -56,7 +56,7 @@ assert.deepEqual(freeSlots({ date: day, window: w, durationMin: 15, busy: [], no
 
 // Fuso por estado: a agenda grava hora de parede (convenção de Brasília); o fuso real entra
 // só no "já passou" e no calendário do cliente
-assert.deepEqual([fusoDaUF("AM"), fusoDaUF("rr"), fusoDaUF("AP"), fusoDaUF(null)], ["America/Manaus", "America/Boa_Vista", "America/Sao_Paulo", "America/Sao_Paulo"]);
+assert.deepEqual([fusoDaUF("AM"), fusoDaUF("rr"), fusoDaUF("AP"), fusoDaUF(null)], ["America/Manaus", "America/Boa_Vista", "America/Belem", "America/Sao_Paulo"]);
 {
   const manaus1005 = new Date("2030-01-07T14:05:00Z"); // 10:05 em Manaus = 11:05 em Brasília
   assert.equal(agoraNaParede("America/Manaus", manaus1005).toISOString(), at("10:05").toISOString());

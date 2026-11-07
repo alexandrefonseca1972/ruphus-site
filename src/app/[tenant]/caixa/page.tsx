@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { errorMessage } from "@/lib/auth-errors";
 import { formatLongDate, formatTime, todayIn, zonedTime } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
-import { CaixaConfig, comissoesDoMes, diaNoMes, fixaNoMes, mesDaComissao, pctDoTexto, csvDoMes, idDaBaixa, idDoEstorno, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
+import { CaixaConfig, comissoesDoMes, diaNoMes, fixaNoMes, mesDaComissao, pctDoTexto, csvDoMes, idDaBaixa, idDoEstorno, ehVale, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
 import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
 import { definirComissaoAction } from "../actions";
@@ -21,6 +21,7 @@ import { ContasFixas } from "../contas-fixas";
 import { type Folha, LancamentoFolha } from "../lancamento-folha";
 import { itensDoRecibo } from "@/lib/recibo";
 import { Recibo } from "./recibo";
+import { ValeFolha } from "./vale-folha";
 import { useTenant } from "../painel-layout";
 import { PageTitle } from "../page-title";
 import { mudarStatus } from "../status";
@@ -61,6 +62,9 @@ export default function CaixaPage() {
   // o "Fechar o dia" mostra os mais recentes; a lista toda só quando o dono pede
   const [verTodos, setVerTodos] = useState(false);
   const [historico, setHistorico] = useState<{ staffId: string; nome: string } | null>(null);
+  const [vale, setVale] = useState<{ id: string; nome: string } | null>(null);
+  // a lista do mês por tipo: o dono leigo vê o que entrou separado do que saiu (contas, comissões, vales)
+  const [filtro, setFiltro] = useState<"tudo" | "entrada" | "saida">("tudo");
   // o % digitado vale na hora, só enquanto a gravação dele está a caminho: "Pagar" logo depois
   // usa o novo. Voltou do servidor, sai daqui e vale o da configuração, mude ela onde mudar.
   // ponytail: entre a resposta e o snapshot pode piscar o % velho; esperar o snapshot se incomodar
@@ -153,8 +157,11 @@ export default function CaixaPage() {
   // lançamento novo cai no mês da tela: hoje, ou o último dia de um mês passado
   const diaNovo = mes === hoje.slice(0, 7) ? hoje : diaNoMes(mes, mes < hoje ? 31 : 1);
   const pagas = new Map(lancamentos?.filter((l) => l.id.startsWith("cm-")).map((l) => [l.id, l]));
+  // vales dados no mês, por profissional: já saíram do caixa, contam como pago
+  const vales = (lancamentos ?? []).filter((l) => ehVale(l.id)).reduce<Record<string, number>>((t, l) => ((t[l.staffId ?? ""] = (t[l.staffId ?? ""] ?? 0) + l.valorCents), t), {});
+  const totalDe = (tipo: "entrada" | "saida") => (lancamentos ?? []).reduce((t, l) => t + (l.tipo === tipo ? l.valorCents : 0), 0);
   const porDia = Object.entries(
-    [...(lancamentos ?? [])].sort((a, b) => b.data.localeCompare(a.data)).reduce<Record<string, Lancamento[]>>((g, l) => ((g[l.data] ??= []).push(l), g), {}),
+    [...(lancamentos ?? [])].filter((l) => filtro === "tudo" || l.tipo === filtro).sort((a, b) => b.data.localeCompare(a.data)).reduce<Record<string, Lancamento[]>>((g, l) => ((g[l.data] ??= []).push(l), g), {}),
   );
 
   function fechar(msg?: string) {
@@ -326,8 +333,26 @@ export default function CaixaPage() {
           <h2 id="lancamentos" className="font-semibold">Lançamentos do mês</h2>
           {!!lancamentos?.length && <Button variant="ghost" className="h-10 px-3 max-sm:h-11" onClick={baixarCsv}>Exportar planilha</Button>}
         </div>
+        {!!lancamentos?.length && (
+          <div role="group" aria-label="Mostrar" className="grid grid-cols-3 gap-1 border-t p-2 sm:px-6">
+            {([["tudo", "Tudo", null], ["entrada", "Entradas", totalDe("entrada")], ["saida", "Saídas", totalDe("saida")]] as const).map(([f, rotulo, total]) => (
+              <button
+                key={f}
+                type="button"
+                aria-pressed={filtro === f}
+                onClick={() => setFiltro(f)}
+                className={cn("grid min-h-11 content-center rounded-lg px-2 py-1.5 text-sm hover:bg-muted", filtro === f && "bg-primary text-primary-foreground hover:bg-primary/90")}
+              >
+                <span className="font-medium">{rotulo}</span>
+                {total !== null && <span className="text-xs tabular-nums opacity-80">{brl(total)}</span>}
+              </button>
+            ))}
+          </div>
+        )}
         {!lancamentos ? (
           <p className="border-t px-6 py-8 text-sm text-muted-foreground">Carregando…</p>
+        ) : porDia.length === 0 && lancamentos.length ? (
+          <p className="border-t px-6 py-10 text-center text-sm text-muted-foreground">{filtro === "entrada" ? "Nenhuma entrada neste mês." : "Nenhuma saída neste mês."}</p>
         ) : porDia.length === 0 ? (
           <p className="border-t px-6 py-10 text-center text-sm text-muted-foreground">Nada lançado neste mês. Use “+ Entrada” e “− Saída”, ou receba os atendimentos da agenda.</p>
         ) : (
@@ -395,8 +420,8 @@ export default function CaixaPage() {
           {comissoes.length > 0 && (
             <dl className="grid grid-cols-3 border-t text-sm">
               {[
-                { label: "Total", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? c.valor), 0) },
-                { label: "Pago", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? 0), 0) },
+                { label: "Total", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? c.valor) + (vales[c.staffId] ?? 0), 0) },
+                { label: "Pago", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? 0) + (vales[c.staffId] ?? 0), 0) },
                 { label: "Falta pagar", valor: comissoes.reduce((t, c) => t + (pagas.has(idDoPagamento("comissao", c.staffId, mes)) ? 0 : c.valor), 0) },
               ].map((t) => (
                 <div key={t.label} className="grid min-w-0 gap-0.5 border-l px-2.5 py-3 first:border-l-0 sm:px-6">
@@ -421,11 +446,12 @@ export default function CaixaPage() {
                     </button>
                     <span className="text-[13px] text-muted-foreground tabular-nums">
                       faturou {brl(c.faturado)}
-                      {!paga && c.abatido > 0 && ` · menos ${brl(c.abatido)} de estorno`}
+                      {vales[c.staffId] > 0 && ` · ${brl(vales[c.staffId])} em vale neste mês`}
+                      {!paga && c.abatido > 0 && ` · menos ${brl(c.abatido)} de vale e estorno`}
                       {!paga && c.abatido < 0 && ` · mais ${brl(-c.abatido)} de estorno desfeito`}
                       {/* paga antes de novos recebimentos ou de mudar o %: o dono vê a diferença */}
                       {paga && paga.valorCents !== devido && ` · pago ${brl(paga.valorCents)}, a conta dá ${brl(devido)}`}
-                      {fica > 0 && ` · ${brl(fica)} de estorno a descontar no próximo pagamento`}
+                      {fica > 0 && ` · ${brl(fica)} de vale e estorno a descontar no próximo pagamento`}
                       {fica < 0 && ` · ${brl(-fica)} de estorno desfeito a devolver no próximo pagamento`}
                     </span>
                   </span>
@@ -448,6 +474,8 @@ export default function CaixaPage() {
                     %
                   </label>
                   <span className="text-right font-serifa text-lg tabular-nums sm:w-24">{brl(paga ? paga.valorCents : c.valor)}</span>
+                  {/* vale a qualquer dia, mesmo com o mês pago: sai do próximo pagamento */}
+                  <Button variant="ghost" className="h-10 px-3" disabled={!configPronta} onClick={() => setVale({ id: c.staffId, nome: c.nome })}>Vale</Button>
                   {paga ? (
                     <span className="text-center text-sm text-emerald-800 sm:w-24 dark:text-emerald-300">Paga</span>
                   ) : (
@@ -460,7 +488,7 @@ export default function CaixaPage() {
                         setFolha({
                           modo: "pagar",
                           titulo: `Pagar comissão de ${c.nome}`,
-                          detalhe: `${String(c.pct).replace(".", ",")}% de ${brl(c.faturado)}${c.abatido > 0 ? ` − ${brl(c.abatido)} de estorno` : c.abatido < 0 ? ` + ${brl(-c.abatido)} de estorno desfeito` : ""} · ${nomeDoMes(mes)}`,
+                          detalhe: `${String(c.pct).replace(".", ",")}% de ${brl(c.faturado)}${c.abatido > 0 ? ` − ${brl(c.abatido)} de vale e estorno` : c.abatido < 0 ? ` + ${brl(-c.abatido)} de estorno desfeito` : ""} · ${nomeDoMes(mes)}`,
                           valorCents: c.valor,
                           pagamento: { tipo: "comissao", alvoId: c.staffId, mes, descontoCents: c.abatido },
                         })
@@ -486,6 +514,7 @@ export default function CaixaPage() {
           onClose={() => setHistorico(null)}
         />
       )}
+      {vale && <ValeFolha tenantId={tenant.id} negocio={tenant.name} staff={vale} onClose={(msg) => (setVale(null), msg && setAviso(msg))} />}
       {verFixas && <ContasFixas tenantId={tenant.id} nicho={tenant.gerado?.nicho} fixas={config.fixas.filter((f) => !f.ate)} onClose={() => setVerFixas(false)} />}
       {folha && <LancamentoFolha tenantId={tenant.id} nicho={tenant.gerado?.nicho} folha={folha} estornado={folha.modo === "editar" && recebidos.has(idDoEstorno(folha.lancamento.id))} onClose={fechar} onRecibo={folha.modo === "editar" ? () => abrirRecibo(folha.lancamento) : undefined} />}
       {recibo && <Recibo tenantId={tenant.id} itens={recibo} onClose={() => setRecibo(null)} />}

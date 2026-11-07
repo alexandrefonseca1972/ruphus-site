@@ -13,6 +13,7 @@ import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { enviarEmail } from "@/lib/email.server";
+import { formatBRL } from "@/lib/datetime";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { aceitarTermoWhatsApp, conectarNegocio, type ConexaoWhatsapp, desligarConexao, espelharStatusVivo, lerConfigWhatsApp, lerConexao, paraTela } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
@@ -24,9 +25,9 @@ import { ConfigSinal } from "@/lib/sinal-config";
 import { confirmarSinal } from "@/lib/sinal.server";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { after } from "next/server";
-import { textoAvisoCliente, textoConvite, textoPix } from "@/lib/mensagens";
-import { BaixaInput, EstornoInput, FixaInput, ID_AVULSO, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
-import { adicionarFixa, editarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
+import { textoAvisoCliente, textoConvite, textoPix, textoVale } from "@/lib/mensagens";
+import { BaixaInput, EstornoInput, FixaInput, ID_AVULSO, LancamentoInput, PagamentoInput, ROTULO_FORMA, ValeInput } from "@/lib/financeiro";
+import { adicionarFixa, editarFixa, baixarAgendamento, darVale, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
 // Chamáveis por POST direto: valida entrada e membro do tenant em toda chamada
 const SlotsInput = RescheduleInput.omit({ time: true });
@@ -436,6 +437,21 @@ export const pagarAction = memberAction(z.object({ tenantId: docIdStaff, pagamen
   await exigeGestor(data.tenantId, user.uid);
   await pagar(adminDb, data.tenantId, data.pagamento, user);
   return { ok: true as const };
+});
+
+/** Vale ao profissional: registra a saída e manda a confirmação por e-mail a ele. O e-mail é
+ *  esperado (não fica para depois): o dono vê na hora se a confirmação não saiu. */
+export const darValeAction = memberAction(z.object({ tenantId: docIdStaff, vale: ValeInput }), async (data, user) => {
+  await exigeGestor(data.tenantId, user.uid);
+  const v = await darVale(adminDb, data.tenantId, data.vale, user);
+  if (!v.novo) return { ok: true as const, emailEnviado: true };
+  const negocio = String((await adminDb.doc(`tenants/${data.tenantId}`).get()).get("name") ?? "");
+  const emailEnviado = await enviarEmail({
+    para: data.vale.email,
+    assunto: `Vale de ${formatBRL(data.vale.valorCents)} · ${negocio}`,
+    texto: textoVale({ nome: v.nome, negocio, valorCents: data.vale.valorCents, forma: ROTULO_FORMA[data.vale.forma], data: v.data }),
+  }).then(() => true, (err) => (console.error("[vale] e-mail", err), false));
+  return { ok: true as const, emailEnviado };
 });
 
 export const estornarAction = memberAction(z.object({ tenantId: docIdStaff, estorno: EstornoInput }), async (data, user) => {

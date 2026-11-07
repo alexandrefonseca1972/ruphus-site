@@ -22,3 +22,15 @@ assert.equal(foraDoLimite([s(60), s(60)], lim), null);
 assert.match(foraDoLimite([s(60), s(90)], lim)!, /passam de 2 h/);
 assert.match(foraDoLimite([s(10), s(10), s(10)], lim)!, /até 2 serviços/);
 console.log("limites ok");
+
+// fuso do negócio: o escolhido à mão vence; sem ele, o da UF; inválido cai na UF
+import { FUSOS, fusoDaUF, fusoDe } from "@/lib/datetime";
+import { UFS } from "@/lib/gerador";
+for (const id of Object.keys(FUSOS)) new Intl.DateTimeFormat("pt-BR", { timeZone: id }); // IANA válido
+for (const uf of UFS) assert.ok(fusoDaUF(uf) in FUSOS, uf); // toda UF cai num fuso da lista
+assert.equal(fusoDe({ uf: "AM" }), "America/Manaus");
+assert.equal(fusoDe({ uf: "PA" }), "America/Belem");
+assert.equal(fusoDe({ uf: "AM", fuso: "America/Sao_Paulo" }), "America/Sao_Paulo");
+assert.equal(fusoDe({ uf: "AC", fuso: "Europe/Lisbon" }), "America/Rio_Branco");
+assert.equal(fusoDe(undefined), "America/Sao_Paulo");
+console.log("fusos ok");

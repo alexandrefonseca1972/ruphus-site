@@ -3,7 +3,7 @@ import { FieldValue, type Firestore, Timestamp } from "firebase-admin/firestore"
 import { UserError } from "@/lib/booking.server";
 import { dateIn, formatBRL, todayIn } from "@/lib/datetime";
 import { randomBytes } from "node:crypto";
-import { BaixaInput, CaixaConfig, diaNoMes, EstornoInput, ehSinal, ehVinculado, FixaInput, ID_AVULSO, idDaBaixa, idDoEstorno, idDoPagamento, LancamentoInput, mesDaComissao, mesDe, PagamentoInput } from "@/lib/financeiro";
+import { BaixaInput, CaixaConfig, diaNoMes, EstornoInput, ehSinal, ehVinculado, FixaInput, ID_AVULSO, idDaBaixa, idDoEstorno, idDoPagamento, LancamentoInput, ValeInput, ehVale, mesDaComissao, mesDe, PagamentoInput } from "@/lib/financeiro";
 import type { z } from "zod";
 
 // Escritas do Caixa: só pelo servidor, e só com o módulo ligado pelo admin da plataforma
@@ -75,8 +75,9 @@ export async function editar(db: Firestore, tenantId: string, id: string, l: Lan
     const ajuste = await ajusteDaComissaoPaga(tx, db, tenantId, atual, l.valorCents);
     // estorno corrigido: o desconto da comissão acompanha, pelo % do dia do estorno
     let desconto = {};
-    if (atual.get("estornoDe") && typeof atual.get("pctComissao") === "number") {
-      const novo = Math.round((l.valorCents * Number(atual.get("pctComissao"))) / 100);
+    if (ehVale(id) || (atual.get("estornoDe") && typeof atual.get("pctComissao") === "number")) {
+      // vale: o desconto é o próprio valor; estorno: a comissão sobre ele, pelo % do dia
+      const novo = ehVale(id) ? l.valorCents : Math.round((l.valorCents * Number(atual.get("pctComissao"))) / 100);
       descontar(tx, db, tenantId, atual.get("staffId"), novo - Number(atual.get("descontoComissao") ?? 0));
       desconto = { descontoComissao: novo };
     }
@@ -140,7 +141,7 @@ export async function excluir(db: Firestore, tenantId: string, id: string) {
         ? await ajusteNoMes(tx, db, tenantId, l.get("staffId"), String(l.get("mesComissao") ?? l.get("mes")), (Number(l.get("valorCents")) || 0) + sinalContava, 0)
         : await ajusteDaComissaoPaga(tx, db, tenantId, l, 0);
     // apagar o estorno tira o desconto dele; apagar o pagamento da comissão devolve o que ele abateu
-    if (l.get("estornoDe")) descontar(tx, db, tenantId, l.get("staffId"), -Number(l.get("descontoComissao") ?? 0));
+    if (l.get("estornoDe") || ehVale(id)) descontar(tx, db, tenantId, l.get("staffId"), -Number(l.get("descontoComissao") ?? 0));
     // pagamento apagado: volta o que ele abateu e sai o ajuste dos recebimentos mexidos depois dele
     if (id.startsWith("cm-")) descontar(tx, db, tenantId, l.get("staffId"), Number(l.get("descontoCents") ?? 0) - Number(l.get("ajusteCents") ?? 0));
     aplicarAjuste(tx, db, tenantId, ajuste);
@@ -305,6 +306,28 @@ export async function editarFixa(db: Firestore, tenantId: string, fixaId: string
 export async function definirComissao(db: Firestore, tenantId: string, staffId: string, pct: number) {
   await exigeCaixa(db, tenantId);
   await config(db, tenantId).set({ comissoes: { [staffId]: pct } }, { merge: true });
+}
+
+/** Vale: saída de hoje com o profissional, e o valor entra no desconto guardado dele, como um
+ *  estorno: sai do próximo pagamento de comissão, e o que não couber nele passa para o seguinte. */
+export async function darVale(db: Firestore, tenantId: string, v: z.infer<typeof ValeInput>, quem: Quem) {
+  await exigeCaixa(db, tenantId);
+  const ref = col(db, tenantId).doc(v.id);
+  return db.runTransaction(async (tx) => {
+    const [ja, staff] = await Promise.all([tx.get(ref), tx.get(db.doc(`tenants/${tenantId}/staff/${v.staffId}`))]);
+    const nome = String(staff.get("name") ?? "").slice(0, 60);
+    // o mesmo vale chegou duas vezes (a resposta caiu): o primeiro vale, o e-mail não repete
+    if (ja.exists) return { nome, data: String(ja.get("data")), novo: false };
+    if (!staff.exists) throw new UserError("Profissional não encontrado.");
+    const hoje = todayIn();
+    descontar(tx, db, tenantId, v.staffId, v.valorCents);
+    tx.create(ref, {
+      tipo: "saida", valorCents: v.valorCents, forma: v.forma, categoria: "Comissão/salário", descricao: `Vale ${nome}`.slice(0, 80),
+      data: hoje, mes: mesDe(hoje), staffId: v.staffId, staffName: nome || null, descontoComissao: v.valorCents,
+      emailConfirmacao: v.email, criadoPor: quem.email ?? quem.uid, criadoEm: FieldValue.serverTimestamp(),
+    });
+    return { nome, data: hoje, novo: true };
+  });
 }
 
 /** "Paguei" a conta fixa ou a comissão do mês: vira saída, uma vez só por mês. */

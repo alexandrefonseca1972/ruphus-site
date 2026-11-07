@@ -3,6 +3,7 @@
 // e renderizar), sem banco nem "server-only".
 import { z } from "zod";
 import { normalizar, RUPHUS } from "@/lib/catalogo";
+import { FUSOS } from "@/lib/datetime";
 import { slugify, TenantInput } from "@/lib/tenant-input";
 import { type Dominio, urlDoSite } from "@/lib/dominio";
 import type { Personal } from "@/lib/site-editorial";
@@ -349,6 +350,8 @@ export const DadosNegocio = z.object({
   endereco: z.string().trim().max(160).default(""),
   instagram: z.string().transform((v) => perfil(v)).default(""),
   horario: z.string().trim().max(120).default(""),
+  /** fuso escolhido à mão; vazio = o da UF (automático) */
+  fuso: z.string().default("").refine((f) => !f || f in FUSOS, "Escolha um fuso da lista"),
 });
 export type DadosNegocio = z.infer<typeof DadosNegocio>;
 /** Site feito pela fábrica: página estática, sem ramo a escolher. */

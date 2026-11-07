@@ -5,6 +5,7 @@ import { z } from "zod";
 import { UserError } from "@/lib/booking.server";
 import { DadosFabrica, DadosNegocio, leadDoDono, NegocioInput, type Sub, SUBS, UtmInput } from "@/lib/gerador";
 import { personalDe, registrosDoSite } from "@/lib/gerador.server";
+import { FUSOS } from "@/lib/datetime";
 import { limiteStaffDe } from "@/lib/limites";
 import { Role } from "@/lib/tenant-input";
 
@@ -71,6 +72,7 @@ export async function criarNegocio(db: Firestore, user: { uid: string; email?: s
     })) {
       tx.set(e.ref, e.dados, { merge: true });
     }
+    if (dados.fuso) tx.set(db.doc(`tenants/${slug}`), { site: { fuso: dados.fuso } }, { merge: true });
     // o membro do dono com e-mail e nome: é o que "Quem tem acesso" mostra
     tx.set(db.doc(`tenants/${slug}/members/${user.uid}`), {
       ...(user.email && { email: user.email }),
@@ -95,6 +97,8 @@ export async function lerNegocio(db: Firestore, slug: string) {
     telefone: s("site.phone"),
     cidade: s("site.city"),
     uf: s("site.uf"),
+    /** fuso escolhido à mão; vazio = automático pela UF */
+    fuso: s("site.fuso"),
     // site da fábrica não tem gerado.*: bairro e horário ficam em site.*
     bairro: s("gerado.bairro") || s("site.bairro"),
     endereco: s("site.address"),
@@ -152,6 +156,7 @@ export async function previaDoSite(db: Firestore, slug: string, input: unknown, 
     ["WhatsApp", atual.telefone, d.telefone, true],
     ["Cidade", atual.cidade, d.cidade, true],
     ["UF", atual.uf, d.uf, true],
+    ["Fuso", atual.fuso ? FUSOS[atual.fuso] ?? atual.fuso : "Pela UF", d.fuso ? FUSOS[d.fuso] : "Pela UF", true],
     ["Bairro", atual.bairro, d.bairro, !fabrica],
     ["Endereço", atual.endereco, d.endereco, true],
     ["Instagram", atual.instagram, d.instagram, true],
@@ -180,7 +185,7 @@ export async function salvarNegocio(db: Firestore, slug: string, input: unknown,
     const d = parsed.data;
     await ref.set({
       name: d.name,
-      site: { phone: d.telefone, city: d.cidade, uf: d.uf, address: d.endereco || null, instagram: d.instagram || null, bairro: d.bairro || null, horario: d.horario || null },
+      site: { phone: d.telefone, city: d.cidade, uf: d.uf, fuso: d.fuso || null, address: d.endereco || null, instagram: d.instagram || null, bairro: d.bairro || null, horario: d.horario || null },
     }, { merge: true });
     return;
   }
@@ -196,7 +201,7 @@ export async function salvarNegocio(db: Firestore, slug: string, input: unknown,
     novo: false, ownerId: String(t.get("ownerId")), origem, escolha: mudouRamo ? undefined : t.get("gerado.escolha"), personal: personalDe(t.get("gerado.personal")),
   });
   const { rating: _nota, reviews: _avaliacoes, ...site } = negocio.dados.site as Record<string, unknown>;
-  await ref.set({ ...negocio.dados, site: google ? negocio.dados.site : site }, { merge: true });
+  await ref.set({ ...negocio.dados, site: { ...(google ? negocio.dados.site : site), fuso: d.fuso || null } }, { merge: true });
   if (mudouRamo && t.get("gerado.escolha")) await ref.update({ "gerado.escolha": FieldValue.delete() });
 }
 

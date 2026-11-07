@@ -83,8 +83,10 @@ export const mesDaComissao = (l: { id: string; mes: string; mesComissao?: string
 export const idDaBaixa = (appointmentId: string) => `ag-${appointmentId}`;
 /** Um estorno por entrada: o segundo toque não devolve duas vezes. */
 export const idDoEstorno = (lancamentoId: string) => `es-${lancamentoId}`;
-/** Conta fixa, comissão e estorno: nascem de outro registro, tipo e data não mudam. */
-export const ehVinculado = (id: string) => /^(fx|cm|es)-/.test(id);
+/** Conta fixa, comissão, estorno e vale: nascem de outro registro, tipo e data não mudam. */
+export const ehVinculado = (id: string) => /^(fx|cm|es|vl)-/.test(id);
+/** Vale: parte da comissão adiantada ao profissional, a qualquer dia. Sai do próximo pagamento. */
+export const ehVale = (id: string) => id.startsWith("vl-");
 /** Sinal do agendamento no Caixa (criado ao confirmar o sinal): entrada presa ao atendimento. */
 export const ehSinal = (id: string) => id.startsWith("sn-");
 /** Id de uma entrada ou saída avulsa, gerado na tela: repetir o envio não duplica o dinheiro. */
@@ -133,6 +135,15 @@ export const PagamentoInput = z.object({
   forma: z.enum(FORMAS),
   /** comissão: o estorno que este pagamento abate */
   descontoCents: z.number().int().optional(),
+});
+/** Vale ao profissional: o id vem da tela (vl-…), reenviar não paga duas vezes. O e-mail
+ *  recebe a confirmação, sempre. */
+export const ValeInput = z.object({
+  id: z.string().regex(/^vl-[A-Za-z0-9]{16,32}$/),
+  staffId: docId,
+  valorCents: valor,
+  forma: z.enum(FORMAS),
+  email: z.string().trim().toLowerCase().email("Informe o e-mail do profissional.").max(254),
 });
 /** Devolver ao cliente, no todo ou em parte, o que entrou. */
 export const EstornoInput = z.object({

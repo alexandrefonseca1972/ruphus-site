@@ -26,3 +26,10 @@ export function textoConvite(c: { nome: string; negocio: string; url: string; em
   const primeiro = primeiroNome(c.nome);
   return `Oi${primeiro ? `, ${primeiro}` : ""}! Este link libera seu acesso à agenda do ${c.negocio} na Ruphus:\n\n${c.url}\n\nEntre ou crie a conta com este e-mail (${c.email}). O link vale ${c.dias} dias e só funciona uma vez.`;
 }
+
+/** Confirmação do vale ao profissional: vai sempre por e-mail, é o registro dele do que recebeu. */
+export function textoVale(c: { nome: string; negocio: string; valorCents: number; forma: string; data: string }) {
+  const primeiro = primeiroNome(c.nome);
+  const dia = c.data.split("-").reverse().join("/");
+  return `Oi${primeiro ? `, ${primeiro}` : ""}! ${c.negocio} registrou um vale de ${formatBRL(c.valorCents)} pago a você em ${dia} (${c.forma}).\n\nO valor é um adiantamento da sua comissão e será descontado do próximo pagamento.\n\nSe não recebeu este valor, fale com ${c.negocio}.`;
+}

@@ -5,7 +5,7 @@ import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { quando } from "@/lib/avisos.server";
 import { numeroSms } from "@/lib/comtele";
 import { enviarSms, smsDisponivel } from "@/lib/comtele.server";
-import { agoraNaParede, dateIn, formatPhone, formatTime, fusoDaUF, todayIn } from "@/lib/datetime";
+import { agoraNaParede, dateIn, formatPhone, formatTime, fusoDe, todayIn } from "@/lib/datetime";
 
 // SMS para o cliente final, pela conta da Ruphus na Comtele: quando a casa confirma o horário e X h
 // antes dele. Só nos negócios com `sms.ligado` (a chave fica na gaveta do /admin): cada SMS gasta
@@ -96,7 +96,7 @@ async function confirmacao(db: Firestore, slug: string, appointmentId: string, {
   const a = await ref.get();
   if (!a.exists || a.get("status") !== "confirmed" || a.get("smsConfirmacaoEm")) return "nada a avisar";
   const start = inicioDe(a.get("start"));
-  const tz = fusoDaUF(t.get("site.uf") as string | undefined);
+  const tz = fusoDe(t.get("site"));
   if (agoraNaParede(tz, agora) >= start) return "horário passou";
   const numero = numeroSms(String(a.get("customerPhone") ?? ""));
   if (!numero) return "sem celular";
@@ -131,7 +131,7 @@ async function lembretes(db: Firestore, { enviar, agora, alertar }: { enviar: En
   await emParalelo(tenants.docs, 5, async (t) => {
     const cfg = configSms(t.get("sms"));
     if (!cfg.lembrete) return;
-    const tz = fusoDaUF(t.get("site.uf") as string | undefined);
+    const tz = fusoDe(t.get("site"));
     const [h, m] = formatTime(agora, tz).split(":").map(Number);
     if (h * 60 + m >= SILENCIO.inicioMin || h * 60 + m < SILENCIO.fimMin) return;
     const hoje = todayIn(tz);

@@ -5,6 +5,14 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Caixa: "Lançamentos do mês" ganhou Tudo / Entradas / Saídas, com o total de cada lado. Contas fixas, compras, comissões e vales ficam em Saídas, longe dos atendimentos.
+
+- Vale para o profissional: em Comissões, "Vale" paga parte da comissão em qualquer dia, mesmo com o mês já pago. Sai do Caixa como saída de hoje e é descontado sozinho do próximo pagamento de comissão (o que passar dele fica para o seguinte). A confirmação vai sempre por e-mail ao profissional; o recibo para ele assinar é opcional, logo depois de registrar.
+
+- Fuso do negócio: no cadastro e em "Meu negócio", "Definir fuso automaticamente pela UF" vem marcado e usa o fuso do estado (todos os 27 com fuso próprio, como Belém para PA e AP). Desmarcado, o dono escolhe outro fuso do Brasil, para quem atende de uma central noutra região. O fuso vale para o "já passou" do link de agendamento, os lembretes e o SMS.
+
+- Aviso no topo da agenda some sozinho: o só de texto em 6 segundos; o que tem botão (Avisar pelo WhatsApp, Recibo) em 20 segundos. "Fechar" continua fechando na hora.
+
 - Privacidade dos valores: um olho ao lado do título da Agenda, do Caixa e de Clientes esconde os valores em dinheiro ("R$ ••••") para atender com o cliente do lado. A escolha fica neste aparelho e vale para as três telas.
 
 - Recibo pela agenda: depois de "Recebido", o aviso no topo traz o botão "Recibo" (imprimir, WhatsApp ou e-mail, o mesmo do Caixa), e o menu de cada horário já recebido ganha "Recibo".
