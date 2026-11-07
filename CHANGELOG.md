@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Agendar pelo link, no celular, em 3 toques: o serviço já mostra os 3 horários mais cedo logo abaixo dele; "com quem", "outro dia" (semana com setas, número de vagas embaixo de cada dia, horários em Manhã/Tarde/Noite) e a confirmação abrem em folhas por cima da página. Novos casos: horário pego por outra pessoa enquanto confirmava (aviso e os 3 próximos livres, um toque para pegar), semana sem vaga (semana seguinte, qualquer profissional ou pedir encaixe no WhatsApp), "repetir o último" para quem já agendou neste aparelho, e pílula "Ver horários" quando a lista de serviços é longa. O Pix do sinal ganha um relógio discreto (mm:ss) que fica âmbar nos últimos 5 minutos.
+
 - Landing: seção "Pelo Brasil", com o mapa dos sites prontos por estado (dica com o número, os 8 estados com mais sites e o total). Os números vêm do catálogo ao vivo (`/api/catalogo` passa a trazer `ufs`), relido a cada 6 h: site novo entra no mapa sozinho.
 
 - Landing: os sites da busca e da grade "Alguns deles" abrem numa aba nova; a landing fica aberta para o visitante voltar e contratar. Comparativo refeito: ícones consistentes (tem · depende · não tem) com nota curta, linha "Quanto custa" e, no celular, um cartão por recurso em vez de rolar para o lado.

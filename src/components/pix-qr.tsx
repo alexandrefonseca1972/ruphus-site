@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
 import { formatBRL } from "@/lib/datetime";
 import { brCode, PixInvalido, type Recebedor } from "@/lib/pix";
-import { tempoRestante } from "@/lib/sinal";
+import { relogio, tempoRestante } from "@/lib/sinal";
 
 /** O Pix do salão na tela: o cliente lê o QR no balcão, ou recebe o copia e cola pelo
  *  WhatsApp. O dinheiro cai na conta do salão, e ninguém avisa: confere-se no banco.
@@ -56,10 +56,9 @@ export function PixQr({
 
   useEffect(() => {
     if (!ate) return;
-    const id = setInterval(() => setAgora(Date.now()), 30_000);
-    // e no instante do prazo: o QR não fica pagável até 30 s além dele
-    const fim = setTimeout(() => setAgora(Date.now()), Math.max(0, Date.parse(ate) - Date.now()) + 50);
-    return () => (clearInterval(id), clearTimeout(fim));
+    // de segundo em segundo: o relógio é pequeno, e re-renderiza só este quadro
+    const id = setInterval(() => setAgora(Date.now()), 1000);
+    return () => clearInterval(id);
   }, [ate]);
 
   if (!montado.codigo) {
@@ -70,6 +69,9 @@ export function PixQr({
     );
   }
   const falta = ate ? tempoRestante(ate, agora) : undefined;
+  const tempo = ate ? relogio(ate, agora) : null;
+  // nos últimos 5 min o relógio fica âmbar; antes, cinza, sem pressa
+  const apertado = !!ate && Date.parse(ate) - agora < 5 * 60_000;
   if (falta === null) {
     return (
       <p role="alert" className="rounded-xl border border-[#E7C9BF] bg-[#FBF1EE] p-3.5 text-sm text-[#B4472F]">
@@ -102,8 +104,23 @@ export function PixQr({
       ) : null}
       <p className="text-center text-sm">
         <strong className="tabular-nums">{formatBRL(valorCents)}</strong> para {recebedor.nome}
-        {falta && <span className="block text-xs text-[#6B6555]">faltam {falta} para pagar</span>}
       </p>
+      {tempo && (
+        <p className="-mt-1 flex justify-center">
+          {/* role="timer" não é lido a cada segundo; o rótulo diz os minutos */}
+          <span
+            role="timer"
+            aria-label={`Tempo para pagar: ${falta}`}
+            className={`inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 font-[family-name:var(--font-geist-mono)] text-xs tabular-nums ${apertado ? "bg-[#F6EBD3] text-[#4F3A10]" : "bg-[#F2F0E7] text-[#5C5747]"}`}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="13" r="8" />
+              <path d="M12 9v4l2.5 1.5M9.5 2.5h5" />
+            </svg>
+            {tempo}
+          </span>
+        </p>
+      )}
       <div className="grid gap-2 sm:grid-cols-2">
         <button type="button" onClick={copiar} className="h-11 rounded-lg bg-[#17150F] text-sm font-semibold text-[#FAF9F5]">
           {copiado === "sim" ? "Código copiado" : "Copiar código Pix"}

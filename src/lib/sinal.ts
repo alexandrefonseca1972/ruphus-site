@@ -35,3 +35,12 @@ export function tempoRestante(ate: string, agora: number) {
   if (!Number.isFinite(min) || min <= 0) return null;
   return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")} min`;
 }
+
+/** "14:52" / "1:05:00": o relógio discreto do Pix, de segundo em segundo; null quando venceu. */
+export function relogio(ate: string, agora: number) {
+  const seg = Math.ceil((Date.parse(ate) - agora) / 1000);
+  if (!Number.isFinite(seg) || seg <= 0) return null;
+  const [h, m, s] = [Math.floor(seg / 3600), Math.floor(seg / 60) % 60, seg % 60];
+  const dois = (n: number) => String(n).padStart(2, "0");
+  return h ? `${h}:${dois(m)}:${dois(s)}` : `${dois(m)}:${dois(s)}`;
+}

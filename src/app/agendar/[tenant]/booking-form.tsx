@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   addDays,
@@ -66,9 +66,6 @@ const PixQr = dynamic(() => import("@/components/pix-qr").then((m) => m.PixQr));
 
 const MONO = "font-[family-name:var(--font-geist-mono)]";
 const PAINEL = "rounded-[14px] border border-[#E0DCCE] bg-[#FAF9F5]";
-// Trilhos que rolam de lado sem mostrar a barra de rolagem (a borda esmaecida já diz que continua)
-const SEM_BARRA = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
-const HORARIOS_VISIVEIS = 12;
 const CAMPO =
   "h-12 rounded-[10px] border-[#D5D0C1] bg-white px-3.5 text-base text-[#17150F] focus-visible:border-[#17150F] focus-visible:ring-[3px] focus-visible:ring-[#17150F]/8";
 const PRIMARIO =
@@ -207,29 +204,101 @@ function Passo({ estado, ultimo, children }: { estado: "feito" | "agora" | "depo
   );
 }
 
+type Vaga = { date: string; hora: string; staffId: string };
+// staffId: a escolha do cliente ("" = qualquer); atendeu: quem ficou com o horário
+type Ultimo = { serviceIds: string[]; staffId: string; atendeu: string };
+
+/** "Hoje", "Amanhã" ou "Seg 9": o rótulo curto de um dia nos botões de horário. */
+const rotuloDia = (date: string, today: string) =>
+  date === today ? "Hoje" : date === addDays(today, 1) ? "Amanhã" : `${parte(date, { weekday: "short" }).replace(/^./, (c) => c.toUpperCase())} ${parte(date, { day: "numeric" })}`;
+const PERIODOS = [
+  { nome: "Manhã", ate: "12:00" },
+  { nome: "Tarde", ate: "18:00" },
+  { nome: "Noite", ate: "24:00" },
+];
+
+/** Folha que sobe de baixo no celular (janela no meio no computador). <dialog> nativo: prende
+ *  o foco, fecha no Esc e deixa o fundo inerte para o leitor de tela, sem biblioteca. */
+function Folha({ aberta, aoFechar, titulo, bloqueada, children }: { aberta: boolean; aoFechar: () => void; titulo: string; bloqueada?: boolean; children: React.ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (aberta && !d.open) {
+      // Safari < 15.4 não tem showModal: abre como bloco comum, que ainda funciona
+      if (typeof d.showModal === "function") d.showModal();
+      else d.setAttribute("open", "");
+      // o foco vai ao título: no celular, cair no campo de busca abria o teclado sem pedir
+      d.querySelector<HTMLElement>("[data-titulo]")?.focus();
+    }
+    if (!aberta && d.hasAttribute("open")) {
+      if (typeof d.close === "function") d.close();
+      else d.removeAttribute("open");
+    }
+  }, [aberta]);
+  return (
+    <dialog
+      ref={ref}
+      aria-label={titulo}
+      onClose={aoFechar}
+      // enviando: Esc e toque fora não fecham, senão a resposta (ocupado, erro) chegava numa folha fechada
+      onCancel={(e) => bloqueada && e.preventDefault()}
+      onClick={(e) => !bloqueada && e.target === e.currentTarget && aoFechar()}
+      className="fixed inset-0 m-0 mt-auto max-h-[92dvh] w-full max-w-none overflow-y-auto overscroll-contain rounded-t-[22px] bg-white p-0 text-[#17150F] shadow-[0_-12px_32px_rgba(23,21,15,0.18)] backdrop:bg-[#17150F]/45 sm:m-auto sm:max-w-[440px] sm:rounded-[22px]"
+    >
+      {aberta && (
+        <div className="flex flex-col gap-4 px-4 pt-2.5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:pt-5">
+          <span aria-hidden="true" className="mx-auto h-[5px] w-10 shrink-0 rounded-full bg-[#D9D3C6] sm:hidden" />
+          {children}
+        </div>
+      )}
+    </dialog>
+  );
+}
+
+function Fechar({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-label="Fechar" className="-mr-2 flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-[#F2F0E7]">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+        <path d="M6 6l12 12M18 6 6 18" />
+      </svg>
+    </button>
+  );
+}
+
+const Seta = ({ d = "M9 6l6 6-6 6", size = 16 }: { d?: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d={d} />
+  </svg>
+);
+
 export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, sinal, fuso, services, staff, inicial }: Props) {
-  // Nada vem marcado: quem agenda diz o que quer, e só então a agenda aparece.
+  // Nada vem marcado: quem agenda diz o que quer, e só então os horários aparecem.
   // Os serviços chegam do servidor na ordem do que mais se agenda.
   // A exceção é quem tocou num serviço ou num horário da bio: chega com ele escolhido.
   const [serviceIds, setServiceIds] = useState<string[]>(inicial ? [inicial.servico] : []);
   const [staffId, setStaffId] = useState("");
   // a faixa mostra 7 dias a partir de hoje: um dia da bio além dela abre a faixa nele
-  const [from, setFrom] = useState(inicial?.data && inicial.data > addDays(today, 6) ? inicial.data : today);
+  const [from, setFrom] = useState(inicial?.data && inicial.data > addDays(today, 6) && inicial.data <= addDays(today, MAX_DAYS_AHEAD) ? inicial.data : today);
   const [versao, setVersao] = useState(0);
   const chave = `${serviceIds.join(",")}|${staffId}|${from}|${versao}`;
   const [buscado, setBuscado] = useState<{ para: string; dias: Dia[] } | null>(null);
   const agenda = buscado?.para === chave ? buscado.dias : null;
   const [date, setDate] = useState(inicial?.data ?? "");
   // o horário da bio é aplicado uma vez, na primeira agenda que chegar
-  const horaInicial = useRef(inicial?.data && inicial.hora ? { data: inicial.data, hora: inicial.hora } : null);
+  const horaInicial = useRef(inicial?.data ? { data: inicial.data, hora: inicial.hora } : null);
   const [escolha, setEscolha] = useState<{ hora: string; staffId: string } | null>(null);
-  const [etapa, setEtapa] = useState<"escolha" | "confirmar">("escolha");
+  // a folha aberta por cima da página: com quem, outro dia, ou a confirmação
+  const [folha, setFolha] = useState<"quem" | "quando" | "confirmar" | null>(null);
+  // o horário que outra pessoa pegou enquanto este cliente confirmava
+  const [tomado, setTomado] = useState<{ date: string; hora: string; msg: string } | null>(null);
+  const [busca, setBusca] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [lembrado, setLembrado] = useState(false);
+  const [ultimo, setUltimo] = useState<Ultimo | null>(null);
   // enviou: depois de tentar confirmar, o "faltam N dígitos" também acusa (antes só informava)
   const [touched, setTouched] = useState({ name: false, phone: false, enviou: false });
-  const [slotError, setSlotError] = useState("");
   // falha ao carregar a semana: separado do "ocupado", some quando a próxima busca dá certo
   const [erroAgenda, setErroAgenda] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -239,6 +308,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const [reserva, setReserva] = useState<Extract<Resposta, { ok: true }> | null>(null);
   const pedido = useRef<string | undefined>(undefined);
   const [copiado, setCopiado] = useState(false);
+  const [blocoVisivel, setBlocoVisivel] = useState(true);
 
   const escolhidos = services.filter((s) => serviceIds.includes(s.id));
   const totalMin = escolhidos.reduce((sum, s) => sum + s.durationMin, 0);
@@ -247,17 +317,20 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const valorSinal = sinal ? valorDoSinal(sinal, precoEscolhido) : 0;
   const fazTudo = (p: Props["staff"][number]) => serviceIds.every((id) => p.serviceIds.includes(id));
   const profissionais = staff.filter(fazTudo);
+  const escolhido = staff.find((p) => p.id === staffId);
   const atendente = staff.find((p) => p.id === escolha?.staffId);
   const errors = { name: erroNome(customerName), phone: phoneError(customerPhone) };
   const contatoOk = !errors.name && !errors.phone;
   const foneInvalido = touched.phone && !!errors.phone && (touched.enviou || !faltamDigitos(customerPhone));
   const dia = agenda?.find((d) => d.date === date);
-  // A grade começa com os primeiros horários; "ver todos" vale para o dia aberto. Se o
-  // escolhido está além deles (voltou de outra etapa), a grade já abre inteira.
-  const [todosEm, setTodosEm] = useState("");
-  const todosNoDia = todosEm === date || (!!escolha && (dia?.horarios.findIndex((h) => h.hora === escolha.hora) ?? -1) >= HORARIOS_VISIVEIS);
+  // todos os horários livres da semana em ordem: "mais cedo" e "próximos livres" saem daqui
+  const livres: Vaga[] = agenda?.flatMap((d) => d.horarios.map((h) => ({ date: d.date, ...h }))) ?? [];
+  const semanaCheia = !!agenda && !livres.length;
+  const proximaSemana = addDays(from, 7);
+  const temProxima = proximaSemana <= addDays(today, MAX_DAYS_AHEAD);
+  const ultimoValido = ultimo && ultimo.serviceIds.length && ultimo.serviceIds.every((id) => services.some((s) => s.id === id)) ? ultimo : null;
 
-  // Contato lembrado da última reserva neste navegador
+  // Contato e último pedido lembrados neste navegador
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(CONTACT_KEY) ?? "null");
@@ -270,6 +343,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
         // atual deixava o botão desligado, o formulário escondido e nenhum aviso — a tela travava
         setLembrado(!erroNome(nome) && !phoneError(fone));
       }
+      if (Array.isArray(saved?.ultimo?.serviceIds)) setUltimo({ serviceIds: saved.ultimo.serviceIds.map(String), staffId: String(saved.ultimo.staffId ?? ""), atendeu: String(saved.ultimo.atendeu ?? "") });
     } catch {}
   }, []);
 
@@ -292,52 +366,46 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     // eslint-disable-next-line react-hooks/exhaustive-deps -- serviceIds e from já estão em chave
   }, [tenantId, staffId, chave]);
 
-  // O primeiro dia com horário é o dia aberto: ninguém precisa caçar um que tenha vaga
+  // O primeiro dia com horário é o dia aberto na folha "outro dia": ninguém caça um que tenha vaga
   useEffect(() => {
     if (!agenda) return;
     const pedido = horaInicial.current;
     if (pedido) {
       horaInicial.current = null;
-      // ocupado desde que a bio foi gerada (cache de 1 min): fica só o dia, sem horário marcado
-      const vaga = agenda.find((d) => d.date === pedido.data)?.horarios.find((h) => h.hora === pedido.hora);
-      if (vaga) setEscolha(vaga);
+      // ocupado desde que a bio foi gerada (cache de 1 min): abre o dia, sem horário marcado
+      const vaga = pedido.hora && agenda.find((d) => d.date === pedido.data)?.horarios.find((h) => h.hora === pedido.hora);
+      if (vaga) {
+        setEscolha(vaga);
+        setFolha("confirmar");
+      } else setFolha("quando");
     }
     if (agenda.some((d) => d.date === date && d.horarios.length)) return;
     setDate(agenda.find((d) => d.horarios.length)?.date ?? agenda[0]?.date ?? "");
   }, [agenda, date]);
 
-  // Trocar de profissional não apaga o horário escolhido: se ele segue livre com
-  // quem foi escolhido agora, fica (com o atendente atualizado); se não, sai
+  // A setinha flutuante aparece quando o bloco de horários sai da tela (lista longa de serviços)
   useEffect(() => {
-    // depois de reservado, quem atende é o que o servidor disse (no "qualquer um" pode ser
-    // outro): a grade antiga não pode trocar de volta
-    if (reserva || !agenda || !escolha) return;
-    const vaga = agenda.find((d) => d.date === date)?.horarios.find((h) => h.hora === escolha.hora);
-    if (!vaga) setEscolha(null); // eslint-disable-line react-hooks/set-state-in-effect -- segue a agenda recebida
-    else if (vaga.staffId !== escolha.staffId) setEscolha(vaga);
-  }, [agenda, date, escolha, reserva]);
-
-  // Trocar de etapa leva ao topo e, na confirmação, põe o foco no título: sem isso a tela
-  // nova abria no meio e o leitor de tela ficava no botão que sumiu
-  const primeiraEtapa = useRef(true);
-  const mostrarDias = useRef(false);
-  useEffect(() => {
-    if (!mostrarDias.current) return;
-    mostrarDias.current = false;
-    const dias = document.getElementById("dias");
-    if (!dias || !matchMedia("(max-width: 1023px)").matches) return;
-    // rola só o necessário para a faixa aparecer: a lista de serviços continua à vista para somar outro
-    const falta = dias.getBoundingClientRect().bottom + 16 - innerHeight;
-    if (falta > 0) scrollBy({ top: falta, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    const bloco = document.getElementById("mais-cedo");
+    if (!bloco || typeof IntersectionObserver === "undefined") return;
+    // meio bloco para fora já conta como fora: uma tirinha no alto da tela não mostra os horários
+    const io = new IntersectionObserver(([e]) => setBlocoVisivel(e.intersectionRatio >= 0.5), { threshold: [0, 0.5, 1] });
+    io.observe(bloco);
+    return () => io.disconnect();
   }, [serviceIds]);
+
+  // Marcou o primeiro serviço: o bloco de horários aparece logo abaixo dele; se ficou fora da
+  // tela, rola só o necessário
+  const mostrarBloco = useRef(false);
   useEffect(() => {
-    if (primeiraEtapa.current) {
-      primeiraEtapa.current = false;
-      return;
-    }
-    scrollTo({ top: 0 });
-    if (etapa === "confirmar") document.getElementById("passo-confirmar")?.focus();
-  }, [etapa]);
+    if (!mostrarBloco.current) return;
+    mostrarBloco.current = false;
+    document.getElementById("mais-cedo")?.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [serviceIds]);
+  // a folha de confirmar trocou de conteúdo (horário pego, ou "Pegar"): o botão tocado sumiu e o
+  // foco caía no body; volta ao título, que o leitor de tela lê
+  useEffect(() => {
+    if (folha === "confirmar") document.querySelector<HTMLElement>("dialog[open] [data-titulo]")?.focus();
+  }, [tomado, folha]);
   // reservou: a tela inteira troca e o foco caía no body; vai para o dia reservado, que o leitor
   // de tela anuncia (o role="status" nasce com o texto e não seria lido)
   useEffect(() => {
@@ -347,21 +415,37 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   function toggleService(id: string) {
     // Mantém a ordem do catálogo: "Corte + Barba", não a ordem dos cliques
     const ids = services.map((s) => s.id).filter((s) => (s === id ? !serviceIds.includes(id) : serviceIds.includes(s)));
-    // desmarcar o único volta ao começo (o aviso "escolha um serviço"); antes o toque era ignorado
-    if (!serviceIds.length) mostrarDias.current = true;
-    setServiceIds(ids);
-    // O profissional escolhido pode não fazer o novo conjunto: volta para "qualquer"
-    if (staffId && !ids.every((s) => staff.find((p) => p.id === staffId)?.serviceIds.includes(s))) setStaffId("");
-    setEscolha(null);
-    setSlotError("");
+    if (!serviceIds.length) mostrarBloco.current = true;
+    // sem serviço o bloco some: ao voltar, a pílula espera o observador dizer se ele está à vista
+    if (!ids.length) setBlocoVisivel(true);
+    escolherServicos(ids, staffId);
   }
 
-  async function confirmar() {
-    if (!escolha) return;
+  function escolherServicos(escolha: string[], quem: string) {
+    // na ordem do catálogo, que muda com o tempo: "repetir o último" guardou a ordem de antes
+    const ids = services.map((s) => s.id).filter((id) => escolha.includes(id));
+    setServiceIds(ids);
+    // O profissional escolhido pode não fazer o novo conjunto: volta para "qualquer"
+    setStaffId(quem && ids.every((s) => staff.find((p) => p.id === quem)?.serviceIds.includes(s)) ? quem : "");
+    setEscolha(null);
+    setTomado(null);
+  }
+
+  function abrirConfirmar(v: Vaga) {
+    setDate(v.date);
+    setEscolha({ hora: v.hora, staffId: v.staffId });
+    setTomado(null);
+    setSubmitError("");
+    setFolha("confirmar");
+  }
+
+  async function confirmar(alvo?: Vaga) {
+    const vaga = alvo ?? (escolha && { date, ...escolha });
+    if (!vaga) return;
     setSubmitError("");
     setTouched({ name: true, phone: true, enviou: true });
     if (!contatoOk) {
-      // no celular os campos ficam acima do botão, às vezes fora da tela: leva até o que falta
+      // os campos ficam acima do botão, às vezes fora da folha: leva até o que falta
       setLembrado(false);
       setSubmitError("Confira seu nome e WhatsApp acima.");
       requestAnimationFrame(() => document.getElementById(errors.name ? "customerName" : "customerPhone")?.focus());
@@ -391,9 +475,9 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       body: JSON.stringify({
         tenantId,
         serviceIds,
-        staffId: escolha.staffId,
-        date,
-        time: escolha.hora,
+        staffId: vaga.staffId,
+        date: vaga.date,
+        time: vaga.hora,
         customerName,
         customerPhone,
         // "qualquer um": se o oferecido na grade ocupou, o servidor tenta outro livre na mesma hora
@@ -420,18 +504,20 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       pedido.current = undefined;
       try {
         sessionStorage.removeItem(chavePedido);
-        localStorage.setItem(CONTACT_KEY, JSON.stringify({ name: customerName.trim(), phone: customerPhone }));
+        localStorage.setItem(
+          CONTACT_KEY,
+          JSON.stringify({ name: customerName.trim(), phone: customerPhone, ultimo: { serviceIds, staffId, atendeu: vaga.staffId } }),
+        );
       } catch {}
+      setFolha(null);
       scrollTo({ top: 0 });
       return setReserva(result);
     }
-    // Horário tomado por outra pessoa (ou serviço/profissional que saiu): volta para a
-    // grade já atualizada. Rede e servidor ocupado são "field" e ficam na confirmação
-    setSlotError(result.error);
+    // Horário tomado por outra pessoa (ou serviço/profissional que saiu): a folha fica aberta,
+    // avisa e oferece os próximos livres da agenda recarregada
+    setTomado({ date: vaga.date, hora: vaga.hora, msg: result.error });
     setEscolha(null);
-    setEtapa("escolha");
     setVersao((v) => v + 1);
-    scrollTo({ top: 0 });
   }
 
   // O recado que o cliente leva no WhatsApp: é ele que avisa quem atende, então
@@ -743,77 +829,471 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     );
   }
 
-  const resumo = escolha && (
-    <div className={cn(PAINEL, "flex flex-col gap-3 p-4 shadow-[0_28px_50px_-34px_rgba(22,21,15,0.28)]")}>
-      <p className={ROTULO}>você está agendando</p>
-      <div className="flex flex-col gap-0.5">
-        <p className="text-[22px] leading-tight font-semibold tracking-[-0.025em] first-letter:uppercase">{longDate(date)}</p>
-        <p className={cn(MONO, "text-[19px]")}>
-          {escolha.hora} — {fimDe(date, escolha.hora, totalMin)}
-        </p>
-      </div>
-      <span className="h-px bg-[#EDEAE0]" />
-      <div className="flex items-center gap-2.5 text-[13px]">
-        <span className="flex-1">
-          {escolhidos.map((s) => s.name).join(" + ")}
-          {atendente ? ` com ${atendente.name}` : ""}
-        </span>
-        {total && <span className={cn(MONO, "font-medium")}>{total}</span>}
-      </div>
+  const depoisDoTomado = tomado ? livres.filter((v) => `${v.date} ${v.hora}` > `${tomado.date} ${tomado.hora}`) : [];
+  const proximos = (depoisDoTomado.length ? depoisDoTomado : livres).slice(0, 3);
+  // o servidor diz por que não marcou: ocupado agora, ou serviço/profissional que saiu
+  const ocupou = !!tomado?.msg.startsWith("Esse horário");
+  const fecharSe = (qual: typeof folha) => () => setFolha((f) => (f === qual ? null : f));
+  const quemTexto = escolhido ? `Com ${escolhido.name.split(" ")[0]}` : "Qualquer profissional";
+  const zapEncaixe = linkWhatsApp(
+    phone,
+    `Olá! Queria um horário para ${escolhidos.map((s) => s.name).join(" + ")}${escolhido ? ` com ${escolhido.name}` : ""} na semana de ${longDate(from)}. Não achei vaga no site. Tem encaixe?`,
+  );
+
+  // Semana sem nenhum horário: as saídas no lugar dos horários (aqui e na folha "outro dia")
+  const semVaga = (
+    <div className="flex flex-col gap-2.5">
+      <p className="text-[15px] font-semibold">Semana cheia{escolhido ? ` com ${escolhido.name.split(" ")[0]}` : ""}</p>
+      <p className="-mt-1.5 text-[13px] text-[#5C5747]">
+        Nenhum horário de {formatDuration(totalMin)} livre de {parte(from, { day: "numeric" })} a {parte(addDays(from, 6), { day: "numeric", month: "long" })}.
+      </p>
+      {temProxima && (
+        <button type="button" onClick={() => setFrom(proximaSemana)} className="flex min-h-14 items-center gap-3 rounded-[14px] bg-[#17150F] px-4 text-left text-[#FAF9F5]">
+          <span className="flex-1 text-[15px] font-semibold">Ver a semana seguinte</span>
+          <Seta />
+        </button>
+      )}
+      {staffId && (
+        <button type="button" onClick={() => setStaffId("")} className="flex min-h-14 items-center gap-3 rounded-[14px] border border-[#17150F] bg-white px-4 text-left">
+          <span className="flex-1 text-[15px] font-semibold">Com qualquer profissional</span>
+          <Seta />
+        </button>
+      )}
+      {zapEncaixe && (
+        <a href={zapEncaixe} target="_blank" rel="noreferrer" className="flex min-h-14 items-center gap-3 rounded-[14px] border border-[#D5D0C1] bg-white px-4">
+          <Zap className="text-[#2C6A53]" />
+          <span className="flex-1 text-[15px] font-semibold">Pedir um encaixe no WhatsApp</span>
+        </a>
+      )}
     </div>
   );
 
-  // ---------- confirmar ----------
-  if (etapa === "confirmar" && escolha) {
-    return (
-      <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col gap-4 bg-[#F2F0E7] p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-[#17150F]">
-        <h2 id="passo-confirmar" tabIndex={-1} className="sr-only">Confirme seu agendamento</h2>
-        <button
-          type="button"
-          onClick={() => setEtapa("escolha")}
-          className="flex h-11 items-center gap-2 self-start text-[13px] text-[#5C5747]"
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-          Voltar aos horários
-        </button>
-        {resumo}
+  const erroCarga = erroAgenda && (
+    <div role="alert" className="flex items-center gap-3 rounded-[10px] border border-[#E7C9BF] bg-[#FBF1EE] p-3 text-sm text-[#B4472F]">
+      <span className="flex-1">Não foi possível carregar os horários.</span>
+      <button type="button" onClick={() => setVersao((v) => v + 1)} className="h-11 shrink-0 rounded-[10px] border border-[#E7C9BF] bg-white px-3 font-semibold">
+        Tentar de novo
+      </button>
+    </div>
+  );
 
-        {valorSinal > 0 && sinal && (
-          <p className="rounded-xl border border-[#E4E1D5] bg-[#F6F4EB] p-3.5 text-[13px] leading-relaxed">
-            {/* o percentual explica o valor; o fixo já é o próprio valor (e, limitado ao preço, o
-                número de cima confundia). Sinal do tamanho do preço: não sobra nada para o local */}
-            Para garantir o horário, {name} pede um <strong>sinal de {formatBRL(valorSinal)}</strong>
-            {sinal.tipo === "percentual" ? ` (${textoDoSinal(sinal)})` : ""} por Pix, pago em até {sinal.prazoMin >= 60 ? `${Math.round(sinal.prazoMin / 60)} h` : `${sinal.prazoMin} min`} depois de reservar.
-            {valorSinal >= precoEscolhido ? " É o valor todo do serviço." : " O resto é pago no local."}
-          </p>
-        )}
-
-        {lembrado ? (
-          <div className="flex items-center gap-3 rounded-xl border border-[#E4E1D5] bg-[#F6F4EB] p-3.5">
-            <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-[#E7E3D6] text-[11px] text-[#5C5747]", MONO)}>
-              {iniciais(customerName)}
-            </span>
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="truncate text-sm font-semibold">{customerName}</span>
-              <span className={cn(MONO, "text-xs text-[#5C5747]")}>{customerPhone}</span>
-            </div>
+  // O bloco de horários, logo abaixo do último serviço marcado: os 3 mais cedo e as saídas
+  const bloco = (
+    <li id="mais-cedo" className="scroll-mt-4 border-b border-[#EEEAE1] px-3 pt-1 pb-3.5 last:border-b-0">
+      <div className="flex flex-col gap-2.5 rounded-xl bg-[#F6F4EE] p-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex min-w-0 flex-col">
+            <span className="text-[13px] font-semibold">{from === today ? "Mais cedo possível" : "Primeiros livres"}{escolhidos.length > 1 ? ` para os ${escolhidos.length}` : ""}</span>
+            {escolhidos.length > 1 && <span className="text-xs text-[#5C5747]">{formatDuration(totalMin)} no total, um depois do outro</span>}
+          </span>
+          {profissionais.length > 1 && (
             <button
               type="button"
-              onClick={() => {
-                setLembrado(false);
-                setCustomerName("");
-                setCustomerPhone("");
-                setTouched({ name: false, phone: false, enviou: false });
-              }}
-              className="h-11 shrink-0 text-xs text-[#2C6A53] underline underline-offset-[3px]"
+              onClick={() => setFolha("quem")}
+              aria-label={`Profissional: ${escolhido?.name ?? "qualquer um"}. Trocar`}
+              className="flex h-11 max-w-[50%] shrink-0 items-center gap-1 rounded-full border border-[#D5D0C1] bg-white px-3 text-[13px]"
             >
-              não sou eu
+              <span className="truncate">{escolhido ? escolhido.name.split(" ")[0] : "Qualquer um"}</span>
+              <Seta d="m6 9 6 6 6-6" size={14} />
             </button>
+          )}
+        </div>
+        {erroCarga}
+        <p className="sr-only" aria-live="polite">
+          {!agenda ? "Buscando horários" : semanaCheia ? "Nenhum horário livre nesta semana" : `Horários mais cedo: ${livres.slice(0, 3).map((v) => `${rotuloDia(v.date, today)} ${v.hora}`).join(", ")}`}
+        </p>
+        {!agenda ? (
+          <div className="grid grid-cols-3 gap-2" aria-hidden="true">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-14 animate-pulse rounded-xl bg-[#E9E5DA] motion-reduce:animate-none" />
+            ))}
           </div>
+        ) : semanaCheia ? (
+          semVaga
         ) : (
-          <form
+          <div className="grid grid-cols-3 gap-2">
+            {livres.slice(0, 3).map((v) => (
+              <button
+                key={`${v.date}${v.hora}`}
+                type="button"
+                onClick={() => abrirConfirmar(v)}
+                className="flex h-14 min-w-0 flex-col items-center justify-center rounded-xl border border-[#17150F] bg-white"
+              >
+                <span className="text-xs text-[#5C5747]">{rotuloDia(v.date, today)}</span>
+                <span className={cn(MONO, "text-base font-semibold")}>{v.hora}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {!semanaCheia && (
+          <button type="button" onClick={() => setFolha("quando")} className="flex min-h-11 items-center justify-between text-left text-sm font-medium">
+            Outro dia ou horário
+            <Seta />
+          </button>
+        )}
+      </div>
+    </li>
+  );
+
+  // ---------- página: serviço e horário na mesma tela, 3 toques ----------
+  const ultimoNomes = ultimoValido ? services.filter((s) => ultimoValido.serviceIds.includes(s.id)).map((s) => s.name).join(" + ") : "";
+  const ultimoQuem = ultimoValido ? staff.find((p) => p.id === ultimoValido.staffId) : undefined;
+  const ultimoSel = ultimoValido && [...ultimoValido.serviceIds].sort().join() === [...serviceIds].sort().join();
+  const ultimoServ = escolhidos.at(-1)?.id;
+  const filtrados = profissionais.filter((p) => !busca.trim() || p.name.toLocaleLowerCase("pt-BR").includes(busca.trim().toLocaleLowerCase("pt-BR")));
+  // ordem da folha "com quem": o do último atendimento, depois quem tem horário mais cedo nesta semana
+  const primeiroDe = (id: string) => {
+    const i = livres.findIndex((v) => v.staffId === id);
+    return i < 0 ? Infinity : i;
+  };
+  const ordenados = [...filtrados].sort((a, b) => Number(b.id === ultimoValido?.atendeu) - Number(a.id === ultimoValido?.atendeu) || primeiroDe(a.id) - primeiroDe(b.id));
+
+  return (
+    <main className="min-h-dvh w-full bg-[#F2F0E7] p-4 pb-[max(7rem,env(safe-area-inset-bottom))] text-[#17150F] sm:py-8">
+      <div className="mx-auto flex w-full max-w-[480px] flex-col gap-3.5">
+        <Cabecalho tenantId={tenantId} temSite={temSite} siteUrl={siteUrl} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
+
+        {ultimoValido && lembrado && !ultimoSel && (
+          <button
+            type="button"
+            onClick={() => {
+              mostrarBloco.current = true;
+              escolherServicos(ultimoValido.serviceIds, ultimoValido.staffId);
+            }}
+            className="flex min-h-16 items-center gap-3 rounded-[14px] bg-[#17150F] px-3.5 py-2.5 text-left text-[#FAF9F5]"
+          >
+            <Seta d="M4 12a8 8 0 0 1 14-5.3M20 4v4h-4M20 12a8 8 0 0 1-14 5.3M4 20v-4h4" size={20} />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="text-xs text-[#CFC8B9]">Olá, {customerName.split(" ")[0]} · repetir o último?</span>
+              <span className="truncate text-[15px] font-semibold">
+                {ultimoNomes}
+                {ultimoQuem ? ` com ${ultimoQuem.name.split(" ")[0]}` : ""}
+              </span>
+            </span>
+            <Seta size={18} />
+          </button>
+        )}
+
+        <section aria-labelledby="oque" className="flex flex-col gap-2">
+          <div className="flex flex-col px-1">
+            <h2 id="oque" className="text-[17px] font-semibold tracking-[-0.02em]">
+              O que você quer fazer?
+            </h2>
+            {services.length > 1 && <span className="text-xs text-[#5C5747]">pode escolher mais de um</span>}
+          </div>
+          <ul className="flex flex-col overflow-hidden rounded-2xl border border-[#E2DDD3] bg-white">
+            {services.map((s) => {
+              const sel = serviceIds.includes(s.id);
+              return (
+                <Fragment key={s.id}>
+                  <li className="border-b border-[#EEEAE1] last:border-b-0">
+                    <button
+                      type="button"
+                      aria-pressed={sel}
+                      onClick={() => toggleService(s.id)}
+                      className="flex min-h-16 w-full items-center gap-3 py-2.5 pr-3 pl-4 text-left"
+                    >
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className={cn("text-base break-words", sel ? "font-semibold" : "font-medium")}>{s.name}</span>
+                        <span className="text-[13px] text-[#5C5747]">{[formatDuration(s.durationMin), precoDe(s)].filter(Boolean).join(" · ")}</span>
+                      </span>
+                      <span
+                        aria-hidden="true"
+                        className={cn("flex size-11 shrink-0 items-center justify-center rounded-full", sel ? "bg-[#17150F] text-[#FAF9F5]" : "border border-[#D5D0C1] bg-white")}
+                      >
+                        <Seta d={sel ? "m5 12.5 4.5 4.5L19 7.5" : "M12 5v14M5 12h14"} size={20} />
+                      </span>
+                    </button>
+                  </li>
+                  {s.id === ultimoServ && bloco}
+                </Fragment>
+              );
+            })}
+          </ul>
+          {!escolhidos.length && <p className="px-1 text-[13px] text-[#5C5747]">Toque num serviço e os horários mais cedo aparecem logo abaixo dele.</p>}
+        </section>
+
+        <Rodape />
+      </div>
+
+      {/* A lista é longa e o bloco de horários saiu da tela: o atalho fica no alcance do dedo */}
+      {escolhidos.length > 0 && !blocoVisivel && !folha && (
+        <button
+          type="button"
+          onClick={() => document.getElementById("mais-cedo")?.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })}
+          className="fixed inset-x-4 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-10 mx-auto flex h-14 max-w-[448px] items-center gap-2.5 rounded-full bg-[#17150F] pr-2 pl-5 text-left text-[#FAF9F5] shadow-[0_10px_28px_rgba(23,21,15,0.28)]"
+        >
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-[15px] font-semibold">
+              {escolhidos.length > 1 ? `${escolhidos.length} serviços` : escolhidos[0].name} · {formatDuration(totalMin)}
+            </span>
+            {total && <span className="truncate text-xs text-[#CFC8B9]">{total}{valorSinal > 0 ? ` · sinal ${formatBRL(valorSinal)}` : ""}</span>}
+          </span>
+          <span className="flex h-10 shrink-0 items-center gap-1 rounded-full bg-[#F2F0E7] px-3.5 text-sm font-semibold text-[#17150F]">
+            Ver horários
+            <Seta d="m6 15 6-6 6 6" size={14} />
+          </span>
+        </button>
+      )}
+
+      {/* ---------- com quem ---------- */}
+      <Folha aberta={folha === "quem"} aoFechar={fecharSe("quem")} titulo="Com quem">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-col">
+            <h2 data-titulo tabIndex={-1} className="text-lg font-semibold outline-none">Com quem?</h2>
+            <span className="text-[13px] text-[#5C5747]">{escolhidos.map((s) => s.name).join(" + ")} · só quem faz</span>
+          </div>
+          <Fechar onClick={() => setFolha(null)} />
+        </div>
+        {profissionais.length > 6 && (
+          <Input type="search" aria-label="Buscar profissional" placeholder="Buscar pelo nome" value={busca} onChange={(e) => setBusca(e.target.value)} className={CAMPO} />
+        )}
+        <ul className="flex flex-col gap-2">
+          {!busca.trim() && (
+            <li>
+              <BotaoPessoa sel={!staffId} nome="Qualquer profissional" detalhe="quem estiver livre mais cedo" onClick={() => (setStaffId(""), setEscolha(null), setFolha(null))} />
+            </li>
+          )}
+          {ordenados.map((p) => (
+            <li key={p.id}>
+              <BotaoPessoa
+                sel={staffId === p.id}
+                nome={p.name}
+                iniciais={iniciais(p.name)}
+                detalhe={p.id === ultimoValido?.atendeu ? "seu último atendimento" : undefined}
+                onClick={() => (setStaffId(p.id), setEscolha(null), setFolha(null))}
+              />
+            </li>
+          ))}
+          {!ordenados.length && <li className="py-3 text-sm text-[#5C5747]">Ninguém com esse nome faz {escolhidos.length > 1 ? "esses serviços" : "esse serviço"}.</li>}
+        </ul>
+      </Folha>
+
+      {/* ---------- outro dia ou horário ---------- */}
+      <Folha aberta={folha === "quando"} aoFechar={fecharSe("quando")} titulo="Outro dia ou horário">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-col">
+            <h2 data-titulo tabIndex={-1} className="text-lg font-semibold outline-none">Quando?</h2>
+            <span className="text-[13px] text-[#5C5747]">
+              {escolhidos.map((s) => s.name).join(" + ")} · {formatDuration(totalMin)} · {quemTexto.toLowerCase()}
+            </span>
+          </div>
+          <Fechar onClick={() => setFolha(null)} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold first-letter:uppercase">
+              {parte(from, { day: "numeric" })} a {parte(addDays(from, 6), { day: "numeric", month: "long" })}
+            </span>
+            <div className="flex gap-1">
+              <button type="button" aria-label="Semana anterior" disabled={from <= today} onClick={() => setFrom(from <= addDays(today, 7) ? today : addDays(from, -7))} className="flex size-11 items-center justify-center rounded-full disabled:text-[#B5AE9F]">
+                <Seta d="m15 6-6 6 6 6" size={18} />
+              </button>
+              <button type="button" aria-label="Próxima semana" disabled={!temProxima} onClick={() => setFrom(proximaSemana)} className={cn("flex size-11 items-center justify-center rounded-full disabled:text-[#B5AE9F]", semanaCheia ? "bg-[#17150F] text-[#FAF9F5]" : "border border-[#D5D0C1]")}>
+                <Seta size={18} />
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-7 gap-1 min-[360px]:gap-1.5">
+            {(agenda ?? Array.from({ length: 7 }, (_, i): Dia => ({ date: addDays(from, i), horarios: [] }))).map((d) => {
+              const sel = d.date === date && !!agenda;
+              const n = d.horarios.length;
+              const status = !agenda ? "…" : d.fechado ? "fech." : n ? <>{n}<span className="hidden sm:inline"> {n > 1 ? "livres" : "livre"}</span></> : "cheio";
+              return (
+                <button
+                  key={d.date}
+                  type="button"
+                  aria-pressed={sel}
+                  disabled={!agenda || !n}
+                  onClick={() => setDate(d.date)}
+                  aria-label={`${longDate(d.date)}, ${!agenda ? "carregando" : d.fechado ? "fechado" : n ? `${n} horários livres` : "sem horário livre"}`}
+                  className={cn(
+                    "flex min-h-[68px] min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-0",
+                    sel ? "border-[#17150F] bg-[#17150F] text-[#FAF9F5]" : d.fechado ? "border-dashed border-[#CFC8B9] text-[#6E6756]" : n ? "border-[#E2DDD3] bg-white" : "border-[#E2DDD3] bg-[#F6F4EE] text-[#6E6756]",
+                  )}
+                >
+                  <span className="text-[11px] uppercase">{d.date === today ? "hoje" : parte(d.date, { weekday: "short" })}</span>
+                  <span className={cn(MONO, "text-lg leading-none")}>{parte(d.date, { day: "numeric" })}</span>
+                  <span className={cn("text-[10px] font-semibold whitespace-nowrap", sel ? "text-[#9FD1B4]" : n ? "text-[#2E6B4E]" : "")}>{status}</span>
+                </button>
+              );
+            })}
+          </div>
+          {agenda && !semanaCheia && <p className="text-xs text-[#5C5747] sm:hidden">Embaixo de cada dia, quantos horários livres.</p>}
+        </div>
+        {erroCarga}
+        <p className="sr-only" aria-live="polite">
+          {!agenda ? "Buscando horários" : semanaCheia ? "Nenhum horário livre nesta semana" : dia?.horarios.length ? `${dia.horarios.length} horários livres em ${longDate(date)}` : ""}
+        </p>
+        {!agenda ? (
+          <div className="grid grid-cols-4 gap-2" aria-hidden="true">
+            {Array.from({ length: 8 }, (_, i) => (
+              <div key={i} className="h-11 animate-pulse rounded-xl bg-[#EDEAE0] motion-reduce:animate-none" />
+            ))}
+          </div>
+        ) : semanaCheia ? (
+          <div className="rounded-2xl bg-[#F6F4EE] p-4">{semVaga}</div>
+        ) : (
+          <div className="flex flex-col gap-3.5">
+            {PERIODOS.map((p, i) => {
+              const horas = (dia?.horarios ?? []).filter((h) => h.hora < p.ate && (i === 0 || h.hora >= PERIODOS[i - 1].ate));
+              if (!horas.length) return null;
+              return (
+                <div key={p.nome} className="flex flex-col gap-2">
+                  <span className="text-[13px] font-semibold">
+                    {p.nome} <span className="font-normal text-[#5C5747]">· {horas.length} {horas.length > 1 ? "livres" : "livre"}</span>
+                  </span>
+                  <div className="grid grid-cols-4 gap-2">
+                    {horas.map((h) => (
+                      <button key={h.hora} type="button" onClick={() => abrirConfirmar({ date, ...h })} className={cn(MONO, "h-11 rounded-xl border border-[#E2DDD3] text-[15px] hover:border-[#17150F]")}>
+                        {h.hora}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div className="flex items-center gap-2.5">
+          <label htmlFor="outra-data" className="text-[13px] text-[#5C5747]">
+            Ir para a data
+          </label>
+          <Input
+            id="outra-data"
+            type="date"
+            value={from}
+            min={today}
+            max={addDays(today, MAX_DAYS_AHEAD)}
+            onChange={(e) => {
+              // no computador dá para digitar qualquer ano: fora do intervalo, não busca
+              const v = e.target.value;
+              if (!v || v < today || v > addDays(today, MAX_DAYS_AHEAD)) return;
+              setFrom(v);
+              setDate(v);
+            }}
+            className={cn(CAMPO, MONO, "h-11 w-auto text-[13px]")}
+          />
+        </div>
+      </Folha>
+
+      {/* ---------- confirmar ---------- */}
+      <Folha aberta={folha === "confirmar"} aoFechar={fecharSe("confirmar")} titulo="Confirmar agendamento" bloqueada={busy}>
+        {tomado ? (
+          <>
+            <div role="alert" className="flex gap-3 rounded-[14px] bg-[#F6EBD3] p-3.5 text-[#4F3A10]">
+              <Seta d="M12 7.5V12l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0" size={22} />
+              <span className="flex flex-col gap-0.5">
+                <h2 data-titulo tabIndex={-1} className="text-base font-semibold outline-none">
+                  {ocupou ? `${rotuloDia(tomado.date, today)} ${tomado.hora} acabou de ser marcado` : tomado.msg}
+                </h2>
+                <span className="text-sm">{ocupou ? "Alguém confirmou antes. " : ""}Nada foi cobrado. Escolha outro:</span>
+              </span>
+            </div>
+            <div className="flex flex-col gap-2" aria-live="polite">
+              <span className="text-[13px] font-semibold">Próximos livres · {escolhidos.map((s) => s.name).join(" + ")}</span>
+              {!agenda ? (
+                [0, 1, 2].map((i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-[#EDEAE0] motion-reduce:animate-none" aria-hidden="true" />)
+              ) : (
+                proximos.map((v) => {
+                    const quem = staff.find((p) => p.id === v.staffId);
+                    return (
+                      <button
+                        key={`${v.date}${v.hora}`}
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setTomado(null);
+                          setDate(v.date);
+                          setEscolha({ hora: v.hora, staffId: v.staffId });
+                          confirmar(v);
+                        }}
+                        className="flex min-h-14 items-center gap-3 rounded-xl border border-[#17150F] px-3.5 text-left"
+                      >
+                        <span className={cn(MONO, "w-14 text-[17px] font-semibold")}>{v.hora}</span>
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="text-sm font-medium first-letter:uppercase">{longDate(v.date)}</span>
+                          <span className="truncate text-[13px] text-[#5C5747]">{quem && staffId ? `Com ${quem.name.split(" ")[0]}` : "Com quem estiver livre"}</span>
+                        </span>
+                        <span className="text-sm font-semibold">Pegar</span>
+                      </button>
+                    );
+                  })
+              )}
+              {agenda && !livres.length && semVaga}
+            </div>
+            <button type="button" onClick={() => (setTomado(null), setFolha("quando"))} className="flex min-h-11 items-center justify-between text-sm font-medium">
+              Ver outros dias
+              <Seta />
+            </button>
+          </>
+        ) : (
+          escolha && (
+            <>
+              <div className="flex items-center gap-3">
+                <div className="flex w-[52px] shrink-0 flex-col items-center rounded-xl bg-[#17150F] py-1.5 text-[#FAF9F5]">
+                  <span className="text-[11px] uppercase">{date === today ? "hoje" : parte(date, { weekday: "short" })}</span>
+                  <span className={cn(MONO, "text-[22px] leading-none")}>{parte(date, { day: "numeric" })}</span>
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <h2 data-titulo tabIndex={-1} className="text-lg leading-tight font-semibold outline-none">
+                    {escolhidos.map((s) => s.name).join(" + ")} · {escolha.hora} – {fimDe(date, escolha.hora, totalMin)}
+                  </h2>
+                  <span className="text-[13px] text-[#5C5747] first-letter:uppercase">
+                    {longDate(date)} · {staffId && atendente ? `com ${atendente.name}` : "com quem estiver livre"}
+                  </span>
+                </div>
+                <button type="button" disabled={busy} onClick={() => setFolha(null)} className="min-h-11 shrink-0 px-1 text-sm font-medium underline underline-offset-[3px]">
+                  Trocar
+                </button>
+              </div>
+
+              {valorSinal > 0 && sinal ? (
+                <div className="flex flex-col gap-2 rounded-[14px] bg-[#F6F4EE] px-3.5 py-3 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 font-semibold">
+                      <span className="rounded-md bg-[#E3EFE8] px-2 py-0.5 text-xs font-semibold text-[#1F5A3E]">Pix</span>
+                      Sinal agora{sinal.tipo === "percentual" ? ` (${textoDoSinal(sinal)})` : ""}
+                    </span>
+                    <span className="font-semibold">{formatBRL(valorSinal)}</span>
+                  </div>
+                  {valorSinal < precoEscolhido && (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-[#5C5747]">Restante no local</span>
+                      <span>{total.startsWith("a partir") ? "a partir de " : ""}{formatBRL(precoEscolhido - valorSinal)}</span>
+                    </div>
+                  )}
+                </div>
+              ) : total ? (
+                <div className="flex justify-between gap-2 rounded-[14px] bg-[#F6F4EE] px-3.5 py-3 text-sm">
+                  <span className="text-[#5C5747]">Pago no local</span>
+                  <span className="font-semibold">{total}</span>
+                </div>
+              ) : null}
+              {total.startsWith("a partir") && <p className="-mt-2 text-xs text-[#5C5747]">O valor final é combinado no local.</p>}
+
+              {lembrado ? (
+                <div className="flex items-center gap-3 rounded-[14px] border border-[#E2DDD3] px-3.5 py-3">
+                  <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-full bg-[#EEEAE1] text-sm font-semibold", MONO)}>{iniciais(customerName)}</span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[15px] font-medium">{customerName}</span>
+                    <span className={cn(MONO, "text-[13px] text-[#5C5747]")}>{customerPhone}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLembrado(false);
+                      setCustomerName("");
+                      setCustomerPhone("");
+                      setTouched({ name: false, phone: false, enviou: false });
+                    }}
+                    className="h-11 shrink-0 px-1 text-sm font-medium underline underline-offset-[3px]"
+                  >
+                    Não sou eu
+                  </button>
+                </div>
+              ) : (
+                <form
             id="contato-form"
             onSubmit={(e) => {
               e.preventDefault();
@@ -892,347 +1372,60 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
               </p>
             </div>
           </form>
-        )}
+              )}
 
-        {submitError && (
-          <p role="alert" className="rounded-[10px] border border-[#E7C9BF] bg-[#FBF1EE] p-3 text-sm text-[#B4472F]">
-            {submitError}
-          </p>
-        )}
+              {submitError && (
+                <p role="alert" className="rounded-[10px] border border-[#E7C9BF] bg-[#FBF1EE] p-3 text-sm text-[#B4472F]">
+                  {submitError}
+                </p>
+              )}
 
-        {/* com o formulário aberto, o botão é o envio dele: "↵"/"ok" no teclado confirma */}
-        <button
-          type={lembrado ? "button" : "submit"}
-          form={lembrado ? undefined : "contato-form"}
-          onClick={lembrado ? () => confirmar() : undefined}
-          disabled={busy}
-          className={PRIMARIO}
-        >
-          {busy ? "Reservando…" : `Confirmar às ${escolha.hora}`}
-          <span className={cn("flex size-5 items-center justify-center rounded-md bg-[#FAF9F5]/16 text-[11px]", MONO)}>&#8629;</span>
-        </button>
-        <p className="text-center text-xs text-[#5C5747]">
-          {valorSinal > 0
-            ? `Sem cadastro. O horário fica guardado enquanto o sinal não é pago; ${name} confirma com você pelo WhatsApp.`
-            : `${name} confirma o horário com você pelo WhatsApp. Sem cadastro e sem pagar nada agora.`}
-        </p>
-        <div className="flex-1" />
-        <Rodape />
-      </main>
-    );
-  }
-
-  // ---------- escolha: o que e quando, na mesma tela ----------
-  return (
-    <main className="mx-auto min-h-dvh w-full max-w-[420px] bg-[#F2F0E7] p-4 pb-[max(6rem,env(safe-area-inset-bottom))] text-[#17150F] lg:max-w-[1120px]">
-      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[1fr_340px] lg:items-start lg:gap-8">
-        <div className="flex flex-col gap-4">
-          <Cabecalho tenantId={tenantId} temSite={temSite} siteUrl={siteUrl} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
-
-          {slotError && (
-            <p role="alert" className="rounded-[10px] border border-[#E7C9BF] bg-[#FBF1EE] p-3 text-sm text-[#B4472F]">
-              {slotError}
-            </p>
-          )}
-          {erroAgenda && (
-            <div role="alert" className="flex items-center gap-3 rounded-[10px] border border-[#E7C9BF] bg-[#FBF1EE] p-3 text-sm text-[#B4472F]">
-              <span className="flex-1">Não foi possível carregar os horários.</span>
-              <button type="button" onClick={() => setVersao((v) => v + 1)} className="h-11 shrink-0 rounded-[10px] border border-[#E7C9BF] bg-white px-3 font-semibold">
-                Tentar de novo
+              {/* com o formulário aberto, o botão é o envio dele: "↵"/"ok" no teclado confirma */}
+              <button
+                type={lembrado ? "button" : "submit"}
+                form={lembrado ? undefined : "contato-form"}
+                onClick={lembrado ? () => confirmar() : undefined}
+                disabled={busy}
+                className={cn(PRIMARIO, "h-14 rounded-[14px] text-base")}
+              >
+                {busy ? "Reservando…" : valorSinal > 0 ? `Confirmar e pagar ${formatBRL(valorSinal)} no Pix` : `Confirmar às ${escolha.hora}`}
               </button>
-            </div>
-          )}
-
-          <section aria-labelledby="oque" className="flex flex-col gap-2.5">
-            <div className="flex items-baseline gap-2.5">
-              <h2 id="oque" className="text-[17px] font-semibold tracking-[-0.02em]">
-                O que você quer fazer?
-              </h2>
-              {services.length > 1 && <span className={cn(MONO, "text-[10px] tracking-[0.08em] text-[#6B6555] uppercase")}>pode escolher mais de um</span>}
-            </div>
-            {/* Lista vertical: a faixa lateral cortava os nomes no celular ("Corte Mascu…") */}
-            <ul className="grid gap-2 lg:grid-cols-2">
-              {services.map((s) => {
-                const sel = serviceIds.includes(s.id);
-                return (
-                  <li key={s.id}>
-                    <button
-                      type="button"
-                      aria-pressed={sel}
-                      onClick={() => toggleService(s.id)}
-                      className={cn(
-                        "flex min-h-14 w-full items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left",
-                        sel ? "border-[#17150F] bg-[#17150F] text-[#FAF9F5]" : "border-[#D5D0C1] bg-white hover:border-[#17150F]",
-                      )}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          "grid size-5.5 shrink-0 place-items-center rounded-md",
-                          sel ? "bg-[#FAF9F5] text-[#17150F]" : "border-[1.5px] border-[#D5D0C1]",
-                        )}
-                      >
-                        {sel && (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="m5 12 5 5 9-10" />
-                          </svg>
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1 break-words text-[15px] font-semibold tracking-[-0.01em]">{s.name}</span>
-                      {/* sem shrink-0: "a partir de R$ 30,00" quebra em duas linhas em vez de espremer o nome letra a letra */}
-                      <span className={cn(MONO, "max-w-[48%] text-right text-xs", sel ? "text-[#FAF9F5]/75" : "text-[#5C5747]")}>
-                        {[formatDuration(s.durationMin), precoDe(s)].filter(Boolean).join(" · ")}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            {escolhidos.length > 1 && (
-              <p className={cn(MONO, "text-[10px] tracking-[0.06em] text-[#6B6555]")}>
-                somando: {[formatDuration(totalMin), total].filter(Boolean).join(" · ")}
+              <p className="-mt-1.5 text-center text-xs text-[#5C5747]">
+                {valorSinal > 0 && sinal
+                  ? `O horário fica guardado por ${sinal.prazoMin >= 60 ? `${Math.round(sinal.prazoMin / 60)} h` : `${sinal.prazoMin} min`} para o Pix${valorSinal < precoEscolhido ? " · o resto no local" : ""}. Sem cadastro.`
+                  : `${name} confirma pelo seu WhatsApp. Sem cadastro e sem pagar nada agora.`}
               </p>
-            )}
-          </section>
-
-          {/* Com quem vem antes do horário: é opcional (o padrão é quem estiver
-              livre) e, escolhido antes, a grade já mostra só as vagas dessa pessoa */}
-          {escolhidos.length > 0 && profissionais.length > 1 && (
-            <section aria-labelledby="comquem" className="flex flex-col gap-2">
-              <div className="flex items-baseline justify-between gap-2.5">
-                <div className="flex items-baseline gap-2.5">
-                  <h2 id="comquem" className="text-[17px] font-semibold tracking-[-0.02em]">
-                    Com quem?
-                  </h2>
-                  <span className={cn(MONO, "text-[10px] tracking-[0.08em] text-[#6B6555] uppercase")}>
-                    {staffId ? `${staff.find((p) => p.id === staffId)?.name.split(" ")[0]} escolhido` : "opcional"}
-                  </span>
-                </div>
-                <span className="text-xs text-[#5C5747]">{profissionais.length} profissionais</span>
-              </div>
-              {/* Uma fileira de avatares: a mesma altura com 3 ou 30 pessoas, e um toque escolhe */}
-              <div className="relative -mx-4 lg:mx-0">
-                <div role="group" aria-label="Escolher profissional" className={cn("flex gap-2.5 overflow-x-auto px-4 pt-1 pb-1.5 lg:px-0", SEM_BARRA)}>
-                  {[{ id: "", name: "Qualquer um" }, ...profissionais].map((p) => {
-                    const sel = staffId === p.id;
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        aria-pressed={sel}
-                        aria-label={p.id ? p.name : "Qualquer profissional livre"}
-                        onClick={() => setStaffId(p.id)}
-                        className="group flex w-16 shrink-0 flex-col items-center gap-1.5 rounded-xl py-1 outline-none focus-visible:ring-2 focus-visible:ring-[#17150F]"
-                      >
-                        <span
-                          className={cn(
-                            "relative grid size-13 place-items-center rounded-full border text-base font-semibold",
-                            sel
-                              ? "border-[#17150F] bg-[#17150F] text-[#FAF9F5] shadow-[0_0_0_2px_#F2F0E7,0_0_0_4px_#17150F]"
-                              : cn("border-[#D5D0C1] group-hover:border-[#17150F]", p.id ? "bg-white" : "bg-[#E4E1D5]"),
-                          )}
-                        >
-                          {p.id ? (
-                            iniciais(p.name)
-                          ) : (
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-                              <circle cx="9" cy="8" r="3.2" />
-                              <path d="M3.5 19c.6-3 3-4.8 5.5-4.8s4.9 1.8 5.5 4.8" />
-                              <circle cx="17" cy="9" r="2.6" />
-                              <path d="M15.5 14.4c2.3.1 4.2 1.7 4.7 4.6" />
-                            </svg>
-                          )}
-                          {sel && (
-                            <span className="absolute -right-0.5 -bottom-0.5 grid size-5 place-items-center rounded-full bg-[#2C6A53] text-white shadow-[0_0_0_2px_#F2F0E7]">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                <path d="m5 12 5 5 9-10" />
-                              </svg>
-                            </span>
-                          )}
-                        </span>
-                        <span className={cn("max-w-16 truncate text-xs", sel ? "font-semibold" : "font-medium")}>{p.name.split(" ")[0]}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#F2F0E7] to-transparent" />
-              </div>
-            </section>
-          )}
-
-          {!escolhidos.length ? (
-            <p className="rounded-xl border border-dashed border-[#D5D0C1] p-4 text-[13px] leading-relaxed text-[#5C5747]">
-              Escolha um serviço e os dias e horários livres aparecem logo abaixo.
-            </p>
-          ) : (
-            <section aria-labelledby="quando" className="flex flex-col gap-3">
-              <div className="flex items-baseline gap-2.5">
-                <h2 id="quando" className="text-[17px] font-semibold tracking-[-0.02em]">
-                  Quando?
-                </h2>
-                <span className={cn(MONO, "text-[10px] tracking-[0.08em] text-[#6B6555] uppercase")}>
-                  {escolha ? `${escolha.hora} escolhido` : "horários livres"}
-                </span>
-              </div>
-
-              <div id="dias" className="grid grid-cols-7 gap-1.5 lg:gap-2">
-                {(agenda ?? Array.from({ length: 7 }, (_, i): Dia => ({ date: addDays(from, i), horarios: [] }))).map((d) => {
-                  const sel = d.date === date;
-                  const vazio = !d.horarios.length;
-                  // "amanhã" não cabe na coluna de um celular estreito: o dia da semana diz o mesmo
-                  const rotulo = d.date === today ? "hoje" : parte(d.date, { weekday: "short" }).replace(".", "");
-                  const semVaga = d.fechado ? "fechado" : "sem vagas";
-                  return (
-                    <button
-                      key={d.date}
-                      type="button"
-                      aria-pressed={sel}
-                      disabled={!agenda || vazio}
-                      onClick={() => {
-                        setDate(d.date);
-                        setEscolha(null);
-                      }}
-                      aria-label={`${longDate(d.date)}, ${agenda ? (vazio ? semVaga : `${d.horarios.length} horários livres`) : "carregando"}`}
-                      className={cn(
-                        "flex min-h-16 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[10px] border px-0 lg:min-h-[72px] lg:rounded-xl",
-                        sel ? "border-[#17150F] bg-[#17150F] text-[#FAF9F5]" : vazio ? "border-dashed border-[#D5D0C1] text-[#6F6A5E]" : "border-[#D5D0C1] bg-white",
-                      )}
-                    >
-                      <span className={cn(MONO, "text-[11px] uppercase opacity-75")}>{rotulo}</span>
-                      <span className={cn(MONO, "text-lg leading-none")}>{parte(d.date, { day: "numeric" })}</span>
-                      <span className={cn(MONO, "text-[11px]", sel ? "text-[#FAF9F5]/80" : vazio ? "text-[#6F6A5E]" : "text-[#2C6A53]")}>
-                        {agenda ? (vazio ? <>–<span className="sr-only sm:not-sr-only sm:ml-1">{semVaga}</span></> : <>{d.horarios.length}<span className="hidden sm:inline"> livres</span></>) : "—"}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="flex items-center gap-2.5">
-                <label htmlFor="outra-data" className={cn(MONO, "text-[10px] tracking-[0.08em] text-[#6B6555] uppercase")}>
-                  outra data
-                </label>
-                <Input
-                  id="outra-data"
-                  type="date"
-                  value={from}
-                  min={today}
-                  max={addDays(today, MAX_DAYS_AHEAD)}
-                  onChange={(e) => {
-                    // no computador dá para digitar qualquer ano: fora do intervalo, não busca
-                    const v = e.target.value;
-                    if (!v || v < today || v > addDays(today, MAX_DAYS_AHEAD)) return;
-                    setFrom(e.target.value);
-                    setDate(e.target.value);
-                    setEscolha(null);
-                  }}
-                  className={cn(CAMPO, MONO, "h-11 w-auto text-[13px]")}
-                />
-              </div>
-
-              <div className={cn(PAINEL, "flex flex-col gap-3.5 p-4")}>
-                <p className="sr-only" aria-live="polite">
-                  {!agenda ? "Buscando horários" : !dia?.horarios.length ? "Nenhum horário livre nesta data" : `${dia.horarios.length} horários disponíveis`}
-                </p>
-                <p className="text-[13px] text-[#5C5747] first-letter:uppercase">
-                  {date ? longDate(date) : "—"}
-                  {agenda && dia?.horarios.length ? (
-                    <>
-                      {" — "}
-                      <span className={cn(MONO, "text-xs text-[#17150F]")}>{dia.horarios.length}</span> livres
-                    </>
-                  ) : null}
-                </p>
-                {!agenda ? (
-                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-5" aria-hidden="true">
-                    {Array.from({ length: 12 }, (_, i) => (
-                      <div key={i} className="h-12 animate-pulse rounded-[10px] bg-[#EDEAE0] motion-reduce:animate-none" />
-                    ))}
-                  </div>
-                ) : !dia?.horarios.length ? (
-                  <p className="text-[13px] text-[#5C5747]">
-                    Nenhum horário livre nesta data. Os dias com vaga estão marcados na faixa acima.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 lg:grid-cols-6">
-                    {(todosNoDia ? dia.horarios : dia.horarios.slice(0, HORARIOS_VISIVEIS)).map((h) => {
-                      const sel = escolha?.hora === h.hora;
-                      return (
-                        <button
-                          key={h.hora}
-                          type="button"
-                          aria-pressed={sel}
-                          onClick={() => setEscolha(h)}
-                          className={cn(
-                            MONO,
-                            "min-h-12 rounded-[10px] border text-[15px]",
-                            sel ? "border-[#17150F] bg-[#17150F] text-[#FAF9F5]" : "border-[#D5D0C1] bg-white",
-                          )}
-                        >
-                          {h.hora}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {!todosNoDia && (dia?.horarios.length ?? 0) > HORARIOS_VISIVEIS && (
-                  <button
-                    type="button"
-                    onClick={() => setTodosEm(date)}
-                    className="min-h-11 self-center px-3 text-[13px] font-medium underline underline-offset-[3px]"
-                  >
-                    Ver todos os {dia!.horarios.length} horários
-                  </button>
-                )}
-              </div>
-            </section>
-          )}
-
-          <div className="hidden lg:block">
-            <Rodape />
-          </div>
-        </div>
-
-        {/* Desktop: o resumo e o confirmar ficam à vista ao lado da grade */}
-        <aside className="hidden lg:sticky lg:top-6 lg:flex lg:flex-col lg:gap-4">
-          {escolha ? (
-            <>
-              {resumo}
-              <button type="button" onClick={() => setEtapa("confirmar")} disabled={!agenda} className={cn(PRIMARIO, "disabled:opacity-60")}>
-                Continuar
-              </button>
             </>
-          ) : (
-            <div className={cn(PAINEL, "flex flex-col gap-2 p-5")}>
-              <p className={ROTULO}>seu agendamento</p>
-              <p className="text-[13px] leading-relaxed text-[#5C5747]">Escolha um horário na grade e o resumo aparece aqui.</p>
-            </div>
-          )}
-        </aside>
-      </div>
-
-      {/* Celular: a ação fica no alcance do dedo, com o que já foi escolhido */}
-      {escolha && (
-        <div className="fixed inset-x-0 bottom-0 z-10 border-t border-[#E0DCCE] bg-[#FAF9F5] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
-          <div className="mx-auto flex w-full max-w-[420px] items-center gap-3.5">
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className={cn(MONO, "truncate text-[11px] tracking-[0.08em] text-[#6B6555] uppercase")}>
-                {parte(date, { weekday: "short", day: "numeric" })} · {escolha.hora}
-                {atendente ? ` · ${atendente.name}` : ""}
-              </span>
-              <span className="truncate text-sm font-semibold tracking-[-0.01em]">
-                {escolhidos.length > 2 ? `${escolhidos[0].name} + ${escolhidos.length - 1} serviços` : escolhidos.map((s) => s.name).join(" + ")}
-              </span>
-              {/* o preço em linha própria: nome longo de serviço não pode esconder o valor */}
-              {total && <span className="text-sm font-semibold tracking-[-0.01em] whitespace-nowrap">{total}</span>}
-            </div>
-            <button type="button" onClick={() => setEtapa("confirmar")} disabled={!agenda} className={cn(PRIMARIO, "shrink-0 disabled:opacity-60")}>
-              Continuar
-              <span className={cn("flex size-5 items-center justify-center rounded-md bg-[#FAF9F5]/16 text-[11px]", MONO)}>&#8594;</span>
-            </button>
-          </div>
-        </div>
-      )}
+          )
+        )}
+      </Folha>
     </main>
+  );
+}
+
+function BotaoPessoa({ sel, nome, detalhe, iniciais, onClick }: { sel: boolean; nome: string; detalhe?: string; iniciais?: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={sel}
+      onClick={onClick}
+      className={cn("flex min-h-14 w-full items-center gap-3 rounded-[14px] border px-3 text-left", sel ? "border-[#17150F] bg-[#F6F4EE]" : "border-[#E2DDD3] bg-white")}
+    >
+      <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold", iniciais ? "bg-[#EEEAE1]" : "bg-[#17150F] text-[#FAF9F5]")}>
+        {iniciais ?? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+            <circle cx="9" cy="8" r="3.2" />
+            <path d="M3.5 19c.6-3 3-4.8 5.5-4.8s4.9 1.8 5.5 4.8" />
+            <circle cx="17" cy="9" r="2.6" />
+            <path d="M15.5 14.4c2.3.1 4.2 1.7 4.7 4.6" />
+          </svg>
+        )}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-[15px] font-medium">{nome}</span>
+        {detalhe && <span className="text-[13px] text-[#5C5747]">{detalhe}</span>}
+      </span>
+      {sel && <Seta d="m5 12.5 4.5 4.5L19 7.5" size={20} />}
+    </button>
   );
 }

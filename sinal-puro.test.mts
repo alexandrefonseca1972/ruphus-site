@@ -1,6 +1,6 @@
 // Rode: npm run test:sinal-puro  (regras do sinal, sem emulador)
 import assert from "node:assert/strict";
-import { prazoDoSinal, restanteDe, tempoRestante, textoDoSinal, valorDoSinal } from "@/lib/sinal";
+import { prazoDoSinal, relogio, restanteDe, tempoRestante, textoDoSinal, valorDoSinal } from "@/lib/sinal";
 import { ConfigSinal } from "@/lib/sinal-config";
 
 const valida = (c: unknown) => ConfigSinal.safeParse(c);
@@ -34,6 +34,10 @@ assert.equal(tempoRestante("2030-01-07T12:00:30Z", agora), "1 min", "arredonda p
 assert.equal(tempoRestante("2030-01-07T13:05:00Z", agora), "1 h 05 min");
 assert.equal(tempoRestante("2030-01-07T12:00:00Z", agora), null, "vencido");
 assert.equal(tempoRestante("não é data", agora), null);
+assert.equal(relogio("2030-01-07T12:14:52Z", agora), "14:52");
+assert.equal(relogio("2030-01-07T12:00:00.400Z", agora), "00:01", "arredonda para cima");
+assert.equal(relogio("2030-01-07T13:05:00Z", agora), "1:05:00");
+assert.equal(relogio("2030-01-07T12:00:00Z", agora), null, "vencido");
 
 assert.equal(prazoDoSinal(new Date(agora), 30, new Date(agora - 60_000)).getTime(), agora - 60_000, "horário já começou: prazo é o início");
 assert.equal(textoDoSinal({ tipo: "percentual", valor: 30 }), "30% do valor");
