@@ -143,6 +143,15 @@ export function planDates(startDate: string, day: number, weeks: number) {
   return Array.from({ length: weeks }, (_, i) => addDays(first, 7 * i));
 }
 
+/** As datas de um plano: o primeiro atendimento no dia escolhido e os seguintes toda semana no
+ *  dia da semana do plano. Mesmo dia da semana: a regra de sempre. Outro dia: o primeiro fica
+ *  onde está (ex.: sábado, 7) e daí em diante vale o dia do plano (toda terça), com `weeks`
+ *  atendimentos no total. */
+export function datasDoPlano(startDate: string, day: number, weeks: number) {
+  if (weekday(startDate) === day) return planDates(startDate, day, weeks);
+  return [startDate, ...planDates(addDays(startDate, 1), day, weeks - 1)];
+}
+
 /** Horários de início livres no dia, em "HH:MM" local. */
 export function freeSlots(args: {
   date: string;

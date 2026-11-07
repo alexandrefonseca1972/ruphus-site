@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { idToken } from "@/lib/firebase";
-import { MAX_DAYS_AHEAD, WEEKDAYS, addDays, formatDuration, formatLongDate, formatPhone, planDates, todayIn, weekday, zonedTime, precoDe } from "@/lib/datetime";
+import { MAX_DAYS_AHEAD, WEEKDAYS, addDays, datasDoPlano, formatDuration, formatLongDate, formatPhone, planDates, todayIn, weekday, zonedTime, precoDe } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
@@ -52,6 +52,9 @@ export function PlanForm(props: {
   const [phone, setPhone] = useState("");
   // texto do campo: apagar para digitar outro número não pode virar "1" no meio da digitação
   const [semanasTexto, setSemanasTexto] = useState("12");
+  // o dia da semana do plano: segue o primeiro dia até o dono escolher outro (ex.: começa no
+  // sábado e depois é toda terça)
+  const [repetir, setRepetir] = useState<number | null>(null);
   const weeks = Math.min(52, Math.max(1, Number(semanasTexto) || 1));
   const [verTodos, setVerTodos] = useState(false);
   const [error, setError] = useState("");
@@ -106,7 +109,7 @@ export function PlanForm(props: {
     setResult("");
     setBusy(true);
     try {
-      const wd = weekday(date);
+      const wd = repetir ?? weekday(date);
       const res = await createPlanAction(await idToken(), {
         tenantId,
         customerName: customer?.name ?? form.get("customerName"),
@@ -123,7 +126,7 @@ export function PlanForm(props: {
       if (!res.ok) return setError(res.error);
       const dates = res.created;
       setResult(
-        `${dates.length} agendamento(s) criado(s): ${WEEKDAYS[wd].toLowerCase()}s de ${shortDate(dates[0])} a ${shortDate(dates.at(-1)!)}.` +
+        `${dates.length} agendamento(s) criado(s)${wd !== weekday(date) ? `: o primeiro em ${shortDate(dates[0])} e depois` : ":"} ${WEEKDAYS[wd].toLowerCase()}s até ${shortDate(dates.at(-1)!)}.` +
           (res.outros.length ? ` Com outro profissional, porque ${quem ?? "o primeiro"} estava ocupado: ${res.outros.map((o) => `${shortDate(o.date)} (${o.nome})`).join(", ")}.` : "") +
           (res.skipped.length ? ` Datas puladas por falta de horário livre: ${res.skipped.map(shortDate).join(", ")}.` : ""),
       );
@@ -321,6 +324,30 @@ export function PlanForm(props: {
             )}
           </fieldset>
 
+          {date && (
+            <fieldset className="grid gap-2">
+              <legend className="mb-2.5 text-sm font-medium">Repetir toda</legend>
+              <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {WEEKDAYS.map((nome, i) => (
+                  <button
+                    key={nome}
+                    type="button"
+                    aria-pressed={(repetir ?? weekday(date)) === i}
+                    onClick={() => setRepetir(i === weekday(date) ? null : i)}
+                    className={cn("h-10 shrink-0 rounded-full border bg-card px-4 text-sm hover:border-foreground/40", (repetir ?? weekday(date)) === i && CHIP_SEL)}
+                  >
+                    {nome}
+                  </button>
+                ))}
+              </div>
+              {repetir !== null && repetir !== weekday(date) && (
+                <p className="text-[13px] text-muted-foreground">
+                  O primeiro atendimento fica em {shortDate(date)} e os próximos caem toda {WEEKDAYS[repetir].toLowerCase()}, no mesmo horário. Semana sem horário livre fica de fora.
+                </p>
+              )}
+            </fieldset>
+          )}
+
           <div className="flex flex-wrap items-end gap-4">
             <div className="grid gap-1.5">
               <Label htmlFor="plan-weeks">Por quantas semanas</Label>
@@ -337,8 +364,9 @@ export function PlanForm(props: {
             </div>
             {escolha && date && (
               <p className="pb-3 text-sm">
-                <span className="font-semibold">{planLabel(weekday(date), escolha.hora)}</span>
-                {quem && ` com ${quem}`}{!staffId && " (ou quem estiver livre)"}, de {shortDate(date)} a {shortDate(addDays(date, (weeks - 1) * 7))}
+                {(repetir ?? weekday(date)) !== weekday(date) && <>primeiro em {shortDate(date)}, depois </>}
+                <span className="font-semibold">{planLabel(repetir ?? weekday(date), escolha.hora)}</span>
+                {quem && ` com ${quem}`}{!staffId && " (ou quem estiver livre)"}, de {shortDate(date)} a {shortDate(datasDoPlano(date, repetir ?? weekday(date), weeks).at(-1)!)}
                 {precoPlano && <>: até {weeks} atendimento{weeks > 1 ? "s" : ""} · <span className="tabular-nums">{precoPlano}</span></>}.
               </p>
             )}

@@ -6,7 +6,7 @@ import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, LIMITS, loadCatalog, redeDoIp, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
-import { addDays, agoraNaParede, customerKey, formatPhone, fusoDaUF, maskBRL, freeSlots, phoneError, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import { addDays, agoraNaParede, customerKey, formatPhone, fusoDaUF, maskBRL, freeSlots, phoneError, planDates, datasDoPlano, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 import { cotaDe, criarNegocio, definirLimite, negociosDe } from "@/lib/negocios.server";
 import { anotar, linhaDoTempo, marcarContato, pedirRemocao, propostaRemovivel, registrarMensagem, registrarVistaDaProposta, salvarCrm } from "@/lib/crm";
@@ -20,6 +20,10 @@ assert.equal(customerKey("(11) 91234-5678"), "5511912345678");
 assert.equal(customerKey("+55 11 91234-5678"), "5511912345678");
 assert.deepEqual(planDates("2026-09-17", 1, 3), ["2026-09-21", "2026-09-28", "2026-10-05"]); // quinta → segundas
 assert.deepEqual(planDates("2026-09-21", 1, 2), ["2026-09-21", "2026-09-28"]); // já é segunda
+// plano que começa noutro dia: o primeiro fica no dia escolhido, os seguintes no dia do plano
+assert.deepEqual(datasDoPlano("2026-11-07", 2, 3), ["2026-11-07", "2026-11-10", "2026-11-17"]); // sábado → terças
+assert.deepEqual(datasDoPlano("2026-11-10", 2, 2), ["2026-11-10", "2026-11-17"]); // já é terça
+assert.deepEqual(datasDoPlano("2026-11-07", 2, 1), ["2026-11-07"]);
 assert.equal(formatPhone("11912345678"), "(11) 91234-5678");
 assert.equal(formatPhone("1133334444"), "(11) 3333-4444");
 assert.equal(formatPhone("5511912345678"), "(11) 91234-5678", "colado com DDI");
@@ -228,7 +232,8 @@ assert.equal((await t.collection("customers").doc("5511912345678").get()).get("n
 assert.ok((await t.collection("appointments").where("customerKey", "==", "5511912345678").get()).size > 0);
 
 // Plano recorrente: toda segunda 10:00 com a Bia, 4 semanas a partir de daqui a 14 dias
-const planStart = addDays(todayIn(), 14);
+// começa numa segunda: o primeiro dia é o do plano (outro dia da semana vira o 1º atendimento)
+const planStart = planDates(addDays(todayIn(), 14), 1, 1)[0];
 const segundas = planDates(planStart, 1, 4);
 // ocupa a 2ª segunda antes de criar o plano
 assert.equal((await book(db, { ...base, staffId: "bia", date: segundas[1], serviceIds: ["corte"], time: "10:00", customerName: "Outro", customerPhone: "11 90000-0000" })).ok, true);
@@ -270,7 +275,7 @@ assert.equal((await endPlan(db, { tenantId: "salao", planId: plan.planId }, acto
 // "Qualquer um": a semana em que a Bia está ocupada vai para a Ana (livre no mesmo horário), em vez de
 // pular. Janela própria (~100 dias à frente, longe dos outros testes) para não depender do relógio do CI
 {
-  const inicio = addDays(todayIn(), 100);
+  const inicio = planDates(addDays(todayIn(), 100), 2, 1)[0]; // começa numa terça
   const tercas = planDates(inicio, 2, 4);
   const base4 = { ...planInput, weekday: 2, time: "11:00", startDate: inicio, weeks: 4 }; // expediente de teste: 9h–12h
   // a Bia fica ocupada só na 2ª terça (plano de uma semana, para outro cliente)

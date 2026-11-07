@@ -4,7 +4,7 @@ import { sessaoRevogada } from "@/lib/revogacao";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
-import { addDays, agoraNaParede, customerKey, dateIn, dentroDaJanela, formatTime, freeSlots, fusoDaUF, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import { addDays, agoraNaParede, customerKey, datasDoPlano, dateIn, dentroDaJanela, formatTime, freeSlots, fusoDaUF, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import type { DadosCliente } from "@/lib/cliente-dados";
 import { prazoDoSinal, type SinalDoAgendamento, valorDoSinal } from "@/lib/sinal";
 import { ConfigSinal } from "@/lib/sinal-config";
@@ -603,7 +603,7 @@ export async function createPlan(db: Firestore, input: PlanInput, actor: Actor) 
 
 async function criarPlano(db: Firestore, input: PlanInput, actor: Actor) {
   return contended(() => db.runTransaction(async (tx) => {
-    const dates = planDates(input.startDate, input.weekday, input.weeks);
+    const dates = datasDoPlano(input.startDate, input.weekday, input.weeks);
     const t = db.collection("tenants").doc(input.tenantId);
     // Uma leitura só para o negócio, a equipe e os serviços, e uma consulta para toda a janela do plano
     const [tenantSnap, ...svcSnaps] = await tx.getAll(t, ...input.serviceIds.map((id) => t.collection("services").doc(id)));
