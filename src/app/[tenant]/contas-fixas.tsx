@@ -1,6 +1,7 @@
 "use client";
 
 import { Dialog } from "@base-ui/react/dialog";
+import { useValores } from "@/lib/valores";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import { ConfirmDialog } from "./confirm-dialog";
 
 /** Cadastro das contas que se repetem todo mês. Cada mudança grava na hora, uma de cada vez. */
 export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: string; nicho?: string; fixas: Fixa[]; onClose: () => void }) {
+  const { brl } = useValores();
   const [nome, setNome] = useState("");
   const [valor, setValor] = useState("");
   const [dia, setDia] = useState("10");
@@ -65,7 +67,7 @@ export function ContasFixas({ tenantId, nicho, fixas, onClose }: { tenantId: str
                     <span className="truncate font-medium">{f.nome}</span>
                     <span className="text-[13px] text-muted-foreground">dia {f.dia} · {f.categoria}</span>
                   </span>
-                  <span className="tabular-nums">{formatBRL(f.valorCents)}</span>
+                  <span className="tabular-nums">{brl(f.valorCents)}</span>
                   <Button type="button" variant="ghost" size="sm" className="h-10" disabled={ocupado} onClick={() => editar(f)} aria-label={`Editar ${f.nome}`}>
                     Editar
                   </Button>

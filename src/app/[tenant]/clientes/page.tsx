@@ -1,6 +1,7 @@
 "use client";
 
 import { orderBy, Timestamp, where } from "firebase/firestore";
+import { useValores } from "@/lib/valores";
 import { TituloOrdenavel } from "@/components/titulo-ordenavel";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -9,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ativosDesde, DIA_EM_MS, JANELAS, MAIOR_JANELA, resumoPorCliente } from "@/lib/clientes";
-import { formatBRL, whatsappLink } from "@/lib/datetime";
+import { whatsappLink } from "@/lib/datetime";
 import { useCollection } from "@/lib/use-collection";
 import { useTenant } from "../painel-layout";
 import { PageTitle } from "../page-title";
@@ -58,6 +59,7 @@ function haQuanto(ms: number, agora: number) {
 const normalize = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 export default function CustomersPage() {
+  const { brl } = useValores();
   const tenant = useTenant();
   const [customers, error] = useCollection(tenant.id, "customers", Customer, [orderBy("name")]);
   const [search, setSearch] = useState("");
@@ -138,7 +140,7 @@ export default function CustomersPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle valores
         title="Clientes"
         sub={customers && visitas && (customers.length ? `${customers.length} cliente(s) · ${sumidos60} sem vir há mais de 60 dias` : "Aparecem aqui a partir do primeiro agendamento")}
       >
@@ -279,10 +281,10 @@ export default function CustomersPage() {
                     ) : (
                       <span className="text-muted-foreground">{comHorario.has(c.id) ? "1ª visita marcada" : "sem visita no último ano"}</span>
                     )}
-                    <span className="text-muted-foreground md:hidden"> · {r?.visitas ?? 0} visita(s) · {formatBRL(r?.gastoCents ?? 0)}</span>
+                    <span className="text-muted-foreground md:hidden"> · {r?.visitas ?? 0} visita(s) · {brl(r?.gastoCents ?? 0)}</span>
                   </span>
                   <span className="hidden text-right tabular-nums md:block">{r?.visitas ?? 0}</span>
-                  <span className="hidden text-right font-medium tabular-nums md:block">{formatBRL(r?.gastoCents ?? 0)}</span>
+                  <span className="hidden text-right font-medium tabular-nums md:block">{brl(r?.gastoCents ?? 0)}</span>
                   <span aria-hidden="true" className="hidden justify-self-end text-muted-foreground group-hover:text-foreground md:block">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <path d="m9 18 6-6-6-6" />

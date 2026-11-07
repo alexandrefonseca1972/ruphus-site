@@ -36,12 +36,43 @@ export const Staff = z.object({
 });
 export type Staff = z.infer<typeof Staff>;
 
+/** Quantos serviços e quanto tempo somado o cliente marca de uma vez pelo link. O dono ajusta
+ *  em "Meu negócio", dentro do teto: nem "todos os serviços", nem duração sem limite. */
+export const MAX_SERVICOS_PADRAO = 5;
+export const MAX_SERVICOS_TETO = 10;
+export const MAX_DURACAO_PADRAO = 240;
+export const MAX_DURACAO_MIN = 30;
+export const MAX_DURACAO_TETO = 480;
+export const LimitesAgenda = z.object({
+  maxServicos: z.number().int().min(1, "Pelo menos 1 serviço").max(MAX_SERVICOS_TETO, `No máximo ${MAX_SERVICOS_TETO} serviços`),
+  maxDuracaoMin: z.number().int().min(MAX_DURACAO_MIN, "Pelo menos 30 minutos").max(MAX_DURACAO_TETO, "No máximo 8 horas"),
+});
+export type LimitesAgenda = z.infer<typeof LimitesAgenda>;
+
+/** Os limites gravados em tenants/{slug}.agenda; campo ausente ou fora do formato = padrão. */
+export function limitesDe(agenda: unknown): LimitesAgenda {
+  const a = (agenda ?? {}) as Record<string, unknown>;
+  return {
+    maxServicos: LimitesAgenda.shape.maxServicos.safeParse(a.maxServicos).data ?? MAX_SERVICOS_PADRAO,
+    maxDuracaoMin: LimitesAgenda.shape.maxDuracaoMin.safeParse(a.maxDuracaoMin).data ?? MAX_DURACAO_PADRAO,
+  };
+}
+
+/** Por que a escolha passa do limite; null = vale. Um serviço sozinho sempre vale, mesmo mais
+ *  longo que o limite: a soma é que trava, senão o serviço longo sumia do link. */
+export function foraDoLimite(servicos: { durationMin: number }[], lim: LimitesAgenda): string | null {
+  if (servicos.length > lim.maxServicos) return `Escolha até ${lim.maxServicos} ${lim.maxServicos > 1 ? "serviços" : "serviço"} por horário.`;
+  const total = servicos.reduce((soma, s) => soma + s.durationMin, 0);
+  if (servicos.length > 1 && total > lim.maxDuracaoMin) return `Juntos, os serviços passam de ${lim.maxDuracaoMin % 60 ? `${lim.maxDuracaoMin} min` : `${lim.maxDuracaoMin / 60} h`}. Marque o resto em outro horário.`;
+  return null;
+}
+
 export const SlotQuery = z.object({
   tenantId: id,
   serviceIds: z
     .array(id)
     .min(1, "Escolha pelo menos um serviço")
-    .max(5, "Escolha até 5 serviços")
+    .max(MAX_SERVICOS_TETO, `Escolha até ${MAX_SERVICOS_TETO} serviços`)
     .refine((ids) => new Set(ids).size === ids.length),
   staffId: id,
   date: z.iso.date(),

@@ -70,8 +70,8 @@ export default function ManualDoUsuario() {
         <Lista
           itens={[
             <>
-              <Termo>Confirmar pelo WhatsApp</Termo> grava a confirmação e só então abre a conversa com a mensagem
-              pronta. Se a gravação falhar, nada é enviado: você nunca avisa um cliente de algo que não aconteceu.
+              <Termo>Confirmar pelo WhatsApp</Termo> grava a confirmação e só então manda a mensagem ao cliente: pelo
+              WhatsApp do negócio, se estiver conectado, ou abrindo a conversa no seu WhatsApp. Se a gravação falhar, nada é enviado: você nunca avisa um cliente de algo que não aconteceu.
             </>,
             <>
               <Termo>Remarcar</Termo> mostra os horários livres da nova data. O horário antigo fica livre na hora, e o

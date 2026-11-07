@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { OCULTO, useValores } from "@/lib/valores";
 import { orderBy, Timestamp, where } from "firebase/firestore";
 import { Fragment, useEffect, useState } from "react";
 import { z } from "zod";
@@ -8,7 +9,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
-import { addDays, customerKey, dateIn, formatBRL, formatLongDate, formatTime, todayIn, weekday, WEEKDAYS, whatsappLink, zonedTime, precoDe } from "@/lib/datetime";
+import { addDays, customerKey, dateIn, formatLongDate, formatTime, todayIn, weekday, WEEKDAYS, whatsappLink, zonedTime, precoDe } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { cn, openExternal } from "@/lib/utils";
@@ -16,15 +17,19 @@ import { ConfirmDialog } from "./confirm-dialog";
 import { History } from "./history";
 import { type Folha, LancamentoFolha } from "./lancamento-folha";
 import { idDaBaixa, Lancamento } from "@/lib/financeiro";
+import { itensDoRecibo } from "@/lib/recibo";
+import { Recibo } from "./caixa/recibo";
 import { useTenant } from "./painel-layout";
 import { PageTitle } from "./page-title";
 import { Reschedule } from "./reschedule";
 import { RowMenu } from "./row-menu";
 import { ShareLink } from "./share-link";
 import { mudarStatus, STATUS } from "./status";
-import { avisarConfirmacaoSmsAction, confirmarSinalAction } from "./actions";
+import { avisarClienteWhatsappAction, avisarConfirmacaoSmsAction, confirmarSinalAction } from "./actions";
 import { idToken } from "@/lib/firebase";
 import { restanteDe } from "@/lib/sinal";
+import { whatsappDoNegocio } from "@/lib/tenants";
+import { type AvisoCliente, textoAvisoCliente } from "@/lib/mensagens";
 
 const Appointment = z.object({
   serviceName: z.string(),
@@ -48,25 +53,11 @@ const ATIVO = (a: { status: string }) => a.status === "booked" || a.status === "
 const segundaDe = (date: string) => addDays(date, -((weekday(date) + 6) % 7));
 const capitaliza = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-const firstName = (name: string) => name.trim().split(/\s+/)[0];
-
-export function confirmationText(a: Appointment, business: string) {
-  const start = a.start.toDate();
-  return `Olá, ${firstName(a.customerName)}! Seu horário na ${business} está confirmado: ${a.serviceName} com ${a.staffName}, ${formatLongDate(start)} às ${formatTime(start)}. Até lá!`;
-}
-
-export function cancellationText(a: Appointment, business: string, bookingUrl: string) {
-  const start = a.start.toDate();
-  return `Olá, ${firstName(a.customerName)}! Seu horário na ${business} de ${formatLongDate(start)} às ${formatTime(start)} (${a.serviceName} com ${a.staffName}) foi cancelado. Para marcar outro horário: ${bookingUrl}`;
-}
-
-export function rescheduleText(a: Appointment, business: string, start: Date) {
-  return `Olá, ${firstName(a.customerName)}! Seu horário na ${business} foi remarcado para ${formatLongDate(start)} às ${formatTime(start)} (${a.serviceName} com ${a.staffName}). Se não puder, é só responder esta mensagem.`;
-}
-
+const BOTAO_AVISO = "inline-flex h-10 items-center rounded-md bg-emerald-700 px-4 font-medium text-white hover:bg-emerald-800 disabled:opacity-60";
 
 export default function AgendaPage() {
   const tenant = useTenant();
+  const { brl, oculto } = useValores();
   const [date, setDate] = useState(todayIn);
   const [error, setError] = useState("");
   const [rescheduling, setRescheduling] = useState<string | null>(null);
@@ -76,7 +67,14 @@ export default function AgendaPage() {
   // quem é da equipe abre na própria agenda; "Todos" continua a um toque
   const [staffFilter, setStaffFilter] = useState(tenant.staffId ?? "");
   const [staff] = useCollection(tenant.id, "staff", Staff, [orderBy("name")]);
-  const [notice, setNotice] = useState<{ text: string; link: string } | null>(null);
+  // aviso no topo; com a mensagem, oferece mandar ao cliente (manual: pelo WhatsApp do aparelho)
+  // recibo: id do lançamento recebido agora; o aviso oferece o recibo dele
+  const [notice, setNotice] = useState<{ text: string; aviso?: { a: Appointment; tipo: AvisoCliente; start: Date }; manual?: boolean; recibo?: string } | null>(null);
+  // WhatsApp do negócio conectado (atendys): a mensagem sai por ele, sem abrir o WhatsApp do aparelho
+  const peloNegocio = whatsappDoNegocio(tenant);
+  const mensagem = (a: Appointment, tipo: AvisoCliente, start = a.start.toDate()) =>
+    textoAvisoCliente(tipo, { ...a, start }, tenant.name, `${location.origin}/agendar/${tenant.id}`);
+  const aviso = notice?.aviso;
   // O relógio anda a cada minuto: com a agenda aberta o dia todo, o horário que passa perde
   // o "Confirmar" e ganha o "Faltou", e a linha do "agora" desce, sem recarregar a página
   const [now, setNow] = useState(Date.now);
@@ -108,6 +106,12 @@ export default function AgendaPage() {
   );
   const recebidos = new Set(recebidosDaSemana?.map((l) => l.id));
   const [folha, setFolha] = useState<Folha | null>(null);
+  const [recibo, setRecibo] = useState<Lancamento[] | null>(null);
+  // o mesmo recibo do Caixa: o atendimento, o sinal e o que o cliente pagou no mesmo dia
+  const abrirRecibo = (id: string) => {
+    const l = recebidosDaSemana?.find((x) => x.id === id);
+    if (l) setRecibo(itensDoRecibo(l, recebidosDaSemana!));
+  };
 
   // Toda mudança de status grava um registro no histórico no mesmo batch (exigido pelas regras)
   /** Devolve true quando gravou; só então o cliente pode ser avisado. */
@@ -124,7 +128,31 @@ export default function AgendaPage() {
     }
   }
 
-  async function notifyAndChange(a: Appointment, status: "confirmed" | "cancelled", message: string) {
+  /** Pelo WhatsApp do negócio; se não sair, o aviso oferece mandar pelo do aparelho. */
+  async function avisarPeloNegocio(aviso: { a: Appointment; tipo: AvisoCliente; start: Date }) {
+    const { a } = aviso;
+    setPending(a.id);
+    const r = await idToken()
+      .then((t) => avisarClienteWhatsappAction(t, { tenantId: tenant.id, appointmentId: a.id, tipo: aviso.tipo }))
+      .catch(() => null);
+    setPending(null);
+    if (r?.ok) return setNotice({ text: `Mensagem enviada a ${a.customerName} pelo WhatsApp do negócio.` });
+    // sem resposta não quer dizer que não saiu: a queda pode ter vindo depois do envio
+    const text = r
+      ? `A mensagem para ${a.customerName} não saiu pelo WhatsApp do negócio: ${r.error} Mande pelo seu WhatsApp.`
+      : `Sem conexão: não deu para saber se a mensagem chegou a ${a.customerName}. Confira na conversa antes de mandar de novo pelo seu WhatsApp.`;
+    setNotice({ text, aviso, manual: true });
+  }
+
+  async function notifyAndChange(a: Appointment, status: "confirmed" | "cancelled") {
+    const tipo = status === "confirmed" ? "confirmado" : "cancelado";
+    if (peloNegocio) {
+      setPending(a.id);
+      const saved = await changeStatus(a, status);
+      setPending(null);
+      if (saved) await avisarPeloNegocio({ a, tipo, start: a.start.toDate() });
+      return;
+    }
     // a aba abre ainda dentro do clique: depois do await da gravação o navegador já não conta
     // como gesto, bloqueava a aba nova, e o WhatsApp tomava o lugar do painel
     const aba = window.open("", "_blank");
@@ -133,7 +161,7 @@ export default function AgendaPage() {
     setPending(null);
     // Falhou a gravação: não avisa o cliente de algo que não aconteceu
     if (!saved) return aba?.close();
-    const link = whatsappLink(a.customerPhone, message);
+    const link = whatsappLink(a.customerPhone, mensagem(a, tipo));
     if (aba) {
       aba.opener = null;
       aba.location.href = link;
@@ -150,9 +178,8 @@ export default function AgendaPage() {
 
   function cancel(a: Appointment, notify: boolean) {
     setConfirming(null);
-    const url = `${location.origin}/agendar/${tenant.id}`;
     return notify
-      ? notifyAndChange(a, "cancelled", cancellationText(a, tenant.name, url))
+      ? notifyAndChange(a, "cancelled")
       : changeStatus(a, "cancelled");
   }
 
@@ -171,12 +198,12 @@ export default function AgendaPage() {
     { label: "Horários", value: active.length },
     { label: "Confirmados", value: active.filter((a) => a.status === "confirmed").length },
     { label: "Aguardando", value: active.filter((a) => a.status === "booked").length },
-    { label: "Previsto", value: formatBRL(active.reduce((sum, a) => sum + a.priceCents, 0)) },
+    { label: "Previsto", value: brl(active.reduce((sum, a) => sum + a.priceCents, 0)) },
   ];
 
   return (
     <>
-      <PageTitle title="Agenda" sub={capitaliza(formatLongDate(zonedTime(date, "12:00")))}>
+      <PageTitle title="Agenda" valores sub={capitaliza(formatLongDate(zonedTime(date, "12:00")))}>
         <div className="flex w-full items-center gap-2 sm:w-auto">
           <Button variant="outline" size="icon-lg" className="size-10 max-sm:size-11" onClick={() => setDate(addDays(date, -7))} aria-label="Semana anterior">‹</Button>
           <Label htmlFor="agenda-date" className="sr-only">Data</Label>
@@ -203,7 +230,17 @@ export default function AgendaPage() {
             >
               <span className="text-[11px] tracking-wider uppercase opacity-75">{WEEKDAYS[weekday(d.date)].slice(0, 3)}</span>
               <span className={cn("font-serifa text-2xl leading-none sm:text-3xl", d.date === hoje && !sel && "underline underline-offset-4")}>{Number(d.date.slice(8))}</span>
-              <span className="hidden text-xs opacity-75 sm:block">{d.count ? `${d.count} horário${d.count > 1 ? "s" : ""}` : "livre"}</span>
+              {/* no celular o dia tem ~46px: "4 hor." cabe, "4 horários" não */}
+              <span className="text-[10px] leading-none whitespace-nowrap opacity-75 sm:text-xs" aria-hidden="true">
+                {d.count ? (
+                  <>
+                    {d.count} hor<span className="sm:hidden">.</span>
+                    <span className="hidden sm:inline">ário{d.count > 1 ? "s" : ""}</span>
+                  </>
+                ) : (
+                  "livre"
+                )}
+              </span>
             </button>
           );
         })}
@@ -224,9 +261,18 @@ export default function AgendaPage() {
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950">
           <span>{notice.text}</span>
           <div className="flex gap-2">
-            <a href={notice.link} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center rounded-md bg-emerald-700 px-4 font-medium text-white hover:bg-emerald-800">
-              Avisar pelo WhatsApp
-            </a>
+            {aviso && (peloNegocio && !notice.manual ? (
+              <button type="button" disabled={pending === aviso.a.id} onClick={() => avisarPeloNegocio(aviso)} className={BOTAO_AVISO}>
+                {pending === aviso.a.id ? "Enviando…" : "Avisar pelo WhatsApp"}
+              </button>
+            ) : (
+              <a href={whatsappLink(aviso.a.customerPhone, mensagem(aviso.a, aviso.tipo, aviso.start))} target="_blank" rel="noreferrer" className={BOTAO_AVISO}>
+                Avisar pelo WhatsApp
+              </a>
+            ))}
+            {notice.recibo && recebidos.has(notice.recibo) && (
+              <Button variant="outline" size="sm" onClick={() => abrirRecibo(notice.recibo!)}>Recibo</Button>
+            )}
             <Button variant="ghost" size="sm" onClick={() => setNotice(null)}>Fechar</Button>
           </div>
         </div>
@@ -295,14 +341,14 @@ export default function AgendaPage() {
                     {a.planId && <span className="rounded-full border px-2.5 py-0.5 text-xs">Recorrente</span>}
                     {a.sinal?.status === "pendente" && ATIVO(a) && (
                       <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                        Sinal de {formatBRL(a.sinal.cents)} até {a.sinal.hora}
+                        Sinal de {brl(a.sinal.cents)} até {a.sinal.hora}
                       </span>
                     )}
-                    {a.sinal?.status === "pago" && <span className="rounded-full border px-2.5 py-0.5 text-xs">Sinal pago · {formatBRL(a.sinal.cents)}</span>}
+                    {a.sinal?.status === "pago" && <span className="rounded-full border px-2.5 py-0.5 text-xs">Sinal pago · {brl(a.sinal.cents)}</span>}
                     {recebidos.has(idDaBaixa(a.id)) && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">Recebido</span>}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {[a.serviceName, `com ${a.staffName}`, precoDe({ priceCents: a.priceCents, tipoPreco: a.precoAberto ? "aPartir" : "fixo" })].filter(Boolean).join(" · ")} ·{" "}
+                    {[a.serviceName, `com ${a.staffName}`, (oculto ? OCULTO : precoDe({ priceCents: a.priceCents, tipoPreco: a.precoAberto ? "aPartir" : "fixo" }))].filter(Boolean).join(" · ")} ·{" "}
                     <a href={whatsappLink(a.customerPhone)} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline">
                       {a.customerPhone}
                     </a>
@@ -317,7 +363,7 @@ export default function AgendaPage() {
                   )}
                   {/* Confirmar só antes do horário: depois dele já não há o que combinar com o cliente */}
                   {a.status === "booked" && a.start.toMillis() > now && meu(a) && (
-                    <Button className="h-10 px-4" disabled={pending === a.id} onClick={() => notifyAndChange(a, "confirmed", confirmationText(a, tenant.name))}>
+                    <Button className="h-10 px-4" disabled={pending === a.id} onClick={() => notifyAndChange(a, "confirmed")}>
                       {pending === a.id ? "Confirmando…" : "Confirmar pelo WhatsApp"}
                     </Button>
                   )}
@@ -333,6 +379,7 @@ export default function AgendaPage() {
                       ...(caixa && recebidosDaSemana && ATIVO(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) && restanteDe(a) > 0
                         ? [{ label: "Recebido", onClick: () => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, serviceName: a.serviceName, priceCents: restanteDe(a), sinalCents: a.sinal?.status === "pago" ? a.sinal.cents : 0 } }) }]
                         : []),
+                      ...(caixa && recebidos.has(idDaBaixa(a.id)) ? [{ label: "Recibo", onClick: () => abrirRecibo(idDaBaixa(a.id)) }] : []),
                       // recebido no Caixa não vira falta: a entrada contaria um atendimento que não houve
                       ...(ATIVO(a) && meu(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Faltou", onClick: () => setConfirming({ id: a.id, kind: "no_show" as const }) }] : []),
                       ...(ATIVO(a) && meu(a) && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Cancelar horário", danger: true, onClick: () => setConfirming({ id: a.id, kind: "cancel" as const }) }] : []),
@@ -344,7 +391,7 @@ export default function AgendaPage() {
               {confirming?.id === a.id && confirming.kind === "cancel" && (
                 <ConfirmDialog
                   title={`Cancelar o agendamento de ${a.customerName}?`}
-                  description={`${formatLongDate(a.start.toDate())} às ${formatTime(a.start.toDate())} · ${a.serviceName} com ${a.staffName}. O horário volta a ficar livre.${a.sinal?.status === "pago" ? ` O sinal de ${formatBRL(a.sinal.cents)} foi pago: combine a devolução com o cliente.` : ""}`}
+                  description={`${formatLongDate(a.start.toDate())} às ${formatTime(a.start.toDate())} · ${a.serviceName} com ${a.staffName}. O horário volta a ficar livre.${a.sinal?.status === "pago" ? ` O sinal de ${brl(a.sinal.cents)} foi pago: combine a devolução com o cliente.` : ""}`}
                   notifyLabel="Avisar o cliente pelo WhatsApp"
                   confirmLabel="Sim, cancelar"
                   onConfirm={(notify) => cancel(a, notify)}
@@ -354,7 +401,7 @@ export default function AgendaPage() {
               {/* marcar dinheiro como recebido não tem volta pelo painel: confere antes */}
               {confirming?.id === a.id && confirming.kind === "sinal" && a.sinal && (
                 <ConfirmDialog
-                  title={`O sinal de ${formatBRL(a.sinal.cents)} caiu na sua conta?`}
+                  title={`O sinal de ${brl(a.sinal.cents)} caiu na sua conta?`}
                   description={`Confira no app do banco o Pix de ${a.customerName}. Confirmando, o horário fica confirmado${caixa ? " e o sinal entra no Caixa" : ""}.`}
                   confirmLabel="Sim, recebi"
                   tom="normal"
@@ -387,7 +434,7 @@ export default function AgendaPage() {
                     setRescheduling(null);
                     setNotice({
                       text: `${a.customerName} remarcado para ${formatLongDate(start)} às ${formatTime(start)}.`,
-                      link: whatsappLink(a.customerPhone, rescheduleText(a, tenant.name, start)),
+                      aviso: { a, tipo: "remarcado", start },
                     });
                     setDate(newDate);
                   }}
@@ -405,9 +452,14 @@ export default function AgendaPage() {
           tenantId={tenant.id}
           nicho={tenant.gerado?.nicho}
           folha={folha}
-          onClose={() => setFolha(null)} // o "Recebido" aparece na linha: não precisa de aviso
+          onClose={(aviso) => {
+            // recebeu: o aviso oferece o recibo (o "Recebido" também aparece na linha)
+            if (aviso && folha.modo === "baixa") setNotice({ text: `${folha.atendimento.customerName}: ${aviso}`, recibo: idDaBaixa(folha.atendimento.id) });
+            setFolha(null);
+          }}
         />
       )}
+      {recibo && <Recibo tenantId={tenant.id} itens={recibo} onClose={() => setRecibo(null)} />}
     </>
   );
 }

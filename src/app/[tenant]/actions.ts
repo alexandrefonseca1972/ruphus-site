@@ -1,27 +1,30 @@
 "use server";
 
 import { adminDb } from "@/lib/admin";
-import { createPlan, deleteCustomer, endPlan, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
+import { createPlan, deleteCustomer, endPlan, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
 import { erroNome } from "@/lib/nome";
 import { z } from "zod";
-import { PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
+import { LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
 import { deslogarInstancia, enviarTexto, qrDaConexao, statusDaConexao } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
+import { enviarEmail } from "@/lib/email.server";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { aceitarTermoWhatsApp, conectarNegocio, type ConexaoWhatsapp, desligarConexao, espelharStatusVivo, lerConfigWhatsApp, lerConexao, paraTela } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { criarConvite, revogarConvitesDaEquipe, tirarAcessosDoProfissional } from "@/lib/convite";
 import { DIAS_CONVITE } from "@/lib/limites";
-import { recebedorDe } from "@/lib/pix";
+import { brCode, PixInvalido, recebedorDe } from "@/lib/pix";
 import { ConfigSinal } from "@/lib/sinal-config";
 import { confirmarSinal } from "@/lib/sinal.server";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { after } from "next/server";
+import { textoAvisoCliente, textoConvite, textoPix } from "@/lib/mensagens";
 import { BaixaInput, EstornoInput, FixaInput, ID_AVULSO, LancamentoInput, PagamentoInput } from "@/lib/financeiro";
 import { adicionarFixa, editarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
@@ -123,6 +126,17 @@ export const convidarEquipeAction = memberAction(
     if (!prof.exists) throw new UserError("Esse profissional não existe mais.");
     const base = process.env.SITE_URL ?? "https://www.ruphus.site";
     const url = `${base}/convite?c=${await criarConvite(adminDb, data.tenantId, data.email, { staffId: data.staffId })}`;
+    // o link já vai por e-mail para o endereço a que está preso, depois da resposta: o dono não
+    // espera o Resend (10s de timeout, depois o SMTP). Falha no e-mail não perde o link: o dono
+    // ainda copia ou manda pelo WhatsApp
+    after(async () => {
+      const negocio = String((await adminDb.doc(`tenants/${data.tenantId}`).get()).get("name") ?? data.tenantId);
+      await enviarEmail({
+        para: data.email,
+        assunto: `Seu acesso à agenda do ${negocio}`,
+        texto: textoConvite({ nome: String(prof.get("name") ?? ""), negocio, url, email: data.email, dias: DIAS_CONVITE }),
+      }).catch((e) => console.error(`[convite] e-mail da equipe ${data.tenantId}`, e));
+    });
     return { ok: true as const, url, dias: DIAS_CONVITE };
   },
 );
@@ -185,9 +199,14 @@ export const cancelarAvisosAction = memberAction(z.object({ tenantId: docIdStaff
   return { ok: true as const };
 });
 
-export const salvarRecadoAction = memberAction(z.object({ tenantId: docIdStaff, recado: Recado, online: z.boolean() }), async (data, user) => {
+export const salvarRecadoAction = memberAction(z.object({ tenantId: docIdStaff, recado: Recado, online: z.boolean(), limites: LimitesAgenda }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid, { publico: true });
-  await adminDb.doc(`tenants/${data.tenantId}`).update({ "agenda.recado": data.recado, "agenda.online": data.online });
+  await adminDb.doc(`tenants/${data.tenantId}`).update({
+    "agenda.recado": data.recado,
+    "agenda.online": data.online,
+    "agenda.maxServicos": data.limites.maxServicos,
+    "agenda.maxDuracaoMin": data.limites.maxDuracaoMin,
+  });
   revalidatePath(`/agendar/${data.tenantId}`);
   revalidatePath(`/bio/${data.tenantId}`);
   return { ok: true as const };
@@ -431,3 +450,72 @@ export const estornarAction = memberAction(z.object({ tenantId: docIdStaff, esto
 export const avisarConfirmacaoSmsAction = memberAction(z.object({ tenantId: docIdStaff, appointmentId: docIdStaff }), async (data) => {
   return { ok: true as const, resultado: await avisarConfirmacaoPorSms(adminDb, data.tenantId, data.appointmentId) };
 });
+
+/** O Pix de um atendimento direto no WhatsApp do cliente, pelo WhatsApp que o negócio conectou
+ *  (atendys). Número, chave e texto saem do servidor; do navegador vêm só o valor (até o preço
+ *  do horário) e o txid do QR na tela, para o código ser o mesmo. Sem conexão, recusa: a tela
+ *  então abre o WhatsApp do aparelho. */
+export const enviarPixWhatsappAction = memberAction(
+  z.object({ tenantId: docIdStaff, appointmentId: docIdStaff, valorCents: z.number().int().positive(), txid: z.string().max(25) }),
+  async (data, user) => {
+    await exigeGestor(data.tenantId, user.uid);
+    const [ag, tenant] = await Promise.all([
+      adminDb.doc(`tenants/${data.tenantId}/appointments/${data.appointmentId}`).get(),
+      adminDb.doc(`tenants/${data.tenantId}`).get(),
+    ]);
+    if (!ag.exists) throw new UserError("Esse horário não existe mais.");
+    if (data.valorCents > Number(ag.get("priceCents") ?? 0)) throw new UserError("O valor passa do preço do atendimento.");
+    const recebedor = tenant.get("pix") ? recebedorDe(tenant.get("pix")) : "Cadastre a chave Pix em Meu negócio.";
+    if (typeof recebedor === "string") throw new UserError(recebedor);
+    const cliente = soDigitosComDDI(String(ag.get("customerPhone") ?? ""));
+    if (!cliente) throw new UserError("O cliente não tem WhatsApp válido.");
+    const w = await lerConexao(adminDb, data.tenantId);
+    if (!w?.instanceId || w.status !== "connected") throw new UserError("O WhatsApp do negócio não está conectado.");
+    let codigo: string;
+    try {
+      codigo = brCode({ ...recebedor, valorCents: data.valorCents, txid: data.txid });
+    } catch (e) {
+      if (e instanceof PixInvalido) throw new UserError(e.message);
+      throw e;
+    }
+    await enviarTexto(w, cliente, textoPix({ valorCents: data.valorCents, nome: recebedor.nome, codigo }));
+    return { ok: true as const };
+  },
+);
+
+/** Mensagem ao cliente de um horário (confirmação, cancelamento, remarcação) pelo WhatsApp que o
+ *  negócio conectou (atendys). O texto e o número saem do agendamento, não do navegador: o painel
+ *  só diz qual aviso é, e o aviso tem de bater com o estado do horário (sem "confirmado" de um
+ *  horário cancelado, nem aviso de horário que já passou). Sem conexão ativa, recusa: o painel
+ *  então abre o WhatsApp do aparelho. */
+export const avisarClienteWhatsappAction = memberAction(
+  z.object({ tenantId: docIdStaff, appointmentId: docIdStaff, tipo: z.enum(["confirmado", "cancelado", "remarcado"]) }),
+  async (data, user) => {
+    const [ag, tenant, preso] = await Promise.all([
+      adminDb.doc(`tenants/${data.tenantId}/appointments/${data.appointmentId}`).get(),
+      adminDb.doc(`tenants/${data.tenantId}`).get(),
+      profissionalDaConta(adminDb, data.tenantId, user.uid),
+    ]);
+    if (!ag.exists) throw new UserError("Esse horário não existe mais.");
+    // quem é da equipe só avisa os clientes dos próprios horários, como no resto da agenda
+    if (preso && ag.get("staffId") !== preso) throw new UserError("Esse horário é de outro profissional.");
+    const status = ag.get("status") as string;
+    const start = (ag.get("start") as Timestamp).toDate();
+    const valeAviso = data.tipo === "cancelado" ? status === "cancelled" : data.tipo === "confirmado" ? status === "confirmed" : status === "booked" || status === "confirmed";
+    if (!valeAviso) throw new UserError("O horário mudou desde então: esse aviso não vale mais.");
+    if (start.getTime() < Date.now()) throw new UserError("Esse horário já passou.");
+    const cliente = soDigitosComDDI(String(ag.get("customerPhone") ?? ""));
+    if (!cliente) throw new UserError("O cliente não tem WhatsApp válido.");
+    const w = await lerConexao(adminDb, data.tenantId);
+    if (!w?.instanceId || w.status !== "connected") throw new UserError("O WhatsApp do negócio não está conectado.");
+    const base = process.env.SITE_URL ?? "https://www.ruphus.site";
+    const texto = textoAvisoCliente(
+      data.tipo,
+      { customerName: String(ag.get("customerName") ?? ""), serviceName: String(ag.get("serviceName") ?? ""), staffName: String(ag.get("staffName") ?? ""), start },
+      String(tenant.get("name") ?? data.tenantId),
+      `${base}/agendar/${data.tenantId}`,
+    );
+    await enviarTexto(w, cliente, texto);
+    return { ok: true as const };
+  },
+);
