@@ -248,3 +248,8 @@ body:has(.painel) {
     width: 72mm;
   }
 }
+
+/* Folha aberta (agendar): o fundo não rola por baixo dela no celular */
+html:has(dialog[open]) {
+  overflow: hidden;
+}
