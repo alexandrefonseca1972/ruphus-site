@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { errorMessage } from "@/lib/auth-errors";
 import { formatBRL, formatLongDate, formatTime, todayIn, zonedTime } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
-import { CaixaConfig, comissoesDoMes, diaNoMes, pctDoTexto, csvDoMes, idDaBaixa, idDoEstorno, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
+import { CaixaConfig, comissoesDoMes, diaNoMes, fixaNoMes, mesDaComissao, pctDoTexto, csvDoMes, idDaBaixa, idDoEstorno, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
 import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
 import { definirComissaoAction } from "../actions";
@@ -18,6 +18,8 @@ import { ConfirmDialog } from "../confirm-dialog";
 import { ComissoesHistorico } from "../comissoes-historico";
 import { ContasFixas } from "../contas-fixas";
 import { type Folha, LancamentoFolha } from "../lancamento-folha";
+import { itensDoRecibo } from "@/lib/recibo";
+import { Recibo } from "./recibo";
 import { useTenant } from "../painel-layout";
 import { PageTitle } from "../page-title";
 import { mudarStatus } from "../status";
@@ -52,6 +54,8 @@ export default function CaixaPage() {
   const [erro, setErro] = useState("");
   const [faltou, setFaltou] = useState<{ id: string; nome: string } | null>(null);
   const [verFixas, setVerFixas] = useState(false);
+  const [recibo, setRecibo] = useState<Lancamento[] | null>(null);
+  const [reciboDoAviso, setReciboDoAviso] = useState<string | null>(null);
   // o "Fechar o dia" mostra os mais recentes; a lista toda só quando o dono pede
   const [verTodos, setVerTodos] = useState(false);
   const [historico, setHistorico] = useState<{ staffId: string; nome: string } | null>(null);
@@ -68,6 +72,13 @@ export default function CaixaPage() {
   const ligado = tenant.podeGerir && tenant.modulos?.financeiro === true;
 
   const hoje = todayIn();
+  // aberto na virada do mês: quem olhava o mês corrente passa para o novo, senão o lançamento
+  // de hoje nasceria no dia 31 e o "Fechar o dia" deixaria os atendimentos de hoje de fora
+  const [mesCorrente, setMesCorrente] = useState(hoje.slice(0, 7));
+  if (mesCorrente !== hoje.slice(0, 7)) {
+    setMesCorrente(hoje.slice(0, 7));
+    if (mes === mesCorrente) setMes(hoje.slice(0, 7));
+  }
   // no mês corrente, o "Fechar o dia" também olha o mês anterior: o atendimento das 19h do
   // dia 31 não some na virada do mês. Os lançamentos de lá só servem para saber o que já foi recebido.
   // ponytail: só um mês para trás; o que ficou de antes, o dono acha voltando o mês
@@ -76,7 +87,10 @@ export default function CaixaPage() {
   // daqui precisa saber que já foi estornada. ponytail: estorno 2+ meses depois, só o servidor barra
   const ate = mes < hoje.slice(0, 7) ? mesSeguinte(mes, 1) : mes;
   // as consultas só sobem com o Caixa ligado: desligado, a regra negaria a leitura
-  const [comAnterior, erroLeitura] = useCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mes", "in", [...new Set([desde, mes, ate])])], `${desde}/${mes}/${ate}`);
+  const [comAnteriorLido, erroLeitura] = useCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mes", "in", [...new Set([desde, mes, ate])])], `${desde}/${mes}/${ate}`);
+  // leitura com erro chega vazia: tratada como "carregando", senão a tela daria R$ 0, tudo a
+  // receber de novo e todas as contas em aberto como se fosse verdade
+  const comAnterior = erroLeitura ? null : comAnteriorLido;
   const lancamentos = comAnterior && comAnterior.filter((l) => l.mes === mes);
   const [doMes, erroAgenda] = useCollection(
     ligado ? tenant.id : "",
@@ -87,19 +101,20 @@ export default function CaixaPage() {
   );
   // lido solto e conferido aqui: o useCollection descartaria em silêncio um documento fora do
   // esquema, e o Caixa mostraria contas e comissões zeradas como se fossem verdade
+  const [equipe] = useCollection(ligado ? tenant.id : "", "staff", z.object({ name: z.string() }));
   const [configs, erroConfig] = useCollection(ligado ? tenant.id : "", "caixa", z.record(z.string(), z.unknown()));
   const lido = CaixaConfig.safeParse(configs?.find((c) => c.id === "config") ?? {});
   // sem a configuração lida não se mexe nela: mostrar vazio e deixar editar enganaria o dono
   const configPronta = configs !== null && !erroConfig && lido.success;
   const config = lido.success ? lido.data : CaixaConfig.parse({});
-  const configQuebrada = configs !== null && !lido.success;
+  const configQuebrada = configs !== null && (!!erroConfig || !lido.success);
 
   if (!ligado) {
     return (
       <>
         <PageTitle title="Caixa" />
         <p className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">
-          O Caixa não está ativo para este negócio. Para usar, fale com a Ruphus.
+          {tenant.podeGerir ? "O Caixa não está ativo para este negócio. Para usar, fale com a Ruphus." : "Só o dono ou um administrador do negócio vê o Caixa."}
         </p>
       </>
     );
@@ -111,7 +126,7 @@ export default function CaixaPage() {
   // ponytail: sinal de 100% confirmado com o Caixa desligado fica fora (restante 0 não aparece aqui)
   // sem os lançamentos carregados não dá para saber o que já foi recebido
   const pendentes = (comAnterior ? (doMes ?? []) : []).filter(
-    (a) => (a.status === "booked" || a.status === "confirmed") && a.start.toMillis() <= agora && !recebidos.has(idDaBaixa(a.id)) && restanteDe(a) > 0,
+    (a) => (a.status === "booked" || a.status === "confirmed") && a.start.toMillis() <= agora && !recebidos.has(idDaBaixa(a.id)) && (restanteDe(a) > 0 || sinalDe(a) === 0),
   );
   const aReceber = pendentes.reduce((t, a) => t + restanteDe(a), 0);
   // o de hoje primeiro: é o que o dono está fechando; os antigos esperam no "ver todos"
@@ -120,10 +135,15 @@ export default function CaixaPage() {
   const r = resumoDoMes(lancamentos ?? []);
   // contas fixas ainda não pagas no mês, pela ordem do vencimento
   // antes de a conta existir, ela não conta: nem a pagar, nem "tudo pago"
-  const doMesFixas = config.fixas.filter((f) => !f.desde || f.desde <= mes);
+  const doMesFixas = config.fixas.filter((f) => fixaNoMes(f, mes));
   const contas = (lancamentos ? doMesFixas : []).filter((f) => !recebidos.has(idDoPagamento("fixa", f.id, mes))).sort((a, b) => a.dia - b.dia);
   const pctsPendentes = Object.fromEntries(Object.entries(pcts).map(([k, o]) => [k, o.pct]));
-  const todasComissoes = comissoesDoMes(lancamentos ?? [], { ...config.comissoes, ...pctsPendentes }, config.descontos);
+  // nome de quem só tem crédito no mês: o cadastro, ou o último lançamento dele que a tela tem
+  const nomes = Object.fromEntries([...(comAnterior ?? []).filter((l) => l.staffId && l.staffName).map((l) => [l.staffId!, l.staffName!]), ...(equipe ?? []).map((p) => [p.id, p.name])]);
+  // pelo mês da comissão: o sinal só depois de o atendimento ser recebido, no mês do recebimento.
+  // ponytail: sinal pago 2+ meses antes do recebimento fica fora da tela (o servidor conta certo)
+  const daComissao = (comAnterior ?? []).filter((l) => mesDaComissao(l) === mes);
+  const todasComissoes = comissoesDoMes(lancamentos ? daComissao : [], { ...config.comissoes, ...pctsPendentes }, config.descontos, nomes);
   // sem % no cadastro, sem comissão: fica fora da lista e do total. Só fica quem, mesmo sem %,
   // ainda tem algo a acertar no mês (comissão já paga ou estorno guardado)
   const comissoes = todasComissoes.filter((c) => c.pct > 0 || c.desconto !== 0 || lancamentos?.some((l) => l.id === idDoPagamento("comissao", c.staffId, mes)));
@@ -136,9 +156,14 @@ export default function CaixaPage() {
   );
 
   function fechar(msg?: string) {
+    // recebeu um atendimento: o aviso já oferece o recibo dele
+    setReciboDoAviso(folha?.modo === "baixa" && msg ? idDaBaixa(folha.atendimento.id) : null);
     setFolha(null);
     if (msg) setAviso(msg);
   }
+  // com o mês anterior junto: o atendimento do dia 31 recebido no dia 1 e o sinal pago no mês de antes
+  const abrirRecibo = (l: Lancamento) => (setFolha(null), setRecibo(itensDoRecibo(l, comAnterior ?? [])));
+  const doAviso = reciboDoAviso ? comAnterior?.find((l) => l.id === reciboDoAviso) : undefined;
 
   async function mudarPct(staffId: string, pct: number) {
     setErro("");
@@ -202,8 +227,11 @@ export default function CaixaPage() {
 
       {aviso && (
         <p role="status" className="flex items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950">
-          {aviso}
-          <Button variant="ghost" size="sm" onClick={() => setAviso("")}>Fechar</Button>
+          <span>{aviso}</span>
+          <span className="flex shrink-0 gap-1">
+            {doAviso && <Button variant="outline" size="sm" onClick={() => abrirRecibo(doAviso)}>Recibo</Button>}
+            <Button variant="ghost" size="sm" onClick={() => (setAviso(""), setReciboDoAviso(null))}>Fechar</Button>
+          </span>
         </p>
       )}
       {(erro || erroLeitura) && <p role="alert" className="text-sm text-destructive">{erro || erroLeitura}</p>}
@@ -232,7 +260,8 @@ export default function CaixaPage() {
                     {sinalDe(a) > 0 && ` · sinal de ${formatBRL(sinalDe(a))} já pago`}
                   </span>
                 </div>
-                <span className="font-serifa text-xl tabular-nums max-sm:mr-auto">{formatBRL(restanteDe(a))}</span>
+                {/* serviço sem preço no cadastro: o valor se digita ao receber */}
+                <span className="font-serifa text-xl tabular-nums max-sm:mr-auto">{restanteDe(a) ? formatBRL(restanteDe(a)) : "a combinar"}</span>
                 <div className="flex gap-2">
                   <Button className="h-10 px-4" onClick={() => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, serviceName: a.serviceName, priceCents: restanteDe(a), sinalCents: sinalDe(a) } })}>Recebi</Button>
                   <Button variant="outline" className="h-10 px-4" onClick={() => setFaltou({ id: a.id, nome: a.customerName })}>Não veio</Button>
@@ -258,7 +287,7 @@ export default function CaixaPage() {
           <div className="grid gap-0.5">
             <h2 id="contas" className="font-semibold">Contas do mês</h2>
             <p className="text-sm text-muted-foreground">
-              {config.fixas.length === 0
+              {!config.fixas.some((f) => !f.ate)
                 ? "Cadastre aluguel, internet e o que se repete todo mês."
                 : doMesFixas.length === 0
                   ? "Nenhuma conta fixa neste mês."
@@ -277,7 +306,7 @@ export default function CaixaPage() {
                   <span className="truncate font-medium">{f.nome}</span>
                   <span className="text-[13px] text-muted-foreground">vence dia {Number(diaNoMes(mes, f.dia).slice(8))} · {f.categoria}</span>
                 </span>
-                <span className="font-serifa text-lg tabular-nums">{formatBRL(f.valorCents)}</span>
+                <span className="shrink-0 whitespace-nowrap font-serifa text-lg tabular-nums">{formatBRL(f.valorCents)}</span>
                 <Button
                   className="h-10 px-4"
                   onClick={() => setFolha({ modo: "pagar", titulo: `Pagar ${f.nome}`, detalhe: `${f.categoria} · ${nomeDoMes(mes)}`, valorCents: f.valorCents, pagamento: { tipo: "fixa", alvoId: f.id, mes } })}
@@ -304,9 +333,9 @@ export default function CaixaPage() {
             const saldo = itens.reduce((t, l) => t + (l.tipo === "entrada" ? l.valorCents : -l.valorCents), 0);
             return (
               <div key={dia} className="border-t">
-                <div className="flex justify-between bg-muted/40 px-4 py-2 text-[13px] text-muted-foreground sm:px-6">
-                  <span>{formatLongDate(zonedTime(dia, "12:00"))}{dia === hoje ? " · hoje" : ""}</span>
-                  <span className="tabular-nums">{saldo >= 0 ? "+" : "−"} {formatBRL(Math.abs(saldo))}</span>
+                <div className="flex justify-between gap-3 bg-muted/40 px-4 py-2 text-[13px] text-muted-foreground sm:px-6">
+                  <span className="min-w-0">{formatLongDate(zonedTime(dia, "12:00"))}{dia === hoje ? " · hoje" : ""}</span>
+                  <span className="shrink-0 whitespace-nowrap tabular-nums">{saldo >= 0 ? "+" : "−"} {formatBRL(Math.abs(saldo))}</span>
                 </div>
                 <ul>
                   {itens.map((l) => (
@@ -323,7 +352,7 @@ export default function CaixaPage() {
                             {[recebidos.has(idDoEstorno(l.id)) && "Estornado", (l.customerName || l.descricao) && l.categoria, l.customerName && l.descricao, l.staffName, ROTULO_FORMA[l.forma]].filter(Boolean).join(" · ")}
                           </span>
                         </span>
-                        <span className={cn("tabular-nums font-semibold", l.tipo === "saida" ? "text-red-800 dark:text-red-300" : "text-emerald-800 dark:text-emerald-300")}>
+                        <span className={cn("shrink-0 whitespace-nowrap tabular-nums font-semibold", l.tipo === "saida" ? "text-red-800 dark:text-red-300" : "text-emerald-800 dark:text-emerald-300")}>
                           {l.tipo === "saida" ? "−" : "+"} {formatBRL(l.valorCents)}
                         </span>
                       </button>
@@ -340,7 +369,7 @@ export default function CaixaPage() {
         <details className="rounded-2xl border bg-card">
           <summary className="cursor-pointer px-4 py-4 font-semibold sm:px-6">Resumo do mês</summary>
           <div className="grid gap-6 border-t px-4 py-5 sm:grid-cols-2 sm:px-6">
-            <Bloco titulo="Recebido por forma" linhas={r.porForma} />
+            <Bloco titulo="Recebido por forma (já sem estornos)" linhas={r.porForma} />
             <Bloco titulo="Faturamento por profissional" linhas={r.porProfissional} vazio="Só conta o que foi recebido pela agenda." />
             <Bloco titulo="Entradas por categoria" linhas={r.entradasPorCategoria} />
             <Bloco titulo="Saídas por categoria" linhas={r.saidasPorCategoria} />
@@ -368,9 +397,9 @@ export default function CaixaPage() {
                 { label: "Pago", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? 0), 0) },
                 { label: "Falta pagar", valor: comissoes.reduce((t, c) => t + (pagas.has(idDoPagamento("comissao", c.staffId, mes)) ? 0 : c.valor), 0) },
               ].map((t) => (
-                <div key={t.label} className="grid min-w-0 gap-0.5 border-l px-3 py-3 first:border-l-0 sm:px-6">
+                <div key={t.label} className="grid min-w-0 gap-0.5 border-l px-2.5 py-3 first:border-l-0 sm:px-6">
                   <dt className="text-[13px] text-muted-foreground">{t.label}</dt>
-                  <dd className="font-serifa text-lg tabular-nums [overflow-wrap:anywhere] max-[359px]:text-base">{formatBRL(t.valor)}</dd>
+                  <dd className="font-serifa text-base tabular-nums [overflow-wrap:anywhere] sm:text-lg">{formatBRL(t.valor)}</dd>
                 </div>
               ))}
             </dl>
@@ -385,7 +414,7 @@ export default function CaixaPage() {
               return (
                 <li key={c.staffId} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t px-4 py-3 sm:px-6">
                   <span className="grid min-w-0 flex-1 basis-60 gap-0.5">
-                    <button type="button" onClick={() => setHistorico({ staffId: c.staffId, nome: c.nome })} className="w-fit max-w-full truncate text-left font-medium underline-offset-4 hover:underline">
+                    <button type="button" onClick={() => setHistorico({ staffId: c.staffId, nome: c.nome })} className="-my-2 w-fit max-w-full truncate py-2 text-left font-medium underline decoration-dotted underline-offset-4 sm:no-underline sm:hover:underline">
                       {c.nome}
                     </button>
                     <span className="text-[13px] text-muted-foreground tabular-nums">
@@ -429,7 +458,7 @@ export default function CaixaPage() {
                         setFolha({
                           modo: "pagar",
                           titulo: `Pagar comissão de ${c.nome}`,
-                          detalhe: `${c.pct}% de ${formatBRL(c.faturado)}${c.abatido > 0 ? ` − ${formatBRL(c.abatido)} de estorno` : c.abatido < 0 ? ` + ${formatBRL(-c.abatido)} de estorno desfeito` : ""} · ${nomeDoMes(mes)}`,
+                          detalhe: `${String(c.pct).replace(".", ",")}% de ${formatBRL(c.faturado)}${c.abatido > 0 ? ` − ${formatBRL(c.abatido)} de estorno` : c.abatido < 0 ? ` + ${formatBRL(-c.abatido)} de estorno desfeito` : ""} · ${nomeDoMes(mes)}`,
                           valorCents: c.valor,
                           pagamento: { tipo: "comissao", alvoId: c.staffId, mes, descontoCents: c.abatido },
                         })
@@ -455,8 +484,9 @@ export default function CaixaPage() {
           onClose={() => setHistorico(null)}
         />
       )}
-      {verFixas && <ContasFixas tenantId={tenant.id} nicho={tenant.gerado?.nicho} fixas={config.fixas} onClose={() => setVerFixas(false)} />}
-      {folha && <LancamentoFolha tenantId={tenant.id} nicho={tenant.gerado?.nicho} folha={folha} estornado={folha.modo === "editar" && recebidos.has(idDoEstorno(folha.lancamento.id))} onClose={fechar} />}
+      {verFixas && <ContasFixas tenantId={tenant.id} nicho={tenant.gerado?.nicho} fixas={config.fixas.filter((f) => !f.ate)} onClose={() => setVerFixas(false)} />}
+      {folha && <LancamentoFolha tenantId={tenant.id} nicho={tenant.gerado?.nicho} folha={folha} estornado={folha.modo === "editar" && recebidos.has(idDoEstorno(folha.lancamento.id))} onClose={fechar} onRecibo={folha.modo === "editar" ? () => abrirRecibo(folha.lancamento) : undefined} />}
+      {recibo && <Recibo tenantId={tenant.id} itens={recibo} onClose={() => setRecibo(null)} />}
       {faltou && (
         <ConfirmDialog
           title={`Registrar que ${faltou.nome} faltou?`}

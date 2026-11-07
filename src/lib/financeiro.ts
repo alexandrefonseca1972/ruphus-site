@@ -37,7 +37,8 @@ const docId = z.string().min(1).max(128).regex(/^[^/]+$/);
 export const LancamentoInput = z.object({
   tipo: z.enum(["entrada", "saida"]),
   valorCents: z.number().int().positive("Informe o valor.").max(99_999_99, "Valor alto demais."),
-  data: z.string().regex(DATA, "Data inválida."),
+  // "2026-13-45" passaria no formato e criaria um mês que nenhuma tela mostra
+  data: z.string().regex(DATA, "Data inválida.").refine((d) => { const t = new Date(`${d}T12:00:00Z`); return !Number.isNaN(+t) && t.toISOString().slice(0, 10) === d; }, "Data inválida."),
   categoria: z.string().trim().min(1, "Escolha a categoria.").max(40),
   forma: z.enum(FORMAS),
   descricao: z.string().trim().max(80).optional(),
@@ -63,6 +64,11 @@ export const Lancamento = LancamentoInput.extend({
   staffId: z.string().nullish(),
   staffName: z.string().nullish(),
   customerName: z.string().nullish(),
+  /** o cliente da agenda (55DDNNNNNNNNN): é o WhatsApp do recibo */
+  customerKey: z.string().nullish(),
+  /** o mês em que a entrada conta para a comissão: o do recebimento do atendimento. O sinal só
+   *  ganha ele quando o atendimento é recebido (falta ou cancelamento: o sinal fica com o salão) */
+  mesComissao: z.string().optional(),
   /** estorno: o id da entrada que ele devolve */
   estornoDe: z.string().optional(),
   /** pagamento de comissão: quanto de estorno ele abateu (negativo: devolveu ao profissional) */
@@ -71,6 +77,8 @@ export const Lancamento = LancamentoInput.extend({
 export type Lancamento = z.infer<typeof Lancamento> & { id: string };
 
 export const mesDe = (data: string) => data.slice(0, 7);
+/** Em que mês a entrada conta para a comissão; null: não conta (sinal de atendimento não recebido). */
+export const mesDaComissao = (l: { id: string; mes: string; mesComissao?: string | null }) => l.mesComissao ?? (l.id.startsWith("sn-") ? null : l.mes);
 /** Uma baixa por atendimento: o id é o do agendamento, e o segundo toque não duplica. */
 export const idDaBaixa = (appointmentId: string) => `ag-${appointmentId}`;
 /** Um estorno por entrada: o segundo toque não devolve duas vezes. */
@@ -95,7 +103,14 @@ export const FixaInput = z.object({
   categoria: z.string().trim().min(1).max(40),
 });
 /** Guardada com id e o mês em que foi criada: antes dele, a conta não aparece para pagar. */
-export const Fixa = FixaInput.extend({ id: z.string().regex(/^[a-z0-9]{1,20}$/), desde: z.string().regex(MES).optional() });
+export const Fixa = FixaInput.extend({
+  id: z.string().regex(/^[a-z0-9]{1,20}$/),
+  desde: z.string().regex(MES).optional(),
+  // tirada: some deste mês em diante; os meses de antes continuam com ela (paga ou a pagar)
+  ate: z.string().regex(MES).optional(),
+});
+/** A conta vale no mês: já existia e ainda não foi tirada. */
+export const fixaNoMes = (f: { desde?: string; ate?: string }, mes: string) => (!f.desde || f.desde <= mes) && (!f.ate || mes < f.ate);
 export type Fixa = z.infer<typeof Fixa>;
 
 /** tenants/{t}/caixa/config: as contas fixas e a comissão (%) de cada profissional. */
@@ -146,16 +161,21 @@ export function pctDoTexto(s: string) {
  *  menos o estorno guardado para abater (descontos), até zerar; o resto fica para o próximo. */
 // ponytail: quem tem desconto guardado mas não atendeu no mês não aparece; ele espera o próximo
 // mês com atendimento. Listar essas linhas se um profissional sair da equipe devendo estorno.
-export function comissoesDoMes(itens: Pick<Lancamento, "tipo" | "valorCents" | "staffId" | "staffName">[], pct: Record<string, number>, descontos: Record<string, number> = {}) {
-  const m = new Map<string, { staffId: string; nome: string; faturado: number }>();
+export function comissoesDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "staffId" | "staffName"> & { data?: string })[], pct: Record<string, number>, descontos: Record<string, number> = {}, nomes: Record<string, string> = {}) {
+  const m = new Map<string, { staffId: string; nome: string; faturado: number; dataNome: string }>();
+  // crédito a devolver (estorno desfeito, recebimento depois do pagamento) sem atendimento no mês:
+  // a linha aparece mesmo assim, senão não haveria como pagar quem saiu da equipe
+  for (const [staffId, d] of Object.entries(descontos)) if (d < 0) m.set(staffId, { staffId, nome: nomes[staffId] ?? "Profissional", faturado: 0, dataNome: "" });
   for (const l of itens) {
     if (l.tipo !== "entrada" || !l.staffId) continue;
-    const p = m.get(l.staffId) ?? { staffId: l.staffId, nome: l.staffName ?? "Profissional", faturado: 0 };
+    const p = m.get(l.staffId) ?? { staffId: l.staffId, nome: l.staffName ?? "Profissional", faturado: 0, dataNome: "" };
+    // renomeado no mês: vale o nome do lançamento mais recente
+    if (l.staffName && (l.data ?? "") >= p.dataNome) Object.assign(p, { nome: l.staffName, dataNome: l.data ?? "" });
     p.faturado += l.valorCents;
     m.set(l.staffId, p);
   }
   return [...m.values()]
-    .map((p) => {
+    .map(({ dataNome: _, ...p }) => {
       const bruto = Math.round((p.faturado * (pct[p.staffId] ?? 0)) / 100);
       const desconto = descontos[p.staffId] ?? 0;
       const abatido = desconto > 0 ? Math.min(desconto, bruto) : desconto;
@@ -191,7 +211,7 @@ export function csvDoMes(itens: Pick<Lancamento, "data" | "tipo" | "categoria" |
 }
 
 /** Os três números do topo e os agrupamentos do resumo. */
-export function resumoDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "categoria" | "forma"> & { staffName?: string | null; estornoDe?: string })[]) {
+export function resumoDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "categoria" | "forma"> & { staffId?: string | null; staffName?: string | null; estornoDe?: string; data?: string })[]) {
   const soma = (f: (l: (typeof itens)[number]) => boolean) => itens.filter(f).reduce((t, l) => t + l.valorCents, 0);
   const agrupa = (chave: (l: (typeof itens)[number]) => string | null | undefined, tipo: "entrada" | "saida") => {
     const m = new Map<string, number>();
@@ -201,10 +221,23 @@ export function resumoDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "ca
     }
     return [...m].sort((a, b) => b[1] - a[1]);
   };
-  // faturamento por profissional já sem o que foi estornado
-  const porProfissional = new Map<string, number>();
+  // faturamento por profissional já sem o que foi estornado. Pelo id: duas "Ana" não viram uma,
+  // e quem foi renomeado no mês não vira duas linhas (fica o nome mais recente)
+  const porProfissional = new Map<string, { nome: string; data: string; total: number }>();
   for (const l of itens) {
-    if (l.staffName && (l.tipo === "entrada" || l.estornoDe)) porProfissional.set(l.staffName, (porProfissional.get(l.staffName) ?? 0) + (l.tipo === "entrada" ? l.valorCents : -l.valorCents));
+    const k = l.staffId || l.staffName;
+    if (!k || !(l.tipo === "entrada" || l.estornoDe)) continue;
+    const p = porProfissional.get(k) ?? { nome: l.staffName || "Profissional", data: "", total: 0 };
+    if (l.staffName && (l.data ?? "") >= p.data) Object.assign(p, { nome: l.staffName, data: l.data ?? "" });
+    p.total += l.tipo === "entrada" ? l.valorCents : -l.valorCents;
+    porProfissional.set(k, p);
+  }
+  // recebido por forma também sem os estornos: é o que bate com o extrato do banco e a gaveta
+  const porForma = new Map<string, number>();
+  for (const l of itens) {
+    if (l.tipo !== "entrada" && !l.estornoDe) continue;
+    const f = ROTULO_FORMA[l.forma];
+    porForma.set(f, (porForma.get(f) ?? 0) + (l.tipo === "entrada" ? l.valorCents : -l.valorCents));
   }
   const entrou = soma((l) => l.tipo === "entrada");
   const saiu = soma((l) => l.tipo === "saida");
@@ -212,9 +245,9 @@ export function resumoDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | "ca
     entrou,
     saiu,
     sobrou: entrou - saiu,
-    porForma: agrupa((l) => ROTULO_FORMA[l.forma], "entrada"),
+    porForma: [...porForma].filter(([, v]) => v !== 0).sort((a, b) => b[1] - a[1]),
     entradasPorCategoria: agrupa((l) => l.categoria, "entrada"),
     saidasPorCategoria: agrupa((l) => l.categoria, "saida"),
-    porProfissional: [...porProfissional].filter(([, v]) => v !== 0).sort((a, b) => b[1] - a[1]),
+    porProfissional: [...porProfissional.values()].filter((p) => p.total !== 0).map((p): [string, number] => [p.nome, p.total]).sort((a, b) => b[1] - a[1]),
   };
 }

@@ -23,7 +23,7 @@ export function AcessoProfissional({ tenantId, negocio, staffId, nome, membro }:
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
         <span className="text-muted-foreground">Entra no painel com <span className="font-medium text-foreground">{membro.email ?? "a conta dele"}</span></span>
-        <button type="button" onClick={() => setTirando(true)} className="min-h-9 text-destructive underline underline-offset-4">Tirar acesso</button>
+        <button type="button" onClick={() => setTirando(true)} className="min-h-10 text-destructive underline underline-offset-4">Tirar acesso</button>
         {erro && <span role="alert" className="text-destructive">{erro}</span>}
         {tirando && (
           <ConfirmDialog
@@ -43,7 +43,7 @@ export function AcessoProfissional({ tenantId, negocio, staffId, nome, membro }:
   }
   return (
     <>
-      <button type="button" onClick={() => setConvidando(true)} className="min-h-9 justify-self-start text-[13px] underline underline-offset-4 hover:text-muted-foreground">
+      <button type="button" onClick={() => setConvidando(true)} className="min-h-10 justify-self-start text-[13px] underline underline-offset-4 hover:text-muted-foreground">
         Dar acesso ao painel
       </button>
       {convidando && <Convite tenantId={tenantId} negocio={negocio} staffId={staffId} nome={nome} onClose={() => setConvidando(false)} />}
@@ -85,7 +85,7 @@ function Convite({ tenantId, negocio, staffId, nome, onClose }: { tenantId: stri
             <form className="grid gap-3" onSubmit={(e) => (e.preventDefault(), void gerar())}>
               <label className="grid gap-1.5 text-sm font-medium">
                 E-mail de {nome.split(" ")[0]}
-                <Input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@gmail.com" className="h-11 font-normal" />
+                <Input type="email" autoCapitalize="none" autoCorrect="off" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@gmail.com" className="h-11 font-normal" />
               </label>
               <p className="text-[13px] text-muted-foreground">O link só abre para quem entrar com este e-mail, depois de confirmado.</p>
               {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}

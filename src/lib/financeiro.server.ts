@@ -3,7 +3,7 @@ import { FieldValue, type Firestore, Timestamp } from "firebase-admin/firestore"
 import { UserError } from "@/lib/booking.server";
 import { dateIn, formatBRL, todayIn } from "@/lib/datetime";
 import { randomBytes } from "node:crypto";
-import { BaixaInput, CaixaConfig, diaNoMes, EstornoInput, ehSinal, ehVinculado, FixaInput, ID_AVULSO, idDaBaixa, idDoEstorno, idDoPagamento, LancamentoInput, mesDe, PagamentoInput } from "@/lib/financeiro";
+import { BaixaInput, CaixaConfig, diaNoMes, EstornoInput, ehSinal, ehVinculado, FixaInput, ID_AVULSO, idDaBaixa, idDoEstorno, idDoPagamento, LancamentoInput, mesDaComissao, mesDe, PagamentoInput } from "@/lib/financeiro";
 import type { z } from "zod";
 
 // Escritas do Caixa: só pelo servidor, e só com o módulo ligado pelo admin da plataforma
@@ -49,6 +49,8 @@ export async function editar(db: Firestore, tenantId: string, id: string, l: Lan
   await db.runTransaction(async (tx) => {
     const [atual, estorno] = await Promise.all([tx.get(ref), tx.get(col(db, tenantId).doc(idDoEstorno(id)))]);
     if (!atual.exists) throw new UserError("Lançamento não encontrado.");
+    // R$ 0 só no pagamento de comissão que já era R$ 0 (todo abatido por estorno): corrige forma e descrição
+    if (!l.valorCents && !(id.startsWith("cm-") && Number(atual.get("descontoCents")) > 0 && Number(atual.get("valorCents")) === 0)) throw new UserError("Informe o valor.");
     // entrada estornada continua entrada, e não fica menor que o que já foi devolvido
     if (estorno.exists && l.tipo !== "entrada") throw new UserError("Este recebimento tem estorno: continua entrada.");
     if (estorno.exists && l.valorCents < Number(estorno.get("valorCents"))) throw new UserError(`Já foram estornados ${formatBRL(Number(estorno.get("valorCents")))}: o recebimento não fica menor que isso.`);
@@ -63,6 +65,14 @@ export async function editar(db: Firestore, tenantId: string, id: string, l: Lan
       const origem = await tx.get(col(db, tenantId).doc(String(atual.get("estornoDe"))));
       if (origem.exists && l.valorCents > Number(origem.get("valorCents"))) throw new UserError("O estorno não pode passar do valor recebido.");
     }
+    // sinal corrigido: o agendamento guarda o mesmo valor, é dele que sai o restante a cobrar no balcão
+    const agDoSinal = ehSinal(id) ? db.doc(`tenants/${tenantId}/appointments/${id.slice(3)}`) : null;
+    if (agDoSinal && l.valorCents !== Number(atual.get("valorCents"))) {
+      const [ag, baixaDoAg] = await Promise.all([tx.get(agDoSinal), tx.get(col(db, tenantId).doc(idDaBaixa(id.slice(3))))]);
+      if (baixaDoAg.exists) throw new UserError("Este atendimento já foi recebido. Para corrigir o sinal, apague o recebimento antes.");
+      if (!ag.exists || ag.get("sinal.status") !== "pago") throw new UserError("O agendamento deste sinal não foi encontrado.");
+    }
+    const ajuste = await ajusteDaComissaoPaga(tx, db, tenantId, atual, l.valorCents);
     // estorno corrigido: o desconto da comissão acompanha, pelo % do dia do estorno
     let desconto = {};
     if (atual.get("estornoDe") && typeof atual.get("pctComissao") === "number") {
@@ -70,10 +80,42 @@ export async function editar(db: Firestore, tenantId: string, id: string, l: Lan
       descontar(tx, db, tenantId, atual.get("staffId"), novo - Number(atual.get("descontoComissao") ?? 0));
       desconto = { descontoComissao: novo };
     }
+    aplicarAjuste(tx, db, tenantId, ajuste);
+    if (agDoSinal && l.valorCents !== Number(atual.get("valorCents"))) tx.update(agDoSinal, { "sinal.cents": l.valorCents });
     // e todos ficam no dia de origem: noutro mês, a agenda e o Caixa deixariam de achá-los
     const data = daAgenda || pagamento ? String(atual.get("data")) : l.data;
     tx.update(ref, { ...l, ...desconto, data, descricao: l.descricao ?? FieldValue.delete(), mes: mesDe(data), editadoPor: quem.email ?? quem.uid, editadoEm: FieldValue.serverTimestamp() });
   });
+}
+
+/** Entrada com profissional cuja comissão do mês já foi paga: ao apagar (novo = 0) ou mudar o
+ *  valor, a diferença da comissão vai para o desconto guardado, como num estorno (pelo % de hoje),
+ *  e sai do próximo pagamento. Só lê: quem chama grava depois das leituras da transação. */
+async function ajusteDaComissaoPaga(tx: FirebaseFirestore.Transaction, db: Firestore, tenantId: string, l: FirebaseFirestore.DocumentSnapshot, novo: number) {
+  const mes = mesDaComissao({ id: l.id, mes: String(l.get("mes")), mesComissao: l.get("mesComissao") });
+  if (l.get("tipo") !== "entrada" || !mes) return null;
+  return ajusteNoMes(tx, db, tenantId, l.get("staffId"), mes, Number(l.get("valorCents")) || 0, novo);
+}
+
+/** O mesmo para quem cria uma entrada (antes = 0): o recebimento que cai num mês de comissão
+ *  já paga fica devendo ao profissional (desconto negativo), e sai no próximo pagamento. */
+export async function ajusteNoMes(tx: FirebaseFirestore.Transaction, db: Firestore, tenantId: string, staffId: unknown, mes: string, antes: number, novo: number) {
+  if (typeof staffId !== "string" || !staffId || antes === novo) return null;
+  const [pago, cfg] = await Promise.all([tx.get(col(db, tenantId).doc(idDoPagamento("comissao", staffId, mes))), tx.get(config(db, tenantId))]);
+  if (!pago.exists) return null;
+  // o % do dia do pagamento; pagamento antigo, sem ele gravado, usa o de hoje
+  const comissoes = CaixaConfig.shape.comissoes.safeParse(cfg.get("comissoes"));
+  const pct = typeof pago.get("pctComissao") === "number" ? Number(pago.get("pctComissao")) : comissoes.success ? (comissoes.data[staffId] ?? 0) : 0;
+  // a diferença das comissões arredondadas: 100,00 → 100,01 → 100,00 volta a zero
+  const centavos = Math.round((antes * pct) / 100) - Math.round((novo * pct) / 100);
+  return centavos ? { staffId, centavos, pago: pago.ref } : null;
+}
+
+/** Grava o ajuste lido antes: no desconto guardado e no próprio pagamento, que ao ser apagado o desfaz. */
+export function aplicarAjuste(tx: FirebaseFirestore.Transaction, db: Firestore, tenantId: string, ajuste: Awaited<ReturnType<typeof ajusteNoMes>>) {
+  if (!ajuste) return;
+  descontar(tx, db, tenantId, ajuste.staffId, ajuste.centavos);
+  tx.update(ajuste.pago, { ajusteCents: FieldValue.increment(ajuste.centavos) });
 }
 
 /** Apagar a baixa de um atendimento devolve ele ao "fechar o dia". */
@@ -81,11 +123,28 @@ export async function excluir(db: Firestore, tenantId: string, id: string) {
   await exigeCaixa(db, tenantId);
   // a entrada estornada não some sozinha: o estorno ficaria devolvendo um dinheiro que não entrou
   await db.runTransaction(async (tx) => {
-    const [l, estorno] = await Promise.all([tx.get(col(db, tenantId).doc(id)), tx.get(col(db, tenantId).doc(idDoEstorno(id)))]);
+    const [l, estorno, baixaDoSinal] = await Promise.all([
+      tx.get(col(db, tenantId).doc(id)),
+      tx.get(col(db, tenantId).doc(idDoEstorno(id))),
+      ehSinal(id) ? tx.get(col(db, tenantId).doc(idDaBaixa(id.slice(3)))) : null,
+    ]);
     if (estorno.exists) throw new UserError("Este recebimento tem estorno. Apague o estorno antes.");
+    // depois da baixa, ninguém mais traria o sinal de volta: nem a confirmação nem a baixa
+    if (baixaDoSinal?.exists) throw new UserError("Este sinal já faz parte de um atendimento recebido. Apague o recebimento do atendimento antes.");
+    // apagar a baixa: o sinal do atendimento volta a não contar para a comissão (até receber de novo)
+    const snDaBaixa = id.startsWith("ag-") ? await tx.get(col(db, tenantId).doc(`sn-${id.slice(3)}`)) : null;
+    const sinalContava = snDaBaixa?.exists && snDaBaixa.get("mesComissao") ? Number(snDaBaixa.get("valorCents")) || 0 : 0;
+    const ajuste = !l.exists
+      ? null
+      : sinalContava
+        ? await ajusteNoMes(tx, db, tenantId, l.get("staffId"), String(l.get("mesComissao") ?? l.get("mes")), (Number(l.get("valorCents")) || 0) + sinalContava, 0)
+        : await ajusteDaComissaoPaga(tx, db, tenantId, l, 0);
     // apagar o estorno tira o desconto dele; apagar o pagamento da comissão devolve o que ele abateu
     if (l.get("estornoDe")) descontar(tx, db, tenantId, l.get("staffId"), -Number(l.get("descontoComissao") ?? 0));
-    if (id.startsWith("cm-")) descontar(tx, db, tenantId, l.get("staffId"), Number(l.get("descontoCents") ?? 0));
+    // pagamento apagado: volta o que ele abateu e sai o ajuste dos recebimentos mexidos depois dele
+    if (id.startsWith("cm-")) descontar(tx, db, tenantId, l.get("staffId"), Number(l.get("descontoCents") ?? 0) - Number(l.get("ajusteCents") ?? 0));
+    aplicarAjuste(tx, db, tenantId, ajuste);
+    if (sinalContava) tx.update(snDaBaixa!.ref, { mesComissao: FieldValue.delete() });
     tx.delete(col(db, tenantId).doc(id));
   });
 }
@@ -98,8 +157,21 @@ export async function estornar(db: Firestore, tenantId: string, e: z.infer<typeo
   const origem = col(db, tenantId).doc(e.lancamentoId);
   const ref = col(db, tenantId).doc(idDoEstorno(e.lancamentoId));
   await db.runTransaction(async (tx) => {
-    const [o, ja, cfg] = await Promise.all([tx.get(origem), tx.get(ref), tx.get(config(db, tenantId))]);
+    const doSinal = ehSinal(e.lancamentoId) ? e.lancamentoId.slice(3) : null;
+    const [o, ja, cfg, ag, baixaDoAg] = await Promise.all([
+      tx.get(origem),
+      tx.get(ref),
+      tx.get(config(db, tenantId)),
+      doSinal ? tx.get(db.doc(`tenants/${tenantId}/appointments/${doSinal}`)) : null,
+      doSinal ? tx.get(col(db, tenantId).doc(idDaBaixa(doSinal))) : null,
+    ]);
     if (!o.exists) throw new UserError("Lançamento não encontrado.");
+    // comissão do mês da entrada já paga: o desconto sai pelo % com que ela foi paga
+    const staffDaOrigem = o.get("staffId");
+    const mesDaOrigem = mesDaComissao({ id: o.id, mes: String(o.get("mes")), mesComissao: o.get("mesComissao") });
+    const pagoDaOrigem = typeof staffDaOrigem === "string" && staffDaOrigem && mesDaOrigem ? await tx.get(col(db, tenantId).doc(idDoPagamento("comissao", staffDaOrigem, mesDaOrigem))) : null;
+    // sinal devolvido com o horário de pé: a baixa continuaria descontando um sinal que voltou ao cliente
+    if (ag?.exists && !baixaDoAg?.exists && ["booked", "confirmed"].includes(ag.get("status"))) throw new UserError("O horário deste sinal continua marcado. Cancele o agendamento antes de devolver o sinal.");
     if (o.get("tipo") !== "entrada") throw new UserError("Só dá para estornar uma entrada.");
     if (ja.exists) throw new UserError("Este recebimento já foi estornado.");
     if (e.valorCents > Number(o.get("valorCents"))) throw new UserError("O estorno não pode passar do valor recebido.");
@@ -107,7 +179,8 @@ export async function estornar(db: Firestore, tenantId: string, e: z.infer<typeo
     const staffId = o.get("staffId");
     // só o % importa aqui: uma conta fixa fora do esquema não trava o estorno
     const comissoes = CaixaConfig.shape.comissoes.safeParse(cfg.get("comissoes"));
-    const pct = typeof staffId === "string" && comissoes.success ? (comissoes.data[staffId] ?? 0) : 0;
+    const pctPago = pagoDaOrigem?.exists && typeof pagoDaOrigem.get("pctComissao") === "number" ? Number(pagoDaOrigem.get("pctComissao")) : null;
+    const pct = typeof staffId === "string" ? (pctPago ?? (comissoes.success ? (comissoes.data[staffId] ?? 0) : 0)) : 0;
     const desconto = Math.round((e.valorCents * pct) / 100);
     descontar(tx, db, tenantId, staffId, desconto);
     const quemPagou = o.get("customerName") ?? o.get("descricao") ?? o.get("categoria");
@@ -155,25 +228,32 @@ export async function baixarAgendamento(db: Firestore, tenantId: string, b: z.in
     // a tela abriu antes de o sinal ser confirmado: o valor dela ainda inclui o sinal
     if ((b.sinalCents ?? 0) !== sinalPago) throw new UserError("O sinal deste atendimento mudou enquanto a tela estava aberta. Feche e abra de novo para ver o valor certo.");
     const sinalFora = sn.exists ? 0 : sinalPago;
+    // comissão do mês já paga: o que entra agora fica devendo ao profissional (lido antes de gravar)
+    // o atendimento inteiro (restante + sinal) conta no mês do recebimento
+    const ajuste = await ajusteNoMes(tx, db, tenantId, a.get("staffId"), mesDe(data), 0, b.valorCents + sinalPago);
+    const ligado = { staffId: a.get("staffId") ?? null, staffName: a.get("staffName") ?? null, customerKey: a.get("customerKey") ?? null, customerName: a.get("customerName") ?? null };
     // sem WhatsApp ao cliente: o atendimento já aconteceu, só a agenda fica em dia
     if (a.get("status") === "booked") {
       const historico = db.collection(`tenants/${tenantId}/history`).doc();
       tx.create(historico, { appointmentId: b.appointmentId, type: "confirmed", reason: "caixa_recebido", at: FieldValue.serverTimestamp(), by: quem.uid, byName: quem.email ?? null });
       tx.update(agendamento, { status: "confirmed", lastHistoryId: historico.id });
     }
+    // o sinal foi por Pix: junto da baixa, "por forma" diria que entrou tudo na forma do balcão
+    aplicarAjuste(tx, db, tenantId, ajuste);
+    // recebido: o sinal passa a contar para a comissão, no mês do recebimento
+    if (sn.exists) tx.update(doSinal, { mesComissao: mesDe(data) });
+    if (sinalFora) tx.create(doSinal, { tipo: "entrada", valorCents: sinalFora, forma: "pix", categoria: "Atendimento", descricao: `Sinal · ${String(a.get("serviceName") ?? "")}`.slice(0, 80), data, mes: mesDe(data), mesComissao: mesDe(data), ...ligado, criadoPor: quem.email ?? quem.uid, criadoEm: FieldValue.serverTimestamp() });
     tx.create(baixa, {
       tipo: "entrada",
-      valorCents: b.valorCents + sinalFora,
+      valorCents: b.valorCents,
       forma: b.forma,
       categoria: "Atendimento",
-      descricao: `${String(a.get("serviceName") ?? "")}${sinalFora ? ` (com sinal de ${formatBRL(sinalFora)})` : ""}`.slice(0, 80),
+      descricao: String(a.get("serviceName") ?? "").slice(0, 80),
       data,
       mes: mesDe(data),
       appointmentId: b.appointmentId,
-      staffId: a.get("staffId") ?? null,
-      staffName: a.get("staffName") ?? null,
-      customerKey: a.get("customerKey") ?? null,
-      customerName: a.get("customerName") ?? null,
+      mesComissao: mesDe(data),
+      ...ligado,
       criadoPor: quem.email ?? quem.uid,
       criadoEm: FieldValue.serverTimestamp(),
     });
@@ -183,13 +263,18 @@ export async function baixarAgendamento(db: Firestore, tenantId: string, b: z.in
 
 // Contas fixas e comissões mudam uma de cada vez, lidas e gravadas aqui: o painel nunca
 // manda a configuração inteira, senão uma tela desatualizada apagaria o que outra gravou.
-const lerConfig = async (tx: FirebaseFirestore.Transaction, db: Firestore, tenantId: string) => CaixaConfig.parse((await tx.get(config(db, tenantId))).data() ?? {});
+const configDe = (dados: unknown) => {
+  const c = CaixaConfig.safeParse(dados ?? {});
+  if (!c.success) throw new UserError("A configuração do Caixa está com um erro. Fale com o suporte.");
+  return c.data;
+};
+const lerConfig = async (tx: FirebaseFirestore.Transaction, db: Firestore, tenantId: string) => configDe((await tx.get(config(db, tenantId))).data());
 
 export async function adicionarFixa(db: Firestore, tenantId: string, f: z.infer<typeof FixaInput>) {
   await exigeCaixa(db, tenantId);
   await db.runTransaction(async (tx) => {
     const c = await lerConfig(tx, db, tenantId);
-    if (c.fixas.length >= 30) throw new UserError("No máximo 30 contas fixas.");
+    if (c.fixas.filter((x) => !x.ate).length >= 30) throw new UserError("No máximo 30 contas fixas.");
     const fixa = { ...f, id: randomBytes(6).toString("hex"), desde: mesDe(todayIn()) };
     tx.set(config(db, tenantId), { fixas: [...c.fixas, fixa] }, { merge: true });
   });
@@ -199,7 +284,21 @@ export async function removerFixa(db: Firestore, tenantId: string, fixaId: strin
   await exigeCaixa(db, tenantId);
   await db.runTransaction(async (tx) => {
     const c = await lerConfig(tx, db, tenantId);
-    tx.set(config(db, tenantId), { fixas: c.fixas.filter((f) => f.id !== fixaId) }, { merge: true });
+    // some do próximo mês em diante: a deste mês (paga ou a pagar) e as de antes continuam.
+    // Já tirada, fica como está: tirar de novo noutro mês reabriria o mês do meio
+    const [ano, m] = mesDe(todayIn()).split("-").map(Number);
+    const proximo = `${m === 12 ? ano + 1 : ano}-${String((m % 12) + 1).padStart(2, "0")}`;
+    tx.set(config(db, tenantId), { fixas: c.fixas.map((f) => (f.id !== fixaId || f.ate ? f : { ...f, ate: proximo })) }, { merge: true });
+  });
+}
+
+/** Corrige nome, valor, dia ou categoria sem trocar o id: o que já foi pago continua pago. */
+export async function editarFixa(db: Firestore, tenantId: string, fixaId: string, f: z.infer<typeof FixaInput>) {
+  await exigeCaixa(db, tenantId);
+  await db.runTransaction(async (tx) => {
+    const c = await lerConfig(tx, db, tenantId);
+    if (!c.fixas.some((x) => x.id === fixaId && !x.ate)) throw new UserError("Conta fixa não encontrada.");
+    tx.set(config(db, tenantId), { fixas: c.fixas.map((x) => (x.id === fixaId ? { ...x, ...f } : x)) }, { merge: true });
   });
 }
 
@@ -219,32 +318,49 @@ export async function pagar(db: Firestore, tenantId: string, p: z.infer<typeof P
     let campos: Record<string, unknown>;
     let abatido = 0;
     let bruto = 0;
+    let pctComissao: number | undefined;
     if (p.tipo === "fixa") {
-      const fixa = CaixaConfig.parse(cfg.data() ?? {}).fixas.find((f) => f.id === p.alvoId);
+      const fixa = configDe(cfg.data()).fixas.find((f) => f.id === p.alvoId);
       if (!fixa) throw new UserError("Conta fixa não encontrada.");
       // a mesma regra da tela: antes de cadastrada, a conta não existia para pagar
       if (fixa.desde && p.mes < fixa.desde) throw new UserError("Esta conta ainda não existia neste mês.");
+      if (fixa.ate && p.mes >= fixa.ate) throw new UserError("Esta conta foi tirada antes deste mês.");
+      // paga adiantado, a saída cairia num mês que ainda não chegou e o "Sobrou" de hoje mentiria
+      if (p.mes > mesDe(hoje)) throw new UserError("Esta conta é de um mês que ainda não chegou. Pague quando o mês começar.");
       campos = { categoria: fixa.categoria, descricao: fixa.nome, fixaId: fixa.id, data: mesDe(hoje) === p.mes ? hoje : diaNoMes(p.mes, fixa.dia) };
     } else {
+      if (p.mes > mesDe(hoje)) throw new UserError("A comissão deste mês ainda não pode ser paga.");
       // quem saiu da equipe no meio do mês ainda recebe: basta ter atendido no mês
-      const [staff, atendeu] = await Promise.all([
+      // pelo mês da comissão: o sinal pago num mês e recebido no outro conta no do recebimento
+      const [staff, doMes, comissaoNoMes] = await Promise.all([
         tx.get(db.doc(`tenants/${tenantId}/staff/${p.alvoId}`)),
         tx.get(col(db, tenantId).where("mes", "==", p.mes).where("staffId", "==", p.alvoId)),
+        tx.get(col(db, tenantId).where("mesComissao", "==", p.mes).where("staffId", "==", p.alvoId)),
       ]);
-      if (!staff.exists && atendeu.empty) throw new UserError("Profissional não encontrado.");
+      const docs = [...new Map([...doMes.docs, ...comissaoNoMes.docs].map((d) => [d.id, d])).values()];
+      const atendeu = { empty: docs.length === 0, docs: docs.filter((d) => mesDaComissao({ id: d.id, mes: String(d.get("mes")), mesComissao: d.get("mesComissao") }) === p.mes) };
       // a comissão do mês refeita aqui: uma tela desatualizada não abate mais do que ela comporta
-      const c = CaixaConfig.parse(cfg.data() ?? {});
+      const c = configDe(cfg.data());
+      // sem atendimento no mês ainda pode haver acerto: estorno desfeito a devolver ao profissional
+      if (!staff.exists && atendeu.empty && !(c.descontos[p.alvoId] ?? 0)) throw new UserError("Profissional não encontrado.");
       const faturado = atendeu.docs.reduce((t, d) => t + (d.get("tipo") === "entrada" ? Number(d.get("valorCents")) || 0 : 0), 0);
-      bruto = Math.round((faturado * (c.comissoes[p.alvoId] ?? 0)) / 100);
+      pctComissao = c.comissoes[p.alvoId] ?? 0;
+      bruto = Math.round((faturado * pctComissao) / 100);
       // abate o estorno guardado: nunca mais do que há para abater, nem que a comissão do mês, nem do lado errado
       const guardado = c.descontos[p.alvoId] ?? 0;
       abatido = Math.max(Math.min(0, guardado), Math.min(Math.max(0, Math.min(guardado, bruto)), p.descontoCents ?? 0));
+      if ((p.descontoCents ?? 0) !== abatido) throw new UserError("O desconto de estorno mudou enquanto a tela estava aberta. Feche e abra de novo para ver o valor certo.");
       descontar(tx, db, tenantId, p.alvoId, -abatido);
       const nome = String(staff.get("name") ?? atendeu.docs[0]?.get("staffName") ?? "").slice(0, 60);
       campos = { categoria: "Comissão/salário", descricao: `Comissão ${nome}`.slice(0, 80), staffId: p.alvoId, staffName: nome || null, data: mesDe(hoje) === p.mes ? hoje : diaNoMes(p.mes, 31) };
     }
-    // R$ 0 só quando o estorno abateu a comissão inteira: fica o registro de que o mês foi acertado
-    if (!p.valorCents && !(p.tipo === "comissao" && abatido > 0 && bruto - abatido <= 0)) throw new UserError("Informe o valor.");
-    tx.create(ref, { tipo: "saida", valorCents: p.valorCents, forma: p.forma, ...campos, ...(abatido && { descontoCents: abatido }), mes: p.mes, criadoPor: quem.email ?? quem.uid, criadoEm: FieldValue.serverTimestamp() });
+    if (p.tipo === "comissao") {
+      // paga-se o que a conta dá, nem menos (o mês ficaria quitado com saldo em aberto) nem de uma
+      // tela de antes de novos recebimentos. R$ 0 só quando o estorno abateu a comissão inteira
+      const devido = bruto - abatido;
+      if (!devido && abatido <= 0) throw new UserError("Não há comissão a pagar neste mês.");
+      if (p.valorCents !== devido) throw new UserError(`A comissão deste mês é ${formatBRL(devido)}. Feche e abra de novo para ver o valor certo.`);
+    } else if (!p.valorCents) throw new UserError("Informe o valor.");
+    tx.create(ref, { tipo: "saida", valorCents: p.valorCents, forma: p.forma, ...campos, ...(abatido && { descontoCents: abatido }), ...(pctComissao !== undefined && { pctComissao }), mes: p.mes, criadoPor: quem.email ?? quem.uid, criadoEm: FieldValue.serverTimestamp() });
   });
 }

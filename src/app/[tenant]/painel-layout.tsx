@@ -168,7 +168,7 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
             href={l.href}
             aria-current={isActive(l.href) ? "page" : undefined}
             className={cn(
-              "flex h-14 flex-col items-center justify-center gap-0.5 text-[11px] text-muted-foreground",
+              "flex min-h-14 flex-col items-center justify-center gap-0.5 px-0.5 py-1 text-center text-[11px] leading-tight text-muted-foreground",
               isActive(l.href) && "font-semibold text-foreground",
             )}
           >

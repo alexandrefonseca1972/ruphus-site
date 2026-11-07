@@ -75,6 +75,7 @@ export function Reschedule(props: {
             value={date}
             min={todayIn()}
             max={addDays(todayIn(), 180)}
+            className="h-11 bg-card sm:h-8"
             onChange={(e) => {
               setDate(e.target.value);
               setTime("");

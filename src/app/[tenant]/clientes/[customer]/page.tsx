@@ -143,7 +143,7 @@ export default function CustomerPage() {
     <>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Link href={`/${tenant.id}/clientes`} className="text-sm text-muted-foreground underline-offset-4 hover:underline">← Clientes</Link>
+          <Link href={`/${tenant.id}/clientes`} className="inline-flex min-h-10 items-center text-sm text-muted-foreground underline-offset-4 hover:underline">← Clientes</Link>
           {renaming ? (
             <form
               onSubmit={async (ev) => {
@@ -174,14 +174,14 @@ export default function CustomerPage() {
               <button
                 type="button"
                 onClick={() => setRenaming(true)}
-                className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                className="inline-flex min-h-10 items-center px-1 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
               >
                 corrigir
               </button>
             </div>
           )}
           {renameError && <p role="alert" className="text-sm text-destructive">{renameError}</p>}
-          <a href={whatsappLink(customer.phone)} target="_blank" rel="noreferrer" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+          <a href={whatsappLink(customer.phone)} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center text-sm text-muted-foreground underline-offset-4 hover:underline">
             {customer.phone} · WhatsApp
           </a>
         </div>
@@ -228,7 +228,7 @@ export default function CustomerPage() {
                 type="button"
                 aria-label={`Tirar a etiqueta ${e}`}
                 onClick={() => updateDoc(doc(db, "tenants", tenant.id, "customers", key), { etiquetas: customer.etiquetas.filter((x) => x !== e) })}
-                className="text-muted-foreground hover:text-foreground"
+                className="-my-1 -mr-1.5 inline-grid size-8 place-items-center rounded-full text-muted-foreground hover:text-foreground"
               >
                 ×
               </button>
@@ -244,18 +244,19 @@ export default function CustomerPage() {
               updateDoc(doc(db, "tenants", tenant.id, "customers", key), { etiquetas: [...customer.etiquetas, nova] });
               campo.value = "";
             }}
+            className="max-sm:w-full"
           >
             <label htmlFor="etiqueta" className="sr-only">Nova etiqueta</label>
             <Input id="etiqueta" name="etiqueta" placeholder="+ etiqueta" maxLength={24} className="h-8 w-36 text-xs max-sm:h-11 max-sm:w-full" />
           </form>
         </div>
 
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex min-h-11 items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={customer.semCampanha}
             onChange={(ev) => updateDoc(doc(db, "tenants", tenant.id, "customers", key), { semCampanha: ev.target.checked })}
-            className="size-4"
+            className="size-5 accent-primary"
           />
           Não receber campanhas
         </label>
@@ -279,25 +280,25 @@ export default function CustomerPage() {
           className="flex gap-2"
         >
           <label htmlFor="nota" className="sr-only">Anotação</label>
-          <Input id="nota" name="nota" maxLength={600} placeholder="Alergias, preferências, o que combinaram…" />
+          <Input id="nota" name="nota" maxLength={600} placeholder="Alergias, preferências, o que combinaram…" className="h-10 max-sm:h-11" />
           <Button type="submit">Anotar</Button>
         </form>
 
         {!!notas?.length && (
           <ul className="grid gap-2">
             {notas.map((n) => (
-              <li key={n.id} className="flex items-start gap-3 border-t pt-2 text-sm first:border-t-0 first:pt-0">
-                <span className="w-24 shrink-0 text-xs text-muted-foreground tabular-nums">
+              <li key={n.id} className="flex flex-wrap items-start gap-x-3 gap-y-1 border-t pt-2 text-sm first:border-t-0 first:pt-0">
+                <span className="w-16 shrink-0 text-xs text-muted-foreground tabular-nums sm:w-24">
                   {n.quando ? n.quando.toDate().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "agora"}
                 </span>
-                <p className="grow whitespace-pre-line">{n.texto}</p>
-                <span className="shrink-0 text-xs text-muted-foreground">{n.porNome?.split("@")[0]}</span>
+                <p className="min-w-0 grow basis-0 whitespace-pre-line break-words">{n.texto}</p>
+                <span className="max-w-24 truncate text-xs text-muted-foreground">{n.porNome?.split("@")[0]}</span>
                 {/* apagar anotação é de quem gere (regra do banco): a equipe só anota */}
                 {tenant.podeGerir && <button
                   type="button"
                   aria-label="Apagar anotação"
                   onClick={() => deleteDoc(doc(db, "tenants", tenant.id, "customers", key, "notas", n.id)).catch((err) => console.error("[cliente] não apagou a anotação", err))}
-                  className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
+                  className="-my-2 inline-flex min-h-10 shrink-0 items-center px-2 text-xs text-muted-foreground hover:text-destructive"
                 >
                   apagar
                 </button>}
@@ -417,9 +418,9 @@ function DadosDoCliente({
           </div>
         )}
         {email && (
-          <div className="flex gap-1.5">
+          <div className="flex min-w-0 flex-wrap gap-1.5">
             <dt className="text-muted-foreground">E-mail</dt>
-            <dd>{email}</dd>
+            <dd className="min-w-0 break-all">{email}</dd>
           </div>
         )}
       </dl>

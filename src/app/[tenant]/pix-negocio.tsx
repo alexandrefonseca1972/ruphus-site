@@ -85,7 +85,7 @@ export function PixNegocio({ cidadeSugerida = "" }: { cidadeSugerida?: string })
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="pix-chave">Chave Pix</Label>
-        <Input id="pix-chave" value={pix.chave} maxLength={100} onChange={campo("chave")} autoComplete="off" spellCheck={false} placeholder="CPF, CNPJ, e-mail, celular ou chave aleatória" aria-invalid={mostrar && !!erros.chave} aria-describedby="pix-chave-msg" className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]" />
+        <Input id="pix-chave" value={pix.chave} maxLength={100} onChange={campo("chave")} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="CPF, CNPJ, e-mail, celular ou chave aleatória" aria-invalid={mostrar && !!erros.chave} aria-describedby="pix-chave-msg" className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]" />
         {/* a dica muda a cada tecla: sem aria-live, senão o leitor de tela repete tudo */}
         <p id="pix-chave-msg" className={cn("text-xs", mostrar && erros.chave ? "text-destructive" : "text-muted-foreground")}>
           {chaveLida ? `Entendida como ${tipoDaChave(chaveLida)}: ${chaveLida}` : mostrar && erros.chave ? erros.chave : "Celular que também é um CPF válido? Escreva com (DDD) ou +55."}

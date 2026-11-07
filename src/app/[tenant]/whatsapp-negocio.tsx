@@ -252,8 +252,8 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
             ))}
           </ul>
         </div>
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" className="mt-1" checked={li} onChange={(e) => setLi(e.target.checked)} />
+        <label className="flex items-start gap-2.5 py-1 text-sm">
+          <input type="checkbox" className="mt-0.5 size-5 shrink-0 accent-primary" checked={li} onChange={(e) => setLi(e.target.checked)} />
           Li e entendo que o WhatsApp pode bloquear o número a qualquer momento e que a plataforma não garante
           o funcionamento contínuo deste canal.
         </label>
@@ -278,7 +278,7 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
 
       {/* antes só o /admin via: o dono não sabia que um aviso ou lembrete tinha falhado */}
       {cfg?.lastNotifyError?.message && (
-        <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+        <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm [overflow-wrap:anywhere] text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
           <span className="font-semibold">Último aviso que não saiu</span>
           {cfg.lastNotifyError.at ? ` (${new Date(cfg.lastNotifyError.at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })})` : ""}: {cfg.lastNotifyError.message}
         </p>
@@ -315,10 +315,10 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
           {conectado && (
             // lembretes automáticos: o dono escolhe quantas horas antes; o job manda uma vez por agendamento
             <div className="grid gap-2 rounded-lg border p-3">
-              <label className="flex items-center gap-2 text-sm font-medium">
+              <label className="flex min-h-11 items-center gap-2.5 text-sm font-medium">
                 <input
                   type="checkbox"
-                  className="h-4 w-4"
+                  className="size-5 accent-primary"
                   checked={lembretes}
                   onChange={(e) => {
                     const v = e.target.checked;
@@ -339,7 +339,7 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
                       setHorasLembretes(h);
                       void salvarLembretes(lembretes, h);
                     }}
-                    className="h-9 rounded-lg border border-input bg-card px-2 tabular-nums"
+                    className="h-11 rounded-lg border border-input bg-card px-2 tabular-nums sm:h-9"
                   >
                     {[1, 2, 3, 4, 6, 8, 12, 24].map((h) => (
                       <option key={h} value={h}>
@@ -410,7 +410,9 @@ function TesteEnvio(p: {
         <Label htmlFor="zap-para">Para</Label>
         <Input
           id="zap-para"
-          inputMode="numeric"
+          type="tel"
+          inputMode="tel"
+          autoComplete="off"
           value={p.para}
           maxLength={15}
           onChange={(e) => p.setPara(e.target.value.replace(/\D/g, ""))}

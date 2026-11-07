@@ -210,11 +210,11 @@ export default function AgendaPage() {
       </div>
 
       {!!daSemana?.length && (
-        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+        <dl className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3 sm:grid-cols-4 sm:gap-4">
           {stats.map((st) => (
-            <div key={st.label} className="grid gap-1.5 rounded-2xl border bg-card px-5 py-4">
+            <div key={st.label} className="grid min-w-0 gap-1.5 rounded-2xl border bg-card px-4 py-4 sm:px-5">
               <dt className="text-[13px] text-muted-foreground">{st.label}</dt>
-              <dd className="font-serifa text-3xl leading-none tabular-nums">{st.value}</dd>
+              <dd className="font-serifa text-2xl leading-none tabular-nums [overflow-wrap:anywhere] sm:text-3xl">{st.value}</dd>
             </div>
           ))}
         </dl>
@@ -224,7 +224,7 @@ export default function AgendaPage() {
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950">
           <span>{notice.text}</span>
           <div className="flex gap-2">
-            <a href={notice.link} target="_blank" rel="noreferrer" className="rounded-md bg-emerald-700 px-3 py-1.5 font-medium text-white hover:bg-emerald-800">
+            <a href={notice.link} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center rounded-md bg-emerald-700 px-4 font-medium text-white hover:bg-emerald-800">
               Avisar pelo WhatsApp
             </a>
             <Button variant="ghost" size="sm" onClick={() => setNotice(null)}>Fechar</Button>
@@ -321,7 +321,8 @@ export default function AgendaPage() {
                       {pending === a.id ? "Confirmando…" : "Confirmar pelo WhatsApp"}
                     </Button>
                   )}
-                  {ATIVO(a) && meu(a) && (
+                  {/* recebido no Caixa: remarcar deixaria o recebimento no dia antigo */}
+                  {ATIVO(a) && meu(a) && !recebidos.has(idDaBaixa(a.id)) && (
                     <Button variant="outline" className="h-10 px-4" aria-expanded={rescheduling === a.id} onClick={() => setRescheduling(rescheduling === a.id ? null : a.id)}>
                       Remarcar
                     </Button>
@@ -334,7 +335,7 @@ export default function AgendaPage() {
                         : []),
                       // recebido no Caixa não vira falta: a entrada contaria um atendimento que não houve
                       ...(ATIVO(a) && meu(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Faltou", onClick: () => setConfirming({ id: a.id, kind: "no_show" as const }) }] : []),
-                      ...(ATIVO(a) && meu(a) ? [{ label: "Cancelar horário", danger: true, onClick: () => setConfirming({ id: a.id, kind: "cancel" as const }) }] : []),
+                      ...(ATIVO(a) && meu(a) && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Cancelar horário", danger: true, onClick: () => setConfirming({ id: a.id, kind: "cancel" as const }) }] : []),
                       { label: showHistory === a.id ? "Esconder histórico" : "Histórico", onClick: () => setShowHistory(showHistory === a.id ? null : a.id) },
                     ]}
                   />
@@ -458,7 +459,7 @@ function Onboarding({ tenantId, name, temServicos }: { tenantId: string; name: s
             <span className="text-sm text-muted-foreground">Na bio do Instagram, no status do WhatsApp, para cada cliente.</span>
           </div>
           <div className="col-start-2 sm:col-start-auto">
-            <ShareLink tenantId={tenantId} name={name} />
+            <ShareLink tenantId={tenantId} name={name} iconeNoCelular={false} />
           </div>
         </li>
       </ol>

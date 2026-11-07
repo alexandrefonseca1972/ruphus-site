@@ -1,6 +1,7 @@
 export const metadata = {
   title: "Site indisponível",
   robots: { index: false, follow: false },
+  manifest: null, // servida no subdomínio, onde o manifesto do painel não existe
 };
 
 export default function Indisponivel() {

@@ -187,7 +187,7 @@ export default function MeuNegocio() {
       {/* a página é longa no celular: atalhos para cada parte, cada uma com o seu Salvar */}
       <nav aria-label="Partes desta página" className="-mx-4 -mt-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden">
         {[["#dados", "Dados"], ["#links", "Links"], ["#recado", "Agendamento"], ["#whatsapp", "WhatsApp"], ["#pix", "Pix"], ["#sinal", "Sinal"]].map(([href, rotulo]) => (
-          <a key={href} href={href} className="flex h-9 shrink-0 items-center rounded-full border bg-card px-3.5 text-sm font-medium hover:bg-muted">{rotulo}</a>
+          <a key={href} href={href} className="flex h-10 shrink-0 items-center rounded-full border bg-card px-3.5 text-sm font-medium hover:bg-muted">{rotulo}</a>
         ))}
       </nav>
 
@@ -261,7 +261,7 @@ export default function MeuNegocio() {
               <li key={rotulo} className="grid">
                 <span className="text-xs text-muted-foreground">{rotulo}</span>
                 <div className="flex items-center gap-2">
-                  <a href={url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate py-2 font-medium underline underline-offset-2">{url.replace("https://", "")}</a>
+                  <a href={url} target="_blank" rel="noreferrer" className="w-0 min-w-0 flex-1 truncate py-2 font-medium underline underline-offset-2">{url.replace("https://", "")}</a>
                   <CopiarLink url={url} rotulo={rotulo} />
                 </div>
                 <QrDoLink url={url} rotulo={`${rotulo} de ${nome}`} arquivo={`qr-${rotulo === "Site" ? "site" : rotulo === "Agenda online" ? "agenda" : "bio"}-${slug}`} />
@@ -286,7 +286,7 @@ export default function MeuNegocio() {
               Desligado, a bio e o link de agendamento mostram os serviços e levam o cliente ao seu WhatsApp, sem marcar horário.
             </p>
           </div>
-          <label className="flex items-center gap-3 text-[15px] font-medium">
+          <label className="flex min-h-11 items-center gap-3 text-[15px] font-medium">
             <input
               type="checkbox"
               checked={online}
@@ -359,7 +359,7 @@ function CopiarLink({ url, rotulo }: { url: string; rotulo: string }) {
         setOk(certo);
         setTimeout(() => setOk(null), 2000);
       }}
-      className="h-9 shrink-0 rounded-lg border px-3 text-xs font-medium hover:bg-muted"
+      className="h-10 shrink-0 rounded-lg border px-3 text-xs font-medium hover:bg-muted sm:h-9"
     >
       <span aria-live="polite">{ok === null ? "Copiar" : ok ? "Copiado" : "Não deu"}</span>
     </button>

@@ -719,6 +719,8 @@ export async function reschedule(db: Firestore, input: RescheduleInput, actor: A
     if (!ctx) return { ok: false as const, error: "Agendamento, serviço ou profissional indisponível." };
     if (preso && ctx.appt.get("staffId") !== preso) return { ok: false as const, error: DE_OUTRO };
     if (!ctx.slots.includes(input.time)) return { ok: false as const, error: "Esse horário não está livre. Escolha outro." };
+    // recebido no Caixa: o recebimento ficaria no dia antigo e o atendimento voltaria a "receber"
+    if ((await tx.get(ctx.t.collection("lancamentos").doc(`ag-${ctx.ref.id}`))).exists) return { ok: false as const, error: "Este atendimento já foi recebido no Caixa. Apague o recebimento antes de remarcar." };
     const start = zonedTime(input.date, input.time);
     const end = new Date(start.getTime() + ctx.durationMin * 60_000);
     const history = ctx.t.collection("history").doc();

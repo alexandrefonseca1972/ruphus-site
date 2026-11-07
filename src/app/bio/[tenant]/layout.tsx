@@ -4,6 +4,9 @@ import { Instrument_Serif, Public_Sans } from "next/font/google";
 const serifa = Instrument_Serif({ weight: "400", subsets: ["latin"], variable: "--fonte-serifa" });
 const sans = Public_Sans({ subsets: ["latin"], variable: "--fonte-sans" });
 
+// O manifesto é o do painel e só existe em www: no subdomínio o pedido virava 404 no console
+export const metadata = { manifest: null };
+
 export default function BioLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className={`${serifa.variable} ${sans.variable} min-h-dvh bg-[#F7F5F1] font-[family-name:var(--fonte-sans)] text-[#17150F]`}>
