@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { phoneError, TIPOS_PRECO } from "@/lib/datetime";
 import { erroNome } from "@/lib/nome";
+import { DadosCliente } from "@/lib/cliente-dados";
 
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário inválido");
@@ -99,6 +100,8 @@ export const PlanInput = z.object({
   // "Qualquer um": staffId é quem atende de preferência (o do primeiro dia); a semana em que ele
   // está ocupado vai para outro profissional livre no mesmo horário, em vez de ser pulada
   qualquer: z.boolean().optional(),
+  // opcional: limpo (sem espaço, minúsculo) e validado como na ficha do cliente; vazio não grava
+  email: DadosCliente.shape.email.optional(),
 });
 export type PlanInput = z.infer<typeof PlanInput>;
 

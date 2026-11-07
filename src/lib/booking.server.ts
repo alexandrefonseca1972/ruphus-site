@@ -4,7 +4,7 @@ import { sessaoRevogada } from "@/lib/revogacao";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
-import { addDays, agoraNaParede, customerKey, dateIn, dentroDaJanela, formatTime, freeSlots, fusoDaUF, planDates, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import { addDays, agoraNaParede, customerKey, datasDoPlano, dateIn, dentroDaJanela, formatTime, freeSlots, fusoDaUF, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import type { DadosCliente } from "@/lib/cliente-dados";
 import { prazoDoSinal, type SinalDoAgendamento, valorDoSinal } from "@/lib/sinal";
 import { ConfigSinal } from "@/lib/sinal-config";
@@ -603,7 +603,7 @@ export async function createPlan(db: Firestore, input: PlanInput, actor: Actor) 
 
 async function criarPlano(db: Firestore, input: PlanInput, actor: Actor) {
   return contended(() => db.runTransaction(async (tx) => {
-    const dates = planDates(input.startDate, input.weekday, input.weeks);
+    const dates = datasDoPlano(input.startDate, input.weekday, input.weeks);
     const t = db.collection("tenants").doc(input.tenantId);
     // Uma leitura só para o negócio, a equipe e os serviços, e uma consulta para toda a janela do plano
     const [tenantSnap, ...svcSnaps] = await tx.getAll(t, ...input.serviceIds.map((id) => t.collection("services").doc(id)));
@@ -671,6 +671,8 @@ async function criarPlano(db: Firestore, input: PlanInput, actor: Actor) {
       const ctx: WriteContext = { t, svc, durationMin, staff: quem.staff };
       writeAppointment(tx, ctx, { ...input, staffId: quem.id, date }, by, { planId: plan.id, renameCustomer: true });
     }
+    // e-mail informado no plano vai para a ficha do cliente; em branco, o que já existe fica
+    if (input.email) tx.set(t.collection("customers").doc(customerKey(input.customerPhone)), { email: input.email }, { merge: true });
     return { ok: true as const, planId: plan.id, created: free.map((f) => f.date), skipped, outros: free.filter((f) => f.quem.id !== principal.id).map((f) => ({ date: f.date, nome: f.quem.staff.name })) };
   }, TX));
 }

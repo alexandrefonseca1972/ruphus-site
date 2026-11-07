@@ -21,6 +21,10 @@ import { RowMenu } from "../row-menu";
 import { cn, handleSubmit } from "@/lib/utils";
 import { AcessoProfissional, Membro } from "./acesso";
 
+// "Ana Lúcia" e "ana lucia" são a mesma busca
+const semAcento = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+type Filtro = "todos" | "noLink" | "fora" | "comAcesso" | "semAcesso";
+
 type Day = keyof Staff["hours"];
 const DAYS = ["1", "2", "3", "4", "5", "6", "0"] as Day[]; // segunda primeiro
 const DEFAULT_HOURS: Staff["hours"] = Object.fromEntries(
@@ -54,6 +58,10 @@ export default function StaffPage() {
   const [salvos, setSalvos] = useState(0);
   const [excluindo, setExcluindo] = useState<(Staff & { id: string }) | null>(null);
   const [error, setError] = useState("");
+  // busca e filtros: tudo na tela (a equipe de um salão cabe numa lista)
+  const [busca, setBusca] = useState("");
+  const [filtro, setFiltro] = useState<Filtro>("todos");
+  const [fazServico, setFazServico] = useState("");
   const col = collection(db, "tenants", tenant.id, "staff");
   const serviceName = new Map(services?.map((s) => [s.id, s.name]));
 
@@ -127,6 +135,18 @@ export default function StaffPage() {
     }
   }
 
+  const termo = semAcento(busca);
+  const visiveis = (staff ?? []).filter(
+    (p) =>
+      (!termo || semAcento(p.name).includes(termo)) &&
+      (!fazServico || p.serviceIds.includes(fazServico)) &&
+      (filtro === "todos" ||
+        (filtro === "noLink" && p.active) ||
+        (filtro === "fora" && !p.active) ||
+        (filtro === "comAcesso" && acessoDe.has(p.id)) ||
+        (filtro === "semAcesso" && !acessoDe.has(p.id))),
+  );
+
   return (
     <>
       <PageTitle title="Profissionais" sub={staff && (staff.length ? `${ativos} atendendo pelo link` : "Quem atende, o que faz e quando")} />
@@ -139,7 +159,51 @@ export default function StaffPage() {
               Ninguém cadastrado ainda. Quem você adicionar aparece no link de agendamento.
             </p>
           )}
-          {staff?.map((p) => (
+          {!!staff?.length && (
+            <div className="grid gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative min-w-0 flex-1 basis-52">
+                  <Label htmlFor="busca-prof" className="sr-only">Buscar profissional</Label>
+                  <svg className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted-foreground" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m20 20-3.5-3.5" />
+                  </svg>
+                  <Input id="busca-prof" type="search" value={busca} placeholder="Buscar profissional" onChange={(e) => setBusca(e.target.value)} className="h-11 bg-card pl-11 text-[15px]" />
+                </div>
+                {!!services?.length && (
+                  <label className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground max-sm:w-full">
+                    Faz
+                    <select value={fazServico} onChange={(e) => setFazServico(e.target.value)} className="h-11 min-w-0 flex-1 rounded-lg border bg-card px-2 text-foreground sm:h-10 sm:max-w-56 sm:flex-none">
+                      <option value="">Qualquer serviço</option>
+                      {services.map((sv) => <option key={sv.id} value={sv.id}>{sv.name}</option>)}
+                    </select>
+                  </label>
+                )}
+              </div>
+              <div role="group" aria-label="Filtrar profissionais" className="flex w-fit max-w-full gap-0.5 justify-self-start overflow-x-auto rounded-lg bg-muted p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {([["todos", "Todos"], ["noLink", "No link"], ["fora", "Fora do link"], ...(membros ? [["comAcesso", "Com acesso"], ["semAcesso", "Sem acesso"]] : [])] as [Filtro, string][]).map(([id, rotulo]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={filtro === id}
+                    onClick={() => setFiltro(id)}
+                    className={cn("h-9 shrink-0 rounded-md px-3 text-[13px] whitespace-nowrap text-muted-foreground hover:text-foreground max-sm:h-10", filtro === id && "bg-card font-medium text-foreground shadow-sm")}
+                  >
+                    {rotulo}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {!!staff?.length && !visiveis.length && (
+            <p className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+              Ninguém encontrado.{" "}
+              <button type="button" className="font-medium text-foreground underline underline-offset-2" onClick={() => (setBusca(""), setFiltro("todos"), setFazServico(""))}>
+                Limpar a busca e os filtros
+              </button>
+            </p>
+          )}
+          {visiveis.map((p) => (
             <article key={p.id} className={cn("grid gap-4 rounded-2xl border bg-card p-5 sm:p-6", !p.active && "opacity-70")}>
               <div className="flex flex-wrap items-center gap-3.5">
                 <span aria-hidden="true" className="grid size-12 shrink-0 place-items-center rounded-full bg-muted font-serifa text-2xl">{p.name.charAt(0)}</span>
