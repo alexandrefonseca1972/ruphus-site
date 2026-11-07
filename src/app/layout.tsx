@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -45,16 +46,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
-        {/* Tema do sistema antes da primeira pintura: sem piscar branco no celular à noite */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.classList.add('dark')}catch(e){}",
-          }}
-        />
         {/* O Chrome avisa que dá para instalar uma vez por carregamento, em geral ainda no /login.
-            Login → /painel → /{slug} é navegação do router: sem guardar aqui, o painel nunca via o convite */}
-        <script
+            Login → /painel → /{slug} é navegação do router: sem guardar aqui, o painel nunca via o convite.
+            next/script (antes da hidratação): um <script> cru aqui virava aviso do React a cada
+            redesenho do layout no navegador, e o Chrome só oferece a instalação depois do load */}
+        <Script
+          id="convite-instalar"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html:
               "addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__conviteInstalar=e;dispatchEvent(new Event('ruphus:instalar'))})",

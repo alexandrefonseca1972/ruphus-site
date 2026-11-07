@@ -2,7 +2,14 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark:has(.painel) *));
+/* escuro só no painel e só quando o sistema pede: direto pelo CSS, sem script que marque o <html> */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:is(:root:has(.painel) *) {
+      @slot;
+    }
+  }
+}
 
 @theme inline {
   --font-serifa: var(--fonte-serifa), Georgia, serif;
@@ -87,40 +94,43 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-.dark:has(.painel) {
-  color-scheme: dark;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+@media (prefers-color-scheme: dark) {
+  :root:has(.painel) {
+    color-scheme: dark;
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+  }
 }
+
 
 @layer base {
   * {
@@ -154,25 +164,28 @@ body:has(.painel) {
   --input: #d5d0c1;
   --ring: #17150f;
 }
-.dark body:has(.painel) {
-  --background: #15130f;
-  --foreground: #f3f0e8;
-  --card: #1d1a15;
-  --card-foreground: #f3f0e8;
-  --popover: #1d1a15;
-  --popover-foreground: #f3f0e8;
-  --primary: #f3f0e8;
-  --primary-foreground: #17150f;
-  --secondary: #2a261f;
-  --secondary-foreground: #f3f0e8;
-  --muted: #2a261f;
-  --muted-foreground: #a89f8c;
-  --accent: #2a261f;
-  --accent-foreground: #f3f0e8;
-  --border: #2f2a22;
-  --input: #3a342a;
-  --ring: #f3f0e8;
+@media (prefers-color-scheme: dark) {
+  :root body:has(.painel) {
+    --background: #15130f;
+    --foreground: #f3f0e8;
+    --card: #1d1a15;
+    --card-foreground: #f3f0e8;
+    --popover: #1d1a15;
+    --popover-foreground: #f3f0e8;
+    --primary: #f3f0e8;
+    --primary-foreground: #17150f;
+    --secondary: #2a261f;
+    --secondary-foreground: #f3f0e8;
+    --muted: #2a261f;
+    --muted-foreground: #a89f8c;
+    --accent: #2a261f;
+    --accent-foreground: #f3f0e8;
+    --border: #2f2a22;
+    --input: #3a342a;
+    --ring: #f3f0e8;
+  }
 }
+
 
 /* No iPhone, campo com menos de 16px faz o Safari dar zoom ao focar e a tela
    sai do lugar. Uma regra só, em vez de acertar cada campo do app; o
