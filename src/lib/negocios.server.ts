@@ -1,3 +1,4 @@
+import { limitesDe } from "@/lib/scheduling";
 import "server-only";
 import { type DocumentSnapshot, FieldValue, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
@@ -103,6 +104,8 @@ export async function lerNegocio(db: Firestore, slug: string) {
     recado: s("agenda.recado"),
     /** agenda pelo link ligada; ausente = ligada (todo negócio nasce agendando) */
     agendaOnline: t.get("agenda.online") !== false,
+    /** quantos serviços e quanto tempo somado o cliente marca de uma vez pelo link */
+    limites: limitesDe(t.get("agenda")),
     fabrica: !t.get("gerado") && !!t.get("site.url"),
     /** entrada paga: sem faixa de proposta e no Google */
     publicado: !!t.get("gerado.publicadoEm"),

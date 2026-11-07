@@ -6,6 +6,7 @@ import { z } from "zod";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { idToken } from "@/lib/firebase";
+import { textoConvite } from "@/lib/mensagens";
 import { convidarEquipeAction, tirarAcessoEquipeAction } from "../actions";
 import { ConfirmDialog } from "../confirm-dialog";
 
@@ -55,7 +56,7 @@ function Convite({ tenantId, negocio, staffId, nome, onClose }: { tenantId: stri
   const [email, setEmail] = useState("");
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
-  const [link, setLink] = useState<{ url: string; dias: number; email: string; emailEnviado: boolean } | null>(null);
+  const [link, setLink] = useState<{ url: string; dias: number; email: string; } | null>(null);
   const [copiado, setCopiado] = useState(false);
 
   async function gerar() {
@@ -64,10 +65,10 @@ function Convite({ tenantId, negocio, staffId, nome, onClose }: { tenantId: stri
     const r = await convidarEquipeAction(await idToken(), { tenantId, staffId, email }).catch(() => ({ ok: false as const, error: "Sem conexão. Tente de novo." }));
     setOcupado(false);
     if (!r.ok) return setErro(r.error);
-    setLink({ url: r.url, dias: r.dias, email: email.trim(), emailEnviado: r.emailEnviado });
+    setLink({ url: r.url, dias: r.dias, email: email.trim() });
   }
 
-  const texto = link && `Oi, ${nome.split(" ")[0]}! Este link libera seu acesso à agenda do ${negocio}: ${link.url}\n\nEntre ou crie a conta com o e-mail ${link.email}. O link vale ${link.dias} dias e só funciona uma vez.`;
+  const texto = link && textoConvite({ nome, negocio, url: link.url, email: link.email, dias: link.dias });
 
   return (
     <Dialog.Root open onOpenChange={(open) => !open && !ocupado && onClose()}>
@@ -97,10 +98,7 @@ function Convite({ tenantId, negocio, staffId, nome, onClose }: { tenantId: stri
           ) : (
             <div className="grid gap-3">
               <p className="text-sm">
-                {link.emailEnviado
-                  ? `Enviamos o link para ${link.email}. Se não chegar (veja o spam), mande por aqui.`
-                  : `O e-mail não saiu: mande o link para ${nome.split(" ")[0]} por aqui.`}{" "}
-                Ele vale {link.dias} dias e só funciona uma vez.
+                O link também vai por e-mail para {link.email}. Se não chegar (veja o spam), mande por aqui. Ele vale {link.dias} dias e só funciona uma vez.
               </p>
               <Input readOnly value={link.url} onFocus={(e) => e.currentTarget.select()} className="h-11 font-mono text-xs" aria-label="Link de acesso" />
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

@@ -9,7 +9,7 @@ import type { DadosCliente } from "@/lib/cliente-dados";
 import { prazoDoSinal, type SinalDoAgendamento, valorDoSinal } from "@/lib/sinal";
 import { ConfigSinal } from "@/lib/sinal-config";
 import { recebedorDe, txidLivre } from "@/lib/pix";
-import { Service, Staff, type AgendaQuery, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
+import { foraDoLimite, limitesDe, Service, Staff, type AgendaQuery, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
 
@@ -72,6 +72,8 @@ async function lerCatalogo(db: Firestore, tenantId: string) {
     recadoDono: String(tenant.get("agenda.recado") ?? "").trim() || null,
     // desligada: a página mostra o WhatsApp no lugar da grade
     agendaOnline: !agendaDesligada(tenant),
+    // quantos serviços e quanto tempo somado o cliente marca de uma vez
+    limites: limitesDe(tenant.get("agenda")),
     // sinal por Pix para reservar: a página avisa antes de o cliente confirmar
     sinal: ((): Pick<ConfigSinal, "tipo" | "valor" | "prazoMin"> | null => {
       const c = ConfigSinal.safeParse(tenant.get("sinal")).data;
@@ -198,7 +200,7 @@ async function exigeDono(db: Firestore, tenantId: string, uid: string, oque: str
 
 /** O profissional a que a conta da equipe está presa (entrou pelo convite dele): ela vê a
  *  agenda toda, mas só mexe nos horários dele. Dono, admin e membro sem profissional: null. */
-async function profissionalDaConta(db: Firestore, tenantId: string, uid: string): Promise<string | null> {
+export async function profissionalDaConta(db: Firestore, tenantId: string, uid: string): Promise<string | null> {
   const m = await db.doc(`tenants/${tenantId}/members/${uid}`).get();
   const staffId = m.get("staffId");
   return m.get("role") === "member" && typeof staffId === "string" && staffId ? staffId : null;
@@ -263,7 +265,7 @@ async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery, exclude
   });
   // a chave Pix e o sinal do negócio: a reserva online cobra o sinal quando os dois existem
   const cfg = { pix: tenantSnap.get("pix") as SinalDoAgendamento["pix"] | undefined, sinal: ConfigSinal.safeParse(tenantSnap.get("sinal")).data, fuso: fusoDaUF(tenantSnap.get("site.uf") as string | undefined) };
-  return { t, svc, durationMin, staff: staff.data, slots, cfg };
+  return { t, svc, durationMin, staff: staff.data, slots, cfg, limites: limitesDe(tenantSnap.get("agenda")) };
 }
 
 export async function availableSlots(db: Firestore, q: SlotQuery) {
@@ -293,6 +295,8 @@ export async function agendaDias(db: Firestore, q: AgendaQuery, dias: string[]) 
   const svc = q.serviceIds.map((id) => catalogo.services.find((s) => s.id === id));
   // serviço que saiu do link com a página aberta: a semana vem sem horário (lotada), não vazia
   if (svc.some((s) => !s)) return dias.map((date) => ({ date, horarios: [], fechado: false }));
+  // passou do limite do negócio (a página trava antes; isto é para quem chama a ação direto)
+  if (foraDoLimite(svc as { durationMin: number }[], catalogo.limites)) return dias.map((date) => ({ date, horarios: [], fechado: false }));
   const durationMin = svc.reduce((soma, s) => soma + s!.durationMin, 0);
   const equipe = catalogo.staff.filter(
     (p) => (!q.staffId || p.id === q.staffId) && q.serviceIds.every((id) => p.serviceIds.includes(id)),
@@ -553,6 +557,9 @@ export async function book(db: Firestore, input: BookingInput, ip?: string, aoCr
     }
     if (!algum) return { ok: false as const, error: "Serviço ou profissional indisponível." };
     if (!livre) return { ok: false as const, error: "Esse horário acabou de ser ocupado. Escolha outro." };
+    // o limite do negócio vale só para quem agenda pelo link: o painel marca o que precisar
+    const excede = foraDoLimite(livre.ctx.svc, livre.ctx.limites);
+    if (excede) return { ok: false as const, error: excede };
     const limit = await limitError(tx, livre.ctx.t, input, ip);
     if (limit.error) return { ok: false as const, error: limit.error, field: true as const };
     const customer = await tx.get(t.collection("customers").doc(customerKey(input.customerPhone)));

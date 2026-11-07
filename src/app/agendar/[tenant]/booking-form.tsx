@@ -25,6 +25,7 @@ import type { book } from "@/lib/booking.server";
 import { getAgenda } from "./actions";
 import { textoDoSinal, valorDoSinal } from "@/lib/sinal";
 import type { ConfigSinal } from "@/lib/sinal-config";
+import { foraDoLimite, limitesDe, type LimitesAgenda } from "@/lib/scheduling";
 
 type Resposta = Awaited<ReturnType<typeof book>>;
 
@@ -46,6 +47,8 @@ type Props = {
   recadoDono?: string | null;
   /** sinal por Pix para reservar; null = paga tudo no local */
   sinal?: Pick<ConfigSinal, "tipo" | "valor" | "prazoMin"> | null;
+  /** quantos serviços e quanto tempo somado cabem num horário (o dono ajusta) */
+  limites?: LimitesAgenda;
   /** Fuso real do negócio: o "Salvar na agenda" do cliente precisa do instante certo */
   fuso?: string;
   services: { id: string; name: string; durationMin: number; priceCents: number; tipoPreco?: TipoPreco }[];
@@ -272,7 +275,7 @@ const Seta = ({ d = "M9 6l6 6-6 6", size = 16 }: { d?: string; size?: number }) 
   </svg>
 );
 
-export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, sinal, fuso, services, staff, inicial }: Props) {
+export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, sinal, fuso, services, staff, inicial, limites = limitesDe(null) }: Props) {
   // Nada vem marcado: quem agenda diz o que quer, e só então os horários aparecem.
   // Os serviços chegam do servidor na ordem do que mais se agenda.
   // A exceção é quem tocou num serviço ou num horário da bio: chega com ele escolhido.
@@ -328,7 +331,11 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const semanaCheia = !!agenda && !livres.length;
   const proximaSemana = addDays(from, 7);
   const temProxima = proximaSemana <= addDays(today, MAX_DAYS_AHEAD);
-  const ultimoValido = ultimo && ultimo.serviceIds.length && ultimo.serviceIds.every((id) => services.some((s) => s.id === id)) ? ultimo : null;
+  // o último que passa do limite de hoje (o dono baixou) não é oferecido para repetir
+  const ultimoValido = ultimo && ultimo.serviceIds.length && ultimo.serviceIds.every((id) => services.some((s) => s.id === id)) && !foraDoLimite(services.filter((s) => ultimo.serviceIds.includes(s.id)), limites) ? ultimo : null;
+  // o serviço que, somado ao que já está marcado, passaria do limite: fica apagado e diz por quê
+  const [avisoLimite, setAvisoLimite] = useState("");
+  const travado = (s: { id: string; durationMin: number }) => !serviceIds.includes(s.id) && foraDoLimite([...escolhidos, s], limites);
 
   // Contato e último pedido lembrados neste navegador
   useEffect(() => {
@@ -413,6 +420,9 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   }, [reserva]);
 
   function toggleService(id: string) {
+    const motivo = travado(services.find((s) => s.id === id)!);
+    if (motivo) return setAvisoLimite(motivo);
+    setAvisoLimite("");
     // Mantém a ordem do catálogo: "Corte + Barba", não a ordem dos cliques
     const ids = services.map((s) => s.id).filter((s) => (s === id ? !serviceIds.includes(id) : serviceIds.includes(s)));
     if (!serviceIds.length) mostrarBloco.current = true;
@@ -979,19 +989,25 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
             <h2 id="oque" className="text-[17px] font-semibold tracking-[-0.02em]">
               O que você quer fazer?
             </h2>
-            {services.length > 1 && <span className="text-xs text-[#5C5747]">pode escolher mais de um</span>}
+            {services.length > 1 && limites.maxServicos > 1 && (
+              <span className="text-xs text-[#5C5747]">
+                {escolhidos.length ? `${escolhidos.length} de ${limites.maxServicos} escolhidos` : `pode escolher até ${limites.maxServicos}`}
+              </span>
+            )}
           </div>
           <ul className="flex flex-col overflow-hidden rounded-2xl border border-[#E2DDD3] bg-white">
             {services.map((s) => {
               const sel = serviceIds.includes(s.id);
+              const fora = !!travado(s);
               return (
                 <Fragment key={s.id}>
                   <li className="border-b border-[#EEEAE1] last:border-b-0">
                     <button
                       type="button"
                       aria-pressed={sel}
+                      aria-disabled={fora || undefined}
                       onClick={() => toggleService(s.id)}
-                      className="flex min-h-16 w-full items-center gap-3 py-2.5 pr-3 pl-4 text-left"
+                      className={cn("flex min-h-16 w-full items-center gap-3 py-2.5 pr-3 pl-4 text-left", fora && "opacity-45")}
                     >
                       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className={cn("text-base break-words", sel ? "font-semibold" : "font-medium")}>{s.name}</span>
@@ -1010,6 +1026,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
               );
             })}
           </ul>
+          {avisoLimite && <p role="status" className="px-1 text-[13px] font-medium text-[#8A3B12]">{avisoLimite}</p>}
           {!escolhidos.length && <p className="px-1 text-[13px] text-[#5C5747]">Toque num serviço e os horários mais cedo aparecem logo abaixo dele.</p>}
         </section>
 

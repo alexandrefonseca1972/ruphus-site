@@ -25,6 +25,8 @@ import { mudarStatus, STATUS } from "./status";
 import { avisarClienteWhatsappAction, avisarConfirmacaoSmsAction, confirmarSinalAction } from "./actions";
 import { idToken } from "@/lib/firebase";
 import { restanteDe } from "@/lib/sinal";
+import { DEMO } from "@/lib/demo";
+import { type AvisoCliente, textoAvisoCliente } from "@/lib/mensagens";
 
 const Appointment = z.object({
   serviceName: z.string(),
@@ -48,22 +50,7 @@ const ATIVO = (a: { status: string }) => a.status === "booked" || a.status === "
 const segundaDe = (date: string) => addDays(date, -((weekday(date) + 6) % 7));
 const capitaliza = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-const firstName = (name: string) => name.trim().split(/\s+/)[0];
-
-export function confirmationText(a: Appointment, business: string) {
-  const start = a.start.toDate();
-  return `Olá, ${firstName(a.customerName)}! Seu horário na ${business} está confirmado: ${a.serviceName} com ${a.staffName}, ${formatLongDate(start)} às ${formatTime(start)}. Até lá!`;
-}
-
-export function cancellationText(a: Appointment, business: string, bookingUrl: string) {
-  const start = a.start.toDate();
-  return `Olá, ${firstName(a.customerName)}! Seu horário na ${business} de ${formatLongDate(start)} às ${formatTime(start)} (${a.serviceName} com ${a.staffName}) foi cancelado. Para marcar outro horário: ${bookingUrl}`;
-}
-
-export function rescheduleText(a: Appointment, business: string, start: Date) {
-  return `Olá, ${firstName(a.customerName)}! Seu horário na ${business} foi remarcado para ${formatLongDate(start)} às ${formatTime(start)} (${a.serviceName} com ${a.staffName}). Se não puder, é só responder esta mensagem.`;
-}
-
+const BOTAO_AVISO = "inline-flex h-10 items-center rounded-md bg-emerald-700 px-4 font-medium text-white hover:bg-emerald-800 disabled:opacity-60";
 
 export default function AgendaPage() {
   const tenant = useTenant();
@@ -77,9 +64,15 @@ export default function AgendaPage() {
   const [staffFilter, setStaffFilter] = useState(tenant.staffId ?? "");
   const [staff] = useCollection(tenant.id, "staff", Staff, [orderBy("name")]);
   // aviso no topo; com a mensagem, oferece mandar ao cliente (manual: pelo WhatsApp do aparelho)
-  const [notice, setNotice] = useState<{ text: string; a?: Appointment; message?: string; manual?: boolean } | null>(null);
-  // WhatsApp do negócio conectado (atendys): a mensagem sai por ele, sem abrir o WhatsApp do aparelho
-  const peloNegocio = !!tenant.whatsapp?.instanceId && tenant.whatsapp.status === "connected";
+  const [notice, setNotice] = useState<{ text: string; aviso?: { a: Appointment; tipo: AvisoCliente; start: Date }; manual?: boolean } | null>(null);
+  // WhatsApp do negócio conectado (atendys): a mensagem sai por ele, sem abrir o WhatsApp do aparelho.
+  // A demonstração nunca manda nada (lerConexao), então nela vai direto ao WhatsApp do aparelho.
+  // ponytail: a conexão antiga (wtsfy, sem apikey) também parece conectada aqui; o servidor recusa
+  // e o aviso oferece o wa.me. Expor um "atendys" no doc público se isso voltar a existir.
+  const peloNegocio = tenant.id !== DEMO && !!tenant.whatsapp?.instanceId && tenant.whatsapp.status === "connected";
+  const mensagem = (a: Appointment, tipo: AvisoCliente, start = a.start.toDate()) =>
+    textoAvisoCliente(tipo, { ...a, start }, tenant.name, `${location.origin}/agendar/${tenant.id}`);
+  const aviso = notice?.aviso;
   // O relógio anda a cada minuto: com a agenda aberta o dia todo, o horário que passa perde
   // o "Confirmar" e ganha o "Faltou", e a linha do "agora" desce, sem recarregar a página
   const [now, setNow] = useState(Date.now);
@@ -128,19 +121,28 @@ export default function AgendaPage() {
   }
 
   /** Pelo WhatsApp do negócio; se não sair, o aviso oferece mandar pelo do aparelho. */
-  async function avisarPeloNegocio(a: Appointment, message: string) {
+  async function avisarPeloNegocio(aviso: { a: Appointment; tipo: AvisoCliente; start: Date }) {
+    const { a } = aviso;
+    setPending(a.id);
     const r = await idToken()
-      .then((t) => avisarClienteWhatsappAction(t, { tenantId: tenant.id, appointmentId: a.id, texto: message }))
+      .then((t) => avisarClienteWhatsappAction(t, { tenantId: tenant.id, appointmentId: a.id, tipo: aviso.tipo }))
       .catch(() => null);
-    if (r?.ok) setNotice({ text: `Mensagem enviada a ${a.customerName} pelo WhatsApp do negócio.` });
-    else setNotice({ text: `A mensagem para ${a.customerName} não saiu pelo WhatsApp do negócio${r ? `: ${r.error}` : "."} Mande pelo seu WhatsApp.`, a, message, manual: true });
+    setPending(null);
+    if (r?.ok) return setNotice({ text: `Mensagem enviada a ${a.customerName} pelo WhatsApp do negócio.` });
+    // sem resposta não quer dizer que não saiu: a queda pode ter vindo depois do envio
+    const text = r
+      ? `A mensagem para ${a.customerName} não saiu pelo WhatsApp do negócio: ${r.error} Mande pelo seu WhatsApp.`
+      : `Sem conexão: não deu para saber se a mensagem chegou a ${a.customerName}. Confira na conversa antes de mandar de novo pelo seu WhatsApp.`;
+    setNotice({ text, aviso, manual: true });
   }
 
-  async function notifyAndChange(a: Appointment, status: "confirmed" | "cancelled", message: string) {
+  async function notifyAndChange(a: Appointment, status: "confirmed" | "cancelled") {
+    const tipo = status === "confirmed" ? "confirmado" : "cancelado";
     if (peloNegocio) {
       setPending(a.id);
-      if (await changeStatus(a, status)) await avisarPeloNegocio(a, message);
+      const saved = await changeStatus(a, status);
       setPending(null);
+      if (saved) await avisarPeloNegocio({ a, tipo, start: a.start.toDate() });
       return;
     }
     // a aba abre ainda dentro do clique: depois do await da gravação o navegador já não conta
@@ -151,7 +153,7 @@ export default function AgendaPage() {
     setPending(null);
     // Falhou a gravação: não avisa o cliente de algo que não aconteceu
     if (!saved) return aba?.close();
-    const link = whatsappLink(a.customerPhone, message);
+    const link = whatsappLink(a.customerPhone, mensagem(a, tipo));
     if (aba) {
       aba.opener = null;
       aba.location.href = link;
@@ -168,9 +170,8 @@ export default function AgendaPage() {
 
   function cancel(a: Appointment, notify: boolean) {
     setConfirming(null);
-    const url = `${location.origin}/agendar/${tenant.id}`;
     return notify
-      ? notifyAndChange(a, "cancelled", cancellationText(a, tenant.name, url))
+      ? notifyAndChange(a, "cancelled")
       : changeStatus(a, "cancelled");
   }
 
@@ -221,7 +222,17 @@ export default function AgendaPage() {
             >
               <span className="text-[11px] tracking-wider uppercase opacity-75">{WEEKDAYS[weekday(d.date)].slice(0, 3)}</span>
               <span className={cn("font-serifa text-2xl leading-none sm:text-3xl", d.date === hoje && !sel && "underline underline-offset-4")}>{Number(d.date.slice(8))}</span>
-              <span className="hidden text-xs opacity-75 sm:block">{d.count ? `${d.count} horário${d.count > 1 ? "s" : ""}` : "livre"}</span>
+              {/* no celular o dia tem ~46px: "4 hor." cabe, "4 horários" não */}
+              <span className="text-[10px] leading-none whitespace-nowrap opacity-75 sm:text-xs" aria-hidden="true">
+                {d.count ? (
+                  <>
+                    {d.count} hor<span className="sm:hidden">.</span>
+                    <span className="hidden sm:inline">ário{d.count > 1 ? "s" : ""}</span>
+                  </>
+                ) : (
+                  "livre"
+                )}
+              </span>
             </button>
           );
         })}
@@ -242,21 +253,12 @@ export default function AgendaPage() {
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950">
           <span>{notice.text}</span>
           <div className="flex gap-2">
-            {notice.a && notice.message && (peloNegocio && !notice.manual ? (
-              <button
-                type="button"
-                disabled={pending === notice.a.id}
-                onClick={async () => {
-                  setPending(notice.a!.id);
-                  await avisarPeloNegocio(notice.a!, notice.message!);
-                  setPending(null);
-                }}
-                className="inline-flex h-10 items-center rounded-md bg-emerald-700 px-4 font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
-              >
-                {pending === notice.a.id ? "Enviando…" : "Avisar pelo WhatsApp"}
+            {aviso && (peloNegocio && !notice.manual ? (
+              <button type="button" disabled={pending === aviso.a.id} onClick={() => avisarPeloNegocio(aviso)} className={BOTAO_AVISO}>
+                {pending === aviso.a.id ? "Enviando…" : "Avisar pelo WhatsApp"}
               </button>
             ) : (
-              <a href={whatsappLink(notice.a.customerPhone, notice.message)} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center rounded-md bg-emerald-700 px-4 font-medium text-white hover:bg-emerald-800">
+              <a href={whatsappLink(aviso.a.customerPhone, mensagem(aviso.a, aviso.tipo, aviso.start))} target="_blank" rel="noreferrer" className={BOTAO_AVISO}>
                 Avisar pelo WhatsApp
               </a>
             ))}
@@ -350,7 +352,7 @@ export default function AgendaPage() {
                   )}
                   {/* Confirmar só antes do horário: depois dele já não há o que combinar com o cliente */}
                   {a.status === "booked" && a.start.toMillis() > now && meu(a) && (
-                    <Button className="h-10 px-4" disabled={pending === a.id} onClick={() => notifyAndChange(a, "confirmed", confirmationText(a, tenant.name))}>
+                    <Button className="h-10 px-4" disabled={pending === a.id} onClick={() => notifyAndChange(a, "confirmed")}>
                       {pending === a.id ? "Confirmando…" : "Confirmar pelo WhatsApp"}
                     </Button>
                   )}
@@ -420,8 +422,7 @@ export default function AgendaPage() {
                     setRescheduling(null);
                     setNotice({
                       text: `${a.customerName} remarcado para ${formatLongDate(start)} às ${formatTime(start)}.`,
-                      a,
-                      message: rescheduleText(a, tenant.name, start),
+                      aviso: { a, tipo: "remarcado", start },
                     });
                     setDate(newDate);
                   }}

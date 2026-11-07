@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { RUPHUS } from "@/lib/catalogo";
 import { CamposNegocio, errosDe, VAZIO, type Valores } from "@/components/campos-negocio";
 import { idToken } from "@/lib/firebase";
-import { RECADO_MAX } from "@/lib/scheduling";
+import { limitesDe, MAX_DURACAO_MIN, MAX_DURACAO_TETO, MAX_SERVICOS_TETO, RECADO_MAX } from "@/lib/scheduling";
 import { QrDoLink } from "../qr-link";
 import { lerNegocioAction, salvarNegocioAction, salvarRecadoAction } from "../actions";
 import { InstalarPainel } from "../app-instalado";
@@ -44,6 +44,9 @@ export default function MeuNegocio() {
   // agenda pelo link: desligada, a bio e a página de agendar levam ao WhatsApp
   const [online, setOnline] = useState(true);
   const [onlineSalvo, setOnlineSalvo] = useState(true);
+  // quantos serviços e quanto tempo somado o cliente marca de uma vez
+  const [limites, setLimites] = useState(limitesDe(null));
+  const [limitesSalvos, setLimitesSalvos] = useState(limitesDe(null));
   const [busyRecado, setBusyRecado] = useState(false);
   const [avisoRecado, setAvisoRecado] = useState<{ ok: boolean; texto: string } | null>(null);
 
@@ -55,7 +58,9 @@ export default function MeuNegocio() {
       const r = await idToken().then((t) => lerNegocioAction(t, { tenantId: slug })).catch(() => null);
       if (!atual) return;
       if (!r?.ok) return setEstado("erro");
-      const { name, fabrica, publicado, recado, agendaOnline, ...resto } = r.dados;
+      const { name, fabrica, publicado, recado, agendaOnline, limites, ...resto } = r.dados;
+      setLimites(limites);
+      setLimitesSalvos(limites);
       setRecado(recado);
       setRecadoSalvo(recado);
       setOnline(agendaOnline);
@@ -76,7 +81,8 @@ export default function MeuNegocio() {
   const erros = errosDe(campos, fabrica);
   const erroNome = nome.trim().length < 2 ? "Informe o nome do negócio" : "";
   const mudou = !!salvo && (nome !== salvo.nome || (Object.keys(VAZIO) as (keyof Valores)[]).some((c) => campos[c] !== salvo.campos[c]));
-  const mudouRecado = recado.trim() !== recadoSalvo.trim() || online !== onlineSalvo;
+  const mudouRecado =
+    recado.trim() !== recadoSalvo.trim() || online !== onlineSalvo || limites.maxServicos !== limitesSalvos.maxServicos || limites.maxDuracaoMin !== limitesSalvos.maxDuracaoMin;
 
   // sair com alteração não salva: o navegador pergunta antes de fechar ou recarregar, e a
   // tela pergunta antes de um link do painel (o menu trocava de página e descartava tudo)
@@ -130,13 +136,14 @@ export default function MeuNegocio() {
   async function salvarRecado() {
     setAvisoRecado(null);
     setBusyRecado(true);
-    const r = await idToken().then((t) => salvarRecadoAction(t, { tenantId: slug, recado, online })).catch(() => null);
+    const r = await idToken().then((t) => salvarRecadoAction(t, { tenantId: slug, recado, online, limites })).catch(() => null);
     setBusyRecado(false);
     if (!r) return setAvisoRecado({ ok: false, texto: "Não foi possível salvar. Verifique a conexão e tente de novo." });
     if (!r.ok) return setAvisoRecado({ ok: false, texto: r.error });
     setRecado(recado.trim());
     setRecadoSalvo(recado.trim());
     setOnlineSalvo(online);
+    setLimitesSalvos(limites);
     setAvisoRecado({
       ok: true,
       texto: !online
@@ -298,6 +305,45 @@ export default function MeuNegocio() {
             />
             Receber agendamentos pelo link
           </label>
+          {online && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="negocio-max-servicos">Serviços por horário</Label>
+              <select
+                id="negocio-max-servicos"
+                value={limites.maxServicos}
+                onChange={(e) => {
+                  setLimites({ ...limites, maxServicos: Number(e.target.value) });
+                  setAvisoRecado(null);
+                }}
+                className="h-11 rounded-lg border border-input bg-card px-3 text-base sm:text-[15px]"
+              >
+                {Array.from({ length: MAX_SERVICOS_TETO }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>{n === 1 ? "1 serviço" : `até ${n} serviços`}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="negocio-max-duracao">Tempo somado</Label>
+              <select
+                id="negocio-max-duracao"
+                value={limites.maxDuracaoMin}
+                onChange={(e) => {
+                  setLimites({ ...limites, maxDuracaoMin: Number(e.target.value) });
+                  setAvisoRecado(null);
+                }}
+                className="h-11 rounded-lg border border-input bg-card px-3 text-base sm:text-[15px]"
+              >
+                {Array.from({ length: (MAX_DURACAO_TETO - MAX_DURACAO_MIN) / 30 + 1 }, (_, i) => MAX_DURACAO_MIN + i * 30).map((m) => (
+                  <option key={m} value={m}>até {m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60}` : ""}`}</option>
+                ))}
+              </select>
+            </div>
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              O que o cliente marca de uma vez pelo link. Um serviço sozinho mais longo que o tempo somado continua aparecendo. Pelo painel você marca sem limite.
+            </p>
+          </div>
+          )}
           {online && (
           <div className="grid gap-1.5">
             <p className="text-sm text-muted-foreground">
