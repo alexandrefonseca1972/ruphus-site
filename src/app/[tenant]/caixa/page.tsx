@@ -446,7 +446,8 @@ export default function CaixaPage() {
                     </button>
                     <span className="text-[13px] text-muted-foreground tabular-nums">
                       faturou {brl(c.faturado)}
-                      {vales[c.staffId] > 0 && ` · ${brl(vales[c.staffId])} em vale neste mês`}
+                      {/* pago: o vale do mês já está no total; em aberto, aparece no "menos … de vale" */}
+                      {paga && vales[c.staffId] > 0 && ` · ${brl(vales[c.staffId])} em vale`}
                       {!paga && c.abatido > 0 && ` · menos ${brl(c.abatido)} de vale e estorno`}
                       {!paga && c.abatido < 0 && ` · mais ${brl(-c.abatido)} de estorno desfeito`}
                       {/* paga antes de novos recebimentos ou de mudar o %: o dono vê a diferença */}

@@ -177,6 +177,8 @@ export function comissoesDoMes(itens: (Pick<Lancamento, "tipo" | "valorCents" | 
   // crédito a devolver (estorno desfeito, recebimento depois do pagamento) sem atendimento no mês:
   // a linha aparece mesmo assim, senão não haveria como pagar quem saiu da equipe
   for (const [staffId, d] of Object.entries(descontos)) if (d < 0) m.set(staffId, { staffId, nome: nomes[staffId] ?? "Profissional", faturado: 0, dataNome: "" });
+  // quem da equipe tem % e ainda não faturou no mês também aparece: o vale vale a qualquer dia
+  for (const [staffId, p] of Object.entries(pct)) if (p > 0 && nomes[staffId] && !m.has(staffId)) m.set(staffId, { staffId, nome: nomes[staffId], faturado: 0, dataNome: "" });
   for (const l of itens) {
     if (l.tipo !== "entrada" || !l.staffId) continue;
     const p = m.get(l.staffId) ?? { staffId: l.staffId, nome: l.staffName ?? "Profissional", faturado: 0, dataNome: "" };

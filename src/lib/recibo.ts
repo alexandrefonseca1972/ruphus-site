@@ -140,9 +140,9 @@ export function itensDoRecibo<T extends Item & { tipo: string; customerKey?: str
 // o mesmo critério do cadastro do cliente: algo@dominio.tld, sem espaço, até 254 caracteres
 const EMAIL = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
 /** A mensagem do campo de e-mail do recibo, ou "" quando dá para enviar. */
-export function erroDoEmail(valor: string) {
+export function erroDoEmail(valor: string, quem = "do cliente") {
   const v = valor.trim();
-  if (!v) return "Digite o e-mail do cliente.";
+  if (!v) return `Digite o e-mail ${quem}.`;
   if (v.length > 254 || !EMAIL.test(v)) return "E-mail incompleto. Confira, ex.: nome@gmail.com";
   return "";
 }

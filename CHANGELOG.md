@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Vale: o profissional com % de comissão aparece em Comissões mesmo antes de faturar no mês, para receber vale no dia 1; o aviso de e-mail vazio fala do profissional (não do cliente); o recibo diz "pagos em dinheiro".
+
 - Caixa: "Lançamentos do mês" ganhou Tudo / Entradas / Saídas, com o total de cada lado. Contas fixas, compras, comissões e vales ficam em Saídas, longe dos atendimentos.
 
 - Vale para o profissional: em Comissões, "Vale" paga parte da comissão em qualquer dia, mesmo com o mês já pago. Sai do Caixa como saída de hoje e é descontado sozinho do próximo pagamento de comissão (o que passar dele fica para o seguinte). A confirmação vai sempre por e-mail ao profissional; o recibo para ele assinar é opcional, logo depois de registrar.

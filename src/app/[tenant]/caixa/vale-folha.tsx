@@ -29,7 +29,7 @@ export function ValeFolha({ tenantId, negocio, staff, onClose }: { tenantId: str
   const [feito, setFeito] = useState<{ aviso: string; data: string } | null>(null);
   const [recibo, setRecibo] = useState(false);
   const centavos = Number(valor.replace(/\D/g, "")) || 0;
-  const erroEmail = tocouEmail ? erroDoEmail(email) : "";
+  const erroEmail = tocouEmail ? erroDoEmail(email, "do profissional") : "";
 
   // o e-mail da conta do profissional (quem entrou pelo convite) já preenche o campo
   useEffect(() => {
@@ -78,7 +78,7 @@ export function ValeFolha({ tenantId, negocio, staff, onClose }: { tenantId: str
                   <p className="text-center">Nº {numeroDoRecibo(id)} · {feito.data.split("-").reverse().join("/")}</p>
                   <p className="flex items-baseline justify-between font-bold"><span>VALOR</span><span className="text-[18px] tabular-nums">{formatBRL(centavos)}</span></p>
                   <p className="text-[11px]">
-                    Recebi de {negocio} a importância de {formatBRL(centavos)} ({valorPorExtenso(centavos)}), pagos em {ROTULO_FORMA[forma]}, como vale (adiantamento de comissão), a ser descontado do próximo pagamento.
+                    Recebi de {negocio} a importância de {formatBRL(centavos)} ({valorPorExtenso(centavos)}), pagos em {forma === "pix" ? "Pix" : ROTULO_FORMA[forma].toLowerCase()}, como vale (adiantamento de comissão), a ser descontado do próximo pagamento.
                   </p>
                   <div className="grid justify-items-center gap-1 pt-8 text-center">
                     <span className="w-4/5 border-t border-black" />

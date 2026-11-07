@@ -354,6 +354,9 @@ await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "rui", "2025
 await baixarAgendamento(db, "salao", { appointmentId: "rui-sinal", valorCents: 7000, forma: "dinheiro", sinalCents: 3000 }, quem);
 assert.equal((await db.doc("tenants/salao/caixa/config").get()).get("descontos.rui"), -5000);
 
+// quem tem % e ainda não faturou aparece (para o vale); sem nome na equipe, não
+assert.deepEqual(comissoesDoMes([], { ana: 40, foi: 30 }, {}, { ana: "Ana" }).map((c) => [c.staffId, c.faturado, c.valor]), [["ana", 0, 0]]);
+
 // vale: sai hoje, entra no desconto guardado e abate do próximo pagamento de comissão
 {
   await db.doc("tenants/salao/staff/vi").set({ name: "Vi" });
