@@ -2,6 +2,7 @@
 
 import { addDoc, collection, deleteDoc, doc, orderBy, setDoc, updateDoc } from "firebase/firestore";
 import { useState } from "react";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +18,25 @@ import { RowMenu } from "../row-menu";
 import { cn, handleSubmit } from "@/lib/utils";
 
 const toCents = (masked: string) => Number(masked.replace(/\D/g, ""));
+
+// a lista lê também "usos" (quantas vezes foi agendado: a ordem da página pública)
+const ServicoNaLista = Service.extend({ usos: z.number().optional() });
+const POR_PAGINA = [10, 25, 50];
+type Ordem = "nome" | "duracao" | "preco" | "usos";
+const ORDENS: { id: Ordem; rotulo: string }[] = [
+  { id: "nome", rotulo: "Nome" },
+  { id: "usos", rotulo: "Mais agendados" },
+  { id: "preco", rotulo: "Preço" },
+  { id: "duracao", rotulo: "Duração" },
+];
+type Filtro = "todos" | "noLink" | "fora" | "ninguem" | "ocultos";
+const FILTROS: { id: Filtro; rotulo: string }[] = [
+  { id: "todos", rotulo: "Todos" },
+  { id: "noLink", rotulo: "No link" },
+  { id: "fora", rotulo: "Fora do link" },
+  { id: "ninguem", rotulo: "Ninguém faz" },
+  { id: "ocultos", rotulo: "Ocultos" },
+];
 
 // As mensagens vêm do próprio schema: a regra que o formulário mostra é a que o salvamento aplica
 const erroDe = (campo: "name" | "durationMin" | "priceCents", valor: unknown) => {
@@ -152,7 +172,14 @@ function Field({ id, label, error, hint, children }: { id: string; label: string
 
 export default function ServicesPage() {
   const tenant = useTenant();
-  const [items, loadError] = useCollection(tenant.id, "services", Service, [orderBy("name")]);
+  const [items, loadError] = useCollection(tenant.id, "services", ServicoNaLista, [orderBy("name")]);
+  // busca, filtro, ordem e página: tudo na tela (um salão tem dezenas de serviços, não milhares)
+  const [busca, setBusca] = useState("");
+  const [filtro, setFiltro] = useState<Filtro>("todos");
+  const [quem, setQuem] = useState("");
+  const [ordem, setOrdem] = useState<{ por: Ordem; sobe: boolean }>({ por: "nome", sobe: true });
+  const [porPagina, setPorPagina] = useState(25);
+  const [pagina, setPagina] = useState(1);
   const [staff] = useCollection(tenant.id, "staff", Staff, []);
   const [excluindo, setExcluindo] = useState<Editando>(null);
   const [editing, setEditing] = useState<Editando>(null);
@@ -190,6 +217,43 @@ export default function ServicesPage() {
   for (const s of items ?? []) repetidos.set(chaveNome(s.name), (repetidos.get(chaveNome(s.name)) ?? 0) + 1);
   const fazem = (id: string) => staff?.filter((p) => p.active && p.serviceIds.includes(id)).map((p) => p.name) ?? [];
 
+  const termo = chaveNome(busca);
+  const doProfissional = quem ? new Set(staff?.find((p) => p.id === quem)?.serviceIds ?? []) : null;
+  const passa = (s: NonNullable<typeof items>[number]) =>
+    (!termo || chaveNome(s.name).includes(termo)) &&
+    (!doProfissional || doProfissional.has(s.id)) &&
+    (filtro === "todos" ||
+      (filtro === "noLink" && noLink(s)) ||
+      (filtro === "fora" && s.active && !noLink(s)) ||
+      (filtro === "ninguem" && !fazemIds.has(s.id)) ||
+      (filtro === "ocultos" && !s.active));
+  // sem preço informado fica sempre no fim, subindo ou descendo
+  const valor = (s: NonNullable<typeof items>[number]) =>
+    ordem.por === "duracao" ? s.durationMin : ordem.por === "usos" ? (s.usos ?? 0) : s.tipoPreco === "naoInformado" ? null : s.priceCents;
+  const lista = (items ?? []).filter(passa).sort((a, b) => {
+    if (ordem.por === "nome") return (ordem.sobe ? 1 : -1) * a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" });
+    const [va, vb] = [valor(a), valor(b)];
+    if (va === null || vb === null) return va === vb ? a.name.localeCompare(b.name, "pt-BR") : va === null ? 1 : -1;
+    return (ordem.sobe ? va - vb : vb - va) || a.name.localeCompare(b.name, "pt-BR");
+  });
+  const paginas = Math.max(1, Math.ceil(lista.length / porPagina));
+  // a lista encolheu (busca, filtro, exclusão) com a página lá no fim: fica na última que existe
+  const atual = Math.min(pagina, paginas);
+  const inicio = (atual - 1) * porPagina;
+  const filtrando = !!termo || filtro !== "todos" || !!quem;
+  const ordenar = (por: Ordem) => {
+    setOrdem((o) => ({ por, sobe: o.por === por ? !o.sobe : por === "nome" }));
+    setPagina(1);
+  };
+  const cabecalho = (por: Ordem, rotulo: string) => (
+    <span role="columnheader" aria-sort={ordem.por === por ? (ordem.sobe ? "ascending" : "descending") : "none"}>
+      <button type="button" onClick={() => ordenar(por)} className={cn("inline-flex items-center gap-1 uppercase hover:text-foreground", ordem.por === por && "text-foreground")}>
+        {rotulo}
+        <span aria-hidden="true" className={cn("text-[10px]", ordem.por !== por && "opacity-0")}>{ordem.sobe ? "▲" : "▼"}</span>
+      </button>
+    </span>
+  );
+
   return (
     <>
       <PageTitle
@@ -217,16 +281,92 @@ export default function ServicesPage() {
         </p>
       )}
       {!!items?.length && (
+        <div className="grid gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative min-w-0 flex-1 basis-60">
+              <Label htmlFor="busca-servico" className="sr-only">Buscar serviço</Label>
+              <svg className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted-foreground" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+              <Input
+                id="busca-servico"
+                type="search"
+                value={busca}
+                placeholder="Buscar serviço"
+                onChange={(e) => (setBusca(e.target.value), setPagina(1))}
+                className="h-11 bg-card pl-11 text-[15px]"
+              />
+            </div>
+            {!!staff?.length && (
+              <label className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground max-sm:w-full">
+                Quem faz
+                <select value={quem} onChange={(e) => (setQuem(e.target.value), setPagina(1))} className="h-11 min-w-0 flex-1 rounded-lg border bg-card px-2 text-foreground sm:h-10 sm:flex-none">
+                  <option value="">Toda a equipe</option>
+                  {staff.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </label>
+            )}
+          </div>
+          <div role="group" aria-label="Filtrar serviços" className="flex w-fit max-w-full gap-0.5 justify-self-start overflow-x-auto rounded-lg bg-muted p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {FILTROS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                aria-pressed={filtro === f.id}
+                onClick={() => (setFiltro(f.id), setPagina(1))}
+                className={cn("h-9 shrink-0 rounded-md px-3 text-[13px] whitespace-nowrap text-muted-foreground hover:text-foreground max-sm:h-10", filtro === f.id && "bg-card font-medium text-foreground shadow-sm")}
+              >
+                {f.rotulo}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {!!items?.length && lista.length === 0 && (
+        <p className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+          Nenhum serviço encontrado.{" "}
+          {filtrando && (
+            <button type="button" className="font-medium text-foreground underline underline-offset-2" onClick={() => (setBusca(""), setFiltro("todos"), setQuem(""), setPagina(1))}>
+              Limpar a busca e os filtros
+            </button>
+          )}
+        </p>
+      )}
+      {!!lista.length && (
         <section aria-label="Serviços cadastrados" className="overflow-hidden rounded-2xl border bg-card">
-          <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1fr)_7rem_8rem_11rem_7rem] gap-4 bg-background px-6 py-3 text-xs font-medium tracking-wider text-muted-foreground uppercase sm:grid">
-            <span>Serviço</span>
-            <span>Duração</span>
-            <span>Preço</span>
+          {/* clicar no título ordena; de novo, inverte */}
+          <div className="hidden grid-cols-[minmax(0,1fr)_7rem_8rem_11rem_7rem] gap-4 bg-background px-6 py-3 text-xs font-medium tracking-wider text-muted-foreground uppercase sm:grid">
+            {cabecalho("nome", "Serviço")}
+            {cabecalho("duracao", "Duração")}
+            {cabecalho("preco", "Preço")}
             <span>Link de agendamento</span>
             <span />
           </div>
+          {/* a ordem também num seletor: no celular os títulos somem, e "mais agendados" não tem coluna */}
+          <div className="flex items-center gap-2 border-b bg-background px-4 py-2.5 text-[13px] sm:border-t sm:px-6">
+            <label htmlFor="ordem-servicos" className="shrink-0 text-muted-foreground">Ordenar por</label>
+            <select
+              id="ordem-servicos"
+              value={`${ordem.por}:${ordem.sobe ? "sobe" : "desce"}`}
+              onChange={(e) => {
+                const [por, dir] = e.target.value.split(":");
+                setOrdem({ por: por as Ordem, sobe: dir === "sobe" });
+                setPagina(1);
+              }}
+              className="h-10 min-w-0 flex-1 rounded-md border bg-card px-2 sm:max-w-64 sm:flex-none"
+            >
+              {ORDENS.flatMap(({ id, rotulo }) =>
+                id === "nome"
+                  ? [<option key="nome:sobe" value="nome:sobe">Nome (A–Z)</option>, <option key="nome:desce" value="nome:desce">Nome (Z–A)</option>]
+                  : id === "usos"
+                    ? [<option key="usos:desce" value="usos:desce">Mais agendados</option>, <option key="usos:sobe" value="usos:sobe">Menos agendados</option>]
+                    : [<option key={`${id}:desce`} value={`${id}:desce`}>{rotulo} (maior primeiro)</option>, <option key={`${id}:sobe`} value={`${id}:sobe`}>{rotulo} (menor primeiro)</option>],
+              )}
+            </select>
+          </div>
           <ul>
-            {items.map((s) => {
+            {lista.slice(inicio, inicio + porPagina).map((s) => {
               const quem = fazem(s.id);
               return (
                 <li key={s.id} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-t px-4 py-4 sm:grid-cols-[minmax(0,1fr)_7rem_8rem_11rem_7rem] sm:px-6", !s.active && "text-muted-foreground")}>
@@ -286,6 +426,25 @@ export default function ServicesPage() {
               );
             })}
           </ul>
+          <nav aria-label="Páginas da lista de serviços" className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-4 py-3 text-[13px] text-muted-foreground sm:px-6">
+            <span className="tabular-nums">
+              {inicio + 1}–{Math.min(inicio + porPagina, lista.length)} de {lista.length}
+              {filtrando && items && ` (de ${items.length})`}
+            </span>
+            <label className="flex items-center gap-2">
+              Por página
+              <select value={porPagina} onChange={(e) => (setPorPagina(Number(e.target.value)), setPagina(1))} className="h-9 rounded-md border bg-card px-2 text-foreground tabular-nums max-sm:h-11">
+                {POR_PAGINA.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+            {paginas > 1 && (
+              <div className="ml-auto flex items-center gap-2 max-sm:w-full max-sm:justify-between">
+                <Button variant="outline" className="h-10 px-3" disabled={atual <= 1} onClick={() => setPagina(atual - 1)}>Anterior</Button>
+                <span aria-live="polite" className="min-w-0 text-center tabular-nums">Página {atual} de {paginas}</span>
+                <Button variant="outline" className="h-10 px-3" disabled={atual >= paginas} onClick={() => setPagina(atual + 1)}>Próxima</Button>
+              </div>
+            )}
+          </nav>
         </section>
       )}
       {excluindo && (
