@@ -22,7 +22,7 @@ import { Reschedule } from "./reschedule";
 import { RowMenu } from "./row-menu";
 import { ShareLink } from "./share-link";
 import { mudarStatus, STATUS } from "./status";
-import { avisarConfirmacaoSmsAction, confirmarSinalAction } from "./actions";
+import { avisarClienteWhatsappAction, avisarConfirmacaoSmsAction, confirmarSinalAction } from "./actions";
 import { idToken } from "@/lib/firebase";
 import { restanteDe } from "@/lib/sinal";
 
@@ -76,7 +76,10 @@ export default function AgendaPage() {
   // quem é da equipe abre na própria agenda; "Todos" continua a um toque
   const [staffFilter, setStaffFilter] = useState(tenant.staffId ?? "");
   const [staff] = useCollection(tenant.id, "staff", Staff, [orderBy("name")]);
-  const [notice, setNotice] = useState<{ text: string; link: string } | null>(null);
+  // aviso no topo; com a mensagem, oferece mandar ao cliente (manual: pelo WhatsApp do aparelho)
+  const [notice, setNotice] = useState<{ text: string; a?: Appointment; message?: string; manual?: boolean } | null>(null);
+  // WhatsApp do negócio conectado (atendys): a mensagem sai por ele, sem abrir o WhatsApp do aparelho
+  const peloNegocio = !!tenant.whatsapp?.instanceId && tenant.whatsapp.status === "connected";
   // O relógio anda a cada minuto: com a agenda aberta o dia todo, o horário que passa perde
   // o "Confirmar" e ganha o "Faltou", e a linha do "agora" desce, sem recarregar a página
   const [now, setNow] = useState(Date.now);
@@ -124,7 +127,22 @@ export default function AgendaPage() {
     }
   }
 
+  /** Pelo WhatsApp do negócio; se não sair, o aviso oferece mandar pelo do aparelho. */
+  async function avisarPeloNegocio(a: Appointment, message: string) {
+    const r = await idToken()
+      .then((t) => avisarClienteWhatsappAction(t, { tenantId: tenant.id, appointmentId: a.id, texto: message }))
+      .catch(() => null);
+    if (r?.ok) setNotice({ text: `Mensagem enviada a ${a.customerName} pelo WhatsApp do negócio.` });
+    else setNotice({ text: `A mensagem para ${a.customerName} não saiu pelo WhatsApp do negócio${r ? `: ${r.error}` : "."} Mande pelo seu WhatsApp.`, a, message, manual: true });
+  }
+
   async function notifyAndChange(a: Appointment, status: "confirmed" | "cancelled", message: string) {
+    if (peloNegocio) {
+      setPending(a.id);
+      if (await changeStatus(a, status)) await avisarPeloNegocio(a, message);
+      setPending(null);
+      return;
+    }
     // a aba abre ainda dentro do clique: depois do await da gravação o navegador já não conta
     // como gesto, bloqueava a aba nova, e o WhatsApp tomava o lugar do painel
     const aba = window.open("", "_blank");
@@ -224,9 +242,24 @@ export default function AgendaPage() {
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950">
           <span>{notice.text}</span>
           <div className="flex gap-2">
-            <a href={notice.link} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center rounded-md bg-emerald-700 px-4 font-medium text-white hover:bg-emerald-800">
-              Avisar pelo WhatsApp
-            </a>
+            {notice.a && notice.message && (peloNegocio && !notice.manual ? (
+              <button
+                type="button"
+                disabled={pending === notice.a.id}
+                onClick={async () => {
+                  setPending(notice.a!.id);
+                  await avisarPeloNegocio(notice.a!, notice.message!);
+                  setPending(null);
+                }}
+                className="inline-flex h-10 items-center rounded-md bg-emerald-700 px-4 font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+              >
+                {pending === notice.a.id ? "Enviando…" : "Avisar pelo WhatsApp"}
+              </button>
+            ) : (
+              <a href={whatsappLink(notice.a.customerPhone, notice.message)} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center rounded-md bg-emerald-700 px-4 font-medium text-white hover:bg-emerald-800">
+                Avisar pelo WhatsApp
+              </a>
+            ))}
             <Button variant="ghost" size="sm" onClick={() => setNotice(null)}>Fechar</Button>
           </div>
         </div>
@@ -387,7 +420,8 @@ export default function AgendaPage() {
                     setRescheduling(null);
                     setNotice({
                       text: `${a.customerName} remarcado para ${formatLongDate(start)} às ${formatTime(start)}.`,
-                      link: whatsappLink(a.customerPhone, rescheduleText(a, tenant.name, start)),
+                      a,
+                      message: rescheduleText(a, tenant.name, start),
                     });
                     setDate(newDate);
                   }}
