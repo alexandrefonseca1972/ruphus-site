@@ -17,8 +17,9 @@ const TRINTA_DIAS = 30 * 24 * 60 * 60 * 1000;
 /** O evento que o Chrome (Android e computador) dispara quando o app pode ser instalado */
 type ConviteInstalar = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> };
 
-// O Chrome manda o convite de instalar uma vez por carregamento, às vezes antes de a tela
-// montar. Guardado aqui fora, serve à faixa do topo e ao cartão fixo de Meu negócio.
+// O Chrome manda o convite de instalar uma vez por carregamento, em geral antes de o painel
+// existir (no /login). O script do layout raiz guarda em window.__conviteInstalar; aqui fora,
+// serve à faixa do topo e ao cartão fixo de Meu negócio.
 type Instalacao = { convite: ConviteInstalar | null; instalado: boolean; dispensado: boolean; ios: boolean };
 let instalacao: Instalacao | null = null;
 const ouvintes = new Set<() => void>();
@@ -43,7 +44,7 @@ const marcarDispensado = (chave: string) => {
 /** Como o painel está aberto agora. Só roda no navegador. */
 const atual = () =>
   (instalacao ??= {
-    convite: null,
+    convite: guardado(),
     instalado: matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true,
     dispensado: dispensadoEm(DISPENSADO),
     // Safari do iPhone/iPad não tem o evento de instalar: lá o caminho é pelo menu Compartilhar
@@ -55,11 +56,10 @@ const mudar = (m: Partial<Instalacao>) => {
 };
 const assinar = (f: () => void) => (ouvintes.add(f), () => void ouvintes.delete(f));
 
+const guardado = () => (window as { __conviteInstalar?: ConviteInstalar }).__conviteInstalar ?? null;
+
 if (typeof window !== "undefined") {
-  addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault();
-    mudar({ convite: e as ConviteInstalar });
-  });
+  addEventListener("ruphus:instalar", () => mudar({ convite: guardado() }));
   addEventListener("appinstalled", () => mudar({ convite: null, instalado: true }));
 }
 

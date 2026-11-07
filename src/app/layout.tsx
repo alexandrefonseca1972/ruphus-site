@@ -52,6 +52,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               "try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.classList.add('dark')}catch(e){}",
           }}
         />
+        {/* O Chrome avisa que dá para instalar uma vez por carregamento, em geral ainda no /login.
+            Login → /painel → /{slug} é navegação do router: sem guardar aqui, o painel nunca via o convite */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__conviteInstalar=e;dispatchEvent(new Event('ruphus:instalar'))})",
+          }}
+        />
       </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
