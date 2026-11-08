@@ -44,6 +44,8 @@ export type Envio = {
   retryAt?: string | null;
   manualHandoffRequired?: boolean;
   manualHandoffUrl?: string;
+  /** Por que parou (RATE_LIMITED, INSTANCE_UNAVAILABLE, QUIET_HOURS), quando o atendys diz. */
+  errorCode?: string;
 };
 export const aguardaDecisao = (e: Pick<Envio, "status">) => e.status === "awaiting_manual";
 
@@ -261,25 +263,22 @@ export async function qrDaConexao(conn: ConexaoAtendys): Promise<SituacaoQr> {
 }
 
 // o atendys exige origem E evidência (texto livre) em todo consentimento (OptInDto);
-// sem evidência o opt-in volta 400 e o envio nunca sai. A evidência diz o que aconteceu de
-// fato: o cliente tem horário no negócio e o número está no cadastro do agendamento.
-const EVIDENCIA_PADRAO = "Cliente com horário agendado no negócio; número do cadastro do agendamento (ruphus.site)";
+// sem evidência o opt-in volta 400 e o envio nunca sai.
 
 /** Consentimento registrado quando o número ainda não tem: origem + evidência. null = não
- *  registra (envio avulso, como o teste do dono, não pode alegar consentimento). */
+ *  registra: o gateway recusa (NOT_OPTED_IN) e a mensagem não sai. Consentimento nunca é
+ *  presumido: quem fala com cliente passa o opt-in gravado no agendamento (consentimento-whatsapp.ts). */
 export type OptIn = { origem: string; evidencia: string } | null;
-const OPTIN_PADRAO: OptIn = { origem: "ruphus-agendamento", evidencia: EVIDENCIA_PADRAO };
 /** Aviso para o número do próprio negócio (self-chat) ou o WhatsApp pessoal do dono. */
 export const OPTIN_DONO: OptIn = { origem: "ruphus-aviso-dono", evidencia: "Número do próprio negócio ou do dono, cadastrado por ele no painel da Ruphus" };
 
 /**
  * Texto simples (confirmação, lembrete, recibo). O atendys exige o cabeçalho
  * `instance` (qual número do tenant envia) e opt-in do destinatário (LGPD, sempre
- * em produção): quando o número ainda não tem, registramos com origem ruphus e
- * a evidência de que o titular forneceu o número para receber a comunicação do
- * agendamento. Falha de opt-in inscreve e repete o envio uma vez.
+ * em produção): quando o número ainda não tem E quem chama passa um optIn (aceite explícito
+ * gravado), registramos e repetimos o envio uma vez. Sem optIn, a recusa sobe como está.
  */
-export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn = OPTIN_PADRAO): Promise<Envio> {
+export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
   const auth = { ...authTenant(conn), instance: conn.instanceId };
   const enviar = async (): Promise<Envio> => {
@@ -291,10 +290,11 @@ export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: 
       ...(r.retryAt && { retryAt: r.retryAt }),
       ...(r.manualHandoffRequired && { manualHandoffRequired: true }),
       ...(r.manualHandoffUrl && { manualHandoffUrl: r.manualHandoffUrl }),
+      ...(r.errorCode && { errorCode: r.errorCode }),
     };
   };
   const registrar = async (e: Envio) => {
-    if (aguardaDecisao(e) && conn.slug) await registrarParada(conn.slug, { messageId: e.messageId, retryAt: e.retryAt, para: digits, texto: message });
+    if (aguardaDecisao(e) && conn.slug) await registrarParada(conn.slug, { messageId: e.messageId, retryAt: e.retryAt, errorCode: e.errorCode, para: digits, texto: message });
     return e;
   };
   try {
@@ -355,13 +355,13 @@ export async function seguirSemOperador(conn: ConexaoAtendys, envio: Envio, praz
 }
 
 /** enviarTexto + seguirSemOperador: para quem envia sem ninguém olhando a tela. */
-export async function enviarSemOperador(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn = OPTIN_PADRAO, prazo?: Date) {
+export async function enviarSemOperador(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date) {
   const envio = await enviarTexto(conn, phone, message, optIn);
   return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };
 }
 
 /** Consentimento explícito (quando o fluxo pede, ex.: aceite no agendamento). */
-export function registrarOptIn(conn: ConexaoAtendys, phone: string, origem: string, evidencia = EVIDENCIA_PADRAO) {
+export function registrarOptIn(conn: ConexaoAtendys, phone: string, origem: string, evidencia: string) {
   return chamar(authTenant(conn), "POST", "/v1/optin", {
     number: phone.replace(/\D/g, ""),
     source: origem,

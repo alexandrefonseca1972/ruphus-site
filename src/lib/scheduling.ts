@@ -107,6 +107,10 @@ export const BookingInput = SlotQuery.extend({
   // gerado pela tela e mantido até ela receber a resposta: confirmar de novo acha a mesma
   // reserva (tenants/{t}/pedidos/{pedido}). Sem ele, não há repetição reconhecida
   pedido: id.optional(),
+  // aceite explícito, desmarcado por padrão, de receber a confirmação e os avisos pelo WhatsApp;
+  // a versão identifica o texto que o cliente viu. Sem aceite, o agendamento vale e nada é enviado
+  aceiteWhatsapp: z.boolean().optional(),
+  termoWhatsapp: z.string().trim().max(40).optional(),
 });
 export type BookingInput = z.infer<typeof BookingInput>;
 

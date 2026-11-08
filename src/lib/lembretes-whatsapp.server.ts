@@ -3,6 +3,7 @@ import { emParalelo } from "@/lib/paralelo";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
 import { agoraNaParede, dateIn, formatTime, fusoDe, todayIn, zonedTime } from "@/lib/datetime";
+import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { enviarSemOperador, motivoLegivel, ROTULO_STATUS, statusDaConexao } from "@/lib/atendys";
 import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { espelharStatusVivo, lerConexao, registrarErroNotificacao, soDigitosComDDI } from "@/lib/whatsapp.server";
@@ -75,6 +76,9 @@ export async function enviarLembretesDoDia(): Promise<number> {
       if (parede < new Date(start.getTime() - antesMs) || parede >= start) continue;
       const cliente = soDigitosComDDI(String(a.get("customerPhone") ?? ""));
       if (!cliente) continue;
+      // sem aceite gravado no agendamento (inclui os anteriores ao campo), não há lembrete
+      const optIn = optInDoDoc(t.id, a);
+      if (!optIn) continue;
       const nome = String(a.get("customerName") ?? "").trim().split(/\s+/)[0] ?? "";
       // "hoje" ou "amanhã" conforme o dia do horário no fuso do negócio — lembrete
       // de horário madrugador pode sair na noite anterior
@@ -90,8 +94,8 @@ export async function enviarLembretesDoDia(): Promise<number> {
         const e = await enviarSemOperador(
           w,
           cliente,
-          `Olá, ${nome}! Lembrete do seu horário ${dia} às ${formatTime(start)}: ${a.get("serviceName")} no ${nomeNegocio}. Qualquer imprevisto, responda aqui pelo WhatsApp.`,
-          undefined,
+          comAvisoSair(`Olá, ${nome}! Lembrete do seu horário ${dia} às ${formatTime(start)}: ${a.get("serviceName")} no ${nomeNegocio}. Qualquer imprevisto, responda aqui pelo WhatsApp.`),
+          optIn,
           start, // lembrete que sairia depois do horário não serve: fica parado
         );
         // parado na cota: não é falha (aguarda decisão do dono); a reserva fica, para não reenviar a cada ciclo

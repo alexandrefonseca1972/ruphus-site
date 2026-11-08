@@ -5,9 +5,9 @@ import { CotaWhatsapp } from "@/components/cota-whatsapp";
 import { idToken } from "@/lib/firebase";
 import { mensagensParadasAction } from "./actions";
 
-type Parada = { messageId: string; para: string; resumo: string; retryAt: string | null };
+type Parada = { messageId: string; para: string; resumo: string; retryAt: string | null; errorCode?: string | null };
 
-/** Mensagens que o WhatsApp do negócio parou na cota do dia sem ninguém olhando (lembrete,
+/** Mensagens que o WhatsApp do negócio parou (cota do dia, sem conexão, fora do horário) sem ninguém olhando (lembrete,
  *  aviso de agendamento, robô): ficam aqui até o dono escolher enviar à mão ou manter agendada.
  *  Não é "falhou" nem "enviada": é decisão pendente. */
 export function MensagensParadas({ tenantId, fuso }: { tenantId: string; fuso: string }) {
@@ -43,7 +43,7 @@ export function MensagensParadas({ tenantId, fuso }: { tenantId: string; fuso: s
         {pendentes.map((m) => (
           <li key={m.messageId} className="grid gap-1.5 border-t border-amber-200 pt-3 first:border-t-0 first:pt-0 dark:border-amber-900">
             <p className="text-xs text-muted-foreground">Para {m.para}: “{m.resumo}”</p>
-            <CotaWhatsapp tenantId={tenantId} messageId={m.messageId} retryAt={m.retryAt} fuso={fuso} onFim={(aviso) => (setFeitas((f) => new Set(f).add(m.messageId)), setUltimo(aviso))} />
+            <CotaWhatsapp tenantId={tenantId} messageId={m.messageId} retryAt={m.retryAt} errorCode={m.errorCode} fuso={fuso} onFim={(aviso) => (setFeitas((f) => new Set(f).add(m.messageId)), setUltimo(aviso))} />
           </li>
         ))}
       </ul>

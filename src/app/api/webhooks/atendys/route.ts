@@ -67,7 +67,7 @@ export async function POST(req: Request) {
       return responder(200, { ok: true });
     }
     const at = Date.parse(evento.at ?? "");
-    await atualizarParada(slugDaMensagem, id!, String(evento.status), evento.retryAt === undefined ? undefined : (evento.retryAt ?? null), Number.isNaN(at) ? Date.now() : at);
+    await atualizarParada(slugDaMensagem, id!, String(evento.status), evento.retryAt === undefined ? undefined : (evento.retryAt ?? null), Number.isNaN(at) ? Date.now() : at, evento.errorCode);
     return responder(200, { ok: true });
   }
   if (typeof evento.instance !== "string" || !evento.instance) {

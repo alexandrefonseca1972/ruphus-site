@@ -14,6 +14,7 @@ import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { enviarEmail } from "@/lib/email.server";
+import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { situacaoDe } from "@/lib/envio-whatsapp";
 import { atualizarParada, paradasDoNegocio } from "@/lib/mensagens-paradas.server";
 import { htmlDoRecibo, textoDoRecibo } from "@/lib/recibo";
@@ -510,7 +511,8 @@ export const enviarPixWhatsappAction = memberAction(
       if (e instanceof PixInvalido) throw new UserError(e.message);
       throw e;
     }
-    const envio = await enviarTexto(w, cliente, textoPix({ valorCents: data.valorCents, nome: recebedor.nome, codigo }));
+    // vale o aceite gravado no agendamento; sem ele (null) o gateway recusa e a tela avisa
+    const envio = await enviarTexto(w, cliente, textoPix({ valorCents: data.valorCents, nome: recebedor.nome, codigo }), optInDoDoc(data.tenantId, ag));
     return { ok: true as const, situacao: situacaoDe(envio) };
   },
 );
@@ -547,7 +549,7 @@ export const avisarClienteWhatsappAction = memberAction(
       String(tenant.get("name") ?? data.tenantId),
       `${base}/agendar/${data.tenantId}`,
     );
-    const envio = await enviarTexto(w, cliente, texto);
+    const envio = await enviarTexto(w, cliente, comAvisoSair(texto), optInDoDoc(data.tenantId, ag));
     return { ok: true as const, situacao: situacaoDe(envio) };
   },
 );

@@ -438,7 +438,7 @@ function writeAppointment(
   ctx: WriteContext,
   a: { serviceIds: string[]; staffId: string; date: string; time: string; customerName: string; customerPhone: string },
   by: { by: string; byName: string },
-  opts: { planId?: string; renameCustomer: boolean; sinal?: SinalDoAgendamento },
+  opts: { planId?: string; renameCustomer: boolean; sinal?: SinalDoAgendamento; whatsappConsent?: object },
 ) {
   const { planId } = opts;
   const start = zonedTime(a.date, a.time);
@@ -465,6 +465,7 @@ function writeAppointment(
     createdAt: FieldValue.serverTimestamp(),
     ...(planId && { planId }),
     ...(opts.sinal && { sinal: opts.sinal }),
+    ...(opts.whatsappConsent && { whatsappConsent: opts.whatsappConsent }),
   };
   tx.create(ref, dados);
   // Reserva anônima não troca o nome de um cliente já cadastrado (qualquer um pode digitar o telefone de outro)
@@ -565,7 +566,12 @@ export async function book(db: Firestore, input: BookingInput, ip?: string, aoCr
     const limit = await limitError(tx, livre.ctx.t, input, ip);
     if (limit.error) return { ok: false as const, error: limit.error, field: true as const };
     const customer = await tx.get(t.collection("customers").doc(customerKey(input.customerPhone)));
-    const { id, dados } = writeAppointment(tx, livre.ctx, { ...input, staffId: livre.staffId }, { by: "cliente", byName: input.customerName }, { renameCustomer: !customer.exists, sinal: sinalDaReserva(livre.ctx, input) });
+    const { id, dados } = writeAppointment(tx, livre.ctx, { ...input, staffId: livre.staffId }, { by: "cliente", byName: input.customerName }, {
+      renameCustomer: !customer.exists,
+      sinal: sinalDaReserva(livre.ctx, input),
+      // prova do aceite (ou da falta dele): só o hash da rede, nunca o IP
+      whatsappConsent: { aceito: input.aceiteWhatsapp === true, versao: input.termoWhatsapp ?? "", em: new Date(), ...(ip && { ipHash: deviceId(ip) }) },
+    });
     if (input.pedido) tx.set(t.collection("pedidos").doc(input.pedido), { appointmentId: id, createdAt: FieldValue.serverTimestamp() });
     limit.bump!();
     return { ok: true as const, ...reservaDe(id, dados), novo: true };

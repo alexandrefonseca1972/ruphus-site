@@ -12,10 +12,18 @@ export const quandoSai = (iso: string, fuso: string) => {
   return Number.isNaN(d.getTime()) ? "mais tarde" : `${formatLongDate(d, fuso)} às ${formatTime(d, fuso)}`;
 };
 
-/** Mensagem parada na cota do dia: o dono escolhe entre mandar agora pelo próprio WhatsApp e
+// por que o atendys parou a mensagem (errorCode); sem código, vale qualquer um dos três
+const MOTIVO_PARADA: Record<string, string> = {
+  RATE_LIMITED: "A cota diária de mensagens do WhatsApp foi atingida.",
+  INSTANCE_UNAVAILABLE: "O WhatsApp do salão está sem conexão há mais de 10 minutos.",
+  QUIET_HOURS: "O horário está fora do permitido para enviar mensagens (20h às 8h).",
+};
+const MOTIVO_GERAL = "A mensagem não saiu: a cota diária foi atingida, o WhatsApp do salão está sem conexão há mais de 10 minutos ou é horário fora do permitido (20h às 8h).";
+
+/** Mensagem parada (cota do dia, WhatsApp sem conexão ou fora do horário) do dia: o dono escolhe entre mandar agora pelo próprio WhatsApp e
  *  deixar agendada. "Enviar agora" só mostra o link do WhatsApp depois que o atendys confirma a
  *  ação manual (o Safari do iPhone bloqueia janela aberta depois de esperar a rede). */
-export function CotaWhatsapp({ tenantId, messageId, retryAt, fuso, onFim }: { tenantId: string; messageId: string; retryAt: string | null; fuso: string; onFim?: (aviso: string) => void }) {
+export function CotaWhatsapp({ tenantId, messageId, retryAt, errorCode, fuso, onFim }: { tenantId: string; messageId: string; retryAt: string | null; errorCode?: string | null; fuso: string; onFim?: (aviso: string) => void }) {
   const [ocupado, setOcupado] = useState<"agora" | "agendar" | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [erro, setErro] = useState("");
@@ -43,7 +51,7 @@ export function CotaWhatsapp({ tenantId, messageId, retryAt, fuso, onFim }: { te
   return (
     <div className="grid gap-2 text-sm">
       <p>
-        A cota diária foi atingida. Envie agora pelo WhatsApp ou mantenha a mensagem agendada.
+        {(errorCode && MOTIVO_PARADA[errorCode]) || MOTIVO_GERAL} Envie agora pelo WhatsApp ou mantenha a mensagem agendada.
         {retryAt && <span className="block text-xs opacity-80">Se mantiver, ela sai {quandoSai(retryAt, fuso)}.</span>}
       </p>
       {url ? (
