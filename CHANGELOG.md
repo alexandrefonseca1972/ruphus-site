@@ -5,6 +5,7 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Modelo editorial (beleza, fitness, automotivo): a segunda linha do nome no topo (em itálico, na cor do modelo) fica legível sobre a foto. Paletas de marrom, vinho, verde e azul escuros clareiam só ali até contraste 3,5:1 ("Estrelas" no Barbeiro das Estrelas, "Moura" na Podóloga Alessandra Moura). O modelo claro passa à mesma régua.
 - Modelo claro (aulas, saúde, pet): o destaque do título, o selo e as estrelas do topo ficam legíveis sobre a foto. As paletas de azul e verde-petróleo escuros (idiomas, cursos, pet shop) clareiam só no topo até contraste 3:1; o resto da página segue com a cor da paleta.
 - Ramo lido do nome mais certeiro: "Bárbara", "Barbie" e "Cunha" não viram barbearia/unhas, "Absoluta" não vira luta, "Encanto/Recanto" não vira música, "Personalizada" não vira academia, "Pétalas/Petit" não vira pet shop, "Status" não vira tatuagem, "Oficina da Beleza" não vira oficina, "Auto Estética" é lava-jato, martelinho de ouro é oficina. Com categoria genérica de clínica, vale a especialidade do nome ("Clínica … Estética Avançada" é estética, não clínica médica). scripts/corrigir-ramos.mts corrigiu 298 sites de prospecção que estavam no ramo errado (255 clínicas de estética no modelo de clínica médica, 15 estéticas automotivas, 13 cursos, entre outros).
 - Gaveta do Site: o seletor de modelo ocupa a linha inteira e "Prévia" e "Aplicar modelo" dividem a de baixo; antes o "Aplicar modelo" passava da borda da gaveta.
