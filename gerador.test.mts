@@ -369,7 +369,15 @@ console.log("gerador: ok");
   // kit extra na cidade (depilação) não entra no sorteio dos outros sites
   assert.ok(sortearVisual("vizinho", [0, 1, 2, 3].map((kit) => ({ kit, cor: 0 })).concat({ kit: 4, cor: 0 }), dim).kit < 4);
   assert.equal(visualEditorial("segredo-do-pello", "estetica", { kit: 4 }).foto, "/assets/beleza/depilacao-1/hero.jpg");
-  assert.equal(visualEditorial("x", "salao", { kit: 4 }).kit, visualEditorial("x", "salao").kit, "índice fora do estilo cai no do slug");
+  assert.equal(visualEditorial("x", "salao", { kit: 6 }).kit, visualEditorial("x", "salao").kit, "índice fora do estilo cai no do slug");
+  // salão infantil: fotos e cores próprias só pelo modelo; o sorteio do salão segue igual
+  assert.equal(visualEditorial("x", "salao", { kit: 4 }).kit, "/assets/beleza/infantil-1");
+  const kids = visualEditorial("tio-rafa", "salao", { kit: 4, cor: 6, modelo: "infantil-1" });
+  assert.equal(kids.acc, "#FF7A59");
+  assert.equal(kids.e.rotulo, "Salão infantil");
+  assert.ok(kids.e.padrao.includes("Primeiro corte"));
+  assert.equal(visualEditorial("tio-rafa", "salao").e.rotulo, "Salão de beleza", "sem o modelo, o salão é o de sempre");
+  assert.ok(escolhaEditorial("salao", "qualquer").cor < 6, "as cores infantis não entram no sorteio");
   // sem escolha, o site sai como sempre saiu
   const padrao = escolhaEditorial("barbearia", "salao-antigo");
   assert.deepEqual(visualEditorial("salao-antigo", "barbearia").foto, visualEditorial("salao-antigo", "barbearia", padrao).foto);
@@ -441,7 +449,7 @@ console.log("gerador: ok");
   const { SUBS } = await import("@/lib/gerador");
   assert.equal(MODELOS.filter((x) => SUBS[x.sub].nicho === "fitness").length, 12, "3 por ramo de fitness");
   assert.equal(MODELOS.filter((x) => SUBS[x.sub].nicho === "automotivo").length, 9, "3 por ramo automotivo");
-  assert.equal(MODELOS.filter((x) => SUBS[x.sub].nicho === "beleza").length, 30, "os de beleza não mudam");
+  assert.equal(MODELOS.filter((x) => SUBS[x.sub].nicho === "beleza").length, 33, "30 de beleza + 3 do salão infantil");
   const { galeriaClaro } = await import("@/lib/site-claro");
   const g = galeriaClaro("pet-feliz", "petshop");
   assert.equal(new Set(g).size, 3, "três fotos distintas");
