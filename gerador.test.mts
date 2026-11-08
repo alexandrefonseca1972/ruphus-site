@@ -431,6 +431,11 @@ console.log("gerador: ok");
   assert.equal(modeloClaroDoId("petshop", "petshop-2")?.escolha.kit, 1);
   assert.equal(modeloClaroDoId("vet", "petshop-2"), undefined, "modelo de outro ramo não vale");
   assert.equal(modelosClaro("profissionalizante").length, 4);
+  // destaque do topo legível sobre a foto: o azul escuro do idiomas clareia, o dourado fica
+  const { destaqueNoTopo } = await import("@/lib/site-claro");
+  assert.equal(destaqueNoTopo("#F0B429"), "#F0B429", "cor que já passa volta igual");
+  assert.notEqual(destaqueNoTopo("#2F5D8A"), "#2F5D8A", "azul escuro clareia");
+  assert.match(destaqueNoTopo("#2F5D8A"), /^#[0-9A-F]{6}$/);
   assert.equal(modelosClaro("idiomas").length, 3);
   const { MODELOS } = await import("@/lib/site-editorial");
   const { SUBS } = await import("@/lib/gerador");

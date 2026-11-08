@@ -152,6 +152,21 @@ const girar = <T,>(lista: T[], d: DadosSite, sal: string): T[] => {
   return [...lista.slice(k), ...lista.slice(0, k)];
 };
 
+/** O destaque do topo (--gold) sobre a foto escurecida: as paletas de azul e verde-petróleo
+ *  escuros sumiam ali ("no seu ritmo" no idiomas-3). Clareia a mesma cor, só no topo, até dar
+ *  3:1 contra o fundo do título (#3f4441, a foto clara sob o escurecido). Cor que já passa volta igual. */
+export function destaqueNoTopo(hex: string): string {
+  const canal = (v: number) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const lum = (rgb: number[]) => 0.2126 * canal(rgb[0] / 255) + 0.7152 * canal(rgb[1] / 255) + 0.0722 * canal(rgb[2] / 255);
+  const fundo = lum([0x3f, 0x44, 0x41]);
+  const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  for (let t = 0; t <= 1; t += 0.05) {
+    const m = rgb.map((c) => Math.round(c + (255 - c) * t));
+    if ((lum(m) + 0.05) / (fundo + 0.05) >= 3) return "#" + m.map((c) => c.toString(16).padStart(2, "0")).join("").toUpperCase();
+  }
+  return "#FFFFFF";
+}
+
 export function renderClaro(d: DadosSite): string {
   const c = conteudoDe(d.sub);
   const { paleta, topo, cor, gold: ouro, fonte, fotos: proprias } = visualClaro(d.slug, d.sub, d.escolha, d.personal);
@@ -203,7 +218,7 @@ export function renderClaro(d: DadosSite): string {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Figtree:wght@400;600;700${fonte ? `&family=${fonte[1]}` : ""}&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/gerado/pet.css">
-<style>:root{${paleta[0]}${fonte ? `--font-display:'${fonte[0]}',serif;` : ""}}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){${paleta[1]}}}:root[data-theme="dark"]{${paleta[1]}}.hero{background:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("${topoUrl(false)}") center 38%/cover no-repeat;}@media (min-width:760px){.hero{background-image:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("${topoUrl(true)}");}}</style>
+<style>:root{${paleta[0]}${fonte ? `--font-display:'${fonte[0]}',serif;` : ""}}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){${paleta[1]}}}:root[data-theme="dark"]{${paleta[1]}}.hero{background:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("${topoUrl(false)}") center 38%/cover no-repeat;}@media (min-width:760px){.hero{background-image:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("${topoUrl(true)}");}}${destaqueNoTopo(ouro) === ouro.toUpperCase() ? "" : `.hero h1 em,.hero .eyebrow,.hero-rating .stars{color:${destaqueNoTopo(ouro)}}.hero .eyebrow::before{background:${destaqueNoTopo(ouro)}}`}</style>
 ${cabecaComum(d, tituloPag, descr, d.publicado)}
 <meta name="theme-color" content="${cor}">
 ${d.uf ? `<meta name="geo.region" content="BR-${esc(d.uf)}">` : ""}
