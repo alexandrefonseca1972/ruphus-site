@@ -50,7 +50,8 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let current = true;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) return router.replace(loginComMotivo());
+      // volta para a tela que abriu (link do aviso, favorito) depois de entrar
+      if (!user) return router.replace(loginComMotivo(`/login?next=${encodeURIComponent(location.pathname)}`));
       let value: TenantCtx | "denied";
       try {
         // As regras negam a leitura para quem não é membro

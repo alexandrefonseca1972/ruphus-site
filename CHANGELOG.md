@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Agendamento online: WhatsApp com DDD que não existe (20, 10, 23…) passa a ser recusado com "DDD inválido", na tela e no servidor. Antes só o DDD começando com 0 era barrado.
+- Painel do dono: quem abre um link do painel sem estar logado (aviso de agendamento, favorito) volta para essa tela depois de entrar, como já acontecia no admin.
 - WhatsApp do negócio: sai o "Teste rápido" do painel (Meu negócio). Cada teste gastava uma mensagem da cota diária do número, que é a mesma dos lembretes e avisos aos clientes.
 - Mensagens do WhatsApp aguardando decisão: ao abrir a agenda, cada uma é conferida no WhatsApp do negócio (atendys); só fica a que ele ainda segura. Vencida, de conta reconectada ou desconhecida sai da lista.
 - Mensagens do WhatsApp aguardando decisão: as vencidas saem do painel. O WhatsApp do negócio (atendys) só guarda a mensagem parada por 24 horas; depois disso "Enviar agora" e "Manter agendada" eram recusados e o painel mostrava o erro em vermelho. Agora a validade fica registrada junto com a mensagem, a lista só mostra as que ainda servem e, se o atendys recusar por vencimento, a mensagem sai da lista com o aviso "Esta mensagem não pode mais ser enviada".

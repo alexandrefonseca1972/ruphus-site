@@ -146,7 +146,9 @@ export function phoneError(value: string) {
   const d = value.replace(/\D/g, "");
   if (!d) return "Informe seu WhatsApp";
   if (d.length < 10) return "Informe o número com DDD";
-  if (d[0] === "0") return "DDD inválido";
+  // DDDs que existem no Brasil ("20", "10", "0x" não): com o 55 na frente, confere depois dele
+  const ddd = (d.length > 11 && d.startsWith("55") ? d.slice(2) : d).slice(0, 2);
+  if (!/^(1[1-9]|2[12478]|3[1-578]|4[1-9]|5[1345]|6[1-9]|7[134579]|8[1-9]|9[1-9])$/.test(ddd)) return "DDD inválido";
   if (d.length === 11 && d[2] !== "9") return "Celular com 11 dígitos começa com 9 depois do DDD";
   return "";
 }
