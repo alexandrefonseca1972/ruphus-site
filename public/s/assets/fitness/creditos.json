@@ -16,8 +16,8 @@
   "pexels": "29392546"
  },
  "academia-2/hero.jpg": {
-  "alt": "Atleta fazendo levantamento terra em academia escura",
-  "pexels": "1552103"
+  "alt": "Atleta treinando remada com halter em academia escura",
+  "pexels": "29825221"
  },
  "academia-2/ga1.jpg": {
   "alt": "Homem treinando com cordas navais",
@@ -126,5 +126,69 @@
  "danca-2/ga3.jpg": {
   "alt": "Sapatilhas de ponta no estúdio de dança",
   "pexels": "10640401"
+ },
+ "academia-3/hero.jpg": {
+  "alt": "Personal trainer acompanha aluna no aparelho da academia",
+  "pexels": "37963581"
+ },
+ "academia-3/ga1.jpg": {
+  "alt": "Instrutora conversa com aluna entre as séries",
+  "pexels": "37963582"
+ },
+ "academia-3/ga2.jpg": {
+  "alt": "Aluna sorridente treinando com halteres",
+  "pexels": "3775607"
+ },
+ "academia-3/ga3.jpg": {
+  "alt": "Treinador ajusta o alongamento da aluna",
+  "pexels": "33355990"
+ },
+ "pilates-3/hero.jpg": {
+  "alt": "Aluna faz pilates no tapete com bola",
+  "pexels": "14591562"
+ },
+ "pilates-3/ga1.jpg": {
+  "alt": "Aluna em exercício de abdominal no solo",
+  "pexels": "14591582"
+ },
+ "pilates-3/ga2.jpg": {
+  "alt": "Estúdio claro com tapetes e bolas de pilates",
+  "pexels": "37573625"
+ },
+ "pilates-3/ga3.jpg": {
+  "alt": "Aluna trabalha com o anel de pilates",
+  "pexels": "8769172"
+ },
+ "lutas-3/hero.jpg": {
+  "alt": "Lutador treina golpes na manopla com o professor no ringue",
+  "pexels": "13808113"
+ },
+ "lutas-3/ga1.jpg": {
+  "alt": "Aluna acerta chute no aparador do treinador",
+  "pexels": "5750879"
+ },
+ "lutas-3/ga2.jpg": {
+  "alt": "Professor de muay thai com aparadores",
+  "pexels": "19406287"
+ },
+ "lutas-3/ga3.jpg": {
+  "alt": "Treino de socos na manopla",
+  "pexels": "4574138"
+ },
+ "danca-3/hero.jpg": {
+  "alt": "Turma em aula de dança no estúdio com janelas altas",
+  "pexels": "7927954"
+ },
+ "danca-3/ga1.jpg": {
+  "alt": "Alunas ensaiando passos na aula de dança",
+  "pexels": "7928480"
+ },
+ "danca-3/ga2.jpg": {
+  "alt": "Turma em aula de ritmos com braços para cima",
+  "pexels": "3768714"
+ },
+ "danca-3/ga3.jpg": {
+  "alt": "Aula de dança em grupo no salão",
+  "pexels": "8957645"
  }
 }

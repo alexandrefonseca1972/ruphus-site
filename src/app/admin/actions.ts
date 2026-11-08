@@ -678,8 +678,9 @@ export const siteDoNegocio = adminAction(async (_user, slug: string) => {
   slugValido(slug);
   const { escolha, ...site } = await lerSiteDoNegocio(adminDb, slug);
   const e = escolha as (Escolha & { modelo?: string }) | undefined;
-  // cada modelo tem a sua lista: o editorial compartilha entre ramos, o claro é por ramo
-  const modelos = ehClaro(site.sub as Sub) ? modelosClaro(site.sub as Sub) : MODELOS;
+  // cada modelo tem a sua lista: o editorial compartilha entre ramos do mesmo nicho (beleza com
+  // beleza; oficina não recebe foto de salão), o claro é por ramo
+  const modelos = ehClaro(site.sub as Sub) ? modelosClaro(site.sub as Sub) : MODELOS.filter((m) => SUBS[m.sub].nicho === SUBS[site.sub as Sub]?.nicho);
   // escolha gravada que não é de nenhum modelo da lista: "personalizado", só para mostrar
   const casa = e?.modelo ? modelos.find((m) => m.id === e.modelo)?.id : modelos.find((m) => m.escolha.kit === e?.kit && m.escolha.cor === e?.cor)?.id;
   const modeloAtual = casa ?? (e ? "personalizado" : null);

@@ -224,8 +224,8 @@ export const escolhaEditorial = (sub: Sub, slug: string): Required<Escolha> => (
 // Três templates por nicho, cada um um par [kit, cor] do estilo do sub. Esmalteria é o
 // sub "unhas"; cílios, bronzeamento, depilação, esteticista e maquiagem dividem "estetica"
 // (kit 6 é cílios-1, kit 5 é bronze-1, kit 4 é depilação-1). Escolha gravada (gerado.escolha) continua valendo; isto só
-// cataloga as opções.
-export const TEMPLATES: Record<"barbearia" | "podologia" | "esmalteria" | "cilios" | "bronzeamento" | "depilacao" | "cabeleireira" | "esteticista" | "maquiagem" | "tatuador", { sub: Sub; escolhas: Required<Escolha>[] }> = {
+// cataloga as opções. Fitness e automotivo: um template por sub, um kit em cada modelo.
+export const TEMPLATES = {
   barbearia: { sub: "barbearia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
   podologia: { sub: "podologia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 1 }, { kit: 2, cor: 2 }] },
   esmalteria: { sub: "unhas", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
@@ -237,10 +237,19 @@ export const TEMPLATES: Record<"barbearia" | "podologia" | "esmalteria" | "cilio
   esteticista: { sub: "estetica", escolhas: [{ kit: 0, cor: 1 }, { kit: 1, cor: 3 }, { kit: 3, cor: 5 }] },
   maquiagem: { sub: "estetica", escolhas: [{ kit: 2, cor: 0 }, { kit: 0, cor: 2 }, { kit: 1, cor: 4 }] },
   tatuador: { sub: "tatuagem", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 1 }, { kit: 2, cor: 2 }] },
-};
+  // ENERGIA tem 5 cores; LEVE e GRAFITE, 4
+  academia: { sub: "academia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
+  pilates: { sub: "pilates", escolhas: [{ kit: 0, cor: 1 }, { kit: 1, cor: 3 }, { kit: 2, cor: 0 }] },
+  lutas: { sub: "lutas", escolhas: [{ kit: 0, cor: 1 }, { kit: 1, cor: 3 }, { kit: 2, cor: 0 }] },
+  danca: { sub: "danca", escolhas: [{ kit: 0, cor: 3 }, { kit: 1, cor: 2 }, { kit: 2, cor: 0 }] },
+  oficina: { sub: "oficina", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 3 }, { kit: 2, cor: 1 }] },
+  lavagem: { sub: "lavagem", escolhas: [{ kit: 0, cor: 3 }, { kit: 1, cor: 1 }, { kit: 2, cor: 0 }] },
+  pneus: { sub: "pneus", escolhas: [{ kit: 0, cor: 2 }, { kit: 1, cor: 3 }, { kit: 2, cor: 0 }] },
+} satisfies Record<string, { sub: Sub; escolhas: Required<Escolha>[] }>;
 const ROTULO_MODELO: Record<keyof typeof TEMPLATES, string> = {
   barbearia: "Barbearia", podologia: "Podologia", esmalteria: "Esmalteria", cilios: "Cílios", bronzeamento: "Bronzeamento", depilacao: "Depilação", cabeleireira: "Cabeleireira",
   esteticista: "Esteticista", maquiagem: "Maquiagem", tatuador: "Tatuador",
+  academia: "Academia", pilates: "Pilates", lutas: "Lutas", danca: "Dança", oficina: "Oficina", lavagem: "Estética automotiva", pneus: "Pneus",
 };
 
 /** Todos os modelos, para qualquer ramo editorial: id estável (nicho-n), a escolha que ele
@@ -252,6 +261,7 @@ export const MODELOS = (Object.keys(TEMPLATES) as (keyof typeof TEMPLATES)[]).fl
     const id = `${nicho}-${i + 1}`;
     return {
       id,
+      sub,
       rotulo: `${ROTULO_MODELO[nicho]} ${i + 1}`,
       escolha: { ...escolha, modelo: id },
       pasta: [...e.kits, ...(e.extras ?? [])][escolha.kit] ?? e.kits[0],

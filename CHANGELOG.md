@@ -5,6 +5,9 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Modelos de site: fitness (academia, pilates, lutas, dança) e automotivo (oficina, estética automotiva, pneus) ganham 3 modelos por ramo na gaveta do Site, com um terceiro conjunto de fotos novo para cada um; a foto de capa da academia-2 foi trocada. Aulas ganham mais um modelo por ramo (nova foto de capa). A lista de modelos da gaveta mostra só os do nicho do negócio: oficina não recebe mais modelo com foto de salão.
+- Nicho: "Day spa" passa a ser estética, e os sites convertidos da fábrica passam a gravar o nicho junto com o ramo (scripts/migrar-nicho.mts completa os que ficaram sem).
+
 - WhatsApp do negócio com cota do dia (atendys): mensagem parada (awaiting_manual) não aparece mais como enviada. Na agenda e no Pix, o dono vê "A cota diária foi atingida. Envie agora pelo WhatsApp ou mantenha a mensagem agendada." — "Enviar agora" abre o WhatsApp só depois que o atendys confirma a ação manual; "Manter agendada" mostra a hora em que sai, no fuso do negócio. Mensagem na fila mostra a hora de saída em vez de "enviada".
 - Envios sem ninguém olhando (lembrete, aviso de agendamento, robô de confirmação) parados na cota voltam sozinhos à fila quando ainda saem antes do horário; senão aparecem na agenda em "mensagens do WhatsApp aguardando decisão". O status das mensagens paradas chega pelo webhook (assinatura conferida pelo negócio da mensagem).
 

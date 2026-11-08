@@ -81,7 +81,7 @@ export const AULAS: Record<"idiomas" | "reforco" | "musica" | "autoescola" | "pr
     pasta: "aulas", fotos: FOTOS, paletas: PALETAS, descricoes: DESCRICOES, icone: LIVRO,
     rotulo: "Escola de idiomas",
     padrao: ["Aula experimental", "Inglês", "Espanhol", "Conversação"],
-    topo: ["idiomas-turma", "idiomas-sala"],
+    topo: ["idiomas-turma", "idiomas-sala", "idiomas-conversacao"],
     galeria: ["idiomas-conversacao", "idiomas-participacao", "idiomas-aula-online", "idiomas-conversa-cafe", "idiomas-turma", "idiomas-sala"],
     passos: [
       ["idiomas-conversa-cafe", "Conversa de nivelamento", "Um bate-papo rápido para entender o seu nível e o seu objetivo."],
@@ -113,7 +113,7 @@ export const AULAS: Record<"idiomas" | "reforco" | "musica" | "autoescola" | "pr
     pasta: "aulas", fotos: FOTOS, paletas: PALETAS, descricoes: DESCRICOES, icone: LIVRO,
     rotulo: "Reforço escolar",
     padrao: ["Aula experimental", "Reforço escolar", "Aula particular"],
-    topo: ["reforco-biblioteca", "reforco-tutora"],
+    topo: ["reforco-biblioteca", "reforco-tutora", "reforco-explicacao"],
     galeria: ["reforco-explicacao", "reforco-dupla", "reforco-grupo", "reforco-tutora", "reforco-biblioteca"],
     passos: [
       ["reforco-tutora", "Conversa inicial", "Entendemos as matérias, as notas e as maiores dificuldades do aluno."],
@@ -145,7 +145,7 @@ export const AULAS: Record<"idiomas" | "reforco" | "musica" | "autoescola" | "pr
     pasta: "aulas", fotos: FOTOS, paletas: PALETAS, descricoes: DESCRICOES, icone: LIVRO,
     rotulo: "Escola de música",
     padrao: ["Aula experimental", "Violão", "Piano", "Canto"],
-    topo: ["musica-violao-aula", "musica-piano"],
+    topo: ["musica-violao-aula", "musica-piano", "musica-canto"],
     galeria: ["musica-violao", "musica-canto", "musica-teclado", "musica-piano-aula", "musica-piano", "musica-violao-aula"],
     passos: [
       ["musica-violao", "Aula experimental", "Conheça o professor, o instrumento e o método antes de começar."],
@@ -177,7 +177,7 @@ export const AULAS: Record<"idiomas" | "reforco" | "musica" | "autoescola" | "pr
     pasta: "aulas", fotos: FOTOS, paletas: PALETAS, descricoes: DESCRICOES, icone: LIVRO,
     rotulo: "Autoescola",
     padrao: ["Aula prática de direção", "Aula de legislação", "Aula para habilitados"],
-    topo: ["autoescola-rodovia", "autoescola-estrada"],
+    topo: ["autoescola-rodovia", "autoescola-estrada", "autoescola-volante-aluna"],
     galeria: ["autoescola-retrovisor", "autoescola-instrucao", "autoescola-volante", "autoescola-aluna", "autoescola-volante-aluna"],
     passos: [
       ["autoescola-retrovisor", "Primeiros passos no carro", "Ajuste de banco e espelhos, comandos do carro e saída com calma."],
@@ -209,7 +209,7 @@ export const AULAS: Record<"idiomas" | "reforco" | "musica" | "autoescola" | "pr
     pasta: "aulas", fotos: FOTOS, paletas: PALETAS, descricoes: DESCRICOES, icone: LIVRO,
     rotulo: "Cursos profissionalizantes",
     padrao: ["Aula experimental", "Curso profissionalizante", "Curso intensivo", "Certificação"],
-    topo: ["profi-instrutor", "profi-turma", "profi-eletronica"],
+    topo: ["profi-instrutor", "profi-turma", "profi-eletronica", "profi-cozinha"],
     galeria: ["profi-cozinha", "profi-refrigeracao", "profi-costura", "profi-cnc", "profi-chef", "profi-informatica"],
     passos: [
       ["profi-turma", "Conversa sobre o seu objetivo", "Qual profissão, quanto tempo tem e o que já sabe: o curso certo sai daí."],

@@ -1,5 +1,5 @@
 // Automotivo no modelo editorial: oficina, estética automotiva/lava-jato e pneus.
-// Fotos do banco Pexels em public/s/assets/automotivo/{pasta}-{1,2}.
+// Fotos do banco Pexels em public/s/assets/automotivo/{pasta}-{1,2,3}.
 import type { Estilo } from "@/lib/site-editorial";
 
 // grafite com destaque de oficina: âmbar, laranja, vermelho e azul-aço
@@ -10,7 +10,7 @@ const GRAFITE: Estilo["paletas"] = [
   ["#0F1216", "#3A7BD5", "#2A5CA3", "#e9f1fc"],
 ];
 
-const kits = (pasta: string) => [1, 2].map((n) => `/assets/automotivo/${pasta}-${n}`);
+const kits = (pasta: string) => [1, 2, 3].map((n) => `/assets/automotivo/${pasta}-${n}`);
 
 // orçamento e diagnóstico antes de tudo: é o que o dono do carro quer saber
 const DESCRICOES: [RegExp, string, string][] = [

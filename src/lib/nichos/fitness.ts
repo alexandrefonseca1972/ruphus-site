@@ -1,5 +1,5 @@
 // Fitness no modelo editorial: academia, pilates, lutas e dança. Fotos do banco
-// Pexels em public/s/assets/fitness/{sub}-{1,2} (créditos no creditos.json).
+// Pexels em public/s/assets/fitness/{sub}-{1,2,3} (créditos no creditos.json).
 import type { Estilo } from "@/lib/site-editorial";
 
 // escuro com um destaque vivo: laranja, vermelho, verde-limão, ciano e amarelo
@@ -18,7 +18,7 @@ const LEVE: Estilo["paletas"] = [
   ["#121016", "#8E7CC3", "#6A5A9C", "#f1eff7"],
 ];
 
-const kits = (sub: string) => [1, 2].map((n) => `/assets/fitness/${sub}-${n}`);
+const kits = (sub: string) => [1, 2, 3].map((n) => `/assets/fitness/${sub}-${n}`);
 
 // avaliação e aula experimental são a porta de entrada: o selo diz isso
 const DESCRICOES: [RegExp, string, string][] = [
