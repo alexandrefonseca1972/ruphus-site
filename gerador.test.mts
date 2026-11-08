@@ -170,6 +170,22 @@ assert.equal(nichoDe({ categoria: "Design de sobrancelhas", nome: "" })?.sub, "e
 assert.equal(nichoDe({ categoria: "Studio de tatuagem", nome: "" })?.tipo, "TattooParlor", "tatuagem antes de “studio” virar salão");
 assert.equal(nichoDe({ categoria: "", nome: "Kaos Tattoo Studio" })?.sub, "tatuagem");
 assert.equal(nichoDe({ categoria: "Restaurante", nome: "Petisco Bar" }), null);
+// nomes que as regras confundiam (revisão de ramos, 08/11/2026)
+for (const [nome, sub] of [
+  ["Bárbara Cílios e Sobrancelhas", "estetica"], ["Ana Paula Barbie das unhas", "unhas"], ["Barbearia Status", "barbearia"], ["Salão Status", "salao"],
+  ["Salão Beleza Absoluta", "salao"], ["Muay Thai Luta Livre", "lutas"],
+  ["MS encanto beauty", "salao"], ["Recanto da Beleza", "salao"], ["Escola de Canto Vozes", "musica"],
+  ["Cléo Estética Personalizada", "estetica"], ["Rafa Personal Trainer", "academia"],
+  ["Pétalas Esmalteria e Estética", "unhas"], ["Le Petit Atelier Hair", "salao"], ["Pet Shop Amigo", "petshop"], ["Petshop do Bairro", "petshop"], ["Ki Linda Estética Animal", "petshop"],
+  ["Oficina da Beleza", "salao"], ["Oficina GT Barbearia", "barbearia"], ["Oficina do Zé Mecânica", "oficina"],
+  ["Auto Estética Dirceu", "lavagem"], ["Clínica Estética - Lauane Cunha", "estetica"], ["Funilaria e pintura Martelinho de ouro Leandro", "oficina"], ["Unhas da Bia", "unhas"], ["Studio Unha Bonita", "unhas"], ["CJS ESTÉTICA CAR", "lavagem"], ["Front Car Estética Automotiva", "lavagem"],
+  ["Clínica Remove - Remoção de Tatuagem", "estetica"], ["Kaos Tattoo Studio", "tatuagem"],
+] as const) assert.equal(nichoDe({ categoria: "", nome })?.sub, sub, nome);
+// categoria genérica de clínica: o nome diz a especialidade
+assert.equal(nichoDe({ categoria: "Clínica", nome: "AC Clinic Estética Avançada" })?.sub, "estetica");
+assert.equal(nichoDe({ categoria: "Clínica médica", nome: "Clínica Sorriso Odontologia" })?.sub, "odonto");
+assert.equal(nichoDe({ categoria: "Clínica médica", nome: "Clínica São Lucas" })?.sub, "clinica");
+assert.equal(nichoDe({ categoria: "Salão de Beleza", nome: "Oficina do Zé" })?.sub, "salao", "a categoria específica continua valendo");
 assert.equal(nichoDe({ categoria: "", nome: "Barbearia Navalha" })?.sub, "barbearia");
 // cursos profissionalizantes: formação vence o ramo ensinado, e cursinho continua reforço
 assert.equal(nichoDe({ categoria: "Escola de cabeleireiro", nome: "" })?.sub, "profissionalizante");

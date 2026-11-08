@@ -296,31 +296,38 @@ export const GRUPOS: [string, Sub[]][] = [
 // - luta e dança antes de academia ("academia de lutas"); pilates e academia antes de salão,
 //   que pega "studio"; idiomas e música antes de reforço ("escola de …").
 const RAMOS: [RegExp, Sub][] = [
-  [/tatu|tattoo|piercing/, "tatuagem"],
+  // "remoção de tatuagem" é clínica de estética, não estúdio; "Status" não é tatuagem
+  [/(?<!remocao de )(\btatu|tattoo)|piercing/, "tatuagem"],
   [/auto ?escola|\bcfc\b|formacao de condutores|habilitacao/, "autoescola"],
   // antes de barbearia, unhas, estética e salão: "escola de cabeleireiro" e "curso de manicure" são
   // formação profissional, não o salão; antes de reforço: "curso técnico" não é cursinho
   [/profissionaliz|curso(s)? tecnico|escola tecnica|formacao profissional|qualificacao profissional|curso(s)? (de |profissional|livre)|senai|senac|escola de (cabel|barb|estetic|manicure|maquiag|gastronom|inform)|treinamento profissional|capacitacao/, "profissionalizante"],
-  [/estetica automotiva|lava[ -]?jato|lava[ -]?rapido|lavagem (automotiva|de (carro|veiculo))|polimento|detailing|higienizacao automotiva|martelinho/, "lavagem"],
+  [/estetica automotiva|auto ?estetica|estetica (car|veicular|auto)\b|lava[ -]?jato|lava[ -]?rapido|lavagem (automotiva|de (carro|veiculo))|polimento|detailing|higienizacao automotiva/, "lavagem"],
   [/pneu|borracharia|alinhamento|balanceamento/, "pneus"],
-  [/oficina|mecanic|auto ?center|centro automotivo|funilaria|injecao eletronica|automotiv|retifica/, "oficina"],
+  // "Oficina da Beleza", "Oficina GT Barbearia": a palavra oficina sem ser de carro
+  [/^(?!.*(barb|beleza|cabel|unha|esmalt|sobrancel|visual)).*(oficina|mecanic|auto ?center|centro automotivo|funilaria|martelinho|injecao eletronica|automotiv|retifica)/, "oficina"],
   [/veterin|clinica animal|hospital animal|\bvet\b/, "vet"],
-  [/\bpet|agropet|banho e tosa|\btosa|\bracao|aquario/, "petshop"],
+  // pet como palavra: "Pétalas", "Petit", "Petúnia" não são pet shop
+  [/\bpets?\b|pet ?shop|petz|agropet|banho e tosa|\btosa|\bracao|aquario|estetica animal/, "petshop"],
   // podologia antes de unhas e de estética: "podologia e manicure" e "spa dos pés" são do podólogo
   [/podolog|podiatr|quiropod|onicomicos|unha encravada|spa dos pes|(tratamento|saude|cuidado)s? dos pes/, "podologia"],
-  [/barb/, "barbearia"],
-  [/unha|nail|manicure|esmalteria/, "unhas"],
+  // "Bárbara", "Barbie": nome de gente, não barbearia
+  [/barb(?!ara|ie)/, "barbearia"],
+  // "unha" como palavra: "Cunha" é sobrenome
+  [/\bunhas?\b|nail|manicure|esmalteria/, "unhas"],
   [/odonto|dentist|dental|ortodont/, "odonto"],
   [/fisioterap|\brpg\b|quiropraxi|osteopat/, "fisio"],
   [/psicolog|psicoterap|psicanal/, "psico"],
   [/nutri/, "nutri"],
-  [/jiu|muay|boxe|kickbox|karate|judo|taekwon|\bmma\b|capoeira|luta|artes marciais/, "lutas"],
+  [/jiu|muay|boxe|kickbox|karate|judo|taekwon|\bmma\b|capoeira|\blutas?\b|artes marciais/, "lutas"],
   [/danca|ballet|\bbale|zumba|forro|dance/, "danca"],
   [/pilates|yoga|ioga/, "pilates"],
-  [/academia|crossfit|cross ?training|musculacao|treino funcional|personal|fitness|\bgym\b/, "academia"],
-  [/estetic|sobrancel|cilio|lash|micropigment|depila|\bspa|day ?spa|pele|massag|massoterap|bronze|dermat|biomedic|maquiag|make|harmoniza/, "estetica"],
+  // "personal" sozinho pega "Personalizada" e "Personalité"
+  [/academia|crossfit|cross ?training|musculacao|treino funcional|personal trainer|fitness|\bgym\b/, "academia"],
+  [/estetic|remocao de tatuage|sobrancel|cilio|lash|micropigment|depila|\bspa|day ?spa|pele|massag|massoterap|bronze|dermat|biomedic|maquiag|make|harmoniza/, "estetica"],
   [/idioma|ingles|espanhol|frances|english|language/, "idiomas"],
-  [/musica|violao|piano|canto|guitarra|bateria|teclado/, "musica"],
+  // "canto" sozinho pega "Encanto" e "Recanto"
+  [/musica|violao|piano|aulas? de canto|escola de canto|canto e voz|guitarra|bateria|teclado/, "musica"],
   [/reforco|aulas? particular|explicador|pre-?vestibular|preparatorio|cursinho|apoio escolar/, "reforco"],
   [/salao|cabel|hair|beleza|beauty|cachos|escova|tranca|penteado|studio|selagem|progressiva|alisamento/, "salao"],
   [/clinica|consultorio|medic|pediatr|cardiolog|ginecolog|posto de saude|check-?up/, "clinica"],
@@ -329,8 +336,12 @@ const RAMOS: [RegExp, Sub][] = [
 /** O nicho, lido da categoria — e só do nome quando não há categoria: "Petisco
  *  Bar" com categoria "Restaurante" não é pet shop. null = fora do que o gerador faz. */
 export function nichoDe(l: { categoria: string; nome: string }): Nicho | null {
-  const fonte = (l.categoria || l.nome).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const sub = RAMOS.find(([re]) => re.test(fonte))?.[1];
+  const ramo = (s: string) => RAMOS.find(([re]) => re.test(s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()))?.[1];
+  const doNome = ramo(l.nome);
+  const daCategoria = l.categoria ? ramo(l.categoria) : doNome;
+  // categoria genérica de clínica e o nome dizendo a especialidade ("AC Clinic Estética
+  // Avançada"): vale o nome. Eram 249 clínicas de estética no modelo de clínica médica
+  const sub = daCategoria === "clinica" && doNome && doNome !== "clinica" ? doNome : daCategoria;
   return sub ? { nicho: SUBS[sub].nicho, sub, tipo: SUBS[sub].tipo } : null;
 }
 
