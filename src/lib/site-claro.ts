@@ -6,6 +6,7 @@ import {
   fixo,
   paraTelefone,
 } from "@/lib/gerador";
+import { BOTAO_AGENDAR, BOTAO_TOPO, ESTILO_AGENDAR, itemMenu } from "@/lib/botao-agendar";
 import { PET } from "@/lib/nichos/pet";
 import { AULAS } from "@/lib/nichos/aulas";
 import { SAUDE } from "@/lib/nichos/saude";
@@ -207,6 +208,7 @@ ${cabecaComum(d, tituloPag, descr, d.publicado)}
 <meta name="theme-color" content="${cor}">
 ${d.uf ? `<meta name="geo.region" content="BR-${esc(d.uf)}">` : ""}
 ${jsonLdNegocio(d, descr, propriaNoTopo ? `/${proprias.hero}` : `/assets/${c.pasta}/${topo}.jpg`)}${jsonLd({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) })}
+${ESTILO_AGENDAR}
 </head>
 <body>
 ${d.publicado ? "" : faixaProposta(d)}
@@ -220,9 +222,8 @@ ${d.publicado ? "" : faixaProposta(d)}
         <span class="brand-sub">${esc([rotulo, onde].filter(Boolean).join(" · "))}</span>
       </span>
     </a>
-    <nav class="main-nav">${nav.map(([id, t]) => `<a href="#${id}">${t}</a>`).join("")}</nav>
+    <nav class="main-nav">${nav.map(([id, t]) => `<a href="#${id}">${itemMenu(id, t)}</a>`).join("")}</nav>
     <div class="header-actions">
-      ${botaoWa("btn btn-primary header-cta")}
       <button class="hamburger" id="hamburgerBtn" aria-label="Abrir menu"><span></span></button>
     </div>
   </div>
@@ -237,7 +238,7 @@ ${d.publicado ? "" : faixaProposta(d)}
     </a>
     <button class="drawer-close" id="drawerCloseBtn" aria-label="Fechar menu">&times;</button>
   </div>
-  <nav>${nav.map(([id, t]) => `<a href="#${id}" class="drawer-link">${t}</a>`).join("")}</nav>
+  <nav>${nav.map(([id, t]) => `<a href="#${id}" class="drawer-link">${itemMenu(id, t)}</a>`).join("")}</nav>
   ${botaoWa("btn btn-primary btn-block")}
 </aside>
 
@@ -249,9 +250,8 @@ ${d.publicado ? "" : faixaProposta(d)}
       <span class="eyebrow">${esc(sub)}</span>
       <h1>${esc(titulo)} <em>${esc(destaque)}</em></h1>
       <p class="lead">${esc(chamada)}</p>
+${BOTAO_AGENDAR}
       <div class="hero-ctas">
-        ${botaoWa("btn btn-gold")}
-<a data-agendar="1" class="btn btn-gold" href="/agendar">${RELOGIO}<span>Agendar online</span></a>
         <a href="#servicos" class="btn btn-outline" style="border-color:rgba(255,255,255,.5);color:#fff;">Ver serviços</a>
       </div>
     </div>
@@ -419,6 +419,7 @@ ${temNota ? `
   </div>
 </footer>
 
+${BOTAO_TOPO}
 <a class="fab" href="${oi}" target="_blank" rel="noopener" aria-label="Chamar no WhatsApp">${WA}<span class="fab-label">WhatsApp</span></a>
 <script>
 (function(){

@@ -7,6 +7,7 @@ import {
   fixo,
   paraTelefone,
 } from "@/lib/gerador";
+import { BOTAO_AGENDAR, BOTAO_TOPO, ESTILO_AGENDAR, itemMenu } from "@/lib/botao-agendar";
 import { AUTOMOTIVO } from "@/lib/nichos/automotivo";
 import { FITNESS } from "@/lib/nichos/fitness";
 import { z } from "zod";
@@ -227,7 +228,7 @@ export const escolhaEditorial = (sub: Sub, slug: string): Required<Escolha> => (
 // cataloga as opções. Fitness e automotivo: um template por sub, um kit em cada modelo.
 export const TEMPLATES = {
   barbearia: { sub: "barbearia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
-  podologia: { sub: "podologia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 1 }, { kit: 2, cor: 2 }] },
+  podologia: { sub: "podologia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 1 }] },
   esmalteria: { sub: "unhas", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
   cilios: { sub: "estetica", escolhas: [{ kit: 6, cor: 0 }, { kit: 7, cor: 2 }, { kit: 8, cor: 4 }] },
   // paletas quentes do DELICADAS: dourado, terracota, coral
@@ -388,6 +389,7 @@ export function renderEditorial(d: DadosSite): string {
 ${cabecaComum(d, tituloPag, descr, d.publicado)}
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${ink}"/><text x="32" y="45" font-family="Arial Narrow,Arial,sans-serif" font-size="36" font-weight="700" fill="${acc}" text-anchor="middle">${esc(d.nome[0].toUpperCase())}</text></svg>`)}">
 ${jsonLdNegocio(d, descr, naRaiz(fotos.hero))}
+${ESTILO_AGENDAR}
 </head>
 <body id="top">
 ${d.publicado ? "" : faixaProposta(d)}
@@ -395,9 +397,8 @@ ${d.publicado ? "" : faixaProposta(d)}
 <header id="hd">
   <a class="logo" href="#top">${esc(d.nome)}</a>
   <nav>
-    <a href="#sobre">Sobre</a><a href="#trabalhos">Galeria</a><a href="#servicos">Serviços</a>${temNota ? '<a href="#depoimentos">Reputação</a>' : ""}<a href="#como-chegar">Como chegar</a>
+    <a href="#sobre">${itemMenu("sobre", "Sobre")}</a><a href="#trabalhos">${itemMenu("trabalhos", "Galeria")}</a><a href="#servicos">${itemMenu("servicos", "Serviços")}</a>${temNota ? `<a href="#depoimentos">${itemMenu("depoimentos", "Reputação")}</a>` : ""}<a href="#como-chegar">${itemMenu("como-chegar", "Como chegar")}</a>
   </nav>
-  <a class="btn-wpp" href="${oi}" target="_blank" rel="noopener">${WA} Contato</a>
 </header>
 
 <section class="hero">
@@ -406,11 +407,10 @@ ${d.publicado ? "" : faixaProposta(d)}
   <div class="hero-inner">
     <span class="tag">${esc(tag)}</span>
     <h1 class="rv">${esc(linha1)}${linha2 ? `<span class="row2">${esc(linha2)}</span>` : ""}</h1>
-<a data-agendar="1" href="/agendar" style="display:inline-block;margin:18px 0;padding:13px 22px;border-radius:999px;background:${ink};color:#fff;font:600 15px/1 system-ui,-apple-system,sans-serif;text-decoration:none">Agendar online</a>
+${BOTAO_AGENDAR}
     <p class="sub rv">${esc(texto)}</p>
     ${temNota ? `<a class="badge-google rv" href="${google}" target="_blank" rel="noopener">${GOOGLE}<span class="st">★★★★★</span> ${nota} · ${d.avaliacoes} avaliações</a>` : ""}
     <div class="hero-ctas rv">
-      <a class="btn-wpp" style="background:#25D366;border-color:#25D366;color:#fff" href="#agendar">${WA} Falar no WhatsApp</a>
       <a class="btn-wpp" style="border-color:rgba(255,255,255,.6);color:#fff" href="#servicos">Ver serviços</a>
     </div>
   </div>
@@ -508,6 +508,7 @@ ${temNota ? `
 <p data-ysis="fonte" style="margin:14px 0 0;font-size:.76rem;line-height:1.5;opacity:.6">${Object.values(fotos).some(doBanco) ? "Imagens ilustrativas, não são fotos do estabelecimento." : ""}${d.origem === "cadastro" ? "" : ` ${temNota ? "Nota e número de avaliações do Google" : "Endereço e contato do perfil público do Google"}, consultados em ${esc(d.consultado)}. Valores públicos, sujeitos a mudança.`}</p>
 </footer>
 
+${BOTAO_TOPO}
 <a class="wpp-float" href="${oi}" target="_blank" rel="noopener" aria-label="Agendar pelo WhatsApp de ${esc(d.nome)}">${WA}</a>
 
 <script>

@@ -5,6 +5,11 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Sites gerados (todos os modelos): "Agendar online" vira o botão da marca Ruphus — branco, com o R e o ponto amarelo pulsando no canto, e "Escolha em até 30 segundos"; igual em todos os sites, qualquer que seja a paleta. Seta fixa no canto esquerdo para voltar ao topo, que aparece depois de rolar. Itens do menu com ícones padronizados (os mesmos nos dois modelos).
+- WhatsApp sem repetição: sai o "Falar no WhatsApp" do topo da página e o botão de WhatsApp do cabeçalho; fica o botão flutuante (e o do menu no celular, no modelo claro).
+- Celular: a página não fica mais larga que a tela em aparelho de 320px (mapa e "Traçar rota" do modelo editorial); a tabela de valores do modelo claro vira cartões em vez de rolar de lado; "Ver serviços" não fica mais embaixo do WhatsApp flutuante.
+- Capas novas da dança-3 e da podologia-3; a podologia-3 passa ao verde-água (o destaque em petróleo sumia sobre a foto).
+
 - Modelos de site: fitness (academia, pilates, lutas, dança) e automotivo (oficina, estética automotiva, pneus) ganham 3 modelos por ramo na gaveta do Site, com um terceiro conjunto de fotos novo para cada um; a foto de capa da academia-2 foi trocada. Aulas ganham mais um modelo por ramo (nova foto de capa). A lista de modelos da gaveta mostra só os do nicho do negócio: oficina não recebe mais modelo com foto de salão.
 - Nicho: "Day spa" passa a ser estética, e os sites convertidos da fábrica passam a gravar o nicho junto com o ramo (scripts/migrar-nicho.mts completa os que ficaram sem).
 

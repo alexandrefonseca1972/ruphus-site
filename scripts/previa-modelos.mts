@@ -28,6 +28,6 @@ for (const id of process.argv.slice(2)) {
   };
   const arquivo = join(pasta, `${id}.html`);
   writeFileSync(arquivo, (ehClaro(sub) ? renderClaro(d) : renderEditorial(d)).replace("<head>", `<head><base href="${base}">`));
-  execFileSync("open", [arquivo]);
+  if (!process.env.SEM_ABRIR) execFileSync("open", [arquivo]);
   console.log(`${id} → ${arquivo}`);
 }
