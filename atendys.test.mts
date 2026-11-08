@@ -19,10 +19,6 @@ assert.equal(assinaturaValida("segredo", corpo, "curta"), false, "tamanho difere
 // ── comando do salão ──
 assert.deepEqual(lerComando("CONFIRMADO"), { verbo: "CONFIRMADO", recusar: false, codigo: undefined });
 assert.deepEqual(lerComando("  recusar ab12 "), { verbo: "RECUSAR", recusar: true, codigo: "AB12" });
-assert.deepEqual(lerComando("RECUSAR AB12 14:30"), { verbo: "RECUSAR", recusar: true, codigo: "AB12", hora: "14:30" });
-assert.deepEqual(lerComando("recusar 9:05"), { verbo: "RECUSAR", recusar: true, codigo: undefined, hora: "09:05" });
-assert.equal(lerComando("recusar ab12 25:00")?.hora, undefined, "hora inválida é ignorada");
-assert.equal(lerComando("confirmado ab12 14:30")?.hora, undefined, "hora só vale na recusa");
 assert.deepEqual(lerComando("Confirmado, obrigado!"), { verbo: "CONFIRMADO", recusar: false, codigo: undefined });
 assert.equal(lerComando("cancelar"), null, "cancelar é opt-out do gateway, não comando");
 assert.equal(lerComando("confirmadoo"), null);
@@ -424,14 +420,15 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.ok(comAvisoSair("oi").endsWith("Para não receber mais mensagens, responda SAIR."));
   assert.equal(lerComando("sair"), null, "SAIR é do cliente (gateway), não comando do dono");
 
-  // recusar com hora sugerida e sem aceite do cliente
+  // recusar: cliente é convidado a fazer novo agendamento
   novo(salao);
   await marcar("Rec1zz");
   enviadas.length = 0;
-  assert.equal(await comando("recusar rec1 9:30"), "recusado");
+  assert.equal(await comando("recusar rec1"), "recusado");
   const paraCliente = enviadas.find((m) => m.para === "5511988880000")!;
   assert.match(paraCliente.texto, /não está disponível/);
-  assert.match(paraCliente.texto, /Que tal às 09:30\?/);
+  assert.match(paraCliente.texto, /Faça um novo agendamento/);
+  assert.doesNotMatch(paraCliente.texto, /Que tal/);
   assert.match(paraCliente.texto, /\/agendar\/salao/);
   assert.match(paraCliente.texto, /responda SAIR\.$/);
   await db.doc("tenants/salao/appointments/Sem1aa").set({ status: "booked", start: daqui, customerName: "Antigo", customerPhone: "(11) 97777-0000", serviceName: "Corte" });

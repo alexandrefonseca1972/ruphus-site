@@ -392,12 +392,10 @@ export function codigosUnicos(ids: string[]): Map<string, string> {
 /** "CONFIRMADO", "recusar ab12"… → o comando; qualquer outra mensagem → null.
  *  "recusar" é o verbo de recusa: "cancelar" fica de fora de propósito — é stop
  *  word do gateway (opt-out de cliente) e colidiria com o comando. */
-export function lerComando(texto: string): { verbo: string; recusar: boolean; codigo?: string; hora?: string } | null {
-  // "RECUSAR AB12 14:30": a hora sugerida ao cliente vem depois do código (ou sozinha, sem código)
-  const m = /^(confirmado|recusar|recuso|recusado)\b(?:\s+([a-z0-9]{4,12})\b)?(?:\s+([01]?\d|2[0-3]):([0-5]\d)\b)?/i.exec(texto.trim());
+export function lerComando(texto: string): { verbo: string; recusar: boolean; codigo?: string } | null {
+  const m = /^(confirmado|recusar|recuso|recusado)\b(?:\s+([a-z0-9]{4,12})\b)?/i.exec(texto.trim());
   if (!m) return null;
-  const recusar = m[1].toLowerCase() !== "confirmado";
-  return { verbo: m[1].toUpperCase(), recusar, codigo: m[2]?.toUpperCase(), ...(recusar && m[3] && { hora: `${m[3].padStart(2, "0")}:${m[4]}` }) };
+  return { verbo: m[1].toUpperCase(), recusar: m[1].toLowerCase() !== "confirmado", codigo: m[2]?.toUpperCase() };
 }
 
 /** O salão respondeu ao aviso de agendamento no próprio WhatsApp: CONFIRMADO
@@ -428,7 +426,7 @@ export async function processarComandoAgendamento(
   if (!vivo || vivo.status !== "connected") return "ignorado";
   const comando = lerComando(String((msg.data as { text?: unknown } | undefined)?.text ?? ""));
   if (!comando) return "ignorado";
-  const { recusar, hora } = comando;
+  const { recusar } = comando;
   let { codigo } = comando;
 
   // só os que ainda vão acontecer; com código, o do aviso respondido. Sem código vale
@@ -496,8 +494,7 @@ export async function processarComandoAgendamento(
       try {
         const base = (process.env.PUBLIC_SITE_URL ?? `https://${slug}.ruphus.site`).replace(/\/+$/, "");
         const link = `${base}/agendar/${slug}`;
-        const sugestao = hora ? ` Que tal às ${hora}? Responda aqui ou escolha outro horário no link.` : " Escolha outro horário pelo link.";
-        const e = await enviarSemOperador(conexao, cliente, comAvisoSair(`Olá, ${nome}. Esse horário não está disponível: ${servico}.${sugestao} ${link}`), optIn, startDe(a));
+        const e = await enviarSemOperador(conexao, cliente, comAvisoSair(`Olá, ${nome}. Esse horário não está disponível: ${servico}. Faça um novo agendamento pelo link: ${link}`), optIn, startDe(a));
         if (e.destino === "parada") {
           await enviarSemOperador(conexao, respostaPara, `Agendamento de ${nome} recusado. O aviso ao cliente parou na cota diária do WhatsApp: decida em Mensagens no painel.`, OPTIN_DONO).catch(() => {});
           return "recusado";
