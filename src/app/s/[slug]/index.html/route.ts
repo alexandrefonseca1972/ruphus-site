@@ -10,12 +10,12 @@ import { ehClaro, renderClaro } from "@/lib/site-claro";
 // Sem pasta: primeiro o site da fábrica publicado no Storage, depois o do gerador,
 // montado aqui com os dados do tenant.
 
-// cache de um minuto, como a /bio; o gerador chama revalidatePath ao gravar,
-// então um site novo ou editado aparece na hora
-export const revalidate = 60;
-export function generateStaticParams() {
-  return [];
-}
+// Montado a cada visita. Com cache (revalidate = 60) a troca de modelo e as edições não
+// apareciam: no Next 16 o revalidatePath não derruba a resposta guardada de uma Route Handler,
+// só os dados lidos por fetch dentro dela, e o site seguia com a versão velha até o minuto
+// vencer (e a primeira visita depois disso ainda recebia a velha). Um site de prospecção tem
+// pouca visita: duas leituras por acesso custam menos do que um site que não muda.
+export const dynamic = "force-dynamic";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const slug = (await params).slug;

@@ -254,7 +254,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
               </button>
               <button
                 type="button"
-                className={BOTAO_ESCURO}
+                className={`${BOTAO_ESCURO} whitespace-nowrap`}
                 disabled={busy || modelo === "personalizado"}
                 onClick={() => {
                   setAvisoModelo(null);
