@@ -230,7 +230,8 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
                 ? `Em uso: ${modelos.find((m) => m.id === modeloAtual)?.rotulo ?? (modeloAtual ? "Personalizado" : "Padrão do sistema")}`
                 : `Escolhido: ${modelos.find((m) => m.id === modelo)?.rotulo ?? "Padrão do sistema"}. Ainda não aplicado.`}
             </p>
-            <div className="flex flex-col gap-2 sm:flex-row">
+            {/* a gaveta tem no máximo 520px: o seletor numa linha, os dois botões dividindo a de baixo */}
+            <div className="flex flex-wrap gap-2">
               <select
                 id="site-modelo"
                 value={modelo}
@@ -241,7 +242,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
                   setAvisoModelo(null);
                   setPreviaModelo(null);
                 }}
-                className="h-11 grow rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-[15px]"
+                className="h-11 basis-full rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-[15px]"
               >
                 <option value="">Padrão do sistema</option>
                 {modelos.map((m) => (
@@ -249,12 +250,12 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
                 ))}
                 {modeloAtual === "personalizado" && <option value="personalizado" disabled>Personalizado</option>}
               </select>
-              <button type="button" className={`${BOTAO_CLARO} whitespace-nowrap`} disabled={busy || modelo === "personalizado"} onClick={visualizarModelo}>
+              <button type="button" className={`${BOTAO_CLARO} flex-1 whitespace-nowrap`} disabled={busy || modelo === "personalizado"} onClick={visualizarModelo}>
                 {visualizando ? "Abrindo…" : "Prévia"}
               </button>
               <button
                 type="button"
-                className={`${BOTAO_ESCURO} whitespace-nowrap`}
+                className={`${BOTAO_ESCURO} flex-1 whitespace-nowrap`}
                 disabled={busy || modelo === "personalizado"}
                 onClick={() => {
                   setAvisoModelo(null);
