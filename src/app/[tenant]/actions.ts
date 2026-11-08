@@ -268,28 +268,6 @@ export const salvarNegocioAction = memberAction(z.object({ tenantId: docIdStaff,
   return { ok: true as const };
 });
 
-// Só dígitos, DDI+DDD+número: é o formato que o gateway (atendys) exige no envio.
-const FONE_INTERNACIONAL = /^\d{10,15}$/;
-
-/** Texto pelo WhatsApp que o dono conectou ao negócio (gateway atendys): sai do
- *  número dele, não da Ruphus. Cai no wa.me comum quando ninguém conectou. */
-export const enviarWhatsAppAction = memberAction(
-  z.object({
-    tenantId: docIdStaff,
-    phone: z.string().regex(FONE_INTERNACIONAL, "Use só números, com DDD (ex.: 11998887777)."),
-    message: z.string().trim().min(1, "Escreva a mensagem.").max(1000, "Mensagem longa demais (máx. 1000)."),
-  }),
-  async (data, user) => {
-    await exigeGestor(data.tenantId, user.uid);
-    const conexao = await lerConexao(adminDb, data.tenantId);
-    if (!conexao) throw new UserError("O WhatsApp do negócio ainda não está conectado.");
-    // número do Brasil sem o 55 (como todo mundo digita) ganha o DDI; estrangeiro vai como veio.
-    // Teste avulso não registra consentimento (null): sem opt-in, a tela diz que o número não autorizou
-    const envio = await enviarTexto(conexao, soDigitosComDDI(data.phone) ?? data.phone, data.message, null);
-    return { ok: true as const, messageId: envio.messageId, situacao: situacaoDe(envio) };
-  },
-);
-
 // ─── WhatsApp do negócio (painel do dono) ────────────────────────────────────
 // A mesma seção existe no /admin da plataforma, com prioridade: quando a
 // plataforma assume a conexão (ownerManaged false), aqui vira só leitura.
