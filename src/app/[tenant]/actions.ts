@@ -9,7 +9,7 @@ import { LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/
 import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
-import { assumirEnvio, deslogarInstancia, enviarTexto, manterAgendada, qrDaConexao, statusDaConexao } from "@/lib/atendys";
+import { assumirEnvio, deslogarInstancia, enviarTexto, ErroAtendys, manterAgendada, qrDaConexao, statusDaConexao } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
@@ -567,15 +567,23 @@ export const decidirEnvioAction = memberAction(
   async (data) => {
     const w = await lerConexao(adminDb, data.tenantId);
     if (!w?.instanceId) throw new UserError("O WhatsApp do negócio não está conectado.");
-    if (data.acao === "agora") {
-      const r = await assumirEnvio(w, data.messageId);
-      // manual_started: ação manual iniciada, não "enviada"; sai da lista de pendentes
-      await atualizarParada(data.tenantId, data.messageId, "manual_started");
-      return { ok: true as const, url: r.manualHandoffUrl, retryAt: null };
+    try {
+      if (data.acao === "agora") {
+        const r = await assumirEnvio(w, data.messageId);
+        // manual_started: ação manual iniciada, não "enviada"; sai da lista de pendentes
+        await atualizarParada(data.tenantId, data.messageId, "manual_started");
+        return { ok: true as const, url: r.manualHandoffUrl, retryAt: null, vencida: false };
+      }
+      const r = await manterAgendada(w, data.messageId);
+      await atualizarParada(data.tenantId, data.messageId, "queued", r.retryAt);
+      return { ok: true as const, url: null, retryAt: r.retryAt, vencida: false };
+    } catch (e) {
+      // 409: o atendys não segura mais a mensagem (venceu as 24 h ou já foi resolvida). Sai da
+      // lista em vez de deixar dois botões que sempre falham
+      if (!(e instanceof ErroAtendys && e.status === 409)) throw e;
+      await atualizarParada(data.tenantId, data.messageId, "expired");
+      return { ok: true as const, url: null, retryAt: null, vencida: true };
     }
-    const r = await manterAgendada(w, data.messageId);
-    await atualizarParada(data.tenantId, data.messageId, "queued", r.retryAt);
-    return { ok: true as const, url: null, retryAt: r.retryAt };
   },
 );
 

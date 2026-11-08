@@ -7,6 +7,11 @@ import { adminDb } from "@/lib/admin";
 // mensagensWhatsapp/{id} → slug deixa o webhook de status (que não traz a instância)
 // achar o negócio e o segredo para validar a assinatura. Só o servidor lê e grava.
 
+// O atendys segura a mensagem por 24 horas a partir da criação quando quem envia não manda
+// expiresAt (resolveExpiresAt, no wtsfy). Depois disso "Enviar agora" e "Manter agendada" são
+// recusados (409): a mensagem vencida não pode aparecer no painel com os botões.
+export const VALIDADE_PARADA_MS = 24 * 60 * 60 * 1000;
+
 const doNegocio = (slug: string, id: string) => adminDb.doc(`tenants/${slug}/mensagens/${id}`);
 const indice = (id: string) => adminDb.doc(`mensagensWhatsapp/${id}`);
 
@@ -31,6 +36,7 @@ export async function registrarParada(slug: string, m: { messageId: string; retr
       resumo: m.texto.replace(/\s+/g, " ").slice(0, 140),
       criadaEm: FieldValue.serverTimestamp(),
       at: Date.now(),
+      expira: Date.now() + VALIDADE_PARADA_MS,
     });
     b.set(indice(m.messageId), { tenantId: slug, criadaEm: FieldValue.serverTimestamp() });
     await b.commit();
@@ -68,7 +74,10 @@ export async function paradasDoNegocio(slug: string) {
   const q = await adminDb.collection(`tenants/${slug}/mensagens`).where("status", "==", "awaiting_manual").get();
   const agora = Date.now();
   return q.docs
+    // vencida pelo prazo (o horário do lembrete) ou pela validade do atendys; as registradas antes
+    // do campo expira usam a criação + 24 h
     .filter((d) => !(Number(d.get("prazo")) < agora))
+    .filter((d) => (Number(d.get("expira")) || (d.get("criadaEm")?.toMillis?.() ?? agora) + VALIDADE_PARADA_MS) > agora)
     .map((d) => ({ messageId: d.id, para: String(d.get("para") ?? ""), resumo: String(d.get("resumo") ?? ""), retryAt: (d.get("retryAt") as string | null) ?? null, errorCode: (d.get("errorCode") as string | null) ?? null, criadaEm: d.get("criadaEm")?.toMillis?.() ?? 0 }))
     .sort((a, b) => a.criadaEm - b.criadaEm);
 }

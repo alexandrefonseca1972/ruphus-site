@@ -404,6 +404,18 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.equal((await enviarSemOperador(casa, "5511987654321", "lembrete", null, new Date("2020-01-01T00:00:00Z"))).destino, "parada");
   assert.equal((await paradasDoNegocio("loja")).length, 0, "lembrete de horário que já passou não fica pedindo decisão");
 
+  // validade do atendys (24 h da criação): vencida sai da lista, com o campo expira ou, nas antigas, pela criação
+  const ID4 = "4bd4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: ID4, status: "awaiting_manual", retryAt: null }, 202) });
+  assert.equal((await enviarSemOperador(casa, "5511987654321", "pedido", null)).destino, "parada");
+  assert.ok(Number((await db.doc(`tenants/loja/mensagens/${ID4}`).get()).get("expira")) > Date.now(), "grava a validade");
+  assert.equal((await paradasDoNegocio("loja")).length, 1, "dentro das 24 h aparece");
+  await db.doc(`tenants/loja/mensagens/${ID4}`).update({ expira: Date.now() - 1 });
+  assert.equal((await paradasDoNegocio("loja")).length, 0, "vencida sai da lista");
+  const { Timestamp, FieldValue: FV } = await import("firebase-admin/firestore");
+  await db.doc(`tenants/loja/mensagens/${ID4}`).update({ expira: FV.delete(), criadaEm: Timestamp.fromMillis(Date.now() - 25 * 3600_000) });
+  assert.equal((await paradasDoNegocio("loja")).length, 0, "registrada antes do campo: vale a criação + 24 h");
+
   // status de mensagem fora do índice: 200 sem gravar
   assert.equal((await entregar({ event: "message.status", messageId: "1bd4d428-4361-4153-bc2c-60db816d8b77", status: "sent" }, "qualquer")).status, 200);
 }

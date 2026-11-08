@@ -40,6 +40,7 @@ export function CotaWhatsapp({ tenantId, messageId, retryAt, errorCode, fuso, on
       .catch(() => ({ ok: false as const, error: "Sem conexão. Tente de novo." }));
     setOcupado(null);
     if (!r.ok) return setErro(r.error ?? "Não foi possível agora. Tente de novo.");
+    if (r.vencida) return terminar("Esta mensagem venceu (o WhatsApp do negócio só a guarda por 24 horas) e saiu da lista.");
     if (acao === "agora") {
       if (r.url) return setUrl(r.url);
       return setErro("O WhatsApp do negócio não devolveu o link. Tente de novo.");
