@@ -9,7 +9,7 @@ import { LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/
 import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
-import { assumirEnvio, deslogarInstancia, enviarTexto, ErroAtendys, manterAgendada, qrDaConexao, statusDaConexao } from "@/lib/atendys";
+import { assumirEnvio, deslogarInstancia, enviarTexto, ErroAtendys, manterAgendada, qrDaConexao, statusDaConexao, statusDaMensagem } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
@@ -591,5 +591,26 @@ export const decidirEnvioAction = memberAction(
  *  o painel lista para o dono decidir. Só quem gere (texto e número do cliente). */
 export const mensagensParadasAction = memberAction(SoTenant, async ({ tenantId }, user) => {
   await exigeGestor(tenantId, user.uid);
-  return { ok: true as const, mensagens: await paradasDoNegocio(tenantId) };
+  const lista = await paradasDoNegocio(tenantId);
+  if (!lista.length) return { ok: true as const, mensagens: lista };
+  // confere cada uma no atendys: só fica a que ele ainda segura para decisão. A vencida, a de
+  // conta de WhatsApp excluída/reconectada e a que ele não conhece saem da lista (sem isto o painel
+  // oferecia "Enviar agora" e "Manter agendada" que sempre falhavam). Atendys fora do ar: não tira nada
+  const w = await lerConexao(adminDb, tenantId);
+  if (!w?.instanceId) return { ok: true as const, mensagens: lista };
+  const valem = await Promise.all(
+    lista.map(async (m) => {
+      try {
+        const r = await statusDaMensagem(w, m.messageId);
+        if (r.status === "awaiting_manual") return true;
+        await atualizarParada(tenantId, m.messageId, r.status, r.retryAt);
+        return false;
+      } catch (e) {
+        if (!(e instanceof ErroAtendys && [404, 409, 410].includes(e.status))) return true;
+        await atualizarParada(tenantId, m.messageId, "expired");
+        return false;
+      }
+    }),
+  );
+  return { ok: true as const, mensagens: lista.filter((_, i) => valem[i]) };
 });

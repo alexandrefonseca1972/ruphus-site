@@ -5,6 +5,7 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Mensagens do WhatsApp aguardando decisão: ao abrir a agenda, cada uma é conferida no WhatsApp do negócio (atendys); só fica a que ele ainda segura. Vencida, de conta reconectada ou desconhecida sai da lista.
 - Mensagens do WhatsApp aguardando decisão: as vencidas saem do painel. O WhatsApp do negócio (atendys) só guarda a mensagem parada por 24 horas; depois disso "Enviar agora" e "Manter agendada" eram recusados e o painel mostrava o erro em vermelho. Agora a validade fica registrada junto com a mensagem, a lista só mostra as que ainda servem e, se o atendys recusar por vencimento, a mensagem sai da lista com o aviso "Esta mensagem venceu".
 - Modelo "Salão infantil" (3 variações) para salões de beleza: fotos de criança no salão, cores alegres (coral, turquesa, amarelo-sol), rótulo "Salão infantil" e frases e serviços padrão de criança (corte infantil, primeiro corte, tranças). Fotos e cores só entram pelo modelo: o sorteio dos outros salões não muda.
 - Modelo editorial (beleza, fitness, automotivo): a segunda linha do nome no topo (em itálico, na cor do modelo) fica legível sobre a foto. Paletas de marrom, vinho, verde e azul escuros clareiam só ali até contraste 3,5:1 ("Estrelas" no Barbeiro das Estrelas, "Moura" na Podóloga Alessandra Moura). O modelo claro passa à mesma régua.
