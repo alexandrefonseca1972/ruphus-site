@@ -6,6 +6,7 @@ o PR, onde está o porquê.
 ## Não publicado
 
 - Troca de modelo de verdade na hora: o site e a imagem do link (prévia do WhatsApp) passam a ser montados a cada visita. Com o cache, o revalidatePath do Next 16 não derrubava a página guardada e o site seguia com o modelo velho por até um minuto (a imagem, até uma hora).
+- Imagem do link com cache curto (um minuto na Cloudflare): sem cabeçalho, a Cloudflare guardava o .jpg por horas.
 - Prévia do WhatsApp dos 645 sites convertidos da fábrica: sai do modelo do site, não mais da imagem antiga da fábrica que tinha ficado no Storage.
 
 - Troca de modelo (e qualquer edição do site pelo admin ou pelo painel): o site, a imagem do link e a bio mostram a mudança na primeira visita. Antes, a primeira visita depois de "Aplicar modelo" ainda recebia a página antiga (o cache do Next 16 serve a cópia velha enquanto monta a nova); agora o servidor faz essa visita logo depois de gravar. "Ver o site" e "Bio" na gaveta abrem a versão nova direto.

@@ -68,5 +68,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   ).arrayBuffer();
   // JPEG: o PNG de uma foto passa de 1 MB, e o WhatsApp não mostra prévia de imagem pesada
   const jpg = await sharp(Buffer.from(png)).jpeg({ quality: 80, mozjpeg: true }).toBuffer();
-  return new Response(new Uint8Array(jpg), { headers: { "content-type": "image/jpeg" } });
+  // sem Cache-Control, a Cloudflare guarda .jpg sozinha por horas e a troca de modelo não chegava
+  // à prévia: um minuto na borda, cinco no navegador
+  return new Response(new Uint8Array(jpg), { headers: { "content-type": "image/jpeg", "cache-control": "public, max-age=300, s-maxage=60" } });
 }
