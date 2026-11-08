@@ -218,8 +218,8 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
         )}
         {temSite && (
           <div className="flex flex-wrap gap-2">
-            <a className={BOTAO_CLARO} href={site} target="_blank" rel="noreferrer">Ver o site ↗</a>
-            <a className={BOTAO_CLARO} href={`${site}/bio`} target="_blank" rel="noreferrer">Bio ↗</a>
+            <a className={BOTAO_CLARO} href={versao ? `${site}/?v=${versao}` : site} target="_blank" rel="noreferrer">Ver o site ↗</a>
+            <a className={BOTAO_CLARO} href={versao ? `${site}/bio?v=${versao}` : `${site}/bio`} target="_blank" rel="noreferrer">Bio ↗</a>
           </div>
         )}
         {temSite && !fabrica && modelos.length > 0 && (

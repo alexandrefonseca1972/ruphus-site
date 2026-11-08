@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Troca de modelo (e qualquer edição do site pelo admin ou pelo painel): o site, a imagem do link e a bio mostram a mudança na primeira visita. Antes, a primeira visita depois de "Aplicar modelo" ainda recebia a página antiga (o cache do Next 16 serve a cópia velha enquanto monta a nova); agora o servidor faz essa visita logo depois de gravar. "Ver o site" e "Bio" na gaveta abrem a versão nova direto.
+
 - Gaveta do Site: "Aplicar modelo" pede a confirmação ali mesmo, embaixo do botão ("Trocar o modelo de … para …?"), em vez do diálogo solto que não aparecia e deixava o clique sem efeito; o botão da prévia vira "Prévia" e não quebra em três linhas.
 - Nome comprido (o do Google com cidade e marcas): título do topo menor, nome do cabeçalho cortado com "…" (uma linha no computador, duas no celular) e o selo do ramo não fica mais embaixo do cabeçalho.
 

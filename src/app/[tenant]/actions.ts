@@ -7,6 +7,7 @@ import { erroNome } from "@/lib/nome";
 import { z } from "zod";
 import { LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
+import { renovarSite } from "@/lib/renovar-site.server";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
 import { assumirEnvio, deslogarInstancia, enviarTexto, manterAgendada, qrDaConexao, statusDaConexao } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
@@ -260,8 +261,7 @@ export const salvarNegocioAction = memberAction(z.object({ tenantId: docIdStaff,
   await exigeGestor(data.tenantId, user.uid, { publico: true });
   await salvarNegocio(adminDb, data.tenantId, data.dados);
   // o site, a imagem do WhatsApp e a bio mostram a mudança agora, não em até uma hora
-  for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${data.tenantId}/${p}`);
-  revalidatePath(`/bio/${data.tenantId}`);
+  renovarSite(data.tenantId);
   // o nome e o WhatsApp também aparecem na página de agendar e na imagem do link dela (cache de 1 dia)
   revalidatePath(`/agendar/${data.tenantId}`);
   return { ok: true as const };
