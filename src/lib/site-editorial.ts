@@ -209,8 +209,8 @@ const beleza = (tipo: keyof typeof TEXTOS, rotulo: string, paletas: Estilo["pale
 });
 const ESTILOS: Partial<Record<Sub, Estilo>> = {
   barbearia: beleza("barbearia", "Barbearia", QUENTES),
-  // infantil-1 e infantil-2: fotos de criança no salão (Pexels), escolha.kit = 4 e 5; INFANTIS = cor 6 a 8
-  salao: { ...beleza("salao", "Salão de beleza", DELICADAS), extras: ["/assets/beleza/infantil-1", "/assets/beleza/infantil-2"], paletasExtras: INFANTIS },
+  // infantil-1 a infantil-3: fotos de criança no salão (Pexels), escolha.kit = 4 a 6; INFANTIS = cor 6 a 8
+  salao: { ...beleza("salao", "Salão de beleza", DELICADAS), extras: ["/assets/beleza/infantil-1", "/assets/beleza/infantil-2", "/assets/beleza/infantil-3"], paletasExtras: INFANTIS },
   // depilacao-1: fotos de depilação (Pexels) para quem só faz isso; escolha.kit = 4
   // bronze-1: bronzeamento em cabine e natural (Pexels); escolha.kit = 5
   // cilios-1: extensão de cílios (Pexels); escolha.kit = 6
@@ -250,7 +250,7 @@ export const TEMPLATES = {
   // de "corte, cor e tratamento" para adulto
   infantil: {
     sub: "salao",
-    escolhas: [{ kit: 4, cor: 6 }, { kit: 5, cor: 7 }, { kit: 4, cor: 8 }],
+    escolhas: [{ kit: 4, cor: 6 }, { kit: 5, cor: 7 }, { kit: 6, cor: 8 }],
     rotulo: "Salão infantil",
     textos: [
       "Corte infantil com paciência, brincadeira e muito carinho.",

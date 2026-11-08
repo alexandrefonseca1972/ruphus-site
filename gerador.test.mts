@@ -369,7 +369,8 @@ console.log("gerador: ok");
   // kit extra na cidade (depilação) não entra no sorteio dos outros sites
   assert.ok(sortearVisual("vizinho", [0, 1, 2, 3].map((kit) => ({ kit, cor: 0 })).concat({ kit: 4, cor: 0 }), dim).kit < 4);
   assert.equal(visualEditorial("segredo-do-pello", "estetica", { kit: 4 }).foto, "/assets/beleza/depilacao-1/hero.jpg");
-  assert.equal(visualEditorial("x", "salao", { kit: 6 }).kit, visualEditorial("x", "salao").kit, "índice fora do estilo cai no do slug");
+  assert.equal(visualEditorial("x", "salao", { kit: 7 }).kit, visualEditorial("x", "salao").kit, "índice fora do estilo cai no do slug");
+  assert.equal(visualEditorial("x", "salao", { kit: 6 }).kit, "/assets/beleza/infantil-3");
   // salão infantil: fotos e cores próprias só pelo modelo; o sorteio do salão segue igual
   assert.equal(visualEditorial("x", "salao", { kit: 4 }).kit, "/assets/beleza/infantil-1");
   const kids = visualEditorial("tio-rafa", "salao", { kit: 4, cor: 6, modelo: "infantil-1" });
