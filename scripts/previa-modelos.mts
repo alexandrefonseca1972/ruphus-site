@@ -22,7 +22,7 @@ for (const id of process.argv.slice(2)) {
   if (!sub) throw new Error(`${id}: modelo desconhecido`);
   const escolha: Escolha = editorial?.escolha ?? modelosClaro(sub).find((m) => m.id === id)!.escolha;
   const d: DadosSite = {
-    slug: `previa-${id}`, nome: `${SUBS[sub].rotulo} Exemplo`, telefone: "5585999990000", sub, tipo: SUBS[sub].tipo, escolha, variantes: true,
+    slug: `previa-${id}`, nome: process.env.NOME ?? `${SUBS[sub].rotulo} Exemplo`, telefone: "5585999990000", sub, tipo: SUBS[sub].tipo, escolha, variantes: true,
     endereco: "Rua Exemplo, 100", bairro: "Centro", cidade: "Fortaleza", uf: "CE", nota: 4.8, avaliacoes: 127, instagram: "",
     horario: "Seg a Sex 8h–19h · Sáb 8h–13h", servicos: [], consultado: "novembro de 2026", origem: "prospeccao", publicado: false, dominio: null,
   };

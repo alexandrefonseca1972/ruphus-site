@@ -27,6 +27,12 @@ export const ESTILO_AGENDAR = `<style>
 .mapa-info .mi span{overflow-wrap:anywhere}
 .btn-route{max-width:100%;flex-wrap:wrap;text-align:center;justify-content:center}
 .hero-ctas .btn-wpp{flex:0 0 auto}
+/* nome comprido (o do Google às vezes vem com cidade e marcas): título menor, logo cortado com "…" no computador e o selo do topo fora do cabeçalho */
+.hero h1.nl{font-size:clamp(2.4rem,6.4vw,5rem)}
+.hero h1.nml{font-size:clamp(2rem,4.8vw,3.8rem);line-height:1.04}
+.hero{padding-top:calc(var(--dnh,36px) + 96px)}
+@media (min-width:981px){header .logo{max-width:30vw;overflow:hidden;text-overflow:ellipsis}}
+@media (max-width:980px){header .logo{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:0}}
 @media (max-width:600px){
 table.precos{min-width:0}
 table.precos thead{display:none}

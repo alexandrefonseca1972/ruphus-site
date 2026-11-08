@@ -5,6 +5,9 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Gaveta do Site: "Aplicar modelo" pede a confirmação ali mesmo, embaixo do botão ("Trocar o modelo de … para …?"), em vez do diálogo solto que não aparecia e deixava o clique sem efeito; o botão da prévia vira "Prévia" e não quebra em três linhas.
+- Nome comprido (o do Google com cidade e marcas): título do topo menor, nome do cabeçalho cortado com "…" (uma linha no computador, duas no celular) e o selo do ramo não fica mais embaixo do cabeçalho.
+
 - Fotos sem máscara nas consultas: nova capa de clínica médica (médico sem máscara conversando com a paciente) e novas fotos de veterinária (duas capas e uma da página); a capa da mesa de exame da veterinária também foi trocada, com o veterinário fora do texto.
 
 - Sites gerados (todos os modelos): "Agendar online" vira o botão da marca Ruphus — branco, com o R e o ponto amarelo pulsando no canto, e "Escolha em até 30 segundos"; igual em todos os sites, qualquer que seja a paleta. Seta fixa no canto esquerdo para voltar ao topo, que aparece depois de rolar. Itens do menu com ícones padronizados (os mesmos nos dois modelos).
