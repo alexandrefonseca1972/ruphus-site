@@ -554,6 +554,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   if (reserva) {
     const { date, time: hora, durationMin: totalMin, serviceName: servicos, staffName: quem } = reserva;
     const total = precoDe({ priceCents: reserva.priceCents, tipoPreco: reserva.precoAberto ? "aPartir" : "fixo" });
+    // a mesma frase na tela e no evento do Google Agenda
+    const comoPaga = reserva.sinal ? (reserva.sinal.cents >= reserva.priceCents ? "todo por Pix, no sinal" : `sinal de ${formatBRL(reserva.sinal.cents)} por Pix, o resto no local`) : "pago no local";
     const avisoUrl = recado(servicos, date, hora, reserva.id.slice(0, 4).toUpperCase(), quem);
     const fim = fimDe(date, hora, totalMin);
     const dias = Math.round((Date.parse(date) - Date.parse(today)) / 86_400_000);
@@ -569,7 +571,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       inicio: zonedTime(date, hora, fuso),
       fim: new Date(zonedTime(date, hora, fuso).getTime() + totalMin * 60_000),
       local: onde || [name, cidadeUf].filter(Boolean).join(", "),
-      detalhes: [quem ? `Com ${quem}.` : "", total ? `${total}, pago no local.` : "", phone ? `WhatsApp de ${name}: ${formatPhone(phone)}` : ""]
+      detalhes: [quem ? `Com ${quem}.` : "", total ? `${total}, ${comoPaga}.` : "", phone ? `WhatsApp de ${name}: ${formatPhone(phone)}` : ""]
         .filter(Boolean)
         .join("\n"),
     };
@@ -622,7 +624,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 <dd>
                   {total ? (
                     <>
-                      <span className={MONO}>{total}</span> <span className="text-[#5C5747]">· {reserva.sinal ? (reserva.sinal.cents >= reserva.priceCents ? "todo por Pix, no sinal" : `sinal de ${formatBRL(reserva.sinal.cents)} por Pix, o resto no local`) : "pago no local"}</span>
+                      <span className={MONO}>{total}</span> <span className="text-[#5C5747]">· {comoPaga}</span>
                     </>
                   ) : (
                     <span className="text-[#5C5747]">a combinar com {name}</span>

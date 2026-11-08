@@ -49,9 +49,10 @@ export function Funil({
 
   const numeros: { rotulo: string; valor: string; nota: string; destaque?: string; acao?: () => void }[] = [
     { rotulo: "Receita fechada", valor: formatBRL(n.receita), nota: `/mês · ${n.fechadosTotal} cliente(s)` },
-    { rotulo: "Em negociação", valor: formatBRL(n.negociacao), nota: `/mês · ${n.emNegociacao} negócio(s)` },
+    // oferta enviada + negociando: "Em negociação" na Lista é só a etapa Negociando
+    { rotulo: "Em aberto", valor: formatBRL(n.negociacao), nota: `/mês · ${n.emNegociacao} com oferta ou negociando` },
     { rotulo: "Vendas", valor: String(n.vendas), nota: PERIODOS[periodo].toLowerCase(), destaque: n.vendas ? "text-[#2C6A53]" : undefined },
-    { rotulo: "Taxa de ganho", valor: taxa === null ? "—" : `${taxa}%`, nota: `${n.vendas} fechado(s) · ${n.perdas} perdido(s)` },
+    { rotulo: "Taxa de ganho", valor: taxa === null ? "—" : `${taxa}%`, nota: `${n.vendas} fechado(s) · ${n.perdas} perdido(s) · ${PERIODOS[periodo].toLowerCase()}` },
     { rotulo: "Tempo até fechar", valor: n.dias === null ? "—" : `${n.dias} dia${n.dias === 1 ? "" : "s"}`, nota: "média dos fechados" },
     { rotulo: "Ações atrasadas", valor: String(n.atrasadas), nota: n.atrasadas ? "abrir a lista" : "nada atrasado", destaque: n.atrasadas ? "text-[#8A2F2F]" : undefined, acao: n.atrasadas ? verAtrasadas : undefined },
   ];

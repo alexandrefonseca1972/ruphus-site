@@ -6,6 +6,11 @@ o PR, onde está o porquê.
 ## Não publicado
 
 - Agendamento online: WhatsApp com DDD que não existe (20, 10, 23…) passa a ser recusado com "DDD inválido", na tela e no servidor. Antes só o DDD começando com 0 era barrado.
+- Histórico do horário: "Sinal recebido" aparece como "Sinal recebido, confirmado por …". Antes saía "Confirmado pelo WhatsApp", sem ter passado pelo WhatsApp.
+- Agendamento com sinal: o evento do Google Agenda diz "sinal de R$ X por Pix, o resto no local", como a tela. Antes dizia "pago no local".
+- Demonstração: a restauração da madrugada não cria mais um "Negócio criado" por dia na linha do tempo do admin (a entrada do dono da demo mantém a data original).
+- Etiquetas do cliente: "vip" e "VIP" são a mesma etiqueta; a repetida não entra e o campo limpa.
+- Funil: o cartão "Em negociação" passa a "Em aberto" (oferta enviada + negociando), para não confundir com a visão "Em negociação" da Lista (só negociando); "Taxa de ganho" diz o período dos fechados e perdidos.
 - Painel do dono: quem abre um link do painel sem estar logado (aviso de agendamento, favorito) volta para essa tela depois de entrar, como já acontecia no admin.
 - WhatsApp do negócio: sai o "Teste rápido" do painel (Meu negócio). Cada teste gastava uma mensagem da cota diária do número, que é a mesma dos lembretes e avisos aos clientes.
 - Mensagens do WhatsApp aguardando decisão: ao abrir a agenda, cada uma é conferida no WhatsApp do negócio (atendys); só fica a que ele ainda segura. Vencida, de conta reconectada ou desconhecida sai da lista.
