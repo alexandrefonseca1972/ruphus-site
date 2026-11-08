@@ -117,7 +117,7 @@ export async function POST(req: Request) {
                   `Olá, ${nomeCurto}! Recebemos seu pedido de agendamento: ${partes.join(" · ")}. O salão vai confirmar em breve — avisamos por aqui.`,
               ),
               // a evidência é o aceite explícito do formulário: texto, versão, momento e agendamento
-              optInDoAgendamento({ tenantId, agendamentoId: nova.id, versao: b.data.termoWhatsapp || TERMO_WHATSAPP_VERSAO, em: new Date() }),
+              optInDoAgendamento({ tenantId, agendamentoId: nova.id, versao: TERMO_WHATSAPP_VERSAO, em: new Date() }),
               prazo,
             );
           } catch (e) {

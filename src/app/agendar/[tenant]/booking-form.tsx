@@ -1388,7 +1388,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 )}
               >
                 {faltamDigitos(customerPhone) ||
-                  (touched.phone && errors.phone ? errors.phone : !errors.phone && customerPhone ? "número válido" : "é por aqui que o negócio confirma")}
+                  (touched.phone && errors.phone ? errors.phone : !errors.phone && customerPhone ? "número válido" : "o negócio usa este número para falar sobre o horário")}
               </p>
             </div>
           </form>

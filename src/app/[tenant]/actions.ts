@@ -511,8 +511,11 @@ export const enviarPixWhatsappAction = memberAction(
       if (e instanceof PixInvalido) throw new UserError(e.message);
       throw e;
     }
-    // vale o aceite gravado no agendamento; sem ele (null) o gateway recusa e a tela avisa
-    const envio = await enviarTexto(w, cliente, textoPix({ valorCents: data.valorCents, nome: recebedor.nome, codigo }), optInDoDoc(data.tenantId, ag));
+    // vale o aceite gravado NESTE agendamento: sem ele não envia, mesmo que o número tenha
+    // aceitado em outro horário (o termo vale "deste agendamento")
+    const optIn = optInDoDoc(data.tenantId, ag);
+    if (!optIn) throw new UserError("O cliente não autorizou WhatsApp neste agendamento. Envie o Pix por outro meio.");
+    const envio = await enviarTexto(w, cliente, textoPix({ valorCents: data.valorCents, nome: recebedor.nome, codigo }), optIn);
     return { ok: true as const, situacao: situacaoDe(envio) };
   },
 );
@@ -549,7 +552,9 @@ export const avisarClienteWhatsappAction = memberAction(
       String(tenant.get("name") ?? data.tenantId),
       `${base}/agendar/${data.tenantId}`,
     );
-    const envio = await enviarTexto(w, cliente, comAvisoSair(texto), optInDoDoc(data.tenantId, ag));
+    const optIn = optInDoDoc(data.tenantId, ag);
+    if (!optIn) throw new UserError("O cliente não autorizou WhatsApp neste agendamento. Avise por outro meio.");
+    const envio = await enviarTexto(w, cliente, comAvisoSair(texto), optIn);
     return { ok: true as const, situacao: situacaoDe(envio) };
   },
 );

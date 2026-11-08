@@ -1,3 +1,4 @@
+import { TERMO_WHATSAPP_VERSAO } from "@/lib/consentimento-whatsapp";
 import "server-only";
 import { type Dominio, urlDoSite } from "@/lib/dominio";
 import { sessaoRevogada } from "@/lib/revogacao";
@@ -570,7 +571,7 @@ export async function book(db: Firestore, input: BookingInput, ip?: string, aoCr
       renameCustomer: !customer.exists,
       sinal: sinalDaReserva(livre.ctx, input),
       // prova do aceite (ou da falta dele): só o hash da rede, nunca o IP
-      whatsappConsent: { aceito: input.aceiteWhatsapp === true, versao: input.termoWhatsapp ?? "", em: new Date(), ...(ip && { ipHash: deviceId(ip) }) },
+      whatsappConsent: { aceito: input.aceiteWhatsapp === true, versao: TERMO_WHATSAPP_VERSAO, em: new Date(), ...(ip && { ipHash: deviceId(ip) }) },
     });
     if (input.pedido) tx.set(t.collection("pedidos").doc(input.pedido), { appointmentId: id, createdAt: FieldValue.serverTimestamp() });
     limit.bump!();
