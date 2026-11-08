@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Fotos sem máscara nas consultas: nova capa de clínica médica (médico sem máscara conversando com a paciente) e novas fotos de veterinária (duas capas e uma da página); a capa da mesa de exame da veterinária também foi trocada, com o veterinário fora do texto.
+
 - Sites gerados (todos os modelos): "Agendar online" vira o botão da marca Ruphus — branco, com o R e o ponto amarelo pulsando no canto, e "Escolha em até 30 segundos"; igual em todos os sites, qualquer que seja a paleta. Seta fixa no canto esquerdo para voltar ao topo, que aparece depois de rolar. Itens do menu com ícones padronizados (os mesmos nos dois modelos).
 - WhatsApp sem repetição: sai o "Falar no WhatsApp" do topo da página e o botão de WhatsApp do cabeçalho; fica o botão flutuante (e o do menu no celular, no modelo claro).
 - Celular: a página não fica mais larga que a tela em aparelho de 320px (mapa e "Traçar rota" do modelo editorial); a tabela de valores do modelo claro vira cartões em vez de rolar de lado; "Ver serviços" não fica mais embaixo do WhatsApp flutuante.

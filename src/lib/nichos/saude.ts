@@ -43,7 +43,7 @@ const FOTOS: Record<string, string> = {
   "nutri-medidas": "Nutricionista medindo a cintura do paciente com fita métrica",
   "nutri-frutas": "Fruteira e prancheta de plano alimentar sobre a mesa",
   "clinica-recepcao": "Recepção e sala de espera de clínica clara e organizada",
-  "clinica-consultorio": "Médico atendendo paciente em consultório amplo",
+  "clinica-consultorio": "Médico conversando com a paciente no consultório",
   "clinica-consulta": "Médica sorridente conversando com paciente à mesa",
   "clinica-atendimento": "Médica conversando com gestante no consultório",
   "clinica-medica": "Médica com estetoscópio preenchendo prontuário à mesa",
