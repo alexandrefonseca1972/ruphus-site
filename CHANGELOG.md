@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- WhatsApp: cliente que respondeu SAIR e depois marca de novo o aceite num agendamento volta a receber as mensagens. Antes o novo aceite era recusado e nada chegava. Mensagens de agendamentos anteriores ao SAIR continuam sem sair.
+- Webhook do atendys: só a assinatura v2 (com horário) é aceita. Aviso só com a assinatura antiga é recusado, e um aviso capturado não pode ser reenviado depois de 5 minutos.
 - WhatsApp do negócio: comando do dono com erro de digitação ("CONCFIRMADO", "confimado") ou só com o código do agendamento recebe "Não entendi. Para confirmar, responda CONFIRMADO <código>; para recusar, RECUSAR <código>." Antes era ignorado em silêncio, e o dono achava que tinha confirmado.
 - WhatsApp do negócio: mensagem que o atendys marcou como falha e depois confirmou como enviada não mostra mais o código de erro antigo.
 - Webhook do atendys: passa a aceitar a assinatura v2 (com horário, recusada depois de 5 minutos), que impede reenviar um aviso capturado. A assinatura atual continua valendo até o atendys mandar só a v2.

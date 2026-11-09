@@ -248,6 +248,32 @@ Testes passam e, em produção, um comando com erro de digitação recebe a resp
 
 ---
 
+## 12. P0 — Quem respondeu SAIR e aceita de novo nunca volta a receber
+
+### Problema
+Comprovado em produção em 2026-11-09 02:55. O cliente respondeu **SAIR**; depois agendou de novo marcando o aceite de WhatsApp, e o recibo não saiu:
+```
+[atendys] POST /v1/optin → 409 "Reativação exige eventId e occurredAt de uma nova autorização"
+recibo de agendamento via WhatsApp Error: Reativação exige eventId e occurredAt ...
+```
+O ruphus.site chamava `POST /v1/optin` só com `number`, `source`, `category` e `evidence`. O atendys (`apps/api/src/optin/optin.service.ts`) exige, para número com revogação anterior, `eventId` e `occurredAt`, e `occurredAt` **posterior** à revogação (senão 409 "A autorização precisa ser posterior à revogação"). `eventId` é único por tenant (`ConsentEvent @@unique [tenantId, eventId]`, até 128 caracteres); repetido, o atendys responde 409 "Este evento de consentimento já foi registrado" e desfaz a transação.
+
+### Decisão
+Um aceite novo e explícito no agendamento reativa o consentimento, com evidência, `eventId` e `occurredAt`. Um aceite anterior ao SAIR **não** reativa: a vontade do cliente vale.
+
+### O que mudou
+- `optInDoAgendamento` (`src/lib/consentimento-whatsapp.ts`) devolve também `eventId = ruphus-agendamento:<tenantId>:<agendamentoId>` (o mesmo agendamento não cria evento novo) e `occurredAt = whatsappConsent.em` em ISO. `registrarOptIn` envia os dois.
+- O recibo do agendamento online lê o aceite gravado no próprio agendamento (`optInDoDoc`), em vez de montar um `new Date()` na hora do envio.
+- `enviarTexto`: 409 "já foi registrado" segue para o envio (corrida com outro envio do mesmo agendamento). 409 "posterior à revogação": `console.warn`, sem nova tentativa e sem envio; sobe `ErroAtendys` com código `OPT_OUT` (`saiuDepoisDoAceite`). O lembrete não devolve a reserva nem alerta o admin; o comando do dono avisa e não lança. 403 `NOT_OPTED_IN` e o 409 do opt-in vão ao log como aviso, não como erro.
+
+### Testes (`atendys.test.mts`, atendys simulado com a mesma regra)
+(a) o opt-in leva `eventId` e `occurredAt`; (b) número com SAIR + aceite novo → reativa e o recibo sai; (c) aceite anterior ao SAIR → 409 tratado, sem `console.error` e sem envio; (d) o mesmo `eventId` reenviado → sem erro.
+
+### Validação em produção
+`5511948680554` está com opt-out no ruphusbel. Agendar para ele com o aceite marcado: o recibo chega, e no atendys aparece `optin.granted` com `eventId = ruphus-agendamento:ruphusbel:<id do agendamento>`.
+
+---
+
 ## 9. Ordem de execução (checklist)
 
 - [x] 1. Confirmar o impacto do item 1 (consultas da seção 1, "Como confirmar"). 5 de 6 instâncias afetadas.
@@ -258,6 +284,7 @@ Testes passam e, em produção, um comando com erro de digitação recebe a resp
 - [x] 6. (atendys) Canonizar o telefone da instância no `CONNECTION_UPDATE` (item 1, passo 4); deploy pelo `scripts/deploy.sh`. **Feito: atendys `d093607`/`d96d81b`, em produção desde 2026-11-09 01:27** (comparações com `samePhone`, sem falsa troca de número).
 - [x] 7. Investigar e registrar a causa das falhas de 03–04/11 (item 4). **Feito:** 2 × 401 em 04/11 07:22 (barbearia-force), lado do ruphus.site sem log na época; ver "Resultado da investigação".
 - [x] 8. Verificador v1+v2 no ruphus.site (item 5) + testes; deploy. **Feito: PR #282 (squash `d196aea9`), em produção desde 2026-11-09 01:13.** Log `[webhook atendys] assinatura v1|v2`.
+- [ ] 12. Reativar o consentimento de quem saiu e aceitou de novo (item 12 acima): `eventId` + `occurredAt` no opt-in. Falta a validação com `5511948680554` no ruphusbel.
 - [x] 9. (atendys) Enviar timestamp + assinatura v2; deploy; roteiro 7.6. Envio publicado no atendys (`d96d81b`, 2026-11-09 01:27). **Validado em 2026-11-09 02:01–02:19:** `[webhook atendys] assinatura v2: message.received de ruphusbel`, todas as entregas `ok` na 1ª tentativa.
 - [x] 11. Comando do dono com erro de digitação (item 10 acima). **Feito: `pareceComando` + resposta de ajuda, retorno `"nao entendido"`; testes em `atendys.test.mts`.** Falta ver em produção a resposta "Não entendi…" a um comando com erro.
-- [ ] 10. Após 7 dias só com v2: exigir v2 no ruphus.site. **Previsto para 2026-11-16**, se até lá `journalctl -u ruphus-site --since 2026-11-09 | grep "assinatura v1"` não mostrar nada.
+- [x] 10. Exigir v2 no ruphus.site. **Antecipado para 2026-11-09:** o atendys parou de mandar a v1 (deploy `4a142a3`, 02:47) e nenhum webhook com v1 chegou depois. Só `x-atendys-signature` leva 401 (`[webhook atendys] 401 Assinatura ausente. (… v1=sim v2=não)`).

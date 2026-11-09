@@ -27,7 +27,7 @@ assert.equal(assinaturaV2Valida("segredo", corpo + " ", ts, v2(ts), agora), fals
 assert.equal(assinaturaV2Valida("segredo", corpo, ts, assina("segredo", corpo), agora), false, "assinada sem o prefixo do timestamp");
 assert.equal(assinaturaV2Valida("segredo", corpo, `${ts}.0`, v2(`${ts}.0`), agora), false, "timestamp fora do formato");
 const h = (x: Partial<{ v1: string; v2: string; timestamp: string }>) => ({ v1: x.v1 ?? null, v2: x.v2 ?? null, timestamp: x.timestamp ?? null });
-assert.equal(versaoDaAssinatura("segredo", corpo, h({ v1: assina("segredo", corpo) }), agora), "v1", "só v1 válida: aceita (transição)");
+assert.equal(versaoDaAssinatura("segredo", corpo, h({ v1: assina("segredo", corpo) }), agora), null, "só v1 (válida): recusa, v2 exigida");
 assert.equal(versaoDaAssinatura("segredo", corpo, h({ v1: assina("segredo", corpo), v2: v2(ts), timestamp: ts }), agora), "v2");
 assert.equal(versaoDaAssinatura("segredo", corpo, h({ v1: assina("segredo", corpo), v2: v2(ts, corpo, "outro"), timestamp: ts }), agora), null, "v2 presente e inválida: recusa mesmo com v1 boa");
 assert.equal(versaoDaAssinatura("segredo", corpo, h({ v1: assina("segredo", corpo), v2: v2(ts) }), agora), null, "v2 sem timestamp: recusa");
@@ -206,6 +206,80 @@ await assert.rejects(enviarTexto(conn, "5511912345678", "x", null), /Limite diá
 novo({ "POST /v1/message/send-text": () => new Response("<html>bad gateway</html>", { status: 502 }) });
 await assert.rejects(enviarTexto(conn, "5511912345678", "x", null), (e) => e instanceof ErroAtendys && e.codigo === null && /\(502\)/.test(e.message) && !/html/.test(e.message));
 
+// ── reativação depois do SAIR: o atendys (optin.service.ts) exige eventId + occurredAt de um
+// aceite posterior à revogação; o mesmo eventId reenviado é "já registrado" ──
+{
+  const { optInDoAgendamento, saiuEm } = { optInDoAgendamento: (await import("@/lib/consentimento-whatsapp")).optInDoAgendamento, saiuEm: new Map<string, number>() };
+  const { saiuDepoisDoAceite } = await import("@/lib/atendys");
+  const ativos = new Set<string>();
+  const eventos = new Set<string>();
+  const enviados: string[] = [];
+  let corrida = false; // outro envio do mesmo agendamento registrou o aceite entre o 403 e o opt-in
+  const simulado = {
+    "POST /v1/message/send-text": (corpo: unknown) => {
+      const c = corpo as { number: string; text: string };
+      if (corrida) return ((corrida = false), erro(403, "NOT_OPTED_IN"));
+      if (!ativos.has(c.number)) return erro(403, "NOT_OPTED_IN");
+      enviados.push(c.text);
+      return Response.json({ id: "m2", status: "queued" });
+    },
+    "POST /v1/optin": (corpo: unknown) => {
+      const c = corpo as { number: string; eventId?: string; occurredAt?: string };
+      const revogado = saiuEm.get(c.number);
+      const conflito = (message: string) => Response.json({ error: { code: "VALIDATION_ERROR", message } }, { status: 409 });
+      if (revogado !== undefined) {
+        if (!c.eventId || !c.occurredAt) return conflito("Reativação exige eventId e occurredAt de uma nova autorização");
+        if (Date.parse(c.occurredAt) <= revogado) return conflito("A autorização precisa ser posterior à revogação");
+      }
+      if (c.eventId && eventos.has(c.eventId)) return conflito("Este evento de consentimento já foi registrado");
+      if (c.eventId) eventos.add(c.eventId);
+      ativos.add(c.number);
+      return Response.json({ phone: c.number, status: "opted_in" });
+    },
+  };
+  const numero = "5511948680554";
+  const aceite = (id: string, em: string) => optInDoAgendamento({ tenantId: "ruphusbel", agendamentoId: id, versao: "2026-11-08", em: new Date(em) });
+
+  // (a) o opt-in leva eventId (um por agendamento) e occurredAt (o momento do aceite)
+  novo(simulado);
+  await enviarTexto(conn, numero, "recibo 1", aceite("AgA1", "2026-11-09T01:00:00.000Z"));
+  assert.deepEqual(
+    (({ eventId, occurredAt }) => ({ eventId, occurredAt }))(chamadas[1].corpo as unknown as { eventId: string; occurredAt: string }),
+    { eventId: "ruphus-agendamento:ruphusbel:AgA1", occurredAt: "2026-11-09T01:00:00.000Z" },
+  );
+
+  // o cliente responde SAIR às 02:00
+  ativos.delete(numero);
+  saiuEm.set(numero, Date.parse("2026-11-09T02:00:00Z"));
+
+  // (c) aceite anterior ao SAIR (lembrete do agendamento antigo): 409 tratado, sem envio, sem console.error
+  const erros: unknown[] = [];
+  const errorOriginal = console.error;
+  console.error = (...a: unknown[]) => void erros.push(a);
+  enviados.length = 0;
+  novo(simulado);
+  try {
+    await assert.rejects(enviarTexto(conn, numero, "lembrete antigo", aceite("AgA1", "2026-11-09T01:00:00.000Z")), (e) => saiuDepoisDoAceite(e) && /SAIR/.test((e as Error).message));
+  } finally {
+    console.error = errorOriginal;
+  }
+  assert.deepEqual(erros, [], "SAIR depois do aceite é aviso, não erro");
+  assert.deepEqual(enviados, [], "nada sai");
+  assert.equal(chamadas.filter((c) => c.caminho === "/v1/optin").length, 1, "sem nova tentativa");
+
+  // (b) aceite novo, posterior ao SAIR: reativa e o recibo sai
+  novo(simulado);
+  await enviarTexto(conn, numero, "recibo 2", aceite("AgB2", "2026-11-09T02:55:00.000Z"));
+  assert.deepEqual(enviados, ["recibo 2"]);
+  assert.ok(ativos.has(numero));
+
+  // (d) o mesmo eventId reenviado (corrida com outro envio do mesmo agendamento): "já registrado" não é erro
+  corrida = true;
+  novo(simulado);
+  await enviarTexto(conn, numero, "recibo 2 de novo", aceite("AgB2", "2026-11-09T02:55:00.000Z"));
+  assert.deepEqual(chamadas.map((c) => c.caminho), ["/v1/message/send-text", "/v1/optin", "/v1/message/send-text"]);
+}
+
 // ── reconectar mantém o segredo gravado (o webhook segue aceitando) ──
 const db = getFirestore();
 await db.doc("tenants/casa").set({ name: "Casa" });
@@ -315,9 +389,10 @@ assert.equal(await lerConexao(db, DEMO), null);
 const { POST } = await import("@/app/api/webhooks/atendys/route");
 const entregar = (payload: Record<string, unknown>, segredo = "s-antigo") => {
   const body = JSON.stringify(payload);
+  const t = Math.floor(Date.now() / 1000);
   return POST(new Request("http://x/api/webhooks/atendys", {
     method: "POST",
-    headers: { "x-atendys-event": String(payload.event), "x-atendys-signature": assina(segredo, body), "content-type": "application/json" },
+    headers: { "x-atendys-event": String(payload.event), "x-atendys-timestamp": String(t), "x-atendys-signature-v2": assina(segredo, `${t}.${body}`), "content-type": "application/json" },
     body,
   }));
 };
@@ -341,8 +416,14 @@ const entregarV2 = (payload: Record<string, unknown>, t = Math.floor(Date.now() 
 assert.equal((await entregarV2({ event: "instance.status", instance: "casa-main", status: "connected" })).status, 200, "v2 válida");
 assert.equal((await entregarV2({ event: "instance.status", instance: "casa-main", status: "connected" }, Math.floor(Date.now() / 1000) - 600)).status, 401, "v2 velha (replay)");
 assert.equal((await entregarV2({ event: "instance.status", instance: "casa-main", status: "connected" }, undefined, "errado")).status, 401, "v2 presente manda");
+// só a v1, mesmo válida (o atendys antes de 2026-11-09): 401
+{
+  const body = JSON.stringify({ event: "instance.status", instance: "casa-main", status: "connected" });
+  const soV1 = await POST(new Request("http://x/api/webhooks/atendys", { method: "POST", headers: { "x-atendys-event": "instance.status", "x-atendys-signature": assina("s-antigo", body) }, body }));
+  assert.equal(soV1.status, 401, "só v1: recusa");
+}
 // assinatura que nem tem formato de HMAC hex: 401 antes de procurar o negócio
-const curta = await POST(new Request("http://x/api/webhooks/atendys", { method: "POST", headers: { "x-atendys-event": "instance.status", "x-atendys-signature": "abc" }, body: JSON.stringify({ event: "instance.status", instance: "casa-main", status: "connected" }) }));
+const curta = await POST(new Request("http://x/api/webhooks/atendys", { method: "POST", headers: { "x-atendys-event": "instance.status", "x-atendys-timestamp": String(Math.floor(Date.now() / 1000)), "x-atendys-signature-v2": "abc" }, body: JSON.stringify({ event: "instance.status", instance: "casa-main", status: "connected" }) }));
 assert.equal(curta.status, 401);
 // assinada: espelha o status
 assert.equal((await entregar({ event: "instance.status", instance: "casa-main", status: "pending_qr" })).status, 200);

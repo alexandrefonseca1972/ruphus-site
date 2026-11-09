@@ -11,9 +11,14 @@ export const TEXTO_ACEITE_WHATSAPP = "Quero receber pelo WhatsApp a confirmaçã
 export const AVISO_SAIR = "Para não receber mais mensagens, responda SAIR.";
 export const comAvisoSair = (texto: string) => `${texto}\n\n${AVISO_SAIR}`;
 
-/** O consentimento que o atendys registra: origem + evidência (texto livre, até ~500 caracteres). */
+/** O consentimento que o atendys registra: origem + evidência (texto livre, até ~500 caracteres),
+ *  mais a prova do aceite. eventId é um por agendamento (o mesmo agendamento não cria evento novo)
+ *  e occurredAt é o momento do aceite: depois de um SAIR, o atendys só reativa com os dois e com
+ *  o aceite posterior à revogação. */
 export function optInDoAgendamento(c: { tenantId: string; agendamentoId: string; versao: string; em: Date }) {
   return {
+    eventId: `ruphus-agendamento:${c.tenantId}:${c.agendamentoId}`.slice(0, 128),
+    occurredAt: c.em.toISOString(),
     origem: "ruphus-agendamento-online",
     evidencia: `Aceite marcado pelo cliente no agendamento online de ${c.tenantId} (ruphus.site). Texto: "${TEXTO_ACEITE_WHATSAPP}" Versão ${c.versao}. Em ${c.em.toISOString()}. Agendamento ${c.agendamentoId}.`,
   };

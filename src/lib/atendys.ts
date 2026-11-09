@@ -103,7 +103,10 @@ async function chamar<T>(auth: Record<string, string>, method: string, caminho: 
     } catch {
       // corpo que não é JSON (proxy, HTML de erro): fica sem código
     }
-    console.error(`[atendys] ${method} ${caminho} → ${res.status} ${detalhe.slice(0, 300)}`);
+    // sem consentimento (o envio registra o opt-in e repete) e opt-in em conflito (aceite já
+    // registrado, ou anterior a um SAIR) são o fluxo de consentimento funcionando, não falha
+    const esperado = codigo === "NOT_OPTED_IN" || (res.status === 409 && caminho === "/v1/optin");
+    (esperado ? console.warn : console.error)(`[atendys] ${method} ${caminho} → ${res.status} ${detalhe.slice(0, 300)}`);
     // limite (por minuto, por dia, por destinatário), categoria desligada e validação: o atendys
     // já explica em português, e "espere um pouco" enganava quando o limite era o do dia
     const usaDoServidor = codigo !== null && ["RATE_LIMITED", "FORBIDDEN", "VALIDATION_ERROR"].includes(codigo) && doServidor;
@@ -268,7 +271,7 @@ export async function qrDaConexao(conn: ConexaoAtendys): Promise<SituacaoQr> {
 /** Consentimento registrado quando o número ainda não tem: origem + evidência. null = não
  *  registra: o gateway recusa (NOT_OPTED_IN) e a mensagem não sai. Consentimento nunca é
  *  presumido: quem fala com cliente passa o opt-in gravado no agendamento (consentimento-whatsapp.ts). */
-export type OptIn = { origem: string; evidencia: string } | null;
+export type OptIn = { origem: string; evidencia: string; eventId?: string; occurredAt?: string } | null;
 /** Aviso para o número do próprio negócio (self-chat) ou o WhatsApp pessoal do dono. */
 export const OPTIN_DONO: OptIn = { origem: "ruphus-aviso-dono", evidencia: "Número do próprio negócio ou do dono, cadastrado por ele no painel da Ruphus" };
 
@@ -301,12 +304,24 @@ export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: 
     return await registrar(await enviar());
   } catch (e) {
     if (optIn && e instanceof ErroAtendys && e.codigo === "NOT_OPTED_IN") {
-      await registrarOptIn(conn, digits, optIn.origem, optIn.evidencia);
+      await registrarOptIn(conn, digits, optIn).catch((r) => {
+        // o mesmo aceite (eventId) já está lá: não é erro, segue para o envio
+        if (r instanceof ErroAtendys && r.status === 409 && /já foi registrado/i.test(r.message)) return;
+        // o cliente respondeu SAIR depois deste aceite: respeita, sem nova tentativa e sem enviar
+        if (r instanceof ErroAtendys && r.status === 409 && /posterior à revogação/i.test(r.message)) {
+          console.warn(`[atendys] ${optIn.eventId ?? digits}: o cliente saiu (SAIR) depois deste aceite; mensagem não enviada`);
+          throw new ErroAtendys("O cliente pediu para não receber mais mensagens (SAIR) depois deste aceite.", 409, "OPT_OUT");
+        }
+        throw r;
+      });
       return registrar(await enviar());
     }
     throw e;
   }
 }
+
+/** O cliente pediu SAIR depois do aceite: não é falha a repetir, é a vontade dele. */
+export const saiuDepoisDoAceite = (e: unknown) => e instanceof ErroAtendys && e.codigo === "OPT_OUT";
 
 // o id vai no caminho: só o formato que o atendys gera (uuid), nada de "../"
 const ID_MENSAGEM = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -360,13 +375,16 @@ export async function enviarSemOperador(conn: ConexaoAtendys, phone: string, mes
   return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };
 }
 
-/** Consentimento explícito (quando o fluxo pede, ex.: aceite no agendamento). */
-export function registrarOptIn(conn: ConexaoAtendys, phone: string, origem: string, evidencia: string) {
+/** Consentimento explícito (quando o fluxo pede, ex.: aceite no agendamento). Com eventId e
+ *  occurredAt quando o aceite tem (o atendys exige os dois para reativar quem saiu). */
+export function registrarOptIn(conn: ConexaoAtendys, phone: string, optIn: NonNullable<OptIn>) {
   return chamar(authTenant(conn), "POST", "/v1/optin", {
     number: phone.replace(/\D/g, ""),
-    source: origem,
+    source: optIn.origem,
     category: "transactional",
-    evidence: evidencia,
+    evidence: optIn.evidencia,
+    ...(optIn.eventId && { eventId: optIn.eventId }),
+    ...(optIn.occurredAt && { occurredAt: optIn.occurredAt }),
   });
 }
 
@@ -390,11 +408,11 @@ export function assinaturaV2Valida(segredo: string, bruto: string, timestamp: st
 
 export type CabecalhosWebhook = { v1: string | null; v2: string | null; timestamp: string | null };
 
-/** Qual assinatura vale: com a v2 presente, só ela (v1 válida ao lado de v2 inválida é recusada);
- *  sem a v2, a v1 (transição — o atendys ainda manda só ela). Devolve a versão aceita ou null. */
-export function versaoDaAssinatura(segredo: string, bruto: string, h: CabecalhosWebhook, agora = Date.now()): "v1" | "v2" | null {
-  if (h.v2 !== null) return h.timestamp !== null && assinaturaV2Valida(segredo, bruto, h.timestamp, h.v2, agora) ? "v2" : null;
-  return h.v1 !== null && assinaturaValida(segredo, bruto, h.v1) ? "v1" : null;
+/** Só a v2 vale (desde 2026-11-09 o atendys não manda mais a v1): sem ela, ou fora da janela,
+ *  recusa — mesmo com uma v1 válida, que não tem tempo e pode ser reenviada. A v1 fica no tipo só
+ *  para o log da recusa dizer que veio. */
+export function versaoDaAssinatura(segredo: string, bruto: string, h: CabecalhosWebhook, agora = Date.now()): "v2" | null {
+  return h.v2 !== null && h.timestamp !== null && assinaturaV2Valida(segredo, bruto, h.timestamp, h.v2, agora) ? "v2" : null;
 }
 
 /** O QR como o atendys devolve (repassado da Evolution) vira um src de imagem. Vem em três formas:
