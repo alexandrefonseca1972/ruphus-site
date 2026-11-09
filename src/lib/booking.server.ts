@@ -730,13 +730,16 @@ export async function rescheduleSlots(db: Firestore, q: Omit<RescheduleInput, "t
   return db.runTransaction(async (tx) => (await rescheduleContext(tx, db, q))?.slots ?? [], { readOnly: true });
 }
 
-/** opcoes.manterStatus: remarcação pelo cliente (WhatsApp) não desfaz a confirmação do dono. */
-export async function reschedule(db: Firestore, input: RescheduleInput, actor: Actor, opcoes: { manterStatus?: boolean } = {}) {
+/** opcoes.manterStatus: remarcação pelo cliente (WhatsApp) não desfaz a confirmação do dono.
+ *  opcoes.esperado: o horário que o cliente viu; se mudou até a transação, não remarca. */
+export async function reschedule(db: Firestore, input: RescheduleInput, actor: Actor, opcoes: { manterStatus?: boolean; esperado?: Date } = {}) {
   const preso = await profissionalDaConta(db, input.tenantId, actor.uid);
   return contended(() => db.runTransaction(async (tx) => {
     const ctx = await rescheduleContext(tx, db, input);
     if (!ctx) return { ok: false as const, error: "Agendamento, serviço ou profissional indisponível." };
     if (preso && ctx.appt.get("staffId") !== preso) return { ok: false as const, error: DE_OUTRO };
+    // o salão remarcou entre a lista do cliente e esta transação: a escolha era sobre o horário antigo
+    if (opcoes.esperado && (ctx.appt.get("start") as Timestamp | undefined)?.toMillis() !== opcoes.esperado.getTime()) return { ok: false as const, error: "Esse horário mudou. Confira o horário atual." };
     if (!ctx.slots.includes(input.time)) return { ok: false as const, error: "Esse horário não está livre. Escolha outro." };
     // recebido no Caixa: o recebimento ficaria no dia antigo e o atendimento voltaria a "receber"
     if ((await tx.get(ctx.t.collection("lancamentos").doc(`ag-${ctx.ref.id}`))).exists) return { ok: false as const, error: "Este atendimento já foi recebido no Caixa. Apague o recebimento antes de remarcar." };
