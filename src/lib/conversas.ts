@@ -1,6 +1,6 @@
 // Regras da tela de Conversas sem React nem Firebase: ordem da lista, nome do cliente vindo do
 // cadastro, textos dos bloqueios e do estado de envio. Testadas em conversas-tela.test.mts.
-import type { ConversaInbox, MotivoSemResposta, RespostaInbox, StatusMensagemInbox } from "@/lib/atendys";
+import type { ConversaInbox, MensagemInbox, MotivoSemResposta, RespostaInbox, StatusMensagemInbox } from "@/lib/atendys";
 import { soDigitosComDDI } from "@/lib/telefone";
 
 /** Não lidas primeiro; dentro de cada grupo, a mais recente primeiro. */
@@ -13,6 +13,12 @@ export function ordenarConversas<T extends Pick<ConversaInbox, "unreadCount" | "
 export function juntarConversas<T extends { id: string }>(atual: T[], nova: T[]) {
   const ids = new Set(nova.map((c) => c.id));
   return [...nova, ...atual.filter((c) => !ids.has(c.id))];
+}
+
+/** Conversa aberta por id sem estar na lista carregada (resultado de busca, link): o servidor
+ *  decide o que pode; a tela mostra o histórico e o campo de resposta. */
+export function conversaMinima(id: string): ConversaInbox {
+  return { id, contactName: null, contactPhone: null, lastMessage: null, lastActivityAt: "", unreadCount: 0, manuallyUnread: false, archived: false, canReply: true, replyBlockedReason: null, replyWindowEndsAt: null };
 }
 
 /** Cliente do cadastro pelo telefone, com ou sem o 9º dígito (conta antiga). */
@@ -28,7 +34,7 @@ export function indiceDeClientes(clientes: ClienteDoCadastro[]) {
 
 /** (91) 98888-7777 a partir de 5591988887777; fora do padrão BR, +dígitos. */
 export function telefoneLegivel(digitos: string | null) {
-  if (!digitos) return "Contato sem número";
+  if (!digitos) return "Contato";
   const m = /^55(\d{2})(\d{4,5})(\d{4})$/.exec(digitos);
   return m ? `(${m[1]}) ${m[2]}-${m[3]}` : `+${digitos}`;
 }
@@ -73,3 +79,14 @@ export function avisoDoEnvio(r: Pick<RespostaInbox, "status" | "retryAt" | "manu
 
 /** Chave de idempotência nova por envio: o duplo clique repete a mesma. */
 export const novaChave = () => `r-${crypto.randomUUID()}`;
+
+/** Da mais antiga para a mais nova pela hora; no mesmo instante, a ordem que o atendys mandou. */
+export const emOrdem = (lista: MensagemInbox[]) => lista.map((m, i) => ({ m, i, t: Date.parse(m.at) })).sort((a, b) => a.t - b.t || a.i - b.i).map((x) => x.m);
+/** O que chegou substitui a versão antiga da mesma mensagem (status, edição); o resto fica. */
+export const mesclarMensagens = (atual: MensagemInbox[] | null, lote: MensagemInbox[]) => {
+  const novos = new Set(lote.map((m) => m.id));
+  return emOrdem([...(atual ?? []).filter((m) => !novos.has(m.id)), ...lote]);
+};
+/** "Novo agendamento" só para celular do Brasil: o formulário pede DDD + número. */
+export const telefoneBr = (digitos: string | null) => (digitos && /^55\d{10,11}$/.test(digitos) ? digitos.slice(2) : null);
+

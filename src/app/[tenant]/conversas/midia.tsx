@@ -75,5 +75,10 @@ export function Midia({ tenantId, mensagemId, anexo }: { tenantId: string; mensa
   }
   if (estado.tipo.startsWith("audio/")) return <audio controls src={estado.url} className="max-w-full" />;
   if (estado.tipo.startsWith("video/")) return <video controls src={estado.url} className="max-h-72 max-w-full rounded-lg" />;
-  return <p className="text-xs italic opacity-80">{ROTULO[anexo.kind]} em formato que não abre aqui.</p>;
+  // tipo que a rota forçou a download (ex.: SVG): baixa em vez de exibir
+  return (
+    <a href={estado.url} download={anexo.fileName || "arquivo"} className="text-sm font-medium underline underline-offset-4">
+      Baixar {ROTULO[anexo.kind].toLowerCase()}
+    </a>
+  );
 }

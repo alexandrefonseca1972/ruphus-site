@@ -3,15 +3,14 @@
 import { orderBy } from "firebase/firestore";
 import { Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { ConversaInbox, ResultadoBusca } from "@/lib/atendys";
-import { formatTime } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
-import { indiceDeClientes, juntarConversas, naoLida, nomeDaConversa, ordenarConversas, telefoneLegivel } from "@/lib/conversas";
+import { conversaMinima, indiceDeClientes, juntarConversas, naoLida, nomeDaConversa, ordenarConversas, telefoneLegivel } from "@/lib/conversas";
 import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
 import { buscarConversasAction, listarConversasAction, permitirEquipeNasConversasAction } from "../actions";
@@ -29,9 +28,10 @@ const FILTROS: { id: Filtro; rotulo: string }[] = [
 // ponytail: busca a cada 30 s com a aba à vista; a escuta do whatsappInbox (Fase 3.1) troca isto
 const A_CADA_MS = 30_000;
 
+// instantes reais: no fuso do aparelho de quem atende
 const quando = (iso: string) => {
   const d = new Date(iso);
-  return new Date().toDateString() === d.toDateString() ? formatTime(d) : d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
+  return new Date().toDateString() === d.toDateString() ? d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
 };
 
 export default function ConversasPage() {
@@ -58,6 +58,12 @@ function Conversas() {
   const [achados, setAchados] = useState<ResultadoBusca[] | null>(null);
   const [buscando, setBuscando] = useState(false);
   const [erroBusca, setErroBusca] = useState("");
+  // a conversa aberta vive fora da lista: ler a última não lida (filtro "Não lidas"), paginar ou
+  // recarregar não a fecham; a versão da lista, quando há, atualiza a dela
+  const [aberto, setAberto] = useState<ConversaInbox | null>(null);
+  const filtroAtual = useRef(filtro);
+  const buscaAtual = useRef(0);
+  const ultimoAberto = useRef<string | null>(null);
 
   // nome do cadastro quando o telefone casa (com ou sem o 9º dígito)
   const [clientes] = useCollection(liberado ? tenant.id : "", "customers", Cliente, [orderBy("name")]);
@@ -67,23 +73,25 @@ function Conversas() {
     async (f: Filtro, depois?: string) => listarConversasAction(await idToken(), { tenantId: tenant.id, filtro: f, cursor: depois, limite: 50 }),
     [tenant.id],
   );
-  const aplicar = useCallback((r: Awaited<ReturnType<typeof buscar>>, depois?: string) => {
+  const aplicar = useCallback((r: Awaited<ReturnType<typeof buscar>>, f: Filtro, depois?: string) => {
+    // resposta de um filtro que já saiu da tela (busca de 30 s em voo durante a troca): descarta
+    if (f !== filtroAtual.current) return;
     if (!r.ok) {
       setErro(r.error);
       return;
     }
     setErro("");
-    setConversas((atual) => (depois && atual ? juntarConversas(atual, r.pagina.items) : r.pagina.items));
-    // recarregar a primeira página não perde o ponto onde "Mais conversas" parou
+    // mescla sempre: recarregar a primeira página não some com as que "Mais conversas" trouxe
+    setConversas((atual) => (atual ? juntarConversas(atual, r.pagina.items) : r.pagina.items));
     setCursor((c) => (depois ? r.pagina.nextCursor : (c ?? r.pagina.nextCursor)));
   }, []);
-  const carregar = useCallback(async (depois?: string) => aplicar(await buscar(filtro, depois), depois), [buscar, aplicar, filtro]);
+  const carregar = useCallback(async (depois?: string) => aplicar(await buscar(filtro, depois), filtro, depois), [buscar, aplicar, filtro]);
 
   // ao abrir e ao trocar de filtro (a troca já limpa a lista no clique)
   useEffect(() => {
     if (!liberado) return;
     let vivo = true;
-    void buscar(filtro).then((r) => vivo && aplicar(r));
+    void buscar(filtro).then((r) => vivo && aplicar(r, filtro));
     return () => {
       vivo = false;
     };
@@ -100,7 +108,17 @@ function Conversas() {
     return () => clearInterval(id);
   }, [liberado, carregar]);
 
-  const abrir = (id: string | null) => {
+  // fechou a conversa (voltar, botão): o foco volta ao item da lista que a abriu
+  useEffect(() => {
+    if (aberta || !ultimoAberto.current) return;
+    document.querySelector<HTMLElement>(`[data-conversa="${CSS.escape(ultimoAberto.current)}"]`)?.focus();
+  }, [aberta]);
+
+  const abrir = (id: string | null, conversa?: ConversaInbox) => {
+    if (id) {
+      ultimoAberto.current = id;
+      setAberto(conversa ?? null);
+    }
     const q = new URLSearchParams();
     if (id) q.set("c", id);
     // empilha ao abrir: o "voltar" do celular fecha a conversa e volta para a lista
@@ -125,7 +143,7 @@ function Conversas() {
   }
 
   const lista = conversas && ordenarConversas(conversas);
-  const atual = aberta ? conversas?.find((c) => c.id === aberta) : undefined;
+  const atual = aberta && conversas ? (conversas.find((c) => c.id === aberta) ?? (aberto?.id === aberta ? aberto : conversaMinima(aberta))) : undefined;
   const totalNaoLidas = conversas?.filter(naoLida).length ?? 0;
 
   return (
@@ -150,7 +168,10 @@ function Conversas() {
                   return;
                 }
                 setBuscando(true);
+                const vez = ++buscaAtual.current;
                 const r = await buscarConversasAction(await idToken(), { tenantId: tenant.id, termo });
+                // duas buscas seguidas: vale a última digitada, não a que respondeu por último
+                if (vez !== buscaAtual.current) return;
                 setBuscando(false);
                 if (!r.ok) setErroBusca(r.error);
                 else {
@@ -179,6 +200,11 @@ function Conversas() {
               />
             </form>
           )}
+          {buscando && !achados && (
+            <p role="status" className="text-sm text-muted-foreground">
+              Buscando…
+            </p>
+          )}
           {erroBusca && (
             <p role="alert" className="text-sm text-destructive">
               {erroBusca}
@@ -193,6 +219,8 @@ function Conversas() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
+                    buscaAtual.current++;
+                    setBuscando(false);
                     setAchados(null);
                     setTermo("");
                   }}
@@ -205,7 +233,7 @@ function Conversas() {
                   const c = conversas?.find((x) => x.id === a.conversationId);
                   return (
                     <li key={a.id}>
-                      <button type="button" onClick={() => abrir(a.conversationId)} className="grid w-full grid-cols-[minmax(0,1fr)] gap-0.5 rounded-lg border bg-card p-3 text-left hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
+                      <button type="button" data-conversa={a.conversationId} onClick={() => abrir(a.conversationId, c)} className="grid w-full grid-cols-[minmax(0,1fr)] gap-0.5 rounded-lg border bg-card p-3 text-left hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
                         <span className="flex justify-between gap-2 text-sm font-medium">
                           <span className="truncate">{c ? nomeDaConversa(c, doCadastro(c.contactPhone)) : "Conversa"}</span>
                           <span className="shrink-0 text-xs font-normal text-muted-foreground">{quando(a.at)}</span>
@@ -222,15 +250,15 @@ function Conversas() {
             </div>
           ) : (
             <>
-              <div role="tablist" aria-label="Filtro" className="flex gap-1 rounded-lg bg-muted p-1 text-sm">
+              <div role="group" aria-label="Filtro" className="flex gap-1 rounded-lg bg-muted p-1 text-sm">
                 {FILTROS.map((f) => (
                   <button
                     key={f.id}
                     type="button"
-                    role="tab"
-                    aria-selected={filtro === f.id}
+                    aria-pressed={filtro === f.id}
                     onClick={() => {
                       if (f.id === filtro) return;
+                      filtroAtual.current = f.id;
                       setConversas(null);
                       setCursor(null);
                       setFiltro(f.id);
@@ -257,7 +285,8 @@ function Conversas() {
                     <li key={c.id}>
                       <button
                         type="button"
-                        onClick={() => abrir(c.id)}
+                        data-conversa={c.id}
+                        onClick={() => abrir(c.id, c)}
                         aria-current={c.id === aberta ? "true" : undefined}
                         className={cn(
                           "grid w-full grid-cols-[minmax(0,1fr)] gap-0.5 rounded-lg border bg-card p-3 text-left hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
@@ -297,7 +326,7 @@ function Conversas() {
         </section>
 
         {atual ? (
-          <Conversa key={atual.id} conversa={atual} cliente={doCadastro(atual.contactPhone)} onVoltar={() => abrir(null)} onMudou={() => void carregar()} atualizar={rodada} />
+          <Conversa key={atual.id} conversa={atual} cliente={doCadastro(atual.contactPhone)} onVoltar={() => abrir(null)} onMudou={() => void carregar()} onLida={() => setConversas((l) => l?.map((c) => (c.id === atual.id ? { ...c, unreadCount: 0, manuallyUnread: false } : c)) ?? l)} atualizar={rodada} />
         ) : (
           <div className="hidden place-items-center rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground lg:grid">
             {aberta && conversas ? "Essa conversa não está nesta lista. Troque o filtro ou escolha outra." : "Escolha uma conversa para ler e responder."}

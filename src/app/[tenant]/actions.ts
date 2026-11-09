@@ -9,7 +9,7 @@ import { LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/
 import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
-import { atenderComo, type Atendimento, permitirEquipeNasConversas, visiveis } from "@/lib/conversas.server";
+import { atenderComo, type Atendimento, exigeConversaVisivel, permitirEquipeNasConversas, visiveis } from "@/lib/conversas.server";
 import { agirNaMensagem, arquivarConversa, assumirEnvio, buscarNasConversas, CHAVE_IDEMPOTENCIA, deslogarInstancia, ID_INBOX, enviarTexto, ErroAtendys, listarConversas, manterAgendada, marcarConversa, mensagensDaConversa, qrDaConexao, responderConversa, statusDaConexao, statusDaMensagem } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
@@ -643,22 +643,30 @@ export const buscarConversasAction = conversaAction(
 
 export const mensagensDaConversaAction = conversaAction(
   ComConversa.extend({ cursor, limite: z.number().int().min(1).max(100).optional() }),
-  async ({ conversa, cursor, limite }, a) => ({ ok: true as const, pagina: await mensagensDaConversa(a.conn, conversa, { cursor, limite }) }),
+  async ({ conversa, cursor, limite }, a) => {
+    await exigeConversaVisivel(a, conversa);
+    return { ok: true as const, pagina: await mensagensDaConversa(a.conn, conversa, { cursor, limite }) };
+  },
 );
 
 export const marcarConversaAction = conversaAction(ComConversa.extend({ lida: z.boolean() }), async ({ conversa, lida }, a) => {
+  await exigeConversaVisivel(a, conversa);
   await marcarConversa(a.conn, conversa, lida);
   return { ok: true as const };
 });
 
 export const arquivarConversaAction = conversaAction(ComConversa.extend({ arquivada: z.boolean() }), async ({ conversa, arquivada }, a) => {
+  await exigeConversaVisivel(a, conversa);
   await arquivarConversa(a.conn, conversa, arquivada);
   return { ok: true as const };
 });
 
 export const responderConversaAction = conversaAction(
   ComConversa.extend({ texto: z.string().trim().min(1, "Escreva a mensagem.").max(4096, "Mensagem longa demais."), chave: chaveEnvio, citada: idOpaco.optional() }),
-  async ({ conversa, texto, chave, citada }, a) => ({ ok: true as const, envio: await responderConversa(a.conn, conversa, texto, chave, citada) }),
+  async ({ conversa, texto, chave, citada }, a) => {
+    await exigeConversaVisivel(a, conversa);
+    return { ok: true as const, envio: await responderConversa(a.conn, conversa, texto, chave, citada) };
+  },
 );
 
 export const agirNaMensagemAction = conversaAction(

@@ -87,14 +87,14 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
       </p>
     );
 
-  // curto: o rótulo da barra de baixo no celular, onde seis cabem lado a lado (360px)
+  // curto: o rótulo da barra de baixo no celular (até sete lado a lado em 360px: rótulos de até 8 letras) e das abas no tablet
   const links = [
     { href: `/${slug}`, label: "Agenda", curto: "Agenda", icone: ICONES.agenda },
     { href: `/${slug}/servicos`, label: "Serviços", curto: "Serviços", icone: ICONES.servicos },
     { href: `/${slug}/profissionais`, label: "Profissionais", curto: "Equipe", icone: ICONES.equipe },
     { href: `/${slug}/clientes`, label: "Clientes", curto: "Clientes", icone: ICONES.clientes },
     // Central de conversas: liberada por negócio (piloto) e, para a equipe, só com o dono deixando
-    ...(state.modulos?.conversas && (state.podeGerir || state.conversas?.equipeAtende) ? [{ href: `/${slug}/conversas`, label: "Conversas", curto: "Conversas", icone: ICONES.conversas }] : []),
+    ...(state.modulos?.conversas && (state.podeGerir || state.conversas?.equipeAtende) ? [{ href: `/${slug}/conversas`, label: "Conversas", curto: "Chat", icone: ICONES.conversas }] : []),
     // dinheiro só para quem gere, e só com o Caixa ligado pelo admin da plataforma
     ...(state.podeGerir && state.modulos?.financeiro ? [{ href: `/${slug}/caixa`, label: "Caixa", curto: "Caixa", icone: ICONES.caixa }] : []),
     // os dados do negócio (site, bio, WhatsApp) só para quem gere

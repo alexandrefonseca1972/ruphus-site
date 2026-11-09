@@ -14,7 +14,7 @@ import {
   responderComMidia,
   responderConversa,
 } from "@/lib/atendys";
-import { atenderComo, conexaoParaAtender, midiaParaNavegador, responderArquivoDoNavegador, permitirEquipeNasConversas, podeAtenderConversas, visiveis } from "@/lib/conversas.server";
+import { atenderComo, conexaoParaAtender, exigeConversaVisivel, midiaParaNavegador, responderArquivoDoNavegador, permitirEquipeNasConversas, podeAtenderConversas, visiveis } from "@/lib/conversas.server";
 import { gravarConexao } from "@/lib/whatsapp.server";
 
 const db = getFirestore();
@@ -278,6 +278,39 @@ novo({ "POST /v1/inbox/conversations/c1/reply-media": erro(403, "MESSAGE_TYPE_NO
 r = await enviar({ conversa: "c1", chave: "arq-00002", arquivo: foto });
 assert.equal(r.status, 403);
 assert.equal((await r.json()).codigo, "MESSAGE_TYPE_NOT_ALLOWED");
+
+// form ilegível (corpo cortado pelo teto do proxy) e tipo executável
+assert.equal((await responderArquivoDoNavegador(verificador("dono"), db, "ok", "bel", async () => null)).status, 400);
+assert.equal((await enviar({ conversa: "c1", chave: "arq-00003", arquivo: new File([new Uint8Array(1)], "x.exe", { type: "application/x-msdownload" }) })).status, 415);
+assert.equal((await enviar({ conversa: "c1", chave: "arq-00003", arquivo: new File([new Uint8Array(1)], "x.svg", { type: "image/svg+xml" }) })).status, 415);
+novo({ "POST /v1/inbox/conversations/c1/reply-media": json({ id: "m21", status: "queued" }, 202) });
+assert.equal((await enviar({ conversa: "c1", chave: "arq-00004", arquivo: new File([new Uint8Array(1)], "a.pdf", { type: "application/pdf" }) })).status, 200);
+// credencial do negócio recusada não é "sessão vencida" do navegador
+novo({ "POST /v1/inbox/conversations/c1/reply-media": erro(401, "INVALID_API_KEY") });
+assert.equal((await enviar({ conversa: "c1", chave: "arq-00005", arquivo: foto })).status, 502);
+
+// ── a equipe não age na conversa do dono nem pelo id (link antigo, ex-gestor) ──
+await permitirEquipeNasConversas(db, "bel", "dono", true);
+const listaComDono = json({
+  items: [
+    { ...conversa, id: "cv_dono", contactPhone: "5591991121306" },
+    { ...conversa, id: "cv_cliente", contactPhone: "5591988887777" },
+  ],
+  nextCursor: null,
+});
+novo({ "GET /v1/inbox/conversations": listaComDono, "POST /v1/inbox/conversations/cv_dono/reply-media": json({ id: "x", status: "queued" }, 202) });
+const daEquipeAgora = { ...(await conexaoParaAtender(db, "bel", "equipe")), tenantId: "bel" };
+await assert.rejects(exigeConversaVisivel(daEquipeAgora, "cv_dono"), /só do dono/);
+await exigeConversaVisivel(daEquipeAgora, "cv_cliente");
+await exigeConversaVisivel(await conexaoParaAtender(db, "bel", "dono"), "cv_dono"); // quem gere vê
+r = await responderArquivoDoNavegador(verificador("equipe"), db, "ok", "bel", formulario({ conversa: "cv_dono", chave: "arq-00006", arquivo: foto }));
+assert.equal(r.status, 403, "equipe não manda arquivo para a conversa do dono");
+assert.ok(!chamadas.some((c) => c.caminho.endsWith("/reply-media")), "nada chega ao atendys");
+await permitirEquipeNasConversas(db, "bel", "dono", false);
+
+// requestId do corpo fora do formato: vale o do cabeçalho
+novo({ "GET /v1/inbox/conversations": () => Response.json({ error: { code: "INTERNAL", requestId: "<x>" } }, { status: 500, headers: { "x-request-id": "cab-12345678" } }) });
+assert.equal((await listarConversas(conn).catch((x) => x)).requestId, "cab-12345678");
 
 // credencial recusada na Central é erro no log (alerta), não aviso
 logErro = 0;

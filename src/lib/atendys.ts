@@ -114,12 +114,14 @@ async function erroDaResposta(res: Response, method: string, caminho: string): P
   const detalhe = await res.text().catch(() => "");
   let codigo: string | null = null;
   let doServidor = "";
-  let requestId = res.headers.get("x-request-id");
+  const formatoId = (v: unknown) => (typeof v === "string" && /^[A-Za-z0-9._:-]{1,64}$/.test(v) ? v : null);
+  // o do corpo vale quando bem formado; se não, o do cabeçalho
+  let requestId = formatoId(res.headers.get("x-request-id"));
   try {
     const e = (JSON.parse(detalhe) as { error?: { code?: unknown; message?: unknown; requestId?: unknown } }).error;
     codigo = typeof e?.code === "string" ? e.code : null;
     doServidor = typeof e?.message === "string" ? e.message.slice(0, 200) : "";
-    if (typeof e?.requestId === "string") requestId = e.requestId;
+    requestId = formatoId(e?.requestId) ?? requestId;
   } catch {
     // corpo que não é JSON (proxy, HTML de erro): fica sem código
   }
@@ -128,7 +130,6 @@ async function erroDaResposta(res: Response, method: string, caminho: string): P
   // na Central, as recusas do contrato (janela fechada, opt-out, pausa…) são regra, não falha
   const esperado =
     codigo === "NOT_OPTED_IN" || (res.status === 409 && caminho === "/v1/optin") || (caminho.startsWith("/v1/inbox/") && codigo !== null && RECUSAS_DA_CENTRAL.has(codigo));
-  if (requestId && !/^[A-Za-z0-9._:-]{1,64}$/.test(requestId)) requestId = null;
   (esperado ? console.warn : console.error)(`[atendys] ${method} ${caminho} → ${res.status}${requestId ? ` (requestId ${requestId})` : ""} ${detalhe.slice(0, 300)}`);
   // limite (por minuto, por dia, por destinatário), categoria desligada e validação: o atendys
   // já explica em português, e "espere um pouco" enganava quando o limite era o do dia

@@ -5,24 +5,21 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { ConversaInbox, MensagemInbox, RespostaInbox } from "@/lib/atendys";
-import { formatTime } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
-import { avisoDoEnvio, type ClienteDoCadastro, janelaRestante, nomeDaConversa, novaChave, POR_QUE_NAO_RESPONDE, ROTULO_STATUS, telefoneLegivel } from "@/lib/conversas";
+import { avisoDoEnvio, type ClienteDoCadastro, mesclarMensagens, telefoneBr, janelaRestante, nomeDaConversa, novaChave, POR_QUE_NAO_RESPONDE, ROTULO_STATUS, telefoneLegivel } from "@/lib/conversas";
 import { cn } from "@/lib/utils";
 import { marcarConversaAction, mensagensDaConversaAction, responderConversaAction } from "../actions";
 import { useTenant } from "../painel-layout";
 import { PlanForm } from "../plan-form";
 import { Midia } from "./midia";
 
-const hora = (iso: string) => formatTime(new Date(iso));
+// Mensagens são instantes reais: tudo no fuso do aparelho de quem atende (data, "hoje" e hora)
+const hora = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 const diaEHora = (iso: string) => {
   const d = new Date(iso);
   const hoje = new Date().toDateString() === d.toDateString();
-  return hoje ? formatTime(d) : `${d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}, ${formatTime(d)}`;
+  return hoje ? hora(iso) : `${d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}, ${hora(iso)}`;
 };
-
-/** Da mais antiga para a mais nova pela hora; no mesmo instante, a ordem que o atendys mandou. */
-const emOrdem = (lista: MensagemInbox[]) => lista.map((m, i) => ({ m, i, t: Date.parse(m.at) })).sort((a, b) => a.t - b.t || a.i - b.i).map((x) => x.m);
 
 type Envio = { texto: string; resposta: RespostaInbox };
 
@@ -31,6 +28,7 @@ export function Conversa({
   cliente,
   onVoltar,
   onMudou,
+  onLida,
   atualizar,
 }: {
   conversa: ConversaInbox;
@@ -38,6 +36,8 @@ export function Conversa({
   onVoltar: () => void;
   /** a lista recarrega: lida, resposta enviada */
   onMudou: () => void;
+  /** marcada como lida: a lista zera o contador dela na hora */
+  onLida: () => void;
   /** muda quando a lista é recarregada: a conversa aberta recarrega junto */
   atualizar: number;
 }) {
@@ -52,8 +52,12 @@ export function Conversa({
   const [erroEnvio, setErroEnvio] = useState("");
   const [ultimoEnvio, setUltimoEnvio] = useState<Envio | null>(null);
   const [agendar, setAgendar] = useState(false);
-  // uma chave por mensagem composta: o duplo clique repete a mesma e o atendys não duplica
+  const [aviso, setAvisoNovo] = useState("");
+  // Uma chave por conteúdo composto: o duplo clique (ou o reenvio depois de cair a conexão) repete
+  // a mesma e o atendys não duplica. Mudou o texto ou o arquivo, chave nova: o atendys devolve o
+  // resultado da chave antiga sem olhar o corpo, e o conteúdo novo não sairia.
   const chave = useRef(novaChave());
+  const trocarChave = () => (chave.current = novaChave());
   const fim = useRef<HTMLDivElement>(null);
   const titulo = useRef<HTMLHeadingElement>(null);
   const campo = useRef<HTMLTextAreaElement>(null);
@@ -68,10 +72,15 @@ export function Conversa({
       return;
     }
     setErro("");
-    // o atendys manda a mais nova primeiro; a tela mostra de cima (antiga) para baixo (nova)
-    const lote = [...r.pagina.items].reverse();
-    setMensagens((atual) => emOrdem(depois && atual ? [...lote, ...atual.filter((m) => !lote.some((x) => x.id === m.id))] : lote));
-    // recarregar a página mais nova não perde o ponto onde "anteriores" parou
+    // recarregar a página mais nova mescla: as anteriores já abertas e o ponto do cursor ficam
+    setMensagens((atual) => {
+      if (!depois && atual) {
+        const conhecidas = new Set(atual.map((m) => m.id));
+        const recebida = r.pagina.items.find((m) => m.direction === "in" && !conhecidas.has(m.id));
+        if (recebida) setAvisoNovo(`Nova mensagem: ${recebida.text?.slice(0, 120) ?? "arquivo"}`);
+      }
+      return mesclarMensagens(atual, r.pagina.items);
+    });
     setCursor((c) => (depois ? r.pagina.nextCursor : (c ?? r.pagina.nextCursor)));
   }, []);
   const carregar = useCallback(async (depois?: string) => aplicar(await buscar(depois), depois), [buscar, aplicar]);
@@ -84,7 +93,12 @@ export function Conversa({
     if (conversa.unreadCount > 0 || conversa.manuallyUnread) {
       void idToken()
         .then((t) => marcarConversaAction(t, { tenantId: tenant.id, conversa: conversa.id, lida: true }))
-        .then((r) => r.ok && onMudou());
+        .then((r) => {
+          if (r.ok) {
+            onLida();
+            onMudou();
+          }
+        });
     }
     return () => {
       vivo = false;
@@ -119,6 +133,7 @@ export function Conversa({
     if (enviando || (!texto.trim() && !arquivo)) return;
     setEnviando(true);
     setErroEnvio("");
+    let ok = false;
     try {
       let r: { ok: true; envio: RespostaInbox } | { ok: false; error: string };
       if (arquivo) {
@@ -133,24 +148,32 @@ export function Conversa({
         r = await responderConversaAction(await idToken(), { tenantId: tenant.id, conversa: conversa.id, texto, chave: chave.current });
       }
       if (!r.ok) {
+        // recusa com resposta (janela, cota, validação): nada foi aceito, a próxima tentativa é outra
+        trocarChave();
         setErroEnvio(r.error);
         return;
       }
+      ok = true;
       setUltimoEnvio({ texto: texto.trim() || arquivo?.name || "", resposta: r.envio });
       setTexto("");
       setArquivo(null);
-      chave.current = novaChave();
-      await carregar();
-      onMudou();
-      campo.current?.focus();
+      trocarChave();
     } catch {
-      setErroEnvio("Sem conexão com o servidor. Confira a internet e tente de novo: a mesma mensagem não sai duas vezes.");
+      // sem resposta: pode ter saído. A chave fica: reenviar o MESMO conteúdo não duplica
+      setErroEnvio("Sem conexão com o servidor. Confira a internet e toque em enviar de novo: se ela já saiu, não sai duas vezes.");
     } finally {
       setEnviando(false);
     }
+    if (ok) {
+      // a resposta já saiu: falhar ao recarregar não vira "erro de envio"
+      await carregar().catch(() => {});
+      onMudou();
+      campo.current?.focus();
+    }
   }
 
-  const aviso = ultimoEnvio && avisoDoEnvio(ultimoEnvio.resposta, hora);
+  const avisoEnvio = ultimoEnvio && avisoDoEnvio(ultimoEnvio.resposta, hora);
+  const foneBr = telefoneBr(conversa.contactPhone);
 
   return (
     <section aria-label={`Conversa com ${nome}`} className="flex min-h-0 flex-col rounded-xl border bg-card max-lg:h-[calc(100dvh-14rem)] max-lg:min-h-[26rem]">
@@ -160,7 +183,7 @@ export function Conversa({
         </Button>
         <div className="min-w-0 flex-1">
           <h2 ref={titulo} tabIndex={-1} className="truncate font-semibold outline-none">{nome}</h2>
-          <p className="truncate text-sm text-muted-foreground">{telefoneLegivel(conversa.contactPhone)}</p>
+          {nome !== telefoneLegivel(conversa.contactPhone) && <p className="truncate text-sm text-muted-foreground">{telefoneLegivel(conversa.contactPhone)}</p>}
         </div>
         <div className="flex flex-wrap gap-2 max-sm:basis-full">
           {cliente && (
@@ -168,7 +191,7 @@ export function Conversa({
               Ver cliente e horários
             </Link>
           )}
-          {conversa.contactPhone && (
+          {foneBr && (
             <Button variant="outline" size="sm" onClick={() => setAgendar(true)}>
               Novo agendamento
             </Button>
@@ -176,11 +199,12 @@ export function Conversa({
         </div>
       </header>
 
-      {agendar && conversa.contactPhone && (
-        <PlanForm tenantId={tenant.id} customer={{ name: cliente?.name ?? conversa.contactName ?? "", phone: conversa.contactPhone.replace(/^55/, "") }} onClose={() => setAgendar(false)} />
-      )}
+      {agendar && foneBr && <PlanForm tenantId={tenant.id} customer={{ name: cliente?.name ?? conversa.contactName ?? "", phone: foneBr }} onClose={() => setAgendar(false)} />}
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4" aria-live="polite" aria-busy={mensagens === null}>
+      <p className="sr-only" aria-live="polite">
+        {aviso}
+      </p>
+      <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4" aria-busy={mensagens === null}>
         {erro && (
           <p role="alert" className="mb-3 text-sm text-destructive">
             {erro}
@@ -243,9 +267,9 @@ export function Conversa({
         ) : (
           restante && <p className="text-xs text-muted-foreground">Dá para responder por mais {restante} (janela de 24 h do WhatsApp).</p>
         )}
-        {aviso && (
+        {avisoEnvio && (
           <div role="status" className="grid gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
-            <p>{aviso}</p>
+            <p>{avisoEnvio}</p>
             {ultimoEnvio?.resposta.manualHandoffUrl && (
               <a href={ultimoEnvio.resposta.manualHandoffUrl} target="_blank" rel="noopener" className="font-medium underline underline-offset-4">
                 Enviar pelo WhatsApp
@@ -270,7 +294,15 @@ export function Conversa({
               <p className="flex items-center gap-2 text-sm">
                 <Paperclip className="size-4" aria-hidden="true" />
                 <span className="min-w-0 flex-1 truncate">{arquivo.name}</span>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setArquivo(null)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setArquivo(null);
+                    trocarChave();
+                  }}
+                >
                   Tirar
                 </Button>
               </p>
@@ -282,7 +314,7 @@ export function Conversa({
                 <input
                   type="file"
                   className="sr-only"
-                  accept="image/*,audio/*,video/*,application/pdf"
+                  accept="image/*,audio/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                   onChange={(e) => {
                     const f = e.target.files?.[0] ?? null;
                     e.target.value = "";
@@ -290,8 +322,13 @@ export function Conversa({
                       setErroEnvio("Arquivo acima de 12 MB. Envie um menor.");
                       return;
                     }
+                    if (f && texto.length > 1024) {
+                      setErroEnvio("Com arquivo, a legenda pode ter até 1.024 caracteres. Encurte o texto antes de anexar.");
+                      return;
+                    }
                     setErroEnvio("");
                     setArquivo(f);
+                    trocarChave();
                   }}
                 />
               </label>
@@ -305,7 +342,10 @@ export function Conversa({
                 rows={1}
                 maxLength={arquivo ? 1024 : 4096}
                 placeholder={arquivo ? "Legenda (opcional)" : "Escreva a resposta"}
-                onChange={(e) => setTexto(e.target.value)}
+                onChange={(e) => {
+                  setTexto(e.target.value);
+                  trocarChave();
+                }}
                 onKeyDown={(e) => {
                   // Enter envia; Shift+Enter quebra a linha (no celular o teclado não tem Enter de enviar)
                   if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && matchMedia("(pointer: fine)").matches) {

@@ -1,6 +1,6 @@
 // Rode: npm run test:conversas  (regras da tela de Conversas, sem navegador nem emulador)
 import assert from "node:assert/strict";
-import { avisoDoEnvio, indiceDeClientes, janelaRestante, juntarConversas, nomeDaConversa, novaChave, ordenarConversas, telefoneLegivel } from "@/lib/conversas";
+import { avisoDoEnvio, conversaMinima, emOrdem, indiceDeClientes, mesclarMensagens, telefoneBr, janelaRestante, juntarConversas, nomeDaConversa, novaChave, ordenarConversas, telefoneLegivel } from "@/lib/conversas";
 import { CHAVE_IDEMPOTENCIA } from "@/lib/atendys";
 
 const c = (id: string, unreadCount: number, lastActivityAt: string, manuallyUnread = false) => ({ id, unreadCount, manuallyUnread, lastActivityAt });
@@ -24,7 +24,7 @@ assert.equal(doCadastro(null), undefined);
 assert.equal(telefoneLegivel("5591988887777"), "(91) 98888-7777");
 assert.equal(telefoneLegivel("559188887777"), "(91) 8888-7777");
 assert.equal(telefoneLegivel("14155550100"), "+14155550100");
-assert.equal(telefoneLegivel(null), "Contato sem número");
+assert.equal(telefoneLegivel(null), "Contato");
 assert.equal(nomeDaConversa({ contactName: "Zé", contactPhone: "5591988887777" }, { name: "José Silva" }), "José Silva", "o cadastro vence");
 assert.equal(nomeDaConversa({ contactName: null, contactPhone: "5591988887777" }), "(91) 98888-7777");
 
@@ -44,5 +44,28 @@ assert.equal(avisoDoEnvio({ status: "sent" }, hora), null);
 const k1 = novaChave();
 assert.match(k1, CHAVE_IDEMPOTENCIA, "a chave da tela passa na validação do servidor");
 assert.notEqual(k1, novaChave());
+
+// histórico: recarregar a página mais nova não some com as anteriores já abertas
+const msg = (id: string, at: string, extra = {}) => ({ id, direction: "in" as const, type: "text" as const, text: id, at, ...extra });
+const abertas = emOrdem([msg("m1", "2026-11-09T10:00:00Z"), msg("m2", "2026-11-09T10:01:00Z"), msg("m3", "2026-11-09T10:02:00Z")]);
+const recarga = [msg("m4", "2026-11-09T10:03:00Z"), msg("m3", "2026-11-09T10:02:00Z", { edited: true })];
+const juntas = mesclarMensagens(abertas, recarga);
+assert.deepEqual(juntas.map((m) => m.id), ["m1", "m2", "m3", "m4"], "as antigas ficam e a nova entra no fim");
+assert.equal(juntas.find((m) => m.id === "m3")?.edited, true, "a versão nova da mesma mensagem vence");
+assert.deepEqual(mesclarMensagens(null, recarga).map((m) => m.id), ["m3", "m4"]);
+assert.deepEqual(emOrdem([msg("b", "2026-11-09T10:00:00Z"), msg("a", "2026-11-09T10:00:00Z")]).map((m) => m.id), ["b", "a"], "mesmo instante: a ordem recebida");
+
+// lista: a recarga da primeira página mantém as conversas de "Mais conversas"
+assert.deepEqual(juntarConversas([{ id: "p1" }, { id: "p2-antiga" }], [{ id: "p1" }, { id: "nova" }]).map((c) => c.id).sort(), ["nova", "p1", "p2-antiga"]);
+
+// conversa aberta por id (busca, link): responde pelo servidor, sem fingir telefone
+const minima = conversaMinima("cv_1");
+assert.deepEqual([minima.id, minima.contactPhone, minima.canReply], ["cv_1", null, true]);
+
+// "Novo agendamento" só com celular do Brasil
+assert.equal(telefoneBr("5591988887777"), "91988887777");
+assert.equal(telefoneBr("559188887777"), "9188887777");
+assert.equal(telefoneBr("14155550100"), null, "número de fora não vira brasileiro");
+assert.equal(telefoneBr(null), null);
 
 console.log("conversas (tela) ok");
