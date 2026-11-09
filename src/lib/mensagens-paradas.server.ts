@@ -52,6 +52,8 @@ export async function negocioDaMensagem(id: string): Promise<string | null> {
   return typeof t === "string" && t ? t : null;
 }
 
+const SAIU = new Set(["sent", "delivered", "read"]);
+
 /** Novo status (webhook, decisão no painel, volta à fila). Só mexe em mensagem registrada, e só
  *  se o fato é mais novo que o gravado: um webhook atrasado não traz de volta uma já decidida. */
 export async function atualizarParada(slug: string, id: string, status: string, retryAt?: string | null, at = Date.now(), errorCode?: string | null) {
@@ -59,7 +61,9 @@ export async function atualizarParada(slug: string, id: string, status: string, 
   await adminDb.runTransaction(async (tx) => {
     const d = await tx.get(ref);
     if (!d.exists || Number(d.get("at") ?? 0) > at) return;
-    tx.update(ref, { status, at, ...(retryAt !== undefined && { retryAt }), ...(errorCode && { errorCode }), atualizadaEm: FieldValue.serverTimestamp() });
+    // saiu de fato (failed → sent na reconciliação do atendys): o erro antigo não vale mais
+    const erro = SAIU.has(status) ? { errorCode: FieldValue.delete() } : errorCode ? { errorCode } : {};
+    tx.update(ref, { status, at, ...(retryAt !== undefined && { retryAt }), ...erro, atualizadaEm: FieldValue.serverTimestamp() });
   });
 }
 
