@@ -85,6 +85,13 @@ export const fusoDe = (site?: { uf?: string | null; fuso?: string | null } | nul
  *  às 10h05, é "10:05" — sem isto os horários sumiam uma hora antes. */
 export const agoraNaParede = (tz: string, agora = new Date()) => zonedTime(dateIn(agora, tz), formatTime(agora, tz));
 
+/** O instante real de um horário da agenda (hora de parede no fuso de referência) no fuso do
+ *  negócio: é o prazo de um aviso (expiresAt). Em Manaus, "10:00" é 14:00 UTC, não 13:00. */
+export const instanteReal = (start: Date, site?: Parameters<typeof fusoDe>[0]) => zonedTime(dateIn(start), formatTime(start), fusoDe(site));
+
+/** Chave do horário no id do botão: "2026-11-14T15:00" (hora de parede). */
+export const chaveDoHorario = (start: Date) => `${dateIn(start)}T${formatTime(start)}`;
+
 /** "segunda-feira, 21 de setembro" */
 export const formatLongDate = (d: Date, tz = TIMEZONE) =>
   new Intl.DateTimeFormat("pt-BR", { timeZone: tz, weekday: "long", day: "numeric", month: "long" }).format(d);

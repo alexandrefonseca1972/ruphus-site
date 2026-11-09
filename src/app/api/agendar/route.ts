@@ -2,7 +2,7 @@ import { after, NextResponse } from "next/server";
 import { avisar, quando } from "@/lib/avisos.server";
 import { adminDb } from "@/lib/admin";
 import { book } from "@/lib/booking.server";
-import { MAX_DAYS_AHEAD, dentroDaJanela, zonedTime } from "@/lib/datetime";
+import { MAX_DAYS_AHEAD, dentroDaJanela, fusoDe, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 import { codigoDoAgendamento, espelharStatusVivo, lerConexao, lerConfigWhatsApp, registrarErroNotificacao } from "@/lib/whatsapp.server";
 import { conexaoOficial, templateCliente, templateNovoDono, usaCanalOficial } from "@/lib/canal-oficial.server";
@@ -85,32 +85,30 @@ export async function POST(req: Request) {
           return;
         }
         const partes = [nova.serviceName, quando(nova.date, nova.time)];
-        // mensagem parada na cota só volta à fila se ainda sai antes do horário
-        const prazo = zonedTime(nova.date, nova.time);
+        const tenant = await adminDb.doc(`tenants/${tenantId}`).get().catch(() => null);
+        // mensagem parada na cota só volta à fila se ainda sai antes do horário (no fuso do negócio)
+        const prazo = zonedTime(nova.date, nova.time, fusoDe(tenant?.get("site")));
         if (nova.staffName) partes.push(`com ${nova.staffName}`);
         const nomeCurto = customerName.trim().split(/\s+/)[0] ?? customerName.trim();
         // o recado do dono (agenda.recado) é a mensagem da tela de confirmação:
         // no WhatsApp vale o mesmo texto. Sem recado, um padrão adequado ao canal
         // — o da tela ("vai te chamar no WhatsApp") faria o salão anunciar o
         // WhatsApp pelo próprio WhatsApp.
-        const recadoDono = await adminDb
-          .doc(`tenants/${tenantId}`)
-          .get()
-          .then((t) => String(t.get("agenda.recado") ?? "").trim())
-          .catch(() => "");
+        const recadoDono = String(tenant?.get("agenda.recado") ?? "").trim();
         const falhas: string[] = [];
         // aviso vai pro self-chat do salão (conn.phone): o dono opera tudo no
         // próprio número do negócio, nenhuma comunicação depende do pessoal dele
         const avisoPara = conn.phone ?? conn.ownerPhone;
         if (avisoPara) {
           try {
-            await enviarSemOperador(
+            const ruim = naoSaiu(await enviarSemOperador(
               conn,
               avisoPara,
               `Novo agendamento (código ${codigoDoAgendamento(nova.id)}): ${customerName.trim()} · ${partes.join(" · ")} · tel ${b.data.customerPhone}. Responda CONFIRMADO ${codigoDoAgendamento(nova.id)} para confirmar ou RECUSAR ${codigoDoAgendamento(nova.id)} para recusar.`,
               OPTIN_DONO,
               prazo,
-            );
+            ));
+            if (ruim) falhas.push(`aviso ao salão ${ruim}`);
           } catch (e) {
             falhas.push(`aviso ao salão não chegou: ${motivoLegivel(e)}`);
             console.error("aviso de agendamento via WhatsApp", e);
@@ -129,7 +127,7 @@ export async function POST(req: Request) {
             // momento vai como occurredAt, e o id do agendamento faz o eventId
             const optIn = optInDoDoc(tenantId, await adminDb.doc(`tenants/${tenantId}/appointments/${nova.id}`).get());
             if (!optIn) throw new Error("aceite do WhatsApp não gravado no agendamento");
-            await enviarSemOperador(
+            const ruim = naoSaiu(await enviarSemOperador(
               conn,
               cliente,
               comAvisoSair(
@@ -138,7 +136,8 @@ export async function POST(req: Request) {
               ),
               optIn,
               prazo,
-            );
+            ));
+            if (ruim) falhas.push(`recibo ao cliente ${ruim}`);
           } catch (e) {
             falhas.push(`recibo ao cliente não chegou: ${motivoLegivel(e)}`);
             // SAIR depois do aceite: a vontade do cliente, não falha (o aviso já foi para o log)
@@ -182,8 +181,10 @@ async function avisarPeloCanalOficialSemCaptura(
   dados: { customerName: string; customerPhone: string; aceiteWhatsapp?: boolean },
 ) {
   const falhas: string[] = [];
-  const prazo = zonedTime(nova.date, nova.time);
-  const negocio = await adminDb.doc(`tenants/${tenantId}`).get().then((t) => String(t.get("name") ?? "").trim() || tenantId);
+  const tenant = await adminDb.doc(`tenants/${tenantId}`).get();
+  // prazo: o horário no fuso do negócio (a agenda grava hora de parede)
+  const prazo = zonedTime(nova.date, nova.time, fusoDe(tenant.get("site")));
+  const negocio = String(tenant.get("name") ?? "").trim() || tenantId;
   const servico = nova.staffName ? `${nova.serviceName} com ${nova.staffName}` : nova.serviceName;
   const quandoVai = quando(nova.date, nova.time);
   const nome = dados.customerName.trim();
@@ -194,7 +195,8 @@ async function avisarPeloCanalOficialSemCaptura(
   } else {
     try {
       const codigo = codigoDoAgendamento(nova.id);
-      await enviarTemplateSemOperador(oficial, donoNumero, templateNovoDono({ negocio, cliente: nome, telefone: dados.customerPhone, servico, quando: quandoVai, codigo }, { slug: tenantId, agendamento: nova.id, horario: `${nova.date}T${nova.time}` }), OPTIN_DONO, prazo);
+      const ruim = naoSaiu(await enviarTemplateSemOperador(oficial, donoNumero, templateNovoDono({ negocio, cliente: nome, telefone: dados.customerPhone, servico, quando: quandoVai, codigo }, { slug: tenantId, agendamento: nova.id, horario: `${nova.date}T${nova.time}` }), OPTIN_DONO, prazo));
+      if (ruim) falhas.push(`aviso ao salão ${ruim}`);
     } catch (e) {
       falhas.push(`aviso ao salão não chegou: ${motivoLegivel(e)}`);
       console.error("aviso de agendamento pelo canal oficial", e);
@@ -206,7 +208,8 @@ async function avisarPeloCanalOficialSemCaptura(
       const optIn = optInDoDoc(tenantId, await adminDb.doc(`tenants/${tenantId}/appointments/${nova.id}`).get());
       if (!optIn) throw new Error("aceite do WhatsApp não gravado no agendamento");
       const primeiro = nome.split(/\s+/)[0] ?? nome;
-      await enviarTemplateSemOperador(oficial, cliente, templateCliente("recebido", { nome: primeiro, negocio, servico, quando: quandoVai }), optIn, prazo);
+      const ruim = naoSaiu(await enviarTemplateSemOperador(oficial, cliente, templateCliente("recebido", { nome: primeiro, negocio, servico, quando: quandoVai }), optIn, prazo));
+      if (ruim) falhas.push(`recibo ao cliente ${ruim}`);
     } catch (e) {
       falhas.push(`recibo ao cliente não chegou: ${motivoLegivel(e)}`);
       if (!saiuDepoisDoAceite(e)) console.error("recibo de agendamento pelo canal oficial", e);
@@ -217,4 +220,12 @@ async function avisarPeloCanalOficialSemCaptura(
     tenantId,
     falhas.length ? { message: `Agendamento de ${nome} — ${falhas.join("; ")}.`, at: Date.now() } : null,
   ).catch(() => {});
+}
+
+/** Aceito, mas não vai sair (parado na cota ou adiado para depois do horário): falha visível
+ *  na gaveta, como na confirmação. null = enviado ou agendado a tempo. */
+function naoSaiu(e: { destino: string }) {
+  if (e.destino === "parada") return "parou na cota diária do WhatsApp: decida em Mensagens no painel";
+  if (e.destino === "nao_sai") return "não sai antes do horário do agendamento (fora do horário de envio do WhatsApp)";
+  return null;
 }

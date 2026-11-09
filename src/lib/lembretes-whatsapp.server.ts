@@ -2,7 +2,7 @@ import "server-only";
 import { emParalelo } from "@/lib/paralelo";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
-import { agoraNaParede, dateIn, formatTime, fusoDe, todayIn, zonedTime } from "@/lib/datetime";
+import { agoraNaParede, chaveDoHorario, dateIn, formatTime, fusoDe, instanteReal, todayIn, zonedTime } from "@/lib/datetime";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { enviarSemOperador, enviarTemplateSemOperador, motivoLegivel, ROTULO_STATUS, saiuDepoisDoAceite, statusDaConexao } from "@/lib/atendys";
 import { conexaoOficial, templateCliente, usaCanalOficial } from "@/lib/canal-oficial.server";
@@ -13,8 +13,9 @@ import { espelharStatusVivo, lerConexao, lerConfigWhatsApp, registrarErroNotific
 // o cliente recebe um lembrete pelo WhatsApp do salão. O dono liga/desliga e
 // escolhe quantas horas antes (config em tenants/{slug}/whatsapp.remindersEnabled
 // /.remindersBeforeHours). Envio transacional; o sucesso marca o agendamento
-// (whatsappReminderSentAt) para nunca repetir. Nada de mensagem entre 22h e 7h30
-// (fuso do negócio): o que vencer na janela de silêncio espera as 7h30.
+// (whatsappReminderSentAt) para nunca repetir. Nada de mensagem entre 22h e 8h
+// (fuso do negócio): o que vencer na janela de silêncio espera as 8h. É o mesmo horário
+// silencioso do tenant da plataforma no atendys: lembrete aceito aqui não fica adiado lá.
 // Falha (WhatsApp desconectado, envio recusado) aparece na gaveta do negócio
 // (lastNotifyError) e vira e-mail para o admin, no máximo um por negócio a cada 6 h.
 //
@@ -26,7 +27,7 @@ import { espelharStatusVivo, lerConexao, lerConfigWhatsApp, registrarErroNotific
 // (como em reservaDe). Por isso "agora" e o dia entram na mesma representação, pela
 // hora de parede do fuso do endereço (agoraNaParede), e não pelo instante real.
 
-const SILENCIO = { inicioMin: 22 * 60, fimMin: 7 * 60 + 30 }; // 22:00 → 07:30
+const SILENCIO = { inicioMin: 22 * 60, fimMin: 8 * 60 }; // 22:00 → 08:00
 
 /** Envia os lembretes devidos agora. Devolve quantos foram enviados. */
 export async function enviarLembretesDoDia(): Promise<number> {
@@ -43,7 +44,7 @@ export async function enviarLembretesDoDia(): Promise<number> {
     const inicioDoDia = zonedTime(hoje, "00:00");
     const fimDoDia = zonedTime(hoje, "23:59");
     const parede = agoraNaParede(tz, agora);
-    // janela de silêncio: quem vence entre 22h e 7h30 (no fuso dele) espera as 7h30
+    // janela de silêncio: quem vence entre 22h e 8h (no fuso dele) espera as 8h
     const [h, m] = formatTime(agora, tz).split(":").map(Number);
     const minutosDoDia = h * 60 + m;
     if (minutosDoDia >= SILENCIO.inicioMin || minutosDoDia < SILENCIO.fimMin) return;
@@ -94,6 +95,8 @@ export async function enviarLembretesDoDia(): Promise<number> {
       // "hoje" ou "amanhã" conforme o dia do horário no fuso do negócio — lembrete
       // de horário madrugador pode sair na noite anterior
       const dia = dateIn(start) === hoje ? "hoje" : "amanhã";
+      // prazo do aviso: o horário no fuso do negócio (start é hora de parede)
+      const prazo = instanteReal(start, t.get("site"));
       // reserva antes de enviar: outra execução que leu o mesmo agendamento desiste aqui
       const reservado = await adminDb.runTransaction(async (tx) => {
         if ((await tx.get(a.ref)).get("whatsappReminderSentAt")) return false;
@@ -103,13 +106,13 @@ export async function enviarLembretesDoDia(): Promise<number> {
       if (!reservado) continue;
       try {
         const e = oficial
-          ? await enviarTemplateSemOperador(oficial, cliente, templateCliente("lembrete", { nome, negocio: nomeNegocio, servico: String(a.get("serviceName") ?? ""), quando: `${dia} às ${formatTime(start)}` }, { slug: t.id, agendamento: a.id }), optIn, start)
+          ? await enviarTemplateSemOperador(oficial, cliente, templateCliente("lembrete", { nome, negocio: nomeNegocio, servico: String(a.get("serviceName") ?? ""), quando: `${dia} às ${formatTime(start)}` }, { slug: t.id, agendamento: a.id, horario: chaveDoHorario(start) }), optIn, prazo)
           : await enviarSemOperador(
               w,
               cliente,
               comAvisoSair(`Olá, ${nome}! Lembrete do seu horário ${dia} às ${formatTime(start)}: ${a.get("serviceName")} no ${nomeNegocio}. Qualquer imprevisto, responda aqui pelo WhatsApp.`),
               optIn,
-              start, // lembrete que sairia depois do horário não serve: fica parado
+              prazo, // lembrete que sairia depois do horário não serve: fica parado
             );
         // parado na cota: não é falha (aguarda decisão do dono); a reserva fica, para não reenviar a cada ciclo
         // parado (decisão do dono) ou que não sai antes do horário (vence no atendys e o

@@ -15,9 +15,10 @@ export async function GET(request: NextRequest) {
   }
   // sinal vencido primeiro: o horário liberado já não recebe lembrete
   const sinaisVencidos = await expirarSinais(adminDb).catch((e) => (console.error("[cron] expirar sinais", e), 0));
-  // comando do dono (CONFIRMADO/RECUSAR) que ficou sem processar: antes dos lembretes
-  const comandos = await reprocessarComandos(adminDb).catch((e) => (console.error("[cron] comandos pendentes", e), 0));
   const enviados = await enviarLembretesDoDia();
+  // comando do dono (CONFIRMADO/RECUSAR) que ficou sem processar: depois dos lembretes (cada um
+  // pode esperar o atendys; antes, um comando lento atrasava o ciclo dos lembretes)
+  const comandos = await reprocessarComandos(adminDb).catch((e) => (console.error("[cron] comandos pendentes", e), 0));
   // SMS depois do WhatsApp: um falhar não impede o outro
   const sms = await enviarLembretesPorSms(adminDb).catch((e) => (console.error("[cron] lembretes por SMS", e), 0));
   // uma vez por hora (o cron roda a cada 10 min): conexão que caiu sem o webhook chegar

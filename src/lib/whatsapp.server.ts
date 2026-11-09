@@ -3,7 +3,7 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { avisar, quando } from "@/lib/avisos.server";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
-import { dateIn, formatTime } from "@/lib/datetime";
+import { chaveDoHorario, dateIn, formatTime, instanteReal } from "@/lib/datetime";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { soDigitosComDDI } from "@/lib/telefone";
@@ -252,6 +252,9 @@ export async function registrarMensagemRecebida(
    *  de processado. A caixa de entrada é o dedupe das reentregas: sem o pendente, uma queda no
    *  meio do processamento deixava o agendamento "booked" para sempre. */
   comando?: "salao" | "plataforma",
+  /** Botão do pedido ao dono: o agendamento e o horário do pedido. A transação que muda o status
+   *  confere de novo (o cliente pode remarcar antes de o cron reprocessar o pendente). */
+  esperado?: { agendamento: string; horario: string },
 ): Promise<boolean> {
   // id vindo de fora vira caminho de documento: só letras, números, "_" e "-"
   const ref = msg.messageId
@@ -269,7 +272,7 @@ export async function registrarMensagemRecebida(
     const texto = (msg.data as { text?: unknown } | null)?.text;
     if (comando && typeof texto === "string") {
       // pegoEm = agora: quem recebeu processa já (after); o cron só pega o que ficou 5 min parado
-      b.set(db.doc(`${PENDENTES}/${idDoComando(slug, ref.id)}`), { slug, phone: msg.phone ?? null, text: texto, via: comando, pegoEm: Date.now(), tentativas: 1 });
+      b.set(db.doc(`${PENDENTES}/${idDoComando(slug, ref.id)}`), { slug, phone: msg.phone ?? null, text: texto, via: comando, pegoEm: Date.now(), tentativas: 1, ...(esperado && { esperado }) });
     }
     await b.commit();
     return true;
@@ -293,7 +296,7 @@ export async function executarComandoPendente(db: Firestore, id: string) {
   const ref = db.doc(`${PENDENTES}/${id}`);
   const p = (await ref.get()).data();
   if (!p) return null;
-  const r = await processarComandoAgendamento(db, String(p.slug), { phone: p.phone ?? undefined, data: { text: String(p.text ?? "") } }, p.via === "plataforma" ? "plataforma" : "salao", id);
+  const r = await processarComandoAgendamento(db, String(p.slug), { phone: p.phone ?? undefined, data: { text: String(p.text ?? "") } }, p.via === "plataforma" ? "plataforma" : "salao", id, p.esperado);
   await ref.delete();
   return r;
 }
@@ -500,6 +503,8 @@ export async function processarComandoAgendamento(
   /** Id em comandosPendentes: sai na MESMA transação da mudança do agendamento. Depois dela o
    *  comando não roda de novo (repetir diria ao dono "não encontrei" logo após "confirmado"). */
   pendente?: string,
+  /** Veio de botão do pedido: o horário do pedido tem de bater com o atual, senão nada muda. */
+  esperado?: { agendamento: string; horario: string },
 ): Promise<"ignorado" | "nao entendido" | "sem pendente" | "confirmado" | "recusado"> {
   // canal oficial: comando chega ao número da plataforma, só do WhatsApp pessoal do dono, e as
   // respostas saem por ele (o dono acabou de escrever: janela de 24 h aberta, texto livre vale)
@@ -516,6 +521,14 @@ export async function processarComandoAgendamento(
   if (remetente !== numeroSalao && remetente !== dono) return "ignorado";
   const respostaPara = numeroSalao ?? dono;
   if (!respostaPara) return "ignorado"; // inalcançável (remetente bateu com um dos dois), satisfeito só o TS
+  // canal oficial: o dono acabou de escrever (replyToInbound): a resposta não conta na cota por
+  // destinatário, não cai no dedupe de 10 min nem espera o horário silencioso
+  const responderDono = (texto: string) => enviarSemOperador(canal, respostaPara, texto, OPTIN_DONO, undefined, { resposta: !!oficial });
+  // nos ramos que não mudam nada, o pendente sai antes da resposta: uma resposta que falha não o
+  // prende (o cron repetiria e acabaria num falso "comando descartado")
+  const soltarPendente = async () => {
+    if (pendente) await db.doc(`${PENDENTES}/${pendente}`).delete();
+  };
   // estado de verdade vem do gateway ao vivo — o status cacheado no documento
   // do tenant pode estar desatualizado se um webhook de reconexão se perder
   if (!oficial) {
@@ -543,7 +556,8 @@ export async function processarComandoAgendamento(
     const tokens = new Set(texto.toUpperCase().match(/\b[A-Z0-9]{4}\b/g) ?? []);
     const temCodigo = futuros.some((d) => d.get("status") === "booked" && tokens.has(codigoDoAgendamento(d.id)));
     if (!pareceComando(texto) && !temCodigo) return "ignorado";
-    await enviarSemOperador(canal, respostaPara, AJUDA_COMANDO, OPTIN_DONO);
+    await soltarPendente();
+    await responderDono(AJUDA_COMANDO);
     return "nao entendido";
   }
   const { recusar } = comando;
@@ -553,7 +567,8 @@ export async function processarComandoAgendamento(
   if (codigo && codigo.length > 4 && !recentes.some((d) => d.id.toUpperCase().startsWith(codigo!))) codigo = undefined;
   const pendentes = futuros.filter((d) => d.get("status") === "booked" && (!codigo || d.id.toUpperCase().startsWith(codigo)));
   if (pendentes.length === 0) {
-    await enviarSemOperador(canal, respostaPara, codigo ? `Não encontrei agendamento aguardando confirmação com o código ${codigo}.` : "Não encontrei agendamento aguardando confirmação.", OPTIN_DONO);
+    await soltarPendente();
+    await responderDono(codigo ? `Não encontrei agendamento aguardando confirmação com o código ${codigo}.` : "Não encontrei agendamento aguardando confirmação.");
     return "sem pendente";
   }
   if (pendentes.length > 1) {
@@ -562,7 +577,8 @@ export async function processarComandoAgendamento(
       .sort((x, y) => startDe(x).getTime() - startDe(y).getTime())
       .map((d) => `${codigos.get(d.id)}: ${String(d.get("customerName") ?? "").trim()} · ${d.get("serviceName")} · ${quando(dateIn(startDe(d)), formatTime(startDe(d)))}`)
       .join("\n");
-    await enviarSemOperador(canal, respostaPara, `Há mais de um agendamento aguardando. Responda com o código, por exemplo ${comando.verbo} ${codigos.get(pendentes[0].id)}:\n${lista}`, OPTIN_DONO);
+    await soltarPendente();
+    await responderDono(`Há mais de um agendamento aguardando. Responda com o código, por exemplo ${comando.verbo} ${codigos.get(pendentes[0].id)}:\n${lista}`);
     return "sem pendente";
   }
   const a = pendentes[0];
@@ -574,36 +590,42 @@ export async function processarComandoAgendamento(
   // só fala com o cliente quem aceitou o WhatsApp no agendamento; os antigos (sem o campo) não
   const optIn = optInDoDoc(slug, a);
   // cliente: texto livre pelo número do salão ou template pelo canal oficial (fora da janela de 24 h)
-  const negocio = oficial ? String((await db.doc(`tenants/${slug}`).get()).get("name") ?? "").trim() || slug : "";
+  const tenant = await db.doc(`tenants/${slug}`).get();
+  const negocio = oficial ? String(tenant.get("name") ?? "").trim() || slug : "";
+  // prazo: o horário no fuso do negócio (start é hora de parede)
+  const prazo = instanteReal(start, tenant.get("site"));
   const avisarCliente = (tipo: "confirmado" | "cancelado", cliente: string, texto: string, aceite: OptIn) =>
     oficial
-      ? enviarTemplateSemOperador(oficial, cliente, templateCliente(tipo, { nome, negocio, servico: String(a.get("serviceName") ?? ""), quando: quandoVai }), aceite, start)
-      : enviarSemOperador(canal, cliente, comAvisoSair(texto), aceite, start);
+      ? enviarTemplateSemOperador(oficial, cliente, templateCliente(tipo, { nome, negocio, servico: String(a.get("serviceName") ?? ""), quando: quandoVai }), aceite, prazo)
+      : enviarSemOperador(canal, cliente, comAvisoSair(texto), aceite, prazo);
   const semAceite = (o: string) =>
     `Agendamento de ${nome} ${o}, mas o cliente não autorizou receber mensagens pelo WhatsApp e não foi avisado. Fale com ele por outro meio (tel ${a.get("customerPhone")}).`;
 
-  // relê dentro da transação: o cliente ou o painel podem ter mudado o status entre a consulta e aqui
+  // relê dentro da transação: o cliente ou o painel podem ter mudado o status (ou, no botão do
+  // pedido, o horário) entre a consulta e aqui
   const aplicar = async (status: "confirmed" | "cancelled", extra: Record<string, unknown>) => {
     const history = db.collection(`tenants/${slug}/history`).doc();
-    return db.runTransaction(async (tx) => {
+    return db.runTransaction(async (tx): Promise<"ok" | "status" | "horario"> => {
       const atual = await tx.get(a.ref);
       if (pendente) tx.delete(db.doc(`${PENDENTES}/${pendente}`));
-      if (atual.get("status") !== "booked") return false;
+      if (atual.get("status") !== "booked") return "status";
+      if (esperado?.agendamento === a.id && chaveDoHorario(startDe(atual)) !== esperado.horario) return "horario";
       tx.create(history, { appointmentId: a.id, type: status, ...extra, at: FieldValue.serverTimestamp(), by: "whatsapp", byName: "WhatsApp do salão" });
       tx.update(a.ref, { status, lastHistoryId: history.id });
-      return true;
+      return "ok";
     });
   };
-  const mudou = async (ok: boolean) => {
-    if (!ok) await enviarSemOperador(canal, respostaPara, `O agendamento de ${nome} (${servico}) já não estava aguardando confirmação. Nada foi alterado.`, OPTIN_DONO).catch(() => {});
-    return ok;
+  const mudou = async (r: "ok" | "status" | "horario") => {
+    if (r === "status") await responderDono(`O agendamento de ${nome} (${servico}) já não estava aguardando confirmação. Nada foi alterado.`).catch(() => {});
+    if (r === "horario") await responderDono(`O pedido de ${nome} mudou de horário (o cliente remarcou). Nada foi alterado: use o pedido mais recente ou o painel.`).catch(() => {});
+    return r === "ok";
   };
 
   if (recusar) {
     if (!(await mudou(await aplicar("cancelled", { reason: "whatsapp_rejected" })))) return "sem pendente";
     const cliente = soDigitosComDDI(String(a.get("customerPhone") ?? ""));
     if (cliente && !optIn) {
-      await enviarSemOperador(canal, respostaPara, semAceite("recusado"), OPTIN_DONO).catch(() => {});
+      await responderDono(semAceite("recusado")).catch(() => {});
       return "recusado";
     }
     if (cliente && optIn) {
@@ -612,17 +634,17 @@ export async function processarComandoAgendamento(
         const link = `${base}/agendar/${slug}`;
         const e = await avisarCliente("cancelado", cliente, `Olá, ${nome}. Esse horário não está disponível: ${servico}. Faça um novo agendamento pelo link: ${link}`, optIn);
         if (e.destino === "parada" || e.destino === "nao_sai") {
-          await enviarSemOperador(canal, respostaPara, `Agendamento de ${nome} recusado. ${e.destino === "parada" ? AVISO_PARADO : AVISO_NAO_SAI}`, OPTIN_DONO).catch(() => {});
+          await responderDono(`Agendamento de ${nome} recusado. ${e.destino === "parada" ? AVISO_PARADO : AVISO_NAO_SAI}`).catch(() => {});
           return "recusado";
         }
       } catch (e) {
         const motivo = e instanceof Error ? e.message : String(e);
-        await enviarSemOperador(canal, respostaPara, `Agendamento de ${nome} recusado, mas o aviso ao cliente falhou: ${motivo}`, OPTIN_DONO).catch(() => {});
+        await responderDono(`Agendamento de ${nome} recusado, mas o aviso ao cliente falhou: ${motivo}`).catch(() => {});
         if (saiuDepoisDoAceite(e)) return "recusado"; // o dono já sabe; não é erro
         throw e;
       }
     }
-    await enviarSemOperador(canal, respostaPara, `Agendamento de ${nome} (${servico}) recusado. O cliente foi avisado.`, OPTIN_DONO).catch(() => {});
+    await responderDono(`Agendamento de ${nome} (${servico}) recusado. O cliente foi avisado.`).catch(() => {});
     return "recusado";
   }
 
@@ -632,17 +654,17 @@ export async function processarComandoAgendamento(
 
   const cliente = soDigitosComDDI(String(a.get("customerPhone") ?? ""));
   if (cliente && !optIn) {
-    await enviarSemOperador(canal, respostaPara, semAceite("confirmado"), OPTIN_DONO).catch(() => {});
+    await responderDono(semAceite("confirmado")).catch(() => {});
   } else if (cliente) {
     try {
       const e = await avisarCliente("confirmado", cliente, `Olá, ${nome}! Seu agendamento está confirmado: ${servico}. Te esperamos!`, optIn);
       // parada na cota: quem opera o salão precisa saber que o cliente ainda não foi avisado
-      if (e.destino === "parada" || e.destino === "nao_sai") await enviarSemOperador(canal, respostaPara, `Agendamento de ${nome} confirmado. ${e.destino === "parada" ? AVISO_PARADO : AVISO_NAO_SAI}`, OPTIN_DONO).catch(() => {});
+      if (e.destino === "parada" || e.destino === "nao_sai") await responderDono(`Agendamento de ${nome} confirmado. ${e.destino === "parada" ? AVISO_PARADO : AVISO_NAO_SAI}`).catch(() => {});
     } catch (e) {
       // o agendamento já está confirmado; quem precisa saber que o cliente não
       // foi avisado é quem opera o salão (self-chat), que está esperando o eco
       const motivo = e instanceof Error ? e.message : String(e);
-      await enviarSemOperador(canal, respostaPara, `Agendamento de ${nome} confirmado, mas o aviso ao cliente falhou: ${motivo}`, OPTIN_DONO).catch(() => {});
+      await responderDono(`Agendamento de ${nome} confirmado, mas o aviso ao cliente falhou: ${motivo}`).catch(() => {});
       if (saiuDepoisDoAceite(e)) return "confirmado"; // o dono já sabe; não é erro
       throw e;
     }

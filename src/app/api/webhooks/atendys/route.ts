@@ -2,9 +2,8 @@ import { after, NextResponse } from "next/server";
 import { enviarTexto, OPTIN_DONO, versaoDaAssinatura, type CabecalhosWebhook } from "@/lib/atendys";
 import { adminDb } from "@/lib/admin";
 import { DEMO } from "@/lib/demo";
-import { atualizarParada, marcarFalhaVigiada, negocioDaMensagem } from "@/lib/mensagens-paradas.server";
-import { avisar } from "@/lib/avisos.server";
-import { avisarQueda, codigoDoAgendamento, espelharStatusDaInstancia, executarComandoPendente, idDoComando, lerConexao, registrarErroNotificacao, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
+import { atualizarParada, avisarFalhaDeEnvio, lerIndice, NAO_SAI_A_TEMPO } from "@/lib/mensagens-paradas.server";
+import { avisarQueda, codigoDoAgendamento, espelharStatusDaInstancia, executarComandoPendente, idDoComando, lerConexao, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
 import { conexaoOficial, instanciaPlataforma, lerBotao, negocioDoComando, negociosDoDono, segredoPlataforma, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { acaoDoCliente, pedidoDesatualizado } from "@/lib/botoes-whatsapp.server";
 
@@ -20,7 +19,7 @@ import { acaoDoCliente, pedidoDesatualizado } from "@/lib/botoes-whatsapp.server
 //   message.received: { instance, messageId, phone, type: "text"|"media", text? }
 //   instance.status:  { instance, status: pending_qr|connected|disconnected }
 //   message.status:   { messageId, phone, status, errorCode?, errorMessage?, retryAt? } — sem instância:
-//     o negócio sai do índice mensagensWhatsapp (só as que pararam na cota estão lá)
+//     o negócio sai do índice mensagensWhatsapp (as paradas na cota e os envios vigiados)
 
 type Evento = {
   event?: string;
@@ -76,8 +75,15 @@ export async function POST(req: Request) {
   // cota. Fora dele (envio comum), ack 200 sem gravar nada — 400 fazia o atendys repetir 5 vezes
   if (evento.event === "message.status") {
     const id = evento.messageId;
-    const slugDaMensagem = typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id) ? await negocioDaMensagem(id) : null;
-    if (!slugDaMensagem || !STATUS_MENSAGEM.has(String(evento.status))) return responder(200, { ok: true });
+    const indice = typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id) ? await lerIndice(id) : null;
+    if (!indice || !STATUS_MENSAGEM.has(String(evento.status))) return responder(200, { ok: true });
+    const slugDaMensagem = indice.slug;
+    // envio vigiado na fila para depois do prazo (horário silencioso, limite): já não serve, e o dono
+    // ouviu "cliente avisado". Falha agora, não quando vencer na hora do atendimento
+    const retry = Date.parse(evento.retryAt ?? "");
+    const naoSai = evento.status === "queued" && indice.vigiada && indice.prazo !== null && retry >= indice.prazo;
+    // envio comum (não parado na cota) só interessa quando falha: o resto é ack sem leituras
+    if (indice.vigiada && !indice.parada && evento.status !== "failed" && !naoSai) return responder(200, { ok: true });
     const segredoDaMensagem = (await lerConexao(adminDb, slugDaMensagem))?.atendysWebhookSecret;
     // assinatura conferida antes de gravar qualquer coisa. Recusada, responde 200 como a desconhecida
     // (um 401 só aqui diria a quem não assina que esse id é de uma mensagem parada). A mensagem
@@ -92,7 +98,7 @@ export async function POST(req: Request) {
     console.log(`[webhook atendys] assinatura ${versao}: message.status de ${slugDaMensagem}`);
     const at = Date.parse(evento.at ?? "");
     await atualizarParada(slugDaMensagem, id!, String(evento.status), evento.retryAt === undefined ? undefined : (evento.retryAt ?? null), Number.isNaN(at) ? Date.now() : at, evento.errorCode);
-    if (evento.status === "failed") await avisarFalhaDeEnvio(slugDaMensagem, id!, evento.errorCode);
+    if (evento.status === "failed" || naoSai) await avisarFalhaDeEnvio(slugDaMensagem, id!, naoSai ? NAO_SAI_A_TEMPO : evento.errorCode);
     return responder(200, { ok: true });
   }
   if (typeof evento.instance !== "string" || !evento.instance) {
@@ -123,10 +129,12 @@ export async function POST(req: Request) {
         console.warn(`[webhook atendys] botão do dono de ${botao.slug} vindo de outro número (${evento.phone.slice(-4)})`);
         return responder(200, { ok: true });
       }
-      // pedido de um horário que já mudou (o cliente remarcou): não confirma o horário novo às cegas
+      // pedido de um horário que já mudou (o cliente remarcou): não confirma o horário novo às cegas.
+      // A caixa de entrada é o dedupe: a reentrega do mesmo toque não repete o aviso
       if (await pedidoDesatualizado(adminDb, botao)) {
         console.log(`[webhook atendys] botão de pedido desatualizado em ${botao.slug}`);
-        const oficial = await conexaoOficial(adminDb, botao.slug).catch(() => null);
+        const nova = await registrarMensagemRecebida(adminDb, botao.slug, { phone: evento.phone, messageId: evento.messageId, data: { text: evento.text ?? "" }, timestamp: evento.at });
+        const oficial = nova ? await conexaoOficial(adminDb, botao.slug).catch(() => null) : null;
         if (oficial) after(() => enviarTexto(oficial, evento.phone!, "Esse pedido mudou de horário (o cliente remarcou). Use o pedido mais recente ou o painel.", OPTIN_DONO, undefined, { resposta: true }).catch((e) => console.error("[atendys] aviso de pedido desatualizado", e)));
         return responder(200, { ok: true });
       }
@@ -140,7 +148,9 @@ export async function POST(req: Request) {
       return responder(200, { ok: true });
     }
     const data = { text: evento.text ?? "" };
-    const nova = await registrarMensagemRecebida(adminDb, doDono, { phone: evento.phone, messageId: evento.messageId, data, timestamp: evento.at }, "plataforma");
+    // botão com horário: o pendente leva o horário do pedido, conferido de novo na transação
+    const esperado = botao?.extra ? { agendamento: botao.agendamento, horario: botao.extra } : undefined;
+    const nova = await registrarMensagemRecebida(adminDb, doDono, { phone: evento.phone, messageId: evento.messageId, data, timestamp: evento.at }, "plataforma", esperado);
     if (nova && evento.messageId) {
       after(() =>
         executarComandoPendente(adminDb, idDoComando(doDono, inboxId(evento.messageId!)))
@@ -200,29 +210,6 @@ export async function POST(req: Request) {
 
 export async function GET() {
   return responder(405, { error: "Método não permitido." });
-}
-
-// por que um aviso aceito não chegou: frase para quem gere, nunca o texto técnico da Meta
-function motivoDaFalha(codigo?: string | null) {
-  if (codigo === "MESSAGE_EXPIRED") return "não saiu até o horário (fora do horário de envio ou limite do dia)";
-  if (codigo === "META_131026") return "o número do cliente não recebe mensagens no WhatsApp";
-  if (codigo === "TEMPLATE_REQUIRED" || codigo === "META_131047") return "fora da janela de 24 horas do WhatsApp";
-  return "o WhatsApp recusou a entrega";
-}
-
-/** Aviso aceito pelo atendys que falhou depois (a Meta recusou ou venceu o prazo): o dono já ouviu
- *  "cliente avisado", então vai para a gaveta e para o celular de quem gere. Uma vez por mensagem. */
-async function avisarFalhaDeEnvio(slug: string, id: string, codigo?: string | null) {
-  try {
-    const falha = await marcarFalhaVigiada(id);
-    if (!falha) return;
-    const texto = `Um aviso pelo WhatsApp não foi entregue: ${motivoDaFalha(codigo)}.${falha.resumo ? ` Mensagem: ${falha.resumo}` : ""}`;
-    console.warn(`[webhook atendys] envio ${id} de ${slug} falhou (${codigo ?? "sem código"})`);
-    await registrarErroNotificacao(adminDb, slug, { message: texto, at: Date.now() });
-    await avisar(adminDb, slug, { title: "Aviso do WhatsApp não entregue", body: texto.slice(0, 180), url: `/${slug}`, tag: `falha-${id}` }, { soGestores: true });
-  } catch (e) {
-    console.error(`[webhook atendys] aviso da falha de ${id}`, e);
-  }
 }
 
 // o mesmo id que registrarMensagemRecebida dá à mensagem na caixa de entrada

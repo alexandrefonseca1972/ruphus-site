@@ -1,6 +1,7 @@
 import "server-only";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
+import { avisar } from "@/lib/avisos.server";
 
 // Mensagens que o atendys parou na cota do dia (awaiting_manual). Ficam em
 // tenants/{slug}/mensagens/{id} para o dono decidir pelo painel, e o índice
@@ -23,7 +24,7 @@ const mascarar = (fone: string) => {
 
 /** Nunca lança: registrar é para o painel; o envio já foi decidido pelo atendys. Tenta duas vezes
  *  (sem o registro, o painel não mostra a mensagem que o atendys segura). */
-export async function registrarParada(slug: string, m: { messageId: string; retryAt?: string | null; errorCode?: string; para: string; texto: string }, tentativa = 1): Promise<void> {
+export async function registrarParada(slug: string, m: { messageId: string; retryAt?: string | null; errorCode?: string; para: string; texto: string; prazo?: Date }, tentativa = 1): Promise<void> {
   try {
     const b = adminDb.batch();
     b.set(doNegocio(slug, m.messageId), {
@@ -38,7 +39,8 @@ export async function registrarParada(slug: string, m: { messageId: string; retr
       at: Date.now(),
       expira: Date.now() + VALIDADE_PARADA_MS,
     });
-    b.set(indice(m.messageId), { tenantId: slug, criadaEm: FieldValue.serverTimestamp() });
+    // também vigiada: retomada (Manter agendada, volta à fila) e falha depois, o aviso chega ao negócio
+    b.set(indice(m.messageId), { ...dadosVigiada(slug, m.texto, m.prazo), parada: true });
     await b.commit();
   } catch (e) {
     if (tentativa < 2) return registrarParada(slug, m, tentativa + 1);
@@ -46,30 +48,77 @@ export async function registrarParada(slug: string, m: { messageId: string; retr
   }
 }
 
+// prazo: até quando a mensagem serve; um message.status queued com retryAt depois dele já é falha
+// expiraEm: para a política de TTL do Firestore (o atendys segura a mensagem por no máximo 24 h)
+const dadosVigiada = (slug: string, texto: string, prazo?: Date) => ({
+  tenantId: slug, vigiada: true, resumo: texto.replace(/\s+/g, " ").slice(0, 140), ...(prazo && { prazo: prazo.getTime() }),
+  criadaEm: FieldValue.serverTimestamp(), expiraEm: new Date(Date.now() + 7 * 86_400_000),
+});
+
 /** Envio aceito pelo atendys cuja falha posterior precisa chegar ao negócio: todo envio do canal
  *  oficial (a Meta recusa depois do aceite) e o adiado para depois do prazo (vence no atendys).
  *  O message.status failed acha o negócio por este índice. Nunca lança. */
-export async function vigiarEnvio(slug: string, id: string, texto: string): Promise<void> {
-  await indice(id)
-    // expiraEm: para a política de TTL do Firestore (o atendys segura a mensagem por no máximo 24 h)
-    .set({ tenantId: slug, vigiada: true, resumo: texto.replace(/\s+/g, " ").slice(0, 140), criadaEm: FieldValue.serverTimestamp(), expiraEm: new Date(Date.now() + 7 * 86_400_000) })
-    .catch((e) => console.error(`[mensagens] índice do envio ${id}`, e));
+export async function vigiarEnvio(slug: string, id: string, texto: string, prazo?: Date): Promise<void> {
+  await indice(id).set(dadosVigiada(slug, texto, prazo)).catch((e) => console.error(`[mensagens] índice do envio ${id}`, e));
 }
 
-/** O envio vigiado que falhou: só uma vez por mensagem (reentrega do webhook não repete o aviso). */
-export async function marcarFalhaVigiada(id: string): Promise<{ resumo: string } | null> {
-  return adminDb.runTransaction(async (tx) => {
-    const d = await tx.get(indice(id));
-    if (!d.exists || d.get("vigiada") !== true || d.get("falhou")) return null;
-    tx.update(indice(id), { falhou: true });
-    return { resumo: String(d.get("resumo") ?? "") };
-  });
+/** Código nosso (não vem do atendys): na fila para depois do prazo, a mensagem já não serve. */
+export const NAO_SAI_A_TEMPO = "NAO_SAI_A_TEMPO";
+
+// por que um aviso aceito não chegou: frase para quem gere, nunca o texto técnico da Meta
+function motivoDaFalha(codigo?: string | null) {
+  if (codigo === NAO_SAI_A_TEMPO) return "não sai antes do horário (fora do horário de envio ou limite do dia)";
+  if (codigo === "MESSAGE_EXPIRED") return "não saiu até o horário (fora do horário de envio ou limite do dia)";
+  if (codigo === "META_131026") return "o número do cliente não recebe mensagens no WhatsApp";
+  if (codigo === "TEMPLATE_REQUIRED" || codigo === "META_131047") return "fora da janela de 24 horas do WhatsApp";
+  return "o WhatsApp recusou a entrega";
+}
+
+/** Um push de falha por negócio a cada 10 min: uma tempestade de falhas vira um aviso só. */
+const JANELA_PUSH_MS = 10 * 60_000;
+
+/** Aviso aceito pelo atendys que falhou depois (a Meta recusou, venceu o prazo, não sai a tempo): o
+ *  dono já ouviu "cliente avisado", então vai para a gaveta e para o celular de quem gere. Uma vez
+ *  por mensagem: a marca e o erro visível na mesma transação (um sem o outro perdia o aviso para
+ *  sempre). O push fica fora dela, agrupado por negócio. Nunca lança. Devolve o que fez (log/teste). */
+export async function avisarFalhaDeEnvio(slug: string, id: string, codigo?: string | null): Promise<"push" | "agrupada" | null> {
+  try {
+    const tenant = adminDb.doc(`tenants/${slug}`);
+    const r = await adminDb.runTransaction(async (tx) => {
+      const [d, t] = await Promise.all([tx.get(indice(id)), tx.get(tenant)]);
+      if (!d.exists || d.get("vigiada") !== true || d.get("falhou") || d.get("tenantId") !== slug) return null;
+      const resumo = String(d.get("resumo") ?? "");
+      const texto = `Um aviso pelo WhatsApp não foi entregue: ${motivoDaFalha(codigo)}.${resumo ? ` Mensagem: ${resumo}` : ""}`;
+      const agora = Date.now();
+      const push = !(agora - Number(t.get("whatsapp.falhaAvisadaEm") ?? 0) < JANELA_PUSH_MS);
+      tx.update(indice(id), { falhou: true });
+      tx.set(tenant, { whatsapp: { lastNotifyError: { message: texto, at: agora }, ...(push && { falhaAvisadaEm: agora }) } }, { merge: true });
+      return { texto, push };
+    });
+    if (!r) return null;
+    console.warn(`[mensagens] envio ${id} de ${slug} falhou (${codigo ?? "sem código"})${r.push ? "" : ": push agrupado"}`);
+    if (r.push) {
+      // tag fixa por negócio: o aviso novo substitui o anterior no celular em vez de empilhar
+      await avisar(adminDb, slug, { title: "Aviso do WhatsApp não entregue", body: r.texto.slice(0, 180), url: `/${slug}`, tag: `falha-whatsapp-${slug}` }, { soGestores: true })
+        .catch((e) => console.error(`[mensagens] push da falha de ${id}`, e));
+    }
+    return r.push ? "push" : "agrupada";
+  } catch (e) {
+    console.error(`[mensagens] aviso da falha de ${id}`, e);
+    return null;
+  }
+}
+
+/** O índice da mensagem: de qual negócio é, se é vigiada (e até quando serve), se parou na cota. */
+export async function lerIndice(id: string): Promise<{ slug: string; vigiada: boolean; parada: boolean; prazo: number | null } | null> {
+  const d = await indice(id).get();
+  const t = d.get("tenantId");
+  if (typeof t !== "string" || !t) return null;
+  return { slug: t, vigiada: d.get("vigiada") === true, parada: d.get("parada") === true, prazo: typeof d.get("prazo") === "number" ? d.get("prazo") : null };
 }
 
 export async function negocioDaMensagem(id: string): Promise<string | null> {
-  const d = await indice(id).get();
-  const t = d.get("tenantId");
-  return typeof t === "string" && t ? t : null;
+  return (await lerIndice(id))?.slug ?? null;
 }
 
 const SAIU = new Set(["sent", "delivered", "read"]);

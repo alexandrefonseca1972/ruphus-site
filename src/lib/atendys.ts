@@ -1,7 +1,7 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import QRCode from "qrcode";
-import { atualizarParada, prazoDaParada, registrarParada, vigiarEnvio } from "@/lib/mensagens-paradas.server";
+import { atualizarParada, avisarFalhaDeEnvio, prazoDaParada, registrarParada, vigiarEnvio } from "@/lib/mensagens-paradas.server";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { integracao } from "@/lib/integracoes.server";
 
@@ -290,7 +290,7 @@ export const OPTIN_DONO: OptIn = { origem: "ruphus-aviso-dono", evidencia: "Núm
  *  conta na cota por destinatário nem no dedupe de 10 min (replyToInbound). */
 export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean } = {}): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
-  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", { number: digits, text: message, ...validade(prazo), ...(opcoes.resposta && { replyToInbound: true }) }, message);
+  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", { number: digits, text: message, ...validade(prazo), ...(opcoes.resposta && { replyToInbound: true }) }, message, prazo);
 }
 
 /** Até quando o aviso serve (o horário do agendamento): o atendys descarta o que não saiu até lá
@@ -320,7 +320,7 @@ export async function enviarTemplate(conn: ConexaoAtendys, phone: string, t: Tem
     ...validade(prazo),
   };
   // texto da parada (painel "Mensagens"): o template com os parâmetros, já que não há texto livre
-  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-template", corpo, `[${t.nome}] ${t.parametros.join(" · ")}`);
+  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-template", corpo, `[${t.nome}] ${t.parametros.join(" · ")}`, prazo);
 }
 
 /** Botões (até 3) ou lista (até 10) pela API oficial, só dentro da janela de 24 h (a pessoa
@@ -337,13 +337,18 @@ export async function enviarInterativo(
   return enviarComOptIn(conn, digits, optIn, "/v1/message/send-interactive", corpo, m.texto);
 }
 
+/** Prazo em cima (menos de 60 s): sem expiresAt a mensagem sairia atrasada; nem envia. */
+const semFolga = (prazo?: Date) => !!prazo && prazo.getTime() <= Date.now() + 60_000;
+const NAO_ENVIADA = { messageId: "", status: "not_sent", destino: "nao_sai" as const };
+
 /** enviarTemplate + seguirSemOperador: para quem envia sem ninguém olhando a tela. */
 export async function enviarTemplateSemOperador(conn: ConexaoAtendys, phone: string, t: Template, optIn: OptIn, prazo?: Date) {
+  if (semFolga(prazo)) return NAO_ENVIADA;
   const envio = await enviarTemplate(conn, phone, t, optIn, prazo);
   return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };
 }
 
-async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn, caminho: string, corpo: unknown, message: string): Promise<Envio> {
+async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn, caminho: string, corpo: unknown, message: string, prazo?: Date): Promise<Envio> {
   const auth = { ...authTenant(conn), instance: conn.instanceId };
   const enviar = async (): Promise<Envio> => {
     const r = await chamar<{ id: string; status: string } & Omit<Envio, "messageId" | "status">>(auth, "POST", caminho, corpo);
@@ -358,10 +363,16 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
     };
   };
   const registrar = async (e: Envio) => {
-    if (aguardaDecisao(e) && conn.slug) await registrarParada(conn.slug, { messageId: e.messageId, retryAt: e.retryAt, errorCode: e.errorCode, para: digits, texto: message });
+    if (aguardaDecisao(e) && conn.slug) await registrarParada(conn.slug, { messageId: e.messageId, retryAt: e.retryAt, errorCode: e.errorCode, para: digits, texto: message, prazo });
     // todo envio aceito é vigiado: a falha que vem depois (a Meta recusou, venceu o prazo no
     // atendys) chega ao negócio pelo message.status failed
-    else if (conn.slug) await vigiarEnvio(conn.slug, e.messageId, message);
+    else if (conn.slug) {
+      await vigiarEnvio(conn.slug, e.messageId, message, prazo);
+      // a falha pode ter chegado antes do índice (o webhook não achou o negócio e ficou no ack):
+      // confere uma vez agora. Já avisada pelo webhook, a marca da mensagem não deixa repetir
+      const agora = await statusDaMensagem(conn, e.messageId).catch(() => null);
+      if (agora?.status === "failed") await avisarFalhaDeEnvio(conn.slug, e.messageId, agora.errorCode);
+    }
     return e;
   };
   try {
@@ -408,7 +419,7 @@ export async function manterAgendada(conn: ConexaoAtendys, messageId: string) {
 
 /** Estado atual de uma mensagem (queued, awaiting_manual, manual_started, sent, delivered, read, failed). */
 export async function statusDaMensagem(conn: ConexaoAtendys, messageId: string) {
-  return chamar<{ id: string; status: string; retryAt?: string | null; errorMessage?: string | null; manualHandoffRequired?: boolean; manualHandoffUrl?: string }>(authTenant(conn), "GET", caminhoDa(messageId, "status"));
+  return chamar<{ id: string; status: string; retryAt?: string | null; errorCode?: string | null; errorMessage?: string | null; manualHandoffRequired?: boolean; manualHandoffUrl?: string }>(authTenant(conn), "GET", caminhoDa(messageId, "status"));
 }
 
 /** Envio sem ninguém olhando (lembrete, aviso de agendamento, robô): parada na cota, volta à fila
@@ -445,8 +456,9 @@ export async function seguirSemOperador(conn: ConexaoAtendys, envio: Envio, praz
 }
 
 /** enviarTexto + seguirSemOperador: para quem envia sem ninguém olhando a tela. */
-export async function enviarSemOperador(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date) {
-  const envio = await enviarTexto(conn, phone, message, optIn, prazo);
+export async function enviarSemOperador(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean } = {}) {
+  if (semFolga(prazo)) return NAO_ENVIADA;
+  const envio = await enviarTexto(conn, phone, message, optIn, prazo, opcoes);
   return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };
 }
 

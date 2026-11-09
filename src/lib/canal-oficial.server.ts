@@ -42,13 +42,16 @@ export const TEMPLATES = {
 const comBotoes = () => process.env.ATENDYS_TEMPLATES_BOTOES === "1";
 
 /** id do botão: volta no message.received. rph:<ação>:<negócio>:<agendamento>[:<extra>].
+ *  extra: o horário de origem ("2026-11-14T15:00", hora de parede); em ch, "<origem>_<destino>".
+ *  Ids sem horário (enviados antes dele) continuam valendo.
  *  Quem toca não edita o id, mas ele é conferido do mesmo jeito (dono do negócio, telefone do cliente). */
 export const idBotao = (acao: AcaoBotao, slug: string, agendamento: string, extra?: string) =>
   ["rph", acao, slug, agendamento, ...(extra ? [extra] : [])].join(":");
-export type AcaoBotao = "dc" | "dr" | "cp" | "cr" | "cx" | "ch";
+// cx pede a confirmação; só cxx cancela, cm mantém
+export type AcaoBotao = "dc" | "dr" | "cp" | "cr" | "cx" | "cxx" | "cm" | "ch";
 export function lerBotao(id: unknown): { acao: AcaoBotao; slug: string; agendamento: string; extra?: string } | null {
   if (typeof id !== "string") return null;
-  const m = /^rph:(dc|dr|cp|cr|cx|ch):([a-z0-9][a-z0-9-]{0,62}):([A-Za-z0-9]{1,40})(?::([0-9T:-]{1,20}))?$/.exec(id);
+  const m = /^rph:(dc|dr|cp|cr|cxx|cx|cm|ch):([a-z0-9][a-z0-9-]{0,62}):([A-Za-z0-9]{1,40})(?::([0-9T:_-]{1,40}))?$/.exec(id);
   return m ? { acao: m[1] as AcaoBotao, slug: m[2], agendamento: m[3], ...(m[4] ? { extra: m[4] } : {}) } : null;
 }
 
@@ -59,10 +62,11 @@ export function parametro(valor: unknown): string {
 }
 
 /** Aviso ao cliente: { nome, negócio, serviço, quando } nos {{1}}…{{4}} do template. */
-export function templateCliente(tipo: "recebido" | "confirmado" | "cancelado" | "lembrete", c: { nome: string; negocio: string; servico: string; quando: string }, ref?: { slug: string; agendamento: string }): Template {
+/** ref.horario: o horário do lembrete no id dos botões; tocar depois de o salão remarcar é recusado. */
+export function templateCliente(tipo: "recebido" | "confirmado" | "cancelado" | "lembrete", c: { nome: string; negocio: string; servico: string; quando: string }, ref?: { slug: string; agendamento: string; horario?: string }): Template {
   const parametros = [c.nome, c.negocio, c.servico, c.quando].map(parametro);
   if (tipo === "lembrete" && ref && comBotoes()) {
-    return { nome: TEMPLATES.lembreteBotoes, parametros, botoes: (["cp", "cr", "cx"] as const).map((a) => idBotao(a, ref.slug, ref.agendamento)) };
+    return { nome: TEMPLATES.lembreteBotoes, parametros, botoes: (["cp", "cr", "cx"] as const).map((a) => idBotao(a, ref.slug, ref.agendamento, ref.horario)) };
   }
   return { nome: TEMPLATES[tipo], parametros };
 }
