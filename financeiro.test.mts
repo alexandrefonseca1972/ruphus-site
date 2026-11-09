@@ -4,7 +4,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { addDays, todayIn, zonedTime } from "@/lib/datetime";
 import { categorias, comissoesDoMes, csvDoMes, diaNoMes, pctDoTexto, idDaBaixa, idDoEstorno, idDoPagamento, fixaNoMes, LancamentoInput, mesDaComissao, resumoDoMes } from "@/lib/financeiro";
-import { adicionarFixa, editarFixa, baixarAgendamento, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
+import { adicionarFixa, editarFixa, baixarAgendamento, darVale, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
 const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
 const quem = { uid: "dona", email: "dona@teste.dev" };
@@ -353,6 +353,32 @@ await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "rui", mes: 
 await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "rui", "2025-07")}`).set({ tipo: "saida", valorCents: 0, mes: "2025-07", staffId: "rui", pctComissao: 50 });
 await baixarAgendamento(db, "salao", { appointmentId: "rui-sinal", valorCents: 7000, forma: "dinheiro", sinalCents: 3000 }, quem);
 assert.equal((await db.doc("tenants/salao/caixa/config").get()).get("descontos.rui"), -5000);
+
+// quem tem % e ainda não faturou aparece (para o vale); sem nome na equipe, não
+assert.deepEqual(comissoesDoMes([], { ana: 40, foi: 30 }, {}, { ana: "Ana" }).map((c) => [c.staffId, c.faturado, c.valor]), [["ana", 0, 0]]);
+
+// vale: sai hoje, entra no desconto guardado e abate do próximo pagamento de comissão
+{
+  await db.doc("tenants/salao/staff/vi").set({ name: "Vi" });
+  await db.doc("tenants/salao/caixa/config").set({ comissoes: { vi: 50 }, descontos: { vi: 0 } }, { merge: true });
+  const descontoVi = async () => (await db.doc("tenants/salao/caixa/config").get()).get("descontos.vi");
+  const mesVi = hoje.slice(0, 7);
+  await db.doc("tenants/salao/lancamentos/ag-vi-1").set({ tipo: "entrada", valorCents: 10000, forma: "pix", categoria: "Atendimento", data: hoje, mes: mesVi, staffId: "vi", staffName: "Vi" });
+  const v = { id: "vl-aaaaaaaaaaaaaaaa", staffId: "vi", valorCents: 2000, forma: "dinheiro" as const, email: "vi@teste.dev" };
+  assert.deepEqual(await darVale(db, "salao", v, quem), { nome: "Vi", data: hoje, novo: true });
+  assert.equal((await darVale(db, "salao", v, quem)).novo, false, "reenviar não paga duas vezes");
+  assert.equal(await descontoVi(), 2000);
+  // corrigir o vale corrige o desconto
+  await editar(db, "salao", v.id, { tipo: "saida", valorCents: 3000, forma: "dinheiro", categoria: "Comissão/salário", data: hoje } as LancamentoInput, quem);
+  assert.equal(await descontoVi(), 3000);
+  // apagar devolve; dar de novo e pagar: 50% de 100 = 50, menos 30 de vale = 20
+  await excluir(db, "salao", v.id);
+  assert.equal(await descontoVi(), 0);
+  await darVale(db, "salao", { ...v, id: "vl-bbbbbbbbbbbbbbbb", valorCents: 3000 }, quem);
+  await pagar(db, "salao", { tipo: "comissao", alvoId: "vi", mes: mesVi, valorCents: 2000, forma: "pix", descontoCents: 3000 }, quem);
+  assert.equal(await descontoVi(), 0);
+  await assert.rejects(darVale(db, "salao", { ...v, id: "vl-cccccccccccccccc", staffId: "ninguem" }, quem), /Profissional não encontrado/);
+}
 
 console.log("financeiro ok");
 process.exit(0);

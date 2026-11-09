@@ -3,8 +3,6 @@
 import { confirmar } from "@/components/confirmar";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { idToken } from "@/lib/firebase";
 import { TERMO_WHATSAPP } from "@/lib/whatsapp-termo";
 import { useTenantSeHouver } from "./painel-layout";
@@ -13,7 +11,6 @@ import {
   configurarLembretesWhatsAppAction,
   conectarWhatsAppDonoAction,
   desconectarWhatsAppDonoAction,
-  enviarWhatsAppAction,
   lerWhatsAppDoNegocioAction,
   qrWhatsAppDonoAction,
   refreshWhatsAppStatusDonoAction,
@@ -64,9 +61,6 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const [li, setLi] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
-  const [para, setPara] = useState("");
-  const [mensagem, setMensagem] = useState("");
-  const [busyEnvio, setBusyEnvio] = useState(false);
   // rascunho local dos lembretes, preso à conexão: quando a conexão muda (ou o
   // primeiro carregamento chega), o rascunho re-sincroniza no render — efeito
   // não serve aqui (brigaria com o que o dono está escolhendo no meio do poll)
@@ -188,17 +182,6 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     }
   }
 
-  async function enviarTeste() {
-    setBusyEnvio(true);
-    setAviso(null);
-    const t = await token();
-    const r = t ? await enviarWhatsAppAction(t, { tenantId: slug, phone: para, message: mensagem }).catch(() => null) : null;
-    setBusyEnvio(false);
-    if (!r || falhou(r)) return setAviso({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
-    setAviso({ ok: true, texto: "Enviado pelo seu WhatsApp." });
-    setMensagem("");
-  }
-
   // uma gravação de cada vez: cliques rápidos em checkbox e hora não disputam, a última fica.
   // O último valor confirmado fica num ref: o `cfg` do clique é velho quando a fila anda
   const filaLembretes = useRef<Promise<void>>(Promise.resolve());
@@ -291,7 +274,6 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
             {cfg?.phone ? ` ${cfg.phone}` : ""} responde pelos clientes normalmente; para conectar, trocar ou
             desconectar, fale com o suporte.
           </p>
-          {conectado && <TesteEnvio {...{ slug, para, setPara, mensagem, setMensagem, busyEnvio, enviarTeste }} />}
         </>
       ) : cfg?.instanceId ? (
         <>
@@ -357,7 +339,6 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
               </p>
             </div>
           )}
-          {conectado && <TesteEnvio {...{ slug, para, setPara, mensagem, setMensagem, busyEnvio, enviarTeste }} />}
         </>
       ) : (
         <>
@@ -384,57 +365,5 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
         </p>
       )}
     </section>
-  );
-}
-
-function TesteEnvio(p: {
-  slug: string;
-  para: string;
-  setPara: (v: string) => void;
-  mensagem: string;
-  setMensagem: (v: string) => void;
-  busyEnvio: boolean;
-  enviarTeste: () => void;
-}) {
-  return (
-    <form
-      noValidate
-      className="grid gap-3 rounded-lg border p-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        p.enviarTeste();
-      }}
-    >
-      <p className="text-sm text-muted-foreground">Teste rápido: envia uma mensagem do número conectado.</p>
-      <div className="grid gap-1.5">
-        <Label htmlFor="zap-para">Para</Label>
-        <Input
-          id="zap-para"
-          type="tel"
-          inputMode="tel"
-          autoComplete="off"
-          value={p.para}
-          maxLength={15}
-          onChange={(e) => p.setPara(e.target.value.replace(/\D/g, ""))}
-          placeholder="11998887777"
-          className="h-12 bg-card px-3.5 text-base sm:h-11 sm:text-[15px]"
-        />
-      </div>
-      <div className="grid gap-1.5">
-        <Label htmlFor="zap-msg">Mensagem</Label>
-        <textarea
-          id="zap-msg"
-          value={p.mensagem}
-          maxLength={1000}
-          rows={3}
-          placeholder="Escreva a mensagem…"
-          onChange={(e) => p.setMensagem(e.target.value)}
-          className="min-h-20 rounded-lg border border-input bg-card px-3.5 py-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:text-[15px]"
-        />
-      </div>
-      <Button type="submit" disabled={p.busyEnvio || !p.para || !p.mensagem.trim()} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">
-        {p.busyEnvio ? "Enviando…" : "Enviar"}
-      </Button>
-    </form>
   );
 }

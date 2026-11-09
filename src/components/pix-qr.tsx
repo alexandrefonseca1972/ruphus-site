@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatBRL } from "@/lib/datetime";
 import { brCode, PixInvalido, type Recebedor } from "@/lib/pix";
 import { relogio, tempoRestante } from "@/lib/sinal";
+import { textoPix } from "@/lib/mensagens";
 
 /** O Pix do salão na tela: o cliente lê o QR no balcão, ou recebe o copia e cola pelo
  *  WhatsApp. O dinheiro cai na conta do salão, e ninguém avisa: confere-se no banco.
@@ -16,6 +17,7 @@ export function PixQr({
   mensagem,
   ate,
   ajuda = "Confira a chave em Meu negócio.",
+  enviar,
   children,
 }: {
   recebedor: Recebedor;
@@ -25,6 +27,9 @@ export function PixQr({
   ate?: string;
   /** o que fazer se o Pix não montar: o dono confere a chave; o cliente fala com o salão */
   ajuda?: string;
+  /** com o WhatsApp do negócio conectado: manda o código direto ao cliente. Sem ele, ou se falhar,
+   *  o botão abre o WhatsApp do aparelho */
+  enviar?: () => Promise<{ ok: true; pendente?: { texto: string; acao?: React.ReactNode } } | { ok: false; error: string } | null>;
   /** o que só vale enquanto dá para pagar (ex.: "enviar comprovante"): some quando o prazo vence */
   children?: React.ReactNode;
 }) {
@@ -40,6 +45,8 @@ export function PixQr({
   const [qr, setQr] = useState<{ codigo: string; svg: string | null } | null>(null);
   const [copiado, setCopiado] = useState<"sim" | "falhou" | null>(null);
   const [agora, setAgora] = useState(() => Date.now());
+  // pendente: aceito mas ainda não saiu (fila, cota do dia) — nunca "enviado"
+  const [envio, setEnvio] = useState<{ estado: "enviando" | "enviado" } | { estado: "falhou"; texto: string } | { estado: "pendente"; texto: string; acao?: React.ReactNode } | null>(null);
 
   useEffect(() => {
     if (!montado.codigo) return;
@@ -81,7 +88,14 @@ export function PixQr({
   }
 
   const codigo = montado.codigo;
-  const texto = `${mensagem ?? `Pix de ${formatBRL(valorCents)} para ${recebedor.nome}`}. Copie o código abaixo e cole no app do banco, em "Pix copia e cola":\n\n${codigo}`;
+  const texto = textoPix({ valorCents, nome: recebedor.nome, codigo, mensagem });
+  async function enviarPeloNegocio() {
+    setEnvio({ estado: "enviando" });
+    const r = await enviar!().catch(() => null);
+    if (r?.ok) return setEnvio(r.pendente ? { estado: "pendente", ...r.pendente } : { estado: "enviado" });
+    // sem resposta não quer dizer que não saiu: a queda pode ter vindo depois do envio
+    setEnvio({ estado: "falhou", texto: r ? `Não saiu pelo WhatsApp do negócio: ${r.error}` : "Sem conexão: confira na conversa se o Pix chegou antes de mandar de novo." });
+  }
   async function copiar() {
     setCopiado(null);
     try {
@@ -125,10 +139,24 @@ export function PixQr({
         <button type="button" onClick={copiar} className="h-11 rounded-lg bg-[#17150F] text-sm font-semibold text-[#FAF9F5]">
           {copiado === "sim" ? "Código copiado" : "Copiar código Pix"}
         </button>
-        <a href={`https://wa.me/?text=${encodeURIComponent(texto)}`} target="_blank" rel="noreferrer" className="flex h-11 items-center justify-center rounded-lg border border-[#D8D2C6] text-sm font-semibold hover:border-[#17150F]">
-          Enviar por WhatsApp
-        </a>
+        {enviar && envio?.estado !== "falhou" ? (
+          <button type="button" disabled={!!envio} onClick={enviarPeloNegocio} className="h-11 rounded-lg border border-[#D8D2C6] text-sm font-semibold hover:border-[#17150F] disabled:opacity-70">
+            {envio?.estado === "enviando" ? "Enviando…" : envio?.estado === "enviado" ? "Enviado ao cliente" : envio?.estado === "pendente" ? "Ainda não saiu" : "Enviar por WhatsApp"}
+          </button>
+        ) : (
+          <a href={`https://wa.me/?text=${encodeURIComponent(texto)}`} target="_blank" rel="noreferrer" className="flex h-11 items-center justify-center rounded-lg border border-[#D8D2C6] text-sm font-semibold hover:border-[#17150F]">
+            {envio?.estado === "falhou" ? "Mandar pelo seu WhatsApp" : "Enviar por WhatsApp"}
+          </a>
+        )}
       </div>
+      {envio?.estado === "enviado" && <p role="status" className="text-center text-xs text-[#2F6B3E]">Pix enviado pelo WhatsApp do negócio.</p>}
+      {envio?.estado === "pendente" && (
+        <div role="status" className="grid gap-2 text-xs">
+          <p className="text-center">{envio.texto}</p>
+          {envio.acao}
+        </div>
+      )}
+      {envio?.estado === "falhou" && <p role="alert" className="text-center text-xs text-[#B4472F]">{envio.texto}</p>}
       <p aria-live="polite" className="sr-only">{copiado === "sim" ? "Código Pix copiado." : copiado === "falhou" ? "Não deu para copiar. O código está logo abaixo, para selecionar e copiar." : ""}</p>
       {/* o código à vista: quem não consegue copiar pelo botão seleciona e copia */}
       <details open={copiado === "falhou"} className="text-xs text-[#5C5747]">

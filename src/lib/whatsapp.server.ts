@@ -7,7 +7,8 @@ import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { emParalelo } from "@/lib/paralelo";
-import { criarInstancia, enviarTexto, garantirTenant, OPTIN_DONO, revogarChavesAntigas, statusDaConexao, type ConexaoAtendys } from "@/lib/atendys";
+import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
+import { criarInstancia, enviarSemOperador, garantirTenant, OPTIN_DONO, revogarChavesAntigas, statusDaConexao, type ConexaoAtendys } from "@/lib/atendys";
 
 // O WhatsApp que o dono conectou ao próprio negócio: qual instância da
 // plataforma (atendys), o número pareado e o estado da conexão. Campo
@@ -97,7 +98,7 @@ export async function lerConexao(db: Firestore, slug: string): Promise<ConexaoWh
   const w = await lerInteira(db, slug);
   // sem atendysApiKey é resto do protólogo antigo (wtsfy): para o app é como se
   // não houvesse conexão — o dono reconecta e o provisionamento atendys roda do zero.
-  return w?.instanceId && w?.atendysApiKey ? w : null;
+  return w?.instanceId && w?.atendysApiKey ? { ...w, slug } : null;
 }
 
 /** O mapa whatsapp inteiro, com ou sem conexão — o termo pode estar aceito sem
@@ -444,7 +445,7 @@ export async function processarComandoAgendamento(
   if (codigo && codigo.length > 4 && !recentes.some((d) => d.id.toUpperCase().startsWith(codigo!))) codigo = undefined;
   const pendentes = futuros.filter((d) => d.get("status") === "booked" && (!codigo || d.id.toUpperCase().startsWith(codigo)));
   if (pendentes.length === 0) {
-    await enviarTexto(conexao, respostaPara, codigo ? `Não encontrei agendamento aguardando confirmação com o código ${codigo}.` : "Não encontrei agendamento aguardando confirmação.", OPTIN_DONO);
+    await enviarSemOperador(conexao, respostaPara, codigo ? `Não encontrei agendamento aguardando confirmação com o código ${codigo}.` : "Não encontrei agendamento aguardando confirmação.", OPTIN_DONO);
     return "sem pendente";
   }
   if (pendentes.length > 1) {
@@ -453,7 +454,7 @@ export async function processarComandoAgendamento(
       .sort((x, y) => startDe(x).getTime() - startDe(y).getTime())
       .map((d) => `${codigos.get(d.id)}: ${String(d.get("customerName") ?? "").trim()} · ${d.get("serviceName")} · ${quando(dateIn(startDe(d)), formatTime(startDe(d)))}`)
       .join("\n");
-    await enviarTexto(conexao, respostaPara, `Há mais de um agendamento aguardando. Responda com o código, por exemplo ${comando.verbo} ${codigos.get(pendentes[0].id)}:\n${lista}`, OPTIN_DONO);
+    await enviarSemOperador(conexao, respostaPara, `Há mais de um agendamento aguardando. Responda com o código, por exemplo ${comando.verbo} ${codigos.get(pendentes[0].id)}:\n${lista}`, OPTIN_DONO);
     return "sem pendente";
   }
   const a = pendentes[0];
@@ -462,6 +463,10 @@ export async function processarComandoAgendamento(
   // start é gravado no fuso de referência (como em reservaDe), então formata sem fuso local
   const quandoVai = quando(dateIn(start), formatTime(start));
   const servico = `${a.get("serviceName")} · ${quandoVai}`;
+  // só fala com o cliente quem aceitou o WhatsApp no agendamento; os antigos (sem o campo) não
+  const optIn = optInDoDoc(slug, a);
+  const semAceite = (o: string) =>
+    `Agendamento de ${nome} ${o}, mas o cliente não autorizou receber mensagens pelo WhatsApp e não foi avisado. Fale com ele por outro meio (tel ${a.get("customerPhone")}).`;
 
   // relê dentro da transação: o cliente ou o painel podem ter mudado o status entre a consulta e aqui
   const aplicar = async (status: "confirmed" | "cancelled", extra: Record<string, unknown>) => {
@@ -474,25 +479,33 @@ export async function processarComandoAgendamento(
     });
   };
   const mudou = async (ok: boolean) => {
-    if (!ok) await enviarTexto(conexao, respostaPara, `O agendamento de ${nome} (${servico}) já não estava aguardando confirmação. Nada foi alterado.`, OPTIN_DONO).catch(() => {});
+    if (!ok) await enviarSemOperador(conexao, respostaPara, `O agendamento de ${nome} (${servico}) já não estava aguardando confirmação. Nada foi alterado.`, OPTIN_DONO).catch(() => {});
     return ok;
   };
 
   if (recusar) {
     if (!(await mudou(await aplicar("cancelled", { reason: "whatsapp_rejected" })))) return "sem pendente";
     const cliente = soDigitosComDDI(String(a.get("customerPhone") ?? ""));
-    if (cliente) {
+    if (cliente && !optIn) {
+      await enviarSemOperador(conexao, respostaPara, semAceite("recusado"), OPTIN_DONO).catch(() => {});
+      return "recusado";
+    }
+    if (cliente && optIn) {
       try {
         const base = (process.env.PUBLIC_SITE_URL ?? `https://${slug}.ruphus.site`).replace(/\/+$/, "");
         const link = `${base}/agendar/${slug}`;
-        await enviarTexto(conexao, cliente, `Olá, ${nome}. O salão não conseguiu confirmar seu horário de ${servico}. Chame aqui pelo WhatsApp para remarcar ou agende outro horário pelo link: ${link}`);
+        const e = await enviarSemOperador(conexao, cliente, comAvisoSair(`Olá, ${nome}. Esse horário não está disponível: ${servico}. Faça um novo agendamento pelo link: ${link}`), optIn, startDe(a));
+        if (e.destino === "parada") {
+          await enviarSemOperador(conexao, respostaPara, `Agendamento de ${nome} recusado. O aviso ao cliente parou na cota diária do WhatsApp: decida em Mensagens no painel.`, OPTIN_DONO).catch(() => {});
+          return "recusado";
+        }
       } catch (e) {
         const motivo = e instanceof Error ? e.message : String(e);
-        await enviarTexto(conexao, respostaPara, `Agendamento de ${nome} recusado, mas o aviso ao cliente falhou: ${motivo}`, OPTIN_DONO).catch(() => {});
+        await enviarSemOperador(conexao, respostaPara, `Agendamento de ${nome} recusado, mas o aviso ao cliente falhou: ${motivo}`, OPTIN_DONO).catch(() => {});
         throw e;
       }
     }
-    await enviarTexto(conexao, respostaPara, `Agendamento de ${nome} (${servico}) recusado. O cliente foi avisado.`, OPTIN_DONO).catch(() => {});
+    await enviarSemOperador(conexao, respostaPara, `Agendamento de ${nome} (${servico}) recusado. O cliente foi avisado.`, OPTIN_DONO).catch(() => {});
     return "recusado";
   }
 
@@ -501,14 +514,18 @@ export async function processarComandoAgendamento(
   await avisarConfirmacaoPorSms(db, slug, a.id).catch((e) => console.error("[sms] confirmação pelo WhatsApp", e));
 
   const cliente = soDigitosComDDI(String(a.get("customerPhone") ?? ""));
-  if (cliente) {
+  if (cliente && !optIn) {
+    await enviarSemOperador(conexao, respostaPara, semAceite("confirmado"), OPTIN_DONO).catch(() => {});
+  } else if (cliente) {
     try {
-      await enviarTexto(conexao, cliente, `Olá, ${nome}! Seu agendamento está confirmado: ${servico}. Te esperamos!`);
+      const e = await enviarSemOperador(conexao, cliente, comAvisoSair(`Olá, ${nome}! Seu agendamento está confirmado: ${servico}. Te esperamos!`), optIn, startDe(a));
+      // parada na cota: quem opera o salão precisa saber que o cliente ainda não foi avisado
+      if (e.destino === "parada") await enviarSemOperador(conexao, respostaPara, `Agendamento de ${nome} confirmado. O aviso ao cliente parou na cota diária do WhatsApp: decida em Mensagens no painel.`, OPTIN_DONO).catch(() => {});
     } catch (e) {
       // o agendamento já está confirmado; quem precisa saber que o cliente não
       // foi avisado é quem opera o salão (self-chat), que está esperando o eco
       const motivo = e instanceof Error ? e.message : String(e);
-      await enviarTexto(conexao, respostaPara, `Agendamento de ${nome} confirmado, mas o aviso ao cliente falhou: ${motivo}`, OPTIN_DONO).catch(() => {});
+      await enviarSemOperador(conexao, respostaPara, `Agendamento de ${nome} confirmado, mas o aviso ao cliente falhou: ${motivo}`, OPTIN_DONO).catch(() => {});
       throw e;
     }
   }

@@ -170,6 +170,22 @@ assert.equal(nichoDe({ categoria: "Design de sobrancelhas", nome: "" })?.sub, "e
 assert.equal(nichoDe({ categoria: "Studio de tatuagem", nome: "" })?.tipo, "TattooParlor", "tatuagem antes de “studio” virar salão");
 assert.equal(nichoDe({ categoria: "", nome: "Kaos Tattoo Studio" })?.sub, "tatuagem");
 assert.equal(nichoDe({ categoria: "Restaurante", nome: "Petisco Bar" }), null);
+// nomes que as regras confundiam (revisão de ramos, 08/11/2026)
+for (const [nome, sub] of [
+  ["Bárbara Cílios e Sobrancelhas", "estetica"], ["Ana Paula Barbie das unhas", "unhas"], ["Barbearia Status", "barbearia"], ["Salão Status", "salao"],
+  ["Salão Beleza Absoluta", "salao"], ["Muay Thai Luta Livre", "lutas"],
+  ["MS encanto beauty", "salao"], ["Recanto da Beleza", "salao"], ["Escola de Canto Vozes", "musica"],
+  ["Cléo Estética Personalizada", "estetica"], ["Rafa Personal Trainer", "academia"],
+  ["Pétalas Esmalteria e Estética", "unhas"], ["Le Petit Atelier Hair", "salao"], ["Pet Shop Amigo", "petshop"], ["Petshop do Bairro", "petshop"], ["Ki Linda Estética Animal", "petshop"],
+  ["Oficina da Beleza", "salao"], ["Oficina GT Barbearia", "barbearia"], ["Oficina do Zé Mecânica", "oficina"],
+  ["Auto Estética Dirceu", "lavagem"], ["Clínica Estética - Lauane Cunha", "estetica"], ["Funilaria e pintura Martelinho de ouro Leandro", "oficina"], ["Unhas da Bia", "unhas"], ["Studio Unha Bonita", "unhas"], ["CJS ESTÉTICA CAR", "lavagem"], ["Front Car Estética Automotiva", "lavagem"],
+  ["Clínica Remove - Remoção de Tatuagem", "estetica"], ["Kaos Tattoo Studio", "tatuagem"],
+] as const) assert.equal(nichoDe({ categoria: "", nome })?.sub, sub, nome);
+// categoria genérica de clínica: o nome diz a especialidade
+assert.equal(nichoDe({ categoria: "Clínica", nome: "AC Clinic Estética Avançada" })?.sub, "estetica");
+assert.equal(nichoDe({ categoria: "Clínica médica", nome: "Clínica Sorriso Odontologia" })?.sub, "odonto");
+assert.equal(nichoDe({ categoria: "Clínica médica", nome: "Clínica São Lucas" })?.sub, "clinica");
+assert.equal(nichoDe({ categoria: "Salão de Beleza", nome: "Oficina do Zé" })?.sub, "salao", "a categoria específica continua valendo");
 assert.equal(nichoDe({ categoria: "", nome: "Barbearia Navalha" })?.sub, "barbearia");
 // cursos profissionalizantes: formação vence o ramo ensinado, e cursinho continua reforço
 assert.equal(nichoDe({ categoria: "Escola de cabeleireiro", nome: "" })?.sub, "profissionalizante");
@@ -353,7 +369,16 @@ console.log("gerador: ok");
   // kit extra na cidade (depilação) não entra no sorteio dos outros sites
   assert.ok(sortearVisual("vizinho", [0, 1, 2, 3].map((kit) => ({ kit, cor: 0 })).concat({ kit: 4, cor: 0 }), dim).kit < 4);
   assert.equal(visualEditorial("segredo-do-pello", "estetica", { kit: 4 }).foto, "/assets/beleza/depilacao-1/hero.jpg");
-  assert.equal(visualEditorial("x", "salao", { kit: 4 }).kit, visualEditorial("x", "salao").kit, "índice fora do estilo cai no do slug");
+  assert.equal(visualEditorial("x", "salao", { kit: 7 }).kit, visualEditorial("x", "salao").kit, "índice fora do estilo cai no do slug");
+  assert.equal(visualEditorial("x", "salao", { kit: 6 }).kit, "/assets/beleza/infantil-3");
+  // salão infantil: fotos e cores próprias só pelo modelo; o sorteio do salão segue igual
+  assert.equal(visualEditorial("x", "salao", { kit: 4 }).kit, "/assets/beleza/infantil-1");
+  const kids = visualEditorial("tio-rafa", "salao", { kit: 4, cor: 6, modelo: "infantil-1" });
+  assert.equal(kids.acc, "#FF7A59");
+  assert.equal(kids.e.rotulo, "Salão infantil");
+  assert.ok(kids.e.padrao.includes("Primeiro corte"));
+  assert.equal(visualEditorial("tio-rafa", "salao").e.rotulo, "Salão de beleza", "sem o modelo, o salão é o de sempre");
+  assert.ok(escolhaEditorial("salao", "qualquer").cor < 6, "as cores infantis não entram no sorteio");
   // sem escolha, o site sai como sempre saiu
   const padrao = escolhaEditorial("barbearia", "salao-antigo");
   assert.deepEqual(visualEditorial("salao-antigo", "barbearia").foto, visualEditorial("salao-antigo", "barbearia", padrao).foto);
@@ -414,7 +439,18 @@ console.log("gerador: ok");
   assert.deepEqual(m.map((x) => x.id), ["petshop-1", "petshop-2", "petshop-3", "petshop-4"]);
   assert.equal(modeloClaroDoId("petshop", "petshop-2")?.escolha.kit, 1);
   assert.equal(modeloClaroDoId("vet", "petshop-2"), undefined, "modelo de outro ramo não vale");
-  assert.equal(modelosClaro("profissionalizante").length, 3);
+  assert.equal(modelosClaro("profissionalizante").length, 4);
+  // destaque do topo legível sobre a foto: o azul escuro do idiomas clareia, o dourado fica
+  const { destaqueNoTopo } = await import("@/lib/site-claro");
+  assert.equal(destaqueNoTopo("#F0B429"), "#F0B429", "cor que já passa volta igual");
+  assert.notEqual(destaqueNoTopo("#2F5D8A"), "#2F5D8A", "azul escuro clareia");
+  assert.match(destaqueNoTopo("#2F5D8A"), /^#[0-9A-F]{6}$/);
+  assert.equal(modelosClaro("idiomas").length, 3);
+  const { MODELOS } = await import("@/lib/site-editorial");
+  const { SUBS } = await import("@/lib/gerador");
+  assert.equal(MODELOS.filter((x) => SUBS[x.sub].nicho === "fitness").length, 12, "3 por ramo de fitness");
+  assert.equal(MODELOS.filter((x) => SUBS[x.sub].nicho === "automotivo").length, 9, "3 por ramo automotivo");
+  assert.equal(MODELOS.filter((x) => SUBS[x.sub].nicho === "beleza").length, 33, "30 de beleza + 3 do salão infantil");
   const { galeriaClaro } = await import("@/lib/site-claro");
   const g = galeriaClaro("pet-feliz", "petshop");
   assert.equal(new Set(g).size, 3, "três fotos distintas");

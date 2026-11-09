@@ -94,5 +94,53 @@
   "pneus-2/ga3.jpg": {
     "alt": "Mecânico sorridente ao lado da roda no alinhamento",
     "pexels": "3806288"
+  },
+  "oficina-3/hero.jpg": {
+    "alt": "Mecânico verificando o motor com o capô aberto",
+    "pexels": "9626877"
+  },
+  "oficina-3/ga1.jpg": {
+    "alt": "Mãos usando o scanner de diagnóstico automotivo",
+    "pexels": "4116193"
+  },
+  "oficina-3/ga2.jpg": {
+    "alt": "Troca de óleo do motor",
+    "pexels": "13065690"
+  },
+  "oficina-3/ga3.jpg": {
+    "alt": "Mecânico sorridente com scanner de diagnóstico ao lado do carro",
+    "pexels": "6870326"
+  },
+  "estetica-3/hero.jpg": {
+    "alt": "Pano de microfibra sobre a pintura de carro preto",
+    "pexels": "14231672"
+  },
+  "estetica-3/ga1.jpg": {
+    "alt": "Limpeza do painel e volante do carro",
+    "pexels": "6872585"
+  },
+  "estetica-3/ga2.jpg": {
+    "alt": "Aplicação de vitrificação com esponja",
+    "pexels": "20051453"
+  },
+  "estetica-3/ga3.jpg": {
+    "alt": "Higienização interna do carro",
+    "pexels": "17029941"
+  },
+  "pneus-3/hero.jpg": {
+    "alt": "Montagem de pneu na máquina desmontadora",
+    "pexels": "5260115"
+  },
+  "pneus-3/ga1.jpg": {
+    "alt": "Aperto dos parafusos da roda",
+    "pexels": "8986175"
+  },
+  "pneus-3/ga2.jpg": {
+    "alt": "Mecânico apertando a roda com parafusadeira",
+    "pexels": "6870318"
+  },
+  "pneus-3/ga3.jpg": {
+    "alt": "Calibragem do pneu",
+    "pexels": "3807449"
   }
 }

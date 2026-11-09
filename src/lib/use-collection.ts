@@ -22,7 +22,13 @@ export function useCollection<S extends z.ZodType>(
 
   useEffect(() => {
     if (!tenantId) return; // sem tenant, sem consulta (ex.: módulo desligado)
-    return onSnapshot(
+    // Escuta que falha morre (o Firestore não retoma): a tela ficava congelada sem aviso — um
+    // "Recebi" não aparecia até recarregar. Tenta de novo algumas vezes (erro passageiro, como a
+    // troca de token logo depois do login) e deixa o erro no console para achar a causa.
+    let parar = () => {};
+    let espera: ReturnType<typeof setTimeout> | undefined;
+    let tentativa = 0;
+    const assinar = () => (parar = onSnapshot(
       query(collection(db, "tenants", tenantId, name), ...constraints),
       (snap) =>
         setResult({
@@ -34,8 +40,17 @@ export function useCollection<S extends z.ZodType>(
             return r.success ? [{ ...(r.data as object), id: d.id } as Item] : [];
           }),
         }),
-      (err) => setResult({ for: current, items: [], error: errorMessage(err) }),
-    );
+      (err) => {
+        console.error(`[${name}] escuta caiu (tentativa ${tentativa + 1})`, err);
+        setResult({ for: current, items: [], error: errorMessage(err) });
+        if (tentativa < 3) espera = setTimeout(assinar, 1500 * 2 ** tentativa++);
+      },
+    ));
+    assinar();
+    return () => {
+      clearTimeout(espera);
+      parar();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current]);
 

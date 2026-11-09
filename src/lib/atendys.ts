@@ -1,6 +1,7 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import QRCode from "qrcode";
+import { atualizarParada, prazoDaParada, registrarParada } from "@/lib/mensagens-paradas.server";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { integracao } from "@/lib/integracoes.server";
 
@@ -34,10 +35,23 @@ export type StatusConexao = "connected" | "disconnected" | "qr";
 /** imagem: pronta para o src de um <img> (data URL). */
 export type SituacaoQr = { status: "qr"; imagem: string } | { status: "connecting" } | { status: "connected"; phone: string };
 
-export type Envio = { messageId: string; status: string };
+/** Resposta do envio. status "queued" com retryAt: aceita, sai mais tarde (limite curto).
+ *  "awaiting_manual": a cota estourou e a mensagem fica parada até alguém escolher entre
+ *  enviar à mão (manual-handoff) ou manter agendada (resume). Nenhum dos dois é "enviada". */
+export type Envio = {
+  messageId: string;
+  status: string;
+  retryAt?: string | null;
+  manualHandoffRequired?: boolean;
+  manualHandoffUrl?: string;
+  /** Por que parou (RATE_LIMITED, INSTANCE_UNAVAILABLE, QUIET_HOURS), quando o atendys diz. */
+  errorCode?: string;
+};
+export const aguardaDecisao = (e: Pick<Envio, "status">) => e.status === "awaiting_manual";
 
 // quem envia/recebe: precisa da apikey do tenant e do nome da instância
-export type ConexaoAtendys = { atendysApiKey: string; instanceId: string };
+// slug: o negócio (lerConexao preenche); com ele, mensagem parada na cota fica registrada para o painel
+export type ConexaoAtendys = { atendysApiKey: string; instanceId: string; slug?: string };
 
 /** Recusa do atendys: status HTTP e o código do contrato ({ error: { code } }), para quem chama
  *  decidir (409 na instância, NOT_OPTED_IN no envio) sem ler a mensagem. */
@@ -57,6 +71,8 @@ const MENSAGEM: Record<string, string> = {
   INSTANCE_NOT_FOUND: "A conexão do WhatsApp não foi encontrada. Reconecte pelo painel.",
   INVALID_API_KEY: "A credencial do WhatsApp foi recusada. Reconecte pelo painel.",
   UNAUTHORIZED: "A credencial do WhatsApp foi recusada. Reconecte pelo painel.",
+  IDEMPOTENCY_CONFLICT: "Essa mesma mensagem já foi enviada há poucos minutos.",
+  MESSAGE_NOT_FOUND: "Essa mensagem não foi encontrada no WhatsApp do negócio.",
 };
 
 async function chamar<T>(auth: Record<string, string>, method: string, caminho: string, corpo?: unknown): Promise<T> {
@@ -247,43 +263,105 @@ export async function qrDaConexao(conn: ConexaoAtendys): Promise<SituacaoQr> {
 }
 
 // o atendys exige origem E evidência (texto livre) em todo consentimento (OptInDto);
-// sem evidência o opt-in volta 400 e o envio nunca sai. A evidência diz o que aconteceu de
-// fato: o cliente tem horário no negócio e o número está no cadastro do agendamento.
-const EVIDENCIA_PADRAO = "Cliente com horário agendado no negócio; número do cadastro do agendamento (ruphus.site)";
+// sem evidência o opt-in volta 400 e o envio nunca sai.
 
 /** Consentimento registrado quando o número ainda não tem: origem + evidência. null = não
- *  registra (envio avulso, como o teste do dono, não pode alegar consentimento). */
+ *  registra: o gateway recusa (NOT_OPTED_IN) e a mensagem não sai. Consentimento nunca é
+ *  presumido: quem fala com cliente passa o opt-in gravado no agendamento (consentimento-whatsapp.ts). */
 export type OptIn = { origem: string; evidencia: string } | null;
-const OPTIN_PADRAO: OptIn = { origem: "ruphus-agendamento", evidencia: EVIDENCIA_PADRAO };
 /** Aviso para o número do próprio negócio (self-chat) ou o WhatsApp pessoal do dono. */
 export const OPTIN_DONO: OptIn = { origem: "ruphus-aviso-dono", evidencia: "Número do próprio negócio ou do dono, cadastrado por ele no painel da Ruphus" };
 
 /**
  * Texto simples (confirmação, lembrete, recibo). O atendys exige o cabeçalho
  * `instance` (qual número do tenant envia) e opt-in do destinatário (LGPD, sempre
- * em produção): quando o número ainda não tem, registramos com origem ruphus e
- * a evidência de que o titular forneceu o número para receber a comunicação do
- * agendamento. Falha de opt-in inscreve e repete o envio uma vez.
+ * em produção): quando o número ainda não tem E quem chama passa um optIn (aceite explícito
+ * gravado), registramos e repetimos o envio uma vez. Sem optIn, a recusa sobe como está.
  */
-export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn = OPTIN_PADRAO): Promise<Envio> {
+export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
   const auth = { ...authTenant(conn), instance: conn.instanceId };
-  const enviar = () => chamar<{ id: string; status: string }>(auth, "POST", "/v1/message/send-text", { number: digits, text: message });
+  const enviar = async (): Promise<Envio> => {
+    const r = await chamar<{ id: string; status: string } & Omit<Envio, "messageId" | "status">>(auth, "POST", "/v1/message/send-text", { number: digits, text: message });
+    // os campos da cota só quando vêm: o envio comum continua { messageId, status }
+    return {
+      messageId: r.id,
+      status: r.status,
+      ...(r.retryAt && { retryAt: r.retryAt }),
+      ...(r.manualHandoffRequired && { manualHandoffRequired: true }),
+      ...(r.manualHandoffUrl && { manualHandoffUrl: r.manualHandoffUrl }),
+      ...(r.errorCode && { errorCode: r.errorCode }),
+    };
+  };
+  const registrar = async (e: Envio) => {
+    if (aguardaDecisao(e) && conn.slug) await registrarParada(conn.slug, { messageId: e.messageId, retryAt: e.retryAt, errorCode: e.errorCode, para: digits, texto: message });
+    return e;
+  };
   try {
-    const r = await enviar();
-    return { messageId: r.id, status: r.status };
+    return await registrar(await enviar());
   } catch (e) {
     if (optIn && e instanceof ErroAtendys && e.codigo === "NOT_OPTED_IN") {
       await registrarOptIn(conn, digits, optIn.origem, optIn.evidencia);
-      const r = await enviar();
-      return { messageId: r.id, status: r.status };
+      return registrar(await enviar());
     }
     throw e;
   }
 }
 
+// o id vai no caminho: só o formato que o atendys gera (uuid), nada de "../"
+const ID_MENSAGEM = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const caminhoDa = (messageId: string, acao: string) => {
+  if (!ID_MENSAGEM.test(messageId)) throw new ErroPrevisto("Mensagem inválida.");
+  return `/v1/message/${messageId}/${acao}`;
+};
+
+/** "Enviar agora" de uma mensagem parada na cota: o atendys marca manual_started (ação manual
+ *  iniciada, não enviada) e devolve o wa.me com o número e o texto. A URL tem dados do cliente:
+ *  não vai para log. Repetir é seguro (devolve o mesmo fluxo). */
+export async function assumirEnvio(conn: ConexaoAtendys, messageId: string) {
+  return chamar<{ id: string; status: string; manualHandoffUrl: string; manualHandoffAt: string | null }>(authTenant(conn), "POST", caminhoDa(messageId, "manual-handoff"), {});
+}
+
+/** "Manter agendada": volta à fila para sair no retryAt (hora em UTC). */
+export async function manterAgendada(conn: ConexaoAtendys, messageId: string) {
+  return chamar<{ id: string; status: string; retryAt: string | null }>(authTenant(conn), "POST", caminhoDa(messageId, "resume"), {});
+}
+
+/** Estado atual de uma mensagem (queued, awaiting_manual, manual_started, sent, delivered, read, failed). */
+export async function statusDaMensagem(conn: ConexaoAtendys, messageId: string) {
+  return chamar<{ id: string; status: string; retryAt?: string | null; errorMessage?: string | null; manualHandoffRequired?: boolean; manualHandoffUrl?: string }>(authTenant(conn), "GET", caminhoDa(messageId, "status"));
+}
+
+/** Envio sem ninguém olhando (lembrete, aviso de agendamento, robô): parada na cota, volta à fila
+ *  se o retryAt ainda serve (antes do prazo, quando há); senão fica parada para o painel decidir.
+ *  Devolve o que aconteceu, para quem chama não registrar como enviada. */
+export async function seguirSemOperador(conn: ConexaoAtendys, envio: Envio, prazo?: Date): Promise<"enviada" | "agendada" | "parada"> {
+  if (!aguardaDecisao(envio)) return envio.retryAt ? "agendada" : "enviada";
+  const quando = envio.retryAt ? new Date(envio.retryAt) : null;
+  // sem prazo, não há como saber se ainda serve amanhã ("confirmado" um dia depois engana): fica parada
+  if (prazo && quando && !Number.isNaN(quando.getTime()) && quando < prazo) {
+    // a mensagem já foi aceita: falha ao reagendar não é falha de envio (quem chama não reenvia)
+    const ok = await manterAgendada(conn, envio.messageId).then(() => true, (e) => (console.error(`[atendys] resume de ${envio.messageId}`, e), false));
+    if (ok) {
+      // voltou à fila: sai da lista do painel (senão o dono poderia mandar à mão de novo)
+      if (conn.slug) await atualizarParada(conn.slug, envio.messageId, "queued", envio.retryAt).catch((e) => console.error(`[mensagens] fila de ${envio.messageId}`, e));
+      return "agendada";
+    }
+  }
+  // parada até o horário: depois dele, some da lista do painel
+  if (prazo && conn.slug) await prazoDaParada(conn.slug, envio.messageId, prazo);
+  console.warn(`[atendys] mensagem ${envio.messageId} parada na cota, sem horário útil para reenviar`);
+  return "parada";
+}
+
+/** enviarTexto + seguirSemOperador: para quem envia sem ninguém olhando a tela. */
+export async function enviarSemOperador(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date) {
+  const envio = await enviarTexto(conn, phone, message, optIn);
+  return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };
+}
+
 /** Consentimento explícito (quando o fluxo pede, ex.: aceite no agendamento). */
-export function registrarOptIn(conn: ConexaoAtendys, phone: string, origem: string, evidencia = EVIDENCIA_PADRAO) {
+export function registrarOptIn(conn: ConexaoAtendys, phone: string, origem: string, evidencia: string) {
   return chamar(authTenant(conn), "POST", "/v1/optin", {
     number: phone.replace(/\D/g, ""),
     source: origem,

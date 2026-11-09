@@ -12,12 +12,10 @@ import { capaClaro, ehClaro } from "@/lib/site-claro";
 // Os sites da fábrica têm o arquivo em public/s/{slug}/og.jpg, que responde antes,
 // ou publicado no Storage, que esta rota devolve antes de montar a imagem.
 
-// Uma hora: a aba Gerador limpa na hora ao gravar, mas o npm run gerar:sites roda
-// fora do Next e não alcança o cache
-export const revalidate = 3600;
-export function generateStaticParams() {
-  return [];
-}
+// Montada a cada pedido, como o site: o revalidatePath do Next 16 não derruba a resposta
+// guardada de uma Route Handler, e a prévia do WhatsApp ficava até uma hora com o modelo velho.
+// Quem pede é o WhatsApp/Google ao ler o link e a gaveta do admin: pouca coisa.
+export const dynamic = "force-dynamic";
 
 /** A fonte em TTF, só com as letras do texto (o ImageResponse não lê woff2). */
 async function fonte(familia: string, texto: string) {
@@ -36,10 +34,10 @@ const BASE =
 
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const slug = (await params).slug;
-  const publicado = await doStorage(slug, ["og.jpg"]);
-  if (publicado) return publicado;
+  // site do gerador: a imagem sai do modelo. O og.jpg guardado no Storage é o da fábrica,
+  // que ficou lá depois da conversão e mostrava a foto velha no WhatsApp (645 sites)
   const d = await lerSite(adminDb, slug);
-  if (!d) return new Response("Imagem não encontrada", { status: 404 });
+  if (!d) return (await doStorage(slug, ["og.jpg"])) ?? new Response("Imagem não encontrada", { status: 404 });
   const capa = ehClaro(d.sub) ? capaClaro(d) : capaEditorial(d);
 
   const foto = `${BASE}/s${capa.foto}`;
@@ -70,5 +68,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   ).arrayBuffer();
   // JPEG: o PNG de uma foto passa de 1 MB, e o WhatsApp não mostra prévia de imagem pesada
   const jpg = await sharp(Buffer.from(png)).jpeg({ quality: 80, mozjpeg: true }).toBuffer();
-  return new Response(new Uint8Array(jpg), { headers: { "content-type": "image/jpeg" } });
+  // sem Cache-Control, a Cloudflare guarda .jpg sozinha por horas e a troca de modelo não chegava
+  // à prévia: um minuto na borda, cinco no navegador
+  return new Response(new Uint8Array(jpg), { headers: { "content-type": "image/jpeg", "cache-control": "public, max-age=300, s-maxage=60" } });
 }

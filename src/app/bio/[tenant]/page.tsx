@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { adminDb } from "@/lib/admin";
 import { agendaDesligada, agendaDias, foraDoAr } from "@/lib/booking.server";
-import { addDays, formatBRL, fusoDaUF, linkWhatsApp, todayIn, weekday, WEEKDAYS, precoDe, type TipoPreco } from "@/lib/datetime";
+import { addDays, formatBRL, fusoDe, linkWhatsApp, todayIn, weekday, WEEKDAYS, precoDe, type TipoPreco } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
@@ -17,6 +17,7 @@ type Bio = {
   nome: string;
   cidade: string | null;
   uf: string | null;
+  fuso: string;
   telefone: string | null;
   instagram: string | null;
   endereco: string | null;
@@ -59,6 +60,7 @@ const carregar = cache(async (slug: string): Promise<Bio | null> => {
     nome: String(tenant.get("name")),
     cidade: tenant.get("site.city") ?? null,
     uf: tenant.get("site.uf") ?? null,
+    fuso: fusoDe(tenant.get("site")),
     telefone: tenant.get("site.phone") ?? null,
     instagram: tenant.get("site.instagram") ?? null,
     endereco: tenant.get("site.address") ?? null,
@@ -80,7 +82,7 @@ const carregar = cache(async (slug: string): Promise<Bio | null> => {
 async function proximosHorarios(slug: string, bio: Bio) {
   const curto = [...bio.servicos].sort((a, b) => a.duracao - b.duracao)[0];
   if (!curto || !bio.expediente.length || !bio.agendaOnline) return null;
-  const candidatos = Array.from({ length: 8 }, (_, i) => ({ i, date: addDays(todayIn(fusoDaUF(bio.uf)), i) }))
+  const candidatos = Array.from({ length: 8 }, (_, i) => ({ i, date: addDays(todayIn(bio.fuso), i) }))
     .filter(({ date }) => bio.expediente.some((e) => e.dia === weekday(date)))
     .slice(0, 3); // três dias de trabalho: são as abas da bio
   // staffId vazio: qualquer profissional, como na página de agendamento

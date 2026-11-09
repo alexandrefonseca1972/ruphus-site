@@ -6,6 +6,9 @@ import {
   fixo,
   paraTelefone,
 } from "@/lib/gerador";
+import { BOTAO_AGENDAR, BOTAO_TOPO, ESTILO_AGENDAR, itemMenu } from "@/lib/botao-agendar";
+import { destaqueNoTopo } from "@/lib/contraste";
+export { destaqueNoTopo };
 import { PET } from "@/lib/nichos/pet";
 import { AULAS } from "@/lib/nichos/aulas";
 import { SAUDE } from "@/lib/nichos/saude";
@@ -86,7 +89,7 @@ export function galeriaClaro(slug: string, sub: Sub) {
 
 // texto branco ou escuro por cima de uma cor: o claro escreve nos botões (--accent) e nos selos (--gold)
 const luminancia = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).reduce((soma, v, k) => soma + [0.2126, 0.7152, 0.0722][k] * (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4), 0);
-const tintaSobre = (hex: string) => (luminancia(hex) > 0.4 ? "#1B1208" : "#FFFFFF");
+export const tintaSobre = (hex: string) => (luminancia(hex) > 0.4 ? "#1B1208" : "#FFFFFF");
 
 /** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. Com `personal`, as
  *  cores (tinta = --accent, destaque = --gold), a fonte dos títulos e as fotos próprias entram
@@ -202,11 +205,12 @@ export function renderClaro(d: DadosSite): string {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Figtree:wght@400;600;700${fonte ? `&family=${fonte[1]}` : ""}&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/gerado/pet.css">
-<style>:root{${paleta[0]}${fonte ? `--font-display:'${fonte[0]}',serif;` : ""}}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){${paleta[1]}}}:root[data-theme="dark"]{${paleta[1]}}.hero{background:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("${topoUrl(false)}") center 38%/cover no-repeat;}@media (min-width:760px){.hero{background-image:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("${topoUrl(true)}");}}</style>
+<style>:root{${paleta[0]}${fonte ? `--font-display:'${fonte[0]}',serif;` : ""}}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){${paleta[1]}}}:root[data-theme="dark"]{${paleta[1]}}.hero{background:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("${topoUrl(false)}") center 38%/cover no-repeat;}@media (min-width:760px){.hero{background-image:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,.88) 100%),url("${topoUrl(true)}");}}${destaqueNoTopo(ouro) === ouro.toUpperCase() ? "" : `.hero h1 em,.hero .eyebrow,.hero-rating .stars{color:${destaqueNoTopo(ouro)}}.hero .eyebrow::before{background:${destaqueNoTopo(ouro)}}`}</style>
 ${cabecaComum(d, tituloPag, descr, d.publicado)}
 <meta name="theme-color" content="${cor}">
 ${d.uf ? `<meta name="geo.region" content="BR-${esc(d.uf)}">` : ""}
 ${jsonLdNegocio(d, descr, propriaNoTopo ? `/${proprias.hero}` : `/assets/${c.pasta}/${topo}.jpg`)}${jsonLd({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) })}
+${ESTILO_AGENDAR}
 </head>
 <body>
 ${d.publicado ? "" : faixaProposta(d)}
@@ -220,9 +224,8 @@ ${d.publicado ? "" : faixaProposta(d)}
         <span class="brand-sub">${esc([rotulo, onde].filter(Boolean).join(" · "))}</span>
       </span>
     </a>
-    <nav class="main-nav">${nav.map(([id, t]) => `<a href="#${id}">${t}</a>`).join("")}</nav>
+    <nav class="main-nav">${nav.map(([id, t]) => `<a href="#${id}">${itemMenu(id, t)}</a>`).join("")}</nav>
     <div class="header-actions">
-      ${botaoWa("btn btn-primary header-cta")}
       <button class="hamburger" id="hamburgerBtn" aria-label="Abrir menu"><span></span></button>
     </div>
   </div>
@@ -237,7 +240,7 @@ ${d.publicado ? "" : faixaProposta(d)}
     </a>
     <button class="drawer-close" id="drawerCloseBtn" aria-label="Fechar menu">&times;</button>
   </div>
-  <nav>${nav.map(([id, t]) => `<a href="#${id}" class="drawer-link">${t}</a>`).join("")}</nav>
+  <nav>${nav.map(([id, t]) => `<a href="#${id}" class="drawer-link">${itemMenu(id, t)}</a>`).join("")}</nav>
   ${botaoWa("btn btn-primary btn-block")}
 </aside>
 
@@ -249,9 +252,8 @@ ${d.publicado ? "" : faixaProposta(d)}
       <span class="eyebrow">${esc(sub)}</span>
       <h1>${esc(titulo)} <em>${esc(destaque)}</em></h1>
       <p class="lead">${esc(chamada)}</p>
+${BOTAO_AGENDAR}
       <div class="hero-ctas">
-        ${botaoWa("btn btn-gold")}
-<a data-agendar="1" class="btn btn-gold" href="/agendar">${RELOGIO}<span>Agendar online</span></a>
         <a href="#servicos" class="btn btn-outline" style="border-color:rgba(255,255,255,.5);color:#fff;">Ver serviços</a>
       </div>
     </div>
@@ -419,6 +421,7 @@ ${temNota ? `
   </div>
 </footer>
 
+${BOTAO_TOPO}
 <a class="fab" href="${oi}" target="_blank" rel="noopener" aria-label="Chamar no WhatsApp">${WA}<span class="fab-label">WhatsApp</span></a>
 <script>
 (function(){

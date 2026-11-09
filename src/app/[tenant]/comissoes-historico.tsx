@@ -1,9 +1,9 @@
 "use client";
 
 import { Dialog } from "@base-ui/react/dialog";
+import { useValores } from "@/lib/valores";
 import { where } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
-import { formatBRL } from "@/lib/datetime";
 import { Lancamento, mesDaComissao } from "@/lib/financeiro";
 import { useCollection } from "@/lib/use-collection";
 
@@ -15,6 +15,7 @@ const nomeCurto = (mes: string) => {
 /** Comissão de um profissional mês a mês: quanto faturou pela agenda, quanto foi pago,
  *  quanto de estorno foi abatido e devolvido, e o saldo de estorno ainda a descontar. */
 export function ComissoesHistorico({ tenantId, staffId, nome, pct, guardado, onClose }: { tenantId: string; staffId: string; nome: string; pct: number; guardado: number; onClose: () => void }) {
+  const { brl } = useValores();
   // ponytail: lê tudo do profissional e mostra os 12 meses mais recentes; com anos de histórico,
   // filtrar por mês no Firestore (índice staffId + mes)
   const [itens, erro] = useCollection(tenantId, "lancamentos", Lancamento, [where("staffId", "==", staffId)], staffId);
@@ -44,8 +45,8 @@ export function ComissoesHistorico({ tenantId, staffId, nome, pct, guardado, onC
             <Dialog.Title className="font-serifa text-2xl leading-tight">Comissões de {nome}</Dialog.Title>
             <Dialog.Description className="text-sm text-muted-foreground">
               {pct ? `${String(pct).replace(".", ",")}% hoje` : "Sem % definido"}
-              {guardado > 0 && ` · ${formatBRL(guardado)} de estorno a descontar no próximo pagamento`}
-              {guardado < 0 && ` · ${formatBRL(-guardado)} de estorno desfeito a devolver no próximo pagamento`}
+              {guardado > 0 && ` · ${brl(guardado)} de estorno a descontar no próximo pagamento`}
+              {guardado < 0 && ` · ${brl(-guardado)} de estorno desfeito a devolver no próximo pagamento`}
             </Dialog.Description>
           </div>
 
@@ -69,13 +70,13 @@ export function ComissoesHistorico({ tenantId, staffId, nome, pct, guardado, onC
                     <tr key={mes} className="border-t align-top">
                       <th scope="row" className="px-3 py-2.5 text-left font-medium">{nomeCurto(mes)}</th>
                       <td className="px-3 py-2.5 text-right">
-                        {formatBRL(m.faturou)}
-                        {m.estornado > 0 && <span className="block text-[13px] text-muted-foreground">− {formatBRL(m.estornado)} estornado</span>}
+                        {brl(m.faturou)}
+                        {m.estornado > 0 && <span className="block text-[13px] text-muted-foreground">− {brl(m.estornado)} estornado</span>}
                       </td>
                       <td className="px-3 py-2.5 text-right">
-                        {m.pago === undefined ? <span className="text-muted-foreground">não paga</span> : formatBRL(m.pago)}
-                        {m.abatido > 0 && <span className="block text-[13px] text-muted-foreground">− {formatBRL(m.abatido)} de estorno</span>}
-                        {m.abatido < 0 && <span className="block text-[13px] text-muted-foreground">+ {formatBRL(-m.abatido)} de estorno desfeito</span>}
+                        {m.pago === undefined ? <span className="text-muted-foreground">não paga</span> : brl(m.pago)}
+                        {m.abatido > 0 && <span className="block text-[13px] text-muted-foreground">− {brl(m.abatido)} de estorno</span>}
+                        {m.abatido < 0 && <span className="block text-[13px] text-muted-foreground">+ {brl(-m.abatido)} de estorno desfeito</span>}
                       </td>
                     </tr>
                   ))}
@@ -83,8 +84,8 @@ export function ComissoesHistorico({ tenantId, staffId, nome, pct, guardado, onC
                 <tfoot>
                   <tr className="border-t font-semibold">
                     <th scope="row" className="px-3 py-2.5 text-left">Total</th>
-                    <td className="px-3 py-2.5 text-right">{formatBRL(linhas.reduce((t, [, m]) => t + m.faturou - m.estornado, 0))}</td>
-                    <td className="px-3 py-2.5 text-right">{formatBRL(totalPago)}</td>
+                    <td className="px-3 py-2.5 text-right">{brl(linhas.reduce((t, [, m]) => t + m.faturou - m.estornado, 0))}</td>
+                    <td className="px-3 py-2.5 text-right">{brl(totalPago)}</td>
                   </tr>
                 </tfoot>
               </table>

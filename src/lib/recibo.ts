@@ -130,7 +130,11 @@ export function textoDoRecibo(linhas: ReturnType<typeof linhasDoRecibo>, negrito
  *  Entrada sem cliente é recibo sozinha. */
 export function itensDoRecibo<T extends Item & { tipo: string; customerKey?: string | null; estornoDe?: string }>(escolhido: T, doMes: T[]): T[] {
   const entradas = doMes.filter((l) => l.tipo === "entrada" && !l.estornoDe);
-  const doDia = escolhido.customerKey ? entradas.filter((l) => l.customerKey === escolhido.customerKey && l.data === escolhido.data) : [escolhido];
+  // o sinal entra no dia em que foi pago, que costuma ser antes do atendimento: o de outro horário
+  // ainda não recebido não é desta visita (somava o sinal de um agendamento futuro ao recibo de hoje)
+  const recebido = new Set(entradas.filter((l) => l.id.startsWith("ag-")).map(atendimentoDe));
+  const daVisita = (l: T) => l.id === escolhido.id || !l.id.startsWith("sn-") || recebido.has(atendimentoDe(l));
+  const doDia = escolhido.customerKey ? entradas.filter((l) => l.customerKey === escolhido.customerKey && l.data === escolhido.data && daVisita(l)) : [escolhido];
   const base = doDia.some((l) => l.id === escolhido.id) ? doDia : [escolhido];
   const atendimentos = new Set(base.filter((l) => /^(ag|sn)-/.test(l.id)).map(atendimentoDe));
   const juntos = new Map([...base, ...entradas.filter((l) => /^(ag|sn)-/.test(l.id) && atendimentos.has(atendimentoDe(l)))].map((l) => [l.id, l]));
@@ -140,9 +144,9 @@ export function itensDoRecibo<T extends Item & { tipo: string; customerKey?: str
 // o mesmo critério do cadastro do cliente: algo@dominio.tld, sem espaço, até 254 caracteres
 const EMAIL = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
 /** A mensagem do campo de e-mail do recibo, ou "" quando dá para enviar. */
-export function erroDoEmail(valor: string) {
+export function erroDoEmail(valor: string, quem = "do cliente") {
   const v = valor.trim();
-  if (!v) return "Digite o e-mail do cliente.";
+  if (!v) return `Digite o e-mail ${quem}.`;
   if (v.length > 254 || !EMAIL.test(v)) return "E-mail incompleto. Confira, ex.: nome@gmail.com";
   return "";
 }
@@ -158,4 +162,44 @@ export function sugestaoDeEmail(valor: string) {
   const [nome, dominio] = valor.trim().toLowerCase().split("@");
   const certo = dominio && DOMINIOS[dominio];
   return nome && certo ? `${nome}@${certo}` : "";
+}
+
+const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+/** O recibo em HTML, com a cara do cupom da tela (80 mm, fonte mono, tracejados). Estilo inline:
+ *  os apps de e-mail ignoram <style> e classes. */
+export function htmlDoRecibo(r: ReturnType<typeof linhasDoRecibo>) {
+  const mono = "font-family:ui-monospace,Menlo,Consolas,'Courier New',monospace;font-size:13px;line-height:1.45;color:#111";
+  const traco = `<tr><td colspan="2" style="border-top:1px dashed #888;padding:0;height:10px;font-size:0;line-height:0">&nbsp;</td></tr>`;
+  const linha = (a: string, b: string, extra = "", sub = "") =>
+    `<tr><td style="padding:3px 8px 3px 0;vertical-align:top;${extra}">${a}${sub ? `<div style="font-size:11px;color:#666">${sub}</div>` : ""}</td><td style="padding:3px 0;text-align:right;white-space:nowrap;vertical-align:top;${extra}">${b}</td></tr>`;
+  const centro = (s: string, extra = "") => `<tr><td colspan="2" style="text-align:center;padding:2px 0;${extra}">${s}</td></tr>`;
+  const [nome, ...cabecalho] = r.emissor.map(esc);
+  return `<!doctype html><html lang="pt-BR"><body style="margin:0;padding:24px 12px;background:#f3f1ec">
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;width:100%;max-width:360px;background:#fff;border-radius:4px;box-shadow:0 1px 2px #0001;${mono}">
+<tr><td style="padding:22px 20px"><table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="${mono}">
+${centro(nome, "font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold")}
+${cabecalho.map((c) => centro(c)).join("")}
+${traco}
+${centro("RECIBO", "font-weight:bold;letter-spacing:4px")}
+${centro(`${esc(r.titulo.replace("Recibo ", ""))} · ${esc(r.detalhes[0][1])}`)}
+${traco}
+${linha("<b>SERVIÇO</b>", "<b>VALOR</b>")}
+${r.itens.map((i, n) => linha(`${String(n + 1).padStart(2, "0")} ${esc(i.servico)}`, esc(i.valor), "", i.profissional ? esc(i.profissional) : "")).join("")}
+${traco}
+${linha("<b>PAGAMENTO</b>", "")}
+${r.pagamentos.map((p) => linha(esc(p.rotulo), esc(p.valor), "", p.detalhe ? esc(p.detalhe) : "")).join("")}
+${traco}
+${linha("<b>TOTAL</b>", `<b style="font-size:18px">${esc(r.valor)}</b>`)}
+${r.detalhes.slice(1).map(([k, v]) => linha(esc(k), esc(v))).join("")}
+${traco}
+<tr><td colspan="2" style="padding:2px 0;font-size:12px">${esc(r.declaracao)}</td></tr>
+<tr><td colspan="2" style="padding:28px 0 4px;text-align:center"><div style="width:80%;margin:0 auto;border-top:1px solid #111"></div><div style="font-size:12px;padding-top:4px">${nome}</div></td></tr>
+${centro(esc(r.rodape), "font-size:12px")}
+${traco}
+${centro("NÃO É DOCUMENTO FISCAL", "font-size:11px;color:#666;letter-spacing:1px")}
+${centro("Obrigado pela preferência!", "font-size:12px")}
+</table></td></tr></table>
+<p style="text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#888;margin:16px 0 0">Enviado por ${nome} pela Ruphus.</p>
+</body></html>`;
 }

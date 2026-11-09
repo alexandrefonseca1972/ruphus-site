@@ -5,6 +5,74 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Agendamento online: WhatsApp com DDD que não existe (20, 10, 23…) passa a ser recusado com "DDD inválido", na tela e no servidor. Antes só o DDD começando com 0 era barrado.
+- Histórico do horário: "Sinal recebido" aparece como "Sinal recebido, confirmado por …". Antes saía "Confirmado pelo WhatsApp", sem ter passado pelo WhatsApp.
+- Agendamento com sinal: o evento do Google Agenda diz "sinal de R$ X por Pix, o resto no local", como a tela. Antes dizia "pago no local".
+- Demonstração: a restauração da madrugada não cria mais um "Negócio criado" por dia na linha do tempo do admin (a entrada do dono da demo mantém a data original).
+- Etiquetas do cliente: "vip" e "VIP" são a mesma etiqueta; a repetida não entra e o campo limpa.
+- Funil: o cartão "Em negociação" passa a "Em aberto" (oferta enviada + negociando), para não confundir com a visão "Em negociação" da Lista (só negociando); "Taxa de ganho" diz o período dos fechados e perdidos.
+- Painel do dono: quem abre um link do painel sem estar logado (aviso de agendamento, favorito) volta para essa tela depois de entrar, como já acontecia no admin.
+- WhatsApp do negócio: sai o "Teste rápido" do painel (Meu negócio). Cada teste gastava uma mensagem da cota diária do número, que é a mesma dos lembretes e avisos aos clientes.
+- Mensagens do WhatsApp aguardando decisão: ao abrir a agenda, cada uma é conferida no WhatsApp do negócio (atendys); só fica a que ele ainda segura. Vencida, de conta reconectada ou desconhecida sai da lista.
+- Mensagens do WhatsApp aguardando decisão: as vencidas saem do painel. O WhatsApp do negócio (atendys) só guarda a mensagem parada por 24 horas; depois disso "Enviar agora" e "Manter agendada" eram recusados e o painel mostrava o erro em vermelho. Agora a validade fica registrada junto com a mensagem, a lista só mostra as que ainda servem e, se o atendys recusar por vencimento, a mensagem sai da lista com o aviso "Esta mensagem não pode mais ser enviada".
+- Modelo "Salão infantil" (3 variações) para salões de beleza: fotos de criança no salão, cores alegres (coral, turquesa, amarelo-sol), rótulo "Salão infantil" e frases e serviços padrão de criança (corte infantil, primeiro corte, tranças). Fotos e cores só entram pelo modelo: o sorteio dos outros salões não muda.
+- Modelo editorial (beleza, fitness, automotivo): a segunda linha do nome no topo (em itálico, na cor do modelo) fica legível sobre a foto. Paletas de marrom, vinho, verde e azul escuros clareiam só ali até contraste 3,5:1 ("Estrelas" no Barbeiro das Estrelas, "Moura" na Podóloga Alessandra Moura). O modelo claro passa à mesma régua.
+- Modelo claro (aulas, saúde, pet): o destaque do título, o selo e as estrelas do topo ficam legíveis sobre a foto. As paletas de azul e verde-petróleo escuros (idiomas, cursos, pet shop) clareiam só no topo até contraste 3:1; o resto da página segue com a cor da paleta.
+- Ramo lido do nome mais certeiro: "Bárbara", "Barbie" e "Cunha" não viram barbearia/unhas, "Absoluta" não vira luta, "Encanto/Recanto" não vira música, "Personalizada" não vira academia, "Pétalas/Petit" não vira pet shop, "Status" não vira tatuagem, "Oficina da Beleza" não vira oficina, "Auto Estética" é lava-jato, martelinho de ouro é oficina. Com categoria genérica de clínica, vale a especialidade do nome ("Clínica … Estética Avançada" é estética, não clínica médica). scripts/corrigir-ramos.mts corrigiu 298 sites de prospecção que estavam no ramo errado (255 clínicas de estética no modelo de clínica médica, 15 estéticas automotivas, 13 cursos, entre outros).
+- Gaveta do Site: o seletor de modelo ocupa a linha inteira e "Prévia" e "Aplicar modelo" dividem a de baixo; antes o "Aplicar modelo" passava da borda da gaveta.
+- Troca de modelo de verdade na hora: o site e a imagem do link (prévia do WhatsApp) passam a ser montados a cada visita. Com o cache, o revalidatePath do Next 16 não derrubava a página guardada e o site seguia com o modelo velho por até um minuto (a imagem, até uma hora).
+- Imagem do link com cache curto (um minuto na Cloudflare): sem cabeçalho, a Cloudflare guardava o .jpg por horas.
+- Prévia do WhatsApp dos 645 sites convertidos da fábrica: sai do modelo do site, não mais da imagem antiga da fábrica que tinha ficado no Storage.
+
+- Troca de modelo (e qualquer edição do site pelo admin ou pelo painel): o site, a imagem do link e a bio mostram a mudança na primeira visita. Antes, a primeira visita depois de "Aplicar modelo" ainda recebia a página antiga (o cache do Next 16 serve a cópia velha enquanto monta a nova); agora o servidor faz essa visita logo depois de gravar. "Ver o site" e "Bio" na gaveta abrem a versão nova direto.
+
+- Gaveta do Site: "Aplicar modelo" pede a confirmação ali mesmo, embaixo do botão ("Trocar o modelo de … para …?"), em vez do diálogo solto que não aparecia e deixava o clique sem efeito; o botão da prévia vira "Prévia" e não quebra em três linhas.
+- Nome comprido (o do Google com cidade e marcas): título do topo menor, nome do cabeçalho cortado com "…" (uma linha no computador, duas no celular) e o selo do ramo não fica mais embaixo do cabeçalho.
+
+- Fotos sem máscara nas consultas: nova capa de clínica médica (médico sem máscara conversando com a paciente) e novas fotos de veterinária (duas capas e uma da página); a capa da mesa de exame da veterinária também foi trocada, com o veterinário fora do texto.
+
+- Sites gerados (todos os modelos): "Agendar online" vira o botão da marca Ruphus — branco, com o R e o ponto amarelo pulsando no canto, e "Escolha em até 30 segundos"; igual em todos os sites, qualquer que seja a paleta. Seta fixa no canto esquerdo para voltar ao topo, que aparece depois de rolar. Itens do menu com ícones padronizados (os mesmos nos dois modelos).
+- WhatsApp sem repetição: sai o "Falar no WhatsApp" do topo da página e o botão de WhatsApp do cabeçalho; fica o botão flutuante (e o do menu no celular, no modelo claro).
+- Celular: a página não fica mais larga que a tela em aparelho de 320px (mapa e "Traçar rota" do modelo editorial); a tabela de valores do modelo claro vira cartões em vez de rolar de lado; "Ver serviços" não fica mais embaixo do WhatsApp flutuante.
+- Capas novas da dança-3 e da podologia-3; a podologia-3 passa ao verde-água (o destaque em petróleo sumia sobre a foto).
+
+- Modelos de site: fitness (academia, pilates, lutas, dança) e automotivo (oficina, estética automotiva, pneus) ganham 3 modelos por ramo na gaveta do Site, com um terceiro conjunto de fotos novo para cada um; a foto de capa da academia-2 foi trocada. Aulas ganham mais um modelo por ramo (nova foto de capa). A lista de modelos da gaveta mostra só os do nicho do negócio: oficina não recebe mais modelo com foto de salão.
+- Nicho: "Day spa" passa a ser estética, e os sites convertidos da fábrica passam a gravar o nicho junto com o ramo (scripts/migrar-nicho.mts completa os que ficaram sem).
+
+- WhatsApp do negócio com cota do dia (atendys): mensagem parada (awaiting_manual) não aparece mais como enviada. Na agenda e no Pix, o dono vê "A cota diária foi atingida. Envie agora pelo WhatsApp ou mantenha a mensagem agendada." — "Enviar agora" abre o WhatsApp só depois que o atendys confirma a ação manual; "Manter agendada" mostra a hora em que sai, no fuso do negócio. Mensagem na fila mostra a hora de saída em vez de "enviada".
+- Envios sem ninguém olhando (lembrete, aviso de agendamento, robô de confirmação) parados na cota voltam sozinhos à fila quando ainda saem antes do horário; senão aparecem na agenda em "mensagens do WhatsApp aguardando decisão". O status das mensagens paradas chega pelo webhook (assinatura conferida pelo negócio da mensagem).
+
+- Agenda: depois de "Recebi", o aviso sempre traz "Recibo"; se a lista ainda não mostrou o recebimento, o recibo lê direto do banco. Escuta do banco que cai (erro passageiro) tenta de novo até 3 vezes e deixa o erro no console, em vez de congelar a tela até recarregar.
+
+- Recibo por e-mail pela plataforma: "Enviar" manda o recibo no formato do cupom, de contato@ruphus.site com o nome do negócio, sem abrir o app de e-mail do aparelho. O servidor monta o recibo do banco.
+- Recibo: o sinal pago hoje para um horário que ainda não foi atendido não entra mais no recibo da visita de hoje (o total saía somado a mais).
+
+- Vale: o profissional com % de comissão aparece em Comissões mesmo antes de faturar no mês, para receber vale no dia 1; o aviso de e-mail vazio fala do profissional (não do cliente); o recibo diz "pagos em dinheiro".
+
+- Caixa: "Lançamentos do mês" ganhou Tudo / Entradas / Saídas, com o total de cada lado. Contas fixas, compras, comissões e vales ficam em Saídas, longe dos atendimentos.
+
+- Vale para o profissional: em Comissões, "Vale" paga parte da comissão em qualquer dia, mesmo com o mês já pago. Sai do Caixa como saída de hoje e é descontado sozinho do próximo pagamento de comissão (o que passar dele fica para o seguinte). A confirmação vai sempre por e-mail ao profissional; o recibo para ele assinar é opcional, logo depois de registrar.
+
+- Fuso do negócio: no cadastro e em "Meu negócio", "Definir fuso automaticamente pela UF" vem marcado e usa o fuso do estado (todos os 27 com fuso próprio, como Belém para PA e AP). Desmarcado, o dono escolhe outro fuso do Brasil, para quem atende de uma central noutra região. O fuso vale para o "já passou" do link de agendamento, os lembretes e o SMS.
+
+- Aviso no topo da agenda some sozinho: o só de texto em 6 segundos; o que tem botão (Avisar pelo WhatsApp, Recibo) em 20 segundos. "Fechar" continua fechando na hora.
+
+- Privacidade dos valores: um olho ao lado do título da Agenda, do Caixa e de Clientes esconde os valores em dinheiro ("R$ ••••") para atender com o cliente do lado. A escolha fica neste aparelho e vale para as três telas.
+
+- Recibo pela agenda: depois de "Recebido", o aviso no topo traz o botão "Recibo" (imprimir, WhatsApp ou e-mail, o mesmo do Caixa), e o menu de cada horário já recebido ganha "Recibo".
+
+- Pix do atendimento pelo WhatsApp do negócio: com o WhatsApp conectado, "Enviar por WhatsApp" no QR do Pix manda o código direto ao número do cliente do horário. Sem conexão, ou se não sair, abre o WhatsApp do aparelho como antes.
+
+- Agendar pelo link: o dono escolhe em "Meu negócio" quantos serviços (até 10; padrão 5) e quanto tempo somado (até 8 h; padrão 4 h) o cliente marca de uma vez. Na página, o serviço que passaria do limite fica apagado e diz por quê, com o contador "3 de 5 escolhidos"; o servidor recusa a reserva que passa. Um serviço sozinho mais longo que o limite continua valendo. Pelo painel não há limite.
+
+- Aviso ao cliente pelo WhatsApp do negócio: o painel diz só qual aviso é (confirmado, cancelado, remarcado) e o servidor monta o texto a partir do horário, recusando aviso que não bate com o estado (ex.: "confirmado" de um horário cancelado) ou de horário que já passou. Sem conexão no meio do envio, o painel não afirma que a mensagem não saiu: pede para conferir antes de mandar de novo. Na demonstração, vai direto ao WhatsApp do aparelho.
+
+- Convite da equipe: o link aparece na hora; o e-mail sai depois da resposta, sem esperar o provedor. E-mail e mensagem de WhatsApp usam o mesmo texto.
+
+- Página não encontrada nos sites dos negócios: com o nome, as cores e a fonte do próprio site, e os botões "Ir para o início do site" e "Agendar horário".
+
+- Agenda do painel no celular: a faixa da semana volta a mostrar "livre" ou o número de horários de cada dia ("4 hor.").
+
 - Agendar pelo link, no celular, em 3 toques: o serviço já mostra os 3 horários mais cedo logo abaixo dele; "com quem", "outro dia" (semana com setas, número de vagas embaixo de cada dia, horários em Manhã/Tarde/Noite) e a confirmação abrem em folhas por cima da página. Novos casos: horário pego por outra pessoa enquanto confirmava (aviso e os 3 próximos livres, um toque para pegar), semana sem vaga (semana seguinte, qualquer profissional ou pedir encaixe no WhatsApp), "repetir o último" para quem já agendou neste aparelho, e pílula "Ver horários" quando a lista de serviços é longa. O Pix do sinal ganha um relógio discreto (mm:ss) que fica âmbar nos últimos 5 minutos.
 
 - Landing: seção "Pelo Brasil", com o mapa dos sites prontos por estado (dica com o número, os 8 estados com mais sites e o total). Os números vêm do catálogo ao vivo (`/api/catalogo` passa a trazer `ufs`), relido a cada 6 h: site novo entra no mapa sozinho.

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { renovarSite } from "@/lib/renovar-site.server";
 import { conectarDominio, desconectarDominio, verificarDominio } from "@/lib/dominio.server";
 import type { Dominio } from "@/lib/dominio";
 import { z } from "zod";
@@ -624,7 +625,7 @@ export const marcarPaga = adminAction(async (user, id: string, recebidoCents: nu
   const paga = await baixar(adminDb, id, { recebidoCents, pagoEm, por: user.email ?? user.uid });
   // a entrada é o "publicar": a faixa de proposta sai e o site abre para o Google
   if (paga.tipo === "entrada" && paga.slug && (await publicarSite(adminDb, paga.slug))) {
-    for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${paga.slug}/${p}`);
+    renovarSite(paga.slug);
   }
 });
 
@@ -645,10 +646,7 @@ export const dominioDoSite = adminAction(async (_user, slug: string) => {
 });
 
 // o site, a imagem de compartilhamento e a bio trocam de endereço junto com o domínio
-const renovarEnderecos = (slug: string) => {
-  for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${slug}/${p}`);
-  revalidatePath(`/bio/${slug}`);
-};
+const renovarEnderecos = renovarSite;
 
 /** Liga o domínio do cliente ao site (fica pendente até o DNS apontar) e já diz o que criar no DNS. */
 export const ligarDominio = adminAction(async (_user, slug: string, host: string) => {
@@ -678,8 +676,9 @@ export const siteDoNegocio = adminAction(async (_user, slug: string) => {
   slugValido(slug);
   const { escolha, ...site } = await lerSiteDoNegocio(adminDb, slug);
   const e = escolha as (Escolha & { modelo?: string }) | undefined;
-  // cada modelo tem a sua lista: o editorial compartilha entre ramos, o claro é por ramo
-  const modelos = ehClaro(site.sub as Sub) ? modelosClaro(site.sub as Sub) : MODELOS;
+  // cada modelo tem a sua lista: o editorial compartilha entre ramos do mesmo nicho (beleza com
+  // beleza; oficina não recebe foto de salão), o claro é por ramo
+  const modelos = ehClaro(site.sub as Sub) ? modelosClaro(site.sub as Sub) : MODELOS.filter((m) => SUBS[m.sub].nicho === SUBS[site.sub as Sub]?.nicho);
   // escolha gravada que não é de nenhum modelo da lista: "personalizado", só para mostrar
   const casa = e?.modelo ? modelos.find((m) => m.id === e.modelo)?.id : modelos.find((m) => m.escolha.kit === e?.kit && m.escolha.cor === e?.cor)?.id;
   const modeloAtual = casa ?? (e ? "personalizado" : null);
@@ -875,8 +874,7 @@ export const definirModelo = adminAction(async (_user, slug: string, id: string 
     "site.color": visual.cor,
     "site.photo": visual.foto,
   });
-  for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${slug}/${p}`);
-  revalidatePath(`/bio/${slug}`);
+  renovarSite(slug);
   return true;
 });
 
@@ -891,8 +889,7 @@ export const montarSite = adminAction(async (_user, slug: string, dados: unknown
   if (!aplicar) return previa;
   await salvarSite(adminDb, slug, dados, previa.tipo === "fabrica" ? undefined : g.data);
   await noIndice(slug);
-  for (const p of ["index.html", "og.jpg"]) revalidatePath(`/s/${slug}/${p}`);
-  revalidatePath(`/bio/${slug}`);
+  renovarSite(slug);
   return previa;
 });
 

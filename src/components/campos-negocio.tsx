@@ -2,7 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatPhone } from "@/lib/datetime";
+import { formatPhone, FUSOS, fusoDaUF } from "@/lib/datetime";
 import { useState } from "react";
 import { normalizar } from "@/lib/catalogo";
 import { DadosNegocio, GRUPOS, SUBS, UFS, ufDoTelefone } from "@/lib/gerador";
@@ -11,8 +11,9 @@ import { cn } from "@/lib/utils";
 // Os campos do negócio que o cadastro e a aba "Meu negócio" pedem. As mensagens vêm do
 // mesmo schema que o servidor aplica: o que a tela avisa é o que o salvamento recusa.
 
-export type Valores = { sub: string; telefone: string; cidade: string; uf: string; bairro: string; endereco: string; instagram: string; horario: string };
-export const VAZIO: Valores = { sub: "", telefone: "", cidade: "", uf: "", bairro: "", endereco: "", instagram: "", horario: "" };
+export type Valores = { sub: string; telefone: string; cidade: string; uf: string; bairro: string; endereco: string; instagram: string; horario: string; fuso: string };
+// fuso vazio: automático pela UF
+export const VAZIO: Valores = { sub: "", telefone: "", cidade: "", uf: "", bairro: "", endereco: "", instagram: "", horario: "", fuso: "" };
 type Campo = keyof Valores;
 
 /** Erro de cada campo, pelo schema; só os que a tela mostra. Site da fábrica não tem ramo. */
@@ -141,6 +142,30 @@ export function CamposNegocio({
         </div>
       </div>
       {texto("bairro", "Bairro (opcional)", { maxLength: 60 })}
+      {/* fuso: o da UF por padrão; quem atende de outra região (central) escolhe à mão */}
+      <div className="grid gap-1.5">
+        <label className="flex min-h-11 items-center gap-2.5 text-sm">
+          <input
+            type="checkbox"
+            checked={!valores.fuso}
+            onChange={(e) => onChange({ ...valores, fuso: e.target.checked ? "" : fusoDaUF(valores.uf) })}
+            className="size-4 accent-foreground"
+          />
+          Definir fuso automaticamente pela UF
+        </label>
+        {valores.fuso ? (
+          <>
+            <Label htmlFor="negocio-fuso" className="sr-only">Fuso horário</Label>
+            <select id="negocio-fuso" value={valores.fuso} onChange={muda("fuso")} className={SELETOR}>
+              {Object.entries(FUSOS).map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+            </select>
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            {valores.uf ? `Fuso: ${FUSOS[fusoDaUF(valores.uf)]}.` : "Escolha a UF para definir o fuso."} Vale para o horário que já passou no link de agendamento e nos lembretes.
+          </p>
+        )}
+      </div>
       {completo && (
         // O que só enfeita a página: fica junto, depois do que o agendamento precisa
         <fieldset className="grid gap-5 border-t pt-5">

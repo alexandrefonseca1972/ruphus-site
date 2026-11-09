@@ -159,7 +159,7 @@ async function converter(slug: string) {
     await t.ref.update(
       t.get("gerado")
         ? { "gerado.convertidoEm": FieldValue.serverTimestamp(), ...(!t.get("gerado.horario") && horario && { "gerado.horario": horario }) }
-        : { gerado: { sub: sub!, bairro: "", horario, origem: "prospeccao", atualizadoEm: FieldValue.serverTimestamp(), convertidoEm: FieldValue.serverTimestamp() } },
+        : { gerado: { nicho: SUBS[sub!].nicho, sub: sub!, bairro: "", horario, origem: "prospeccao", atualizadoEm: FieldValue.serverTimestamp(), convertidoEm: FieldValue.serverTimestamp() } },
     );
     await original.delete();
   }

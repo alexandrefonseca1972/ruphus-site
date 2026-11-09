@@ -239,8 +239,10 @@ export default function CustomerPage() {
               ev.preventDefault();
               const campo = ev.currentTarget.elements.namedItem("etiqueta") as HTMLInputElement;
               const nova = campo.value.trim().slice(0, 24);
-              // Oito e o teto das regras; repetida nao entra duas vezes
-              if (!nova || customer.etiquetas.includes(nova) || customer.etiquetas.length >= 8) return;
+              // Oito e o teto das regras; repetida nao entra duas vezes ("vip" e "VIP" sao a mesma)
+              const repetida = customer.etiquetas.some((e) => e.toLocaleLowerCase("pt-BR") === nova.toLocaleLowerCase("pt-BR"));
+              if (repetida) campo.value = "";
+              if (!nova || repetida || customer.etiquetas.length >= 8) return;
               updateDoc(doc(db, "tenants", tenant.id, "customers", key), { etiquetas: [...customer.etiquetas, nova] });
               campo.value = "";
             }}

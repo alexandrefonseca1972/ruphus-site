@@ -1,15 +1,16 @@
+import { TERMO_WHATSAPP_VERSAO } from "@/lib/consentimento-whatsapp";
 import "server-only";
 import { type Dominio, urlDoSite } from "@/lib/dominio";
 import { sessaoRevogada } from "@/lib/revogacao";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
-import { addDays, agoraNaParede, customerKey, datasDoPlano, dateIn, dentroDaJanela, formatTime, freeSlots, fusoDaUF, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import { addDays, agoraNaParede, customerKey, datasDoPlano, dateIn, dentroDaJanela, formatTime, freeSlots, fusoDe, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import type { DadosCliente } from "@/lib/cliente-dados";
 import { prazoDoSinal, type SinalDoAgendamento, valorDoSinal } from "@/lib/sinal";
 import { ConfigSinal } from "@/lib/sinal-config";
 import { recebedorDe, txidLivre } from "@/lib/pix";
-import { Service, Staff, type AgendaQuery, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
+import { foraDoLimite, limitesDe, Service, Staff, type AgendaQuery, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
 
@@ -62,6 +63,8 @@ async function lerCatalogo(db: Firestore, tenantId: string) {
     city: (tenant.get("site.city") as string | null) ?? null,
     // o "Como chegar" depois de agendar: sem rua, bairro e cidade já apontam no mapa
     uf: (tenant.get("site.uf") as string | null) ?? null,
+    // fuso do negócio (o escolhido à mão ou o da UF): o "agora" do link
+    fuso: fusoDe(tenant.get("site")),
     address: (tenant.get("site.address") as string | null) ?? null,
     bairro: (tenant.get("gerado.bairro") as string | null) || null,
     // tem página própria (fábrica ou gerador): o nome no topo leva a ela no computador
@@ -72,6 +75,8 @@ async function lerCatalogo(db: Firestore, tenantId: string) {
     recadoDono: String(tenant.get("agenda.recado") ?? "").trim() || null,
     // desligada: a página mostra o WhatsApp no lugar da grade
     agendaOnline: !agendaDesligada(tenant),
+    // quantos serviços e quanto tempo somado o cliente marca de uma vez
+    limites: limitesDe(tenant.get("agenda")),
     // sinal por Pix para reservar: a página avisa antes de o cliente confirmar
     sinal: ((): Pick<ConfigSinal, "tipo" | "valor" | "prazoMin"> | null => {
       const c = ConfigSinal.safeParse(tenant.get("sinal")).data;
@@ -198,7 +203,7 @@ async function exigeDono(db: Firestore, tenantId: string, uid: string, oque: str
 
 /** O profissional a que a conta da equipe está presa (entrou pelo convite dele): ela vê a
  *  agenda toda, mas só mexe nos horários dele. Dono, admin e membro sem profissional: null. */
-async function profissionalDaConta(db: Firestore, tenantId: string, uid: string): Promise<string | null> {
+export async function profissionalDaConta(db: Firestore, tenantId: string, uid: string): Promise<string | null> {
   const m = await db.doc(`tenants/${tenantId}/members/${uid}`).get();
   const staffId = m.get("staffId");
   return m.get("role") === "member" && typeof staffId === "string" && staffId ? staffId : null;
@@ -259,11 +264,11 @@ async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery, exclude
       .filter((d) => d.get("status") !== "cancelled" && d.id !== excludeId)
       .map((d) => ({ start: (d.get("start") as Timestamp).toDate(), end: (d.get("end") as Timestamp).toDate() })),
     // o que já passou é pela hora local do negócio (Manaus está 1h atrás de Brasília)
-    now: agoraNaParede(fusoDaUF(tenantSnap.get("site.uf") as string | undefined)),
+    now: agoraNaParede(fusoDe(tenantSnap.get("site"))),
   });
   // a chave Pix e o sinal do negócio: a reserva online cobra o sinal quando os dois existem
-  const cfg = { pix: tenantSnap.get("pix") as SinalDoAgendamento["pix"] | undefined, sinal: ConfigSinal.safeParse(tenantSnap.get("sinal")).data, fuso: fusoDaUF(tenantSnap.get("site.uf") as string | undefined) };
-  return { t, svc, durationMin, staff: staff.data, slots, cfg };
+  const cfg = { pix: tenantSnap.get("pix") as SinalDoAgendamento["pix"] | undefined, sinal: ConfigSinal.safeParse(tenantSnap.get("sinal")).data, fuso: fusoDe(tenantSnap.get("site")) };
+  return { t, svc, durationMin, staff: staff.data, slots, cfg, limites: limitesDe(tenantSnap.get("agenda")) };
 }
 
 export async function availableSlots(db: Firestore, q: SlotQuery) {
@@ -287,12 +292,14 @@ export async function agendaDias(db: Firestore, q: AgendaQuery, dias: string[]) 
   const { catalogo, horas } = lido;
   // aba aberta desde ontem (ou "ontem" de Brasília que ainda não é hoje no negócio): a faixa
   // começa no hoje do negócio, do mesmo tamanho
-  const hoje = todayIn(fusoDaUF(catalogo.uf ?? undefined));
+  const hoje = todayIn(catalogo.fuso);
   if (dias[0] < hoje) dias = Array.from({ length: dias.length }, (_, i) => addDays(hoje, i)).filter(dentroDaJanela);
   if (!dias.length) return [];
   const svc = q.serviceIds.map((id) => catalogo.services.find((s) => s.id === id));
   // serviço que saiu do link com a página aberta: a semana vem sem horário (lotada), não vazia
   if (svc.some((s) => !s)) return dias.map((date) => ({ date, horarios: [], fechado: false }));
+  // passou do limite do negócio (a página trava antes; isto é para quem chama a ação direto)
+  if (foraDoLimite(svc as { durationMin: number }[], catalogo.limites)) return dias.map((date) => ({ date, horarios: [], fechado: false }));
   const durationMin = svc.reduce((soma, s) => soma + s!.durationMin, 0);
   const equipe = catalogo.staff.filter(
     (p) => (!q.staffId || p.id === q.staffId) && q.serviceIds.every((id) => p.serviceIds.includes(id)),
@@ -314,7 +321,7 @@ export async function agendaDias(db: Firestore, q: AgendaQuery, dias: string[]) 
     ocupado.set(d.get("staffId"), lista);
   }
   // o que já passou é pela hora local do negócio (Manaus está 1h atrás de Brasília)
-  const agora = agoraNaParede(fusoDaUF(catalogo.uf ?? undefined));
+  const agora = agoraNaParede(catalogo.fuso);
   return dias.map((date) => {
     // Só quem atende neste dia da semana entra na conta
     const doDia = equipe.filter((p) => p.workDays.includes(weekday(date)));
@@ -432,7 +439,7 @@ function writeAppointment(
   ctx: WriteContext,
   a: { serviceIds: string[]; staffId: string; date: string; time: string; customerName: string; customerPhone: string },
   by: { by: string; byName: string },
-  opts: { planId?: string; renameCustomer: boolean; sinal?: SinalDoAgendamento },
+  opts: { planId?: string; renameCustomer: boolean; sinal?: SinalDoAgendamento; whatsappConsent?: object },
 ) {
   const { planId } = opts;
   const start = zonedTime(a.date, a.time);
@@ -459,6 +466,7 @@ function writeAppointment(
     createdAt: FieldValue.serverTimestamp(),
     ...(planId && { planId }),
     ...(opts.sinal && { sinal: opts.sinal }),
+    ...(opts.whatsappConsent && { whatsappConsent: opts.whatsappConsent }),
   };
   tx.create(ref, dados);
   // Reserva anônima não troca o nome de um cliente já cadastrado (qualquer um pode digitar o telefone de outro)
@@ -553,10 +561,18 @@ export async function book(db: Firestore, input: BookingInput, ip?: string, aoCr
     }
     if (!algum) return { ok: false as const, error: "Serviço ou profissional indisponível." };
     if (!livre) return { ok: false as const, error: "Esse horário acabou de ser ocupado. Escolha outro." };
+    // o limite do negócio vale só para quem agenda pelo link: o painel marca o que precisar
+    const excede = foraDoLimite(livre.ctx.svc, livre.ctx.limites);
+    if (excede) return { ok: false as const, error: excede };
     const limit = await limitError(tx, livre.ctx.t, input, ip);
     if (limit.error) return { ok: false as const, error: limit.error, field: true as const };
     const customer = await tx.get(t.collection("customers").doc(customerKey(input.customerPhone)));
-    const { id, dados } = writeAppointment(tx, livre.ctx, { ...input, staffId: livre.staffId }, { by: "cliente", byName: input.customerName }, { renameCustomer: !customer.exists, sinal: sinalDaReserva(livre.ctx, input) });
+    const { id, dados } = writeAppointment(tx, livre.ctx, { ...input, staffId: livre.staffId }, { by: "cliente", byName: input.customerName }, {
+      renameCustomer: !customer.exists,
+      sinal: sinalDaReserva(livre.ctx, input),
+      // prova do aceite (ou da falta dele): só o hash da rede, nunca o IP
+      whatsappConsent: { aceito: input.aceiteWhatsapp === true, versao: TERMO_WHATSAPP_VERSAO, em: new Date(), ...(ip && { ipHash: deviceId(ip) }) },
+    });
     if (input.pedido) tx.set(t.collection("pedidos").doc(input.pedido), { appointmentId: id, createdAt: FieldValue.serverTimestamp() });
     limit.bump!();
     return { ok: true as const, ...reservaDe(id, dados), novo: true };
@@ -632,7 +648,7 @@ async function criarPlano(db: Firestore, input: PlanInput, actor: Actor) {
       lista.push({ start: (d.get("start") as Timestamp).toDate(), end: (d.get("end") as Timestamp).toDate() });
       ocupado.set(d.get("staffId"), lista);
     }
-    const now = agoraNaParede(fusoDaUF(tenantSnap.get("site.uf") as string | undefined));
+    const now = agoraNaParede(fusoDe(tenantSnap.get("site")));
     const free: { date: string; quem: (typeof aptos)[number] }[] = [];
     const skipped: string[] = [];
     for (const date of dates) {

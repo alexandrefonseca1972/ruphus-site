@@ -1,6 +1,5 @@
 "use client";
 
-import { confirmar } from "@/components/confirmar";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -101,6 +100,8 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
   const [avisoModelo, setAvisoModelo] = useState<{ ok: boolean; texto: string } | null>(null);
   const [previaModelo, setPreviaModelo] = useState<string | null>(null);
   const [visualizando, setVisualizando] = useState(false);
+  // a confirmação da troca fica dentro da gaveta, logo abaixo do botão (o diálogo solto não abria por cima dela)
+  const [confirmandoModelo, setConfirmandoModelo] = useState(false);
   const [visual, setVisual] = useState<Visual | null>(null);
 
   async function ler() {
@@ -180,12 +181,10 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
   }
 
   async function aplicarModelo() {
-    const nome = modelos.find((m) => m.id === modelo)?.rotulo ?? "Padrão do sistema";
-    // troca o site ao vivo na hora: confirma antes de gravar
-    if (!(await confirmar({ titulo: `Trocar o modelo de ${dados?.name} para ${nome}?`, texto: "O site e a bio mudam na hora.", acao: "Trocar o modelo", tom: "normal" }))) return;
+    setConfirmandoModelo(false);
     setBusy(true);
     setAvisoModelo(null);
-    const r = await definirModelo(await token(), slug, modelo || null).catch(() => null);
+    const r = await (async () => definirModelo(await token(), slug, modelo || null))().catch(() => null);
     setBusy(false);
     if (!r?.ok) return setAvisoModelo({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
     setModeloAtual(modelo);
@@ -219,8 +218,8 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
         )}
         {temSite && (
           <div className="flex flex-wrap gap-2">
-            <a className={BOTAO_CLARO} href={site} target="_blank" rel="noreferrer">Ver o site ↗</a>
-            <a className={BOTAO_CLARO} href={`${site}/bio`} target="_blank" rel="noreferrer">Bio ↗</a>
+            <a className={BOTAO_CLARO} href={versao ? `${site}/?v=${versao}` : site} target="_blank" rel="noreferrer">Ver o site ↗</a>
+            <a className={BOTAO_CLARO} href={versao ? `${site}/bio?v=${versao}` : `${site}/bio`} target="_blank" rel="noreferrer">Bio ↗</a>
           </div>
         )}
         {temSite && !fabrica && modelos.length > 0 && (
@@ -231,17 +230,19 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
                 ? `Em uso: ${modelos.find((m) => m.id === modeloAtual)?.rotulo ?? (modeloAtual ? "Personalizado" : "Padrão do sistema")}`
                 : `Escolhido: ${modelos.find((m) => m.id === modelo)?.rotulo ?? "Padrão do sistema"}. Ainda não aplicado.`}
             </p>
-            <div className="flex flex-col gap-2 sm:flex-row">
+            {/* a gaveta tem no máximo 520px: o seletor numa linha, os dois botões dividindo a de baixo */}
+            <div className="flex flex-wrap gap-2">
               <select
                 id="site-modelo"
                 value={modelo}
                 disabled={busy}
                 onChange={(e) => {
                   setModelo(e.target.value);
+                  setConfirmandoModelo(false);
                   setAvisoModelo(null);
                   setPreviaModelo(null);
                 }}
-                className="h-11 grow rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-[15px]"
+                className="h-11 basis-full rounded-[10px] border border-[#D8D2C6] bg-white px-3 text-[15px]"
               >
                 <option value="">Padrão do sistema</option>
                 {modelos.map((m) => (
@@ -249,18 +250,31 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
                 ))}
                 {modeloAtual === "personalizado" && <option value="personalizado" disabled>Personalizado</option>}
               </select>
-              <button type="button" className={BOTAO_CLARO} disabled={busy || modelo === "personalizado"} onClick={visualizarModelo}>
-                {visualizando ? "Abrindo…" : "Prévia do modelo"}
+              <button type="button" className={`${BOTAO_CLARO} flex-1 whitespace-nowrap`} disabled={busy || modelo === "personalizado"} onClick={visualizarModelo}>
+                {visualizando ? "Abrindo…" : "Prévia"}
               </button>
               <button
                 type="button"
-                className={BOTAO_ESCURO}
+                className={`${BOTAO_ESCURO} flex-1 whitespace-nowrap`}
                 disabled={busy || modelo === "personalizado"}
-                onClick={aplicarModelo}
+                onClick={() => {
+                  setAvisoModelo(null);
+                  setConfirmandoModelo(true);
+                }}
               >
                 {busy ? "Aplicando…" : modelo === modeloAtual ? "Reaplicar" : "Aplicar modelo"}
               </button>
             </div>
+            {confirmandoModelo && (
+              <div role="alertdialog" aria-label="Confirmar a troca do modelo" className="flex flex-col gap-3 rounded-xl border border-[#17150F] bg-[#FAF8F3] p-4">
+                <p className="text-[15px] font-semibold">Trocar o modelo de {dados?.name} para {modelos.find((m) => m.id === modelo)?.rotulo ?? "Padrão do sistema"}?</p>
+                <p className="text-sm text-[#6F6A5E]">O site e a bio mudam na hora.</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className={BOTAO_ESCURO} disabled={busy} onClick={aplicarModelo}>Trocar o modelo</button>
+                  <button type="button" className={BOTAO_CLARO} onClick={() => setConfirmandoModelo(false)}>Voltar</button>
+                </div>
+              </div>
+            )}
             {previaModelo !== null && (
               <div className="flex flex-col gap-2">
                 <PreviaModelo html={previaModelo} />

@@ -7,6 +7,8 @@ import {
   fixo,
   paraTelefone,
 } from "@/lib/gerador";
+import { BOTAO_AGENDAR, BOTAO_TOPO, ESTILO_AGENDAR, itemMenu } from "@/lib/botao-agendar";
+import { destaqueNoTopo } from "@/lib/contraste";
 import { AUTOMOTIVO } from "@/lib/nichos/automotivo";
 import { FITNESS } from "@/lib/nichos/fitness";
 import { z } from "zod";
@@ -24,6 +26,9 @@ export type Estilo = {
   kits: string[];
   /** kits que só entram por escolha gravada (índice depois dos `kits`), fora do sorteio */
   extras?: string[];
+  /** paletas que só entram por modelo (índice depois das `paletas`), fora do sorteio: somar às
+   *  `paletas` mudaria a cor dos sites que sorteiam pelo slug */
+  paletasExtras?: [string, string, string, string][];
   /** descrição e selo por serviço, conferidos antes das regras comuns */
   descricoes?: [RegExp, string | string[], string][];
   /** exemplo do campo de observações do formulário */
@@ -37,6 +42,12 @@ const QUENTES: [string, string, string, string][] = [
   ["#12100F", "#B33A2B", "#8E2B20", "#f5e7e5"],
   ["#12100E", "#8C5E3C", "#6E4A2F", "#f1ebe7"],
   ["#151312", "#C9A24A", "#9E7C33", "#f8f3e9"],
+];
+// salão infantil: cores alegres sobre fundo escuro (coral, turquesa e amarelo-sol), só pelo modelo
+const INFANTIS: [string, string, string, string][] = [
+  ["#1B1430", "#FF7A59", "#E2573A", "#fff1ec"],
+  ["#10232A", "#2EC4B6", "#1E9E92", "#e8f9f7"],
+  ["#1E1631", "#FFB627", "#D18F0C", "#fff6e0"],
 ];
 const DELICADAS: [string, string, string, string][] = [
   ["#161114", "#E58F9C", "#C06A7C", "#fbf1f3"],
@@ -198,7 +209,8 @@ const beleza = (tipo: keyof typeof TEXTOS, rotulo: string, paletas: Estilo["pale
 });
 const ESTILOS: Partial<Record<Sub, Estilo>> = {
   barbearia: beleza("barbearia", "Barbearia", QUENTES),
-  salao: beleza("salao", "Salão de beleza", DELICADAS),
+  // infantil-1 a infantil-3: fotos de criança no salão (Pexels), escolha.kit = 4 a 6; INFANTIS = cor 6 a 8
+  salao: { ...beleza("salao", "Salão de beleza", DELICADAS), extras: ["/assets/beleza/infantil-1", "/assets/beleza/infantil-2", "/assets/beleza/infantil-3"], paletasExtras: INFANTIS },
   // depilacao-1: fotos de depilação (Pexels) para quem só faz isso; escolha.kit = 4
   // bronze-1: bronzeamento em cabine e natural (Pexels); escolha.kit = 5
   // cilios-1: extensão de cílios (Pexels); escolha.kit = 6
@@ -224,38 +236,64 @@ export const escolhaEditorial = (sub: Sub, slug: string): Required<Escolha> => (
 // Três templates por nicho, cada um um par [kit, cor] do estilo do sub. Esmalteria é o
 // sub "unhas"; cílios, bronzeamento, depilação, esteticista e maquiagem dividem "estetica"
 // (kit 6 é cílios-1, kit 5 é bronze-1, kit 4 é depilação-1). Escolha gravada (gerado.escolha) continua valendo; isto só
-// cataloga as opções.
-export const TEMPLATES: Record<"barbearia" | "podologia" | "esmalteria" | "cilios" | "bronzeamento" | "depilacao" | "cabeleireira" | "esteticista" | "maquiagem" | "tatuador", { sub: Sub; escolhas: Required<Escolha>[] }> = {
+// cataloga as opções. Fitness e automotivo: um template por sub, um kit em cada modelo.
+export const TEMPLATES = {
   barbearia: { sub: "barbearia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
-  podologia: { sub: "podologia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 1 }, { kit: 2, cor: 2 }] },
+  podologia: { sub: "podologia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 1 }] },
   esmalteria: { sub: "unhas", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
   cilios: { sub: "estetica", escolhas: [{ kit: 6, cor: 0 }, { kit: 7, cor: 2 }, { kit: 8, cor: 4 }] },
   // paletas quentes do DELICADAS: dourado, terracota, coral
   bronzeamento: { sub: "estetica", escolhas: [{ kit: 5, cor: 5 }, { kit: 9, cor: 4 }, { kit: 10, cor: 1 }] },
   depilacao: { sub: "estetica", escolhas: [{ kit: 4, cor: 1 }, { kit: 11, cor: 3 }, { kit: 12, cor: 5 }] },
   cabeleireira: { sub: "salao", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
+  // o modelo traz o próprio rótulo, as frases e os serviços padrão: um salão infantil não fala
+  // de "corte, cor e tratamento" para adulto
+  infantil: {
+    sub: "salao",
+    escolhas: [{ kit: 4, cor: 6 }, { kit: 5, cor: 7 }, { kit: 6, cor: 8 }],
+    rotulo: "Salão infantil",
+    textos: [
+      "Corte infantil com paciência, brincadeira e muito carinho.",
+      "O primeiro corte, a trança da festa e o penteado da escola, num espaço feito para criança.",
+      "Criança feliz na cadeira e cabelo bem cuidado, com hora marcada.",
+    ],
+    padrao: ["Corte infantil", "Primeiro corte", "Tranças", "Penteado infantil", "Hidratação kids"],
+  },
   esteticista: { sub: "estetica", escolhas: [{ kit: 0, cor: 1 }, { kit: 1, cor: 3 }, { kit: 3, cor: 5 }] },
   maquiagem: { sub: "estetica", escolhas: [{ kit: 2, cor: 0 }, { kit: 0, cor: 2 }, { kit: 1, cor: 4 }] },
   tatuador: { sub: "tatuagem", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 1 }, { kit: 2, cor: 2 }] },
-};
+  // ENERGIA tem 5 cores; LEVE e GRAFITE, 4
+  academia: { sub: "academia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
+  pilates: { sub: "pilates", escolhas: [{ kit: 0, cor: 1 }, { kit: 1, cor: 3 }, { kit: 2, cor: 0 }] },
+  lutas: { sub: "lutas", escolhas: [{ kit: 0, cor: 1 }, { kit: 1, cor: 3 }, { kit: 2, cor: 0 }] },
+  danca: { sub: "danca", escolhas: [{ kit: 0, cor: 3 }, { kit: 1, cor: 2 }, { kit: 2, cor: 0 }] },
+  oficina: { sub: "oficina", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 3 }, { kit: 2, cor: 1 }] },
+  lavagem: { sub: "lavagem", escolhas: [{ kit: 0, cor: 3 }, { kit: 1, cor: 1 }, { kit: 2, cor: 0 }] },
+  pneus: { sub: "pneus", escolhas: [{ kit: 0, cor: 2 }, { kit: 1, cor: 3 }, { kit: 2, cor: 0 }] },
+} satisfies Record<string, { sub: Sub; escolhas: Required<Escolha>[]; rotulo?: string; textos?: string[]; padrao?: string[] }>;
 const ROTULO_MODELO: Record<keyof typeof TEMPLATES, string> = {
   barbearia: "Barbearia", podologia: "Podologia", esmalteria: "Esmalteria", cilios: "Cílios", bronzeamento: "Bronzeamento", depilacao: "Depilação", cabeleireira: "Cabeleireira",
-  esteticista: "Esteticista", maquiagem: "Maquiagem", tatuador: "Tatuador",
+  esteticista: "Esteticista", maquiagem: "Maquiagem", tatuador: "Tatuador", infantil: "Salão infantil",
+  academia: "Academia", pilates: "Pilates", lutas: "Lutas", danca: "Dança", oficina: "Oficina", lavagem: "Estética automotiva", pneus: "Pneus",
 };
 
 /** Todos os modelos, para qualquer ramo editorial: id estável (nicho-n), a escolha que ele
  *  grava e a foto e a paleta do próprio ramo de origem, que vão junto com ele. */
 export const MODELOS = (Object.keys(TEMPLATES) as (keyof typeof TEMPLATES)[]).flatMap((nicho) => {
-  const { sub, escolhas } = TEMPLATES[nicho];
+  const t: { sub: Sub; escolhas: Required<Escolha>[]; rotulo?: string; textos?: string[]; padrao?: string[] } = TEMPLATES[nicho];
+  const { sub, escolhas } = t;
   const e = estiloDe(sub);
   return escolhas.map((escolha, i) => {
     const id = `${nicho}-${i + 1}`;
     return {
       id,
+      sub,
       rotulo: `${ROTULO_MODELO[nicho]} ${i + 1}`,
       escolha: { ...escolha, modelo: id },
       pasta: [...e.kits, ...(e.extras ?? [])][escolha.kit] ?? e.kits[0],
-      paleta: e.paletas[escolha.cor],
+      paleta: [...e.paletas, ...(e.paletasExtras ?? [])][escolha.cor],
+      // rótulo, frases e serviços do próprio modelo (salão infantil); sem eles, os do ramo
+      estilo: t.textos ? { rotulo: t.rotulo, textos: t.textos, padrao: t.padrao } : undefined,
     };
   });
 });
@@ -289,10 +327,13 @@ const sorteio = <T,>(lista: T[], slug: string, sal: string): T => lista[variante
 
 /** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. */
 export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha & { modelo?: string }, personal?: Personal | null) {
-  const e = estiloDe(sub);
+  const ramo = estiloDe(sub);
   const padrao = escolhaEditorial(sub, slug);
   // modelo gravado: foto e paleta vêm dele, mesmo que o ramo do negócio seja outro
   const doModelo = escolha?.modelo ? modeloDoId(escolha.modelo) : undefined;
+  // e o rótulo, as frases e os serviços padrão, quando o modelo tem os seus (salão infantil)
+  const m = doModelo?.estilo;
+  const e: Estilo = m ? { ...ramo, rotulo: m.rotulo ?? ramo.rotulo, textos: m.textos, padrao: m.padrao ?? ramo.padrao } : ramo;
   const paleta = doModelo?.paleta ?? e.paletas[escolha?.cor ?? padrao.cor];
   const kit = doModelo?.pasta ?? [...e.kits, ...(e.extras ?? [])][escolha?.kit ?? padrao.kit] ?? e.kits[padrao.kit];
   // personalização por cima de tudo: cor de destaque própria arrasta deep e tint, salvo se vieram também
@@ -374,10 +415,11 @@ export function renderEditorial(d: DadosSite): string {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=${fonte[1]}&family=Archivo:ital,wght@0,400;0,500;0,700;0,800;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/gerado/beleza.css">
-<style>:root{--ink:${ink};--paper:#ffffff;--acc:${acc};--deep:${deep};--tint:${tint};--grey:#8b8587;--serif:'${fonte[0]}',serif}</style>
+<style>:root{--ink:${ink};--paper:#ffffff;--acc:${acc};--deep:${deep};--tint:${tint};--grey:#8b8587;--serif:'${fonte[0]}',serif}${destaqueNoTopo(acc) === acc.toUpperCase() ? "" : `.hero h1 .row2{color:${destaqueNoTopo(acc)}}`}</style>
 ${cabecaComum(d, tituloPag, descr, d.publicado)}
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${ink}"/><text x="32" y="45" font-family="Arial Narrow,Arial,sans-serif" font-size="36" font-weight="700" fill="${acc}" text-anchor="middle">${esc(d.nome[0].toUpperCase())}</text></svg>`)}">
 ${jsonLdNegocio(d, descr, naRaiz(fotos.hero))}
+${ESTILO_AGENDAR}
 </head>
 <body id="top">
 ${d.publicado ? "" : faixaProposta(d)}
@@ -385,9 +427,8 @@ ${d.publicado ? "" : faixaProposta(d)}
 <header id="hd">
   <a class="logo" href="#top">${esc(d.nome)}</a>
   <nav>
-    <a href="#sobre">Sobre</a><a href="#trabalhos">Galeria</a><a href="#servicos">Serviços</a>${temNota ? '<a href="#depoimentos">Reputação</a>' : ""}<a href="#como-chegar">Como chegar</a>
+    <a href="#sobre">${itemMenu("sobre", "Sobre")}</a><a href="#trabalhos">${itemMenu("trabalhos", "Galeria")}</a><a href="#servicos">${itemMenu("servicos", "Serviços")}</a>${temNota ? `<a href="#depoimentos">${itemMenu("depoimentos", "Reputação")}</a>` : ""}<a href="#como-chegar">${itemMenu("como-chegar", "Como chegar")}</a>
   </nav>
-  <a class="btn-wpp" href="${oi}" target="_blank" rel="noopener">${WA} Contato</a>
 </header>
 
 <section class="hero">
@@ -395,12 +436,11 @@ ${d.publicado ? "" : faixaProposta(d)}
   <canvas id="fx3d"></canvas>
   <div class="hero-inner">
     <span class="tag">${esc(tag)}</span>
-    <h1 class="rv">${esc(linha1)}${linha2 ? `<span class="row2">${esc(linha2)}</span>` : ""}</h1>
-<a data-agendar="1" href="/agendar" style="display:inline-block;margin:18px 0;padding:13px 22px;border-radius:999px;background:${ink};color:#fff;font:600 15px/1 system-ui,-apple-system,sans-serif;text-decoration:none">Agendar online</a>
+    <h1 class="rv${d.nome.length > 40 ? " nml" : d.nome.length > 24 ? " nl" : ""}">${esc(linha1)}${linha2 ? `<span class="row2">${esc(linha2)}</span>` : ""}</h1>
+${BOTAO_AGENDAR}
     <p class="sub rv">${esc(texto)}</p>
     ${temNota ? `<a class="badge-google rv" href="${google}" target="_blank" rel="noopener">${GOOGLE}<span class="st">★★★★★</span> ${nota} · ${d.avaliacoes} avaliações</a>` : ""}
     <div class="hero-ctas rv">
-      <a class="btn-wpp" style="background:#25D366;border-color:#25D366;color:#fff" href="#agendar">${WA} Falar no WhatsApp</a>
       <a class="btn-wpp" style="border-color:rgba(255,255,255,.6);color:#fff" href="#servicos">Ver serviços</a>
     </div>
   </div>
@@ -498,6 +538,7 @@ ${temNota ? `
 <p data-ysis="fonte" style="margin:14px 0 0;font-size:.76rem;line-height:1.5;opacity:.6">${Object.values(fotos).some(doBanco) ? "Imagens ilustrativas, não são fotos do estabelecimento." : ""}${d.origem === "cadastro" ? "" : ` ${temNota ? "Nota e número de avaliações do Google" : "Endereço e contato do perfil público do Google"}, consultados em ${esc(d.consultado)}. Valores públicos, sujeitos a mudança.`}</p>
 </footer>
 
+${BOTAO_TOPO}
 <a class="wpp-float" href="${oi}" target="_blank" rel="noopener" aria-label="Agendar pelo WhatsApp de ${esc(d.nome)}">${WA}</a>
 
 <script>

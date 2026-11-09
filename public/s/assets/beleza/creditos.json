@@ -8,7 +8,7 @@
   "podologia-2/ga1": { "alt": "Detalhe do atendimento podológico com luvas e instrumental", "pexels": "31091768" },
   "podologia-2/ga2": { "alt": "Profissional envolvendo o pé da cliente em toalha", "pexels": "4085446" },
   "podologia-2/ga3": { "alt": "Poltronas e lavapés de um espaço de pedicure", "pexels": "6135677" },
-  "podologia-3/hero": { "alt": "Cliente sentada enquanto a profissional cuida dos seus pés", "pexels": "34930135" },
+  "podologia-3/hero": { "alt": "Podóloga atendendo paciente em consultório de podologia", "pexels": "5619459" },
   "podologia-3/ga1": { "alt": "Atendimento de pedicure com luvas e esmaltação", "pexels": "18441298" },
   "podologia-3/ga2": { "alt": "Pés na bacia com sais de banho", "pexels": "19695949" },
   "podologia-3/ga3": { "alt": "Mãos segurando o pé da cliente durante o atendimento", "pexels": "13716991" },
@@ -48,5 +48,17 @@
   "bronze-3/hero": { "alt": "Pele bronzeada ao sol, com biquíni de brilho na areia", "pexels": "8363885" },
   "bronze-3/ga1": { "alt": "Amigas passando bronzeador na praia", "pexels": "8157980" },
   "bronze-3/ga2": { "alt": "Barriga bronzeada com a marquinha do biquíni", "pexels": "10522930" },
-  "bronze-3/ga3": { "alt": "Cliente de biquíni passando loção no braço à beira-mar", "pexels": "8157585" }
+  "bronze-3/ga3": { "alt": "Cliente de biquíni passando loção no braço à beira-mar", "pexels": "8157585" },
+  "infantil-1/hero": { "alt": "Menino na cadeira do salão enquanto o cabeleireiro prepara o corte", "pexels": "7697353" },
+  "infantil-1/ga1": { "alt": "Menina arrumando o cabelo no salão", "pexels": "7951661" },
+  "infantil-1/ga2": { "alt": "Menina sorrindo enquanto trançam o cabelo", "pexels": "7943264" },
+  "infantil-1/ga3": { "alt": "Barbeiro cortando o cabelo de um menino", "pexels": "7697401" },
+  "infantil-2/hero": { "alt": "Cabeleireira arrumando o cabelo de uma menina no salão", "pexels": "7951661" },
+  "infantil-2/ga1": { "alt": "Menina fazendo cachos com babyliss no salão", "pexels": "12774831" },
+  "infantil-2/ga2": { "alt": "Menina sorridente de capa no salão de beleza", "pexels": "36741613" },
+  "infantil-2/ga3": { "alt": "Menina fazendo trança no cabelo", "pexels": "7943261" },
+  "infantil-3/hero": { "alt": "Cabeleireiro cortando o cabelo de um menino no salão", "pexels": "19664869" },
+  "infantil-3/ga1": { "alt": "Menino na cadeira do salão com o cabeleireiro", "pexels": "7697362" },
+  "infantil-3/ga2": { "alt": "Cabeleireira penteando duas meninas", "pexels": "13965214" },
+  "infantil-3/ga3": { "alt": "Menino se olhando no espelho do salão", "pexels": "7697475" }
 }

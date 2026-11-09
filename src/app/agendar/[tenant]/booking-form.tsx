@@ -25,6 +25,8 @@ import type { book } from "@/lib/booking.server";
 import { getAgenda } from "./actions";
 import { textoDoSinal, valorDoSinal } from "@/lib/sinal";
 import type { ConfigSinal } from "@/lib/sinal-config";
+import { foraDoLimite, limitesDe, type LimitesAgenda } from "@/lib/scheduling";
+import { TERMO_WHATSAPP_VERSAO, TEXTO_ACEITE_WHATSAPP } from "@/lib/consentimento-whatsapp";
 
 type Resposta = Awaited<ReturnType<typeof book>>;
 
@@ -46,6 +48,8 @@ type Props = {
   recadoDono?: string | null;
   /** sinal por Pix para reservar; null = paga tudo no local */
   sinal?: Pick<ConfigSinal, "tipo" | "valor" | "prazoMin"> | null;
+  /** quantos serviços e quanto tempo somado cabem num horário (o dono ajusta) */
+  limites?: LimitesAgenda;
   /** Fuso real do negócio: o "Salvar na agenda" do cliente precisa do instante certo */
   fuso?: string;
   services: { id: string; name: string; durationMin: number; priceCents: number; tipoPreco?: TipoPreco }[];
@@ -272,7 +276,7 @@ const Seta = ({ d = "M9 6l6 6-6 6", size = 16 }: { d?: string; size?: number }) 
   </svg>
 );
 
-export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, sinal, fuso, services, staff, inicial }: Props) {
+export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, sinal, fuso, services, staff, inicial, limites = limitesDe(null) }: Props) {
   // Nada vem marcado: quem agenda diz o que quer, e só então os horários aparecem.
   // Os serviços chegam do servidor na ordem do que mais se agenda.
   // A exceção é quem tocou num serviço ou num horário da bio: chega com ele escolhido.
@@ -296,6 +300,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [lembrado, setLembrado] = useState(false);
+  // aceite do WhatsApp: desmarcado sempre; nunca vem do localStorage (cada agendamento pede o seu)
+  const [aceiteWhatsapp, setAceiteWhatsapp] = useState(false);
   const [ultimo, setUltimo] = useState<Ultimo | null>(null);
   // enviou: depois de tentar confirmar, o "faltam N dígitos" também acusa (antes só informava)
   const [touched, setTouched] = useState({ name: false, phone: false, enviou: false });
@@ -328,7 +334,11 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const semanaCheia = !!agenda && !livres.length;
   const proximaSemana = addDays(from, 7);
   const temProxima = proximaSemana <= addDays(today, MAX_DAYS_AHEAD);
-  const ultimoValido = ultimo && ultimo.serviceIds.length && ultimo.serviceIds.every((id) => services.some((s) => s.id === id)) ? ultimo : null;
+  // o último que passa do limite de hoje (o dono baixou) não é oferecido para repetir
+  const ultimoValido = ultimo && ultimo.serviceIds.length && ultimo.serviceIds.every((id) => services.some((s) => s.id === id)) && !foraDoLimite(services.filter((s) => ultimo.serviceIds.includes(s.id)), limites) ? ultimo : null;
+  // o serviço que, somado ao que já está marcado, passaria do limite: fica apagado e diz por quê
+  const [avisoLimite, setAvisoLimite] = useState("");
+  const travado = (s: { id: string; durationMin: number }) => !serviceIds.includes(s.id) && foraDoLimite([...escolhidos, s], limites);
 
   // Contato e último pedido lembrados neste navegador
   useEffect(() => {
@@ -413,6 +423,9 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   }, [reserva]);
 
   function toggleService(id: string) {
+    const motivo = travado(services.find((s) => s.id === id)!);
+    if (motivo) return setAvisoLimite(motivo);
+    setAvisoLimite("");
     // Mantém a ordem do catálogo: "Corte + Barba", não a ordem dos cliques
     const ids = services.map((s) => s.id).filter((s) => (s === id ? !serviceIds.includes(id) : serviceIds.includes(s)));
     if (!serviceIds.length) mostrarBloco.current = true;
@@ -483,6 +496,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
         // "qualquer um": se o oferecido na grade ocupou, o servidor tenta outro livre na mesma hora
         qualquer: !staffId,
         pedido: pedido.current,
+        aceiteWhatsapp,
+        termoWhatsapp: TERMO_WHATSAPP_VERSAO,
       }),
       signal: aborta.signal,
     })
@@ -522,14 +537,11 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
 
   // O recado que o cliente leva no WhatsApp: é ele que avisa quem atende, então
   // sai pronto, com tudo que a casa precisa para achar o horário na agenda.
-  const recado = (servicos: string, dia: string, hora: string, quem?: string) =>
+  const recado = (servicos: string, dia: string, hora: string, codigo: string, quem?: string) =>
     linkWhatsApp(
       phone,
       [
-        `Olá! Acabei de agendar pelo site do ${name}.`,
-        "",
-        servicos,
-        `${longDate(dia)}, às ${hora}`,
+        `Olá! Agendei ${servicos} para ${longDate(dia)}, às ${hora} (código ${codigo}).`,
         ...(quem ? [`com ${quem}`] : []),
         "",
         `Meu nome é ${customerName.trim()} (${customerPhone}).`,
@@ -542,7 +554,9 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   if (reserva) {
     const { date, time: hora, durationMin: totalMin, serviceName: servicos, staffName: quem } = reserva;
     const total = precoDe({ priceCents: reserva.priceCents, tipoPreco: reserva.precoAberto ? "aPartir" : "fixo" });
-    const avisoUrl = recado(servicos, date, hora, quem);
+    // a mesma frase na tela e no evento do Google Agenda
+    const comoPaga = reserva.sinal ? (reserva.sinal.cents >= reserva.priceCents ? "todo por Pix, no sinal" : `sinal de ${formatBRL(reserva.sinal.cents)} por Pix, o resto no local`) : "pago no local";
+    const avisoUrl = recado(servicos, date, hora, reserva.id.slice(0, 4).toUpperCase(), quem);
     const fim = fimDe(date, hora, totalMin);
     const dias = Math.round((Date.parse(date) - Date.parse(today)) / 86_400_000);
     const quando = dias <= 0 ? "hoje" : dias === 1 ? "amanhã" : `daqui a ${dias} dias`;
@@ -557,7 +571,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       inicio: zonedTime(date, hora, fuso),
       fim: new Date(zonedTime(date, hora, fuso).getTime() + totalMin * 60_000),
       local: onde || [name, cidadeUf].filter(Boolean).join(", "),
-      detalhes: [quem ? `Com ${quem}.` : "", total ? `${total}, pago no local.` : "", phone ? `WhatsApp de ${name}: ${formatPhone(phone)}` : ""]
+      detalhes: [quem ? `Com ${quem}.` : "", total ? `${total}, ${comoPaga}.` : "", phone ? `WhatsApp de ${name}: ${formatPhone(phone)}` : ""]
         .filter(Boolean)
         .join("\n"),
     };
@@ -610,7 +624,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 <dd>
                   {total ? (
                     <>
-                      <span className={MONO}>{total}</span> <span className="text-[#5C5747]">· {reserva.sinal ? (reserva.sinal.cents >= reserva.priceCents ? "todo por Pix, no sinal" : `sinal de ${formatBRL(reserva.sinal.cents)} por Pix, o resto no local`) : "pago no local"}</span>
+                      <span className={MONO}>{total}</span> <span className="text-[#5C5747]">· {comoPaga}</span>
                     </>
                   ) : (
                     <span className="text-[#5C5747]">a combinar com {name}</span>
@@ -680,7 +694,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                   className="flex h-[50px] items-center justify-center gap-2.5 rounded-[10px] border border-[#D5D0C1] bg-white text-[15px] font-semibold text-[#17150F] hover:border-[#17150F]"
                 >
                   <Zap />
-                  Mandar o resumo no WhatsApp
+                  Confirmar pelo WhatsApp
                 </a>
                 <p className="text-center text-xs text-[#5C5747]">Opcional: o pedido já chegou para {name}.</p>
               </div>
@@ -979,19 +993,25 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
             <h2 id="oque" className="text-[17px] font-semibold tracking-[-0.02em]">
               O que você quer fazer?
             </h2>
-            {services.length > 1 && <span className="text-xs text-[#5C5747]">pode escolher mais de um</span>}
+            {services.length > 1 && limites.maxServicos > 1 && (
+              <span className="text-xs text-[#5C5747]">
+                {escolhidos.length ? `${escolhidos.length} de ${limites.maxServicos} escolhidos` : `pode escolher até ${limites.maxServicos}`}
+              </span>
+            )}
           </div>
           <ul className="flex flex-col overflow-hidden rounded-2xl border border-[#E2DDD3] bg-white">
             {services.map((s) => {
               const sel = serviceIds.includes(s.id);
+              const fora = !!travado(s);
               return (
                 <Fragment key={s.id}>
                   <li className="border-b border-[#EEEAE1] last:border-b-0">
                     <button
                       type="button"
                       aria-pressed={sel}
+                      aria-disabled={fora || undefined}
                       onClick={() => toggleService(s.id)}
-                      className="flex min-h-16 w-full items-center gap-3 py-2.5 pr-3 pl-4 text-left"
+                      className={cn("flex min-h-16 w-full items-center gap-3 py-2.5 pr-3 pl-4 text-left", fora && "opacity-45")}
                     >
                       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className={cn("text-base break-words", sel ? "font-semibold" : "font-medium")}>{s.name}</span>
@@ -1010,6 +1030,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
               );
             })}
           </ul>
+          {avisoLimite && <p role="status" className="px-1 text-[13px] font-medium text-[#8A3B12]">{avisoLimite}</p>}
           {!escolhidos.length && <p className="px-1 text-[13px] text-[#5C5747]">Toque num serviço e os horários mais cedo aparecem logo abaixo dele.</p>}
         </section>
 
@@ -1285,6 +1306,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                       setLembrado(false);
                       setCustomerName("");
                       setCustomerPhone("");
+                      setAceiteWhatsapp(false);
                       setTouched({ name: false, phone: false, enviou: false });
                     }}
                     className="h-11 shrink-0 px-1 text-sm font-medium underline underline-offset-[3px]"
@@ -1368,11 +1390,21 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 )}
               >
                 {faltamDigitos(customerPhone) ||
-                  (touched.phone && errors.phone ? errors.phone : !errors.phone && customerPhone ? "número válido" : "é por aqui que o negócio confirma")}
+                  (touched.phone && errors.phone ? errors.phone : !errors.phone && customerPhone ? "número válido" : "o negócio usa este número para falar sobre o horário")}
               </p>
             </div>
           </form>
               )}
+
+              <label className="flex min-h-11 items-start gap-3 text-sm leading-snug">
+                <input
+                  type="checkbox"
+                  checked={aceiteWhatsapp}
+                  onChange={(e) => setAceiteWhatsapp(e.target.checked)}
+                  className="mt-0.5 size-5 shrink-0 accent-[#17150F] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17150F]"
+                />
+                <span>{TEXTO_ACEITE_WHATSAPP}</span>
+              </label>
 
               {submitError && (
                 <p role="alert" className="rounded-[10px] border border-[#E7C9BF] bg-[#FBF1EE] p-3 text-sm text-[#B4472F]">

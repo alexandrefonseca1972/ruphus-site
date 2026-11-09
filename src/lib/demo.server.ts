@@ -203,7 +203,11 @@ export async function restaurarDemo(db: Firestore, opts: { slug?: string; adminU
     }
     for (const m of (await col.get()).docs) if (!manter.has(m.id)) await m.ref.delete();
   }
-  await t.collection("members").doc(dono.uid).set({ uid: dono.uid, role: "owner", email: DEMO_EMAIL, createdAt: FieldValue.serverTimestamp() });
+  // a data de entrada fica a primeira: com uma nova a cada madrugada, a linha do tempo do admin
+  // ganhava um "Negócio criado" por dia. viaConvite: o dono da demo não criou o negócio
+  const membro = t.collection("members").doc(dono.uid);
+  const desde = (await membro.get()).get("createdAt") ?? FieldValue.serverTimestamp();
+  await membro.set({ uid: dono.uid, role: "owner", email: DEMO_EMAIL, viaConvite: true, createdAt: desde });
 
   // os dados do negócio pelo mesmo caminho do "Meu negócio"; o resto do documento fica
   await salvarNegocio(db, slug, NEGOCIO);
