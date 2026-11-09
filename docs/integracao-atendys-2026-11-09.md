@@ -125,6 +125,14 @@ Os logs do atendys (`/root/.pm2/logs/atendys-*-out-*.log`) mostram entregas repe
    - **5xx / timeout (> 15 s):** trabalho síncrono antes do 200. A rota já usa `after()` para comandos e push; verificar se a falha foi anterior a essa mudança.
    - **400 `Evento sem instância`:** evento novo sem `instance`.
 
+### Resultado da investigação (2026-11-09)
+- **Só 2 entregas falharam** no período (03/11: 16 ok; 04/11: 37 ok + 2 failed; 05/11: 26 ok). As duas são `instance.status` da `barbearia-force-main` em 04/11 às 07:22 BRT (`pending_qr` e `connected`, reconexão automática da sessão). Cada uma levou **HTTP 401** nas 5 tentativas (07:22–07:25).
+- Não foi corrida de pareamento. O tenant foi criado às 00:31 BRT, com segredo rotacionado, e os 3 eventos daquele pareamento foram entregues `ok`. Às 07:22 não houve rotação nem `conectarNegocio` (auditoria do atendys), e o próximo evento (10:11 BRT) passou `ok` sem rotação. O segredo do atendys não mudou: o ruphus.site recusou por 3 horas e depois voltou a aceitar.
+- **Causa provável: lado do ruphus.site naquela manhã.** O ruphus.site ainda não rodava na VPS e não há log daquele horário (`journalctl` vazio). Os 401 possíveis na rota são `Tenant sem segredo de webhook` (segredo não lido de `privado`) e `Assinatura inválida`. Não dá para provar qual dos dois sem log. O PR #284 (todo 401 vai ao log) resolve isso para a próxima vez.
+- **Impacto:** o painel deixou de receber 2 mudanças de status da barbearia-force (reconexão); o status ao vivo (`statusDaConexao`) cobre isso. Nada pendente para reenviar.
+- **Desde então:** nenhuma falha. Em 2026-11-09 todas as entregas, inclusive com a assinatura v2, passaram na primeira tentativa.
+- **Melhoria no atendys (anotada, não feita):** as 5 tentativas de webhook cabem em ~3 min. Uma indisponibilidade curta do receptor (deploy, migração) perde o evento. Espaçar o backoff até ~1 h.
+
 ### Pronto quando
 Causa identificada e registrada aqui. Entregas `pending`/`failed` do período reenfileiradas pelo endpoint de ops do atendys (`POST /admin/deliveries/:id/retry`, com a chave admin), ou descartadas conscientemente.
 
@@ -218,15 +226,38 @@ Fazer com um salão de teste e dois celulares: **um de conta antiga** (registrad
 
 ---
 
+## 10. P2 — Comando do dono com erro de digitação é ignorado sem aviso
+
+### Problema
+No teste de 2026-11-09, o dono respondeu **"CONCFIRMADO EOLQ"**. `lerComando` (`src/lib/whatsapp.server.ts`) só aceita `^(confirmado|recusar|recuso|recusado)\b`, então a mensagem não é comando: `processarComandoAgendamento` devolve `"ignorado"` e **nada é respondido**. O dono acha que confirmou, o agendamento continua `booked` e o cliente não recebe a confirmação.
+
+### O que mudar
+Quando o remetente for o dono ou o número do salão e a mensagem **parecer** um comando, responder pelo mesmo caminho do "sem pendente" (`enviarSemOperador(..., OPTIN_DONO)`):
+> Não entendi. Para confirmar, responda CONFIRMADO <código>; para recusar, RECUSAR <código>.
+
+"Parecer" = a primeira palavra, sem acento e em maiúsculas, está a **distância de edição ≤ 2** de CONFIRMADO, RECUSAR, RECUSO ou RECUSADO (ex.: CONCFIRMADO, CONFIMADO, CONFRIMADO, RECUZAR), **ou** a mensagem tem um código de 4 letras/números que bate com um agendamento `booked` futuro. Mensagem comum do dono no self-chat ("ok", "bom dia") continua ignorada, sem resposta.
+
+### Testes (`atendys.test.mts`)
+- `"CONCFIRMADO <código>"` do dono → resposta "Não entendi…" enviada ao dono; agendamento continua `booked`; retorno novo, por exemplo `"nao entendido"`.
+- `"confimado"` sem código → mesma resposta.
+- `"bom dia"` do dono → `"ignorado"`, **sem** envio.
+- `"CONCFIRMADO"` vindo de um cliente (não é o dono) → `"ignorado"`, sem envio.
+
+### Pronto quando
+Testes passam e, em produção, um comando com erro de digitação recebe a resposta de ajuda.
+
+---
+
 ## 9. Ordem de execução (checklist)
 
 - [x] 1. Confirmar o impacto do item 1 (consultas da seção 1, "Como confirmar"). 5 de 6 instâncias afetadas.
 - [x] 2. Implementar `canonicalBrMobile` + `soDigitosComDDI` canonizando (item 1) e os testes. **Feito: PR #281 (squash `d67fbf9b`), em produção desde 2026-11-09 00:22.** Falta o roteiro manual 7.2 num salão de conta antiga.
 - [x] 3. Limpar `errorCode` em `sent/delivered/read` (item 3) e os testes. **Feito: PR #282 (squash `d196aea9`), em produção desde 2026-11-09 01:13.**
 - [x] 4. `npm run typecheck && npm run lint && npm run test:whatsapp && npm run test:mensagens && npm run test:atendys`.
-- [ ] 5. Deploy do ruphus.site; roteiro 7.1, 7.2 (com conta antiga), 7.3, 7.4, 7.5.
-- [ ] 6. (atendys) Canonizar o telefone da instância no `CONNECTION_UPDATE` (item 1, passo 4); deploy pelo `scripts/deploy.sh`.
-- [ ] 7. Investigar e registrar a causa das falhas de 03–04/11 (item 4).
+- [ ] 5. Deploy do ruphus.site; roteiro 7.1, 7.2 (com conta antiga), 7.3, 7.4, 7.5. **7.1 e 7.2 validados em 2026-11-09** no ruphusbel (dono 91 99112-1306, conta antiga): agendamento EOLQ confirmado por "Confirmado EOLQ" no WhatsApp. Falta 7.4 (SAIR de conta antiga, com celular que não seja o do dono).
+- [x] 6. (atendys) Canonizar o telefone da instância no `CONNECTION_UPDATE` (item 1, passo 4); deploy pelo `scripts/deploy.sh`. **Feito: atendys `d093607`/`d96d81b`, em produção desde 2026-11-09 01:27** (comparações com `samePhone`, sem falsa troca de número).
+- [x] 7. Investigar e registrar a causa das falhas de 03–04/11 (item 4). **Feito:** 2 × 401 em 04/11 07:22 (barbearia-force), lado do ruphus.site sem log na época; ver "Resultado da investigação".
 - [x] 8. Verificador v1+v2 no ruphus.site (item 5) + testes; deploy. **Feito: PR #282 (squash `d196aea9`), em produção desde 2026-11-09 01:13.** Log `[webhook atendys] assinatura v1|v2`.
-- [ ] 9. (atendys) Enviar timestamp + assinatura v2; deploy; roteiro 7.6. Envio publicado no atendys (`d96d81b`, 2026-11-09 01:27). Falta o roteiro 7.6 e ver `v2` no `journalctl -u ruphus-site`.
+- [x] 9. (atendys) Enviar timestamp + assinatura v2; deploy; roteiro 7.6. Envio publicado no atendys (`d96d81b`, 2026-11-09 01:27). **Validado em 2026-11-09 02:01–02:19:** `[webhook atendys] assinatura v2: message.received de ruphusbel`, todas as entregas `ok` na 1ª tentativa.
+- [ ] 11. Comando do dono com erro de digitação (item 10 abaixo).
 - [ ] 10. Após 7 dias só com v2: exigir v2 no ruphus.site. **Previsto para 2026-11-16**, se até lá `journalctl -u ruphus-site --since 2026-11-09 | grep "assinatura v1"` não mostrar nada.
