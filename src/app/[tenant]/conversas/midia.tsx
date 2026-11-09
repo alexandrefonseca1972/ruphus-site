@@ -12,12 +12,12 @@ type Anexo = NonNullable<MensagemInbox["attachment"]>;
 
 const ROTULO: Record<Anexo["kind"], string> = { image: "Foto", video: "Vídeo", audio: "Áudio", document: "Documento" };
 
-export function Midia({ tenantId, mensagemId, anexo }: { tenantId: string; mensagemId: string; anexo: Anexo }) {
+export function Midia({ tenantId, conversaId, mensagemId, anexo }: { tenantId: string; conversaId: string; mensagemId: string; anexo: Anexo }) {
   const [estado, setEstado] = useState<{ url: string; tipo: string } | "carregando" | "erro" | "parado">(anexo.kind === "document" ? "parado" : "carregando");
   const indisponivel = anexo.available === "expired" || anexo.available === "unavailable";
 
   const baixar = async () => {
-    const res = await fetch(`/api/conversas/${encodeURIComponent(tenantId)}/midia/${encodeURIComponent(mensagemId)}`, {
+    const res = await fetch(`/api/conversas/${encodeURIComponent(tenantId)}/midia/${encodeURIComponent(mensagemId)}?c=${encodeURIComponent(conversaId)}`, {
       headers: { authorization: `Bearer ${await idToken()}` },
     });
     if (!res.ok) throw new Error(String(res.status));
@@ -42,7 +42,7 @@ export function Midia({ tenantId, mensagemId, anexo }: { tenantId: string; mensa
     };
     // baixar só lê props estáveis desta mensagem
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, mensagemId, anexo.kind, indisponivel]);
+  }, [tenantId, conversaId, mensagemId, anexo.kind, indisponivel]);
 
   if (indisponivel) return <p className="text-xs italic opacity-80">{ROTULO[anexo.kind]} não está mais disponível no WhatsApp.</p>;
   if (estado === "erro") return <p className="text-xs italic opacity-80">Não foi possível abrir {ROTULO[anexo.kind].toLowerCase()}.</p>;

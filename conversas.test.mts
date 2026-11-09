@@ -291,21 +291,42 @@ assert.equal((await enviar({ conversa: "c1", chave: "arq-00005", arquivo: foto }
 
 // ── a equipe não age na conversa do dono nem pelo id (link antigo, ex-gestor) ──
 await permitirEquipeNasConversas(db, "bel", "dono", true);
-const listaComDono = json({
-  items: [
-    { ...conversa, id: "cv_dono", contactPhone: "5591991121306" },
-    { ...conversa, id: "cv_cliente", contactPhone: "5591988887777" },
-  ],
-  nextCursor: null,
-});
-novo({ "GET /v1/inbox/conversations": listaComDono, "POST /v1/inbox/conversations/cv_dono/reply-media": json({ id: "x", status: "queued" }, 202) });
-const daEquipeAgora = { ...(await conexaoParaAtender(db, "bel", "equipe")), tenantId: "bel" };
+const doDonoPorId = json({ ...conversa, id: "cv_dono", contactPhone: "5591991121306" });
+const deClientePorId = json({ ...conversa, id: "cv_cliente", contactPhone: "5591988887777" });
+const historico = json({ items: [{ id: "m_cli", direction: "in", type: "media", text: null, at: "2026-11-09T10:00:00Z" }], nextCursor: null });
+const rotasPorId = {
+  "GET /v1/inbox/conversations/cv_dono": doDonoPorId,
+  "GET /v1/inbox/conversations/cv_cliente": deClientePorId,
+  "GET /v1/inbox/conversations/cv_cliente/messages": historico,
+  "GET /v1/inbox/conversations/cv_x": erro(404, "NOT_FOUND"),
+  "POST /v1/inbox/conversations/cv_dono/reply-media": json({ id: "x", status: "queued" }, 202),
+  "GET /v1/inbox/media/m_cli": () => new Response("x", { headers: { "content-type": "image/jpeg" } }),
+  "GET /v1/inbox/media/m_dono": () => new Response("x", { headers: { "content-type": "image/jpeg" } }),
+};
+novo(rotasPorId);
+const daEquipeAgora = await conexaoParaAtender(db, "bel", "equipe");
 await assert.rejects(exigeConversaVisivel(daEquipeAgora, "cv_dono"), /só do dono/);
 await exigeConversaVisivel(daEquipeAgora, "cv_cliente");
-await exigeConversaVisivel(await conexaoParaAtender(db, "bel", "dono"), "cv_dono"); // quem gere vê
+await assert.rejects(exigeConversaVisivel(daEquipeAgora, "cv_x"), /não foi encontrada/, "404 do atendys");
+assert.deepEqual(chamadas.map((c) => c.caminho), ["/v1/inbox/conversations/cv_dono", "/v1/inbox/conversations/cv_cliente", "/v1/inbox/conversations/cv_x"], "uma chamada por conversa, sem varrer a lista");
+novo(rotasPorId);
+await exigeConversaVisivel(await conexaoParaAtender(db, "bel", "dono"), "cv_dono");
+assert.equal(chamadas.length, 0, "quem gere vê todas sem chamada a mais");
 r = await responderArquivoDoNavegador(verificador("equipe"), db, "ok", "bel", formulario({ conversa: "cv_dono", chave: "arq-00006", arquivo: foto }));
 assert.equal(r.status, 403, "equipe não manda arquivo para a conversa do dono");
 assert.ok(!chamadas.some((c) => c.caminho.endsWith("/reply-media")), "nada chega ao atendys");
+
+// mídia pelo id da mensagem: a equipe só abre a de conversa que pode ver, e se a mensagem é dela
+const midiaDe = (uid: string, mensagem: string, conversaId: string | null) => midiaParaNavegador(verificador(uid), db, "ok", "bel", mensagem, conversaId);
+novo(rotasPorId);
+assert.equal((await midiaDe("equipe", "m_cli", "cv_cliente")).status, 200, "mensagem do histórico de conversa visível");
+assert.equal((await midiaDe("equipe", "m_dono", "cv_cliente")).status, 403, "id de mensagem de outra conversa");
+assert.equal((await midiaDe("equipe", "m_cli", "cv_dono")).status, 403, "conversa do dono");
+assert.equal((await midiaDe("equipe", "m_cli", null)).status, 403, "sem a conversa, a equipe não abre");
+assert.equal((await midiaDe("equipe", "m_cli", "..")).status, 400);
+novo(rotasPorId);
+assert.equal((await midiaDe("dono", "m_dono", null)).status, 200, "quem gere abre direto");
+assert.deepEqual(chamadas.map((c) => c.caminho), ["/v1/inbox/media/m_dono"]);
 await permitirEquipeNasConversas(db, "bel", "dono", false);
 
 // requestId do corpo fora do formato: vale o do cabeçalho

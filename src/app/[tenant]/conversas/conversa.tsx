@@ -240,7 +240,7 @@ export function Conversa({
                   <p className="italic opacity-80">Mensagem apagada</p>
                 ) : (
                   <>
-                    {m.attachment && <Midia tenantId={tenant.id} mensagemId={m.id} anexo={m.attachment} />}
+                    {m.attachment && <Midia tenantId={tenant.id} conversaId={conversa.id} mensagemId={m.id} anexo={m.attachment} />}
                     {m.text && <p className="break-words whitespace-pre-wrap">{m.text}</p>}
                   </>
                 )}
