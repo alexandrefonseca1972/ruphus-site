@@ -666,7 +666,7 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
 // ── botões: o cliente confirma presença, remarca por lista e cancela; o dono confirma por botão ──
 {
   const { idBotao, lerBotao, templateCliente: tc, templateNovoDono: tnd, TEMPLATES } = await import("@/lib/canal-oficial.server");
-  const { acaoDoCliente } = await import("@/lib/botoes-whatsapp.server");
+  const { acaoDoCliente, chaveDoHorario, pedidoDesatualizado } = await import("@/lib/botoes-whatsapp.server");
   const { enviarTemplate } = await import("@/lib/atendys");
   const { zonedTime, addDays, todayIn } = await import("@/lib/datetime");
   assert.deepEqual(lerBotao(idBotao("ch", "ofc", "A1b2", "2026-11-14T15:00")), { acao: "ch", slug: "ofc", agendamento: "A1b2", extra: "2026-11-14T15:00" });
@@ -707,7 +707,13 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.equal(enviadas.length, 0);
   assert.equal(await acaoDoCliente(db, b("cp"), "5511988881111"), "presença confirmada");
   assert.ok((await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").get()).get("presencaConfirmadaEm"));
-  assert.match(String(enviadas.at(-1)!.corpo.text), /Presença confirmada: Corte, amanhã às 10:00/);
+  // ainda não confirmado pelo estabelecimento: não diz "confirmado"
+  assert.match(String(enviadas.at(-1)!.corpo.text), /Avisamos o estabelecimento que você vai: Corte, amanhã às 10:00. Ele ainda vai confirmar/);
+  assert.equal(enviadas.at(-1)!.corpo.replyToInbound, true, "resposta: fora da cota por destinatário e do dedupe");
+  // mesmo horário (lista antiga, toque repetido) não remarca nem desfaz nada
+  assert.equal(await acaoDoCliente(db, b("ch", `${amanha}T10:00`), "5511988881111"), "mesmo horário");
+  assert.equal(await acaoDoCliente(db, b("ch", "2020-01-01T10:00"), "5511988881111"), "horário inválido");
+  assert.equal(await acaoDoCliente(db, b("ch", `${addDays(todayIn(), 200)}T10:00`), "5511988881111"), "horário inválido", "fora da janela da agenda");
 
   // remarcar: lista com até 10 horários livres; tocar num deles remarca e o dono recebe o pedido com botões
   assert.equal(await acaoDoCliente(db, b("cr"), "5511988881111"), "horários enviados");
@@ -715,6 +721,8 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.equal(lista.caminho, "lista");
   const itens = lista.corpo.list as { id: string; title: string }[];
   assert.ok(itens.length > 0 && itens.length <= 10);
+  assert.ok(!itens.some((i) => lerBotao(i.id)!.extra === `${amanha}T10:00`), "o horário atual não entra na lista");
+  assert.equal(lista.corpo.replyToInbound, true);
   const escolhido = lerBotao(itens.at(-1)!.id)!;
   assert.equal(escolhido.acao, "ch");
   assert.equal(await acaoDoCliente(db, escolhido, "5511988881111"), "remarcado");
@@ -725,6 +733,20 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   const pedido = enviadas.find((e) => e.caminho === "template")!;
   assert.equal(pedido.corpo.name, TEMPLATES.novoDonoBotoes);
   assert.equal(pedido.corpo.number, "5591992361726");
+  // o pedido leva o horário novo no id: o botão do pedido antigo fica desatualizado
+  const doPedido = (pedido.corpo.components as { type: string; parameters: { payload?: string }[] }[]).filter((x) => x.type === "button").map((x) => lerBotao(x.parameters[0].payload)!);
+  assert.equal(doPedido[0].extra, escolhido.extra);
+  assert.equal(await pedidoDesatualizado(db, doPedido[0]), false);
+  assert.equal(await pedidoDesatualizado(db, lerBotao(idBotao("dc", "ofc", "Ag1aaaaaaaaaaaaaaaaa", `${amanha}T10:00`))!), true);
+  // confirmado pelo dono: remarcar pelo cliente mantém confirmado e não pede de novo
+  await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").update({ status: "confirmed" });
+  enviadas.length = 0;
+  await acaoDoCliente(db, b("cr"), "5511988881111");
+  const outro = lerBotao((enviadas.at(-1)!.corpo.list as { id: string }[])[0].id)!;
+  assert.equal(await acaoDoCliente(db, outro, "5511988881111"), "remarcado");
+  const conf = await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").get();
+  assert.deepEqual([conf.get("status"), chaveDoHorario(conf.get("start").toDate())], ["confirmed", outro.extra]);
+  assert.ok(!enviadas.some((e) => e.caminho === "template"), "confirmado não gera pedido novo ao dono");
 
   // cancelar: libera o horário; de novo, já não está ativo
   assert.equal(await acaoDoCliente(db, b("cx"), "5511988881111"), "cancelado");

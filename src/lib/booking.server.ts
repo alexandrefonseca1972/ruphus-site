@@ -730,7 +730,8 @@ export async function rescheduleSlots(db: Firestore, q: Omit<RescheduleInput, "t
   return db.runTransaction(async (tx) => (await rescheduleContext(tx, db, q))?.slots ?? [], { readOnly: true });
 }
 
-export async function reschedule(db: Firestore, input: RescheduleInput, actor: Actor) {
+/** opcoes.manterStatus: remarcação pelo cliente (WhatsApp) não desfaz a confirmação do dono. */
+export async function reschedule(db: Firestore, input: RescheduleInput, actor: Actor, opcoes: { manterStatus?: boolean } = {}) {
   const preso = await profissionalDaConta(db, input.tenantId, actor.uid);
   return contended(() => db.runTransaction(async (tx) => {
     const ctx = await rescheduleContext(tx, db, input);
@@ -760,7 +761,7 @@ export async function reschedule(db: Firestore, input: RescheduleInput, actor: A
       durationMin: ctx.durationMin,
       priceCents: ctx.svc.reduce((sum, s) => sum + s.priceCents, 0),
       precoAberto: ctx.svc.some((s) => (s.tipoPreco ?? "fixo") !== "fixo"),
-      status: "booked", // precisa de nova confirmação
+      status: opcoes.manterStatus ? ctx.appt.get("status") : "booked", // remarcado pelo salão: precisa de nova confirmação
       rescheduledAt: FieldValue.serverTimestamp(),
       whatsappReminderSentAt: FieldValue.delete(), // o lembrete do horário antigo não vale para o novo
       // quem remarca é o salão: o sinal ainda por pagar fica dispensado, senão o prazo antigo cancelaria o horário novo

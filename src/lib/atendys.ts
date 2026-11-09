@@ -286,9 +286,11 @@ export const OPTIN_DONO: OptIn = { origem: "ruphus-aviso-dono", evidencia: "Núm
  * em produção): quando o número ainda não tem E quem chama passa um optIn (aceite explícito
  * gravado), registramos e repetimos o envio uma vez. Sem optIn, a recusa sobe como está.
  */
-export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date): Promise<Envio> {
+/** opcoes.resposta: a pessoa acabou de escrever ou tocar num botão (janela de 24 h): no atendys não
+ *  conta na cota por destinatário nem no dedupe de 10 min (replyToInbound). */
+export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean } = {}): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
-  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", { number: digits, text: message, ...validade(prazo) }, message);
+  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", { number: digits, text: message, ...validade(prazo), ...(opcoes.resposta && { replyToInbound: true }) }, message);
 }
 
 /** Até quando o aviso serve (o horário do agendamento): o atendys descarta o que não saiu até lá
@@ -328,9 +330,10 @@ export async function enviarInterativo(
   phone: string,
   m: { texto: string; botoes?: { id: string; title: string }[]; lista?: { botao: string; itens: { id: string; title: string; description?: string }[] } },
   optIn: OptIn,
+  opcoes: { resposta?: boolean } = {},
 ): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
-  const corpo = { number: digits, body: m.texto, ...(m.botoes ? { buttons: m.botoes } : {}), ...(m.lista ? { listButton: m.lista.botao, list: m.lista.itens } : {}) };
+  const corpo = { number: digits, body: m.texto, ...(opcoes.resposta && { replyToInbound: true }), ...(m.botoes ? { buttons: m.botoes } : {}), ...(m.lista ? { listButton: m.lista.botao, list: m.lista.itens } : {}) };
   return enviarComOptIn(conn, digits, optIn, "/v1/message/send-interactive", corpo, m.texto);
 }
 

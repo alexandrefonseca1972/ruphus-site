@@ -69,9 +69,10 @@ export function templateCliente(tipo: "recebido" | "confirmado" | "cancelado" | 
 
 /** Aviso de novo agendamento ao dono: {{1}} código (CONFIRMADO/RECUSAR + código), {{2}} negócio,
  *  {{3}} cliente, {{4}} telefone, {{5}} serviço, {{6}} quando. */
-export function templateNovoDono(c: { negocio: string; cliente: string; telefone: string; servico: string; quando: string; codigo: string }, ref?: { slug: string; agendamento: string }): Template {
+/** ref.horario ("2026-11-14T15:00"): vai no id dos botões; pedido de um horário que já mudou é recusado. */
+export function templateNovoDono(c: { negocio: string; cliente: string; telefone: string; servico: string; quando: string; codigo: string }, ref?: { slug: string; agendamento: string; horario?: string }): Template {
   const parametros = [c.codigo, c.negocio, c.cliente, c.telefone, c.servico, c.quando].map(parametro);
-  if (ref && comBotoes()) return { nome: TEMPLATES.novoDonoBotoes, parametros, botoes: [idBotao("dc", ref.slug, ref.agendamento), idBotao("dr", ref.slug, ref.agendamento)] };
+  if (ref && comBotoes()) return { nome: TEMPLATES.novoDonoBotoes, parametros, botoes: [idBotao("dc", ref.slug, ref.agendamento, ref.horario), idBotao("dr", ref.slug, ref.agendamento, ref.horario)] };
   return { nome: TEMPLATES.novoDono, parametros };
 }
 

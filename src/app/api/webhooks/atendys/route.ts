@@ -1,12 +1,12 @@
 import { after, NextResponse } from "next/server";
-import { versaoDaAssinatura, type CabecalhosWebhook } from "@/lib/atendys";
+import { enviarTexto, OPTIN_DONO, versaoDaAssinatura, type CabecalhosWebhook } from "@/lib/atendys";
 import { adminDb } from "@/lib/admin";
 import { DEMO } from "@/lib/demo";
 import { atualizarParada, marcarFalhaVigiada, negocioDaMensagem } from "@/lib/mensagens-paradas.server";
 import { avisar } from "@/lib/avisos.server";
 import { avisarQueda, codigoDoAgendamento, espelharStatusDaInstancia, executarComandoPendente, idDoComando, lerConexao, registrarErroNotificacao, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
-import { instanciaPlataforma, lerBotao, negocioDoComando, negociosDoDono, segredoPlataforma, usaCanalOficial } from "@/lib/canal-oficial.server";
-import { acaoDoCliente } from "@/lib/botoes-whatsapp.server";
+import { conexaoOficial, instanciaPlataforma, lerBotao, negocioDoComando, negociosDoDono, segredoPlataforma, usaCanalOficial } from "@/lib/canal-oficial.server";
+import { acaoDoCliente, pedidoDesatualizado } from "@/lib/botoes-whatsapp.server";
 
 // Onde o atendys avisa o que acontece nas instâncias: mensagem recebida do
 // cliente final, mudança de estado da conexão e status de envio. Cada webhook é
@@ -109,6 +109,8 @@ export async function POST(req: Request) {
     const botao = lerBotao(evento.reply?.id);
     // botão do cliente (lembrete/lista de horários): a caixa de entrada é o dedupe das reentregas
     if (botao && botao.acao.startsWith("c")) {
+      // id é dado de fora: só grava na caixa de um negócio do canal oficial (o resto confere acaoDoCliente)
+      if (!(await usaCanalOficial(adminDb, botao.slug))) return responder(200, { ok: true });
       const nova = await registrarMensagemRecebida(adminDb, botao.slug, { phone: evento.phone, messageId: evento.messageId, data: { text: evento.text ?? "" }, timestamp: evento.at });
       // ponytail: sem pendente reprocessável (como o do dono); queda no meio perde o toque e o cliente toca de novo
       if (nova) after(() => acaoDoCliente(adminDb, botao, evento.phone!).then((r) => console.log(`[atendys] botão do cliente em ${botao.slug}: ${r}`)).catch((e) => console.error("[atendys] botão do cliente", e)));
@@ -119,6 +121,13 @@ export async function POST(req: Request) {
     if (botao) {
       if (!(await negociosDoDono(adminDb, evento.phone)).includes(botao.slug)) {
         console.warn(`[webhook atendys] botão do dono de ${botao.slug} vindo de outro número (${evento.phone.slice(-4)})`);
+        return responder(200, { ok: true });
+      }
+      // pedido de um horário que já mudou (o cliente remarcou): não confirma o horário novo às cegas
+      if (await pedidoDesatualizado(adminDb, botao)) {
+        console.log(`[webhook atendys] botão de pedido desatualizado em ${botao.slug}`);
+        const oficial = await conexaoOficial(adminDb, botao.slug).catch(() => null);
+        if (oficial) after(() => enviarTexto(oficial, evento.phone!, "Esse pedido mudou de horário (o cliente remarcou). Use o pedido mais recente ou o painel.", OPTIN_DONO, undefined, { resposta: true }).catch((e) => console.error("[atendys] aviso de pedido desatualizado", e)));
         return responder(200, { ok: true });
       }
       evento.text = `${botao.acao === "dc" ? "CONFIRMADO" : "RECUSAR"} ${codigoDoAgendamento(botao.agendamento, 12)}`;
