@@ -6,8 +6,8 @@ import { MAX_DAYS_AHEAD, dentroDaJanela, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 import { codigoDoAgendamento, espelharStatusVivo, lerConexao, registrarErroNotificacao } from "@/lib/whatsapp.server";
 import { soDigitosComDDI } from "@/lib/telefone";
-import { comAvisoSair, optInDoAgendamento, TERMO_WHATSAPP_VERSAO } from "@/lib/consentimento-whatsapp";
-import { enviarSemOperador, motivoLegivel, OPTIN_DONO, ROTULO_STATUS, statusDaConexao } from "@/lib/atendys";
+import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
+import { enviarSemOperador, motivoLegivel, OPTIN_DONO, ROTULO_STATUS, saiuDepoisDoAceite, statusDaConexao } from "@/lib/atendys";
 
 // A reserva da página pública. Rota, não server action: o Next manda um server action
 // por vez, e com a rede travada a nova tentativa (e a agenda) ficava na fila atrás da
@@ -109,6 +109,10 @@ export async function POST(req: Request) {
           console.log(`[whatsapp] ${tenantId}: cliente não aceitou WhatsApp; recibo de ${nova.id} não enviado`);
         } else if (cliente) {
           try {
+            // a evidência é o aceite gravado no agendamento (texto, versão, momento): o mesmo
+            // momento vai como occurredAt, e o id do agendamento faz o eventId
+            const optIn = optInDoDoc(tenantId, await adminDb.doc(`tenants/${tenantId}/appointments/${nova.id}`).get());
+            if (!optIn) throw new Error("aceite do WhatsApp não gravado no agendamento");
             await enviarSemOperador(
               conn,
               cliente,
@@ -116,13 +120,13 @@ export async function POST(req: Request) {
                 recadoDono ||
                   `Olá, ${nomeCurto}! Recebemos seu pedido de agendamento: ${partes.join(" · ")}. O salão vai confirmar em breve — avisamos por aqui.`,
               ),
-              // a evidência é o aceite explícito do formulário: texto, versão, momento e agendamento
-              optInDoAgendamento({ tenantId, agendamentoId: nova.id, versao: TERMO_WHATSAPP_VERSAO, em: new Date() }),
+              optIn,
               prazo,
             );
           } catch (e) {
             falhas.push(`recibo ao cliente não chegou: ${motivoLegivel(e)}`);
-            console.error("recibo de agendamento via WhatsApp", e);
+            // SAIR depois do aceite: a vontade do cliente, não falha (o aviso já foi para o log)
+            if (!saiuDepoisDoAceite(e)) console.error("recibo de agendamento via WhatsApp", e);
           }
         } else {
           console.warn(`[whatsapp] ${tenantId}: telefone do cliente inválido (${b.data.customerPhone}); recibo de agendamento não enviado`);
