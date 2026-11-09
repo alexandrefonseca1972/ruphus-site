@@ -48,6 +48,8 @@ const Appointment = z.object({
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
   // sinal do agendamento online (Pix na chave do salão); só o servidor grava
   sinal: z.object({ cents: z.number(), status: z.enum(["pendente", "pago", "vencido", "dispensado", "erro"]), hora: z.string() }).optional().catch(undefined),
+  // o cliente tocou em "Confirmar presença" no WhatsApp (instante real); a remarcação apaga
+  presencaConfirmadaEm: z.instanceof(Timestamp).optional().catch(undefined),
 });
 export type Appointment = z.infer<typeof Appointment> & { id: string };
 
@@ -277,7 +279,7 @@ export default function AgendaPage() {
       )}
 
       {/* gestor com WhatsApp do negócio: as que pararam na cota sem ninguém olhando */}
-      {tenant.podeGerir && peloNegocio && <MensagensParadas tenantId={tenant.id} fuso={fuso} />}
+      {tenant.podeGerir && (peloNegocio || tenant.whatsapp?.canalOficial) && <MensagensParadas tenantId={tenant.id} fuso={fuso} />}
       {notice && (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950">
           <span>{notice.text}</span>
@@ -365,6 +367,11 @@ export default function AgendaPage() {
                     </Link>
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS[a.status].className}`}>{STATUS[a.status].label}</span>
                     {a.planId && <span className="rounded-full border px-2.5 py-0.5 text-xs">Recorrente</span>}
+                    {a.presencaConfirmadaEm && ATIVO(a) && (
+                      <span title={`Confirmada pelo cliente no WhatsApp: ${quandoSai(a.presencaConfirmadaEm.toDate().toISOString(), fuso)}`} className="rounded-full border px-2.5 py-0.5 text-xs">
+                        Presença confirmada · {formatTime(a.presencaConfirmadaEm.toDate(), fuso)}
+                      </span>
+                    )}
                     {a.sinal?.status === "pendente" && ATIVO(a) && (
                       <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
                         Sinal de {brl(a.sinal.cents)} até {a.sinal.hora}

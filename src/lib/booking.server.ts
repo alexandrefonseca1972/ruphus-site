@@ -767,6 +767,7 @@ export async function reschedule(db: Firestore, input: RescheduleInput, actor: A
       status: opcoes.manterStatus ? ctx.appt.get("status") : "booked", // remarcado pelo salão: precisa de nova confirmação
       rescheduledAt: FieldValue.serverTimestamp(),
       whatsappReminderSentAt: FieldValue.delete(), // o lembrete do horário antigo não vale para o novo
+      presencaConfirmadaEm: FieldValue.delete(), // nem a presença que o cliente confirmou para ele
       // quem remarca é o salão: o sinal ainda por pagar fica dispensado, senão o prazo antigo cancelaria o horário novo
       ...(ctx.appt.get("sinal.status") === "pendente" && { "sinal.status": "dispensado" }),
     });

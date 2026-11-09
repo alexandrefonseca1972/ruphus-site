@@ -100,7 +100,8 @@ export async function avisarFalhaDeEnvio(slug: string, id: string, codigo?: stri
     console.warn(`[mensagens] envio ${id} de ${slug} falhou (${codigo ?? "sem código"})${r.push ? "" : ": push agrupado"}`);
     if (r.push) {
       // tag fixa por negócio: o aviso novo substitui o anterior no celular em vez de empilhar
-      await avisar(adminDb, slug, { title: "Aviso do WhatsApp não entregue", body: r.texto.slice(0, 180), url: `/${slug}`, tag: `falha-whatsapp-${slug}` }, { soGestores: true })
+      // url: a gaveta do WhatsApp em Meu negócio, onde o último aviso que não saiu aparece
+      await avisar(adminDb, slug, { title: "Aviso do WhatsApp não entregue", body: r.texto.slice(0, 180), url: `/${slug}/negocio#whatsapp`, tag: `falha-whatsapp-${slug}` }, { soGestores: true })
         .catch((e) => console.error(`[mensagens] push da falha de ${id}`, e));
     }
     return r.push ? "push" : "agrupada";

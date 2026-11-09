@@ -113,7 +113,15 @@ export async function acaoDoCliente(db: Firestore, b: Botao, telefone: string): 
   }
 
   if (b.acao === "cp") {
-    await ref.update({ presencaConfirmadaEm: FieldValue.serverTimestamp() });
+    // relido na transação: remarcado ou cancelado entre a leitura e aqui, a presença ficaria no horário novo
+    const ok = await db.runTransaction(async (tx) => {
+      const atual = await tx.get(ref);
+      const inicio = paraData(atual.get("start"));
+      if (!ATIVOS.includes(String(atual.get("status"))) || !inicio || inicio.getTime() !== start.getTime()) return false;
+      tx.update(ref, { presencaConfirmadaEm: FieldValue.serverTimestamp() });
+      return true;
+    });
+    if (!ok) return "inativo";
     await gestores("Presença confirmada", `${nome} confirmou presença: ${servico}, ${quandoVai}.`);
     // ainda sem a confirmação do estabelecimento: não diz "confirmado"
     await responder(status === "confirmed"
