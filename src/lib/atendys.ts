@@ -62,6 +62,8 @@ export class ErroAtendys extends ErroPrevisto {
     readonly codigo: string | null,
     /** Segundos do Retry-After (429), quando o atendys manda. */
     readonly retryAfter: number | null = null,
+    /** X-Request-Id do atendys: liga a falha daqui à linha de log de lá. */
+    readonly requestId: string | null = null,
   ) {
     super(message);
   }
@@ -112,10 +114,12 @@ async function erroDaResposta(res: Response, method: string, caminho: string): P
   const detalhe = await res.text().catch(() => "");
   let codigo: string | null = null;
   let doServidor = "";
+  let requestId = res.headers.get("x-request-id");
   try {
-    const e = (JSON.parse(detalhe) as { error?: { code?: unknown; message?: unknown } }).error;
+    const e = (JSON.parse(detalhe) as { error?: { code?: unknown; message?: unknown; requestId?: unknown } }).error;
     codigo = typeof e?.code === "string" ? e.code : null;
     doServidor = typeof e?.message === "string" ? e.message.slice(0, 200) : "";
+    if (typeof e?.requestId === "string") requestId = e.requestId;
   } catch {
     // corpo que não é JSON (proxy, HTML de erro): fica sem código
   }
@@ -124,16 +128,16 @@ async function erroDaResposta(res: Response, method: string, caminho: string): P
   // na Central, as recusas do contrato (janela fechada, opt-out, pausa…) são regra, não falha
   const esperado =
     codigo === "NOT_OPTED_IN" || (res.status === 409 && caminho === "/v1/optin") || (caminho.startsWith("/v1/inbox/") && codigo !== null && RECUSAS_DA_CENTRAL.has(codigo));
-  (esperado ? console.warn : console.error)(`[atendys] ${method} ${caminho} → ${res.status} ${detalhe.slice(0, 300)}`);
+  if (requestId && !/^[A-Za-z0-9._:-]{1,64}$/.test(requestId)) requestId = null;
+  (esperado ? console.warn : console.error)(`[atendys] ${method} ${caminho} → ${res.status}${requestId ? ` (requestId ${requestId})` : ""} ${detalhe.slice(0, 300)}`);
   // limite (por minuto, por dia, por destinatário), categoria desligada e validação: o atendys
   // já explica em português, e "espere um pouco" enganava quando o limite era o do dia
   const usaDoServidor = codigo !== null && ["RATE_LIMITED", "FORBIDDEN", "VALIDATION_ERROR"].includes(codigo) && doServidor;
-  return new ErroAtendys(
-    (usaDoServidor ? doServidor : codigo && Object.hasOwn(MENSAGEM, codigo) && MENSAGEM[codigo]) || `O serviço de WhatsApp recusou o pedido (${res.status}). Tente de novo em instantes.`,
-    res.status,
-    codigo,
-    res.status === 429 ? Number(res.headers.get("retry-after")) || null : null,
-  );
+  const frase =
+    (usaDoServidor ? doServidor : codigo && Object.hasOwn(MENSAGEM, codigo) && MENSAGEM[codigo]) || `O serviço de WhatsApp recusou o pedido (${res.status}). Tente de novo em instantes.`;
+  // falha do lado de lá (5xx): o código curto deixa o suporte achar a linha no log do atendys
+  const suporte = res.status >= 500 && requestId ? ` Código para suporte: ${requestId.slice(0, 8)}.` : "";
+  return new ErroAtendys(frase + suporte, res.status, codigo, res.status === 429 ? Number(res.headers.get("retry-after")) || null : null, requestId);
 }
 
 /** O pedido cru, já com a recusa como ErroAtendys: quem quer o corpo em bytes (mídia) usa direto. */

@@ -14,7 +14,7 @@ import {
   responderComMidia,
   responderConversa,
 } from "@/lib/atendys";
-import { atenderComo, conexaoParaAtender, midiaParaNavegador, permitirEquipeNasConversas, podeAtenderConversas, visiveis } from "@/lib/conversas.server";
+import { atenderComo, conexaoParaAtender, midiaParaNavegador, responderArquivoDoNavegador, permitirEquipeNasConversas, podeAtenderConversas, visiveis } from "@/lib/conversas.server";
 import { gravarConexao } from "@/lib/whatsapp.server";
 
 const db = getFirestore();
@@ -253,6 +253,32 @@ globalThis.fetch = (async () => {
 assert.equal((await rota("dono")).status, 502, "atendys fora do ar não é 'sem acesso'");
 globalThis.fetch = fetchSimulado;
 
+// ── envio de arquivo pela rota (multipart) ──
+const formulario = (campos: Record<string, string | File>) => async () => {
+  const f = new FormData();
+  for (const [k, v] of Object.entries(campos)) f.set(k, v);
+  return f;
+};
+const foto = new File([new Uint8Array([137, 80, 78, 71])], "foto.png", { type: "image/png" });
+novo({ "POST /v1/inbox/conversations/c1/reply-media": json({ id: "m20", status: "queued" }, 202) });
+let lidoSemAcesso = false;
+assert.equal((await responderArquivoDoNavegador(verificador("equipe"), db, "ok", "bel", async () => ((lidoSemAcesso = true), new FormData()))).status, 403);
+assert.equal(lidoSemAcesso, false, "sem acesso, o corpo nem é lido");
+r = await responderArquivoDoNavegador(verificador("dono"), db, "ok", "bel", formulario({ conversa: "c1", chave: "arq-00001", arquivo: foto, legenda: " olha " }));
+assert.equal(r.status, 200);
+assert.deepEqual(await r.json(), { ok: true, envio: { id: "m20", status: "queued" } });
+assert.equal(chamadas[0].headers["idempotency-key"], "arq-00001");
+assert.deepEqual(chamadas[0].corpo, { media: "data:image/png;base64,iVBORw==", mimetype: "image/png", fileName: "foto.png", caption: "olha" });
+const enviar = (campos: Record<string, string | File>) => responderArquivoDoNavegador(verificador("dono"), db, "ok", "bel", formulario(campos));
+assert.equal((await enviar({ conversa: "..", chave: "arq-00001", arquivo: foto })).status, 400);
+assert.equal((await enviar({ conversa: "c1", chave: "x", arquivo: foto })).status, 400);
+assert.equal((await enviar({ conversa: "c1", chave: "arq-00001", arquivo: new File([new Uint8Array(1)], "a.html", { type: "text/html" }) })).status, 415);
+assert.equal((await enviar({ conversa: "c1", chave: "arq-00001", arquivo: new File([], "vazio.png", { type: "image/png" }) })).status, 400);
+novo({ "POST /v1/inbox/conversations/c1/reply-media": erro(403, "MESSAGE_TYPE_NOT_ALLOWED") });
+r = await enviar({ conversa: "c1", chave: "arq-00002", arquivo: foto });
+assert.equal(r.status, 403);
+assert.equal((await r.json()).codigo, "MESSAGE_TYPE_NOT_ALLOWED");
+
 // credencial recusada na Central é erro no log (alerta), não aviso
 logErro = 0;
 novo({ "GET /v1/inbox/conversations": erro(401, "INVALID_API_KEY") });
@@ -261,6 +287,20 @@ assert.equal(logErro, 1, "chave revogada alarma");
 // código herdado de Object não vira a frase
 novo({ "GET /v1/inbox/conversations": erro(400, "toString") });
 assert.match((await listarConversas(conn).catch((x) => x)).message, /recusou o pedido \(400\)/);
+
+// requestId do atendys: no 5xx vira o código curto para o suporte; no 4xx não aparece
+novo({ "GET /v1/inbox/conversations": () => Response.json({ error: { code: "INTERNAL", message: "x", requestId: "3f2b9c1d-aaaa-bbbb" } }, { status: 500 }) });
+const com5xx = await listarConversas(conn).catch((x) => x);
+assert.equal(com5xx.requestId, "3f2b9c1d-aaaa-bbbb");
+assert.match(com5xx.message, /Código para suporte: 3f2b9c1d\.$/);
+novo({ "GET /v1/inbox/conversations": () => new Response("<html>", { status: 502, headers: { "x-request-id": "abcdef1234" } }) });
+assert.match((await listarConversas(conn).catch((x) => x)).message, /Código para suporte: abcdef12\.$/, "sem JSON: o do cabeçalho");
+novo({ "POST /v1/inbox/conversations/c1/reply": () => Response.json({ error: { code: "REPLY_WINDOW_CLOSED", message: "x", requestId: "r-4xx-000" } }, { status: 403 }) });
+const com4xx = await responderConversa(conn, "c1", "Oi", "resp-0006").catch((x) => x);
+assert.equal(com4xx.requestId, "r-4xx-000");
+assert.doesNotMatch(com4xx.message, /suporte/);
+novo({ "GET /v1/inbox/conversations": () => Response.json({ error: { code: "INTERNAL", requestId: "<script>" } }, { status: 500 }) });
+assert.equal((await listarConversas(conn).catch((x) => x)).requestId, null, "requestId fora do formato é descartado");
 console.warn = avisos;
 console.error = erros;
 

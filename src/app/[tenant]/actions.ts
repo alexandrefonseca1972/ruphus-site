@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
 import { atenderComo, type Atendimento, permitirEquipeNasConversas, visiveis } from "@/lib/conversas.server";
-import { agirNaMensagem, arquivarConversa, assumirEnvio, buscarNasConversas, CHAVE_IDEMPOTENCIA, deslogarInstancia, ID_INBOX, enviarTexto, ErroAtendys, listarConversas, manterAgendada, marcarConversa, mensagensDaConversa, qrDaConexao, responderComMidia, responderConversa, statusDaConexao, statusDaMensagem } from "@/lib/atendys";
+import { agirNaMensagem, arquivarConversa, assumirEnvio, buscarNasConversas, CHAVE_IDEMPOTENCIA, deslogarInstancia, ID_INBOX, enviarTexto, ErroAtendys, listarConversas, manterAgendada, marcarConversa, mensagensDaConversa, qrDaConexao, responderConversa, statusDaConexao, statusDaMensagem } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
@@ -659,34 +659,6 @@ export const arquivarConversaAction = conversaAction(ComConversa.extend({ arquiv
 export const responderConversaAction = conversaAction(
   ComConversa.extend({ texto: z.string().trim().min(1, "Escreva a mensagem.").max(4096, "Mensagem longa demais."), chave: chaveEnvio, citada: idOpaco.optional() }),
   async ({ conversa, texto, chave, citada }, a) => ({ ok: true as const, envio: await responderConversa(a.conn, conversa, texto, chave, citada) }),
-);
-
-// A mídia vai como data: base64 dentro da server action, que tem teto de 1 MB no corpo: o
-// arquivo fica em ~700 KB. URL de fora não: ninguém precisa mandar link de terceiros pelo número.
-// ponytail: teto da server action; rota própria de upload quando a tela pedir arquivo maior
-const TETO_MIDIA = 950_000;
-export const responderComMidiaAction = conversaAction(
-  ComConversa.extend({
-    chave: chaveEnvio,
-    midia: z
-      .string()
-      .max(TETO_MIDIA, "Arquivo acima de 700 KB. Envie um menor.")
-      .regex(/^data:(image|audio|video|application)\/[\w.+-]+;base64,[A-Za-z0-9+/]+={0,2}$/, "Arquivo inválido."),
-    legenda: z.string().max(1024).optional(),
-    nomeArquivo: z.string().max(200).optional(),
-    voz: z.boolean().optional(),
-    citada: idOpaco.optional(),
-  }),
-  async ({ conversa, chave, midia, legenda, nomeArquivo, voz, citada }, a) => ({
-    ok: true as const,
-    envio: await responderComMidia(
-      a.conn,
-      conversa,
-      // o tipo sai do próprio arquivo: um campo à parte podia dizer outra coisa
-      { media: midia, mimetype: midia.slice(5, midia.indexOf(";")), caption: legenda, fileName: nomeArquivo, voice: voz, quotedMessageId: citada },
-      chave,
-    ),
-  }),
 );
 
 export const agirNaMensagemAction = conversaAction(

@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { AtendysForaDoAr, type ConexaoAtendys, type ConversaInbox, ErroAtendys, ID_INBOX, midiaDaMensagem } from "@/lib/atendys";
+import { AtendysForaDoAr, CHAVE_IDEMPOTENCIA, type ConexaoAtendys, type ConversaInbox, ErroAtendys, ID_INBOX, midiaDaMensagem, responderComMidia } from "@/lib/atendys";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { requireMember, UserError } from "@/lib/booking.server";
 import { soDigitosComDDI } from "@/lib/telefone";
@@ -112,6 +112,61 @@ export async function midiaParaNavegador(verify: typeof verifyFirebaseToken, db:
       },
     });
   } catch (e) {
+    return statusDe(e);
+  }
+}
+
+// ─── Resposta com arquivo: do navegador ao atendys ──────────────────────────
+// Rota (multipart), não server action: a action tem teto de 1 MB. O teto daqui cabe no
+// proxyClientMaxBodySize (13 MB, next.config) e no corpo de 25 MB do atendys depois do base64.
+// ponytail: 12 MB por arquivo; vídeo maior pede subir o proxyClientMaxBodySize junto
+export const TETO_ARQUIVO = 12 * 1024 * 1024;
+const TIPO_ARQUIVO = /^(image|audio|video|application)\/[\w.+-]+$/;
+
+/** A resposta inteira da rota de envio de arquivo, testável com verificador simulado. */
+export async function responderArquivoDoNavegador(verify: typeof verifyFirebaseToken, db: Firestore, token: string, tenant: string, lerForm: () => Promise<FormData | null>) {
+  if (!TENANT.test(tenant)) return falha("Pedido inválido.", 400);
+  try {
+    // quem não pode atender não faz o servidor ler o arquivo
+    const { conn } = await atenderComo(verify, db, token, tenant);
+    const form = await lerForm();
+    const conversa = form?.get("conversa");
+    const chave = form?.get("chave");
+    const arquivo = form?.get("arquivo");
+    const legenda = form?.get("legenda");
+    const citada = form?.get("citada");
+    if (typeof conversa !== "string" || !ID_INBOX.test(conversa) || typeof chave !== "string" || !CHAVE_IDEMPOTENCIA.test(chave) || !(arquivo instanceof File)) {
+      return falha("Pedido inválido.", 400);
+    }
+    if (citada !== null && (typeof citada !== "string" || !ID_INBOX.test(citada))) return falha("Pedido inválido.", 400);
+    if (legenda !== null && (typeof legenda !== "string" || legenda.length > 1024)) return falha("Legenda longa demais.", 400);
+    if (!arquivo.size) return falha("Arquivo vazio.", 400);
+    if (arquivo.size > TETO_ARQUIVO) return falha("Arquivo acima de 12 MB. Envie um menor.", 413);
+    const tipo = arquivo.type || "application/octet-stream";
+    if (!TIPO_ARQUIVO.test(tipo)) return falha("Tipo de arquivo não aceito.", 415);
+    const media = `data:${tipo};base64,${Buffer.from(await arquivo.arrayBuffer()).toString("base64")}`;
+    const envio = await responderComMidia(
+      conn,
+      conversa,
+      {
+        media,
+        mimetype: tipo,
+        fileName: arquivo.name ? arquivo.name.slice(0, 200) : undefined,
+        caption: typeof legenda === "string" && legenda.trim() ? legenda.trim() : undefined,
+        voice: form?.get("voz") === "1" || undefined,
+        quotedMessageId: typeof citada === "string" ? citada : undefined,
+      },
+      chave,
+    );
+    return Response.json({ ok: true, envio }, { headers: { "cache-control": "no-store" } });
+  } catch (e) {
+    if (e instanceof ErroAtendys) {
+      // a tela decide pelo código (janela fechada, opt-out…), como nas ações
+      return Response.json(
+        { ok: false, error: e.message, codigo: e.codigo, retryAfter: e.retryAfter },
+        { status: e.status >= 400 && e.status < 500 ? e.status : 502, headers: { "cache-control": "no-store", ...(e.retryAfter && { "retry-after": String(e.retryAfter) }) } },
+      );
+    }
     return statusDe(e);
   }
 }
