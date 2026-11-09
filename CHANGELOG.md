@@ -5,6 +5,7 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- WhatsApp do negócio: comando do dono com erro de digitação ("CONCFIRMADO", "confimado") ou só com o código do agendamento recebe "Não entendi. Para confirmar, responda CONFIRMADO <código>; para recusar, RECUSAR <código>." Antes era ignorado em silêncio, e o dono achava que tinha confirmado.
 - WhatsApp do negócio: mensagem que o atendys marcou como falha e depois confirmou como enviada não mostra mais o código de erro antigo.
 - Webhook do atendys: passa a aceitar a assinatura v2 (com horário, recusada depois de 5 minutos), que impede reenviar um aviso capturado. A assinatura atual continua valendo até o atendys mandar só a v2.
 - WhatsApp do negócio: CONFIRMADO/RECUSAR do dono voltam a funcionar em número de conta antiga (registrado no WhatsApp sem o 9º dígito). Desde 08/11 o atendys manda o telefone sempre com o 9 e o ruphus.site comparava com o número gravado sem ele: o comando era ignorado em silêncio. Telefones de celular passam a ser tratados sempre com o 9, como no atendys.

@@ -6,7 +6,7 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { assinaturaValida, assinaturaV2Valida, assumirEnvio, criarInstancia, enviarSemOperador, enviarTexto, ErroAtendys, manterAgendada, garantirTenant, imagemDoQr, revogarChavesAntigas, versaoDaAssinatura } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
-import { codigosUnicos, conectarNegocio, espelharStatusDaInstancia, gravarConexao, lerConexao, lerConfigWhatsApp, lerComando, processarComandoAgendamento } from "@/lib/whatsapp.server";
+import { codigosUnicos, conectarNegocio, espelharStatusDaInstancia, gravarConexao, lerConexao, lerConfigWhatsApp, lerComando, pareceComando, processarComandoAgendamento } from "@/lib/whatsapp.server";
 
 // ── assinatura do webhook ──
 const corpo = JSON.stringify({ event: "message.received", instance: "casa-main" });
@@ -41,6 +41,9 @@ assert.equal(lerComando("cancelar"), null, "cancelar é opt-out do gateway, não
 assert.equal(lerComando("confirmadoo"), null);
 assert.equal(lerComando("oi, tudo bem?"), null);
 assert.equal(lerComando("confirmado ab12c")?.codigo, "AB12C", "código mais longo quando 4 letras empatam");
+// erro de digitação: a até 2 letras de um verbo (sem acento, maiúscula)
+for (const t of ["CONCFIRMADO EOLQ", "confimado", "CONFRIMADO", "recuzar ab12", "Confírmado"]) assert.equal(pareceComando(t), true, t);
+for (const t of ["bom dia", "ok", "obrigado", "oi, tudo bem?", "", "sair"]) assert.equal(pareceComando(t), false, t);
 // ids do Firestore diferem em maiúscula/minúscula: "Ab12…" e "aB12…" davam o mesmo AB12
 assert.deepEqual([...codigosUnicos(["Ab12x9", "aB12y9", "zz99k1"]).values()], ["AB12X", "AB12Y", "ZZ99K"]);
 assert.deepEqual([...codigosUnicos(["Ab12x9", "zz99k1"]).values()], ["AB12", "ZZ99"], "sem empate, 4 letras");
@@ -252,6 +255,22 @@ await marcar("bCdegr");
 assert.equal(await comando("confirmado bcdef"), "confirmado");
 assert.equal(await comando("confirmado bcdef"), "sem pendente");
 assert.equal((await db.doc("tenants/salao/appointments/bCdegr").get()).get("status"), "booked", "BCDEG continua aguardando");
+
+// erro de digitação do dono: resposta de ajuda, nada muda; conversa comum e cliente: sem resposta
+{
+  await marcar("Eolq77");
+  enviadas.length = 0;
+  assert.equal(await comando("CONCFIRMADO EOLQ"), "nao entendido");
+  assert.deepEqual(enviadas, [{ para: "5511900000099", texto: "Não entendi. Para confirmar, responda CONFIRMADO <código>; para recusar, RECUSAR <código>." }]);
+  assert.equal((await db.doc("tenants/salao/appointments/Eolq77").get()).get("status"), "booked", "continua aguardando");
+  assert.equal(await comando("confimado"), "nao entendido", "sem código também");
+  assert.equal(await comando("eolq"), "nao entendido", "só o código de um pendente");
+  enviadas.length = 0;
+  assert.equal(await comando("bom dia"), "ignorado");
+  assert.equal(await comando("CONCFIRMADO", "5511977776666"), "ignorado", "cliente não é o dono");
+  assert.equal(enviadas.length, 0, "nem conversa comum nem cliente recebem resposta");
+  await db.doc("tenants/salao/appointments/Eolq77").update({ status: "cancelled" });
+}
 
 // conta antiga (12 dígitos): o número do salão gravado pelo instance.status e o pessoal do dono
 // ficam sem o 9, mas desde 2026-11-08 o atendys manda o remetente com o 9. Tem de confirmar igual.

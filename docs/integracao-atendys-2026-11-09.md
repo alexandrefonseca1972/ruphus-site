@@ -259,5 +259,5 @@ Testes passam e, em produção, um comando com erro de digitação recebe a resp
 - [x] 7. Investigar e registrar a causa das falhas de 03–04/11 (item 4). **Feito:** 2 × 401 em 04/11 07:22 (barbearia-force), lado do ruphus.site sem log na época; ver "Resultado da investigação".
 - [x] 8. Verificador v1+v2 no ruphus.site (item 5) + testes; deploy. **Feito: PR #282 (squash `d196aea9`), em produção desde 2026-11-09 01:13.** Log `[webhook atendys] assinatura v1|v2`.
 - [x] 9. (atendys) Enviar timestamp + assinatura v2; deploy; roteiro 7.6. Envio publicado no atendys (`d96d81b`, 2026-11-09 01:27). **Validado em 2026-11-09 02:01–02:19:** `[webhook atendys] assinatura v2: message.received de ruphusbel`, todas as entregas `ok` na 1ª tentativa.
-- [ ] 11. Comando do dono com erro de digitação (item 10 abaixo).
+- [x] 11. Comando do dono com erro de digitação (item 10 acima). **Feito: `pareceComando` + resposta de ajuda, retorno `"nao entendido"`; testes em `atendys.test.mts`.** Falta ver em produção a resposta "Não entendi…" a um comando com erro.
 - [ ] 10. Após 7 dias só com v2: exigir v2 no ruphus.site. **Previsto para 2026-11-16**, se até lá `journalctl -u ruphus-site --since 2026-11-09 | grep "assinatura v1"` não mostrar nada.

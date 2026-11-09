@@ -398,6 +398,27 @@ export function lerComando(texto: string): { verbo: string; recusar: boolean; co
   return { verbo: m[1].toUpperCase(), recusar: m[1].toLowerCase() !== "confirmado", codigo: m[2]?.toUpperCase() };
 }
 
+const VERBOS = ["CONFIRMADO", "RECUSAR", "RECUSO", "RECUSADO"];
+
+function distancia(a: string, b: string) {
+  let ant = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(ant[j] + 1, cur[j - 1] + 1, ant[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    ant = cur;
+  }
+  return ant[b.length];
+}
+
+/** "CONCFIRMADO EOLQ", "confimado": a primeira palavra (sem acento, maiúscula) está a até 2
+ *  letras de um verbo do comando. Não é comando (lerComando já falhou), mas o dono quis dar um. */
+export function pareceComando(texto: string): boolean {
+  const palavra = texto.trim().split(/\s+/)[0].normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/gi, "").toUpperCase();
+  return palavra.length >= 4 && VERBOS.some((v) => distancia(palavra, v) <= 2);
+}
+
+const AJUDA_COMANDO = "Não entendi. Para confirmar, responda CONFIRMADO <código>; para recusar, RECUSAR <código>.";
+
 /** O salão respondeu ao aviso de agendamento no próprio WhatsApp: CONFIRMADO
  *  confirma o agendamento pendente mais recente; RECUSAR cancela. Em ambos os
  *  casos o cliente é avisado pelo número do salão. O comando pode vir do
@@ -409,7 +430,7 @@ export async function processarComandoAgendamento(
   db: Firestore,
   slug: string,
   msg: { phone?: string; data: unknown },
-): Promise<"ignorado" | "sem pendente" | "confirmado" | "recusado"> {
+): Promise<"ignorado" | "nao entendido" | "sem pendente" | "confirmado" | "recusado"> {
   const conexao = await lerConexao(db, slug);
   const dono = conexao?.ownerPhone ? soDigitosComDDI(conexao.ownerPhone) : null;
   const numeroSalao = conexao?.phone ? soDigitosComDDI(conexao.phone) : null;
@@ -424,10 +445,8 @@ export async function processarComandoAgendamento(
   // do tenant pode estar desatualizado se um webhook de reconexão se perder
   const vivo = await statusDaConexao(conexao).catch(() => null);
   if (!vivo || vivo.status !== "connected") return "ignorado";
-  const comando = lerComando(String((msg.data as { text?: unknown } | undefined)?.text ?? ""));
-  if (!comando) return "ignorado";
-  const { recusar } = comando;
-  let { codigo } = comando;
+  const texto = String((msg.data as { text?: unknown } | undefined)?.text ?? "");
+  const comando = lerComando(texto);
 
   // só os que ainda vão acontecer; com código, o do aviso respondido. Sem código vale
   // só quando há um pendente: com mais de um, adivinhar confirmaria o cliente errado
@@ -440,6 +459,18 @@ export async function processarComandoAgendamento(
   // segue código. Pendente, só o que ainda vai acontecer
   const recentes = (await db.collection(`tenants/${slug}/appointments`).where("start", ">", new Date(agora - 7 * 86_400_000)).get()).docs;
   const futuros = recentes.filter((d) => startDe(d).getTime() > agora);
+
+  if (!comando) {
+    // erro de digitação ("CONCFIRMADO EOLQ") ou só o código de um pendente: o dono quis dar um
+    // comando e, sem resposta, achava que tinha confirmado. Conversa comum segue sem resposta
+    const tokens = new Set(texto.toUpperCase().match(/\b[A-Z0-9]{4}\b/g) ?? []);
+    const temCodigo = futuros.some((d) => d.get("status") === "booked" && tokens.has(codigoDoAgendamento(d.id)));
+    if (!pareceComando(texto) && !temCodigo) return "ignorado";
+    await enviarSemOperador(conexao, respostaPara, AJUDA_COMANDO, OPTIN_DONO);
+    return "nao entendido";
+  }
+  const { recusar } = comando;
+  let { codigo } = comando;
   // "confirmado obrigado": palavra longa que não começa o id de nenhum agendamento futuro é
   // conversa, não código (os códigos longos só existem para desempatar ids que começam igual)
   if (codigo && codigo.length > 4 && !recentes.some((d) => d.id.toUpperCase().startsWith(codigo!))) codigo = undefined;
