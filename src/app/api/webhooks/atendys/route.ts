@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/admin";
 import { DEMO } from "@/lib/demo";
 import { atualizarParada, negocioDaMensagem } from "@/lib/mensagens-paradas.server";
 import { avisarQueda, espelharStatusDaInstancia, lerConexao, processarComandoAgendamento, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
+import { instanciaPlataforma, negocioDoComando, negociosDoDono, segredoPlataforma, usaCanalOficial } from "@/lib/canal-oficial.server";
 
 // Onde o atendys avisa o que acontece nas instâncias: mensagem recebida do
 // cliente final, mudança de estado da conexão e status de envio. Cada webhook é
@@ -75,8 +76,11 @@ export async function POST(req: Request) {
     if (!slugDaMensagem || !STATUS_MENSAGEM.has(String(evento.status))) return responder(200, { ok: true });
     const segredoDaMensagem = (await lerConexao(adminDb, slugDaMensagem))?.atendysWebhookSecret;
     // assinatura conferida antes de gravar qualquer coisa. Recusada, responde 200 como a desconhecida
-    // (um 401 só aqui diria a quem não assina que esse id é de uma mensagem parada)
-    const versao = segredoDaMensagem ? versaoDaAssinatura(segredoDaMensagem, bruto, cab) : null;
+    // (um 401 só aqui diria a quem não assina que esse id é de uma mensagem parada). A mensagem
+    // parada pode ter saído pelo canal oficial: aí quem assina é o tenant da plataforma
+    // (só para negócio do canal oficial: o segredo da plataforma não vale para os outros)
+    const segredoOficial = (await usaCanalOficial(adminDb, slugDaMensagem)) ? await segredoPlataforma(adminDb) : null;
+    const versao = (segredoDaMensagem ? versaoDaAssinatura(segredoDaMensagem, bruto, cab) : null) ?? (segredoOficial ? versaoDaAssinatura(segredoOficial, bruto, cab) : null);
     if (!versao) {
       console.warn(`[webhook atendys] message.status com assinatura inválida para ${slugDaMensagem}`);
       return responder(200, { ok: true });
@@ -88,6 +92,32 @@ export async function POST(req: Request) {
   }
   if (typeof evento.instance !== "string" || !evento.instance) {
     return responder(400, { error: "Evento sem instância." });
+  }
+
+  // canal oficial: o número da plataforma atende vários negócios; o do dono diz qual
+  if (evento.instance === instanciaPlataforma()) {
+    const segredo = await segredoPlataforma(adminDb);
+    if (!segredo) return recusar("Plataforma sem segredo de webhook.");
+    const versao = versaoDaAssinatura(segredo, bruto, cab);
+    if (!versao) return recusar("Assinatura inválida.", " na plataforma");
+    if (evento.event !== "message.received" || evento.type !== "text" || !evento.phone) return responder(200, { ok: true });
+    const doDono = await negocioDoComando(adminDb, await negociosDoDono(adminDb, evento.phone), evento.text ?? "");
+    if (!doDono) {
+      // resposta de cliente ao número da plataforma: fica na caixa do atendys
+      // ponytail: encaminhar à caixa do negócio pelo último agendamento do cliente
+      console.log(`[webhook atendys] canal oficial: mensagem de quem não é dono (${evento.phone.slice(-4)})`);
+      return responder(200, { ok: true });
+    }
+    const data = { text: evento.text ?? "" };
+    const nova = await registrarMensagemRecebida(adminDb, doDono, { phone: evento.phone, messageId: evento.messageId, data, timestamp: evento.at });
+    if (nova) {
+      after(() =>
+        processarComandoAgendamento(adminDb, doDono, { phone: evento.phone, data }, "plataforma")
+          .then((r) => console.log(`[atendys] canal oficial: comando em ${doDono}: ${r}`))
+          .catch((e) => console.error("[atendys] comando pelo canal oficial", e)),
+      );
+    }
+    return responder(200, { ok: true });
   }
 
   // o segredo é por tenant: localiza o negócio antes de verificar a assinatura

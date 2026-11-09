@@ -223,6 +223,11 @@ export async function revogarChavesAntigas(tenantId: string, nova: string, grava
   }
 }
 
+/** Aponta os webhooks do tenant para o ruphus.site (o tenant da plataforma nasceu sem URL). */
+export function apontarWebhook(tenantId: string) {
+  return chamarAdmin("PATCH", `/admin/tenants/${encodeURIComponent(tenantId)}`, { webhookUrl: WEBHOOK_URL() });
+}
+
 /** Cria a instância do número (uma por negócio). O nome vem da resposta do atendys; o 409 diz
  *  que exatamente "{slug}-main" já existe (ele monta {slug do tenant}-{nome}, e o slug do tenant
  *  é o nosso) — listar e pegar "a mais nova" podia prender o negócio a outra instância dele. */
@@ -283,9 +288,35 @@ export const OPTIN_DONO: OptIn = { origem: "ruphus-aviso-dono", evidencia: "Núm
  */
 export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
+  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", { number: digits, text: message }, message);
+}
+
+/** Template aprovado na Meta (API oficial, instância "cloud" do atendys): o único formato que sai
+ *  fora da janela de 24 h. parametros vão, em ordem, para {{1}}, {{2}}… do corpo. */
+export type Template = { nome: string; idioma?: string; parametros: string[] };
+
+export async function enviarTemplate(conn: ConexaoAtendys, phone: string, t: Template, optIn: OptIn): Promise<Envio> {
+  const digits = phone.replace(/\D/g, "");
+  const corpo = {
+    number: digits,
+    name: t.nome,
+    language: t.idioma ?? "pt_BR",
+    ...(t.parametros.length ? { components: [{ type: "body", parameters: t.parametros.map((text) => ({ type: "text", text })) }] } : {}),
+  };
+  // texto da parada (painel "Mensagens"): o template com os parâmetros, já que não há texto livre
+  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-template", corpo, `[${t.nome}] ${t.parametros.join(" · ")}`);
+}
+
+/** enviarTemplate + seguirSemOperador: para quem envia sem ninguém olhando a tela. */
+export async function enviarTemplateSemOperador(conn: ConexaoAtendys, phone: string, t: Template, optIn: OptIn, prazo?: Date) {
+  const envio = await enviarTemplate(conn, phone, t, optIn);
+  return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };
+}
+
+async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn, caminho: string, corpo: unknown, message: string): Promise<Envio> {
   const auth = { ...authTenant(conn), instance: conn.instanceId };
   const enviar = async (): Promise<Envio> => {
-    const r = await chamar<{ id: string; status: string } & Omit<Envio, "messageId" | "status">>(auth, "POST", "/v1/message/send-text", { number: digits, text: message });
+    const r = await chamar<{ id: string; status: string } & Omit<Envio, "messageId" | "status">>(auth, "POST", caminho, corpo);
     // os campos da cota só quando vêm: o envio comum continua { messageId, status }
     return {
       messageId: r.id,

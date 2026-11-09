@@ -1,5 +1,6 @@
 "use server";
 
+import { conexaoOficial } from "@/lib/canal-oficial.server";
 import { adminDb } from "@/lib/admin";
 import { createPlan, deleteCustomer, endPlan, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
@@ -9,7 +10,7 @@ import { LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/
 import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
-import { assumirEnvio, deslogarInstancia, enviarTexto, ErroAtendys, manterAgendada, qrDaConexao, statusDaConexao, statusDaMensagem } from "@/lib/atendys";
+import { assumirEnvio, deslogarInstancia, enviarTexto, ErroAtendys, manterAgendada, qrDaConexao, statusDaConexao, statusDaMensagem, type ConexaoAtendys } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
@@ -543,9 +544,11 @@ export const avisarClienteWhatsappAction = memberAction(
 export const decidirEnvioAction = memberAction(
   z.object({ tenantId: docIdStaff, messageId: z.string().uuid(), acao: z.enum(["agora", "agendar"]) }),
   async (data) => {
-    const w = await lerConexao(adminDb, data.tenantId);
-    if (!w?.instanceId) throw new UserError("O WhatsApp do negócio não está conectado.");
+    // a mensagem parada pode ser do número do salão ou do canal oficial (plataforma)
+    const conexoes = await conexoesDasParadas(data.tenantId);
+    if (!conexoes.length) throw new UserError("O WhatsApp do negócio não está conectado.");
     try {
+      const w = await conexaoDaMensagem(conexoes, data.messageId);
       if (data.acao === "agora") {
         const r = await assumirEnvio(w, data.messageId);
         // manual_started: ação manual iniciada, não "enviada"; sai da lista de pendentes
@@ -574,12 +577,12 @@ export const mensagensParadasAction = memberAction(SoTenant, async ({ tenantId }
   // confere cada uma no atendys: só fica a que ele ainda segura para decisão. A vencida, a de
   // conta de WhatsApp excluída/reconectada e a que ele não conhece saem da lista (sem isto o painel
   // oferecia "Enviar agora" e "Manter agendada" que sempre falhavam). Atendys fora do ar: não tira nada
-  const w = await lerConexao(adminDb, tenantId);
-  if (!w?.instanceId) return { ok: true as const, mensagens: lista };
+  const conexoes = await conexoesDasParadas(tenantId);
+  if (!conexoes.length) return { ok: true as const, mensagens: lista };
   const valem = await Promise.all(
     lista.map(async (m) => {
       try {
-        const r = await statusDaMensagem(w, m.messageId);
+        const r = await statusNasConexoes(conexoes, m.messageId);
         if (r.status === "awaiting_manual") return true;
         await atualizarParada(tenantId, m.messageId, r.status, r.retryAt);
         return false;
@@ -592,3 +595,34 @@ export const mensagensParadasAction = memberAction(SoTenant, async ({ tenantId }
   );
   return { ok: true as const, mensagens: lista.filter((_, i) => valem[i]) };
 });
+
+// Mensagem parada pode ter saído pelo número do salão ou pelo canal oficial (tenant da plataforma
+// no atendys): cada uma só é conhecida pelo tenant que a enviou. Pergunta às duas; 404 numa
+// passa para a outra, e só o 404 de todas diz que a mensagem não existe mais.
+async function conexoesDasParadas(tenantId: string): Promise<ConexaoAtendys[]> {
+  const [oficial, salao] = await Promise.all([
+    conexaoOficial(adminDb, tenantId).catch((e) => (console.error(`[mensagens] canal oficial de ${tenantId}`, e), null)),
+    lerConexao(adminDb, tenantId),
+  ]);
+  return [oficial, salao].filter((c): c is NonNullable<typeof c> => !!c?.instanceId);
+}
+
+async function statusNasConexoes(conexoes: ConexaoAtendys[], messageId: string) {
+  for (const [i, c] of conexoes.entries()) {
+    try {
+      return await statusDaMensagem(c, messageId);
+    } catch (e) {
+      if (!(e instanceof ErroAtendys && e.status === 404) || i === conexoes.length - 1) throw e;
+    }
+  }
+  throw new Error("sem conexão");
+}
+
+async function conexaoDaMensagem(conexoes: ConexaoAtendys[], messageId: string): Promise<ConexaoAtendys> {
+  if (conexoes.length === 1) return conexoes[0];
+  for (const c of conexoes) {
+    const achou = await statusDaMensagem(c, messageId).then(() => true, (e) => (e instanceof ErroAtendys && e.status === 404 ? false : Promise.reject(e)));
+    if (achou) return c;
+  }
+  return conexoes[conexoes.length - 1];
+}
