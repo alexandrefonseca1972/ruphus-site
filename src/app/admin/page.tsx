@@ -157,8 +157,9 @@ export default function AdminPage() {
   // qual negócio está sendo marcado como perdido (pela gaveta ou soltando no funil)
   const [perdendo, setPerdendo] = useState<string | null>(null);
   const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca" | "coleta" | "ajustes">("lista");
-  // Coleta e Ajustes são ferramentas, não recortes da lista: sem visões, filtros nem alertas do funil
-  const ferramenta = tela === "coleta" || tela === "ajustes";
+  // Coleta, Ajustes, Clientes (carteira) e Cobrança não são recortes da lista: sem visões, filtros
+  // nem alertas do funil (os contadores só vêm do servidor na Lista e no Funil e ali ficavam em 0)
+  const ferramenta = tela === "coleta" || tela === "ajustes" || tela === "clientes" || tela === "cobranca";
   // os sites novos (da Coleta) entram na lista e no funil na próxima página; o índice
   // do servidor os recebe pelo listener (~1 s), daí a segunda recarga
   function juntarGerados(slugs: string[]) {

@@ -674,7 +674,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 ) : (
                   // "seu" deixa claro que o número mostrado é o do cliente, não o do negócio
                   <>
-                    <span className="font-semibold">{name} confirma pelo seu WhatsApp</span>
+                    {/* sem o aceite nada sai pelo WhatsApp automático: não promete o canal */}
+                    <span className="font-semibold">{aceiteWhatsapp ? `${name} confirma pelo seu WhatsApp` : `${name} confirma o horário com você`}</span>
                     <span className={cn(MONO, "text-[13px] text-[#5C5747]")}>{customerPhone}</span>
                   </>
                 )}
@@ -1425,7 +1426,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
               <p className="-mt-1.5 text-center text-xs text-[#5C5747]">
                 {valorSinal > 0 && sinal
                   ? `O horário fica guardado por ${sinal.prazoMin >= 60 ? `${Math.round(sinal.prazoMin / 60)} h` : `${sinal.prazoMin} min`} para o Pix${valorSinal < precoEscolhido ? " · o resto no local" : ""}. Sem cadastro.`
-                  : `${name} confirma pelo seu WhatsApp. Sem cadastro e sem pagar nada agora.`}
+                  : `${name} confirma ${aceiteWhatsapp ? "pelo seu WhatsApp" : "o horário com você"}. Sem cadastro e sem pagar nada agora.`}
               </p>
             </>
           )
