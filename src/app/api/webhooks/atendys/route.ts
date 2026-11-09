@@ -49,10 +49,17 @@ export async function POST(req: Request) {
     timestamp: req.headers.get("x-atendys-timestamp"),
   };
   const assinatura = cab.v2 ?? cab.v1;
-  if (!eventoHeader || !assinatura) return responder(401, { error: "Assinatura ausente." });
+  // toda recusa vai ao log com os cabeçalhos presentes e o desvio do timestamp: sem isso uma v2
+  // quebrada do atendys ficava invisível no journalctl (e o item "exigir v2" depende desse log)
+  const recusar = (motivo: string, onde = "") => {
+    const desvio = cab.timestamp ? ` desvio=${Math.round(Date.now() / 1000 - Number(cab.timestamp))}s` : "";
+    console.warn(`[webhook atendys] 401 ${motivo}${onde} (event=${eventoHeader ?? "-"} v1=${cab.v1 ? "sim" : "não"} v2=${cab.v2 ? "sim" : "não"}${desvio})`);
+    return responder(401, { error: motivo });
+  };
+  if (!eventoHeader || !assinatura) return recusar("Assinatura ausente.");
   // HMAC-SHA256 em hex tem 64 caracteres: o resto nem chega a ler o Firestore (cada POST
   // sem assinatura plausível custava uma consulta antes da recusa)
-  if (!/^[0-9a-f]{64}$/i.test(assinatura)) return responder(401, { error: "Assinatura inválida." });
+  if (!/^[0-9a-f]{64}$/i.test(assinatura)) return recusar("Assinatura inválida.", " (formato)");
 
   let evento: Evento;
   try {
@@ -85,16 +92,19 @@ export async function POST(req: Request) {
 
   // o segredo é por tenant: localiza o negócio antes de verificar a assinatura
   const slug = await tenantDaInstancia(adminDb, evento.instance);
-  if (!slug) return responder(200, { ok: true }); // instância órfã — ack rápido
+  if (!slug) {
+    console.warn(`[webhook atendys] instância órfã ${JSON.stringify(evento.instance).slice(0, 80)} (${eventoHeader}): ack sem processar`);
+    return responder(200, { ok: true }); // ack rápido
+  }
   // a demonstração não tem WhatsApp (lerConexao devolve null): ack, para o atendys não repetir
   // cinco vezes cada evento de uma instância que ficou pareada de antes
   if (slug === DEMO) return responder(200, { ok: true });
   const conexao = await lerConexao(adminDb, slug);
   const segredo = conexao?.atendysWebhookSecret;
-  if (!segredo) return responder(401, { error: "Tenant sem segredo de webhook." });
+  if (!segredo) return recusar("Tenant sem segredo de webhook.", ` em ${slug}`);
 
   const versao = versaoDaAssinatura(segredo, bruto, cab);
-  if (!versao) return responder(401, { error: "Assinatura inválida." });
+  if (!versao) return recusar("Assinatura inválida.", ` em ${slug}`);
   console.log(`[webhook atendys] assinatura ${versao}: ${evento.event} de ${slug}`);
 
   if (evento.event === "message.received") {
