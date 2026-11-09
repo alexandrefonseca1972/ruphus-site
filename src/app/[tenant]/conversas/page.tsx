@@ -200,12 +200,12 @@ function Conversas() {
                   Limpar busca
                 </Button>
               </div>
-              <ul className="grid gap-1">
+              <ul className="grid grid-cols-[minmax(0,1fr)] gap-1">
                 {achados.map((a) => {
                   const c = conversas?.find((x) => x.id === a.conversationId);
                   return (
                     <li key={a.id}>
-                      <button type="button" onClick={() => abrir(a.conversationId)} className="grid w-full gap-0.5 rounded-lg border bg-card p-3 text-left hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
+                      <button type="button" onClick={() => abrir(a.conversationId)} className="grid w-full grid-cols-[minmax(0,1fr)] gap-0.5 rounded-lg border bg-card p-3 text-left hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
                         <span className="flex justify-between gap-2 text-sm font-medium">
                           <span className="truncate">{c ? nomeDaConversa(c, doCadastro(c.contactPhone)) : "Conversa"}</span>
                           <span className="shrink-0 text-xs font-normal text-muted-foreground">{quando(a.at)}</span>
@@ -250,7 +250,7 @@ function Conversas() {
               {lista?.length === 0 && (
                 <p className="text-sm text-muted-foreground">{filtro === "unread" ? "Nenhuma mensagem nova." : filtro === "archived" ? "Nenhuma conversa arquivada." : "Nenhuma conversa ainda."}</p>
               )}
-              <ul className="grid min-h-0 content-start gap-1 overflow-y-auto">
+              <ul className="grid min-h-0 grid-cols-[minmax(0,1fr)] content-start gap-1 overflow-y-auto">
                 {lista?.map((c) => {
                   const nova = naoLida(c);
                   return (
@@ -260,7 +260,7 @@ function Conversas() {
                         onClick={() => abrir(c.id)}
                         aria-current={c.id === aberta ? "true" : undefined}
                         className={cn(
-                          "grid w-full gap-0.5 rounded-lg border bg-card p-3 text-left hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                          "grid w-full grid-cols-[minmax(0,1fr)] gap-0.5 rounded-lg border bg-card p-3 text-left hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
                           c.id === aberta && "border-foreground/40 bg-muted",
                         )}
                       >

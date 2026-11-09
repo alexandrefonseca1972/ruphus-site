@@ -27,12 +27,12 @@ export function ShareLink({ tenantId, name, iconeNoCelular = true }: { tenantId:
 
   return (
     <div>
-      <Button variant="outline" aria-expanded={open} onClick={() => setOpen(!open)} aria-label="Divulgar link" className={cn("h-10 gap-2 px-4", iconeNoCelular && "max-sm:size-11 max-sm:px-0")}>
+      <Button variant="outline" aria-expanded={open} onClick={() => setOpen(!open)} aria-label="Divulgar link" className={cn("h-10 gap-2 px-4", iconeNoCelular && "max-sm:size-11 max-lg:px-3 max-sm:px-0")}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M7 17 17 7" />
           <path d="M8 7h9v9" />
         </svg>
-        <span className={cn(iconeNoCelular && "max-sm:sr-only")}>Divulgar link</span>
+        <span className={cn(iconeNoCelular && "max-lg:sr-only")}>Divulgar link</span>
       </Button>
       {open && (
         <div className="absolute inset-x-2 z-30 mt-2 grid max-h-[calc(100dvh-8rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] gap-3 overflow-y-auto overscroll-contain rounded-lg border bg-background p-3 shadow-lg sm:inset-x-auto sm:right-4 sm:w-96">

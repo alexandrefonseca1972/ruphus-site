@@ -21,6 +21,9 @@ const diaEHora = (iso: string) => {
   return hoje ? formatTime(d) : `${d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}, ${formatTime(d)}`;
 };
 
+/** Da mais antiga para a mais nova pela hora; no mesmo instante, a ordem que o atendys mandou. */
+const emOrdem = (lista: MensagemInbox[]) => lista.map((m, i) => ({ m, i, t: Date.parse(m.at) })).sort((a, b) => a.t - b.t || a.i - b.i).map((x) => x.m);
+
 type Envio = { texto: string; resposta: RespostaInbox };
 
 export function Conversa({
@@ -52,6 +55,7 @@ export function Conversa({
   // uma chave por mensagem composta: o duplo clique repete a mesma e o atendys não duplica
   const chave = useRef(novaChave());
   const fim = useRef<HTMLDivElement>(null);
+  const titulo = useRef<HTMLHeadingElement>(null);
   const campo = useRef<HTMLTextAreaElement>(null);
 
   const buscar = useCallback(
@@ -66,7 +70,7 @@ export function Conversa({
     setErro("");
     // o atendys manda a mais nova primeiro; a tela mostra de cima (antiga) para baixo (nova)
     const lote = [...r.pagina.items].reverse();
-    setMensagens((atual) => (depois && atual ? [...lote, ...atual.filter((m) => !lote.some((x) => x.id === m.id))] : lote));
+    setMensagens((atual) => emOrdem(depois && atual ? [...lote, ...atual.filter((m) => !lote.some((x) => x.id === m.id))] : lote));
     // recarregar a página mais nova não perde o ponto onde "anteriores" parou
     setCursor((c) => (depois ? r.pagina.nextCursor : (c ?? r.pagina.nextCursor)));
   }, []);
@@ -74,6 +78,7 @@ export function Conversa({
 
   // abrir (a lista monta uma por conversa, key): histórico e "lida" (o contador da lista zera)
   useEffect(() => {
+    titulo.current?.focus({ preventScroll: true });
     let vivo = true;
     void buscar().then((r) => vivo && aplicar(r));
     if (conversa.unreadCount > 0 || conversa.manuallyUnread) {
@@ -101,7 +106,9 @@ export function Conversa({
   // nova mensagem embaixo: rola até ela
   const ultima = mensagens?.at(-1)?.id;
   useEffect(() => {
-    fim.current?.scrollIntoView({ block: "end" });
+    // rola só a caixa da conversa: scrollIntoView arrastava a página inteira no celular
+    const caixa = fim.current?.parentElement;
+    if (caixa) caixa.scrollTop = caixa.scrollHeight;
   }, [ultima]);
 
   const nome = nomeDaConversa(conversa, cliente);
@@ -146,16 +153,16 @@ export function Conversa({
   const aviso = ultimoEnvio && avisoDoEnvio(ultimoEnvio.resposta, hora);
 
   return (
-    <section aria-label={`Conversa com ${nome}`} className="flex min-h-0 flex-col rounded-xl border bg-card">
+    <section aria-label={`Conversa com ${nome}`} className="flex min-h-0 flex-col rounded-xl border bg-card max-lg:h-[calc(100dvh-14rem)] max-lg:min-h-[26rem]">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b p-3 sm:p-4">
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={onVoltar} aria-label="Voltar para a lista">
           <ArrowLeft />
         </Button>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate font-semibold">{nome}</h2>
+          <h2 ref={titulo} tabIndex={-1} className="truncate font-semibold outline-none">{nome}</h2>
           <p className="truncate text-sm text-muted-foreground">{telefoneLegivel(conversa.contactPhone)}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 max-sm:basis-full">
           {cliente && (
             <Link href={`/${tenant.id}/clientes/${encodeURIComponent(cliente.key)}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
               Ver cliente e horários

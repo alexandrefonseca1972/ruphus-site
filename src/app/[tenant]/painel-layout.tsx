@@ -106,7 +106,7 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
       <div className={`painel ${serifa.variable} flex min-h-dvh flex-col bg-background`}>
         <MonitorConexao />
       <header className="sticky top-0 z-10 border-b bg-card pt-[env(safe-area-inset-top)] sm:static">
-        <div className="mx-auto flex max-w-6xl items-center gap-x-6 px-4">
+        <div className="mx-auto flex max-w-6xl items-center gap-x-4 px-4 lg:gap-x-6">
           {/* O logo e o nome levam à página inicial do negócio (a agenda), para todo mundo.
               Trocar de negócio e voltar ao admin ficam no menu da conta. */}
           <Link href={`/${slug}`} className="flex h-14 min-w-0 flex-1 items-center gap-2.5 sm:h-16 sm:flex-none">
@@ -123,11 +123,13 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
                 href={l.href}
                 aria-current={isActive(l.href) ? "page" : undefined}
                 className={cn(
-                  "flex h-16 items-center px-3.5 whitespace-nowrap text-muted-foreground hover:text-foreground",
+                  "flex h-16 items-center px-2 whitespace-nowrap text-muted-foreground hover:text-foreground lg:px-3.5",
                   isActive(l.href) && "font-semibold text-foreground shadow-[inset_0_-2px_0_var(--foreground)]",
                 )}
               >
-                {l.label}
+                {/* tablet: os rótulos curtos (Equipe, Negócio) para as sete abas caberem ao lado da conta */}
+                <span className="lg:hidden">{l.curto}</span>
+                <span className="max-lg:hidden">{l.label}</span>
               </Link>
             ))}
           </nav>
