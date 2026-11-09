@@ -1,6 +1,6 @@
 {
-  "revision": 2,
-  "updatedAt": "2026-11-09T12:33:17.463751+00:00",
+  "revision": 3,
+  "updatedAt": "2026-11-09T13:36:59.346991+00:00",
   "currentPhase": "2",
   "plan": "/Users/alexandrefonseca/AI/projects/atendys/docs/plano-conversas-ruphus-site-2026-11-08.md",
   "phases": [
@@ -228,9 +228,14 @@
       "phase": "6",
       "description": "Revisão independente, correções e reteste",
       "owner": "executor",
-      "state": "pendente",
-      "updatedAt": "2026-11-09T12:22:11.033217+00:00",
-      "evidence": [],
+      "state": "em andamento",
+      "updatedAt": "2026-11-09T13:36:59.346991+00:00",
+      "evidence": [
+        "Revisão independente da Fase 1 (5435ea54, revisor separado, Opus): sem bloqueador nem alto; 4 médios e 6 baixos.",
+        "Corrigidos: (1) a equipe não vê a conversa do WhatsApp pessoal do dono nem o self-chat (visiveis) e não usa a busca; (2) mídia limitada a ~700 KB com mensagem clara (teto da server action); (3) rota de mídia com 401/403/409/502/504 por tipo de falha; (4) testes de sessão inválida, revogada, membro removido, outro negócio e da rota de mídia com verificador simulado; (5) ids só [A-Za-z0-9_-] (\".\" e \"..\" reescreviam o caminho); (6) permitirEquipe com update (sem negócio fantasma) e checagem de gestor no lib; (7) rota de mídia com lista fixa de tipos inline (SVG/HTML viram download); (8) só recusas previstas da Central vão como aviso, Object.hasOwn na frase; (9) data URL validada por inteiro, mimetype tirado do próprio arquivo, reação só emoji; (10) prazo da mídia só até o cabeçalho.",
+        "Decisão de política: editar e apagar para todos ficam com quem gere; a equipe só reage.",
+        "Reteste: test:conversas, test:atendys, test:whatsapp, typecheck e lint ok."
+      ],
       "blockReason": ""
     },
     {
@@ -265,6 +270,7 @@
     "Fase 1 sem deploy.",
     "Presença (digitando) e SSE /events ficaram fora da Fase 1: entram com a tela (Fase 2/3).",
     "Server action tem teto de corpo de 1 MB: mídia maior que isso precisará de rota própria na Fase 2.",
-    "Fase 1 ainda sem commit e sem revisão independente (6.3)."
+    "Ids de conversa obtidos antes por um gestor continuam abrindo a conversa para a equipe (são selados e não forjáveis); filtro no atendys por número excluído resolveria de vez.",
+    "Platform admin lê conversas de qualquer negócio sem trilha de auditoria do lado do ruphus.site (Fase 5.2)."
   ]
 }

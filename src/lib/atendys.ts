@@ -93,6 +93,20 @@ const MENSAGEM: Record<string, string> = {
   TOO_MANY_STREAMS: "Muitas telas de conversa abertas ao mesmo tempo. Feche alguma e tente de novo.",
 };
 
+/** Recusas da Central que são regra do contrato (avisam, não alarmam). Credencial recusada fica fora. */
+const RECUSAS_DA_CENTRAL = new Set([
+  "REPLY_WINDOW_CLOSED",
+  "RECIPIENT_OPTED_OUT",
+  "INSTANCE_PAUSED",
+  "INSTANCE_DISCONNECTED",
+  "SENDER_CHANGED",
+  "CONVERSATION_NOT_ADDRESSABLE",
+  "NOT_FOUND",
+  "INBOX_RATE_LIMITED",
+  "MEDIA_UNAVAILABLE",
+  "MESSAGE_TYPE_NOT_ALLOWED",
+]);
+
 /** A recusa do atendys como ErroAtendys: código do contrato, frase para o dono e o Retry-After. */
 async function erroDaResposta(res: Response, method: string, caminho: string): Promise<ErroAtendys> {
   const detalhe = await res.text().catch(() => "");
@@ -109,13 +123,13 @@ async function erroDaResposta(res: Response, method: string, caminho: string): P
   // registrado, ou anterior a um SAIR) são o fluxo de consentimento funcionando, não falha
   // na Central, as recusas do contrato (janela fechada, opt-out, pausa…) são regra, não falha
   const esperado =
-    codigo === "NOT_OPTED_IN" || (res.status === 409 && caminho === "/v1/optin") || (caminho.startsWith("/v1/inbox/") && codigo !== null && codigo in MENSAGEM);
+    codigo === "NOT_OPTED_IN" || (res.status === 409 && caminho === "/v1/optin") || (caminho.startsWith("/v1/inbox/") && codigo !== null && RECUSAS_DA_CENTRAL.has(codigo));
   (esperado ? console.warn : console.error)(`[atendys] ${method} ${caminho} → ${res.status} ${detalhe.slice(0, 300)}`);
   // limite (por minuto, por dia, por destinatário), categoria desligada e validação: o atendys
   // já explica em português, e "espere um pouco" enganava quando o limite era o do dia
   const usaDoServidor = codigo !== null && ["RATE_LIMITED", "FORBIDDEN", "VALIDATION_ERROR"].includes(codigo) && doServidor;
   return new ErroAtendys(
-    (usaDoServidor ? doServidor : codigo && MENSAGEM[codigo]) || `O serviço de WhatsApp recusou o pedido (${res.status}). Tente de novo em instantes.`,
+    (usaDoServidor ? doServidor : codigo && Object.hasOwn(MENSAGEM, codigo) && MENSAGEM[codigo]) || `O serviço de WhatsApp recusou o pedido (${res.status}). Tente de novo em instantes.`,
     res.status,
     codigo,
     res.status === 429 ? Number(res.headers.get("retry-after")) || null : null,
@@ -123,23 +137,37 @@ async function erroDaResposta(res: Response, method: string, caminho: string): P
 }
 
 /** O pedido cru, já com a recusa como ErroAtendys: quem quer o corpo em bytes (mídia) usa direto. */
-async function pedir(auth: Record<string, string>, method: string, caminho: string, corpo?: unknown): Promise<Response> {
+/** O atendys não respondeu (rede ou prazo): a rota de mídia devolve 502/504, não "sem acesso". */
+export class AtendysForaDoAr extends ErroPrevisto {
+  constructor(message: string, readonly demorou: boolean) {
+    super(message);
+  }
+}
+
+/** soCabecalho: o prazo vale até a resposta começar, não para ler o corpo (mídia em fluxo). */
+async function pedir(auth: Record<string, string>, method: string, caminho: string, corpo?: unknown, soCabecalho = false): Promise<Response> {
   const headers: Record<string, string> = { ...auth };
   if (corpo !== undefined) headers["content-type"] = "application/json";
+  const prazo = new AbortController();
+  const timer = setTimeout(() => prazo.abort(new DOMException("prazo", "TimeoutError")), TIMEOUT_MS);
+  timer.unref?.(); // depois do corpo lido, o abort não tem o que cortar: não segura o processo
   let res: Response;
   try {
     res = await fetch(`${BASE()}${caminho}`, {
       method,
       headers,
       body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: prazo.signal,
     });
   } catch (e) {
+    clearTimeout(timer);
     if (e instanceof DOMException && e.name === "TimeoutError") {
-      throw new ErroPrevisto(`O serviço de WhatsApp demorou mais de ${Math.round(TIMEOUT_MS / 1000)}s para responder. Tente de novo.`);
+      throw new AtendysForaDoAr(`O serviço de WhatsApp demorou mais de ${Math.round(TIMEOUT_MS / 1000)}s para responder. Tente de novo.`, true);
     }
-    throw new ErroPrevisto("O serviço de WhatsApp não respondeu. Tente de novo em instantes.");
+    throw new AtendysForaDoAr("O serviço de WhatsApp não respondeu. Tente de novo em instantes.", false);
   }
+  // sem soCabecalho o prazo segue valendo para ler o corpo (JSON pequeno), como antes
+  if (soCabecalho || !res.ok) clearTimeout(timer);
   if (!res.ok) throw await erroDaResposta(res, method, caminho);
   return res;
 }
@@ -512,7 +540,13 @@ export type AcaoMensagem = { tipo: "reacao"; emoji: string } | { tipo: "editar";
  *  envio (o duplo clique repete a mesma e o atendys devolve o resultado original). */
 export const CHAVE_IDEMPOTENCIA = /^[A-Za-z0-9._:-]{8,80}$/;
 
-const id = (v: string) => encodeURIComponent(v);
+/** Ids de conversa e de mensagem do contrato: token selado em base64url, uuid ou cuid. Sem
+ *  ponto: "." e ".." passavam pelo encodeURIComponent e o fetch reescrevia o caminho. */
+export const ID_INBOX = /^[A-Za-z0-9_-]{1,512}$/;
+const id = (v: string) => {
+  if (!ID_INBOX.test(v)) throw new ErroPrevisto("Conversa inválida. Atualize a lista.");
+  return v;
+};
 const consulta = (q: Record<string, string | number | undefined>) => {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== "") p.set(k, String(v));
@@ -566,5 +600,5 @@ export async function agirNaMensagem(conn: ConexaoAtendys, mensagem: string, aca
 
 /** A mídia recebida, em bytes, para o servidor repassar ao navegador de quem atende. */
 export async function midiaDaMensagem(conn: ConexaoAtendys, mensagem: string) {
-  return pedir(authTenant(conn), "GET", `/v1/inbox/media/${id(mensagem)}`);
+  return pedir(authTenant(conn), "GET", `/v1/inbox/media/${id(mensagem)}`, undefined, true);
 }

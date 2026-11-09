@@ -14,7 +14,7 @@ import {
   responderComMidia,
   responderConversa,
 } from "@/lib/atendys";
-import { conexaoParaAtender, permitirEquipeNasConversas, podeAtenderConversas } from "@/lib/conversas.server";
+import { atenderComo, conexaoParaAtender, midiaParaNavegador, permitirEquipeNasConversas, podeAtenderConversas, visiveis } from "@/lib/conversas.server";
 import { gravarConexao } from "@/lib/whatsapp.server";
 
 const db = getFirestore();
@@ -27,7 +27,7 @@ await db.doc("tenants/bel/members/gerente").set({ role: "admin" });
 await db.doc("tenants/bel/members/equipe").set({ role: "member", staffId: "s1" });
 await db.doc("tenants/outro").set({ name: "Outro", ownerId: "donoOutro" });
 await db.doc("tenants/outro/members/donoOutro").set({ role: "owner" });
-await gravarConexao(db, "bel", { atendysTenantId: "t1", atendysApiKey: "k-bel", atendysWebhookSecret: "s", instanceId: "bel-main", phone: "5591900000001", status: "connected", updatedAt: 0 });
+await gravarConexao(db, "bel", { atendysTenantId: "t1", atendysApiKey: "k-bel", atendysWebhookSecret: "s", instanceId: "bel-main", phone: "5591900000001", ownerPhone: "(91) 99112-1306", status: "connected", updatedAt: 0 });
 
 assert.equal(await podeAtenderConversas(db, "bel", "dono"), true, "dono atende");
 assert.equal(await podeAtenderConversas(db, "bel", "gerente"), true, "admin do negócio atende");
@@ -37,13 +37,49 @@ assert.equal(await podeAtenderConversas(db, "bel", "donoOutro"), false, "dono de
 assert.equal(await podeAtenderConversas(db, "bel", "ninguem"), false, "quem não é membro");
 assert.equal(await podeAtenderConversas(db, "naoexiste", "plataforma"), false, "negócio que não existe");
 
-await permitirEquipeNasConversas(db, "bel", true);
+// só quem gere liga a equipe; slug que não existe não vira negócio
+await assert.rejects(permitirEquipeNasConversas(db, "bel", "equipe", true), /Só o dono ou um administrador/);
+await assert.rejects(permitirEquipeNasConversas(db, "bel", "donoOutro", true), /Só o dono ou um administrador/);
+await assert.rejects(permitirEquipeNasConversas(db, "fantasma", "plataforma", true));
+assert.equal((await db.doc("tenants/fantasma").get()).exists, false, "nenhum negócio fantasma");
+await permitirEquipeNasConversas(db, "bel", "dono", true);
 assert.equal(await podeAtenderConversas(db, "bel", "equipe"), true, "equipe liberada pelo dono");
 assert.equal(await podeAtenderConversas(db, "outro", "equipe"), false, "liberar em um negócio não abre outro");
-await permitirEquipeNasConversas(db, "bel", false);
+await permitirEquipeNasConversas(db, "bel", "gerente", false);
 assert.equal(await podeAtenderConversas(db, "bel", "equipe"), false, "desligar volta a bloquear");
 
-assert.equal((await conexaoParaAtender(db, "bel", "dono")).atendysApiKey, "k-bel");
+const doDono = await conexaoParaAtender(db, "bel", "dono");
+assert.equal(doDono.conn.atendysApiKey, "k-bel");
+assert.deepEqual([doDono.gestor, doDono.ocultos], [true, []], "quem gere vê tudo");
+await permitirEquipeNasConversas(db, "bel", "dono", true);
+const daEquipe = await conexaoParaAtender(db, "bel", "equipe");
+assert.equal(daEquipe.gestor, false);
+assert.deepEqual(daEquipe.ocultos.sort(), ["5591900000001", "5591991121306"], "WhatsApp pessoal do dono (canônico) e o do negócio");
+const lista = [
+  { contactPhone: "5591991121306" },
+  { contactPhone: "559191121306" }, // conta antiga, sem o 9º dígito: o mesmo número do dono
+  { contactPhone: "5591900000001" },
+  { contactPhone: "5591988887777" },
+  { contactPhone: null },
+] as Parameters<typeof visiveis>[1];
+assert.deepEqual(visiveis(daEquipe, lista).map((c) => c.contactPhone), ["5591988887777", null], "a equipe não vê o dono nem o self-chat");
+assert.equal(visiveis(doDono, lista).length, 5);
+
+// sessão e membro, como nas ações: token inválido, sessão encerrada, membro removido
+const verificador = (uid: string, authTimeMs = Date.now()) => async (t: string) => {
+  if (t !== "ok") throw new Error("token inválido");
+  return { uid, authTimeMs, email: undefined, emailPendente: undefined, name: undefined };
+};
+await assert.rejects(atenderComo(verificador("dono"), db, "ruim", "bel"), /Sessão expirada/);
+assert.equal((await atenderComo(verificador("dono"), db, "ok", "bel")).user.uid, "dono");
+await db.doc("config/admin").set({ uids: ["plataforma"], revogados: { dono: Date.now() + 60_000 } });
+await assert.rejects(atenderComo(verificador("dono", Date.now() - 1000), db, "ok", "bel"), /sessão foi encerrada/i, "sessão revogada");
+await db.doc("config/admin").set({ uids: ["plataforma"] });
+await db.doc("tenants/bel/members/saiu").set({ role: "member" });
+await db.doc("tenants/bel/members/saiu").delete();
+await assert.rejects(atenderComo(verificador("saiu"), db, "ok", "bel"), /não tem acesso/, "membro removido");
+await assert.rejects(atenderComo(verificador("donoOutro"), db, "ok", "bel"), /não tem acesso/, "dono de outro negócio");
+await permitirEquipeNasConversas(db, "bel", "dono", false);
 await assert.rejects(conexaoParaAtender(db, "bel", "equipe"), /Só o dono atende/);
 await assert.rejects(conexaoParaAtender(db, "bel", "donoOutro"), /Só o dono atende/);
 await assert.rejects(conexaoParaAtender(db, "outro", "donoOutro"), /Conecte o WhatsApp/, "sem conexão, sem conversas");
@@ -62,20 +98,26 @@ globalThis.fetch = (async (url: string | URL, init: RequestInit = {}) => {
 const json = (d: unknown, status = 200, headers: Record<string, string> = {}) => () => Response.json(d, { status, headers });
 const erro = (status: number, code: string, headers: Record<string, string> = {}) => json({ error: { code, message: "texto técnico do servidor" } }, status, headers);
 const novo = (r: typeof rotas) => ((chamadas = []), (rotas = r));
-const conn = await conexaoParaAtender(db, "bel", "dono");
+const { conn } = await conexaoParaAtender(db, "bel", "dono");
 
 // lista: filtro, cursor e limite na query; a apikey do negócio no cabeçalho
-const conversa = { id: "cv/opaco+1", contactName: null, contactPhone: "5591988887777", lastMessage: null, lastActivityAt: "2026-11-09T12:00:00Z", unreadCount: 2, manuallyUnread: false, archived: false, canReply: true, replyBlockedReason: null, replyWindowEndsAt: "2026-11-10T12:00:00Z" };
+const conversa = { id: "cv_opaco-1", contactName: null, contactPhone: "5591988887777", lastMessage: null, lastActivityAt: "2026-11-09T12:00:00Z", unreadCount: 2, manuallyUnread: false, archived: false, canReply: true, replyBlockedReason: null, replyWindowEndsAt: "2026-11-10T12:00:00Z" };
 novo({ "GET /v1/inbox/conversations": json({ items: [conversa], nextCursor: "c2" }) });
 const pagina = await listarConversas(conn, { filtro: "unread", cursor: "c1", limite: 20 });
-assert.equal(pagina.items[0].id, "cv/opaco+1");
+assert.equal(pagina.items[0].id, "cv_opaco-1");
 assert.equal(chamadas[0].busca, "?filter=unread&cursor=c1&limit=20");
 assert.equal(chamadas[0].headers.apikey, "k-bel");
 
-// id opaco com "/" e "+" vai codificado no caminho: nunca abre outro caminho da API
-novo({ "GET /v1/inbox/conversations/cv%2Fopaco%2B1/messages": json({ items: [], nextCursor: null }) });
-await mensagensDaConversa(conn, "cv/opaco+1", { cursor: "m1" });
+// id fora do alfabeto do contrato não sai daqui: ".." reescrevia o caminho no fetch
+novo({ "GET /v1/inbox/conversations/cv_opaco-1/messages": json({ items: [], nextCursor: null }) });
+await mensagensDaConversa(conn, "cv_opaco-1", { cursor: "m1" });
 assert.equal(chamadas[0].busca, "?cursor=m1");
+for (const ruim of ["..", ".", "a/b", "a%2Fb", "a+b", "", "x".repeat(513)]) {
+  novo({});
+  await assert.rejects(responderConversa(conn, ruim, "Oi", "resp-0001"), /Conversa inválida/, JSON.stringify(ruim));
+  await assert.rejects(midiaDaMensagem(conn, ruim), /Conversa inválida/);
+  assert.equal(chamadas.length, 0, "nada chega ao atendys");
+}
 
 novo({ "GET /v1/inbox/search": json({ items: [], nextCursor: null }) });
 await buscarNasConversas(conn, "corte amanhã");
@@ -150,7 +192,7 @@ for (const [status, code, frase] of casos) {
   assert.match(e.message, frase, code);
   assert.doesNotMatch(e.message, /texto técnico/, `${code}: a frase é nossa`);
 }
-assert.equal(logErro, 0, "recusa prevista da Central vai como aviso, não como erro no log");
+assert.equal(logErro, 1, "recusa prevista da Central vai como aviso; só a falta do escopo (configuração) alarma");
 
 // limite de requisições da Central: Retry-After em segundos
 novo({ "GET /v1/inbox/conversations": erro(429, "INBOX_RATE_LIMITED", { "retry-after": "17" }) });
@@ -179,6 +221,46 @@ const quebrou = await listarConversas(conn).then(() => null, (x) => x);
 assert.equal(quebrou.codigo, null);
 assert.match(quebrou.message, /recusou o pedido \(502\)/);
 assert.equal(logErro, 1);
+
+// ── rota de mídia: status por falha e tipos que abrem no navegador ──
+const rota = (uid: string, token = "ok", mensagem = "m1", tenant = "bel") => midiaParaNavegador(verificador(uid), db, token, tenant, mensagem);
+novo({ "GET /v1/inbox/media/m1": () => new Response("<svg onload=alert(1)>", { headers: { "content-type": "image/svg+xml", "content-disposition": "inline" } }) });
+let r = await rota("dono");
+assert.equal(r.status, 200);
+assert.equal(r.headers.get("content-type"), "application/octet-stream", "SVG não abre no navegador");
+assert.equal(r.headers.get("content-disposition"), "attachment");
+assert.equal(r.headers.get("x-content-type-options"), "nosniff");
+assert.equal(r.headers.get("cache-control"), "private, no-store");
+novo({ "GET /v1/inbox/media/m1": () => new Response("x", { headers: { "content-type": "text/html; charset=utf-8" } }) });
+assert.equal((await rota("dono")).headers.get("content-type"), "application/octet-stream", "HTML vira download");
+novo({ "GET /v1/inbox/media/m1": () => new Response("x", { headers: { "content-type": "image/jpeg" } }) });
+r = await rota("dono");
+assert.deepEqual([r.headers.get("content-type"), r.headers.get("content-disposition")], ["image/jpeg", "inline"]);
+assert.equal((await rota("dono", "ruim")).status, 401, "token inválido: 401 para o painel renovar");
+assert.equal((await rota("donoOutro")).status, 403, "outro negócio");
+assert.equal((await rota("equipe")).status, 403, "equipe sem liberação");
+assert.equal((await rota("dono", "ok", "..")).status, 400);
+assert.equal((await rota("donoOutro", "ok", "m1", "outro")).status, 409, "negócio sem WhatsApp conectado");
+novo({ "GET /v1/inbox/media/m1": erro(410, "MEDIA_UNAVAILABLE") });
+assert.equal((await rota("dono")).status, 410);
+novo({ "GET /v1/inbox/media/m1": erro(429, "INBOX_RATE_LIMITED", { "retry-after": "9" }) });
+r = await rota("dono");
+assert.deepEqual([r.status, r.headers.get("retry-after")], [429, "9"]);
+const fetchSimulado = globalThis.fetch;
+globalThis.fetch = (async () => {
+  throw new TypeError("fetch failed");
+}) as typeof fetch;
+assert.equal((await rota("dono")).status, 502, "atendys fora do ar não é 'sem acesso'");
+globalThis.fetch = fetchSimulado;
+
+// credencial recusada na Central é erro no log (alerta), não aviso
+logErro = 0;
+novo({ "GET /v1/inbox/conversations": erro(401, "INVALID_API_KEY") });
+await listarConversas(conn).catch(() => {});
+assert.equal(logErro, 1, "chave revogada alarma");
+// código herdado de Object não vira a frase
+novo({ "GET /v1/inbox/conversations": erro(400, "toString") });
+assert.match((await listarConversas(conn).catch((x) => x)).message, /recusou o pedido \(400\)/);
 console.warn = avisos;
 console.error = erros;
 
