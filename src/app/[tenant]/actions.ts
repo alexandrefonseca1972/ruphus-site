@@ -9,7 +9,8 @@ import { LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/
 import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
-import { assumirEnvio, deslogarInstancia, enviarTexto, ErroAtendys, manterAgendada, qrDaConexao, statusDaConexao, statusDaMensagem } from "@/lib/atendys";
+import { conexaoParaAtender, permitirEquipeNasConversas } from "@/lib/conversas.server";
+import { agirNaMensagem, arquivarConversa, assumirEnvio, buscarNasConversas, CHAVE_IDEMPOTENCIA, deslogarInstancia, enviarTexto, ErroAtendys, listarConversas, manterAgendada, marcarConversa, mensagensDaConversa, qrDaConexao, responderComMidia, responderConversa, statusDaConexao, statusDaMensagem } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
@@ -591,4 +592,106 @@ export const mensagensParadasAction = memberAction(SoTenant, async ({ tenantId }
     }),
   );
   return { ok: true as const, mensagens: lista.filter((_, i) => valem[i]) };
+});
+
+// ─── Central de conversas (/v1/inbox do atendys) ────────────────────────────
+// A apikey nunca sai do servidor: o navegador chama estas ações, que conferem membro, negócio e
+// a permissão da equipe (conexaoParaAtender) e falam com o atendys na mesma máquina.
+
+/** A recusa do atendys volta com o código (a tela decide: janela fechada desliga o campo,
+ *  opt-out bloqueia de vez) e o Retry-After, além da frase para quem atende. */
+function conversaAction<S extends z.ZodType<{ tenantId: string }>, R>(schema: S, run: (data: z.infer<S>, uid: string) => Promise<R>) {
+  return memberAction(schema, async (data, user) => {
+    try {
+      return await run(data, user.uid);
+    } catch (e) {
+      if (e instanceof ErroAtendys) return { ok: false as const, error: e.message, codigo: e.codigo, retryAfter: e.retryAfter };
+      throw e;
+    }
+  });
+}
+
+const idOpaco = z.string().min(1).max(512);
+const cursor = idOpaco.optional();
+const chaveEnvio = z.string().regex(CHAVE_IDEMPOTENCIA, "Chave de envio inválida.");
+const ComConversa = z.object({ tenantId: docIdStaff, conversa: idOpaco });
+
+export const listarConversasAction = conversaAction(
+  z.object({ tenantId: docIdStaff, filtro: z.enum(["active", "unread", "archived"]).optional(), cursor, limite: z.number().int().min(1).max(100).optional() }),
+  async ({ tenantId, ...q }, uid) => ({ ok: true as const, pagina: await listarConversas(await conexaoParaAtender(adminDb, tenantId, uid), q) }),
+);
+
+export const buscarConversasAction = conversaAction(
+  z.object({ tenantId: docIdStaff, termo: z.string().trim().min(3, "Digite pelo menos 3 letras.").max(100), cursor }),
+  async ({ tenantId, termo, cursor }, uid) => ({ ok: true as const, pagina: await buscarNasConversas(await conexaoParaAtender(adminDb, tenantId, uid), termo, cursor) }),
+);
+
+export const mensagensDaConversaAction = conversaAction(
+  ComConversa.extend({ cursor, limite: z.number().int().min(1).max(100).optional() }),
+  async ({ tenantId, conversa, ...q }, uid) => ({ ok: true as const, pagina: await mensagensDaConversa(await conexaoParaAtender(adminDb, tenantId, uid), conversa, q) }),
+);
+
+export const marcarConversaAction = conversaAction(ComConversa.extend({ lida: z.boolean() }), async ({ tenantId, conversa, lida }, uid) => {
+  await marcarConversa(await conexaoParaAtender(adminDb, tenantId, uid), conversa, lida);
+  return { ok: true as const };
+});
+
+export const arquivarConversaAction = conversaAction(ComConversa.extend({ arquivada: z.boolean() }), async ({ tenantId, conversa, arquivada }, uid) => {
+  await arquivarConversa(await conexaoParaAtender(adminDb, tenantId, uid), conversa, arquivada);
+  return { ok: true as const };
+});
+
+export const responderConversaAction = conversaAction(
+  ComConversa.extend({ texto: z.string().trim().min(1, "Escreva a mensagem.").max(4096, "Mensagem longa demais."), chave: chaveEnvio, citada: idOpaco.optional() }),
+  async ({ tenantId, conversa, texto, chave, citada }, uid) => ({
+    ok: true as const,
+    envio: await responderConversa(await conexaoParaAtender(adminDb, tenantId, uid), conversa, texto, chave, citada),
+  }),
+);
+
+// a mídia vai como data: base64 (até o limite do corpo de server action); URL de fora não:
+// o atendys valida SSRF, mas aqui ninguém precisa mandar link de terceiros pelo número do salão
+export const responderComMidiaAction = conversaAction(
+  ComConversa.extend({
+    chave: chaveEnvio,
+    midia: z.string().regex(/^data:[\w.+-]+\/[\w.+-]+;base64,/, "Arquivo inválido."),
+    legenda: z.string().max(1024).optional(),
+    tipo: z.string().max(100).optional(),
+    nomeArquivo: z.string().max(200).optional(),
+    voz: z.boolean().optional(),
+    citada: idOpaco.optional(),
+  }),
+  async ({ tenantId, conversa, chave, midia, legenda, tipo, nomeArquivo, voz, citada }, uid) => ({
+    ok: true as const,
+    envio: await responderComMidia(
+      await conexaoParaAtender(adminDb, tenantId, uid),
+      conversa,
+      { media: midia, caption: legenda, mimetype: tipo, fileName: nomeArquivo, voice: voz, quotedMessageId: citada },
+      chave,
+    ),
+  }),
+);
+
+export const agirNaMensagemAction = conversaAction(
+  z.object({
+    tenantId: docIdStaff,
+    mensagem: idOpaco,
+    chave: chaveEnvio,
+    acao: z.discriminatedUnion("tipo", [
+      z.object({ tipo: z.literal("reacao"), emoji: z.string().max(16) }),
+      z.object({ tipo: z.literal("editar"), texto: z.string().trim().min(1).max(4096) }),
+      z.object({ tipo: z.literal("apagar") }),
+    ]),
+  }),
+  async ({ tenantId, mensagem, chave, acao }, uid) => ({
+    ok: true as const,
+    resultado: await agirNaMensagem(await conexaoParaAtender(adminDb, tenantId, uid), mensagem, acao, chave),
+  }),
+);
+
+/** "Equipe pode atender conversas": só quem gere liga (padrão: só o dono). */
+export const permitirEquipeNasConversasAction = memberAction(z.object({ tenantId: docIdStaff, equipeAtende: z.boolean() }), async ({ tenantId, equipeAtende }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  await permitirEquipeNasConversas(adminDb, tenantId, equipeAtende);
+  return { ok: true as const, equipeAtende };
 });

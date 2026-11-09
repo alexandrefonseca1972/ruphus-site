@@ -21,6 +21,8 @@ export const Tenant = z.object({
   // UF e fuso escolhido: o painel mostra no fuso do negócio a hora em que a mensagem sai (fusoDe)
   site: z.object({ uf: z.string().nullish(), fuso: z.string().nullish() }).optional().catch(undefined),
   sinal: z.object({ ativo: z.boolean(), tipo: z.enum(["percentual", "fixo"]), valor: z.number(), prazoMin: z.number() }).optional().catch(undefined),
+  // Central de conversas: a equipe (role member) só atende com isto ligado pelo dono; só o servidor grava
+  conversas: z.object({ equipeAtende: z.boolean() }).optional().catch(undefined),
   // estado da conexão do WhatsApp (sem credenciais: essas moram em privado/whatsapp)
   whatsapp: z
     .object({ status: z.string().optional(), instanceId: z.string().optional(), ownerManaged: z.boolean().optional(), conectadoEm: z.number().optional() })
