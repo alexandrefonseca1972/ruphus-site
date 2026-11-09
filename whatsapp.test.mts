@@ -75,3 +75,18 @@ assert.equal(precoDe({ priceCents: 0, tipoPreco: "naoInformado" }), "");
 assert.equal(precoDe({ priceCents: 3000, tipoPreco: "fixo" }, { priceCents: 0, tipoPreco: "naoInformado" }), "a partir de R$ 30,00", "um sem preço deixa a soma em aberto");
 assert.equal(precoDe({ priceCents: 3000 }, { priceCents: 2000 }), "R$ 50,00");
 console.log("preço: ok");
+
+// celular BR canônico (com o 9º dígito), igual ao atendys: conta antiga chega sem o 9
+{
+  const { canonicalBrMobile, soDigitosComDDI } = await import("@/lib/telefone");
+  assert.equal(canonicalBrMobile("559192361726"), "5591992361726", "conta antiga ganha o 9");
+  assert.equal(canonicalBrMobile("5591992361726"), "5591992361726", "idempotente");
+  assert.equal(canonicalBrMobile("559132334455"), "559132334455", "fixo não tem par");
+  assert.equal(canonicalBrMobile("14155550132"), "14155550132", "estrangeiro intacto");
+  assert.equal(soDigitosComDDI("(91) 9236-1726"), "5591992361726");
+  assert.equal(soDigitosComDDI("+55 91 99236-1726"), "5591992361726");
+  assert.equal(soDigitosComDDI("559192361726"), soDigitosComDDI("5591992361726"), "as duas formas viram uma");
+  assert.equal(soDigitosComDDI("(91) 3233-4455"), "559132334455");
+  assert.equal(soDigitosComDDI("123"), null);
+  console.log("telefone canônico ok");
+}
