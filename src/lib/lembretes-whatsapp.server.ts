@@ -4,7 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
 import { agoraNaParede, dateIn, formatTime, fusoDe, todayIn, zonedTime } from "@/lib/datetime";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
-import { enviarSemOperador, motivoLegivel, ROTULO_STATUS, statusDaConexao } from "@/lib/atendys";
+import { enviarSemOperador, motivoLegivel, ROTULO_STATUS, saiuDepoisDoAceite, statusDaConexao } from "@/lib/atendys";
 import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { espelharStatusVivo, lerConexao, registrarErroNotificacao, soDigitosComDDI } from "@/lib/whatsapp.server";
 
@@ -101,6 +101,9 @@ export async function enviarLembretesDoDia(): Promise<number> {
         // parado na cota: não é falha (aguarda decisão do dono); a reserva fica, para não reenviar a cada ciclo
         if (e.destino !== "parada") enviados += 1;
       } catch (e) {
+        // o cliente saiu (SAIR) depois do aceite deste agendamento: a reserva fica (sem nova
+        // tentativa a cada ciclo) e não é falha a alertar
+        if (saiuDepoisDoAceite(e)) continue;
         // devolve a reserva: o próximo ciclo tenta de novo
         await a.ref.update({ whatsappReminderSentAt: FieldValue.delete() }).catch(() => {});
         console.error(`[whatsapp] lembrete ${t.id}/${a.id}`, e);

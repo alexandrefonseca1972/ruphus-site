@@ -8,7 +8,7 @@ import { ErroPrevisto } from "@/lib/erro-previsto";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { emParalelo } from "@/lib/paralelo";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
-import { criarInstancia, enviarSemOperador, garantirTenant, OPTIN_DONO, revogarChavesAntigas, statusDaConexao, type ConexaoAtendys } from "@/lib/atendys";
+import { criarInstancia, enviarSemOperador, garantirTenant, OPTIN_DONO, revogarChavesAntigas, saiuDepoisDoAceite, statusDaConexao, type ConexaoAtendys } from "@/lib/atendys";
 
 // O WhatsApp que o dono conectou ao próprio negócio: qual instância da
 // plataforma (atendys), o número pareado e o estado da conexão. Campo
@@ -533,6 +533,7 @@ export async function processarComandoAgendamento(
       } catch (e) {
         const motivo = e instanceof Error ? e.message : String(e);
         await enviarSemOperador(conexao, respostaPara, `Agendamento de ${nome} recusado, mas o aviso ao cliente falhou: ${motivo}`, OPTIN_DONO).catch(() => {});
+        if (saiuDepoisDoAceite(e)) return "recusado"; // o dono já sabe; não é erro
         throw e;
       }
     }
@@ -557,6 +558,7 @@ export async function processarComandoAgendamento(
       // foi avisado é quem opera o salão (self-chat), que está esperando o eco
       const motivo = e instanceof Error ? e.message : String(e);
       await enviarSemOperador(conexao, respostaPara, `Agendamento de ${nome} confirmado, mas o aviso ao cliente falhou: ${motivo}`, OPTIN_DONO).catch(() => {});
+      if (saiuDepoisDoAceite(e)) return "confirmado"; // o dono já sabe; não é erro
       throw e;
     }
   }
