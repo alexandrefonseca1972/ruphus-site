@@ -236,6 +236,22 @@ assert.equal(await comando("confirmado bcdef"), "confirmado");
 assert.equal(await comando("confirmado bcdef"), "sem pendente");
 assert.equal((await db.doc("tenants/salao/appointments/bCdegr").get()).get("status"), "booked", "BCDEG continua aguardando");
 
+// conta antiga (12 dígitos): o número do salão gravado pelo instance.status e o pessoal do dono
+// ficam sem o 9, mas desde 2026-11-08 o atendys manda o remetente com o 9. Tem de confirmar igual.
+{
+  const c = await lerConexao(db, "salao");
+  await gravarConexao(db, "salao", { ...c!, phone: "551188887777" });
+  await marcar("Zz11aa");
+  assert.equal(await comando("confirmado zz11", "5511988887777"), "confirmado", "self-chat do salão de conta antiga");
+  const { gravarOwnerPhone } = await import("@/lib/whatsapp.server");
+  await gravarOwnerPhone(db, "salao", "551166665555");
+  await marcar("Yy22bb");
+  assert.equal(await comando("confirmado yy22", "5511966665555"), "confirmado", "WhatsApp pessoal do dono gravado sem o 9");
+  assert.equal(await comando("confirmado", "5511955554444"), "ignorado", "terceiro continua sem poder confirmar");
+  await gravarOwnerPhone(db, "salao", null);
+  await gravarConexao(db, "salao", { ...c! });
+}
+
 // ── WhatsApp pessoal do dono: fora do documento do negócio (a equipe o lê pelo navegador) ──
 {
   const { gravarOwnerPhone, paraTela } = await import("@/lib/whatsapp.server");

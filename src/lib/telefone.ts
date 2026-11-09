@@ -3,11 +3,22 @@
 // de novo com a mesma regra (quem chama sem passar pela tela). Sem "server-only"
 // de propósito: a gaveta (cliente) importa deste arquivo.
 
-/** O gateway exige DDI+DDD+número (só dígitos). Quem digita costuma pôr só DDD+número. */
+/** Celular BR na forma canônica, com o 9º dígito — a mesma regra do atendys
+ *  (canonicalBrMobile em apps/api/src/utils/phone.ts). Conta antiga aparece no WhatsApp
+ *  sem o 9 (55+DDD+8 dígitos); desde 2026-11-08 o atendys manda o telefone sempre com o 9.
+ *  Sem canonizar dos dois lados, o self-chat do salão (5591992361726) não batia com o
+ *  número gravado da instância (559192361726) e o CONFIRMADO do dono era ignorado.
+ *  Fixo (assinante começando em 2-5) não tem par e fica como está. */
+export function canonicalBrMobile(digits: string): string {
+  return /^55[1-9]\d[6-9]\d{7}$/.test(digits) ? `${digits.slice(0, 4)}9${digits.slice(4)}` : digits;
+}
+
+/** O gateway exige DDI+DDD+número (só dígitos). Quem digita costuma pôr só DDD+número.
+ *  Sai canonizado: o mesmo celular, com ou sem o 9, vira um só valor (comparações e envio). */
 export function soDigitosComDDI(phone: string): string | null {
   const d = phone.replace(/\D/g, "");
-  if (/^55\d{10,11}$/.test(d)) return d; // já veio com DDI
-  if (/^\d{10,11}$/.test(d)) return `55${d}`; // formato local: assume Brasil
+  if (/^55\d{10,11}$/.test(d)) return canonicalBrMobile(d); // já veio com DDI
+  if (/^\d{10,11}$/.test(d)) return canonicalBrMobile(`55${d}`); // formato local: assume Brasil
   return null;
 }
 
