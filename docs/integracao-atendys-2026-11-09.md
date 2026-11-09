@@ -222,11 +222,11 @@ Fazer com um salão de teste e dois celulares: **um de conta antiga** (registrad
 
 - [x] 1. Confirmar o impacto do item 1 (consultas da seção 1, "Como confirmar"). 5 de 6 instâncias afetadas.
 - [x] 2. Implementar `canonicalBrMobile` + `soDigitosComDDI` canonizando (item 1) e os testes. **Feito: PR #281 (squash `d67fbf9b`), em produção desde 2026-11-09 00:22.** Falta o roteiro manual 7.2 num salão de conta antiga.
-- [x] 3. Limpar `errorCode` em `sent/delivered/read` (item 3) e os testes.
+- [x] 3. Limpar `errorCode` em `sent/delivered/read` (item 3) e os testes. **Feito: PR #282 (squash `d196aea9`), em produção desde 2026-11-09 01:13.**
 - [x] 4. `npm run typecheck && npm run lint && npm run test:whatsapp && npm run test:mensagens && npm run test:atendys`.
 - [ ] 5. Deploy do ruphus.site; roteiro 7.1, 7.2 (com conta antiga), 7.3, 7.4, 7.5.
 - [ ] 6. (atendys) Canonizar o telefone da instância no `CONNECTION_UPDATE` (item 1, passo 4); deploy pelo `scripts/deploy.sh`.
 - [ ] 7. Investigar e registrar a causa das falhas de 03–04/11 (item 4).
-- [x] 8. Verificador v1+v2 no ruphus.site (item 5) + testes; deploy.
-- [ ] 9. (atendys) Enviar timestamp + assinatura v2; deploy; roteiro 7.6.
-- [ ] 10. Após 7 dias só com v2: exigir v2 no ruphus.site.
+- [x] 8. Verificador v1+v2 no ruphus.site (item 5) + testes; deploy. **Feito: PR #282 (squash `d196aea9`), em produção desde 2026-11-09 01:13.** Log `[webhook atendys] assinatura v1|v2`.
+- [ ] 9. (atendys) Enviar timestamp + assinatura v2; deploy; roteiro 7.6. Envio publicado no atendys (`d96d81b`, 2026-11-09 01:27). Falta o roteiro 7.6 e ver `v2` no `journalctl -u ruphus-site`.
+- [ ] 10. Após 7 dias só com v2: exigir v2 no ruphus.site. **Previsto para 2026-11-16**, se até lá `journalctl -u ruphus-site --since 2026-11-09 | grep "assinatura v1"` não mostrar nada.
