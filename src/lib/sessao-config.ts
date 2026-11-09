@@ -7,7 +7,7 @@ import { db } from "@/lib/firebase-db";
 /** Os minutos de inatividade configurados, acompanhados ao vivo.
  *
  * Separado de sessao.ts porque é a única parte que fala com o Firestore: junto,
- * ele obrigava /admin, /login e /painel — que só precisam de `loginComMotivo` e
+ * ele obrigava /admin, /login e /painel — que só precisam de `sair` e
  * do relógio — a baixar 1 MB do SDK. Use com useAutoLogout(useMinutosInativo()).
  * Quem já recebe o valor por outro caminho (o /admin recebe junto do painel)
  * passa o número direto e não importa isto. */
