@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- WhatsApp do negócio: mensagem que o atendys marcou como falha e depois confirmou como enviada não mostra mais o código de erro antigo.
+- Webhook do atendys: passa a aceitar a assinatura v2 (com horário, recusada depois de 5 minutos), que impede reenviar um aviso capturado. A assinatura atual continua valendo até o atendys mandar só a v2.
 - WhatsApp do negócio: CONFIRMADO/RECUSAR do dono voltam a funcionar em número de conta antiga (registrado no WhatsApp sem o 9º dígito). Desde 08/11 o atendys manda o telefone sempre com o 9 e o ruphus.site comparava com o número gravado sem ele: o comando era ignorado em silêncio. Telefones de celular passam a ser tratados sempre com o 9, como no atendys.
 - Agendamento sem o aceite do WhatsApp: a tela não promete mais "confirma pelo seu WhatsApp"; diz "confirma o horário com você". Sem o aceite, nada sai pelo WhatsApp automático.
 - Sites no modelo editorial: o bloco "Tabela de preços" não diz mais "Valores sob consulta / o estabelecimento não publica a tabela" (a agenda online e a bio mostram os preços); leva à agenda com "Ver valores e horários →".

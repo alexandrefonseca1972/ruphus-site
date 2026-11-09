@@ -378,6 +378,25 @@ export function assinaturaValida(segredo: string, bruto: string, assinatura: str
   return recebida.length === calculada.length && timingSafeEqual(recebida, calculada);
 }
 
+/** Janela do timestamp da v2 (anti-replay). Relógios sincronizados por NTP; hoje é o mesmo servidor. */
+const JANELA_V2_S = 300;
+
+/** v2: HMAC-SHA256 de "${timestamp}.${corpo}" em x-atendys-signature-v2, timestamp (epoch em
+ *  segundos) em x-atendys-timestamp, aceito a até 300 s do relógio daqui. */
+export function assinaturaV2Valida(segredo: string, bruto: string, timestamp: string, assinatura: string, agora = Date.now()) {
+  if (!/^\d{1,12}$/.test(timestamp) || Math.abs(agora / 1000 - Number(timestamp)) > JANELA_V2_S) return false;
+  return assinaturaValida(segredo, `${timestamp}.${bruto}`, assinatura);
+}
+
+export type CabecalhosWebhook = { v1: string | null; v2: string | null; timestamp: string | null };
+
+/** Qual assinatura vale: com a v2 presente, só ela (v1 válida ao lado de v2 inválida é recusada);
+ *  sem a v2, a v1 (transição — o atendys ainda manda só ela). Devolve a versão aceita ou null. */
+export function versaoDaAssinatura(segredo: string, bruto: string, h: CabecalhosWebhook, agora = Date.now()): "v1" | "v2" | null {
+  if (h.v2 !== null) return h.timestamp !== null && assinaturaV2Valida(segredo, bruto, h.timestamp, h.v2, agora) ? "v2" : null;
+  return h.v1 !== null && assinaturaValida(segredo, bruto, h.v1) ? "v1" : null;
+}
+
 /** O QR como o atendys devolve (repassado da Evolution) vira um src de imagem. Vem em três formas:
  *  já com "data:image/png;base64," (o comum — prefixar de novo quebrava a imagem), só o base64
  *  do PNG, ou o texto do pareamento ("2@…", quando a Evolution não manda imagem), que vira QR aqui. */

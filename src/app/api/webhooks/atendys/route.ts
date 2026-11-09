@@ -1,5 +1,5 @@
 import { after, NextResponse } from "next/server";
-import { assinaturaValida } from "@/lib/atendys";
+import { versaoDaAssinatura, type CabecalhosWebhook } from "@/lib/atendys";
 import { adminDb } from "@/lib/admin";
 import { DEMO } from "@/lib/demo";
 import { atualizarParada, negocioDaMensagem } from "@/lib/mensagens-paradas.server";
@@ -9,6 +9,8 @@ import { avisarQueda, espelharStatusDaInstancia, lerConexao, processarComandoAge
 // cliente final, mudança de estado da conexão e status de envio. Cada webhook é
 // assinado com HMAC-SHA256 em x-atendys-signature usando o segredo do tenant
 // (gravado no doc privado do negócio ao conectar; só rotaciona quando falta).
+// v2 (anti-replay): x-atendys-timestamp + x-atendys-signature-v2 sobre "${timestamp}.${corpo}".
+// Com a v2 presente, só ela vale; a versão aceita vai ao log para saber quando exigir a v2.
 //
 // Contrato (packages/shared do atendys):
 //   x-atendys-event: message.received | instance.status | message.status
@@ -41,7 +43,12 @@ function responder(status: number, corpo: unknown) {
 export async function POST(req: Request) {
   const bruto = await req.text();
   const eventoHeader = req.headers.get("x-atendys-event");
-  const assinatura = req.headers.get("x-atendys-signature");
+  const cab: CabecalhosWebhook = {
+    v1: req.headers.get("x-atendys-signature"),
+    v2: req.headers.get("x-atendys-signature-v2"),
+    timestamp: req.headers.get("x-atendys-timestamp"),
+  };
+  const assinatura = cab.v2 ?? cab.v1;
   if (!eventoHeader || !assinatura) return responder(401, { error: "Assinatura ausente." });
   // HMAC-SHA256 em hex tem 64 caracteres: o resto nem chega a ler o Firestore (cada POST
   // sem assinatura plausível custava uma consulta antes da recusa)
@@ -62,10 +69,12 @@ export async function POST(req: Request) {
     const segredoDaMensagem = (await lerConexao(adminDb, slugDaMensagem))?.atendysWebhookSecret;
     // assinatura conferida antes de gravar qualquer coisa. Recusada, responde 200 como a desconhecida
     // (um 401 só aqui diria a quem não assina que esse id é de uma mensagem parada)
-    if (!segredoDaMensagem || !assinaturaValida(segredoDaMensagem, bruto, assinatura)) {
+    const versao = segredoDaMensagem ? versaoDaAssinatura(segredoDaMensagem, bruto, cab) : null;
+    if (!versao) {
       console.warn(`[webhook atendys] message.status com assinatura inválida para ${slugDaMensagem}`);
       return responder(200, { ok: true });
     }
+    console.log(`[webhook atendys] assinatura ${versao}: message.status de ${slugDaMensagem}`);
     const at = Date.parse(evento.at ?? "");
     await atualizarParada(slugDaMensagem, id!, String(evento.status), evento.retryAt === undefined ? undefined : (evento.retryAt ?? null), Number.isNaN(at) ? Date.now() : at, evento.errorCode);
     return responder(200, { ok: true });
@@ -84,7 +93,9 @@ export async function POST(req: Request) {
   const segredo = conexao?.atendysWebhookSecret;
   if (!segredo) return responder(401, { error: "Tenant sem segredo de webhook." });
 
-  if (!assinaturaValida(segredo, bruto, assinatura)) return responder(401, { error: "Assinatura inválida." });
+  const versao = versaoDaAssinatura(segredo, bruto, cab);
+  if (!versao) return responder(401, { error: "Assinatura inválida." });
+  console.log(`[webhook atendys] assinatura ${versao}: ${evento.event} de ${slug}`);
 
   if (evento.event === "message.received") {
     const data = evento.type === "text" ? { text: evento.text ?? "" } : null;
