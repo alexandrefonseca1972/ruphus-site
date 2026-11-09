@@ -17,7 +17,7 @@ import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { enviarEmail } from "@/lib/email.server";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { situacaoDe } from "@/lib/envio-whatsapp";
-import { atualizarParada, paradasDoNegocio } from "@/lib/mensagens-paradas.server";
+import { atualizarParada, negocioDaMensagem, paradasDoNegocio } from "@/lib/mensagens-paradas.server";
 import { htmlDoRecibo, textoDoRecibo } from "@/lib/recibo";
 import { reciboDoBanco } from "@/lib/recibo.server";
 import { formatBRL } from "@/lib/datetime";
@@ -544,6 +544,10 @@ export const avisarClienteWhatsappAction = memberAction(
 export const decidirEnvioAction = memberAction(
   z.object({ tenantId: docIdStaff, messageId: z.string().uuid(), acao: z.enum(["agora", "agendar"]) }),
   async (data) => {
+    // a mensagem tem de ser DESTE negócio: no canal oficial a credencial (da plataforma) é a mesma
+    // para todos, e o atendys não distingue o salão A do B. Sem isto, o UUID de uma mensagem de
+    // outro salão devolvia o wa.me com o telefone e o texto do cliente dele
+    if ((await negocioDaMensagem(data.messageId)) !== data.tenantId) throw new UserError("Mensagem não encontrada.");
     // a mensagem parada pode ser do número do salão ou do canal oficial (plataforma)
     const conexoes = await conexoesDasParadas(data.tenantId);
     if (!conexoes.length) throw new UserError("O WhatsApp do negócio não está conectado.");

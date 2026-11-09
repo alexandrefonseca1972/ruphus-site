@@ -526,10 +526,11 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   const [p] = await paradasDoNegocio("loja");
   assert.deepEqual([p.messageId, p.para, p.resumo, p.retryAt], [ID, "••••4321", "Olá, Ana! Lembrete do seu horário", "2026-11-08T03:00:00.000Z"]);
   assert.ok(!JSON.stringify(p).includes("wa.me"), "o link com número e texto não é guardado");
-  // envio comum não registra
+  // envio comum não vai para o painel, mas é vigiado (a falha depois do aceite acha o negócio)
   novo({ "POST /v1/message/send-text": json({ id: "m-comum", status: "queued" }) });
   await enviarTexto(casa, "5511987654321", "oi", null);
-  assert.equal(await negocioDaMensagem("m-comum"), null);
+  assert.equal(await negocioDaMensagem("m-comum"), "loja");
+  assert.equal((await paradasDoNegocio("loja")).length, 1);
   // status assinado com o segredo do negócio: grava; assinatura errada: 401 e nada muda
   assert.equal((await entregar({ event: "message.status", messageId: ID, phone: "x", status: "manual_started" }, "errado")).status, 200, "recusada responde como desconhecida");
   assert.equal((await paradasDoNegocio("loja")).length, 1);
@@ -601,6 +602,58 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.equal(await comando("confirmado sem1a"), "confirmado");
   assert.ok(!enviadas.some((m) => m.para === "5511977770000"), "cliente sem aceite não recebe");
   assert.ok(enviadas.some((m) => m.para === "5511900000099" && /não autorizou/.test(m.texto)), "o dono é avisado");
+  // comando pendente sai na mesma transação da confirmação: repetir depois não diz "não encontrei"
+  await marcar("Pen1zz");
+  await db.doc("comandosPendentes/salao__P1").set({ slug: "salao", text: "confirmado pen1", pegoEm: 0, tentativas: 1 });
+  assert.equal(await processarComandoAgendamento(db, "salao", { phone: "5511900000099", data: { text: "confirmado pen1" } }, "salao", "salao__P1"), "confirmado");
+  assert.ok(!(await db.doc("comandosPendentes/salao__P1").get()).exists);
+}
+
+// ── P1: prazo (expiresAt), falha depois do aceite visível, comando do dono reprocessável ──
+{
+  const { negocioDaMensagem } = await import("@/lib/mensagens-paradas.server");
+  const { executarComandoPendente, idDoComando, registrarMensagemRecebida, reprocessarComandos } = await import("@/lib/whatsapp.server");
+  const loja = (await lerConexao(db, "loja"))!;
+  const prazo = new Date(Date.now() + 3 * 3_600_000);
+  const ID4 = "4cd4d428-4361-4153-bc2c-60db816d8b77";
+  // prazo útil vai como expiresAt; adiado (horário silencioso) para depois do prazo: não é "agendada"
+  novo({ "POST /v1/message/send-text": json({ id: ID4, status: "queued", retryAt: new Date(prazo.getTime() + 3_600_000).toISOString() }, 202) });
+  assert.equal((await enviarSemOperador(loja, "5511987654321", "lembrete", null, prazo)).destino, "nao_sai", "sairia depois do horário");
+  assert.equal((chamadas[0].corpo as { expiresAt?: string }).expiresAt, prazo.toISOString());
+  assert.equal(await negocioDaMensagem(ID4), "loja", "vigiada: o status failed (vencida) acha o negócio");
+  novo({ "POST /v1/message/send-text": json({ id: "m-x", status: "queued" }) });
+  await enviarSemOperador(loja, "5511987654321", "oi", null, new Date(Date.now() + 30_000));
+  assert.equal((chamadas[0].corpo as { expiresAt?: string }).expiresAt, undefined, "prazo sem folga não vai (o atendys recusaria)");
+
+  // todo envio aceito é vigiado; failed depois do aceite vai para a gaveta, uma vez
+  const ID5 = "5cd4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: ID5, status: "queued" }) });
+  assert.equal((await enviarSemOperador(loja, "5511987654321", "Seu horário está confirmado", null)).destino, "enviada");
+  assert.equal(await negocioDaMensagem(ID5), "loja");
+  await db.doc("tenants/loja").set({ whatsapp: { lastNotifyError: null } }, { merge: true });
+  assert.equal((await entregar({ event: "message.status", messageId: ID5, status: "failed", errorCode: "META_131026" }, "s-loja")).status, 200);
+  const erro = (await lerConfigWhatsApp(db, "loja"))?.lastNotifyError;
+  assert.match(erro?.message ?? "", /não foi entregue: o número do cliente não recebe/);
+  assert.match(erro?.message ?? "", /Seu horário está confirmado/);
+  await db.doc("tenants/loja").set({ whatsapp: { lastNotifyError: null } }, { merge: true });
+  await entregar({ event: "message.status", messageId: ID5, status: "failed", errorCode: "META_131026" }, "s-loja");
+  assert.equal((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError ?? null, null, "reentrega não repete o aviso");
+
+  // comando do dono: pendente gravado com a caixa de entrada; sai só depois de processado
+  assert.equal(await registrarMensagemRecebida(db, "loja", { phone: "5511900000001", messageId: "CMD/1", data: { text: "oi" } }, "salao"), true);
+  const pend = db.doc(`comandosPendentes/${idDoComando("loja", "CMD_1")}`);
+  assert.ok((await pend.get()).exists);
+  assert.equal(await registrarMensagemRecebida(db, "loja", { phone: "5511900000001", messageId: "CMD/1", data: { text: "oi" } }, "salao"), false, "reentrega cai no dedupe");
+  assert.equal(await reprocessarComandos(db), 0, "recém-chegado é de quem recebeu (after), não do cron");
+  await pend.update({ pegoEm: Date.now() - 6 * 60_000 }); // o processo caiu antes de terminar
+  assert.equal(await reprocessarComandos(db), 1);
+  assert.ok(!(await pend.get()).exists, "processado sai");
+  assert.equal(await executarComandoPendente(db, idDoComando("loja", "CMD_1")), null, "sem pendente: nada");
+  // falhou 3 vezes: desiste e avisa na gaveta
+  await pend.set({ slug: "loja", phone: "5511900000001", text: "CONFIRMADO AB12", via: "salao", pegoEm: 0, tentativas: 3 });
+  assert.equal(await reprocessarComandos(db), 0);
+  assert.ok(!(await pend.get()).exists);
+  assert.match((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError?.message ?? "", /comando do dono .* descartado/);
 }
 
 console.log("atendys ok");

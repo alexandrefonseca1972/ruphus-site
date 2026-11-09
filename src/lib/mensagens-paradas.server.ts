@@ -46,6 +46,26 @@ export async function registrarParada(slug: string, m: { messageId: string; retr
   }
 }
 
+/** Envio aceito pelo atendys cuja falha posterior precisa chegar ao negócio: todo envio do canal
+ *  oficial (a Meta recusa depois do aceite) e o adiado para depois do prazo (vence no atendys).
+ *  O message.status failed acha o negócio por este índice. Nunca lança. */
+export async function vigiarEnvio(slug: string, id: string, texto: string): Promise<void> {
+  await indice(id)
+    // expiraEm: para a política de TTL do Firestore (o atendys segura a mensagem por no máximo 24 h)
+    .set({ tenantId: slug, vigiada: true, resumo: texto.replace(/\s+/g, " ").slice(0, 140), criadaEm: FieldValue.serverTimestamp(), expiraEm: new Date(Date.now() + 7 * 86_400_000) })
+    .catch((e) => console.error(`[mensagens] índice do envio ${id}`, e));
+}
+
+/** O envio vigiado que falhou: só uma vez por mensagem (reentrega do webhook não repete o aviso). */
+export async function marcarFalhaVigiada(id: string): Promise<{ resumo: string } | null> {
+  return adminDb.runTransaction(async (tx) => {
+    const d = await tx.get(indice(id));
+    if (!d.exists || d.get("vigiada") !== true || d.get("falhou")) return null;
+    tx.update(indice(id), { falhou: true });
+    return { resumo: String(d.get("resumo") ?? "") };
+  });
+}
+
 export async function negocioDaMensagem(id: string): Promise<string | null> {
   const d = await indice(id).get();
   const t = d.get("tenantId");

@@ -1,7 +1,7 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import QRCode from "qrcode";
-import { atualizarParada, prazoDaParada, registrarParada } from "@/lib/mensagens-paradas.server";
+import { atualizarParada, prazoDaParada, registrarParada, vigiarEnvio } from "@/lib/mensagens-paradas.server";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { integracao } from "@/lib/integracoes.server";
 
@@ -286,22 +286,30 @@ export const OPTIN_DONO: OptIn = { origem: "ruphus-aviso-dono", evidencia: "Núm
  * em produção): quando o número ainda não tem E quem chama passa um optIn (aceite explícito
  * gravado), registramos e repetimos o envio uma vez. Sem optIn, a recusa sobe como está.
  */
-export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn): Promise<Envio> {
+export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
-  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", { number: digits, text: message }, message);
+  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", { number: digits, text: message, ...validade(prazo) }, message);
+}
+
+/** Até quando o aviso serve (o horário do agendamento): o atendys descarta o que não saiu até lá
+ *  (horário silencioso, cota) em vez de entregar "lembrete: hoje às 21:30" no dia seguinte.
+ *  Só prazo com folga: o atendys recusa expiresAt no passado. */
+function validade(prazo?: Date) {
+  return prazo && prazo.getTime() > Date.now() + 60_000 ? { expiresAt: prazo.toISOString() } : {};
 }
 
 /** Template aprovado na Meta (API oficial, instância "cloud" do atendys): o único formato que sai
  *  fora da janela de 24 h. parametros vão, em ordem, para {{1}}, {{2}}… do corpo. */
 export type Template = { nome: string; idioma?: string; parametros: string[] };
 
-export async function enviarTemplate(conn: ConexaoAtendys, phone: string, t: Template, optIn: OptIn): Promise<Envio> {
+export async function enviarTemplate(conn: ConexaoAtendys, phone: string, t: Template, optIn: OptIn, prazo?: Date): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
   const corpo = {
     number: digits,
     name: t.nome,
     language: t.idioma ?? "pt_BR",
     ...(t.parametros.length ? { components: [{ type: "body", parameters: t.parametros.map((text) => ({ type: "text", text })) }] } : {}),
+    ...validade(prazo),
   };
   // texto da parada (painel "Mensagens"): o template com os parâmetros, já que não há texto livre
   return enviarComOptIn(conn, digits, optIn, "/v1/message/send-template", corpo, `[${t.nome}] ${t.parametros.join(" · ")}`);
@@ -309,7 +317,7 @@ export async function enviarTemplate(conn: ConexaoAtendys, phone: string, t: Tem
 
 /** enviarTemplate + seguirSemOperador: para quem envia sem ninguém olhando a tela. */
 export async function enviarTemplateSemOperador(conn: ConexaoAtendys, phone: string, t: Template, optIn: OptIn, prazo?: Date) {
-  const envio = await enviarTemplate(conn, phone, t, optIn);
+  const envio = await enviarTemplate(conn, phone, t, optIn, prazo);
   return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };
 }
 
@@ -329,6 +337,9 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
   };
   const registrar = async (e: Envio) => {
     if (aguardaDecisao(e) && conn.slug) await registrarParada(conn.slug, { messageId: e.messageId, retryAt: e.retryAt, errorCode: e.errorCode, para: digits, texto: message });
+    // todo envio aceito é vigiado: a falha que vem depois (a Meta recusou, venceu o prazo no
+    // atendys) chega ao negócio pelo message.status failed
+    else if (conn.slug) await vigiarEnvio(conn.slug, e.messageId, message);
     return e;
   };
   try {
@@ -381,8 +392,19 @@ export async function statusDaMensagem(conn: ConexaoAtendys, messageId: string) 
 /** Envio sem ninguém olhando (lembrete, aviso de agendamento, robô): parada na cota, volta à fila
  *  se o retryAt ainda serve (antes do prazo, quando há); senão fica parada para o painel decidir.
  *  Devolve o que aconteceu, para quem chama não registrar como enviada. */
-export async function seguirSemOperador(conn: ConexaoAtendys, envio: Envio, prazo?: Date): Promise<"enviada" | "agendada" | "parada"> {
-  if (!aguardaDecisao(envio)) return envio.retryAt ? "agendada" : "enviada";
+export async function seguirSemOperador(conn: ConexaoAtendys, envio: Envio, prazo?: Date): Promise<"enviada" | "agendada" | "parada" | "nao_sai"> {
+  if (!aguardaDecisao(envio)) {
+    if (!envio.retryAt) return "enviada";
+    // adiada para depois do prazo (horário silencioso, limite): com expiresAt o atendys descarta;
+    // não é "agendada" (o dono ouviria "cliente avisado" de um aviso que não vai sair). Só quando
+    // o expiresAt foi: sem ele, a mensagem sai atrasada
+    const quando = new Date(envio.retryAt);
+    if (prazo && "expiresAt" in validade(prazo) && !Number.isNaN(quando.getTime()) && quando >= prazo) {
+      console.warn(`[atendys] mensagem ${envio.messageId} adiada para depois do prazo; não sai`);
+      return "nao_sai";
+    }
+    return "agendada";
+  }
   const quando = envio.retryAt ? new Date(envio.retryAt) : null;
   // sem prazo, não há como saber se ainda serve amanhã ("confirmado" um dia depois engana): fica parada
   if (prazo && quando && !Number.isNaN(quando.getTime()) && quando < prazo) {
@@ -402,7 +424,7 @@ export async function seguirSemOperador(conn: ConexaoAtendys, envio: Envio, praz
 
 /** enviarTexto + seguirSemOperador: para quem envia sem ninguém olhando a tela. */
 export async function enviarSemOperador(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date) {
-  const envio = await enviarTexto(conn, phone, message, optIn);
+  const envio = await enviarTexto(conn, phone, message, optIn, prazo);
   return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };
 }
 
