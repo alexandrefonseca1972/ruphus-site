@@ -70,7 +70,9 @@ function useInstalar() {
   const i = useSyncExternalStore(assinar, atual, () => NO_SERVIDOR);
   return {
     ...i,
-    pode: i.celular && !i.instalado && (!!i.convite || i.ios),
+    // sem o convite do Chrome (já instalado neste aparelho, regras de engajamento dele, outro
+    // navegador) o caminho é o menu: a opção não pode sumir só porque o evento não veio
+    pode: i.celular && !i.instalado,
     async instalar() {
       if (!i.convite) return;
       await i.convite.prompt();
@@ -85,19 +87,21 @@ function useInstalar() {
   };
 }
 
-const textoInstalar = (convite: boolean) =>
+const textoInstalar = (convite: boolean, ios: boolean) =>
   convite
     ? "Abre direto da tela inicial, em tela cheia, e a agenda funciona mesmo com sinal fraco."
-    : <>No Safari, toque em <b className="font-medium text-foreground">Compartilhar</b> e depois em <b className="font-medium text-foreground">Adicionar à Tela de Início</b>.</>;
+    : ios
+      ? <>No Safari, toque em <b className="font-medium text-foreground">Compartilhar</b> e depois em <b className="font-medium text-foreground">Adicionar à Tela de Início</b>.</>
+      : <>No menu do navegador (<b className="font-medium text-foreground">⋮</b>), toque em <b className="font-medium text-foreground">Instalar app</b> ou <b className="font-medium text-foreground">Adicionar à tela inicial</b>.</>;
 
 /** Em Meu negócio, para quem dispensou a faixa do topo: a opção não some. */
 export function InstalarPainel() {
-  const { pode, dispensado, convite, instalar } = useInstalar();
+  const { pode, dispensado, convite, ios, instalar } = useInstalar();
   if (!pode || !dispensado) return null;
   return (
     <section aria-labelledby="instalar-fixo-titulo" className="grid gap-2.5 border-t pt-4">
       <h2 id="instalar-fixo-titulo" className="text-[15px] font-semibold">Painel no celular</h2>
-      <p className="text-sm text-muted-foreground">{textoInstalar(!!convite)}</p>
+      <p className="text-sm text-muted-foreground">{textoInstalar(!!convite, ios)}</p>
       {convite && <Button variant="outline" onClick={instalar} className="h-11">Instalar o painel</Button>}
     </section>
   );
@@ -113,7 +117,7 @@ const assinarRede = (avisar: () => void) => {
 };
 
 export function AppInstalado() {
-  const { pode, dispensado, convite, instalar, dispensar } = useInstalar();
+  const { pode, dispensado, convite, ios, instalar, dispensar } = useInstalar();
   const mostrar = pode && !dispensado;
   const avisos = useAvisos(useTenant().id);
   const [mostrarAvisos, setMostrarAvisos] = useState(() => !dispensadoEm(AVISOS_DISPENSADO));
@@ -158,7 +162,7 @@ export function AppInstalado() {
           <div className="min-w-0 flex-1 basis-56">
             <h2 id="instalar-titulo" className="text-[15px] font-semibold">Instale o painel no celular</h2>
             <p className="text-sm text-muted-foreground">
-              {textoInstalar(!!convite)}
+              {textoInstalar(!!convite, ios)}
             </p>
           </div>
           <div className="flex gap-2 max-sm:w-full">
