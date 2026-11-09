@@ -126,7 +126,7 @@ export async function conexaoOficial(db: Firestore, slug: string): Promise<Conex
   if (!(await usaCanalOficial(db, slug))) return null;
   const c = await lerCredenciais(db);
   if (!c) throw new ErroPrevisto("O canal oficial do WhatsApp não está provisionado (npm run canal-oficial -- provisionar).");
-  return { atendysApiKey: c.apikey, instanceId: instanciaPlataforma(), slug };
+  return { atendysApiKey: c.apikey, instanceId: instanciaPlataforma(), slug, oficial: true };
 }
 
 /** Segredo dos webhooks do tenant da plataforma. */

@@ -175,7 +175,7 @@ export async function acaoDoCliente(db: Firestore, b: Botao, telefone: string): 
   }
   // mantém o status: confirmado segue confirmado (o horário estava livre na agenda do negócio);
   // pedido ainda não confirmado segue aguardando o dono, que recebe o pedido novo
-  const r = await reschedule(db, { tenantId: b.slug, appointmentId: b.agendamento, date: m[1], time: m[2] }, ATOR, { manterStatus: true });
+  const r = await reschedule(db, { tenantId: b.slug, appointmentId: b.agendamento, date: m[1], time: m[2] }, ATOR, { manterStatus: true, esperado: start });
   if (!r.ok) {
     await responder(`Não deu para remarcar: ${r.error} Toque em Remarcar de novo para ver os horários atualizados.`);
     return "horário ocupado";

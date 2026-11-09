@@ -772,7 +772,7 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
 // ── rodada 2: horário silencioso, prazo no fuso do negócio, botões antigos, falha visível ──
 {
   const { instanteReal, zonedTime, addDays, todayIn } = await import("@/lib/datetime");
-  const { avisarFalhaDeEnvio, lerIndice, vigiarEnvio } = await import("@/lib/mensagens-paradas.server");
+  const { atualizarParada, avisarFalhaDeEnvio, lerIndice, vigiarEnvio } = await import("@/lib/mensagens-paradas.server");
   const { idBotao, lerBotao, templateCliente: tc } = await import("@/lib/canal-oficial.server");
   const { acaoDoCliente } = await import("@/lib/botoes-whatsapp.server");
   const { codigoDoAgendamento, executarComandoPendente, idDoComando, registrarMensagemRecebida } = await import("@/lib/whatsapp.server");
@@ -807,22 +807,34 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.equal(await erro(), null, "já avisada");
 
   // #8: a falha chegou antes do índice (o webhook não achou o negócio): a conferência depois do envio avisa
+  // (só no canal oficial e fora das respostas: o resto não paga o GET a mais)
   const F1 = "b1d4d428-4361-4153-bc2c-60db816d8b77";
   novo({ "POST /v1/message/send-text": json({ id: F1, status: "queued" }), [`GET /v1/message/${F1}/status`]: json({ id: F1, status: "failed", errorCode: "META_131026" }) });
   await limpar();
   await enviarSemOperador(loja, "5511987654321", "Confirmado amanhã", null);
+  await enviarSemOperador({ ...loja, oficial: true }, "5511987654321", "Confirmado amanhã", null, undefined, { resposta: true });
+  assert.ok(!chamadas.some((c) => c.caminho.endsWith("/status")), "número do salão e resposta: sem GET de status");
+  assert.equal(await erro(), null);
+  await enviarSemOperador({ ...loja, oficial: true }, "5511987654321", "Confirmado amanhã", null);
   assert.match((await erro()) ?? "", /não recebe mensagens/);
   await limpar();
   await entregar({ event: "message.status", messageId: F1, status: "failed", errorCode: "META_131026" }, "s-loja");
   assert.equal(await erro(), null, "o webhook atrasado não repete o aviso");
 
-  // #9: parada na cota também é vigiada; retomada e falha depois, o aviso chega
+  // #9: parada na cota só é vigiada quando volta à fila; esquecida e vencida no atendys, o painel
+  // já mostrou "parou na cota" e não vem um segundo aviso
   const P1 = "c1d4d428-4361-4153-bc2c-60db816d8b77";
   novo({ "POST /v1/message/send-text": json({ id: P1, status: "awaiting_manual", retryAt: null }, 202) });
   assert.equal((await enviarSemOperador(loja, "5511987654321", "Pedido parado", null, prazo)).destino, "parada");
   const ix = await lerIndice(P1);
-  assert.deepEqual([ix?.vigiada, ix?.parada, ix?.prazo], [true, true, prazo.getTime()]);
+  assert.deepEqual([ix?.vigiada, ix?.parada, ix?.prazo], [false, true, prazo.getTime()]);
   await limpar();
+  await entregar({ event: "message.status", messageId: P1, status: "failed", errorCode: "MESSAGE_EXPIRED", at: "2098-01-01T00:00:00Z" }, "s-loja");
+  assert.equal(await erro(), null, "parada esquecida que vence: sem aviso");
+  await db.doc(`tenants/loja/mensagens/${P1}`).update({ status: "awaiting_manual", at: 0 });
+  // Manter agendada: volta à fila e passa a ser vigiada
+  await atualizarParada("loja", P1, "queued", null);
+  assert.equal((await lerIndice(P1))?.vigiada, true);
   await entregar({ event: "message.status", messageId: P1, status: "manual_started" }, "s-loja");
   assert.equal((await db.doc(`tenants/loja/mensagens/${P1}`).get()).get("status"), "manual_started", "parada segue atualizando o painel");
   await entregar({ event: "message.status", messageId: P1, status: "failed", errorCode: "MESSAGE_EXPIRED", at: "2099-01-01T00:00:00Z" }, "s-loja");

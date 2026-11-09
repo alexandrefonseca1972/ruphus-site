@@ -51,7 +51,8 @@ export const aguardaDecisao = (e: Pick<Envio, "status">) => e.status === "awaiti
 
 // quem envia/recebe: precisa da apikey do tenant e do nome da instância
 // slug: o negócio (lerConexao preenche); com ele, mensagem parada na cota fica registrada para o painel
-export type ConexaoAtendys = { atendysApiKey: string; instanceId: string; slug?: string };
+// oficial: conexão da plataforma (conexaoOficial preenche); sem import de canal-oficial (circular)
+export type ConexaoAtendys = { atendysApiKey: string; instanceId: string; slug?: string; oficial?: boolean };
 
 /** Recusa do atendys: status HTTP e o código do contrato ({ error: { code } }), para quem chama
  *  decidir (409 na instância, NOT_OPTED_IN no envio) sem ler a mensagem. */
@@ -290,7 +291,7 @@ export const OPTIN_DONO: OptIn = { origem: "ruphus-aviso-dono", evidencia: "Núm
  *  conta na cota por destinatário nem no dedupe de 10 min (replyToInbound). */
 export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean } = {}): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
-  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", { number: digits, text: message, ...validade(prazo), ...(opcoes.resposta && { replyToInbound: true }) }, message, prazo);
+  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", { number: digits, text: message, ...validade(prazo), ...(opcoes.resposta && { replyToInbound: true }) }, message, prazo, opcoes.resposta);
 }
 
 /** Até quando o aviso serve (o horário do agendamento): o atendys descarta o que não saiu até lá
@@ -334,7 +335,7 @@ export async function enviarInterativo(
 ): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
   const corpo = { number: digits, body: m.texto, ...(opcoes.resposta && { replyToInbound: true }), ...(m.botoes ? { buttons: m.botoes } : {}), ...(m.lista ? { listButton: m.lista.botao, list: m.lista.itens } : {}) };
-  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-interactive", corpo, m.texto);
+  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-interactive", corpo, m.texto, undefined, opcoes.resposta);
 }
 
 /** Prazo em cima (menos de 60 s): sem expiresAt a mensagem sairia atrasada; nem envia. */
@@ -348,7 +349,7 @@ export async function enviarTemplateSemOperador(conn: ConexaoAtendys, phone: str
   return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };
 }
 
-async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn, caminho: string, corpo: unknown, message: string, prazo?: Date): Promise<Envio> {
+async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn, caminho: string, corpo: unknown, message: string, prazo?: Date, resposta = false): Promise<Envio> {
   const auth = { ...authTenant(conn), instance: conn.instanceId };
   const enviar = async (): Promise<Envio> => {
     const r = await chamar<{ id: string; status: string } & Omit<Envio, "messageId" | "status">>(auth, "POST", caminho, corpo);
@@ -369,8 +370,10 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
     else if (conn.slug) {
       await vigiarEnvio(conn.slug, e.messageId, message, prazo);
       // a falha pode ter chegado antes do índice (o webhook não achou o negócio e ficou no ack):
-      // confere uma vez agora. Já avisada pelo webhook, a marca da mensagem não deixa repetir
-      const agora = await statusDaMensagem(conn, e.messageId).catch(() => null);
+      // confere uma vez agora. Já avisada pelo webhook, a marca da mensagem não deixa repetir.
+      // Só no canal oficial (a Meta recusa logo depois do aceite) e fora das respostas: um GET a
+      // mais por envio no resto não compensa
+      const agora = conn.oficial && !resposta ? await statusDaMensagem(conn, e.messageId).catch(() => null) : null;
       if (agora?.status === "failed") await avisarFalhaDeEnvio(conn.slug, e.messageId, agora.errorCode);
     }
     return e;

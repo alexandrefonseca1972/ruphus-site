@@ -39,8 +39,9 @@ export async function registrarParada(slug: string, m: { messageId: string; retr
       at: Date.now(),
       expira: Date.now() + VALIDADE_PARADA_MS,
     });
-    // também vigiada: retomada (Manter agendada, volta à fila) e falha depois, o aviso chega ao negócio
-    b.set(indice(m.messageId), { ...dadosVigiada(slug, m.texto, m.prazo), parada: true });
+    // ainda não vigiada: parada que vence no atendys já aparece no painel ("parou na cota"); só ao
+    // voltar à fila (atualizarParada queued) a falha depois vira aviso ao negócio
+    b.set(indice(m.messageId), { ...dadosVigiada(slug, m.texto, m.prazo), vigiada: false, parada: true });
     await b.commit();
   } catch (e) {
     if (tentativa < 2) return registrarParada(slug, m, tentativa + 1);
@@ -128,8 +129,11 @@ const SAIU = new Set(["sent", "delivered", "read"]);
 export async function atualizarParada(slug: string, id: string, status: string, retryAt?: string | null, at = Date.now(), errorCode?: string | null) {
   const ref = doNegocio(slug, id);
   await adminDb.runTransaction(async (tx) => {
-    const d = await tx.get(ref);
+    const [d, ix] = await Promise.all([tx.get(ref), tx.get(indice(id))]);
     if (!d.exists || Number(d.get("at") ?? 0) > at) return;
+    // voltou à fila (Manter agendada, seguirSemOperador): a falha depois já não está no painel,
+    // então passa a ser vigiada (resumo e prazo já estão no índice, de registrarParada)
+    if (status === "queued" && ix.exists && ix.get("tenantId") === slug) tx.update(indice(id), { vigiada: true });
     // saiu de fato (failed → sent na reconciliação do atendys): o erro antigo não vale mais
     const erro = SAIU.has(status) ? { errorCode: FieldValue.delete() } : errorCode ? { errorCode } : {};
     tx.update(ref, { status, at, ...(retryAt !== undefined && { retryAt }), ...erro, atualizadaEm: FieldValue.serverTimestamp() });

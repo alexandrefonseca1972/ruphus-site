@@ -115,8 +115,10 @@ export async function enviarLembretesDoDia(): Promise<number> {
               prazo, // lembrete que sairia depois do horário não serve: fica parado
             );
         // parado na cota: não é falha (aguarda decisão do dono); a reserva fica, para não reenviar a cada ciclo
-        // parado (decisão do dono) ou que não sai antes do horário (vence no atendys e o
-        // message.status failed avisa o negócio): não conta como enviado
+        // parado (decisão do dono) ou que não sai antes do horário: não conta como enviado. Aceito e
+        // adiado para depois do prazo, o message.status avisa o negócio; sem folga (menos de 60 s),
+        // nem foi enviado e não há mensagem para avisar: fica só o log
+        if (e.destino === "nao_sai" && !e.messageId) console.warn(`[lembretes] ${t.id}/${a.id}: horário em cima, lembrete não enviado`);
         if (e.destino === "enviada" || e.destino === "agendada") enviados += 1;
       } catch (e) {
         // o cliente saiu (SAIR) depois do aceite deste agendamento: a reserva fica (sem nova
