@@ -194,7 +194,7 @@ async function avisarPeloCanalOficialSemCaptura(
   } else {
     try {
       const codigo = codigoDoAgendamento(nova.id);
-      await enviarTemplateSemOperador(oficial, donoNumero, templateNovoDono({ negocio, cliente: nome, telefone: dados.customerPhone, servico, quando: quandoVai, codigo }), OPTIN_DONO, prazo);
+      await enviarTemplateSemOperador(oficial, donoNumero, templateNovoDono({ negocio, cliente: nome, telefone: dados.customerPhone, servico, quando: quandoVai, codigo }, { slug: tenantId, agendamento: nova.id }), OPTIN_DONO, prazo);
     } catch (e) {
       falhas.push(`aviso ao salão não chegou: ${motivoLegivel(e)}`);
       console.error("aviso de agendamento pelo canal oficial", e);

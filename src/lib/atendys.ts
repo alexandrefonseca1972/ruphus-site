@@ -300,7 +300,7 @@ function validade(prazo?: Date) {
 
 /** Template aprovado na Meta (API oficial, instância "cloud" do atendys): o único formato que sai
  *  fora da janela de 24 h. parametros vão, em ordem, para {{1}}, {{2}}… do corpo. */
-export type Template = { nome: string; idioma?: string; parametros: string[] };
+export type Template = { nome: string; idioma?: string; parametros: string[]; /** payload de cada botão de resposta rápida, na ordem do template */ botoes?: string[] };
 
 export async function enviarTemplate(conn: ConexaoAtendys, phone: string, t: Template, optIn: OptIn, prazo?: Date): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
@@ -308,11 +308,30 @@ export async function enviarTemplate(conn: ConexaoAtendys, phone: string, t: Tem
     number: digits,
     name: t.nome,
     language: t.idioma ?? "pt_BR",
-    ...(t.parametros.length ? { components: [{ type: "body", parameters: t.parametros.map((text) => ({ type: "text", text })) }] } : {}),
+    ...(t.parametros.length || t.botoes?.length
+      ? { components: [
+          ...(t.parametros.length ? [{ type: "body", parameters: t.parametros.map((text) => ({ type: "text", text })) }] : []),
+          // o payload volta no message.received (reply.id) quando a pessoa toca no botão
+          ...(t.botoes ?? []).map((payload, i) => ({ type: "button", sub_type: "quick_reply", index: String(i), parameters: [{ type: "payload", payload }] })),
+        ] }
+      : {}),
     ...validade(prazo),
   };
   // texto da parada (painel "Mensagens"): o template com os parâmetros, já que não há texto livre
   return enviarComOptIn(conn, digits, optIn, "/v1/message/send-template", corpo, `[${t.nome}] ${t.parametros.join(" · ")}`);
+}
+
+/** Botões (até 3) ou lista (até 10) pela API oficial, só dentro da janela de 24 h (a pessoa
+ *  acabou de escrever ou tocar num botão). A escolha volta no message.received como reply.id. */
+export async function enviarInterativo(
+  conn: ConexaoAtendys,
+  phone: string,
+  m: { texto: string; botoes?: { id: string; title: string }[]; lista?: { botao: string; itens: { id: string; title: string; description?: string }[] } },
+  optIn: OptIn,
+): Promise<Envio> {
+  const digits = phone.replace(/\D/g, "");
+  const corpo = { number: digits, body: m.texto, ...(m.botoes ? { buttons: m.botoes } : {}), ...(m.lista ? { listButton: m.lista.botao, list: m.lista.itens } : {}) };
+  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-interactive", corpo, m.texto);
 }
 
 /** enviarTemplate + seguirSemOperador: para quem envia sem ninguém olhando a tela. */
