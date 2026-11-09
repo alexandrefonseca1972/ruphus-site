@@ -4,10 +4,11 @@ import { adminDb } from "@/lib/admin";
 import { book } from "@/lib/booking.server";
 import { MAX_DAYS_AHEAD, dentroDaJanela, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
-import { codigoDoAgendamento, espelharStatusVivo, lerConexao, registrarErroNotificacao } from "@/lib/whatsapp.server";
+import { codigoDoAgendamento, espelharStatusVivo, lerConexao, lerConfigWhatsApp, registrarErroNotificacao } from "@/lib/whatsapp.server";
+import { conexaoOficial, templateCliente, templateNovoDono, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
-import { enviarSemOperador, motivoLegivel, OPTIN_DONO, ROTULO_STATUS, saiuDepoisDoAceite, statusDaConexao } from "@/lib/atendys";
+import { enviarSemOperador, enviarTemplateSemOperador, motivoLegivel, OPTIN_DONO, ROTULO_STATUS, saiuDepoisDoAceite, statusDaConexao, type ConexaoAtendys } from "@/lib/atendys";
 
 // A reserva da página pública. Rota, não server action: o Next manda um server action
 // por vez, e com a rede travada a nova tentativa (e a agenda) ficava na fila atrás da
@@ -47,6 +48,21 @@ export async function POST(req: Request) {
     // no negócio: a gaveta mostra, em vez de o dono descobrir pelo silêncio.
     after(() =>
       (async () => {
+        // canal oficial (número da plataforma, API da Meta): não depende do WhatsApp do salão
+        let oficial: ConexaoAtendys | null = null;
+        // a marca fora do try: erro ao ler o negócio não vira "canal oficial indisponível"
+        if (await usaCanalOficial(adminDb, tenantId)) try {
+          oficial = await conexaoOficial(adminDb, tenantId);
+        } catch (e) {
+          // negócio do canal oficial sem a plataforma pronta: registra; nunca cai no número do salão
+          console.error("[whatsapp] canal oficial", e);
+          await registrarErroNotificacao(adminDb, tenantId, { message: `Agendamento de ${customerName.trim()}: ninguém foi avisado (canal oficial do WhatsApp indisponível: ${motivoLegivel(e)}).`, at: Date.now() }).catch(() => {});
+          return;
+        }
+        if (oficial) {
+          await avisarPeloCanalOficial(oficial, tenantId, nova, b.data);
+          return;
+        }
         const conn = await lerConexao(adminDb, tenantId);
         if (!conn) return;
         const marcar = (message: string) =>
@@ -141,4 +157,64 @@ export async function POST(req: Request) {
     );
   });
   return NextResponse.json(r);
+}
+
+/** Novo agendamento pelo canal oficial: o dono recebe o aviso (com o código para CONFIRMADO/
+ *  RECUSAR) no WhatsApp pessoal e o cliente, o recibo — os dois por template. */
+async function avisarPeloCanalOficial(
+  oficial: ConexaoAtendys,
+  tenantId: string,
+  nova: { id: string; serviceName: string; date: string; time: string; staffName?: string | null },
+  dados: { customerName: string; customerPhone: string; aceiteWhatsapp?: boolean },
+) {
+  try {
+    await avisarPeloCanalOficialSemCaptura(oficial, tenantId, nova, dados);
+  } catch (e) {
+    console.error("[whatsapp] aviso pelo canal oficial", e);
+    await registrarErroNotificacao(adminDb, tenantId, { message: `Agendamento de ${dados.customerName.trim()}: aviso pelo canal oficial falhou (${motivoLegivel(e)}).`, at: Date.now() }).catch(() => {});
+  }
+}
+
+async function avisarPeloCanalOficialSemCaptura(
+  oficial: ConexaoAtendys,
+  tenantId: string,
+  nova: { id: string; serviceName: string; date: string; time: string; staffName?: string | null },
+  dados: { customerName: string; customerPhone: string; aceiteWhatsapp?: boolean },
+) {
+  const falhas: string[] = [];
+  const prazo = zonedTime(nova.date, nova.time);
+  const negocio = await adminDb.doc(`tenants/${tenantId}`).get().then((t) => String(t.get("name") ?? "").trim() || tenantId);
+  const servico = nova.staffName ? `${nova.serviceName} com ${nova.staffName}` : nova.serviceName;
+  const quandoVai = quando(nova.date, nova.time);
+  const nome = dados.customerName.trim();
+  const dono = (await lerConfigWhatsApp(adminDb, tenantId))?.ownerPhone;
+  const donoNumero = dono ? soDigitosComDDI(dono) : null;
+  if (!donoNumero) {
+    falhas.push("aviso ao salão não saiu: cadastre o WhatsApp pessoal do dono na gaveta do WhatsApp");
+  } else {
+    try {
+      const codigo = codigoDoAgendamento(nova.id);
+      await enviarTemplateSemOperador(oficial, donoNumero, templateNovoDono({ negocio, cliente: nome, telefone: dados.customerPhone, servico, quando: quandoVai, codigo }), OPTIN_DONO, prazo);
+    } catch (e) {
+      falhas.push(`aviso ao salão não chegou: ${motivoLegivel(e)}`);
+      console.error("aviso de agendamento pelo canal oficial", e);
+    }
+  }
+  const cliente = soDigitosComDDI(dados.customerPhone);
+  if (dados.aceiteWhatsapp && cliente) {
+    try {
+      const optIn = optInDoDoc(tenantId, await adminDb.doc(`tenants/${tenantId}/appointments/${nova.id}`).get());
+      if (!optIn) throw new Error("aceite do WhatsApp não gravado no agendamento");
+      const primeiro = nome.split(/\s+/)[0] ?? nome;
+      await enviarTemplateSemOperador(oficial, cliente, templateCliente("recebido", { nome: primeiro, negocio, servico, quando: quandoVai }), optIn, prazo);
+    } catch (e) {
+      falhas.push(`recibo ao cliente não chegou: ${motivoLegivel(e)}`);
+      if (!saiuDepoisDoAceite(e)) console.error("recibo de agendamento pelo canal oficial", e);
+    }
+  }
+  await registrarErroNotificacao(
+    adminDb,
+    tenantId,
+    falhas.length ? { message: `Agendamento de ${nome} — ${falhas.join("; ")}.`, at: Date.now() } : null,
+  ).catch(() => {});
 }
