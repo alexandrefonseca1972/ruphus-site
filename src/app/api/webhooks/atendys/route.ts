@@ -9,8 +9,8 @@ import { avisarQueda, espelharStatusDaInstancia, lerConexao, processarComandoAge
 // cliente final, mudança de estado da conexão e status de envio. Cada webhook é
 // assinado com HMAC-SHA256 em x-atendys-signature usando o segredo do tenant
 // (gravado no doc privado do negócio ao conectar; só rotaciona quando falta).
-// v2 (anti-replay): x-atendys-timestamp + x-atendys-signature-v2 sobre "${timestamp}.${corpo}".
-// Com a v2 presente, só ela vale; a versão aceita vai ao log para saber quando exigir a v2.
+// v2 (anti-replay): x-atendys-timestamp + x-atendys-signature-v2 sobre "${timestamp}.${corpo}",
+// janela de ±300 s. Exigida desde 2026-11-09: só x-atendys-signature (v1) leva 401.
 //
 // Contrato (packages/shared do atendys):
 //   x-atendys-event: message.received | instance.status | message.status
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     v2: req.headers.get("x-atendys-signature-v2"),
     timestamp: req.headers.get("x-atendys-timestamp"),
   };
-  const assinatura = cab.v2 ?? cab.v1;
+  const assinatura = cab.v2; // só a v2: a v1 sozinha é recusada como ausente (o log diz v1=sim)
   // toda recusa vai ao log com os cabeçalhos presentes e o desvio do timestamp: sem isso uma v2
   // quebrada do atendys ficava invisível no journalctl (e o item "exigir v2" depende desse log)
   const recusar = (motivo: string, onde = "") => {

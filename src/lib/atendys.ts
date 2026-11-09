@@ -390,11 +390,11 @@ export function assinaturaV2Valida(segredo: string, bruto: string, timestamp: st
 
 export type CabecalhosWebhook = { v1: string | null; v2: string | null; timestamp: string | null };
 
-/** Qual assinatura vale: com a v2 presente, só ela (v1 válida ao lado de v2 inválida é recusada);
- *  sem a v2, a v1 (transição — o atendys ainda manda só ela). Devolve a versão aceita ou null. */
-export function versaoDaAssinatura(segredo: string, bruto: string, h: CabecalhosWebhook, agora = Date.now()): "v1" | "v2" | null {
-  if (h.v2 !== null) return h.timestamp !== null && assinaturaV2Valida(segredo, bruto, h.timestamp, h.v2, agora) ? "v2" : null;
-  return h.v1 !== null && assinaturaValida(segredo, bruto, h.v1) ? "v1" : null;
+/** Só a v2 vale (desde 2026-11-09 o atendys não manda mais a v1): sem ela, ou fora da janela,
+ *  recusa — mesmo com uma v1 válida, que não tem tempo e pode ser reenviada. A v1 fica no tipo só
+ *  para o log da recusa dizer que veio. */
+export function versaoDaAssinatura(segredo: string, bruto: string, h: CabecalhosWebhook, agora = Date.now()): "v2" | null {
+  return h.v2 !== null && h.timestamp !== null && assinaturaV2Valida(segredo, bruto, h.timestamp, h.v2, agora) ? "v2" : null;
 }
 
 /** O QR como o atendys devolve (repassado da Evolution) vira um src de imagem. Vem em três formas:

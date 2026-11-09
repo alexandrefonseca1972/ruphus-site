@@ -27,7 +27,7 @@ assert.equal(assinaturaV2Valida("segredo", corpo + " ", ts, v2(ts), agora), fals
 assert.equal(assinaturaV2Valida("segredo", corpo, ts, assina("segredo", corpo), agora), false, "assinada sem o prefixo do timestamp");
 assert.equal(assinaturaV2Valida("segredo", corpo, `${ts}.0`, v2(`${ts}.0`), agora), false, "timestamp fora do formato");
 const h = (x: Partial<{ v1: string; v2: string; timestamp: string }>) => ({ v1: x.v1 ?? null, v2: x.v2 ?? null, timestamp: x.timestamp ?? null });
-assert.equal(versaoDaAssinatura("segredo", corpo, h({ v1: assina("segredo", corpo) }), agora), "v1", "só v1 válida: aceita (transição)");
+assert.equal(versaoDaAssinatura("segredo", corpo, h({ v1: assina("segredo", corpo) }), agora), null, "só v1 (válida): recusa, v2 exigida");
 assert.equal(versaoDaAssinatura("segredo", corpo, h({ v1: assina("segredo", corpo), v2: v2(ts), timestamp: ts }), agora), "v2");
 assert.equal(versaoDaAssinatura("segredo", corpo, h({ v1: assina("segredo", corpo), v2: v2(ts, corpo, "outro"), timestamp: ts }), agora), null, "v2 presente e inválida: recusa mesmo com v1 boa");
 assert.equal(versaoDaAssinatura("segredo", corpo, h({ v1: assina("segredo", corpo), v2: v2(ts) }), agora), null, "v2 sem timestamp: recusa");
@@ -315,9 +315,10 @@ assert.equal(await lerConexao(db, DEMO), null);
 const { POST } = await import("@/app/api/webhooks/atendys/route");
 const entregar = (payload: Record<string, unknown>, segredo = "s-antigo") => {
   const body = JSON.stringify(payload);
+  const t = Math.floor(Date.now() / 1000);
   return POST(new Request("http://x/api/webhooks/atendys", {
     method: "POST",
-    headers: { "x-atendys-event": String(payload.event), "x-atendys-signature": assina(segredo, body), "content-type": "application/json" },
+    headers: { "x-atendys-event": String(payload.event), "x-atendys-timestamp": String(t), "x-atendys-signature-v2": assina(segredo, `${t}.${body}`), "content-type": "application/json" },
     body,
   }));
 };
@@ -341,8 +342,14 @@ const entregarV2 = (payload: Record<string, unknown>, t = Math.floor(Date.now() 
 assert.equal((await entregarV2({ event: "instance.status", instance: "casa-main", status: "connected" })).status, 200, "v2 válida");
 assert.equal((await entregarV2({ event: "instance.status", instance: "casa-main", status: "connected" }, Math.floor(Date.now() / 1000) - 600)).status, 401, "v2 velha (replay)");
 assert.equal((await entregarV2({ event: "instance.status", instance: "casa-main", status: "connected" }, undefined, "errado")).status, 401, "v2 presente manda");
+// só a v1, mesmo válida (o atendys antes de 2026-11-09): 401
+{
+  const body = JSON.stringify({ event: "instance.status", instance: "casa-main", status: "connected" });
+  const soV1 = await POST(new Request("http://x/api/webhooks/atendys", { method: "POST", headers: { "x-atendys-event": "instance.status", "x-atendys-signature": assina("s-antigo", body) }, body }));
+  assert.equal(soV1.status, 401, "só v1: recusa");
+}
 // assinatura que nem tem formato de HMAC hex: 401 antes de procurar o negócio
-const curta = await POST(new Request("http://x/api/webhooks/atendys", { method: "POST", headers: { "x-atendys-event": "instance.status", "x-atendys-signature": "abc" }, body: JSON.stringify({ event: "instance.status", instance: "casa-main", status: "connected" }) }));
+const curta = await POST(new Request("http://x/api/webhooks/atendys", { method: "POST", headers: { "x-atendys-event": "instance.status", "x-atendys-timestamp": String(Math.floor(Date.now() / 1000)), "x-atendys-signature-v2": "abc" }, body: JSON.stringify({ event: "instance.status", instance: "casa-main", status: "connected" }) }));
 assert.equal(curta.status, 401);
 // assinada: espelha o status
 assert.equal((await entregar({ event: "instance.status", instance: "casa-main", status: "pending_qr" })).status, 200);
