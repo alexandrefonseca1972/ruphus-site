@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Agendamento sem o aceite do WhatsApp: a tela não promete mais "confirma pelo seu WhatsApp"; diz "confirma o horário com você". Sem o aceite, nada sai pelo WhatsApp automático.
+- Admin: as abas Clientes e Cobrança não mostram mais a barra de visões da Lista com todos os contadores em 0 (Todos, Atrasados, Em negociação). Os contadores só existem na Lista e no Funil.
 - Agendamento online: WhatsApp com DDD que não existe (20, 10, 23…) passa a ser recusado com "DDD inválido", na tela e no servidor. Antes só o DDD começando com 0 era barrado.
 - Histórico do horário: "Sinal recebido" aparece como "Sinal recebido, confirmado por …". Antes saía "Confirmado pelo WhatsApp", sem ter passado pelo WhatsApp.
 - Agendamento com sinal: o evento do Google Agenda diz "sinal de R$ X por Pix, o resto no local", como a tela. Antes dizia "pago no local".
