@@ -369,7 +369,7 @@ export default function AgendaPage() {
                     {a.planId && <span className="rounded-full border px-2.5 py-0.5 text-xs">Recorrente</span>}
                     {a.presencaConfirmadaEm && ATIVO(a) && (
                       <span title={`Confirmada pelo cliente no WhatsApp: ${quandoSai(a.presencaConfirmadaEm.toDate().toISOString(), fuso)}`} className="rounded-full border px-2.5 py-0.5 text-xs">
-                        Presença confirmada · {formatTime(a.presencaConfirmadaEm.toDate(), fuso)}
+                        Presença confirmada às {formatTime(a.presencaConfirmadaEm.toDate(), fuso)}
                       </span>
                     )}
                     {a.sinal?.status === "pendente" && ATIVO(a) && (

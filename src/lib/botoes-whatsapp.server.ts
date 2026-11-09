@@ -121,7 +121,10 @@ export async function acaoDoCliente(db: Firestore, b: Botao, telefone: string): 
       tx.update(ref, { presencaConfirmadaEm: FieldValue.serverTimestamp() });
       return true;
     });
-    if (!ok) return "inativo";
+    if (!ok) {
+      await responder(`Esse horário mudou ou não está mais ativo. ${link}`);
+      return "inativo";
+    }
     await gestores("Presença confirmada", `${nome} confirmou presença: ${servico}, ${quandoVai}.`);
     // ainda sem a confirmação do estabelecimento: não diz "confirmado"
     await responder(status === "confirmed"
