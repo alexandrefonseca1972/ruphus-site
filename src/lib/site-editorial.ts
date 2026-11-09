@@ -307,9 +307,10 @@ const VARIANTES = {
   agendamento: ["Marque seu horário", "Agende em poucos passos", "Escolha o seu horário"],
   // [título, texto] — o texto leva {nome} onde entra o nome do negócio
   precos: [
-    ["Valores sob consulta.", "O estabelecimento não publica a tabela de preços online — chame no WhatsApp e receba os valores atualizados na hora."],
-    ["Preço sob consulta.", "Não publicamos a tabela online: mande uma mensagem no WhatsApp e receba os valores do dia."],
-    ["Valores na conversa.", "Os valores mudam com o serviço e a duração: pergunte no WhatsApp e receba o orçamento na hora."],
+    // os preços estão na agenda online (e na bio): o site leva até lá, não diz que não publica
+    ["Valores na agenda online.", "Escolha o serviço e veja o valor e os horários livres antes de marcar."],
+    ["Preços na agenda.", "Cada serviço mostra o valor e a duração na agenda online, junto com os horários livres."],
+    ["Valor e horário no mesmo lugar.", "Na agenda online você vê o preço de cada serviço e escolhe o horário."],
   ],
   intro: [
     "Preencha ao lado e envie direto no WhatsApp de {nome}. Sem cadastro, sem aplicativo — a resposta vem na conversa.",
@@ -468,7 +469,7 @@ ${BOTAO_AGENDAR}
     return `<div class="svc-row rv"><span class="num">${String(i + 1).padStart(2, "0")}</span><div><h3>${esc(s)}</h3><p>${esc(p)}</p></div><span class="tag-pill">${esc(selo)}</span></div>`;
   }).join("")}
   <div class="precos rv"><h3>Tabela de preços</h3>
-      <div class="price-placeholder"><b>${precoTitulo}</b> ${precoTexto}</div></div>
+      <div class="price-placeholder"><b>${precoTitulo}</b> ${precoTexto} <a href="/agendar">Ver valores e horários →</a></div></div>
 </section>
 
 <section class="agendar" id="agendar">

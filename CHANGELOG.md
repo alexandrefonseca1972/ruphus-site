@@ -6,6 +6,7 @@ o PR, onde está o porquê.
 ## Não publicado
 
 - Agendamento sem o aceite do WhatsApp: a tela não promete mais "confirma pelo seu WhatsApp"; diz "confirma o horário com você". Sem o aceite, nada sai pelo WhatsApp automático.
+- Sites no modelo editorial: o bloco "Tabela de preços" não diz mais "Valores sob consulta / o estabelecimento não publica a tabela" (a agenda online e a bio mostram os preços); leva à agenda com "Ver valores e horários →".
 - Admin: as abas Clientes e Cobrança não mostram mais a barra de visões da Lista com todos os contadores em 0 (Todos, Atrasados, Em negociação). Os contadores só existem na Lista e no Funil.
 - Agendamento online: WhatsApp com DDD que não existe (20, 10, 23…) passa a ser recusado com "DDD inválido", na tela e no servidor. Antes só o DDD começando com 0 era barrado.
 - Histórico do horário: "Sinal recebido" aparece como "Sinal recebido, confirmado por …". Antes saía "Confirmado pelo WhatsApp", sem ter passado pelo WhatsApp.

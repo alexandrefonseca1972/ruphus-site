@@ -20,6 +20,7 @@ export const ESTILO_AGENDAR = `<style>
 .rtopo svg{width:22px;height:22px}
 .rtopo::after{content:"";position:absolute;top:2px;right:2px;width:10px;height:10px;border-radius:50%;background:#fff100;border:2px solid #000}
 @media (prefers-reduced-motion:reduce){.rtopo{transition:none}}
+.price-placeholder a{color:var(--acc);font-weight:700;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
 .rnav{display:inline-flex;align-items:center;gap:7px}
 .rnav svg{width:15px;height:15px;flex:none;opacity:.8}
 /* celular: o mapa (editorial) não alarga a página em tela de 320px, e a tabela de valores (claro) vira cartões em vez de rolar de lado */
