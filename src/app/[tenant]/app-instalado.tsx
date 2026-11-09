@@ -7,8 +7,8 @@ import { useAvisos } from "./avisos";
 import { useTenant } from "./painel-layout";
 
 // O painel como app: registra o service worker, convida a instalar e avisa sem rede.
-// O convite some depois de instalado ou dispensado (volta em 30 dias); dispensado, a opção
-// fica fixa em Meu negócio.
+// O convite some depois de instalado ou dispensado (volta em 30 dias); a opção (instalar e
+// avisos) fica fixa em Meu negócio.
 
 const DISPENSADO = "ruphus.instalarDispensado";
 const AVISOS_DISPENSADO = "ruphus.avisosDispensado";
@@ -103,6 +103,33 @@ export function InstalarPainel() {
       <h2 id="instalar-fixo-titulo" className="text-[15px] font-semibold">Painel no celular</h2>
       <p className="text-sm text-muted-foreground">{textoInstalar(!!convite, ios)}</p>
       {convite && <Button variant="outline" onClick={instalar} className="h-11">Instalar o painel</Button>}
+    </section>
+  );
+}
+
+/** Em Meu negócio, para quem dispensou o convite de avisos: ligar, desligar ou saber por que não dá. */
+export function AvisosPainel() {
+  const avisos = useAvisos(useTenant().id);
+  const { ios, instalado } = useInstalar();
+  // no iPhone o push só existe com o painel instalado; fora disso (sem chave VAPID) não há o que mostrar
+  const iosSemApp = !avisos.suportado && ios && !instalado;
+  if (!iosSemApp && (!avisos.suportado || avisos.ativo === null)) return null;
+  const texto = iosSemApp
+    ? "No iPhone, os avisos chegam com o painel instalado na tela de início. Instale e abra por lá."
+    : avisos.bloqueado
+      ? "As notificações estão bloqueadas neste navegador. Libere nas configurações do site e recarregue a página."
+      : avisos.ativo
+        ? "Ligados neste aparelho: chega um aviso a cada agendamento pelo link."
+        : "Chega neste aparelho na hora em que o cliente agenda pelo link.";
+  return (
+    <section aria-labelledby="avisos-fixo-titulo" className="grid gap-2.5 border-t pt-4">
+      <h2 id="avisos-fixo-titulo" className="text-[15px] font-semibold">Avisos de agendamento</h2>
+      <p className="text-sm text-muted-foreground">{avisos.erro ?? texto}</p>
+      {!iosSemApp && !avisos.bloqueado && (
+        <Button variant="outline" onClick={avisos.ativo ? avisos.desligar : avisos.ligar} disabled={avisos.ocupado} className="h-11">
+          {avisos.ocupado ? "Aguarde…" : avisos.ativo ? "Desligar avisos" : "Ligar avisos"}
+        </Button>
+      )}
     </section>
   );
 }

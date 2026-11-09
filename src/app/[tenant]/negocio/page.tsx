@@ -13,7 +13,7 @@ import { idToken } from "@/lib/firebase";
 import { limitesDe, MAX_DURACAO_MIN, MAX_DURACAO_TETO, MAX_SERVICOS_TETO, RECADO_MAX } from "@/lib/scheduling";
 import { QrDoLink } from "../qr-link";
 import { lerNegocioAction, salvarNegocioAction, salvarRecadoAction } from "../actions";
-import { InstalarPainel } from "../app-instalado";
+import { AvisosPainel, InstalarPainel } from "../app-instalado";
 import { useTenant } from "../painel-layout";
 import { PageTitle } from "../page-title";
 import { WhatsAppNegocio } from "../whatsapp-negocio";
@@ -276,6 +276,7 @@ export default function MeuNegocio() {
             ))}
           </ul>
           <InstalarPainel />
+          <AvisosPainel />
         </aside>
 
         <form

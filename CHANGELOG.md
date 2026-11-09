@@ -6,6 +6,7 @@ o PR, onde está o porquê.
 ## Não publicado
 
 - Painel no celular: a opção de instalar não some mais depois do "Agora não". Em Meu negócio ela fica fixa; quando o navegador não oferece o botão de instalar, explica o caminho pelo menu (⋮ → Instalar app ou Adicionar à tela inicial).
+- Avisos de agendamento: ficam fixos em Meu negócio, para ligar ou desligar depois do "Agora não". Bloqueados no navegador, a tela diz como liberar; no iPhone sem o painel instalado, diz que é preciso instalar.
 - WhatsApp do negócio: mensagem que o atendys marcou como falha e depois confirmou como enviada não mostra mais o código de erro antigo.
 - Webhook do atendys: passa a aceitar a assinatura v2 (com horário, recusada depois de 5 minutos), que impede reenviar um aviso capturado. A assinatura atual continua valendo até o atendys mandar só a v2.
 - WhatsApp do negócio: CONFIRMADO/RECUSAR do dono voltam a funcionar em número de conta antiga (registrado no WhatsApp sem o 9º dígito). Desde 08/11 o atendys manda o telefone sempre com o 9 e o ruphus.site comparava com o número gravado sem ele: o comando era ignorado em silêncio. Telefones de celular passam a ser tratados sempre com o 9, como no atendys.
