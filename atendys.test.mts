@@ -602,6 +602,13 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.equal(await comando("confirmado sem1a"), "confirmado");
   assert.ok(!enviadas.some((m) => m.para === "5511977770000"), "cliente sem aceite não recebe");
   assert.ok(enviadas.some((m) => m.para === "5511900000099" && /não autorizou/.test(m.texto)), "o dono é avisado");
+  // botão do dono vira CONFIRMADO com o código longo (12): acha o agendamento sem ambiguidade
+  const { codigoDoAgendamento } = await import("@/lib/whatsapp.server");
+  await marcar("Btn1zzzzzzzzzzzzzzzz");
+  await marcar("Btn1yyyyyyyyyyyyyyyy");
+  assert.equal(await comando(`CONFIRMADO ${codigoDoAgendamento("Btn1zzzzzzzzzzzzzzzz", 12)}`), "confirmado");
+  assert.equal((await db.doc("tenants/salao/appointments/Btn1zzzzzzzzzzzzzzzz").get()).get("status"), "confirmed");
+  assert.equal((await db.doc("tenants/salao/appointments/Btn1yyyyyyyyyyyyyyyy").get()).get("status"), "booked", "o de mesmo início não muda");
   // comando pendente sai na mesma transação da confirmação: repetir depois não diz "não encontrei"
   await marcar("Pen1zz");
   await db.doc("comandosPendentes/salao__P1").set({ slug: "salao", text: "confirmado pen1", pegoEm: 0, tentativas: 1 });
@@ -654,6 +661,102 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.equal(await reprocessarComandos(db), 0);
   assert.ok(!(await pend.get()).exists);
   assert.match((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError?.message ?? "", /comando do dono .* descartado/);
+}
+
+// ── botões: o cliente confirma presença, remarca por lista e cancela; o dono confirma por botão ──
+{
+  const { idBotao, lerBotao, templateCliente: tc, templateNovoDono: tnd, TEMPLATES } = await import("@/lib/canal-oficial.server");
+  const { acaoDoCliente, chaveDoHorario, pedidoDesatualizado } = await import("@/lib/botoes-whatsapp.server");
+  const { enviarTemplate } = await import("@/lib/atendys");
+  const { zonedTime, addDays, todayIn } = await import("@/lib/datetime");
+  assert.deepEqual(lerBotao(idBotao("ch", "ofc", "A1b2", "2026-11-14T15:00")), { acao: "ch", slug: "ofc", agendamento: "A1b2", extra: "2026-11-14T15:00" });
+  assert.equal(lerBotao("rph:zz:ofc:A1"), null);
+  assert.equal(lerBotao("rph:cp:../x:A1"), null, "id fora do formato não vira caminho");
+  // templates com botões só com a chave ligada (depois da aprovação na Meta)
+  const c = { nome: "A", negocio: "B", servico: "C", quando: "D" };
+  assert.equal(tc("lembrete", c, { slug: "ofc", agendamento: "A1" }).nome, TEMPLATES.lembrete);
+  process.env.ATENDYS_TEMPLATES_BOTOES = "1";
+  const lem = tc("lembrete", c, { slug: "ofc", agendamento: "A1" });
+  assert.deepEqual([lem.nome, lem.botoes], [TEMPLATES.lembreteBotoes, ["rph:cp:ofc:A1", "rph:cr:ofc:A1", "rph:cx:ofc:A1"]]);
+  assert.deepEqual(tnd({ negocio: "B", cliente: "M", telefone: "1", servico: "C", quando: "D", codigo: "X" }, { slug: "ofc", agendamento: "A1" }).botoes, ["rph:dc:ofc:A1", "rph:dr:ofc:A1"]);
+  novo({ "POST /v1/message/send-template": json({ id: "t1", status: "queued" }) });
+  await enviarTemplate({ atendysApiKey: "k", instanceId: "i" }, "5511988881111", lem, null);
+  const comps = (chamadas[0].corpo as { components: { type: string; sub_type?: string; index?: string; parameters: { payload?: string }[] }[] }).components;
+  assert.deepEqual(comps.filter((x) => x.type === "button").map((x) => [x.sub_type, x.index, x.parameters[0].payload]), [["quick_reply", "0", "rph:cp:ofc:A1"], ["quick_reply", "1", "rph:cr:ofc:A1"], ["quick_reply", "2", "rph:cx:ofc:A1"]]);
+
+  // negócio no canal oficial, com agenda e um agendamento de amanhã às 10:00
+  await db.doc("config/atendys-plataforma").set({ tenantId: "tp", apikey: "kp", webhookSecret: "sp" });
+  const t = db.doc("tenants/ofc");
+  await t.set({ name: "Ofc", whatsapp: { canalOficial: true } });
+  await db.doc("tenants/ofc/privado/whatsapp").set({ ownerPhone: "5591992361726" });
+  await t.collection("services").doc("corte").set({ name: "Corte", durationMin: 30, priceCents: 5000, active: true });
+  const todos = Object.fromEntries(["0", "1", "2", "3", "4", "5", "6"].map((d) => [d, { start: "08:00", end: "20:00" }]));
+  await t.collection("staff").doc("ana").set({ name: "Ana", serviceIds: ["corte"], hours: todos, active: true });
+  const amanha = addDays(todayIn(), 1);
+  const ag = (id: string, extra: Record<string, unknown> = {}) => t.collection("appointments").doc(id).set({
+    status: "booked", start: zonedTime(amanha, "10:00"), end: zonedTime(amanha, "10:30"), customerName: "Maria Souza", customerPhone: "(11) 98888-1111",
+    serviceIds: ["corte"], staffId: "ana", serviceName: "Corte", durationMin: 30, priceCents: 5000, whatsappConsent: { aceito: true, versao: "2026-11-08", em: new Date() }, ...extra,
+  });
+  await ag("Ag1aaaaaaaaaaaaaaaaa");
+  const enviadas: { caminho: string; corpo: Record<string, unknown> }[] = [];
+  const guarda = (caminho: string) => (corpo: unknown) => (enviadas.push({ caminho, corpo: corpo as Record<string, unknown> }), Response.json({ id: `m${enviadas.length}`, status: "queued" }));
+  novo({ "POST /v1/message/send-text": guarda("texto"), "POST /v1/message/send-interactive": guarda("lista"), "POST /v1/message/send-template": guarda("template") });
+  const b = (acao: string, extra?: string) => lerBotao(idBotao(acao as "cp", "ofc", "Ag1aaaaaaaaaaaaaaaaa", extra))!;
+
+  assert.equal(await acaoDoCliente(db, b("cp"), "5511977770000"), "agendamento de outro telefone");
+  assert.equal(enviadas.length, 0);
+  assert.equal(await acaoDoCliente(db, b("cp"), "5511988881111"), "presença confirmada");
+  assert.ok((await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").get()).get("presencaConfirmadaEm"));
+  // ainda não confirmado pelo estabelecimento: não diz "confirmado"
+  assert.match(String(enviadas.at(-1)!.corpo.text), /Avisamos o estabelecimento que você vai: Corte, amanhã às 10:00. Ele ainda vai confirmar/);
+  assert.equal(enviadas.at(-1)!.corpo.replyToInbound, true, "resposta: fora da cota por destinatário e do dedupe");
+  // mesmo horário (lista antiga, toque repetido) não remarca nem desfaz nada
+  assert.equal(await acaoDoCliente(db, b("ch", `${amanha}T10:00`), "5511988881111"), "mesmo horário");
+  assert.equal(await acaoDoCliente(db, b("ch", "2020-01-01T10:00"), "5511988881111"), "horário inválido");
+  assert.equal(await acaoDoCliente(db, b("ch", `${addDays(todayIn(), 200)}T10:00`), "5511988881111"), "horário inválido", "fora da janela da agenda");
+
+  // remarcar: lista com até 10 horários livres; tocar num deles remarca e o dono recebe o pedido com botões
+  assert.equal(await acaoDoCliente(db, b("cr"), "5511988881111"), "horários enviados");
+  const lista = enviadas.at(-1)!;
+  assert.equal(lista.caminho, "lista");
+  const itens = lista.corpo.list as { id: string; title: string }[];
+  assert.ok(itens.length > 0 && itens.length <= 10);
+  assert.ok(!itens.some((i) => lerBotao(i.id)!.extra === `${amanha}T10:00`), "o horário atual não entra na lista");
+  assert.equal(lista.corpo.replyToInbound, true);
+  const escolhido = lerBotao(itens.at(-1)!.id)!;
+  assert.equal(escolhido.acao, "ch");
+  assert.equal(await acaoDoCliente(db, escolhido, "5511988881111"), "remarcado");
+  const [d, h] = escolhido.extra!.split("T");
+  const depois = await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").get();
+  assert.equal(depois.get("start").toDate().getTime(), zonedTime(d, h).getTime());
+  assert.equal(depois.get("status"), "booked", "remarcado volta a aguardar o dono");
+  const pedido = enviadas.find((e) => e.caminho === "template")!;
+  assert.equal(pedido.corpo.name, TEMPLATES.novoDonoBotoes);
+  assert.equal(pedido.corpo.number, "5591992361726");
+  // o pedido leva o horário novo no id: o botão do pedido antigo fica desatualizado
+  const doPedido = (pedido.corpo.components as { type: string; parameters: { payload?: string }[] }[]).filter((x) => x.type === "button").map((x) => lerBotao(x.parameters[0].payload)!);
+  assert.equal(doPedido[0].extra, escolhido.extra);
+  assert.equal(await pedidoDesatualizado(db, doPedido[0]), false);
+  assert.equal(await pedidoDesatualizado(db, lerBotao(idBotao("dc", "ofc", "Ag1aaaaaaaaaaaaaaaaa", `${amanha}T10:00`))!), true);
+  // confirmado pelo dono: remarcar pelo cliente mantém confirmado e não pede de novo
+  await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").update({ status: "confirmed" });
+  enviadas.length = 0;
+  await acaoDoCliente(db, b("cr"), "5511988881111");
+  const outro = lerBotao((enviadas.at(-1)!.corpo.list as { id: string }[])[0].id)!;
+  assert.equal(await acaoDoCliente(db, outro, "5511988881111"), "remarcado");
+  const conf = await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").get();
+  assert.deepEqual([conf.get("status"), chaveDoHorario(conf.get("start").toDate())], ["confirmed", outro.extra]);
+  assert.ok(!enviadas.some((e) => e.caminho === "template"), "confirmado não gera pedido novo ao dono");
+
+  // cancelar: libera o horário; de novo, já não está ativo
+  assert.equal(await acaoDoCliente(db, b("cx"), "5511988881111"), "cancelado");
+  assert.equal((await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").get()).get("status"), "cancelled");
+  assert.equal(await acaoDoCliente(db, b("cx"), "5511988881111"), "inativo");
+  // sinal pago: quem decide é o negócio
+  await ag("Ag2aaaaaaaaaaaaaaaaa", { sinal: { status: "pago", cents: 1000 } });
+  assert.equal(await acaoDoCliente(db, lerBotao(idBotao("cx", "ofc", "Ag2aaaaaaaaaaaaaaaaa"))!, "5511988881111"), "precisa do negócio");
+  assert.equal((await t.collection("appointments").doc("Ag2aaaaaaaaaaaaaaaaa").get()).get("status"), "booked");
+  delete process.env.ATENDYS_TEMPLATES_BOTOES;
 }
 
 console.log("atendys ok");

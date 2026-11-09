@@ -33,7 +33,24 @@ export const TEMPLATES = {
   cancelado: "agendamento_cancelado",
   lembrete: "agendamento_lembrete",
   novoDono: "agendamento_pedido_dono",
+  novoDonoBotoes: "agendamento_pedido_dono_botoes",
+  lembreteBotoes: "agendamento_lembrete_botoes",
 } as const;
+
+/** Templates com botões (Confirmar/Recusar ao dono; presença/remarcar/cancelar no lembrete).
+ *  Liga com ATENDYS_TEMPLATES_BOTOES=1 depois que a Meta aprovar os dois na WABA do número. */
+const comBotoes = () => process.env.ATENDYS_TEMPLATES_BOTOES === "1";
+
+/** id do botão: volta no message.received. rph:<ação>:<negócio>:<agendamento>[:<extra>].
+ *  Quem toca não edita o id, mas ele é conferido do mesmo jeito (dono do negócio, telefone do cliente). */
+export const idBotao = (acao: AcaoBotao, slug: string, agendamento: string, extra?: string) =>
+  ["rph", acao, slug, agendamento, ...(extra ? [extra] : [])].join(":");
+export type AcaoBotao = "dc" | "dr" | "cp" | "cr" | "cx" | "ch";
+export function lerBotao(id: unknown): { acao: AcaoBotao; slug: string; agendamento: string; extra?: string } | null {
+  if (typeof id !== "string") return null;
+  const m = /^rph:(dc|dr|cp|cr|cx|ch):([a-z0-9][a-z0-9-]{0,62}):([A-Za-z0-9]{1,40})(?::([0-9T:-]{1,20}))?$/.exec(id);
+  return m ? { acao: m[1] as AcaoBotao, slug: m[2], agendamento: m[3], ...(m[4] ? { extra: m[4] } : {}) } : null;
+}
 
 /** Parâmetro de template: a Meta recusa quebra de linha, tab e mais de 4 espaços seguidos. */
 export function parametro(valor: unknown): string {
@@ -42,14 +59,21 @@ export function parametro(valor: unknown): string {
 }
 
 /** Aviso ao cliente: { nome, negócio, serviço, quando } nos {{1}}…{{4}} do template. */
-export function templateCliente(tipo: "recebido" | "confirmado" | "cancelado" | "lembrete", c: { nome: string; negocio: string; servico: string; quando: string }): Template {
-  return { nome: TEMPLATES[tipo], parametros: [c.nome, c.negocio, c.servico, c.quando].map(parametro) };
+export function templateCliente(tipo: "recebido" | "confirmado" | "cancelado" | "lembrete", c: { nome: string; negocio: string; servico: string; quando: string }, ref?: { slug: string; agendamento: string }): Template {
+  const parametros = [c.nome, c.negocio, c.servico, c.quando].map(parametro);
+  if (tipo === "lembrete" && ref && comBotoes()) {
+    return { nome: TEMPLATES.lembreteBotoes, parametros, botoes: (["cp", "cr", "cx"] as const).map((a) => idBotao(a, ref.slug, ref.agendamento)) };
+  }
+  return { nome: TEMPLATES[tipo], parametros };
 }
 
 /** Aviso de novo agendamento ao dono: {{1}} código (CONFIRMADO/RECUSAR + código), {{2}} negócio,
  *  {{3}} cliente, {{4}} telefone, {{5}} serviço, {{6}} quando. */
-export function templateNovoDono(c: { negocio: string; cliente: string; telefone: string; servico: string; quando: string; codigo: string }): Template {
-  return { nome: TEMPLATES.novoDono, parametros: [c.codigo, c.negocio, c.cliente, c.telefone, c.servico, c.quando].map(parametro) };
+/** ref.horario ("2026-11-14T15:00"): vai no id dos botões; pedido de um horário que já mudou é recusado. */
+export function templateNovoDono(c: { negocio: string; cliente: string; telefone: string; servico: string; quando: string; codigo: string }, ref?: { slug: string; agendamento: string; horario?: string }): Template {
+  const parametros = [c.codigo, c.negocio, c.cliente, c.telefone, c.servico, c.quando].map(parametro);
+  if (ref && comBotoes()) return { nome: TEMPLATES.novoDonoBotoes, parametros, botoes: [idBotao("dc", ref.slug, ref.agendamento, ref.horario), idBotao("dr", ref.slug, ref.agendamento, ref.horario)] };
+  return { nome: TEMPLATES.novoDono, parametros };
 }
 
 async function lerCredenciais(db: Firestore): Promise<Credenciais | null> {

@@ -103,7 +103,7 @@ export async function enviarLembretesDoDia(): Promise<number> {
       if (!reservado) continue;
       try {
         const e = oficial
-          ? await enviarTemplateSemOperador(oficial, cliente, templateCliente("lembrete", { nome, negocio: nomeNegocio, servico: String(a.get("serviceName") ?? ""), quando: `${dia} às ${formatTime(start)}` }), optIn, start)
+          ? await enviarTemplateSemOperador(oficial, cliente, templateCliente("lembrete", { nome, negocio: nomeNegocio, servico: String(a.get("serviceName") ?? ""), quando: `${dia} às ${formatTime(start)}` }, { slug: t.id, agendamento: a.id }), optIn, start)
           : await enviarSemOperador(
               w,
               cliente,
