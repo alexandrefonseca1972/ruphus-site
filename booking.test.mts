@@ -4,7 +4,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
-import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, LIMITS, loadCatalog, redeDoIp, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente } from "@/lib/booking.server";
+import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, LIMITS, loadCatalog, redeDoIp, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
 import { addDays, agoraNaParede, customerKey, formatPhone, fusoDaUF, maskBRL, freeSlots, phoneError, planDates, datasDoPlano, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput, PlanInput } from "@/lib/scheduling";
@@ -347,6 +347,7 @@ const r5 = await book(db, { ...spam, date: addDays(limDate, 12), time: "09:30" }
 assert.equal(r5.ok, false, "6ª do dia barrada mesmo sem horários ativos");
 assert.match(("error" in r5 && r5.error) || "", /Muitos agendamentos com este WhatsApp/);
 // Outro telefone, mesmo dispositivo, continua funcionando (limite maior)
+const diaDoLimite = todayIn(); // antes da reserva: a meia-noite no meio não troca o id do contador
 assert.equal((await book(db, { ...spam, customerPhone: "11 98888-2222", date: addDays(limDate, 13), time: "09:00" }, "203.0.113.5")).ok, true);
 // Contadores ficam fora do alcance do app (regras) e guardam só o hash do IP
 const limits = await t.collection("limits").get();
@@ -354,8 +355,8 @@ assert.ok(limits.size >= 2);
 assert.equal(limits.docs.some((d) => d.id.includes("203.0.113.5")), false, "IP não aparece em claro");
 // Somando todos os negócios: quem já marcou 8 vezes hoje em outros salões não dispara
 // mais recibos pelo WhatsApp de ninguém
-assert.equal((await db.doc(`limitesAgenda/phone-5511988882222-${todayIn()}`).get()).get("count"), 1, "conta também fora do negócio");
-await db.doc(`limitesAgenda/phone-5511977773333-${todayIn()}`).set({ count: LIMITS.globalPerPhone, day: todayIn() });
+assert.equal((await db.doc(`limitesAgenda/phone-5511988882222-${diaDoLimite}`).get()).get("count"), 1, "conta também fora do negócio");
+await db.doc(`limitesAgenda/phone-5511977773333-${diaDoLimite}`).set({ count: LIMITS.globalPerPhone, day: diaDoLimite });
 const global = await book(db, { ...spam, customerPhone: "11 97777-3333", date: addDays(limDate, 14), time: "09:00" }, "198.51.100.7");
 assert.match(("error" in global && global.error) || "", /Muitos agendamentos com este WhatsApp/, "limite somado entre negócios");
 
@@ -383,7 +384,7 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
 
   await assert.rejects(
     renameCustomer(db, { tenantId: "salao", customerId: "5500000000000", name: "Ninguém" }, { uid: "owner" }),
-    /Cliente nao encontrado/,
+    /Cliente não encontrado/,
   );
 
   // Nascimento e e-mail: o dono registra; o servidor limpa e confere de novo
@@ -949,6 +950,36 @@ assert.deepEqual(await negociosDe(db, "ninguem"), []);
   const r = await book(db, { tenantId: "salao", staffId: "m1-prof", serviceIds: ["corte"], date: addDays(todayIn(), 41), time: "09:00", customerName: "Gil", customerPhone: "(11) 8123-4567" });
   assert.ok(r.ok);
   assert.equal((await t.collection("customers").doc("5511981234567").get()).exists, true, "cadastro na chave com o 9");
+}
+
+// M4: serviço oculto ou profissional fora do link: o painel remarca; o link e o WhatsApp não
+{
+  await t.collection("services").doc("m4-servico").set({ name: "Escova", durationMin: 30, priceCents: 4000, active: true });
+  await t.collection("staff").doc("m4-prof").set({ name: "Duda", serviceIds: ["m4-servico"], hours, active: true });
+  const dia = addDays(todayIn(), 40);
+  const r = await book(db, { tenantId: "salao", staffId: "m4-prof", serviceIds: ["m4-servico"], date: dia, time: "09:00", customerName: "Clara", customerPhone: "11 95432-1000" });
+  assert.ok(r.ok);
+  await t.collection("services").doc("m4-servico").update({ active: false });
+  await t.collection("staff").doc("m4-prof").update({ active: false });
+  const q = { tenantId: "salao", appointmentId: r.id!, date: dia };
+  assert.deepEqual(await rescheduleSlots(db, q), [], "padrão (WhatsApp): exige o que está no link");
+  assert.ok((await rescheduleSlots(db, q, false)).includes("10:00"), "painel vê os horários");
+  assert.equal((await reschedule(db, { ...q, time: "10:00" }, actor)).ok, false);
+  assert.equal((await reschedule(db, { ...q, time: "10:00" }, actor, { exigirAtivo: false })).ok, true, "painel remarca");
+  assert.deepEqual(await availableSlots(db, { tenantId: "salao", staffId: "m4-prof", serviceIds: ["m4-servico"], date: dia }), [], "o link continua sem eles");
+}
+
+// B1: excluir profissional com horário marcado ou plano ativo é recusado
+{
+  await t.collection("staff").doc("b1-prof").set({ name: "Fê", serviceIds: ["corte"], hours, active: true });
+  const r = await book(db, { tenantId: "salao", staffId: "b1-prof", serviceIds: ["corte"], date: addDays(todayIn(), 42), time: "09:00", customerName: "Iara", customerPhone: "11 95432-3000" });
+  assert.ok(r.ok);
+  await assert.rejects(exigeProfissionalSemCompromisso(db, "salao", "b1-prof"), /horário marcado/);
+  await t.collection("appointments").doc(r.id!).update({ status: "cancelled" });
+  await exigeProfissionalSemCompromisso(db, "salao", "b1-prof"); // sem compromisso: passa
+  await t.collection("plans").doc("b1-plano").set({ staffId: "b1-prof", status: "active", customerKey: "5511954323000" });
+  await assert.rejects(exigeProfissionalSemCompromisso(db, "salao", "b1-prof"), /planos recorrentes/);
+  await t.collection("plans").doc("b1-plano").update({ status: "ended" });
 }
 
 console.log("booking ok");
