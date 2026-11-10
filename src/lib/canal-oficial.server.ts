@@ -61,10 +61,16 @@ export function parametro(valor: unknown): string {
   return texto || "-";
 }
 
+/** Destaque dentro da variável: o texto do template é congelado pela Meta, mas o conteúdo de {{n}}
+ *  aceita a formatação do WhatsApp. Asteriscos do próprio valor saem, senão quebram o negrito. */
+export const destaque = (valor: unknown) => `*${parametro(valor).replace(/\*/g, "")}*`;
+/** Data/hora em negrito com o ícone de calendário. */
+export const quandoFormatado = (valor: unknown) => `📅 ${destaque(valor)}`;
+
 /** Aviso ao cliente: { nome, negócio, serviço, quando } nos {{1}}…{{4}} do template. */
 /** ref.horario: o horário do lembrete no id dos botões; tocar depois de o salão remarcar é recusado. */
 export function templateCliente(tipo: "recebido" | "confirmado" | "cancelado" | "lembrete", c: { nome: string; negocio: string; servico: string; quando: string }, ref?: { slug: string; agendamento: string; horario?: string }): Template {
-  const parametros = [c.nome, c.negocio, c.servico, c.quando].map(parametro);
+  const parametros = [parametro(c.nome), destaque(c.negocio), parametro(c.servico), quandoFormatado(c.quando)];
   if (tipo === "lembrete" && ref && comBotoes()) {
     return { nome: TEMPLATES.lembreteBotoes, parametros, botoes: (["cp", "cr", "cx"] as const).map((a) => idBotao(a, ref.slug, ref.agendamento, ref.horario)) };
   }
@@ -75,7 +81,7 @@ export function templateCliente(tipo: "recebido" | "confirmado" | "cancelado" | 
  *  {{3}} cliente, {{4}} telefone, {{5}} serviço, {{6}} quando. */
 /** ref.horario ("2026-11-14T15:00"): vai no id dos botões; pedido de um horário que já mudou é recusado. */
 export function templateNovoDono(c: { negocio: string; cliente: string; telefone: string; servico: string; quando: string; codigo: string }, ref?: { slug: string; agendamento: string; horario?: string }): Template {
-  const parametros = [c.codigo, c.negocio, c.cliente, c.telefone, c.servico, c.quando].map(parametro);
+  const parametros = [destaque(c.codigo), destaque(c.negocio), parametro(c.cliente), parametro(c.telefone), parametro(c.servico), quandoFormatado(c.quando)];
   if (ref && comBotoes()) return { nome: TEMPLATES.novoDonoBotoes, parametros, botoes: [idBotao("dc", ref.slug, ref.agendamento, ref.horario), idBotao("dr", ref.slug, ref.agendamento, ref.horario)] };
   return { nome: TEMPLATES.novoDono, parametros };
 }
