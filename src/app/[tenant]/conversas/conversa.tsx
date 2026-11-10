@@ -135,7 +135,7 @@ export function Conversa({
     setErroEnvio("");
     let ok = false;
     try {
-      let r: { ok: true; envio: RespostaInbox } | { ok: false; error: string };
+      let r: { ok: true; envio: RespostaInbox } | { ok: false; error: string; incerto?: boolean };
       if (arquivo) {
         const f = new FormData();
         f.set("conversa", conversa.id);
@@ -144,12 +144,15 @@ export function Conversa({
         if (texto.trim()) f.set("legenda", texto.trim());
         const res = await fetch(`/api/conversas/${encodeURIComponent(tenant.id)}/responder-arquivo`, { method: "POST", headers: { authorization: `Bearer ${await idToken()}` }, body: f });
         r = await res.json().catch(() => ({ ok: false as const, error: "Não foi possível enviar o arquivo agora." }));
+        // 5xx (atendys sem resposta, falha do lado de lá ou proxy): pode ter saído
+        if (!r.ok && res.status >= 500) r = { ...r, incerto: true };
       } else {
         r = await responderConversaAction(await idToken(), { tenantId: tenant.id, conversa: conversa.id, texto, chave: chave.current });
       }
       if (!r.ok) {
-        // recusa com resposta (janela, cota, validação): nada foi aceito, a próxima tentativa é outra
-        trocarChave();
+        // recusa com resposta (janela, cota, validação): nada foi aceito, a próxima tentativa é outra.
+        // Incerta (timeout, 5xx): pode ter saído; a chave fica e reenviar o mesmo conteúdo não duplica
+        if (!r.incerto) trocarChave();
         setErroEnvio(r.error);
         return;
       }

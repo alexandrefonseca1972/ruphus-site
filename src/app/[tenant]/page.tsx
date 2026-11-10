@@ -285,7 +285,11 @@ export default function AgendaPage() {
           <span>{notice.text}</span>
           {notice.cota && (
             <div className="basis-full">
-              <CotaWhatsapp tenantId={tenant.id} messageId={notice.cota.messageId} retryAt={notice.cota.retryAt} fuso={fuso} onFim={(text) => setNotice({ text })} />
+              {tenant.podeGerir ? (
+                <CotaWhatsapp tenantId={tenant.id} messageId={notice.cota.messageId} retryAt={notice.cota.retryAt} fuso={fuso} onFim={(text) => setNotice({ text })} />
+              ) : (
+                <span className="text-muted-foreground">O dono decide em Mensagens, no painel.</span>
+              )}
             </div>
           )}
           <div className="flex gap-2">
