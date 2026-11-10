@@ -42,7 +42,7 @@ Versão de referência: `main` em `a85ee5e` (05/11/2026). Cada item tem um códi
 
 ### 1.1 Landing `/`
 - [ ] `LP-01` Abrir `ruphus.site` → redireciona (308) para `www.ruphus.site`; `/sobre` → `/`.
-- [ ] `LP-02` Seções carregam: hero, O que fazemos, Agenda, Menos falta, Painel, Como funciona, Alguns deles, Preço (R$ 250 + R$ 89,90/mês; domínio R$ 100; Caixa R$ 20; profissional extra R$ 15), Dúvidas (7 itens abrem/fecham), CTA final, rodapé.
+- [ ] `LP-02` Seções carregam: hero, O que fazemos, Agenda, Menos falta, Painel, Como funciona, Alguns deles, Preço (R$ 250 + R$ 89,90/mês; domínio R$ 100; Caixa R$ 20; profissional extra R$ 15), Dúvidas (9 itens abrem/fecham), CTA final, rodapé.
 - [ ] `LP-03` Busca "Procure o nome do seu negócio": digitar parte de um nome → até 24 resultados, contador "N sites com “termo”"; sem acento/maiúscula também acha; várias palavras → todas precisam casar.
 - [ ] `LP-04` Busca sem resultado → "Nenhum site com esse nome" + estado "Ainda não tem um site com esse nome…" e botão "Pedir o meu no WhatsApp".
 - [ ] `LP-05` Busca vazia → volta a vitrine curada.
@@ -79,19 +79,19 @@ Pré: negócio de teste (ou demo) com serviços, profissionais e agenda online l
 
 **Passo 1 — serviço, profissional, horário**
 - [ ] `AG-01` Cabeçalho: iniciais, nome, nota, cidade; ícone de WhatsApp com "Olá! Quero marcar um horário no {nome}."
-- [ ] `AG-02` Nada pré-selecionado; texto "Escolha um serviço e os dias e horários livres aparecem logo abaixo."
+- [ ] `AG-02` Nada pré-selecionado; texto "Toque num serviço e os horários mais cedo aparecem logo abaixo dele."
 - [ ] `AG-03` Escolher 2 serviços → "somando: …" com duração e preço somados; nome vira "A + B".
 - [ ] `AG-04` Tentar 6 serviços → servidor aceita no máximo 5.
 - [ ] `AG-05` "Com quem?" só aparece com mais de 1 profissional apto; padrão "Qualquer um"; trocar serviço que o escolhido não faz → volta para "Qualquer um".
 - [ ] `AG-06` Faixa de 7 dias: "N livres" / "sem vagas" / "fechado"; abre no primeiro dia com vaga.
 - [ ] `AG-07` "outra data": aceita até hoje+90; fora disso é ignorado.
 - [ ] `AG-08` Grade de 15 em 15 min; nenhum horário passado; serviço cabe até o fim do expediente.
-- [ ] `AG-09` Mais de 14 horários → 12 + "Ver todos os N horários".
+- [ ] `AG-09` Grade mostra todos os horários agrupados por manhã/tarde/noite, sem "Ver todos".
 - [ ] `AG-10` Dia sem vaga → "Nenhum horário livre nesta data…".
 - [ ] `AG-11` 📱 Barra fixa inferior com Continuar; desktop: caixa "você está agendando".
 
 **Passo 2 — confirmar**
-- [ ] `AG-12` Nome inválido ("3232", "a") → "Use só letras no nome." / "Informe seu nome, com pelo menos 2 letras."
+- [ ] `AG-12` Nome inválido ("a") → "Informe seu nome, com pelo menos 2 letras". O campo descarta dígitos enquanto a pessoa digita: "3232" vira vazio e mostra "Informe seu nome"; a mensagem "Use só letras no nome." não aparece mais.
 - [ ] `AG-13` WhatsApp: "faltam N dígitos" ao digitar; DDD inválido → "DDD inválido"; 11 dígitos sem 9 → "Celular com 11 dígitos começa com 9 depois do DDD"; válido → "número válido".
 - [ ] `AG-14` Confirmar com campo inválido → "Confira seu nome e WhatsApp acima." e foco no campo.
 - [ ] `AG-15` Com sinal ligado (`PN-NEG-20`) → aviso "Para garantir o horário, {nome} pede um sinal de R$ X (30% do valor) por Pix…".
