@@ -123,14 +123,24 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, temIA, o
   // tira do rascunho e apaga o arquivo enviado: sem isso ele ficava acessível em /s/{slug}/fotos/rascunho-{slot}.jpg
   async function usarDoModelo(slot: Slot) {
     setErroFoto(null);
+    // guarda a foto própria: se o servidor recusar, ela volta e o botão "Do modelo" segue útil
+    const anterior = rascunho.fotos?.[slot];
+    setEnviando(slot); // ocupa a tela enquanto o rascunho é apagado no Storage
     setRascunho((p) => {
       const fotos = { ...p.fotos };
       delete fotos[slot];
       return { ...p, fotos };
     });
-    const tk = await tokenOuNull();
-    const r = tk ? await descartarFotoRascunho(tk, slug, slot).catch(() => null) : null;
-    if (!r?.ok) setErroFoto({ slot, texto: "Não consegui apagar o rascunho. Tente de novo." });
+    try {
+      const tk = await tokenOuNull();
+      const r = tk ? await descartarFotoRascunho(tk, slug, slot).catch(() => null) : null;
+      if (!r?.ok) {
+        if (anterior) setRascunho((p) => ({ ...p, fotos: { ...p.fotos, [slot]: anterior } }));
+        setErroFoto({ slot, texto: "Não consegui apagar o rascunho. Tente de novo." });
+      }
+    } finally {
+      setEnviando(null);
+    }
   }
 
   const cor = (c: "ink" | "acc", v: string) => setRascunho((p) => ({ ...p, cores: { ...p.cores, [c]: v } }));

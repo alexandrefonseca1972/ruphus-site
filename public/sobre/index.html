@@ -1294,8 +1294,8 @@ function numeros(){
     if (partes[1] && partes[1] !== '-') bairros.add(partes[1].toLowerCase());
   }
   // os ramos do gerador (o servidor conta); a lista deste HTML só serve até ele responder
-  document.getElementById('n-nichos').textContent = RESUMO ? RESUMO.nichos : nichos.size;
-  document.getElementById('n-bairros').textContent = Math.max(bairros.size, RESUMO ? RESUMO.bairros : 0);
+  document.getElementById('n-nichos').textContent = (RESUMO ? RESUMO.nichos : nichos.size).toLocaleString('pt-BR');
+  document.getElementById('n-bairros').textContent = Math.max(bairros.size, RESUMO ? RESUMO.bairros : 0).toLocaleString('pt-BR');
 }
 numeros();
 document.getElementById('n-cidades').textContent = CIDADES.toLocaleString('pt-BR');

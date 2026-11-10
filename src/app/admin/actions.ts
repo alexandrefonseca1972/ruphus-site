@@ -780,14 +780,14 @@ export const previewVisual = adminAction(async (_user, slug: string, rascunho: u
   return comBase(html.replace(/(["(])fotos\/(hero|ga1|ga2|ga3)\.jpg(\?v=\d+)?(["\)])/g, (_m, antes: string, slot: string, _v, depois: string) => `${antes}/s/${slug}/fotos/${emRascunho.has(slot) ? "rascunho-" : ""}${slot}.jpg?v=${Date.now()}${depois}`), slug);
 });
 
-/** Publica a personalização: grava gerado.personal (ou apaga, se ficou vazia) e a cor e a
- *  foto que a bio lê; o site, o og.jpg e a bio saem do cache na hora. */
 /** "Do modelo" na gaveta: apaga o rascunho da posição já no Storage, sem esperar "Publicar visual". */
 export const descartarFotoRascunho = adminAction(async (_user, slug: string, slot: Slot) => {
   if (!SLOTS.includes(slot)) throw new ErroPrevisto("Posição de foto inválida.");
   await apagarRascunho(slug, slot);
 });
 
+/** Publica a personalização: grava gerado.personal (ou apaga, se ficou vazia) e a cor e a
+ *  foto que a bio lê; o site, o og.jpg e a bio saem do cache na hora. */
 export const definirVisual = adminAction(async (_user, slug: string, rascunho: unknown, enviadas: Slot[] = []) => {
   const { tenant, sub } = await tenantGerado(slug);
   const p = Personal.parse(rascunho);

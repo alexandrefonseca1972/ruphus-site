@@ -44,7 +44,7 @@ export function AcessoProfissional({ tenantId, negocio, staffId, nome, membro, o
   }
   return (
     <>
-      <button type="button" onClick={() => { onAbrir?.(); setConvidando(true); }}className="min-h-10 justify-self-start text-[13px] underline underline-offset-4 hover:text-muted-foreground">
+      <button type="button" onClick={() => { onAbrir?.(); setConvidando(true); }} className="min-h-10 justify-self-start text-[13px] underline underline-offset-4 hover:text-muted-foreground">
         Dar acesso ao painel
       </button>
       {convidando && <Convite tenantId={tenantId} negocio={negocio} staffId={staffId} nome={nome} onClose={() => setConvidando(false)} />}
