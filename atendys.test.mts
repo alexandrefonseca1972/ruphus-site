@@ -1085,6 +1085,35 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.equal(typeof (await privDono.get()).get("ownerPhoneVerifiedAt"), "number", "admin regravando o mesmo número mantém");
   await gravarOwnerPhone(db, "dono-novo", "5591977776655");
   assert.equal((await privDono.get()).get("ownerPhoneVerifiedAt"), undefined, "admin trocando o número zera");
+
+  // teto diário: no máximo 5 confirmações por negócio por dia, mesmo trocando de número
+  const { todayIn: hojeNoFuso } = await import("@/lib/datetime");
+  await privDono.set({ confirmacoesHoje: { dia: hojeNoFuso(), n: 4 } }, { merge: true });
+  assert.equal(await cadastrarDonoOficial(db, "dono-novo", "5591966665544"), "enviado", "a 5ª sai");
+  assert.deepEqual((await privDono.get()).get("confirmacoesHoje"), { dia: hojeNoFuso(), n: 5 });
+  const noTeto = saidas.length;
+  assert.equal(await cadastrarDonoOficial(db, "dono-novo", "5591955554433"), "limite", "a 6ª não sai, número novo também");
+  assert.equal(saidas.length, noTeto);
+  assert.equal((await privDono.get()).get("ownerPhone"), "5591955554433", "o número fica salvo");
+  // contagem de outro dia não conta
+  await privDono.set({ confirmacoesHoje: { dia: "2000-01-01", n: 5 } }, { merge: true });
+  assert.equal(await cadastrarDonoOficial(db, "dono-novo", "5591944443322"), "enviado");
+  // envio que falha devolve a vaga do dia
+  await privDono.set({ confirmacaoEnviadaEm: Date.now() - 11 * 60_000 }, { merge: true });
+  novo({ "POST /v1/message/send-template": json({ message: "recusado" }, 400) });
+  assert.equal(await enviarConfirmacaoDono(db, "dono-novo"), "falhou");
+  assert.equal((await privDono.get()).get("confirmacoesHoje.n"), 1);
+  novo(rotasDono);
+
+  // número próprio gerenciado pela Ruphus fora do canal oficial: o dono não troca pelo painel
+  const gerido = db.doc("tenants/dono-gerido");
+  await gerido.set({ name: "Gerido", whatsapp: { ownerManaged: false, instanceId: "gerido-main" } });
+  await assert.rejects(cadastrarDonoOficial(db, "dono-gerido", "5591992361726"), /Gerenciado pela plataforma — fale com o suporte para trocar o número/);
+  assert.equal((await db.doc("tenants/dono-gerido/privado/whatsapp").get()).exists, false);
+  assert.equal((await gerido.get()).get("whatsapp.canalOficial"), undefined);
+  // já no canal oficial, o dono troca normalmente
+  await gerido.set({ whatsapp: { canalOficial: true } }, { merge: true });
+  assert.equal(await cadastrarDonoOficial(db, "dono-gerido", "5591992361726"), "enviado");
 }
 
 // ── resposta automática a quem escreve ao número da plataforma fora do fluxo ──

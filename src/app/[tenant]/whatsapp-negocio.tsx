@@ -15,6 +15,7 @@ import { configurarLembretesWhatsAppAction, definirWhatsAppDonoAction, lerWhatsA
 type Config = {
   instanceId?: string;
   ownerManaged?: boolean;
+  canalOficial?: boolean;
   ownerPhone?: string | null;
   ownerPhoneVerifiedAt?: number | null;
   remindersEnabled?: boolean;
@@ -22,7 +23,7 @@ type Config = {
   // último aviso que não saiu (cota, número recusado…); some quando um aviso sai
   lastNotifyError?: { message: string; at: number } | null;
 };
-type Envio = "enviado" | "confirmado" | "aguarde" | "falhou";
+type Envio = "enviado" | "confirmado" | "aguarde" | "limite" | "falhou";
 
 // memberAction devolve o payload direto no sucesso e { ok: false, error } na falha
 type Falha = { ok: false; error: string };
@@ -36,7 +37,8 @@ const SEM_REDE = "Sem conexão. Tente de novo.";
 const AVISO_ENVIO: Record<Envio, { ok: boolean; texto: string }> = {
   enviado: { ok: true, texto: "Salvo. Mandamos uma mensagem para esse número: toque em Sou eu para confirmar." },
   confirmado: { ok: true, texto: "Salvo. Esse número já está confirmado." },
-  aguarde: { ok: false, texto: "Já mandamos a confirmação há pouco. Espere alguns minutos para reenviar." },
+  aguarde: { ok: true, texto: "Salvo. Já mandamos a confirmação há pouco: espere alguns minutos para reenviar." },
+  limite: { ok: false, texto: "Salvo, mas já mandamos 5 confirmações hoje. Tente reenviar amanhã." },
   falhou: { ok: false, texto: "Número salvo, mas a mensagem de confirmação não saiu agora. Toque em Reenviar daqui a pouco." },
 };
 
@@ -129,6 +131,8 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     );
   }
 
+  // número próprio gerenciado pela Ruphus, fora do canal oficial: quem troca é o suporte
+  const gerenciado = cfg.ownerManaged === false && !cfg.canalOficial;
   const dataConfirmacao = cfg.ownerPhoneVerifiedAt ? new Date(cfg.ownerPhoneVerifiedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : null;
 
   return (
@@ -146,41 +150,50 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
         </p>
       )}
 
-      <form
-        className="grid gap-1.5"
-        onSubmit={(ev) => {
-          ev.preventDefault();
-          salvar();
-        }}
-      >
-        <label htmlFor="zap-dono" className="text-sm font-medium">Seu WhatsApp (para receber os pedidos)</label>
-        <div className="flex gap-2">
-          <input
-            id="zap-dono"
-            inputMode="numeric"
-            autoComplete="tel"
-            value={mascaraTelefoneBR(fone)}
-            maxLength={19}
-            onChange={(e) => setFone(e.target.value.replace(/\D/g, ""))}
-            placeholder="(91) 99999-0000"
-            className="h-12 min-w-0 grow rounded-lg border border-input bg-card px-3 text-[15px] tabular-nums sm:h-11 sm:text-sm"
-          />
-          <Button type="submit" disabled={busy} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">
-            {busy ? "Salvando…" : "Salvar"}
-          </Button>
-        </div>
-      </form>
+      {gerenciado ? (
+        <p className="text-sm text-muted-foreground">
+          O WhatsApp do seu negócio é <strong>gerenciado pela Ruphus</strong>. Para trocar o número que recebe os pedidos,
+          fale com o suporte.
+        </p>
+      ) : (
+        <form
+          className="grid gap-1.5"
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            salvar();
+          }}
+        >
+          <label htmlFor="zap-dono" className="text-sm font-medium">Seu WhatsApp (para receber os pedidos)</label>
+          <div className="flex gap-2">
+            <input
+              id="zap-dono"
+              inputMode="numeric"
+              autoComplete="tel"
+              value={mascaraTelefoneBR(fone)}
+              maxLength={19}
+              onChange={(e) => setFone(e.target.value.replace(/\D/g, ""))}
+              placeholder="(91) 99999-0000"
+              className="h-12 min-w-0 grow rounded-lg border border-input bg-card px-3 text-[15px] tabular-nums sm:h-11 sm:text-sm"
+            />
+            <Button type="submit" disabled={busy} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">
+              {busy ? "Salvando…" : "Salvar"}
+            </Button>
+          </div>
+        </form>
+      )}
 
       {!cfg.ownerPhone ? (
         <p role="status" className="text-sm text-amber-800 dark:text-amber-200">Sem número cadastrado: os pedidos não chegam a você.</p>
       ) : dataConfirmacao ? (
         <p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">Confirmado em {dataConfirmacao}.</p>
+      ) : !cfg.canalOficial ? (
+        <p role="status" className="text-sm text-amber-800 dark:text-amber-200">Salve para receber pelo número da Ruphus.</p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           <p role="status" className="text-sm text-amber-800 dark:text-amber-200">
             Aguardando confirmação: toque em <strong>Sou eu</strong> na mensagem que mandamos. Enquanto isso, os pedidos já chegam nesse número.
           </p>
-          <Button type="button" variant="outline" disabled={busy} onClick={() => void rodar((t) => reenviarConfirmacaoDonoAction(t, { tenantId: slug }))} className="h-11 px-4 text-sm sm:h-9">
+          <Button type="button" variant="outline" disabled={busy} onClick={() => void rodar((t) => reenviarConfirmacaoDonoAction(t, { tenantId: slug }))} className="h-11 px-4 text-sm sm:h-11">
             Reenviar
           </Button>
         </div>
@@ -223,7 +236,7 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
                   setHorasLembretes(h);
                   salvarLembretes(lembretes, h);
                 }}
-                className="h-11 rounded-lg border border-input bg-card px-2 tabular-nums sm:h-9"
+                className="h-11 rounded-lg border border-input bg-card px-2 tabular-nums sm:h-11"
               >
                 {[1, 2, 3, 4, 6, 8, 12, 24].map((h) => (
                   <option key={h} value={h}>

@@ -3,7 +3,7 @@ import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore"
 import { apontarWebhook, enviarTemplate, enviarTexto, garantirTenant, OPTIN_DONO, revogarChavesAntigas, type ConexaoAtendys, type Template } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
-import { customerKey, formatPhone } from "@/lib/datetime";
+import { customerKey, formatPhone, todayIn } from "@/lib/datetime";
 import { urlDoSite, type Dominio } from "@/lib/dominio";
 import { soDigitosComDDI } from "@/lib/telefone";
 
@@ -198,12 +198,17 @@ export const templateConfirmarDono = (negocio: string, slug: string): Template =
 
 const REENVIO_MS = 10 * 60_000;
 const privadoWhatsApp = (db: Firestore, slug: string) => db.doc(`tenants/${slug}/privado/whatsapp`);
-export type EnvioConfirmacao = "enviado" | "confirmado" | "aguarde" | "falhou";
+/** teto de confirmações por negócio por dia: trocar de número não vira disparo em massa */
+const MAX_CONFIRMACOES_DIA = 5;
+export type EnvioConfirmacao = "enviado" | "confirmado" | "aguarde" | "limite" | "falhou";
 
 /** Grava o WhatsApp do dono (`numero` já validado por celularDoDono), liga o canal oficial e manda o
  *  "Sou eu". O mesmo número já confirmado fica como está; número novo zera a confirmação e o limite. */
 export async function cadastrarDonoOficial(db: Firestore, slug: string, numero: string): Promise<EnvioConfirmacao> {
   if (slug === DEMO) throw new ErroPrevisto("A demonstração não envia WhatsApp: teste num negócio de verdade.");
+  // número próprio gerenciado pela Ruphus, ainda fora do canal oficial: quem troca é o suporte
+  const w = (await db.doc(`tenants/${slug}`).get()).get("whatsapp") as { ownerManaged?: boolean; canalOficial?: boolean } | undefined;
+  if (w?.ownerManaged === false && w.canalOficial !== true) throw new ErroPrevisto("Gerenciado pela plataforma — fale com o suporte para trocar o número.");
   if (!(await lerCredenciais(db))) throw new ErroPrevisto("O canal oficial ainda não está pronto: fale com a Ruphus.");
   const p = await privadoWhatsApp(db, slug).get();
   const mesmo = soDigitosComDDI(String(p.get("ownerPhone") ?? "")) === numero;
@@ -218,8 +223,8 @@ export async function cadastrarDonoOficial(db: Firestore, slug: string, numero: 
   return enviarConfirmacaoDono(db, slug);
 }
 
-/** Manda o "Sou eu" ao número cadastrado: no máximo um a cada 10 min. A marca é reservada na
- *  transação (dois cliques não mandam dois) e solta se o envio falhar (o dono tenta de novo já). */
+/** Manda o "Sou eu" ao número cadastrado: no máximo um a cada 10 min e 5 por dia por negócio. A marca
+ *  é reservada na transação (dois cliques não mandam dois) e solta se o envio falhar (o dono tenta de novo já). */
 export async function enviarConfirmacaoDono(db: Firestore, slug: string): Promise<EnvioConfirmacao> {
   const ref = privadoWhatsApp(db, slug);
   const r = await db.runTransaction(async (tx) => {
@@ -229,7 +234,11 @@ export async function enviarConfirmacaoDono(db: Firestore, slug: string): Promis
     if (p.get("ownerPhoneVerifiedAt")) return "confirmado" as const;
     const em = p.get("confirmacaoEnviadaEm");
     if (typeof em === "number" && Date.now() - em < REENVIO_MS) return "aguarde" as const;
-    tx.set(ref, { confirmacaoEnviadaEm: Date.now() }, { merge: true });
+    const dia = todayIn();
+    const hoje = p.get("confirmacoesHoje") as { dia?: string; n?: number } | undefined;
+    const n = hoje?.dia === dia ? (hoje.n ?? 0) : 0;
+    if (n >= MAX_CONFIRMACOES_DIA) return "limite" as const;
+    tx.set(ref, { confirmacaoEnviadaEm: Date.now(), confirmacoesHoje: { dia, n: n + 1 } }, { merge: true });
     return { para };
   });
   if (typeof r === "string") return r;
@@ -242,7 +251,7 @@ export async function enviarConfirmacaoDono(db: Firestore, slug: string): Promis
     return "enviado";
   } catch (e) {
     console.error(`[canal oficial] confirmação do WhatsApp do dono de ${slug}`, e);
-    await ref.update({ confirmacaoEnviadaEm: FieldValue.delete() }).catch(() => {});
+    await ref.update({ confirmacaoEnviadaEm: FieldValue.delete(), "confirmacoesHoje.n": FieldValue.increment(-1) }).catch(() => {});
     return "falhou";
   }
 }

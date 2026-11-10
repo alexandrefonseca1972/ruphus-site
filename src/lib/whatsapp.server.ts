@@ -33,6 +33,8 @@ export type ConexaoWhatsapp = ConexaoAtendys & {
   ownerPhoneVerifiedAt?: number | null;
   /** último envio da confirmação: o reenvio espera 10 min */
   confirmacaoEnviadaEm?: number | null;
+  /** confirmações mandadas no dia (teto de 5 por negócio) */
+  confirmacoesHoje?: { dia: string; n: number } | null;
   /** Quem pode gerenciar a conexão no painel do dono. false = só a plataforma
    *  (/admin tem prioridade); true = o dono pode conectar/alterar; ausente =
    *  ninguém configurou ainda — dono pode conectar, e a plataforma continua
@@ -71,7 +73,7 @@ export { soDigitosComDDI };
 const SEGREDOS = ["atendysApiKey", "atendysWebhookSecret", "atendysTenantId", "atendysKeyId"] as const;
 // Fora do documento do negócio, mas mostrado a quem gere (pelas ações do servidor, que checam o papel):
 // o WhatsApp PESSOAL do dono — a equipe lê tenants/{slug} inteiro pelo navegador e não deve vê-lo.
-const SO_SERVIDOR = [...SEGREDOS, "ownerPhone", "ownerPhoneVerifiedAt", "confirmacaoEnviadaEm"] as const;
+const SO_SERVIDOR = [...SEGREDOS, "ownerPhone", "ownerPhoneVerifiedAt", "confirmacaoEnviadaEm", "confirmacoesHoje"] as const;
 type Segredo = (typeof SEGREDOS)[number];
 export type ConexaoNaTela = Omit<ConexaoWhatsapp, Segredo>;
 const privado = (db: Firestore, slug: string) => db.doc(`tenants/${slug}/privado/whatsapp`);
@@ -424,7 +426,10 @@ export async function espelharStatusDaInstancia(
  *  que nenhum lembrete saiu. Gerenciado pela plataforma: o texto não manda reconectar.
  *  Falha no push só vai para o log. */
 export async function avisarQueda(db: Firestore, slug: string) {
-  const plataforma = (await db.doc(`tenants/${slug}`).get()).get("whatsapp.ownerManaged") === false;
+  const t = await db.doc(`tenants/${slug}`).get();
+  // canal oficial: os avisos saem pelo número da Ruphus, a queda do número próprio não para nada
+  if (t.get("whatsapp.canalOficial") === true) return;
+  const plataforma = t.get("whatsapp.ownerManaged") === false;
   await avisar(
     db,
     slug,

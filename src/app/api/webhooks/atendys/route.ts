@@ -4,9 +4,8 @@ import { adminDb } from "@/lib/admin";
 import { DEMO } from "@/lib/demo";
 import { atualizarParada, avisarFalhaDeEnvio, lerIndice, NAO_SAI_A_TEMPO } from "@/lib/mensagens-paradas.server";
 import { avisarQueda, codigoDoAgendamento, espelharStatusDaInstancia, executarComandoPendente, idDoComando, lerConexao, lerConfigWhatsApp, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
-import { conexaoOficial, instanciaPlataforma, lerBotao, negocioDoComando, negociosDoDono, responderForaDoFluxo, segredoPlataforma, usaCanalOficial } from "@/lib/canal-oficial.server";
+import { confirmarDono, conexaoOficial, instanciaPlataforma, lerBotao, negocioDoComando, negociosDoDono, responderForaDoFluxo, segredoPlataforma, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { acaoDoCliente, pedidoDesatualizado } from "@/lib/botoes-whatsapp.server";
-import { confirmarDono } from "@/lib/canal-oficial.server";
 
 // Onde o atendys avisa o que acontece nas instâncias: mensagem recebida do
 // cliente final, mudança de estado da conexão e status de envio. Cada webhook é

@@ -306,6 +306,7 @@ export const definirWhatsAppDonoAction = memberAction(
   }),
   async ({ tenantId, telefone }, user) => {
     await exigeGestor(tenantId, user.uid);
+    // ownerManaged false fora do canal oficial é recusado em cadastrarDonoOficial (quem troca é o suporte)
     const r = celularDoDono(telefone, (await adminDb.doc(`tenants/${tenantId}`).get()).get("site.phone") as string | undefined);
     if ("erro" in r) throw new UserError(r.erro);
     const envio = await cadastrarDonoOficial(adminDb, tenantId, r.numero);
