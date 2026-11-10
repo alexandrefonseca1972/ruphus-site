@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { auth, idToken } from "@/lib/firebase";
 import { db } from "@/lib/firebase-db";
-import { dateIn, formatBRL, formatLongDate, formatTime, whatsappLink, precoDe } from "@/lib/datetime";
+import { dateIn, formatBRL, formatLongDate, formatTime, fusoDe, whatsappLink, precoDe } from "@/lib/datetime";
 import { useCollection } from "@/lib/use-collection";
 import { brDeIso, erroEmail, erroNascimento, idade, isoDeBR, mascaraData, mascaraEmail } from "@/lib/cliente-dados";
 import { deleteCustomerAction, endPlanAction, renameCustomerAction, salvarDadosClienteAction } from "../../actions";
@@ -28,6 +28,8 @@ const Appointment = z.object({
   start: z.instanceof(Timestamp),
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
   planId: z.string().optional(),
+  // o cliente tocou em "Confirmar presença" no WhatsApp (instante real); a remarcação apaga
+  presencaConfirmadaEm: z.instanceof(Timestamp).optional().catch(undefined),
 });
 
 const Plan = z.object({
@@ -56,6 +58,7 @@ const Nota = z.object({
 
 export default function CustomerPage() {
   const tenant = useTenant();
+  const fuso = fusoDe(tenant.site);
   const { customer: rawKey } = useParams<{ customer: string }>();
   const key = /^\d{10,15}$/.test(rawKey) ? rawKey : ""; // id do cliente = telefone só com dígitos
   const [customer, setCustomer] = useState<
@@ -369,6 +372,11 @@ export default function CustomerPage() {
                       <span className="first-letter:uppercase">{formatLongDate(a.start.toDate())}, {formatTime(a.start.toDate())}</span>
                       <span className={`rounded-full px-2 py-0.5 text-xs font-normal ${STATUS[a.status].className}`}>{STATUS[a.status].label}</span>
                       {a.planId && <span className="rounded-full border px-2 py-0.5 text-xs font-normal">Recorrente</span>}
+                      {a.presencaConfirmadaEm && (a.status === "booked" || a.status === "confirmed") && (
+                        <span className="rounded-full border px-2 py-0.5 text-xs font-normal">
+                          Presença confirmada · {formatLongDate(a.presencaConfirmadaEm.toDate(), fuso)}, {formatTime(a.presencaConfirmadaEm.toDate(), fuso)}
+                        </span>
+                      )}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {[a.serviceName, a.staffName, precoDe({ priceCents: a.priceCents, tipoPreco: a.precoAberto ? "aPartir" : "fixo" })].filter(Boolean).join(" · ")}
