@@ -201,7 +201,8 @@ export async function salvarNegocio(db: Firestore, slug: string, input: unknown,
     novo: false, ownerId: String(t.get("ownerId")), origem, escolha: mudouRamo ? undefined : t.get("gerado.escolha"), personal: personalDe(t.get("gerado.personal")),
   });
   const { rating: _nota, reviews: _avaliacoes, ...site } = negocio.dados.site as Record<string, unknown>;
-  await ref.set({ ...negocio.dados, site: { ...(google ? negocio.dados.site : site), fuso: d.fuso || null } }, { merge: true });
+  // editadoEm: a planilha e a coleta (gerarNoBanco) não regravam o que foi editado aqui
+  await ref.set({ ...negocio.dados, gerado: { ...(negocio.dados.gerado as Record<string, unknown>), editadoEm: FieldValue.serverTimestamp() }, site: { ...(google ? negocio.dados.site : site), fuso: d.fuso || null } }, { merge: true });
   if (mudouRamo && t.get("gerado.escolha")) await ref.update({ "gerado.escolha": FieldValue.delete() });
 }
 

@@ -121,7 +121,9 @@ export function registrosDoSite(
 
 /** Grava os sites da planilha. Com aplicar=false só diz o que faria: a prévia e a
  *  gravação são a mesma conta, então o que o admin confirma é o que sai. */
-export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boolean, ownerId: string): Promise<LinhaGerada[]> {
+/** doEstado: os tenants de cada UF, lidos uma vez; quem chama em lotes (a prévia da coleta) passa o
+ *  mesmo mapa a todos, para não reler o estado inteiro a cada lote. */
+export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boolean, ownerId: string, doEstado = new Map<string, Promise<QueryDocumentSnapshot[]>>()): Promise<LinhaGerada[]> {
   const lida = z.array(z.object({ aba: z.string().max(100), linha: z.number().int().positive(), lead: Lead })).max(TETO_LOTE).safeParse(entrada);
   if (!lida.success) throw new ErroPrevisto(`Planilha inválida ou com mais de ${TETO_LOTE} linhas.`);
 
@@ -133,7 +135,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   // O mesmo celular aparece com e sem o 9 (levantamento antigo, número salvo antes da
   // mudança): procura as duas formas e guarda o achado nas duas, para casar com a planilha.
   const telefones = [...new Set(lida.data.flatMap(({ lead }) => [lead.telefone, outraForma(lead.telefone)].filter((t): t is string => !!t)))];
-  const porTelefone = new Map<string, { slug: string; gerado: boolean; cadastro: boolean; publicado: boolean; escolha?: Escolha; personal?: Personal | null }>();
+  const porTelefone = new Map<string, { slug: string; gerado: boolean; cadastro: boolean; publicado: boolean; editado: boolean; escolha?: Escolha; personal?: Personal | null }>();
   for (let i = 0; i < telefones.length; i += 30) { // o "in" do Firestore aceita até 30
     const achados = await tenants.where("site.phone", "in", telefones.slice(i, i + 30)).select("site.phone", "gerado").get();
     for (const d of achados.docs) {
@@ -141,7 +143,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
       for (const t of [achado, outraForma(achado)].filter((t): t is string => !!t)) {
         // entre um gerado e outro qualquer com o mesmo número, o que não é gerado decide: não duplicar
         if (!porTelefone.has(t) || !d.get("gerado")) {
-          porTelefone.set(t, { slug: d.id, gerado: !!d.get("gerado"), cadastro: d.get("gerado.origem") === "cadastro", publicado: !!d.get("gerado.publicadoEm"), escolha: d.get("gerado.escolha"), personal: personalDe(d.get("gerado.personal")) });
+          porTelefone.set(t, { slug: d.id, gerado: !!d.get("gerado"), cadastro: d.get("gerado.origem") === "cadastro", publicado: !!d.get("gerado.publicadoEm"), editado: !!d.get("gerado.editadoEm"), escolha: d.get("gerado.escolha"), personal: personalDe(d.get("gerado.personal")) });
         }
       }
     }
@@ -160,7 +162,6 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   // ali; os sites que não têm escolha gravada contam pelo que o slug sorteia (o que já sai).
   const usosDaRegiao = new Map<string, Required<Escolha>[]>();
   // o estado é lido uma vez para todos os ramos: uma leitura por ramo eram até 62 mil por lote em MG (4.447 × 14)
-  const doEstado = new Map<string, Promise<QueryDocumentSnapshot[]>>();
   const usosDe = async (uf: string, sub: Sub) => {
     const chave = `${uf}|${sub}`;
     if (!usosDaRegiao.has(chave)) {
@@ -201,6 +202,11 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
     }
     if (ja && assumidos.has(ja.slug)) {
       saida.push({ ...base, slug: ja.slug, acao: "pular", motivo: `negócio já assumido pelo dono (${ja.slug}): edite pela gaveta, aba Site` });
+      continue;
+    }
+    // editado pela gaveta (salvarNegocio marca gerado.editadoEm): a planilha não passa por cima
+    if (ja?.editado) {
+      saida.push({ ...base, slug: ja.slug, acao: "pular", motivo: `site editado pela gaveta (${ja.slug}): mude por lá, aba Site` });
       continue;
     }
     if (ja) {

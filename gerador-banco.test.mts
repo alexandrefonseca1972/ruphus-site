@@ -98,6 +98,15 @@ assert.deepEqual([assumido.slug, assumido.acao], ["pet-feliz-belem", "pular"]);
 assert.equal((await db.doc("tenants/pet-feliz-belem").get()).get("site.instagram"), "petfelizreal", "edição do dono fica");
 await db.doc("tenants/pet-feliz-belem/members/dono-real").delete();
 
+// editado pela gaveta: o reenvio pula em vez de regravar
+{
+  const [g] = await gerarNoBanco(db, planilha(["Editado Gaveta", "(91) 97642-1083", "Barbearia", "Belém", "PA", "", "", "", "", "", ""]), true, "a");
+  await salvarNegocio(db, g.slug, { name: "Editado Gaveta", sub: "barbearia", telefone: "(91) 97642-1083", cidade: "Belém", uf: "PA" });
+  const [de_novo2] = await gerarNoBanco(db, planilha(["Outro Nome", "(91) 97642-1083", "Barbearia", "Belém", "PA", "", "", "", "", "", ""]), true, "a");
+  assert.equal(de_novo2.acao, "pular");
+  assert.match(de_novo2.motivo ?? "", /editado pela gaveta/);
+}
+
 // mais de 30 telefones: o "in" do Firestore vai em blocos, e o 33º ainda é conferido
 const grande = planilha(...Array.from({ length: 35 }, (_, i) =>
   [`Loja ${i}`, i === 32 ? "91987650123" : `(96) 99${String(i).padStart(3, "0")}-0000`, "Barbearia", "Macapá", "AP", "", "", "", "", "", ""]));

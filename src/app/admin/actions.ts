@@ -47,6 +47,7 @@ import { MODELOS, modeloDoId, NOMES_FONTE, Personal, renderEditorial, visualEdit
 import { ehClaro, galeriaClaro, modeloClaroDoId, modelosClaro, renderClaro, visualClaro } from "@/lib/site-claro";
 import { iaDisponivel, type Mensagem, sugerirVisual } from "@/lib/ia.server";
 import { apagarFotosFora, fotosFaltando, lerFoto, type Slot, tenantGerado } from "@/lib/foto.server";
+import { SLUG_SITE } from "@/lib/site-arquivo";
 import { type DadosSite, type Escolha, type Sub, SUBS } from "@/lib/gerador";
 import { FieldValue } from "firebase-admin/firestore";
 
@@ -115,7 +116,8 @@ const lotesDe = <T,>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.le
 
 // O slug vem da tela e vira caminho de documento: sem conferir, um "a/b/c"
 // escreveria fora do lugar previsto.
-const SLUG = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
+// o mesmo endereço de site do resto do sistema
+const SLUG = SLUG_SITE;
 // uid do Firebase Auth: vira caminho de documento, então nada de "/" nem ".."
 const UID = /^[A-Za-z0-9_-]{1,128}$/;
 /** O slug vem do navegador e vira caminho no banco: "a/b/c" escreveria em outra coleção */
