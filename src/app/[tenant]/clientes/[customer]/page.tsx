@@ -12,6 +12,7 @@ import { auth, idToken } from "@/lib/firebase";
 import { db } from "@/lib/firebase-db";
 import { dateIn, formatBRL, formatLongDate, formatTime, fusoDe, whatsappLink, precoDe } from "@/lib/datetime";
 import { useCollection } from "@/lib/use-collection";
+import { Lancamento } from "@/lib/financeiro";
 import { brDeIso, erroEmail, erroNascimento, idade, isoDeBR, mascaraData, mascaraEmail } from "@/lib/cliente-dados";
 import { deleteCustomerAction, endPlanAction, renameCustomerAction, salvarDadosClienteAction } from "../../actions";
 import { ConfirmDialog } from "../../confirm-dialog";
@@ -67,6 +68,9 @@ export default function CustomerPage() {
   const [appointments] = useCollection(tenant.id, "appointments", Appointment, [where("customerKey", "==", key), orderBy("start", "desc")], key);
   const [plans] = useCollection(tenant.id, "plans", Plan, [where("customerKey", "==", key)], key);
   const [notas] = useCollection(tenant.id, `customers/${key}/notas`, Nota, [orderBy("quando", "desc")], key);
+  // com o Caixa: o que o cliente pagou de verdade. Só quem gere lê o Caixa (regra do banco)
+  const comCaixa = tenant.podeGerir && tenant.modulos?.financeiro === true;
+  const [pagos, erroPagos] = useCollection(comCaixa && key ? tenant.id : "", "lancamentos", Lancamento, [where("customerKey", "==", key)], key);
   const [planning, setPlanning] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameError, setRenameError] = useState("");
@@ -138,7 +142,10 @@ export default function CustomerPage() {
     { label: "Atendidos", value: attended.length },
     { label: "Faltas", value: count("no_show") },
     { label: "Cancelados", value: count("cancelled") },
-    { label: "Total gasto", value: formatBRL(attended.reduce((sum, a) => sum + a.priceCents, 0)) },
+    // com o Caixa, o recebido menos o estornado; sem ele, só o preço de tabela da agenda
+    comCaixa
+      ? { label: "Total pago", value: pagos && !erroPagos ? formatBRL(pagos.reduce((t, l) => t + (l.tipo === "entrada" ? l.valorCents : l.estornoDe ? -l.valorCents : 0), 0)) : "…" }
+      : { label: "Valor de tabela", value: formatBRL(attended.reduce((sum, a) => sum + a.priceCents, 0)) },
   ];
   const sortedPlans = plans?.toSorted((a, b) => (a.status === b.status ? b.createdAt.toMillis() - a.createdAt.toMillis() : a.status === "active" ? -1 : 1));
 
@@ -173,14 +180,17 @@ export default function CustomerPage() {
           ) : (
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold">{customer.name}</h1>
-              {/* O nome vem do que a pessoa digitou ao agendar e ficava assim para sempre */}
-              <button
-                type="button"
-                onClick={() => setRenaming(true)}
-                className="inline-flex min-h-10 items-center px-1 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
-              >
-                corrigir
-              </button>
+              {/* O nome vem do que a pessoa digitou ao agendar e ficava assim para sempre.
+                  Só quem gere: o servidor recusa a equipe (renomeia todos os horários futuros) */}
+              {tenant.podeGerir && (
+                <button
+                  type="button"
+                  onClick={() => setRenaming(true)}
+                  className="inline-flex min-h-10 items-center px-1 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                >
+                  corrigir
+                </button>
+              )}
             </div>
           )}
           {renameError && <p role="alert" className="text-sm text-destructive">{renameError}</p>}
@@ -294,7 +304,7 @@ export default function CustomerPage() {
             {notas.map((n) => (
               <li key={n.id} className="flex flex-wrap items-start gap-x-3 gap-y-1 border-t pt-2 text-sm first:border-t-0 first:pt-0">
                 <span className="w-16 shrink-0 text-xs text-muted-foreground tabular-nums sm:w-24">
-                  {n.quando ? n.quando.toDate().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "agora"}
+                  {n.quando ? n.quando.toDate().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: fuso }) : "agora"}
                 </span>
                 <p className="min-w-0 grow basis-0 whitespace-pre-line break-words">{n.texto}</p>
                 <span className="max-w-24 truncate text-xs text-muted-foreground">{n.porNome?.split("@")[0]}</span>
