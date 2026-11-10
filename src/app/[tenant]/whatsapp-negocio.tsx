@@ -104,6 +104,13 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     };
   }, [slug, tentativa]);
 
+  // a seção só ganha altura depois da leitura: o navegador já tentou o #whatsapp (push de aviso
+  // não entregue, faixa do painel) antes disso e ficou no topo
+  const carregou = cfg !== undefined;
+  useEffect(() => {
+    if (carregou && window.location.hash === "#whatsapp") document.getElementById("whatsapp")?.scrollIntoView();
+  }, [carregou]);
+
   // enquanto não conecta, pergunta ao gateway e renova o QR (ele expira): uma chamada por vez,
   // só com a aba visível, e por no máximo POLL_MAX_MS
   useEffect(() => {
