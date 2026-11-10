@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { AtendysForaDoAr, CHAVE_IDEMPOTENCIA, type ConexaoAtendys, type ConversaInbox, ErroAtendys, ID_INBOX, listarConversas, midiaDaMensagem, responderComMidia } from "@/lib/atendys";
+import { AtendysForaDoAr, CHAVE_IDEMPOTENCIA, type ConexaoAtendys, type ConversaInbox, conversaPorId, ErroAtendys, ID_INBOX, mensagensDaConversa, midiaDaMensagem, responderComMidia } from "@/lib/atendys";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { requireMember, UserError } from "@/lib/booking.server";
 import { soDigitosComDDI } from "@/lib/telefone";
@@ -64,34 +64,37 @@ export function visiveis(a: Pick<Atendimento, "ocultos">, conversas: ConversaInb
   return conversas.filter((c) => !c.contactPhone || !a.ocultos.includes(soDigitosComDDI(c.contactPhone) ?? c.contactPhone));
 }
 
-// A conversa do dono some da lista da equipe, mas o id dela (selado, estável) podia chegar por um
-// link antigo ou por quem foi gestor. O atendys não tem busca por id: varre a lista uma vez e
-// guarda por alguns minutos os ids que a equipe não vê.
-// ponytail: até 5 páginas de 100 por filtro; filtro de número excluído no atendys resolve de vez
-const OCULTAS_TTL_MS = 5 * 60_000;
-const ocultasCache = new Map<string, { ids: Set<string>; ate: number }>();
+// A conversa do dono some da lista da equipe, mas o id dela (selado, estável) pode chegar por um
+// link antigo ou por quem foi gestor: toda ação da equipe numa conversa confere o número dela.
 
-async function idsOcultos(a: Atendimento): Promise<Set<string>> {
-  const guardado = ocultasCache.get(a.tenantId);
-  if (guardado && guardado.ate > Date.now()) return guardado.ids;
-  const ids = new Set<string>();
-  for (const filtro of ["active", "archived"] as const) {
-    let cursor: string | undefined;
-    for (let pagina = 0; pagina < 5; pagina++) {
-      const p = await listarConversas(a.conn, { filtro, cursor, limite: 100 });
-      for (const c of p.items) if (c.contactPhone && !visiveis(a, [c]).length) ids.add(c.id);
-      if (!p.nextCursor) break;
-      cursor = p.nextCursor;
-    }
-  }
-  ocultasCache.set(a.tenantId, { ids, ate: Date.now() + OCULTAS_TTL_MS });
-  return ids;
+/** A conversa pelo id, conferida para quem pede: a equipe não vê a do dono (404 se não existe). */
+export async function conversaVisivel(a: Atendimento, conversa: string) {
+  const c = await conversaPorId(a.conn, conversa);
+  if (!visiveis(a, [c]).length) throw new SemAcessoConversas("Essa conversa é só do dono do negócio.");
+  return c;
 }
 
-/** Antes de qualquer ação numa conversa: a equipe não abre nem responde a conversa do dono. */
+/** Antes de qualquer ação numa conversa. Quem gere vê todas: nenhuma chamada a mais. */
 export async function exigeConversaVisivel(a: Atendimento, conversa: string) {
+  if (a.ocultos.length) await conversaVisivel(a, conversa);
+}
+
+// Mídia e reação vêm só com o id da mensagem: para a equipe, a mensagem tem de estar no histórico
+// de uma conversa que ela pode ver (o id de outra conversa não serve).
+// ponytail: procura nas 5 páginas mais novas (500 mensagens); mais antiga que isso, só quem gere
+const PAGINAS_PARA_ACHAR = 5;
+export async function exigeMensagemVisivel(a: Atendimento, conversa: string | null, mensagem: string) {
   if (!a.ocultos.length) return;
-  if ((await idsOcultos(a)).has(conversa)) throw new SemAcessoConversas("Essa conversa é só do dono do negócio.");
+  if (!conversa) throw new SemAcessoConversas("Abra a conversa para ver esta mensagem.");
+  await conversaVisivel(a, conversa);
+  let cursor: string | undefined;
+  for (let i = 0; i < PAGINAS_PARA_ACHAR; i++) {
+    const p = await mensagensDaConversa(a.conn, conversa, { cursor, limite: 100 });
+    if (p.items.some((m) => m.id === mensagem)) return;
+    if (!p.nextCursor) break;
+    cursor = p.nextCursor;
+  }
+  throw new SemAcessoConversas("Essa mensagem não é desta conversa.");
 }
 
 /** Liga ou desliga a equipe na Central. Só quem gere; negócio que não existe não é criado. */
@@ -125,11 +128,12 @@ function statusDe(e: unknown) {
 
 /** A resposta inteira da rota de mídia (rota em src/app/api/conversas/…), aqui para ser testada
  *  com um verificador de token simulado. */
-export async function midiaParaNavegador(verify: typeof verifyFirebaseToken, db: Firestore, token: string, tenant: string, mensagem: string) {
-  if (!TENANT.test(tenant) || !ID_INBOX.test(mensagem)) return falha("Pedido inválido.", 400);
+export async function midiaParaNavegador(verify: typeof verifyFirebaseToken, db: Firestore, token: string, tenant: string, mensagem: string, conversa: string | null = null) {
+  if (!TENANT.test(tenant) || !ID_INBOX.test(mensagem) || (conversa !== null && !ID_INBOX.test(conversa))) return falha("Pedido inválido.", 400);
   try {
-    const { conn } = await atenderComo(verify, db, token, tenant);
-    const res = await midiaDaMensagem(conn, mensagem);
+    const a = await atenderComo(verify, db, token, tenant);
+    await exigeMensagemVisivel(a, conversa, mensagem);
+    const res = await midiaDaMensagem(a.conn, mensagem);
     const tipo = (res.headers.get("content-type") ?? "").split(";")[0].trim();
     const inline = INLINE.test(tipo);
     return new Response(res.body, {

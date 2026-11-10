@@ -567,6 +567,12 @@ export async function listarConversas(conn: ConexaoAtendys, q: { filtro?: "activ
   return chamar<PaginaInbox<ConversaInbox>>(authTenant(conn), "GET", `/v1/inbox/conversations${consulta({ filter: q.filtro, cursor: q.cursor, limit: q.limite })}`);
 }
 
+/** Uma conversa pelo id (mesmo formato de um item da lista). 404 NOT_FOUND: de outro negócio,
+ *  adulterado ou sem mensagens. Atendys com GET /v1/inbox/conversations/:id (deploy após 2026-11-09). */
+export async function conversaPorId(conn: ConexaoAtendys, conversa: string) {
+  return chamar<ConversaInbox>(authTenant(conn), "GET", `/v1/inbox/conversations/${id(conversa)}`);
+}
+
 export async function buscarNasConversas(conn: ConexaoAtendys, termo: string, cursor?: string) {
   return chamar<PaginaInbox<ResultadoBusca>>(authTenant(conn), "GET", `/v1/inbox/search${consulta({ q: termo, cursor })}`);
 }

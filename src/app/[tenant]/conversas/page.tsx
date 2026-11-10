@@ -13,7 +13,7 @@ import { idToken } from "@/lib/firebase";
 import { conversaMinima, indiceDeClientes, juntarConversas, naoLida, nomeDaConversa, ordenarConversas, telefoneLegivel } from "@/lib/conversas";
 import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
-import { buscarConversasAction, listarConversasAction, permitirEquipeNasConversasAction } from "../actions";
+import { buscarConversasAction, listarConversasAction, obterConversaAction, permitirEquipeNasConversasAction } from "../actions";
 import { PageTitle } from "../page-title";
 import { useTenant } from "../painel-layout";
 import { Conversa } from "./conversa";
@@ -107,6 +107,19 @@ function Conversas() {
     }, A_CADA_MS);
     return () => clearInterval(id);
   }, [liberado, carregar]);
+
+  // aberta por id sem estar na lista (busca, link): busca os dados dela (número, janela, bloqueios)
+  const naLista = !!aberta && !!conversas?.some((c) => c.id === aberta);
+  useEffect(() => {
+    if (!aberta || naLista || aberto?.id === aberta) return;
+    let vivo = true;
+    void idToken()
+      .then((t) => obterConversaAction(t, { tenantId: tenant.id, conversa: aberta }))
+      .then((r) => vivo && r.ok && setAberto(r.conversa));
+    return () => {
+      vivo = false;
+    };
+  }, [aberta, naLista, aberto?.id, tenant.id]);
 
   // fechou a conversa (voltar, botão): o foco volta ao item da lista que a abriu
   useEffect(() => {

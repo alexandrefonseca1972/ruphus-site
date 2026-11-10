@@ -9,7 +9,7 @@ import { LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/
 import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
-import { atenderComo, type Atendimento, exigeConversaVisivel, permitirEquipeNasConversas, visiveis } from "@/lib/conversas.server";
+import { atenderComo, type Atendimento, conversaVisivel, exigeConversaVisivel, exigeMensagemVisivel, permitirEquipeNasConversas, visiveis } from "@/lib/conversas.server";
 import { agirNaMensagem, arquivarConversa, assumirEnvio, buscarNasConversas, CHAVE_IDEMPOTENCIA, deslogarInstancia, ID_INBOX, enviarTexto, ErroAtendys, listarConversas, manterAgendada, marcarConversa, mensagensDaConversa, qrDaConexao, responderConversa, statusDaConexao, statusDaMensagem } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
@@ -649,6 +649,9 @@ export const mensagensDaConversaAction = conversaAction(
   },
 );
 
+/** Conversa aberta por id (busca, link): os dados dela, para a tela saber número e bloqueios. */
+export const obterConversaAction = conversaAction(ComConversa, async ({ conversa }, a) => ({ ok: true as const, conversa: await conversaVisivel(a, conversa) }));
+
 export const marcarConversaAction = conversaAction(ComConversa.extend({ lida: z.boolean() }), async ({ conversa, lida }, a) => {
   await exigeConversaVisivel(a, conversa);
   await marcarConversa(a.conn, conversa, lida);
@@ -673,6 +676,8 @@ export const agirNaMensagemAction = conversaAction(
   z.object({
     tenantId: docIdStaff,
     mensagem: idOpaco,
+    // a conversa da mensagem: a equipe só reage em mensagem de conversa que pode ver
+    conversa: idOpaco.optional(),
     chave: chaveEnvio,
     acao: z.discriminatedUnion("tipo", [
       z.object({ tipo: z.literal("reacao"), emoji: z.string().regex(/^(\p{Extended_Pictographic}[\p{Emoji_Modifier}️‍\p{Extended_Pictographic}]*)?$/u, "Reação inválida.").max(16) }),
@@ -680,9 +685,10 @@ export const agirNaMensagemAction = conversaAction(
       z.object({ tipo: z.literal("apagar") }),
     ]),
   }),
-  async ({ mensagem, chave, acao }, a) => {
+  async ({ mensagem, conversa, chave, acao }, a) => {
     // editar e apagar para todos mexem no que o dono, a IA e as confirmações automáticas mandaram
     if (acao.tipo !== "reacao") soGestor(a, acao.tipo === "editar" ? "editar mensagens enviadas" : "apagar mensagens enviadas");
+    await exigeMensagemVisivel(a, conversa ?? null, mensagem);
     return { ok: true as const, resultado: await agirNaMensagem(a.conn, mensagem, acao, chave) };
   },
 );
