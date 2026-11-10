@@ -16,6 +16,7 @@ import { useMinutosInativo } from "@/lib/sessao-config";
 import { AccountMenu } from "./account-menu";
 import { ShareLink } from "./share-link";
 import { AppInstalado } from "./app-instalado";
+import { AvisoNovoAgendamento } from "./aviso-novo-agendamento";
 import { cn } from "@/lib/utils";
 
 // podeGerir: dono ou admin do negócio, ou admin da plataforma. Só esconde botões —
@@ -103,6 +104,7 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
     <TenantContext value={{ ...state, atualizar: (parcial) => setLoaded({ slug, value: { ...state, ...parcial } }) }}>
       <div className={`painel ${serifa.variable} flex min-h-dvh flex-col bg-background`}>
         <MonitorConexao />
+        <AvisoNovoAgendamento />
       <header className="sticky top-0 z-10 border-b bg-card pt-[env(safe-area-inset-top)] sm:static">
         <div className="mx-auto flex max-w-6xl items-center gap-x-6 px-4">
           {/* O logo e o nome levam à página inicial do negócio (a agenda), para todo mundo.

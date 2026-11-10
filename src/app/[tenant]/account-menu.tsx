@@ -9,6 +9,7 @@ import { meuContratoAction } from "./actions";
 import { ConfirmDialog } from "./confirm-dialog";
 import { sair } from "@/lib/sessao";
 import { useAvisos } from "./avisos";
+import { ligarSom, useSomLigado } from "./aviso-novo-agendamento";
 import { useTenantSeHouver } from "./painel-layout";
 
 const ITEM = "flex min-h-11 cursor-default items-center rounded-md px-3 py-2 outline-none select-none data-[highlighted]:bg-muted";
@@ -51,6 +52,7 @@ export function AccountMenu() {
                 Ajuda
               </Menu.LinkItem>
               {tenant && <ItemAvisos tenantId={tenant.id} />}
+              {tenant && <ItemSom />}
               <Menu.Separator className="my-1 h-px bg-border" />
               {tenant && !tenant.adminPlataforma && <ItemContrato tenantId={tenant.id} />}
               <Menu.LinkItem render={<a href="/termos" target="_blank" rel="noopener" />} className={ITEM}>
@@ -95,6 +97,17 @@ function ItemAvisos({ tenantId }: { tenantId: string }) {
     >
       Avisos de agendamento
       <span className="text-muted-foreground">{avisos.ocupado ? "…" : avisos.ativo ? "ligados" : "desligados"}</span>
+    </Menu.Item>
+  );
+}
+
+/** Som com o painel aberto quando um cliente marca pelo link; cada aparelho decide o seu. */
+function ItemSom() {
+  const ligado = useSomLigado();
+  return (
+    <Menu.Item closeOnClick={false} onClick={() => ligarSom(!ligado)} className={`${ITEM} justify-between gap-4`}>
+      Som de agendamento
+      <span className="text-muted-foreground">{ligado ? "ligado" : "desligado"}</span>
     </Menu.Item>
   );
 }
