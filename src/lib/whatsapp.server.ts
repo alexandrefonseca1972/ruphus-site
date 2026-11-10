@@ -10,7 +10,7 @@ import { soDigitosComDDI } from "@/lib/telefone";
 import { emParalelo } from "@/lib/paralelo";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { criarInstancia, enviarSemOperador, enviarTemplateSemOperador, garantirTenant, OPTIN_DONO, revogarChavesAntigas, saiuDepoisDoAceite, statusDaConexao, type ConexaoAtendys, type OptIn } from "@/lib/atendys";
-import { conexaoOficial, templateCliente } from "@/lib/canal-oficial.server";
+import { conexaoOficial, contatoDoNegocio, templateCliente } from "@/lib/canal-oficial.server";
 
 // O WhatsApp que o dono conectou ao próprio negócio: qual instância da
 // plataforma (atendys), o número pareado e o estado da conexão. Campo
@@ -629,7 +629,7 @@ export async function processarComandoAgendamento(
   const prazo = instanteReal(start, tenant.get("site"));
   const avisarCliente = (tipo: "confirmado" | "cancelado", cliente: string, texto: string, aceite: OptIn) =>
     oficial
-      ? enviarTemplateSemOperador(oficial, cliente, templateCliente(tipo, { nome, negocio, servico: String(a.get("serviceName") ?? ""), quando: quandoVai }), aceite, prazo)
+      ? enviarTemplateSemOperador(oficial, cliente, templateCliente(tipo, { nome, negocio, servico: String(a.get("serviceName") ?? ""), quando: quandoVai, contato: contatoDoNegocio(tenant) }), aceite, prazo)
       : enviarSemOperador(canal, cliente, comAvisoSair(texto), aceite, prazo);
   const semAceite = (o: string) =>
     `Agendamento de ${nome} ${o}, mas o cliente não autorizou receber mensagens pelo WhatsApp e não foi avisado. Fale com ele por outro meio (tel ${a.get("customerPhone")}).`;

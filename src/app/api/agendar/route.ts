@@ -5,7 +5,7 @@ import { book } from "@/lib/booking.server";
 import { MAX_DAYS_AHEAD, dentroDaJanela, fusoDe, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
 import { codigoDoAgendamento, destinoDoAvisoAoDono, espelharStatusVivo, lerConexao, lerConfigWhatsApp, limparErroDeAgendamento, registrarErroNotificacao } from "@/lib/whatsapp.server";
-import { conexaoOficial, templateCliente, templateNovoDono, usaCanalOficial } from "@/lib/canal-oficial.server";
+import { conexaoOficial, contatoDoNegocio, templateCliente, templateNovoDono, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { motivoDaFalha } from "@/lib/mensagens-paradas.server";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
@@ -217,7 +217,7 @@ async function avisarPeloCanalOficialSemCaptura(
       const optIn = optInDoDoc(tenantId, await adminDb.doc(`tenants/${tenantId}/appointments/${nova.id}`).get());
       if (!optIn) throw new Error("aceite do WhatsApp não gravado no agendamento");
       const primeiro = nome.split(/\s+/)[0] ?? nome;
-      const ruim = naoSaiu(await enviarTemplateSemOperador(oficial, cliente, templateCliente("recebido", { nome: primeiro, negocio, servico, quando: quandoVai }), optIn, prazo));
+      const ruim = naoSaiu(await enviarTemplateSemOperador(oficial, cliente, templateCliente("recebido", { nome: primeiro, negocio, servico, quando: quandoVai, contato: contatoDoNegocio(tenant) }), optIn, prazo));
       if (ruim) falhas.push(`recibo ao cliente ${ruim}`);
     } catch (e) {
       falhas.push(`recibo ao cliente não chegou: ${motivoLegivel(e)}`);
