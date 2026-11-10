@@ -6,7 +6,7 @@ import { painelDeConsumo, resumoDoSaldo } from "@/lib/consumo-painel.server";
 import { abrirCobranca, listarCobrancas } from "@/lib/cobranca";
 import { cadastrarDonoOficial, conexaoOficial, enviarConfirmacaoDono, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { adminDb } from "@/lib/admin";
-import { createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
+import { createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
 import { erroNome } from "@/lib/nome";
 import { z } from "zod";
@@ -15,30 +15,27 @@ import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
 import { criarProfissional, gastarCota, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
 import { SITE_BASE } from "@/lib/dominio";
-import { atenderComo, type Atendimento, conversaVisivel, exigeConversaVisivel, permitirEquipeNasConversas, visiveis } from "@/lib/conversas.server";
-import { AtendysForaDoAr, assumirEnvio, buscarNasConversas, CHAVE_IDEMPOTENCIA, ID_INBOX, enviarTexto, ErroAtendys, listarConversas, manterAgendada, marcarConversa, mensagensDaConversa, responderConversa, statusDaMensagem, type ConexaoAtendys } from "@/lib/atendys";
+import { assumirEnvio, ErroAtendys, manterAgendada, statusDaMensagem, type ConexaoAtendys } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { enviarEmail } from "@/lib/email.server";
-import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
-import { situacaoDe } from "@/lib/envio-whatsapp";
 import { atualizarParada, negocioDaMensagem, paradasDoNegocio } from "@/lib/mensagens-paradas.server";
 import { htmlDoRecibo, textoDoRecibo } from "@/lib/recibo";
 import { reciboDoBanco } from "@/lib/recibo.server";
-import { agoraNaParede, formatBRL, fusoDe, todayIn } from "@/lib/datetime";
-import { celularDoDono, soDigitosComDDI } from "@/lib/telefone";
-import { type ConexaoWhatsapp, lerConfigWhatsApp, lerConexao, paraTela } from "@/lib/whatsapp.server";
+import { formatBRL, todayIn } from "@/lib/datetime";
+import { celularDoDono } from "@/lib/telefone";
+import { lerConfigWhatsApp } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { criarConvite, revogarConvitesDaEquipe, tirarAcessosDoProfissional } from "@/lib/convite";
 import { DIAS_CONVITE } from "@/lib/limites";
-import { brCode, PixInvalido, recebedorDe } from "@/lib/pix";
+import { recebedorDe } from "@/lib/pix";
 import { ConfigSinal } from "@/lib/sinal-config";
 import { confirmarSinal } from "@/lib/sinal.server";
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 import { after } from "next/server";
-import { textoAvisoCliente, textoConvite, textoPix, textoVale } from "@/lib/mensagens";
+import { textoConvite, textoVale } from "@/lib/mensagens";
 import { BaixaInput, EstornoInput, FixaInput, ID_AVULSO, LancamentoInput, PagamentoInput, ROTULO_FORMA, ValeInput } from "@/lib/financeiro";
 import { adicionarFixa, editarFixa, baixarAgendamento, darVale, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
 
@@ -281,16 +278,15 @@ export const salvarNegocioAction = memberAction(z.object({ tenantId: docIdStaff,
 });
 
 // ─── WhatsApp do negócio (painel do dono) ────────────────────────────────────
-// Os avisos saem pelo canal oficial (número da Ruphus): o dono só cadastra o WhatsApp pessoal, que
-// recebe os pedidos. Parear número próprio (QR) ficou só no /admin.
+// Os avisos saem só pelo canal oficial (número da Ruphus): o dono só cadastra o WhatsApp pessoal,
+// que recebe os pedidos.
 
 const SoTenant = z.object({ tenantId: docIdStaff });
 
 export const lerWhatsAppDoNegocioAction = memberAction(SoTenant, async ({ tenantId }, user) => {
   await exigeGestor(tenantId, user.uid);
   // negócio novo ainda não tem configuração: {} (nada ligado), não null, que a tela lê como falha
-  const vazia: Partial<ConexaoWhatsapp> = {};
-  return paraTela((await lerConfigWhatsApp(adminDb, tenantId)) ?? vazia);
+  return (await lerConfigWhatsApp(adminDb, tenantId)) ?? {};
 });
 
 /** WhatsApp pessoal do dono no canal oficial: só celular brasileiro (celularDoDono; o fixo do
@@ -310,11 +306,10 @@ export const definirWhatsAppDonoAction = memberAction(
   }),
   async ({ tenantId, telefone }, user) => {
     await exigeGestor(tenantId, user.uid);
-    // ownerManaged false fora do canal oficial é recusado em cadastrarDonoOficial (quem troca é o suporte)
     const r = celularDoDono(telefone, (await adminDb.doc(`tenants/${tenantId}`).get()).get("site.phone") as string | undefined);
     if ("erro" in r) throw new UserError(r.erro);
     const envio = await cadastrarDonoOficial(adminDb, tenantId, r.numero);
-    return { envio, cfg: paraTela((await lerConfigWhatsApp(adminDb, tenantId)) ?? ({} as Partial<ConexaoWhatsapp>)) };
+    return { envio, cfg: (await lerConfigWhatsApp(adminDb, tenantId)) ?? {} };
   },
 );
 
@@ -323,7 +318,7 @@ export const reenviarConfirmacaoDonoAction = memberAction(SoTenant, async ({ ten
   await exigeGestor(tenantId, user.uid);
   if (!(await usaCanalOficial(adminDb, tenantId))) throw new UserError("Salve o seu WhatsApp antes.");
   const envio = await enviarConfirmacaoDono(adminDb, tenantId);
-  return { envio, cfg: paraTela((await lerConfigWhatsApp(adminDb, tenantId)) ?? ({} as Partial<ConexaoWhatsapp>)) };
+  return { envio, cfg: (await lerConfigWhatsApp(adminDb, tenantId)) ?? {} };
 });
 
 /** Lembretes de horário: o dono liga/desliga e escolhe quantas horas antes de
@@ -336,10 +331,8 @@ export const configurarLembretesWhatsAppAction = memberAction(
   }),
   async ({ tenantId, enabled, hours }, user) => {
     await exigeGestor(tenantId, user.uid);
-    // a tela esconde quando a plataforma gerencia; o servidor também tem que recusar
-    if ((await lerConfigWhatsApp(adminDb, tenantId))?.ownerManaged === false) throw new UserError("Gerenciado pela plataforma — quem configura os lembretes é o suporte.");
-    // os lembretes saem pelo canal oficial (número da Ruphus) ou pelo número próprio que a Ruphus conectou
-    if (!(await usaCanalOficial(adminDb, tenantId)) && !(await lerConexao(adminDb, tenantId))) throw new UserError("Salve o seu WhatsApp antes de ligar os lembretes.");
+    // os lembretes saem pelo canal oficial (número da Ruphus)
+    if (!(await usaCanalOficial(adminDb, tenantId))) throw new UserError("Salve o seu WhatsApp antes de ligar os lembretes.");
     await adminDb.doc(`tenants/${tenantId}`).set({ whatsapp: { remindersEnabled: enabled, remindersBeforeHours: hours } }, { merge: true });
     return { enabled, hours };
   },
@@ -444,86 +437,6 @@ export const avisarConfirmacaoSmsAction = memberAction(z.object({ tenantId: docI
   return { ok: true as const, resultado: await avisarConfirmacaoPorSms(adminDb, data.tenantId, data.appointmentId) };
 });
 
-/** O Pix de um atendimento direto no WhatsApp do cliente, pelo WhatsApp que o negócio conectou
- *  (atendys). Número, chave e texto saem do servidor; do navegador vêm só o valor (até o preço
- *  do horário) e o txid do QR na tela, para o código ser o mesmo. Sem conexão, recusa: a tela
- *  então abre o WhatsApp do aparelho. */
-export const enviarPixWhatsappAction = memberAction(
-  z.object({ tenantId: docIdStaff, appointmentId: docIdStaff, valorCents: z.number().int().positive(), txid: z.string().max(25) }),
-  async (data, user) => {
-    await exigeGestor(data.tenantId, user.uid);
-    const [ag, tenant] = await Promise.all([
-      adminDb.doc(`tenants/${data.tenantId}/appointments/${data.appointmentId}`).get(),
-      adminDb.doc(`tenants/${data.tenantId}`).get(),
-    ]);
-    if (!ag.exists) throw new UserError("Esse horário não existe mais.");
-    if (data.valorCents > Number(ag.get("priceCents") ?? 0)) throw new UserError("O valor passa do preço do atendimento.");
-    const recebedor = tenant.get("pix") ? recebedorDe(tenant.get("pix")) : "Cadastre a chave Pix em Meu negócio.";
-    if (typeof recebedor === "string") throw new UserError(recebedor);
-    const cliente = soDigitosComDDI(String(ag.get("customerPhone") ?? ""));
-    if (!cliente) throw new UserError("O cliente não tem WhatsApp válido.");
-    const w = await lerConexao(adminDb, data.tenantId);
-    if (!w?.instanceId || w.status !== "connected") throw new UserError("O WhatsApp do negócio não está conectado.");
-    let codigo: string;
-    try {
-      codigo = brCode({ ...recebedor, valorCents: data.valorCents, txid: data.txid });
-    } catch (e) {
-      if (e instanceof PixInvalido) throw new UserError(e.message);
-      throw e;
-    }
-    // vale o aceite gravado NESTE agendamento: sem ele não envia, mesmo que o número tenha
-    // aceitado em outro horário (o termo vale "deste agendamento")
-    const optIn = optInDoDoc(data.tenantId, ag);
-    if (!optIn) throw new UserError("O cliente não autorizou WhatsApp neste agendamento. Envie o Pix por outro meio.");
-    // o aviso de SAIR antes do código: o código Pix fica por último, e quem copia a mensagem
-    // inteira não leva o aviso junto para o app do banco
-    const texto = textoPix({ valorCents: data.valorCents, nome: recebedor.nome, codigo });
-    const corte = texto.lastIndexOf("\n\n");
-    const envio = await enviarTexto(w, cliente, `${comAvisoSair(texto.slice(0, corte))}\n\n${texto.slice(corte + 2)}`, optIn, undefined, { tipo: "pix" });
-    return { ok: true as const, situacao: situacaoDe(envio) };
-  },
-);
-
-/** Mensagem ao cliente de um horário (confirmação, cancelamento, remarcação) pelo WhatsApp que o
- *  negócio conectou (atendys). O texto e o número saem do agendamento, não do navegador: o painel
- *  só diz qual aviso é, e o aviso tem de bater com o estado do horário (sem "confirmado" de um
- *  horário cancelado, nem aviso de horário que já passou). Sem conexão ativa, recusa: o painel
- *  então abre o WhatsApp do aparelho. */
-export const avisarClienteWhatsappAction = memberAction(
-  z.object({ tenantId: docIdStaff, appointmentId: docIdStaff, tipo: z.enum(["confirmado", "cancelado", "remarcado"]) }),
-  async (data, user) => {
-    const [ag, tenant, preso] = await Promise.all([
-      adminDb.doc(`tenants/${data.tenantId}/appointments/${data.appointmentId}`).get(),
-      adminDb.doc(`tenants/${data.tenantId}`).get(),
-      profissionalDaConta(adminDb, data.tenantId, user.uid),
-    ]);
-    if (!ag.exists) throw new UserError("Esse horário não existe mais.");
-    // quem é da equipe só avisa os clientes dos próprios horários, como no resto da agenda
-    if (preso && ag.get("staffId") !== preso) throw new UserError("Esse horário é de outro profissional.");
-    const status = ag.get("status") as string;
-    const start = (ag.get("start") as Timestamp).toDate();
-    const valeAviso = data.tipo === "cancelado" ? status === "cancelled" : data.tipo === "confirmado" ? status === "confirmed" : status === "booked" || status === "confirmed";
-    if (!valeAviso) throw new UserError("O horário mudou desde então: esse aviso não vale mais.");
-    // "start" é hora de parede: compara com o agora do fuso do negócio
-    if (start.getTime() < agoraNaParede(fusoDe(tenant.get("site"))).getTime()) throw new UserError("Esse horário já passou.");
-    const cliente = soDigitosComDDI(String(ag.get("customerPhone") ?? ""));
-    if (!cliente) throw new UserError("O cliente não tem WhatsApp válido.");
-    const w = await lerConexao(adminDb, data.tenantId);
-    if (!w?.instanceId || w.status !== "connected") throw new UserError("O WhatsApp do negócio não está conectado.");
-    const base = SITE_BASE;
-    const texto = textoAvisoCliente(
-      data.tipo,
-      { customerName: String(ag.get("customerName") ?? ""), serviceName: String(ag.get("serviceName") ?? ""), staffName: String(ag.get("staffName") ?? ""), start },
-      String(tenant.get("name") ?? data.tenantId),
-      `${base}/agendar/${data.tenantId}`,
-    );
-    const optIn = optInDoDoc(data.tenantId, ag);
-    if (!optIn) throw new UserError("O cliente não autorizou WhatsApp neste agendamento. Avise por outro meio.");
-    const envio = await enviarTexto(w, cliente, comAvisoSair(texto), optIn, undefined, { tipo: data.tipo === "remarcado" ? "reagendado" : data.tipo });
-    return { ok: true as const, situacao: situacaoDe(envio) };
-  },
-);
-
 /** Mensagem parada na cota do dia: "Enviar agora" (o atendys marca a ação manual e devolve o
  *  wa.me, que a tela abre só depois desta resposta) ou "Manter agendada" (volta à fila para o
  *  retryAt). Só quem gere: o wa.me leva o telefone e o texto do cliente, e a lista das paradas
@@ -536,11 +449,9 @@ export const decidirEnvioAction = memberAction(
     // para todos, e o atendys não distingue o salão A do B. Sem isto, o UUID de uma mensagem de
     // outro salão devolvia o wa.me com o telefone e o texto do cliente dele
     if ((await negocioDaMensagem(data.messageId)) !== data.tenantId) throw new UserError("Mensagem não encontrada.");
-    // a mensagem parada pode ser do número do salão ou do canal oficial (plataforma)
-    const conexoes = await conexoesDasParadas(data.tenantId);
-    if (!conexoes.length) throw new UserError("O WhatsApp do negócio não está conectado.");
+    const w = await conexaoDasParadas(data.tenantId);
+    if (!w) throw new UserError("O canal oficial do WhatsApp não está ligado neste negócio.");
     try {
-      const w = await conexaoDaMensagem(conexoes, data.messageId);
       if (data.acao === "agora") {
         const r = await assumirEnvio(w, data.messageId);
         // manual_started: ação manual iniciada, não "enviada"; sai da lista de pendentes
@@ -569,12 +480,12 @@ export const mensagensParadasAction = memberAction(SoTenant, async ({ tenantId }
   // confere cada uma no atendys: só fica a que ele ainda segura para decisão. A vencida, a de
   // conta de WhatsApp excluída/reconectada e a que ele não conhece saem da lista (sem isto o painel
   // oferecia "Enviar agora" e "Manter agendada" que sempre falhavam). Atendys fora do ar: não tira nada
-  const conexoes = await conexoesDasParadas(tenantId);
-  if (!conexoes.length) return { ok: true as const, mensagens: lista };
+  const w = await conexaoDasParadas(tenantId);
+  if (!w) return { ok: true as const, mensagens: lista };
   const valem = await Promise.all(
     lista.map(async (m) => {
       try {
-        const r = await statusNasConexoes(conexoes, m.messageId);
+        const r = await statusDaMensagem(w, m.messageId);
         if (r.status === "awaiting_manual") return true;
         await atualizarParada(tenantId, m.messageId, r.status, r.retryAt);
         return false;
@@ -587,82 +498,6 @@ export const mensagensParadasAction = memberAction(SoTenant, async ({ tenantId }
   );
   return { ok: true as const, mensagens: lista.filter((_, i) => valem[i]) };
 });
-
-// ─── Central de conversas (/v1/inbox do atendys) ────────────────────────────
-// A apikey nunca sai do servidor: o navegador chama estas ações, que conferem sessão, membro,
-// negócio e a permissão da equipe (atenderComo) e falam com o atendys na mesma máquina.
-
-/** Valida a entrada, confere quem atende e devolve a recusa do atendys com o código (a tela
- *  decide: janela fechada desliga o campo, opt-out bloqueia de vez) e o Retry-After. */
-function conversaAction<S extends z.ZodType<{ tenantId: string }>, R>(schema: S, run: (data: z.infer<S>, a: Atendimento) => Promise<R>) {
-  return async (idToken: string, input: unknown) => {
-    const parsed = schema.safeParse(input);
-    if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0].message };
-    try {
-      return await run(parsed.data, await atenderComo(verifyFirebaseToken, adminDb, idToken, parsed.data.tenantId));
-    } catch (e) {
-      // incerto: o atendys não respondeu ou falhou do lado de lá (5xx), e a mensagem pode ter saído.
-      // A tela mantém a chave de idempotência: reenviar o mesmo conteúdo não duplica
-      if (e instanceof ErroAtendys) return { ok: false as const, error: e.message, codigo: e.codigo, retryAfter: e.retryAfter, incerto: e.status >= 500 };
-      // antes do ErroPrevisto: AtendysForaDoAr é um ErroPrevisto
-      if (e instanceof AtendysForaDoAr) return { ok: false as const, error: e.message, incerto: true };
-      if (e instanceof ErroPrevisto) return { ok: false as const, error: e.message };
-      console.error("[conversas] erro inesperado", e);
-      return { ok: false as const, error: "Não foi possível concluir agora. Tente de novo." };
-    }
-  };
-}
-
-const soGestor = (a: Atendimento, oque: string) => {
-  if (!a.gestor) throw new UserError(`Só o dono ou um administrador do negócio pode ${oque}.`);
-};
-const idOpaco = z.string().regex(ID_INBOX, "Conversa inválida. Atualize a lista.");
-const cursor = z.string().min(1).max(1024).optional();
-const chaveEnvio = z.string().regex(CHAVE_IDEMPOTENCIA, "Chave de envio inválida.");
-const ComConversa = z.object({ tenantId: docIdStaff, conversa: idOpaco });
-
-export const listarConversasAction = conversaAction(
-  z.object({ tenantId: docIdStaff, filtro: z.enum(["active", "unread", "archived"]).optional(), cursor, limite: z.number().int().min(1).max(100).optional() }),
-  async ({ tenantId: _t, ...q }, a) => {
-    const pagina = await listarConversas(a.conn, q);
-    return { ok: true as const, pagina: { ...pagina, items: visiveis(a, pagina.items) } };
-  },
-);
-
-// a busca devolve trechos sem o telefone: não dá para tirar dela a conversa do dono, e por isso
-// fica com quem gere; a equipe acha o cliente pela lista
-export const buscarConversasAction = conversaAction(
-  z.object({ tenantId: docIdStaff, termo: z.string().trim().min(3, "Digite pelo menos 3 letras.").max(100), cursor }),
-  async ({ termo, cursor }, a) => {
-    soGestor(a, "buscar nas conversas");
-    return { ok: true as const, pagina: await buscarNasConversas(a.conn, termo, cursor) };
-  },
-);
-
-export const mensagensDaConversaAction = conversaAction(
-  ComConversa.extend({ cursor, limite: z.number().int().min(1).max(100).optional() }),
-  async ({ conversa, cursor, limite }, a) => {
-    await exigeConversaVisivel(a, conversa);
-    return { ok: true as const, pagina: await mensagensDaConversa(a.conn, conversa, { cursor, limite }) };
-  },
-);
-
-/** Conversa aberta por id (busca, link): os dados dela, para a tela saber número e bloqueios. */
-export const obterConversaAction = conversaAction(ComConversa, async ({ conversa }, a) => ({ ok: true as const, conversa: await conversaVisivel(a, conversa) }));
-
-export const marcarConversaAction = conversaAction(ComConversa.extend({ lida: z.boolean() }), async ({ conversa, lida }, a) => {
-  await exigeConversaVisivel(a, conversa);
-  await marcarConversa(a.conn, conversa, lida);
-  return { ok: true as const };
-});
-
-export const responderConversaAction = conversaAction(
-  ComConversa.extend({ texto: z.string().trim().min(1, "Escreva a mensagem.").max(4096, "Mensagem longa demais."), chave: chaveEnvio, citada: idOpaco.optional() }),
-  async ({ conversa, texto, chave, citada }, a) => {
-    await exigeConversaVisivel(a, conversa);
-    return { ok: true as const, envio: await responderConversa(a.conn, conversa, texto, chave, citada) };
-  },
-);
 
 /** Recarga de mensagens pré-pagas: pacote do /admin ou valor livre (mínimo R$ 10,00). Devolve a
  *  cobrança Pix (a mesma página /pagar da mensalidade); o saldo entra quando o pagamento é baixado. */
@@ -719,39 +554,7 @@ export const resumoDoSaldoAction = memberAction(z.object({ tenantId: docIdStaff 
   return { ok: true as const, saldo: await resumoDoSaldo(tenantId) };
 });
 
-/** "Equipe pode atender conversas": só quem gere liga (padrão: só o dono). */
-export const permitirEquipeNasConversasAction = memberAction(z.object({ tenantId: docIdStaff, equipeAtende: z.boolean() }), async ({ tenantId, equipeAtende }, user) => {
-  await permitirEquipeNasConversas(adminDb, tenantId, user.uid, equipeAtende);
-  return { ok: true as const, equipeAtende };
-});
-
-// Mensagem parada pode ter saído pelo número do salão ou pelo canal oficial (tenant da plataforma
-// no atendys): cada uma só é conhecida pelo tenant que a enviou. Pergunta às duas; 404 numa
-// passa para a outra, e só o 404 de todas diz que a mensagem não existe mais.
-async function conexoesDasParadas(tenantId: string): Promise<ConexaoAtendys[]> {
-  const [oficial, salao] = await Promise.all([
-    conexaoOficial(adminDb, tenantId).catch((e) => (console.error(`[mensagens] canal oficial de ${tenantId}`, e), null)),
-    lerConexao(adminDb, tenantId),
-  ]);
-  return [oficial, salao].filter((c): c is NonNullable<typeof c> => !!c?.instanceId);
-}
-
-async function statusNasConexoes(conexoes: ConexaoAtendys[], messageId: string) {
-  for (const [i, c] of conexoes.entries()) {
-    try {
-      return await statusDaMensagem(c, messageId);
-    } catch (e) {
-      if (!(e instanceof ErroAtendys && e.status === 404) || i === conexoes.length - 1) throw e;
-    }
-  }
-  throw new Error("sem conexão");
-}
-
-async function conexaoDaMensagem(conexoes: ConexaoAtendys[], messageId: string): Promise<ConexaoAtendys> {
-  if (conexoes.length === 1) return conexoes[0];
-  for (const c of conexoes) {
-    const achou = await statusDaMensagem(c, messageId).then(() => true, (e) => (e instanceof ErroAtendys && e.status === 404 ? false : Promise.reject(e)));
-    if (achou) return c;
-  }
-  return conexoes[conexoes.length - 1];
+// As mensagens paradas saem do canal oficial (tenant da plataforma no atendys).
+async function conexaoDasParadas(tenantId: string): Promise<ConexaoAtendys | null> {
+  return conexaoOficial(adminDb, tenantId).catch((e) => (console.error(`[mensagens] canal oficial de ${tenantId}`, e), null));
 }

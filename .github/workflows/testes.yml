@@ -75,5 +75,3 @@ jobs:
       - run: npm run test:booking
       - run: npm run test:scale
       - run: npm run test:painel-indice
-      # a tela das conversas roda sem emulador; o resto com o do Firestore
-      - run: npm run test:conversas

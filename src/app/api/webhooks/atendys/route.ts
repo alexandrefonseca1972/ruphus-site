@@ -2,23 +2,20 @@ import { after, NextResponse } from "next/server";
 import { enviarTexto, OPTIN_DONO, versaoDaAssinatura, type CabecalhosWebhook } from "@/lib/atendys";
 import { adminDb } from "@/lib/admin";
 import { atualizarEnvio } from "@/lib/consumo.server";
-import { DEMO } from "@/lib/demo";
 import { atualizarParada, avisarFalhaDeEnvio, lerIndice, NAO_SAI_A_TEMPO } from "@/lib/mensagens-paradas.server";
-import { avisarQueda, codigoDoAgendamento, espelharStatusDaInstancia, executarComandoPendente, idDoComando, lerConexao, lerConfigWhatsApp, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
+import { codigoDoAgendamento, executarComandoPendente, idDoComando, registrarMensagemRecebida } from "@/lib/whatsapp.server";
 import { confirmarDono, conexaoOficial, instanciaPlataforma, lerBotao, negocioDoComando, negociosDoDono, responderForaDoFluxo, segredoPlataforma, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { acaoDoCliente, pedidoDesatualizado } from "@/lib/botoes-whatsapp.server";
 
-// Onde o atendys avisa o que acontece nas instâncias: mensagem recebida do
-// cliente final, mudança de estado da conexão e status de envio. Cada webhook é
-// assinado com HMAC-SHA256 em x-atendys-signature usando o segredo do tenant
-// (gravado no doc privado do negócio ao conectar; só rotaciona quando falta).
+// Onde o atendys avisa o que acontece no número da plataforma (canal oficial): mensagem recebida
+// (comando ou botão do dono, botão ou resposta do cliente) e status de envio. Cada webhook é
+// assinado com o segredo do tenant da plataforma (config/atendys-plataforma).
 // v2 (anti-replay): x-atendys-timestamp + x-atendys-signature-v2 sobre "${timestamp}.${corpo}",
 // janela de ±300 s. Exigida desde 2026-11-09: só x-atendys-signature (v1) leva 401.
 //
 // Contrato (packages/shared do atendys):
 //   x-atendys-event: message.received | instance.status | message.status
 //   message.received: { instance, messageId, phone, type: "text"|"media", text? }
-//   instance.status:  { instance, status: pending_qr|connected|disconnected }
 //   message.status:   { messageId, phone, status, errorCode?, errorMessage?, retryAt? } — sem instância:
 //     o negócio sai do índice mensagensWhatsapp (as paradas na cota e os envios vigiados)
 
@@ -86,15 +83,12 @@ export async function POST(req: Request) {
     // envio comum (não parado na cota) interessa quando falha e, para o consumo, quando sai, é
     // entregue ou lido: o resto (queued) é ack sem leituras
     if (indice.vigiada && !indice.parada && !["failed", "sent", "delivered", "read"].includes(String(evento.status)) && !naoSai) return responder(200, { ok: true });
-    // lerConfigWhatsApp, não lerConexao: o negócio pode ter desconectado (sem instanceId) depois do
-    // envio, e a falha daquela mensagem ainda tem de chegar à gaveta
-    const segredoDaMensagem = (await lerConfigWhatsApp(adminDb, slugDaMensagem))?.atendysWebhookSecret;
     // assinatura conferida antes de gravar qualquer coisa. Recusada, responde 200 como a desconhecida
-    // (um 401 só aqui diria a quem não assina que esse id é de uma mensagem parada). A mensagem
-    // parada pode ter saído pelo canal oficial: aí quem assina é o tenant da plataforma
-    // (só para negócio do canal oficial: o segredo da plataforma não vale para os outros)
-    const segredoOficial = (await usaCanalOficial(adminDb, slugDaMensagem)) ? await segredoPlataforma(adminDb) : null;
-    const versao = (segredoDaMensagem ? versaoDaAssinatura(segredoDaMensagem, bruto, cab) : null) ?? (segredoOficial ? versaoDaAssinatura(segredoOficial, bruto, cab) : null);
+    // (um 401 só aqui diria a quem não assina que esse id é de uma mensagem parada). Todo envio
+    // sai pelo tenant da plataforma: é ele quem assina (mesmo que o negócio tenha saído do canal
+    // oficial depois do envio, a falha daquela mensagem ainda tem de chegar à gaveta)
+    const segredo = await segredoPlataforma(adminDb);
+    const versao = segredo ? versaoDaAssinatura(segredo, bruto, cab) : null;
     if (!versao) {
       console.warn(`[webhook atendys] message.status com assinatura inválida para ${slugDaMensagem}`);
       return responder(200, { ok: true });
@@ -184,50 +178,9 @@ export async function POST(req: Request) {
     return responder(200, { ok: true });
   }
 
-  // o segredo é por tenant: localiza o negócio antes de verificar a assinatura
-  const slug = await tenantDaInstancia(adminDb, evento.instance);
-  if (!slug) {
-    console.warn(`[webhook atendys] instância órfã ${JSON.stringify(evento.instance).slice(0, 80)} (${eventoHeader}): ack sem processar`);
-    return responder(200, { ok: true }); // ack rápido
-  }
-  // a demonstração não tem WhatsApp (lerConexao devolve null): ack, para o atendys não repetir
-  // cinco vezes cada evento de uma instância que ficou pareada de antes
-  if (slug === DEMO) return responder(200, { ok: true });
-  const conexao = await lerConexao(adminDb, slug);
-  const segredo = conexao?.atendysWebhookSecret;
-  if (!segredo) return recusar("Tenant sem segredo de webhook.", ` em ${slug}`);
-
-  const versao = versaoDaAssinatura(segredo, bruto, cab);
-  if (!versao) return recusar("Assinatura inválida.", ` em ${slug}`);
-  console.log(`[webhook atendys] assinatura ${versao}: ${evento.event} de ${slug}`);
-
-  if (evento.event === "message.received") {
-    const data = evento.type === "text" ? { text: evento.text ?? "" } : null;
-    const nova = await registrarMensagemRecebida(adminDb, slug, {
-      phone: evento.phone,
-      messageId: evento.messageId,
-      data,
-      timestamp: evento.at,
-    }, data ? "salao" : undefined);
-    console.log(`[atendys] mensagem de …${evento.phone?.slice(-4) ?? "?"} para ${slug}${nova ? "" : " (repetida)"}`);
-    // O comando roda fora da resposta: o atendys espera 200 rápido e o envio da
-    // confirmação pode levar mais que isso. Só mensagem NOVA dispara comando —
-    // entrega repetida do mesmo messageId vira no-op.
-    // o pendente fica gravado até processar: se cair aqui, o cron (lembretes) roda de novo
-    if (nova && data && evento.messageId) {
-      after(() =>
-        executarComandoPendente(adminDb, idDoComando(slug, inboxId(evento.messageId!)))
-          .then((r) => {
-            if (r !== "ignorado") console.log(`[atendys] comando de agendamento em ${slug}: ${r}`);
-          })
-          .catch((e) => console.error("[atendys] comando de agendamento", e)),
-      );
-    }
-  } else if (evento.event === "instance.status") {
-    const { caiu } = await espelharStatusDaInstancia(adminDb, slug, { status: evento.status, at: evento.at });
-    // o push vai depois do 200: serviço de push lento fazia o atendys esgotar o tempo e reentregar
-    if (caiu) after(() => avisarQueda(adminDb, slug));
-  }
+  // instância que não é a da plataforma: resto do número próprio por QR, que não existe mais.
+  // Ack sem processar, para o atendys não repetir cinco vezes cada evento
+  console.warn(`[webhook atendys] instância desconhecida ${JSON.stringify(evento.instance).slice(0, 80)} (${eventoHeader}): ack sem processar`);
   return responder(200, { ok: true });
 }
 

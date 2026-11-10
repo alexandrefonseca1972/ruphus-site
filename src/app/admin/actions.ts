@@ -42,11 +42,11 @@ import { diaCurto, hojeISO, mensalidadeDe } from "@/lib/crm-tipos";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import { competenciaAtual } from "@/lib/pix";
 import { lerSite, personalDe, publicarSite } from "@/lib/gerador.server";
-import { PAGINAS_DEMO } from "@/lib/demo";
+import { DEMO, PAGINAS_DEMO } from "@/lib/demo";
 import { acessoDemo, contas, restaurarDemo } from "@/lib/demo.server";
-import { deslogarInstancia, qrDaConexao, statusDaConexao, type SituacaoQr as QrWhatsApp } from "@/lib/atendys";
-import { apagarConexao, conectarNegocio, espelharStatusVivo, gravarGestaoDono, gravarOwnerPhone, lerConexao, paraTela, type ConexaoNaTela } from "@/lib/whatsapp.server";
-import { soDigitosComDDI } from "@/lib/telefone";
+import { cadastrarDonoOficial, enviarConfirmacaoDono, usaCanalOficial, type EnvioConfirmacao } from "@/lib/canal-oficial.server";
+import { lerConfigWhatsApp } from "@/lib/whatsapp.server";
+import { celularDoDono } from "@/lib/telefone";
 import { MODELOS, modeloDoId, NOMES_FONTE, Personal, renderEditorial, visualEditorial } from "@/lib/site-editorial";
 import { ehClaro, galeriaClaro, modeloClaroDoId, modelosClaro, renderClaro, visualClaro } from "@/lib/site-claro";
 import { iaDisponivel, type Mensagem, sugerirVisual } from "@/lib/ia.server";
@@ -54,9 +54,6 @@ import { apagarFotosFora, apagarRascunho, fotosFaltando, lerFoto, publicarFotos,
 import { SLUG_SITE } from "@/lib/site-arquivo";
 import { type DadosSite, type Escolha, type Sub, SUBS } from "@/lib/gerador";
 import { FieldValue } from "firebase-admin/firestore";
-
-// a tela só recebe a conexão sem as credenciais do gateway
-export type { ConexaoNaTela as ConexaoWhatsapp, QrWhatsApp };
 
 export type { Espaco };
 
@@ -916,73 +913,67 @@ export const restaurarADemo = adminAction(async (user) => {
   return r;
 });
 
-// ─── WhatsApp do negócio (gateway próprio, atendys) ──────────────────────────
+// ─── WhatsApp do negócio (canal oficial, número da plataforma) ───────────────
 
-/** O WhatsApp que o dono conectou: o que está gravado no tenants/{slug}. */
-export const whatsappDoNegocio = adminAction(async (_user, slug: string): Promise<ConexaoNaTela | null> => {
+/** O WhatsApp do negócio como o suporte vê: canal oficial ligado, WhatsApp pessoal do dono (completo,
+ *  como os outros dados que o admin vê), se ele confirmou ("Sou eu"), lembretes e a última falha. */
+export const whatsappDoNegocio = adminAction(async (_user, slug: string): Promise<WhatsAppNaGaveta> => {
   slugValido(slug);
-  return paraTela(await lerConexao(adminDb, slug));
+  return naGaveta(slug);
 });
 
-/** Cria a instância no gateway e prende o vínculo ao negócio. Um número por negócio.
- *  Quem conecta pela plataforma assume a gestão: ownerManaged false trava a
- *  edição no painel do dono (a plataforma tem prioridade). */
-export const conectarWhatsApp = adminAction(async (_user, slug: string): Promise<ConexaoNaTela> => {
+export type WhatsAppNaGaveta = {
+  canalOficial: boolean;
+  ownerPhone: string | null;
+  ownerPhoneVerifiedAt: number | null;
+  confirmacaoEnviadaEm: number | null;
+  remindersEnabled: boolean;
+  remindersBeforeHours: number | null;
+  lastNotifyError: { message: string; at: number } | null;
+};
+
+async function naGaveta(slug: string): Promise<WhatsAppNaGaveta> {
+  const w = await lerConfigWhatsApp(adminDb, slug);
+  return {
+    canalOficial: w?.canalOficial === true,
+    ownerPhone: w?.ownerPhone ?? null,
+    ownerPhoneVerifiedAt: w?.ownerPhoneVerifiedAt ?? null,
+    confirmacaoEnviadaEm: w?.confirmacaoEnviadaEm ?? null,
+    remindersEnabled: w?.remindersEnabled === true,
+    remindersBeforeHours: w?.remindersBeforeHours ?? null,
+    lastNotifyError: w?.lastNotifyError ?? null,
+  };
+}
+
+/** Liga ou desliga o canal oficial do negócio. Desligado, nenhum WhatsApp sai dele (aviso, recibo,
+ *  lembrete); o WhatsApp do dono e a confirmação ficam gravados para quando voltar. */
+export const definirCanalOficial = adminAction(async (_user, slug: string, ligado: unknown): Promise<WhatsAppNaGaveta> => {
   slugValido(slug);
-  if (await lerConexao(adminDb, slug)) throw new ErroPrevisto("Este negócio já tem um WhatsApp conectado. Desconecte antes de trocar de número.");
-  return paraTela(await conectarNegocio(adminDb, slug, slug, false));
+  if (slug === DEMO && ligado === true) throw new ErroPrevisto("A demonstração não envia WhatsApp: ela é aberta a qualquer pessoa.");
+  const t = adminDb.doc(`tenants/${slug}`);
+  if (!(await t.get()).exists) throw new ErroPrevisto("Negócio não encontrado.");
+  await t.set({ whatsapp: { canalOficial: ligado === true } }, { merge: true });
+  return naGaveta(slug);
 });
 
-/** Delegar (ou retomar) a gestão do WhatsApp ao painel do dono. Só a plataforma decide. */
-export const definirGestaoDonoWhatsApp = adminAction(async (_user, slug: string, permitir: unknown): Promise<boolean> => {
+/** O suporte troca o WhatsApp pessoal do dono: o mesmo cadastro do painel dele (liga o canal oficial
+ *  e manda o "Sou eu" ao número novo; o mesmo número já confirmado fica como está). */
+export const definirWhatsAppDonoOficial = adminAction(async (_user, slug: string, telefone: unknown): Promise<{ envio: EnvioConfirmacao; cfg: WhatsAppNaGaveta }> => {
   slugValido(slug);
-  const valor = permitir === true;
-  await gravarGestaoDono(adminDb, slug, valor);
-  return valor;
+  const t = await adminDb.doc(`tenants/${slug}`).get();
+  if (!t.exists) throw new ErroPrevisto("Negócio não encontrado.");
+  const r = celularDoDono(String(telefone ?? "").slice(0, 40), t.get("site.phone") as string | undefined);
+  if ("erro" in r) throw new ErroPrevisto(r.erro);
+  const envio = await cadastrarDonoOficial(adminDb, slug, r.numero);
+  return { envio, cfg: await naGaveta(slug) };
 });
 
-/** Pergunta ao gateway o estado de verdade e espelha no banco. É o que o polling usa. */
-export const refreshWhatsAppStatus = adminAction(async (_user, slug: string): Promise<ConexaoNaTela | null> => {
+/** Manda de novo o "Sou eu" ao WhatsApp do dono (os mesmos limites do painel: 10 min, 5 por dia). */
+export const reenviarConfirmacaoDonoOficial = adminAction(async (_user, slug: string): Promise<{ envio: EnvioConfirmacao; cfg: WhatsAppNaGaveta }> => {
   slugValido(slug);
-  const salva = await lerConexao(adminDb, slug);
-  if (!salva) return null;
-  const lidoEm = Date.now();
-  const vivo = await statusDaConexao(salva);
-  await espelharStatusVivo(adminDb, slug, vivo, lidoEm);
-  return paraTela(await lerConexao(adminDb, slug));
-});
-
-/** O QR de pareamento (data URL), ou o estado da conexão enquanto o QR não sai. */
-export const qrWhatsApp = adminAction(async (_user, slug: string): Promise<QrWhatsApp> => {
-  slugValido(slug);
-  const salva = await lerConexao(adminDb, slug);
-  if (!salva) throw new ErroPrevisto("Conecte o WhatsApp antes de pedir o QR.");
-  return qrDaConexao(salva);
-});
-
-/** Despareia o número do gateway e solta o vínculo com o negócio. */
-export const desconectarWhatsApp = adminAction(async (_user, slug: string) => {
-  slugValido(slug);
-  const salva = await lerConexao(adminDb, slug);
-  // solta o vínculo antes de despareiar: o "disconnected" do logout não acha o negócio
-  await apagarConexao(adminDb, slug);
-  if (salva) await deslogarInstancia(salva.instanceId).catch(() => {});
-  return "desconectado";
-});
-
-/** O número pessoal do dono: recebe os avisos de novo agendamento e confirma
- *  respondendo CONFIRMADO. Precisa ser um aparelho separado do número conectado
- *  (self-chat do dono não chega ao gateway de forma confiável). Vazio desliga. */
-export const definirOwnerPhoneWhatsApp = adminAction(async (_user, slug: string, telefone: unknown) => {
-  slugValido(slug);
-  if (!(await lerConexao(adminDb, slug))) throw new ErroPrevisto("Conecte o WhatsApp do negócio antes de cadastrar o número do dono.");
-  const limpo = String(telefone ?? "").trim();
-  const dono = limpo ? soDigitosComDDI(limpo) : null;
-  if (limpo && !dono) {
-    throw new ErroPrevisto("Número incompleto. Use DDD + número (ex.: 11 98877-7777) ou com DDI (ex.: +55 11 98877-7777).");
-  }
-  await gravarOwnerPhone(adminDb, slug, dono);
-  return dono;
+  if (!(await usaCanalOficial(adminDb, slug))) throw new ErroPrevisto("Ligue o canal oficial antes.");
+  const envio = await enviarConfirmacaoDono(adminDb, slug);
+  return { envio, cfg: await naGaveta(slug) };
 });
 
 // ─── SMS para o cliente final (Comtele) ──────────────────────────────────────

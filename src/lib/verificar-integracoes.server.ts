@@ -74,7 +74,7 @@ async function email(): Promise<Situacao> {
 }
 
 async function whatsapp(): Promise<Situacao> {
-  if (!(await integracao("ATENDYS_ADMIN_KEY"))) return ausente("Sem a chave, nenhum WhatsApp pode ser conectado.");
+  if (!(await integracao("ATENDYS_ADMIN_KEY"))) return ausente("Sem a chave, o canal oficial do WhatsApp não pode ser provisionado.");
   try {
     const n = await verificarChaveAdmin();
     return ok(`Chave válida · ${n} ${n === 1 ? "negócio" : "negócios"} no atendys.`);

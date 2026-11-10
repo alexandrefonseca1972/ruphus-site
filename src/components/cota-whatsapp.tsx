@@ -15,10 +15,10 @@ export const quandoSai = (iso: string, fuso: string) => {
 // por que o atendys parou a mensagem (errorCode); sem código, vale qualquer um dos três
 const MOTIVO_PARADA: Record<string, string> = {
   RATE_LIMITED: "A cota diária de mensagens do WhatsApp foi atingida.",
-  INSTANCE_UNAVAILABLE: "O WhatsApp do salão está sem conexão há mais de 10 minutos.",
+  INSTANCE_UNAVAILABLE: "O número de WhatsApp da Ruphus está sem conexão há mais de 10 minutos.",
   QUIET_HOURS: "O horário está fora do permitido para enviar mensagens (20h às 8h).",
 };
-const MOTIVO_GERAL = "A mensagem não saiu: a cota diária foi atingida, o WhatsApp do salão está sem conexão há mais de 10 minutos ou é horário fora do permitido (20h às 8h).";
+const MOTIVO_GERAL = "A mensagem não saiu: a cota diária foi atingida, o número de WhatsApp da Ruphus está sem conexão há mais de 10 minutos ou é horário fora do permitido (20h às 8h).";
 
 /** Mensagem parada (cota do dia, WhatsApp sem conexão ou fora do horário) do dia: o dono escolhe entre mandar agora pelo próprio WhatsApp e
  *  deixar agendada. "Enviar agora" só mostra o link do WhatsApp depois que o atendys confirma a
@@ -27,7 +27,7 @@ export function CotaWhatsapp({ tenantId, messageId, retryAt, errorCode, fuso, on
   const [ocupado, setOcupado] = useState<"agora" | "agendar" | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [erro, setErro] = useState("");
-  // sem onFim (dentro de outra caixa, como o QR do Pix), o resultado fica aqui mesmo
+  // sem onFim, o resultado fica aqui mesmo
   const [fim, setFim] = useState("");
   const terminar = (aviso: string) => (setFim(aviso), onFim?.(aviso));
 
@@ -40,12 +40,12 @@ export function CotaWhatsapp({ tenantId, messageId, retryAt, errorCode, fuso, on
       .catch(() => ({ ok: false as const, error: "Sem conexão. Tente de novo." }));
     setOcupado(null);
     if (!r.ok) return setErro(r.error ?? "Não foi possível agora. Tente de novo.");
-    if (r.vencida) return terminar("Esta mensagem não pode mais ser enviada (venceu no WhatsApp do negócio) e saiu da lista.");
+    if (r.vencida) return terminar("Esta mensagem não pode mais ser enviada (venceu no WhatsApp) e saiu da lista.");
     if (acao === "agora") {
       if (r.url) return setUrl(r.url);
-      return setErro("O WhatsApp do negócio não devolveu o link. Tente de novo.");
+      return setErro("O serviço de WhatsApp não devolveu o link. Tente de novo.");
     }
-    terminar(r.retryAt ? `Mensagem agendada: sai ${quandoSai(r.retryAt, fuso)}.` : "Mensagem mantida na fila do WhatsApp do negócio.");
+    terminar(r.retryAt ? `Mensagem agendada: sai ${quandoSai(r.retryAt, fuso)}.` : "Mensagem mantida na fila do WhatsApp.");
   }
 
   if (fim) return <p role="status" className="text-sm">{fim}</p>;

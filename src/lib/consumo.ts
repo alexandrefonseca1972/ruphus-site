@@ -15,6 +15,7 @@ import { dateIn } from "@/lib/datetime";
 //   número do salão: é o preço que a Ruphus cobra do negócio, não o da Meta.
 
 export type Canal = "whatsapp" | "sms";
+// "salao": só no histórico, do número próprio por QR que saiu; nada novo grava
 export type Via = "oficial" | "salao";
 export const TIPOS_ENVIO = ["recebido", "pedido_dono", "confirmado", "cancelado", "reagendado", "lembrete", "pix", "recibo", "resposta", "saldo", "confirmar_dono", "outro"] as const;
 export type TipoEnvio = (typeof TIPOS_ENVIO)[number];

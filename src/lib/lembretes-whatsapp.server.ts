@@ -3,21 +3,21 @@ import { emParalelo } from "@/lib/paralelo";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
 import { agoraNaParede, chaveDoHorario, dateIn, formatTime, fusoDe, instanteReal, todayIn, zonedTime } from "@/lib/datetime";
-import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
+import { optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { SemSaldo } from "@/lib/consumo.server";
-import { chaveDeEnvio, enviarSemOperador, enviarTemplateSemOperador, motivoLegivel, ROTULO_STATUS, saiuDepoisDoAceite, statusDaConexao } from "@/lib/atendys";
+import { chaveDeEnvio, enviarTemplateSemOperador, motivoLegivel, saiuDepoisDoAceite, type ConexaoAtendys } from "@/lib/atendys";
 import { conexaoOficial, contatoDoNegocio, templateCliente, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { alertarAdmin } from "@/lib/alerta-admin.server";
-import { espelharStatusVivo, lerConexao, lerConfigWhatsApp, registrarErroNotificacao, soDigitosComDDI } from "@/lib/whatsapp.server";
+import { lerConfigWhatsApp, registrarErroNotificacao, soDigitosComDDI } from "@/lib/whatsapp.server";
 
 // Lembretes automáticos de horário: X horas antes de cada agendamento confirmado,
-// o cliente recebe um lembrete pelo WhatsApp do salão. O dono liga/desliga e
+// o cliente recebe um lembrete pelo canal oficial (template, número da plataforma). O dono liga/desliga e
 // escolhe quantas horas antes (config em tenants/{slug}/whatsapp.remindersEnabled
 // /.remindersBeforeHours). Envio transacional; o sucesso marca o agendamento
 // (whatsappReminderSentAt) para nunca repetir. Nada de mensagem entre 22h e 8h
 // (fuso do negócio): o que vencer na janela de silêncio espera as 8h. É o mesmo horário
 // silencioso do tenant da plataforma no atendys: lembrete aceito aqui não fica adiado lá.
-// Falha (WhatsApp desconectado, envio recusado) aparece na gaveta do negócio
+// Falha (canal oficial indisponível, envio recusado) aparece na gaveta do negócio
 // (lastNotifyError) e vira e-mail para o admin, no máximo um por negócio a cada 6 h.
 //
 // Roda pelo cron da VPS (/api/cron/lembretes, a cada 10 min). Cada agendamento é
@@ -49,29 +49,21 @@ export async function enviarLembretesDoDia(): Promise<number> {
     const [h, m] = formatTime(agora, tz).split(":").map(Number);
     const minutosDoDia = h * 60 + m;
     if (minutosDoDia >= SILENCIO.inicioMin || minutosDoDia < SILENCIO.fimMin) return;
-    // a conexão com a credencial do gateway, que mora no doc privado (lerConexao junta)
-    // canal oficial: o lembrete sai pelo número da plataforma (template), sem depender do salão
-    let oficial = null;
+    // o lembrete sai só pelo canal oficial (número da plataforma, template)
     // a marca vem do documento já lido: erro de leitura não vira "canal oficial indisponível"
-    if (t.get("whatsapp.canalOficial") === true && (await usaCanalOficial(adminDb, t.id))) try {
+    if (t.get("whatsapp.canalOficial") !== true || !(await usaCanalOficial(adminDb, t.id))) return;
+    let oficial: ConexaoAtendys | null;
+    try {
       oficial = await conexaoOficial(adminDb, t.id);
     } catch (e) {
-      // negócio do canal oficial sem a plataforma pronta: falha visível, nunca o número do salão
+      // negócio do canal oficial sem a plataforma pronta: falha visível
       await falhou(t.id, `Lembretes ligados, mas o canal oficial do WhatsApp está indisponível: ${motivoLegivel(e)}.`);
       return;
     }
-    const w = oficial ? await lerConfigWhatsApp(adminDb, t.id) : await lerConexao(adminDb, t.id);
-    if (!w || w.remindersEnabled !== true || (!oficial && !w.instanceId)) return;
+    if (!oficial) return;
+    const w = await lerConfigWhatsApp(adminDb, t.id);
+    if (!w || w.remindersEnabled !== true) return;
     const antesMs = Math.min(24, Math.max(1, Number(w.remindersBeforeHours) || 2)) * 60 * 60_000;
-    const lidoEm = Date.now();
-    const vivo = oficial ? { status: "connected" as const, phone: null } : await statusDaConexao(w).catch(() => null);
-    if (!vivo || vivo.status !== "connected") {
-      // webhook perdido: o status ao vivo também vira faixa no painel e aviso ao dono
-      if (vivo) await espelharStatusVivo(adminDb, t.id, vivo, lidoEm).catch((e) => console.error(`[whatsapp] espelhar status ${t.id}`, e));
-      const motivo = vivo ? `o WhatsApp do negócio está ${ROTULO_STATUS[vivo.status] ?? vivo.status}` : "o serviço de WhatsApp não respondeu";
-      await falhou(t.id, `Lembretes ligados, mas ${motivo}: nenhum lembrete sai até reconectar.`);
-      return;
-    }
     const nomeNegocio = String(t.get("name") ?? "seu salão");
     // janela: o dia do horário, com folga para lembretes cuja hora de envio cai
     // no dia anterior (ex.: horário 00:30 com 2h antes → 22:30 de ontem). "start"
@@ -109,16 +101,8 @@ export async function enviarLembretesDoDia(): Promise<number> {
       // repete a chave e o atendys devolve o já aceito em vez de mandar outro. Remarcou: outra chave
       const chave = chaveDeEnvio("lembrete", t.id, a.id, chaveDoHorario(start));
       try {
-        const e = oficial
-          ? await enviarTemplateSemOperador(oficial, cliente, templateCliente("lembrete", { nome, negocio: nomeNegocio, servico: String(a.get("serviceName") ?? ""), quando: `${dia} às ${formatTime(start)}`, contato: contatoDoNegocio(t) }, { slug: t.id, agendamento: a.id, horario: chaveDoHorario(start) }), optIn, prazo, { chave })
-          : await enviarSemOperador(
-              w,
-              cliente,
-              comAvisoSair(`Olá, ${nome}! Lembrete do seu horário ${dia} às ${formatTime(start)}: ${a.get("serviceName")} no ${nomeNegocio}. Qualquer imprevisto, responda aqui pelo WhatsApp.`),
-              optIn,
-              prazo, // lembrete que sairia depois do horário não serve: fica parado
-              { chave, tipo: "lembrete" },
-            );
+        // lembrete que sairia depois do horário (prazo) não serve: fica parado
+        const e = await enviarTemplateSemOperador(oficial, cliente, templateCliente("lembrete", { nome, negocio: nomeNegocio, servico: String(a.get("serviceName") ?? ""), quando: `${dia} às ${formatTime(start)}`, contato: contatoDoNegocio(t) }, { slug: t.id, agendamento: a.id, horario: chaveDoHorario(start) }), optIn, prazo, { chave });
         // parado na cota: não é falha (aguarda decisão do dono); a reserva fica, para não reenviar a cada ciclo
         // parado (decisão do dono) ou que não sai antes do horário: não conta como enviado. Aceito e
         // adiado para depois do prazo, o message.status avisa o negócio; sem folga (menos de 60 s),

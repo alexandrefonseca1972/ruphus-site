@@ -4,7 +4,7 @@ import Link from "next/link";
 import { OCULTO, useValores } from "@/lib/valores";
 import { doc, getDoc, orderBy, Timestamp, where } from "firebase/firestore";
 import { db } from "@/lib/firebase-db";
-import { CotaWhatsapp, quandoSai } from "@/components/cota-whatsapp";
+import { quandoSai } from "@/components/cota-whatsapp";
 import { MensagensParadas } from "./mensagens-paradas";
 import { Fragment, useEffect, useState } from "react";
 import { z } from "zod";
@@ -28,10 +28,9 @@ import { Reschedule } from "./reschedule";
 import { RowMenu } from "./row-menu";
 import { ShareLink } from "./share-link";
 import { mudarStatus, STATUS } from "./status";
-import { avisarClienteWhatsappAction, avisarConfirmacaoSmsAction, confirmarSinalAction } from "./actions";
+import { avisarConfirmacaoSmsAction, confirmarSinalAction } from "./actions";
 import { idToken } from "@/lib/firebase";
 import { restanteDe } from "@/lib/sinal";
-import { whatsappDoNegocio } from "@/lib/tenants";
 import { type AvisoCliente, textoAvisoCliente } from "@/lib/mensagens";
 
 const Appointment = z.object({
@@ -74,19 +73,16 @@ export default function AgendaPage() {
   // quem é da equipe abre na própria agenda; "Todos" continua a um toque
   const [staffFilter, setStaffFilter] = useState(tenant.staffId ?? "");
   const [staff] = useCollection(tenant.id, "staff", Staff, [orderBy("name")]);
-  // aviso no topo; com a mensagem, oferece mandar ao cliente (manual: pelo WhatsApp do aparelho)
+  // aviso no topo; com a mensagem, oferece mandar ao cliente pelo WhatsApp do aparelho
   // recibo: id do lançamento recebido agora; o aviso oferece o recibo dele
-  const [notice, setNotice] = useState<{ text: string; aviso?: { a: Appointment; tipo: AvisoCliente; start: Date }; manual?: boolean; recibo?: string; cota?: { messageId: string; retryAt: string | null } } | null>(null);
-  // WhatsApp do negócio conectado (atendys): a mensagem sai por ele, sem abrir o WhatsApp do aparelho
-  const peloNegocio = whatsappDoNegocio(tenant);
+  const [notice, setNotice] = useState<{ text: string; aviso?: { a: Appointment; tipo: AvisoCliente; start: Date }; recibo?: string } | null>(null);
   const fuso = fusoDe(tenant.site);
   const mensagem = (a: Appointment, tipo: AvisoCliente, start = a.start.toDate()) =>
     textoAvisoCliente(tipo, { ...a, start }, tenant.name, `${location.origin}/agendar/${tenant.id}`);
   const aviso = notice?.aviso;
   // o aviso some sozinho: só texto em 6 s; com botão (avisar, recibo) fica 20 s para dar tempo de tocar
   useEffect(() => {
-    // parada na cota espera a decisão do dono: não some sozinha
-    if (!notice || notice.cota) return;
+    if (!notice) return;
     const t = setTimeout(() => setNotice(null), notice.aviso || notice.recibo ? 20_000 : 6_000);
     return () => clearTimeout(t);
   }, [notice]);
@@ -147,35 +143,8 @@ export default function AgendaPage() {
     }
   }
 
-  /** Pelo WhatsApp do negócio; se não sair, o aviso oferece mandar pelo do aparelho. */
-  async function avisarPeloNegocio(aviso: { a: Appointment; tipo: AvisoCliente; start: Date }) {
-    const { a } = aviso;
-    setPending(a.id);
-    const r = await idToken()
-      .then((t) => avisarClienteWhatsappAction(t, { tenantId: tenant.id, appointmentId: a.id, tipo: aviso.tipo }))
-      .catch(() => null);
-    setPending(null);
-    if (r?.ok) {
-      const s = r.situacao;
-      if (s.estado === "cota") return setNotice({ text: `A mensagem para ${a.customerName} ainda não saiu.`, cota: { messageId: s.messageId, retryAt: s.retryAt } });
-      return setNotice({ text: s.estado === "agendada" ? `Mensagem para ${a.customerName} na fila do WhatsApp do negócio: sai ${quandoSai(s.retryAt, fuso)}.` : `Mensagem enviada a ${a.customerName} pelo WhatsApp do negócio.` });
-    }
-    // sem resposta não quer dizer que não saiu: a queda pode ter vindo depois do envio
-    const text = r
-      ? `A mensagem para ${a.customerName} não saiu pelo WhatsApp do negócio: ${r.error} Mande pelo seu WhatsApp.`
-      : `Sem conexão: não deu para saber se a mensagem chegou a ${a.customerName}. Confira na conversa antes de mandar de novo pelo seu WhatsApp.`;
-    setNotice({ text, aviso, manual: true });
-  }
-
   async function notifyAndChange(a: Appointment, status: "confirmed" | "cancelled") {
     const tipo = status === "confirmed" ? "confirmado" : "cancelado";
-    if (peloNegocio) {
-      setPending(a.id);
-      const saved = await changeStatus(a, status);
-      setPending(null);
-      if (saved) await avisarPeloNegocio({ a, tipo, start: a.start.toDate() });
-      return;
-    }
     // a aba abre ainda dentro do clique: depois do await da gravação o navegador já não conta
     // como gesto, bloqueava a aba nova, e o WhatsApp tomava o lugar do painel
     const aba = window.open("", "_blank");
@@ -280,30 +249,17 @@ export default function AgendaPage() {
         </dl>
       )}
 
-      {/* gestor com WhatsApp do negócio: as que pararam na cota sem ninguém olhando */}
-      {tenant.podeGerir && (peloNegocio || tenant.whatsapp?.canalOficial) && <MensagensParadas tenantId={tenant.id} fuso={fuso} />}
+      {/* gestor com o canal oficial: as que pararam na cota sem ninguém olhando */}
+      {tenant.podeGerir && tenant.whatsapp?.canalOficial && <MensagensParadas tenantId={tenant.id} fuso={fuso} />}
       {notice && (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950">
           <span>{notice.text}</span>
-          {notice.cota && (
-            <div className="basis-full">
-              {tenant.podeGerir ? (
-                <CotaWhatsapp tenantId={tenant.id} messageId={notice.cota.messageId} retryAt={notice.cota.retryAt} fuso={fuso} onFim={(text) => setNotice({ text })} />
-              ) : (
-                <span className="text-muted-foreground">O dono decide em Mensagens, no painel.</span>
-              )}
-            </div>
-          )}
           <div className="flex gap-2">
-            {aviso && (peloNegocio && !notice.manual ? (
-              <button type="button" disabled={pending === aviso.a.id} onClick={() => avisarPeloNegocio(aviso)} className={BOTAO_AVISO}>
-                {pending === aviso.a.id ? "Enviando…" : "Avisar pelo WhatsApp"}
-              </button>
-            ) : (
+            {aviso && (
               <a href={whatsappLink(aviso.a.customerPhone, mensagem(aviso.a, aviso.tipo, aviso.start))} target="_blank" rel="noreferrer" className={BOTAO_AVISO}>
                 Avisar pelo WhatsApp
               </a>
-            ))}
+            )}
             {notice.recibo && (
               <Button variant="outline" size="sm" onClick={() => abrirRecibo(notice.recibo!)}>Recibo</Button>
             )}

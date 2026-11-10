@@ -48,6 +48,7 @@ Cada negócio tem um endereço em `{slug}.ruphus.site`. O site é montado do Fir
 - **Serviços** com preço, duração e validação em tempo real (nome duplicado é barrado).
 - **Profissionais** com horário por dia da semana e serviços que cada um faz. O plano inclui **5 profissionais**; o admin da plataforma libera mais.
 - **Clientes** com ficha, etiquetas, histórico e planos.
+- **Avisos pelo WhatsApp** só pela API oficial da Meta, pelo número da Ruphus (canal oficial, via atendys): o dono cadastra o WhatsApp pessoal em Meu negócio, confirma tocando "Sou eu" e recebe ali os pedidos, que confirma ou recusa pelos botões ou por CONFIRMADO/RECUSAR {código}; o cliente recebe recibo, confirmação e lembrete por template. Não há número próprio pareado por QR nem central de conversas.
 - Um negócio por conta, por padrão.
 
 ### 3. O /admin — CRM e cobrança da Ruphus
@@ -236,6 +237,8 @@ npm run test:crm          # funil, saúde, alertas, dinheiro, revogação (sem e
 npm run test:proxy        # roteamento de {slug}.ruphus.site
 npm run test:pix          # BR Code e CRC
 npm run test:whatsapp     # montagem dos links
+npm run test:atendys      # canal oficial: envio, webhook assinado, comando do dono, cota, consumo
+npm run test:canal-oficial # templates e botões do canal oficial
 npm run test:admin        # o select da lista do /admin x os campos lidos
 npm run test:scale        # comportamento com volume
 npm run test:gerador      # planilha, nichos, modelos e personalização (sem emulador)

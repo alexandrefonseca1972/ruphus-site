@@ -699,18 +699,12 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.ok(livres.length > 0);
   assert.equal((await book(db, { tenantId: slug, serviceIds: ["sobrancelha"], staffId: "mario", date: segunda, time: livres[0], customerName: "Cliente Testando", customerPhone: "(96) 98888-7777" })).ok, true);
   await d.collection("services").doc("outro").set({ name: "Outro", durationMin: 30, priceCents: 1, active: true });
-  // e conecta um WhatsApp: a restauração desconecta (a chave no privado some com as subcoleções)
-  await d.set({ whatsapp: { instanceId: "demo-main", status: "connected", phone: "5591900000000", termsAcceptedAt: 1 } }, { merge: true });
-  await d.collection("privado").doc("whatsapp").set({ atendysApiKey: "k" });
+  // e cadastra o WhatsApp pessoal: a restauração apaga (o privado some com as subcoleções)
+  await d.collection("privado").doc("whatsapp").set({ ownerPhone: "5591900000000" });
 
   const r2 = await restaurarDemo(db, { slug, adminUid: "admin" });
   e = await estado();
-  assert.deepEqual(
-    [e.t.get("whatsapp.status"), e.t.get("whatsapp.instanceId"), e.t.get("whatsapp.phone"), e.t.get("whatsapp.termsAcceptedAt")],
-    ["disconnected", undefined, undefined, 1],
-    "WhatsApp desconectado, termo aceito fica",
-  );
-  assert.equal((await d.collection("privado").doc("whatsapp").get()).exists, false);
+  assert.equal((await d.collection("privado").doc("whatsapp").get()).exists, false, "o WhatsApp de quem testou não fica");
   assert.equal(e.ap.size, quantos, "mesma demonstração de novo");
   assert.equal(e.cl.docs.some((x) => x.id === customerKey("(96) 98888-7777")), false);
   assert.equal(e.sv.size, 6);

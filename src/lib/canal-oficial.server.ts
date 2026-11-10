@@ -161,8 +161,7 @@ export async function usaCanalOficial(db: Firestore, slug: string): Promise<bool
 
 /** Conexão da plataforma para um negócio do canal oficial (slug = o negócio, para as mensagens
  *  paradas na cota aparecerem no painel dele). null = negócio fora do canal oficial. Negócio
- *  marcado sem a plataforma provisionada LANÇA: quem chama registra a falha e não volta para o
- *  número do salão (seria o canal errado). */
+ *  marcado sem a plataforma provisionada LANÇA: quem chama registra a falha. */
 export async function conexaoOficial(db: Firestore, slug: string): Promise<ConexaoAtendys | null> {
   if (!(await usaCanalOficial(db, slug))) return null;
   const c = await lerCredenciais(db);
@@ -225,14 +224,11 @@ export type EnvioConfirmacao = "enviado" | "confirmado" | "aguarde" | "limite" |
  *  "Sou eu". O mesmo número já confirmado fica como está; número novo zera a confirmação e o limite. */
 export async function cadastrarDonoOficial(db: Firestore, slug: string, numero: string): Promise<EnvioConfirmacao> {
   if (slug === DEMO) throw new ErroPrevisto("A demonstração não envia WhatsApp: teste num negócio de verdade.");
-  // número próprio gerenciado pela Ruphus, ainda fora do canal oficial: quem troca é o suporte
-  const w = (await db.doc(`tenants/${slug}`).get()).get("whatsapp") as { ownerManaged?: boolean; canalOficial?: boolean } | undefined;
-  if (w?.ownerManaged === false && w.canalOficial !== true) throw new ErroPrevisto("Gerenciado pela plataforma — fale com o suporte para trocar o número.");
   if (!(await lerCredenciais(db))) throw new ErroPrevisto("O canal oficial ainda não está pronto: fale com a Ruphus.");
   const p = await privadoWhatsApp(db, slug).get();
   const mesmo = soDigitosComDDI(String(p.get("ownerPhone") ?? "")) === numero;
   const lote = db.batch();
-  // o antigo ownerPhone no documento do negócio (a equipe lê) sai, como em gravarOwnerPhone
+  // o antigo ownerPhone no documento do negócio (a equipe lê) sai
   lote.set(db.doc(`tenants/${slug}`), { whatsapp: { canalOficial: true, ownerPhone: FieldValue.delete() } }, { merge: true });
   if (!(mesmo && p.get("ownerPhoneVerifiedAt"))) {
     // ponytail: o limite de reenvio é por número; alternar números manda de novo (a cota do atendys segura)

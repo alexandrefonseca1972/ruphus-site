@@ -5,9 +5,7 @@ import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore"
 import { createPlan } from "@/lib/booking.server";
 import { addDays, customerKey, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { DEMO, DEMO_EMAIL } from "@/lib/demo";
-import { deslogarInstancia } from "@/lib/atendys";
 import { salvarNegocio } from "@/lib/negocios.server";
-import { desligarConexao } from "@/lib/whatsapp.server";
 import type { Service, Staff } from "@/lib/scheduling";
 
 // A conta de demonstração: o vendedor entrega o acesso de dono ao cliente, o cliente
@@ -190,12 +188,6 @@ export async function restaurarDemo(db: Firestore, opts: { slug?: string; adminU
 
   // tudo o que o cliente pode ter criado some; ficam o dono original e o da demonstração
   const manter = new Set([String(tenant.get("ownerId")), dono.uid]);
-  // A demo é compartilhada: um WhatsApp conectado nela mandaria mensagem em nome de quem
-  // conectou. Desconecta de vez (despareia no atendys com a chave de admin) antes de apagar
-  // as subcoleções — o privado/whatsapp ia embora e o doc ficava "conectado" sem credencial.
-  const instancia = tenant.get("whatsapp.instanceId");
-  if (typeof instancia === "string" && instancia) await deslogarInstancia(instancia).catch((e) => console.warn("[demo] despareio do WhatsApp", e));
-  if (tenant.get("whatsapp")) await desligarConexao(db, slug);
   for (const col of await t.listCollections()) {
     if (col.id !== "members") {
       await db.recursiveDelete(col);

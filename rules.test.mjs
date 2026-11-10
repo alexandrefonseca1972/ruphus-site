@@ -228,7 +228,7 @@ await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenant
 await assertFails(setDoc(doc(alice, "tenants/acme"), { name: "Acme Salão", ownerId: "alice", limiteStaff: 5 }));
 await assertFails(setDoc(doc(alice, "tenants/acme"), { name: "Acme Salão", ownerId: "alice", limiteStaff: 50 }));
 await assertFails(updateDoc(doc(alice, "tenants/acme"), { "site.phone": '55"><img src=x onerror=alert(1)>' }));
-await assertFails(updateDoc(doc(alice, "tenants/acme"), { "whatsapp.instanceId": "outro" }));
+await assertFails(updateDoc(doc(alice, "tenants/acme"), { "whatsapp.canalOficial": true }));
 
 // Profissional novo só pelo servidor (é lá que o limite do plano é contado)
 await assertFails(setDoc(doc(alice, "tenants/acme/staff/novo"), { name: "Bia", active: true }));
@@ -305,11 +305,11 @@ await assertSucceeds(getDoc(doc(carla, "tenants/acme/members/carla")), "le o pro
 await assertFails(getDoc(doc(carla, "tenants/acme/members/alice")), "a lista da equipe e de quem gere");
 await assertSucceeds(getDoc(doc(alice, "tenants/acme/members/carla")));
 
-// a credencial do gateway de WhatsApp fica num doc que só o servidor lê: nem o dono, nem a equipe
-await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/privado/whatsapp"), { atendysApiKey: "k", atendysWebhookSecret: "s" }));
-await assertFails(getDoc(doc(alice, "tenants/acme/privado/whatsapp")), "o dono não lê a credencial do gateway");
-await assertFails(getDoc(doc(carla, "tenants/acme/privado/whatsapp")), "a equipe não lê a credencial do gateway");
-await assertFails(setDoc(doc(alice, "tenants/acme/privado/whatsapp"), { atendysApiKey: "outra" }), "nem grava");
+// o WhatsApp pessoal do dono fica num doc que só o servidor lê: nem o dono (lê pelas ações), nem a equipe
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/privado/whatsapp"), { ownerPhone: "5511988887777", ownerPhoneVerifiedAt: 1 }));
+await assertFails(getDoc(doc(alice, "tenants/acme/privado/whatsapp")), "o dono não lê o privado direto");
+await assertFails(getDoc(doc(carla, "tenants/acme/privado/whatsapp")), "a equipe não lê o WhatsApp do dono");
+await assertFails(setDoc(doc(alice, "tenants/acme/privado/whatsapp"), { ownerPhone: "5511900000000", ownerPhoneVerifiedAt: 2 }), "nem grava (a confirmação seria forjada)");
 
 await env.cleanup();
 console.log("rules ok");
