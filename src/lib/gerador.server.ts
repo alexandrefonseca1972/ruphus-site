@@ -250,16 +250,25 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   if (!aplicar) return resposta;
 
   const writer = db.bulkWriter();
-  // close() nunca rejeita: a falha de cada escrita só aparece na promessa dela
+  // close() e flush() nunca rejeitam: a falha de cada escrita só aparece na promessa dela
   const falharam = new Set<string>();
-  for (const { slug, acao, lead } of saida) {
-    if (acao === "pular") continue;
-    for (const e of registrosDoSite(db, slug, lead, nichoDe(lead)!, { novo: acao === "criar", ownerId, origem: "prospeccao", escolha: escolhas.get(slug), personal: personais.get(slug) })) {
-      writer.set(e.ref, e.dados, { merge: true }).catch((err) => {
-        falharam.add(slug);
-        console.error(`[gerador] escrita de ${slug} falhou`, err);
-      });
-    }
+  const falhou = (slug: string) => (err: unknown) => {
+    falharam.add(slug);
+    console.error(`[gerador] escrita de ${slug} falhou`, err);
+  };
+  const gravar = saida
+    .filter((s) => s.acao !== "pular")
+    .map((s) => ({ ...s, escritas: registrosDoSite(db, s.slug, s.lead, nichoDe(s.lead)!, { novo: s.acao === "criar", ownerId, origem: "prospeccao", escolha: escolhas.get(s.slug), personal: personais.get(s.slug) }) }));
+  // 1º o documento do negócio (o primeiro de registrosDoSite). "criar" usa create, que falha se
+  // alguém tomou o endereço depois da prévia (cadastro, outra aba): sem isto o merge misturava os dois
+  for (const { slug, acao, escritas: [tenant] } of gravar) {
+    (acao === "criar" ? writer.create(tenant.ref, tenant.dados) : writer.set(tenant.ref, tenant.dados, { merge: true })).catch(falhou(slug));
+  }
+  await writer.flush();
+  // 2º equipe, serviços, CRM: só de quem o documento do negócio entrou
+  for (const { slug, escritas } of gravar) {
+    if (falharam.has(slug)) continue;
+    for (const e of escritas.slice(1)) writer.set(e.ref, e.dados, { merge: true }).catch(falhou(slug));
   }
   await writer.close();
   if (falharam.size) throw new ErroPrevisto(`Não consegui gravar tudo de ${[...falharam].join(", ")}. Confira esses sites antes de enviar de novo.`);

@@ -46,7 +46,7 @@ import { soDigitosComDDI } from "@/lib/telefone";
 import { MODELOS, modeloDoId, NOMES_FONTE, Personal, renderEditorial, visualEditorial } from "@/lib/site-editorial";
 import { ehClaro, galeriaClaro, modeloClaroDoId, modelosClaro, renderClaro, visualClaro } from "@/lib/site-claro";
 import { iaDisponivel, type Mensagem, sugerirVisual } from "@/lib/ia.server";
-import { apagarFotosFora, fotosFaltando, lerFoto, type Slot, tenantGerado } from "@/lib/foto.server";
+import { apagarFotosFora, fotosFaltando, lerFoto, publicarFotos, type Slot, slotsEmRascunho, tenantGerado } from "@/lib/foto.server";
 import { SLUG_SITE } from "@/lib/site-arquivo";
 import { type DadosSite, type Escolha, type Sub, SUBS } from "@/lib/gerador";
 import { FieldValue } from "firebase-admin/firestore";
@@ -774,14 +774,15 @@ export const previewVisual = adminAction(async (_user, slug: string, rascunho: u
   const dados = await lerSite(adminDb, slug);
   if (!dados) throw new ErroPrevisto("Site não encontrado.");
   const html = renderSite({ ...dados, personal: Personal.parse(rascunho) });
-  // a foto própria tem nome fixo: a prévia pede com um carimbo para ver a que acabou de subir
-  // (em src, href e url() do CSS do topo)
-  return comBase(html.replace(/(["(])fotos\/(hero|ga1|ga2|ga3)\.jpg(\?v=\d+)?(["\)])/g, `$1/s/${slug}/fotos/$2.jpg?v=${Date.now()}$4`), slug);
+  // a foto enviada e não publicada está em fotos/rascunho-{posição}.jpg; a publicada, no nome fixo.
+  // A prévia pede com um carimbo para ver a que acabou de subir (em src, href e url() do CSS do topo)
+  const emRascunho = new Set<string>(await slotsEmRascunho(slug));
+  return comBase(html.replace(/(["(])fotos\/(hero|ga1|ga2|ga3)\.jpg(\?v=\d+)?(["\)])/g, (_m, antes: string, slot: string, _v, depois: string) => `${antes}/s/${slug}/fotos/${emRascunho.has(slot) ? "rascunho-" : ""}${slot}.jpg?v=${Date.now()}${depois}`), slug);
 });
 
 /** Publica a personalização: grava gerado.personal (ou apaga, se ficou vazia) e a cor e a
  *  foto que a bio lê; o site, o og.jpg e a bio saem do cache na hora. */
-export const definirVisual = adminAction(async (_user, slug: string, rascunho: unknown) => {
+export const definirVisual = adminAction(async (_user, slug: string, rascunho: unknown, enviadas: Slot[] = []) => {
   const { tenant, sub } = await tenantGerado(slug);
   const p = Personal.parse(rascunho);
   // chave sem nada dentro ({ cores: {} }) é o mesmo que ausente
@@ -789,6 +790,9 @@ export const definirVisual = adminAction(async (_user, slug: string, rascunho: u
   // foto que o rascunho aponta mas não está no Storage publicaria uma imagem quebrada
   const faltam = await fotosFaltando(slug, personal.fotos);
   if (faltam.length) throw new ErroPrevisto(`Foto não encontrada: ${faltam.join(", ")}. Envie de novo ou use a do modelo.`);
+  // só agora a foto enviada nesta sessão vai para o nome que o site no ar lê (o rascunho antigo de
+  // outra sessão fica quieto: só entra quando o admin reenvia)
+  await publicarFotos(slug, Object.fromEntries(enviadas.filter((s) => personal.fotos?.[s]).map((s) => [s, personal.fotos![s]])));
   // carimbo novo a cada publicação com foto própria: a URL muda e o cache não segura a foto antiga.
   // Sem foto própria o carimbo sai — antes de decidir se sobrou algo para gravar
   if (personal.fotos && Object.keys(personal.fotos).length) personal.versao = Date.now();

@@ -40,6 +40,13 @@ assert.equal((await db.collection("tenants").doc("navalha").get()).exists, false
 // grava: tenant, dono, agenda e CRM no mesmo formato do importador
 const feito = await gerarNoBanco(db, lote, true, "dono-plataforma");
 assert.deepEqual(feito, previa, "o que a prévia mostrou é o que foi gravado");
+{
+  const um = planilha(["Corrida Unica", "(91) 98642-5310", "Barbearia", "Belém", "PA", "", "", "", "", "", ""]);
+  const dois = planilha(["Corrida Unica", "(91) 98642-5311", "Barbearia", "Belém", "PA", "", "", "", "", "", ""]);
+  const r = await Promise.allSettled([gerarNoBanco(db, um, true, "a"), gerarNoBanco(db, dois, true, "a")]);
+  const slugs = r.flatMap((x) => (x.status === "fulfilled" ? [x.value[0].slug] : []));
+  assert.equal(new Set(slugs).size, slugs.length, "dois 'criar' nunca gravam no mesmo endereço");
+}
 assert.equal((await db.collection("tenants").doc("patinhas-do-umarizal").get()).exists, false, "linha pulada não grava");
 assert.equal((await db.doc("tenants/pet-feliz").get()).get("site.phone"), "5591987650123", "e não mexe no site que já existe");
 const t = (await db.collection("tenants").doc("pet-feliz-belem").get()).data()!;
@@ -148,15 +155,15 @@ assert.equal((await pagina("../etc")).status, 404);
   const grande = await sharp({ create: { width: 3000, height: 2000, channels: 3, background: "#336699" } }).jpeg().toBuffer();
   const hero = await processarFoto("navalha", "hero", grande);
   assert.equal(hero.ref, "fotos/hero.jpg");
-  const arquivo = adminBucket().file("sites/navalha/fotos/hero.jpg");
+  const arquivo = adminBucket().file("sites/navalha/fotos/rascunho-hero.jpg");
   const [meta] = await sharp((await arquivo.download())[0]).metadata().then((m) => [m]);
   assert.deepEqual([meta.width, meta.format], [1600, "jpeg"], "topo sai com 1600 de largura");
   const bio = await processarFoto("navalha", "bio", grande);
-  const metaBio = await sharp((await adminBucket().file("sites/navalha/fotos/bio.jpg").download())[0]).metadata();
+  const metaBio = await sharp((await adminBucket().file("sites/navalha/fotos/rascunho-bio.jpg").download())[0]).metadata();
   assert.deepEqual([bio.ref, metaBio.width, metaBio.height], ["fotos/bio.jpg", 1040, 448], "bio recortada no formato da faixa");
   const pequena = await sharp({ create: { width: 300, height: 200, channels: 3, background: "#000" } }).png().toBuffer();
   await processarFoto("navalha", "ga1", pequena);
-  assert.equal((await sharp((await adminBucket().file("sites/navalha/fotos/ga1.jpg").download())[0]).metadata()).width, 300, "pequena não é ampliada");
+  assert.equal((await sharp((await adminBucket().file("sites/navalha/fotos/rascunho-ga1.jpg").download())[0]).metadata()).width, 300, "pequena não é ampliada");
   await assert.rejects(processarFoto("navalha", "ga2", Buffer.from("não é imagem")), /JPG, PNG ou WebP/);
   // o tipo declarado não vale: SVG (que o sharp decodifica) é recusado pelo formato real
   const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><script>alert(1)</script></svg>');
@@ -172,6 +179,11 @@ assert.equal((await pagina("../etc")).status, 404);
   const { apagarFotosFora, lerFoto, fotosFaltando, tenantGerado } = await import("@/lib/foto.server");
   assert.ok((await lerFoto("navalha", "bio"))!.length > 0 && (await lerFoto("navalha", "hero")) === null, "lerFoto: arquivo ou null");
   assert.deepEqual(await fotosFaltando("navalha", { hero: "fotos/hero.jpg", bio: "fotos/bio.jpg" }), ["hero"], "aponta a posição sem arquivo");
+  const { publicarFotos, slotsEmRascunho } = await import("@/lib/foto.server");
+  assert.deepEqual(await slotsEmRascunho("navalha"), ["ga1", "bio"], "enviadas e não publicadas");
+  await publicarFotos("navalha", { bio: "fotos/bio.jpg" });
+  assert.ok(!(await slotsEmRascunho("navalha")).includes("bio"), "publicada sai do rascunho");
+  assert.ok((await lerFoto("navalha", "bio"))!.length > 0, "e fica no nome fixo");
   assert.equal((await tenantGerado("pet-feliz-belem")).sub, "petshop", "o modelo claro também personaliza");
   await assert.rejects(tenantGerado("nao-existe"), /não tem personalização/);
   await assert.rejects(tenantGerado("../x"), /inválido/);

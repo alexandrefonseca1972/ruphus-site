@@ -95,7 +95,8 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, temIA, o
   // comparação por valor, com as chaves em ordem: apagar e redigitar o mesmo texto não "muda"
   const semVersao = ({ versao: _v, ...resto }: Personal) => resto;
   const mudou = canonico(semVersao(rascunho)) !== canonico(semVersao(publicado)) || [...reenviadas].some((s) => rascunho.fotos?.[s]);
-  const fotoDe = (slot: Slot) => (rascunho.fotos?.[slot] ? `/s/${slug}/fotos/${slot}.jpg?v=${versao}` : doModelo.fotos[slot]);
+  // a enviada e não publicada está em rascunho-{posição}.jpg (reenviadas zera ao publicar)
+  const fotoDe = (slot: Slot) => (rascunho.fotos?.[slot] ? `/s/${slug}/fotos/${reenviadas.has(slot) ? "rascunho-" : ""}${slot}.jpg?v=${versao}` : doModelo.fotos[slot]);
   const falha = (r: { ok: false; error: string } | null) => setAviso({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
   // sessão caída ou sem rede: o token falha antes da chamada, e a tela não pode ficar presa em "Enviando…"
   const tokenOuNull = () => token().catch(() => null);
@@ -187,7 +188,7 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, temIA, o
     setAcao("publicar");
     setAviso(null);
     const tk = await tokenOuNull();
-    const r = tk ? await definirVisual(tk, slug, rascunho).catch(() => null) : null;
+    const r = tk ? await definirVisual(tk, slug, rascunho, [...reenviadas]).catch(() => null) : null;
     setAcao(null);
     if (!r?.ok) return falha(r);
     const gravado = r.dados ?? {};
