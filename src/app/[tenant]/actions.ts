@@ -9,7 +9,7 @@ import { z } from "zod";
 import { LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
-import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
+import { criarProfissional, gastarCota, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
 import { atenderComo, type Atendimento, conversaVisivel, exigeConversaVisivel, exigeMensagemVisivel, permitirEquipeNasConversas, visiveis } from "@/lib/conversas.server";
 import { agirNaMensagem, arquivarConversa, assumirEnvio, buscarNasConversas, CHAVE_IDEMPOTENCIA, deslogarInstancia, ID_INBOX, enviarTexto, ErroAtendys, listarConversas, manterAgendada, marcarConversa, mensagensDaConversa, qrDaConexao, responderConversa, statusDaConexao, statusDaMensagem, type ConexaoAtendys } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
@@ -133,6 +133,8 @@ export const convidarEquipeAction = memberAction(
     await exigeGestor(data.tenantId, user.uid);
     const prof = await adminDb.doc(`tenants/${data.tenantId}/staff/${data.staffId}`).get();
     if (!prof.exists) throw new UserError("Esse profissional não existe mais.");
+    // cada convite manda e-mail pela Ruphus: no máximo 20 por dia por negócio
+    await gastarCota(adminDb, data.tenantId, "convites", 20);
     const base = process.env.SITE_URL ?? "https://www.ruphus.site";
     const url = `${base}/convite?c=${await criarConvite(adminDb, data.tenantId, data.email, { staffId: data.staffId })}`;
     // o link já vai por e-mail para o endereço a que está preso, depois da resposta: o dono não
@@ -446,7 +448,11 @@ export const enviarReciboEmailAction = memberAction(
   async (data, user) => {
     await exigeGestor(data.tenantId, user.uid);
     const r = await reciboDoBanco(adminDb, data.tenantId, data.ids);
-    await enviarEmail({ para: data.email, de: r.emissor[0] || "Ruphus", assunto: `${r.titulo} · ${r.emissor[0] ?? ""}`, texto: textoDoRecibo(r), html: htmlDoRecibo(r) });
+    // sai do domínio da Ruphus: no máximo 50 por dia por negócio, e o remetente diz que é "via Ruphus"
+    // (48 + " via Ruphus" cabe nos 60 do nomeDe)
+    await gastarCota(adminDb, data.tenantId, "recibos", 50);
+    const de = r.emissor[0] ? `${r.emissor[0].slice(0, 48)} via Ruphus` : "Ruphus";
+    await enviarEmail({ para: data.email, de, assunto: `${r.titulo} · ${r.emissor[0] ?? ""}`, texto: textoDoRecibo(r), html: htmlDoRecibo(r) });
     return { ok: true as const };
   },
 );

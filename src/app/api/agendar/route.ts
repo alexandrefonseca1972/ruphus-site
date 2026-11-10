@@ -145,7 +145,7 @@ export async function POST(req: Request) {
             if (!saiuDepoisDoAceite(e)) console.error("recibo de agendamento via WhatsApp", e);
           }
         } else {
-          console.warn(`[whatsapp] ${tenantId}: telefone do cliente inválido (${b.data.customerPhone}); recibo de agendamento não enviado`);
+          console.warn(`[whatsapp] ${tenantId}: telefone do cliente inválido (…${b.data.customerPhone.slice(-4)}); recibo de agendamento não enviado`);
         }
         // um aviso bem-sucedido limpa o erro anterior; falha mantém o detalhe
         await registrarErroNotificacao(

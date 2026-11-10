@@ -41,6 +41,8 @@ await env.withSecurityRulesDisabled((ctx) =>
 const suporte = as("suporte");
 await assertSucceeds(getDoc(doc(suporte, "tenants/acme")));
 await assertSucceeds(setDoc(doc(suporte, "tenants/acme/services/corte"), { name: "Corte", durationMin: 30, priceCents: 4000, active: true }));
+await assertFails(setDoc(doc(suporte, "tenants/acme/services/longo"), { name: "x".repeat(81), durationMin: 30, priceCents: 1, active: true }), "nome longo");
+await assertFails(setDoc(doc(suporte, "tenants/acme/services/extra"), { name: "Corte", durationMin: 30, priceCents: 1, active: true, usos: 999 }), "usos é do servidor");
 await assertFails(getDoc(doc(mallory, "config/admin")));   // a lista não é pública
 // Dinheiro mora fora do tenant de propósito: dentro dele a regra pega-tudo libera
 // coleção nova para qualquer membro, e cobrança não é assunto de quem usa a agenda.
@@ -190,6 +192,8 @@ await assertFails(updateDoc(cliente(alice), { name: "Outro Nome" }));
 await assertFails(updateDoc(cliente(alice), { phone: "(11) 90000-0000" }));
 await assertFails(updateDoc(cliente(alice), { semCampanha: "sim" }));
 await assertFails(updateDoc(cliente(alice), { etiquetas: ["a", "b", "c", "d", "e", "f", "g", "h", "i"] }));
+await assertFails(updateDoc(cliente(alice), { etiquetas: ["x".repeat(41)] }), "etiqueta longa");
+await assertFails(updateDoc(cliente(alice), { etiquetas: ["ok", 5] }), "etiqueta não texto");
 await assertFails(updateDoc(cliente(mallory), { etiquetas: ["invadido"] }));
 // nascimento e e-mail são dado pessoal: só o servidor grava (dono/admin, validado)
 await assertFails(updateDoc(cliente(alice), { email: "x@y.com" }));
@@ -231,6 +235,8 @@ await assertFails(setDoc(doc(alice, "tenants/acme/staff/novo"), { name: "Bia", a
 await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/staff/bia"), { name: "Bia", active: true }));
 await assertSucceeds(setDoc(doc(alice, "tenants/acme/staff/bia"), { name: "Bia Souza", active: true }));
 await assertFails(deleteDoc(doc(alice, "tenants/acme/staff/bia")), "excluir profissional e pelo servidor: leva junto o acesso dele");
+await assertFails(setDoc(doc(alice, "tenants/acme/staff/bia"), { name: "x".repeat(81), active: true }), "nome longo");
+await assertFails(updateDoc(doc(alice, "tenants/acme/staff/bia"), { lixo: "a" }), "campo fora da lista");
 
 // Coleção que ninguém liberou nasce negada (antes o coringa abria tudo)
 await assertFails(setDoc(doc(alice, "tenants/acme/inventada/x"), { a: 1 }));

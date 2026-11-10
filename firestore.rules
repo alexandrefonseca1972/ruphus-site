@@ -35,6 +35,14 @@ service cloud.firestore {
     function gere(t) {
       return ehAdminPlataforma() || hasRole(t, ['owner', 'admin']);
     }
+    // texto até max caracteres
+    function textoAte(v, max) {
+      return v is string && v.size() <= max;
+    }
+    // a etiqueta i (se existir) é texto curto: regra não tem laço, então uma por índice (até 8)
+    function etiquetaOk(l, i) {
+      return l.size() <= i || textoAte(l[i], 40);
+    }
     // A conta da equipe presa a um profissional (convite dele) vê a agenda toda, mas só
     // muda o status dos horários dele. Membro sem profissional segue como antes.
     function mexeNoHorario(t, staffId) {
@@ -116,7 +124,11 @@ service cloud.firestore {
           && (!("semCampanha" in request.resource.data) || request.resource.data.semCampanha is bool)
           && (
             !("etiquetas" in request.resource.data)
-            || (request.resource.data.etiquetas is list && request.resource.data.etiquetas.size() <= 8)
+            || (request.resource.data.etiquetas is list && request.resource.data.etiquetas.size() <= 8
+              && etiquetaOk(request.resource.data.etiquetas, 0) && etiquetaOk(request.resource.data.etiquetas, 1)
+              && etiquetaOk(request.resource.data.etiquetas, 2) && etiquetaOk(request.resource.data.etiquetas, 3)
+              && etiquetaOk(request.resource.data.etiquetas, 4) && etiquetaOk(request.resource.data.etiquetas, 5)
+              && etiquetaOk(request.resource.data.etiquetas, 6) && etiquetaOk(request.resource.data.etiquetas, 7))
           );
 
         // Anotacoes seguem o molde de history: o membro escreve, as regras
@@ -157,9 +169,16 @@ service cloud.firestore {
       // A equipe lê; preço, serviços e site só quem gere.
       match /services/{s} {
         allow read: if isMember(t);
-        allow create, delete: if gere(t) && !demoProtegida(t);
-        allow update: if gere(t) && (!demoProtegida(t)
-          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['priceCents', 'durationMin', 'active', 'tipoPreco', 'ordem']));
+        allow create: if gere(t) && !demoProtegida(t)
+          && request.resource.data.keys().hasOnly(['name', 'durationMin', 'priceCents', 'tipoPreco', 'active'])
+          && textoAte(request.resource.data.name, 80);
+        allow delete: if gere(t) && !demoProtegida(t);
+        // o app só muda os campos do formulário (e a ordem); usos e o resto são do servidor
+        allow update: if gere(t)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'durationMin', 'priceCents', 'tipoPreco', 'active', 'ordem'])
+          && textoAte(request.resource.data.name, 80)
+          && (!demoProtegida(t)
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['priceCents', 'durationMin', 'active', 'tipoPreco', 'ordem']));
       }
       // tenants/{t}/privado/* (credenciais do gateway de WhatsApp) e o resto sem match: só o servidor
       // Profissional novo é criado pelo servidor: é lá que o limite do plano é
@@ -167,8 +186,14 @@ service cloud.firestore {
       // leva junto o acesso de quem entrava como esse profissional. Editar segue aqui.
       match /staff/{s} {
         allow read: if isMember(t);
-        allow update: if gere(t) && (!demoProtegida(t)
-          || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']));
+        // o app grava o documento inteiro (setDoc sem merge): createdAt, do servidor, some na edição
+        allow update: if gere(t)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'serviceIds', 'hours', 'active', 'createdAt'])
+          && textoAte(request.resource.data.name, 80)
+          && (!("serviceIds" in request.resource.data) || (request.resource.data.serviceIds is list && request.resource.data.serviceIds.size() <= 200))
+          && (!("hours" in request.resource.data) || request.resource.data.hours is map)
+          && (!demoProtegida(t)
+            || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']));
         allow create, delete: if false;
       }
     }
