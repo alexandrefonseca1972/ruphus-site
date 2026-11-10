@@ -115,6 +115,7 @@ export async function POST(req: Request) {
               `Novo agendamento (código ${codigo}): ${customerName.trim()} · ${partes.join(" · ")} · tel ${b.data.customerPhone}. ${pedido}`,
               OPTIN_DONO,
               prazo,
+              { tipo: "pedido_dono" },
             ));
             if (ruim) falhas.push(`aviso ao salão ${ruim}`);
           } catch (e) {
@@ -145,6 +146,7 @@ export async function POST(req: Request) {
               ),
               optIn,
               prazo,
+              { tipo: "recebido" },
             ));
             if (ruim) falhas.push(`recibo ao cliente ${ruim}`);
           } catch (e) {

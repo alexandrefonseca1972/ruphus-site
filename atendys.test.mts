@@ -1061,5 +1061,83 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.ok((await db.doc("config/atendys-plataforma/respostas/5511966665555").get()).exists);
 }
 
+// ── consumo de mensagens: cada envio vai para tenants/{slug}/envios e soma no mês (consumo/{YYYY-MM}) ──
+{
+  const { salvarPrecos } = await import("@/lib/consumo.server");
+  const { quandoFoi } = await import("@/lib/consumo");
+  const { avisarConfirmacaoPorSms } = await import("@/lib/sms-agendamento.server");
+  const { zonedTime, addDays, todayIn } = await import("@/lib/datetime");
+  const { optInDoAgendamento } = await import("@/lib/consentimento-whatsapp");
+  await db.doc("tenants/gasto").set({ name: "Gasto", sms: { ligado: true } });
+  await gravarConexao(db, "gasto", { atendysTenantId: "t-g", atendysApiKey: "k-g", atendysWebhookSecret: "s-gasto", instanceId: "gasto-main", phone: null, status: "connected", updatedAt: 0 });
+  const conn = (await lerConexao(db, "gasto"))!;
+  // preço do /admin: o snapshot de cada envio usa o vigente
+  await salvarPrecos({ whatsappUtilityCents: 7, whatsappServiceCents: 1, smsCents: 20 }, "teste");
+  const { mes } = quandoFoi(new Date());
+  const consumo = async () => (await db.doc(`tenants/gasto/consumo/${mes}`).get()).data()!;
+  const envio = async (id: string) => (await db.doc(`tenants/gasto/envios/${id}`).get()).data()!;
+
+  // lembrete pelo número do salão: tipo, via, destino mascarado, agendamento (do aceite) e custo
+  const G1 = "a1d4d428-4361-4153-bc2c-60db816d8b77";
+  const optIn = optInDoAgendamento({ tenantId: "gasto", agendamentoId: "AG1", versao: "v", em: new Date() });
+  novo({ "POST /v1/message/send-text": json({ id: G1, status: "queued" }) });
+  await enviarSemOperador(conn, "5591988776389", "Lembrete do seu horário", optIn, undefined, { tipo: "lembrete" });
+  const e1 = await envio(G1);
+  assert.deepEqual(
+    [e1.canal, e1.via, e1.tipo, e1.destino, e1.destinatario, e1.agendamentoId, e1.status, e1.precoCents, e1.custoCents, e1.moeda, e1.mes],
+    ["whatsapp", "salao", "lembrete", "(91) •••••-6389", "cliente", "AG1", "aceito", 7, 7, "BRL", mes],
+  );
+  assert.ok(!JSON.stringify(e1).includes("988776389") && !JSON.stringify(e1).includes("Lembrete do seu"), "nem telefone inteiro nem texto (LGPD)");
+  let c = await consumo();
+  assert.deepEqual([c.total, c.custoCents, c.canais.whatsapp.total, c.vias.salao, c.tipos.lembrete.total, c.status.aceito], [1, 7, 1, 1, 1, 1]);
+  // o mesmo envio de novo (idempotency-key devolve a mensagem já aceita): não soma duas vezes
+  await enviarSemOperador(conn, "5591988776389", "Lembrete do seu horário", optIn, undefined, { tipo: "lembrete" });
+  assert.equal((await consumo()).total, 1);
+
+  // webhook: entregue e lido seguem cobrados; um delivered atrasado não volta o status
+  await entregar({ event: "message.status", messageId: G1, status: "delivered", at: "2030-01-01T00:00:01Z" }, "s-gasto");
+  await entregar({ event: "message.status", messageId: G1, status: "read", at: "2030-01-01T00:00:02Z" }, "s-gasto");
+  await entregar({ event: "message.status", messageId: G1, status: "delivered", at: "2030-01-01T00:00:01Z" }, "s-gasto");
+  assert.equal((await envio(G1)).status, "lido");
+  c = await consumo();
+  assert.deepEqual([c.status.aceito, c.status.entregue, c.status.lido, c.custoCents], [0, 0, 1, 7]);
+
+  // webhook failed: o status muda, o erro fica e o custo volta (falhou não cobra)
+  const G2 = "a2d4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: G2, status: "queued" }) });
+  await enviarSemOperador(conn, "5591988776389", "Seu horário está confirmado", optIn, undefined, { tipo: "confirmado" });
+  assert.equal((await consumo()).custoCents, 14);
+  assert.equal((await entregar({ event: "message.status", messageId: G2, status: "failed", errorCode: "META_131026" }, "s-gasto")).status, 200);
+  const e2 = await envio(G2);
+  assert.deepEqual([e2.status, e2.erro, e2.custoCents], ["falhou", "META_131026", 0]);
+  c = await consumo();
+  assert.deepEqual([c.total, c.custoCents, c.status.falhou, c.tipos.confirmado.custoCents, c.canais.whatsapp.custoCents], [2, 7, 1, 0, 7]);
+  // assinatura errada não mexe no consumo
+  const G3 = "a3d4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: G3, status: "queued" }) });
+  await enviarSemOperador(conn, "5591988776389", "oi", optIn);
+  await entregar({ event: "message.status", messageId: G3, status: "failed" }, "errado");
+  assert.equal((await envio(G3)).status, "aceito");
+  assert.equal((await envio(G3)).tipo, "outro", "sem tipo de quem chama: outro");
+
+  // parada na cota não cobra; voltou à fila (queued) cobra
+  const G4 = "a4d4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: G4, status: "awaiting_manual", retryAt: "2030-01-01T03:00:00.000Z" }, 202) });
+  await enviarTexto(conn, "5591988776389", "aviso", (await import("@/lib/atendys")).OPTIN_DONO);
+  assert.deepEqual([(await envio(G4)).status, (await envio(G4)).custoCents, (await envio(G4)).destinatario], ["parado", 0, "dono"]);
+  await entregar({ event: "message.status", messageId: G4, status: "queued" }, "s-gasto");
+  assert.deepEqual([(await envio(G4)).status, (await envio(G4)).custoCents], ["aceito", 7]);
+
+  // SMS: grava no aceite da Comtele, com o preço do SMS
+  const amanha = addDays(todayIn(), 1);
+  await db.doc("tenants/gasto/appointments/AGS").set({ status: "confirmed", start: zonedTime(amanha, "10:00"), customerName: "Ana", customerPhone: "(91) 98877-6389", serviceName: "Corte" });
+  assert.equal(await avisarConfirmacaoPorSms(db, "gasto", "AGS", { enviar: async () => "req-123", alertar: async () => {} }), "enviado");
+  const s1 = await envio("sms-req-123");
+  assert.deepEqual([s1.canal, s1.tipo, s1.status, s1.destino, s1.agendamentoId, s1.custoCents], ["sms", "confirmado", "enviado", "(91) •••••-6389", "AGS", 20]);
+  c = await consumo();
+  assert.deepEqual([c.canais.sms.total, c.canais.sms.custoCents, c.dias[quandoFoi(new Date()).dia].sms], [1, 20, 1]);
+  await salvarPrecos({ whatsappUtilityCents: 5, whatsappServiceCents: 0, smsCents: 12 }, "teste");
+}
+
 console.log("atendys ok");
 process.exit(0);

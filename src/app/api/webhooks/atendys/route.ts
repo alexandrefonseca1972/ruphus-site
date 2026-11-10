@@ -1,6 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { enviarTexto, OPTIN_DONO, versaoDaAssinatura, type CabecalhosWebhook } from "@/lib/atendys";
 import { adminDb } from "@/lib/admin";
+import { atualizarEnvio } from "@/lib/consumo.server";
 import { DEMO } from "@/lib/demo";
 import { atualizarParada, avisarFalhaDeEnvio, lerIndice, NAO_SAI_A_TEMPO } from "@/lib/mensagens-paradas.server";
 import { avisarQueda, codigoDoAgendamento, espelharStatusDaInstancia, executarComandoPendente, idDoComando, lerConexao, lerConfigWhatsApp, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
@@ -82,8 +83,9 @@ export async function POST(req: Request) {
     // ouviu "cliente avisado". Falha agora, não quando vencer na hora do atendimento
     const retry = Date.parse(evento.retryAt ?? "");
     const naoSai = evento.status === "queued" && indice.vigiada && indice.prazo !== null && retry >= indice.prazo;
-    // envio comum (não parado na cota) só interessa quando falha: o resto é ack sem leituras
-    if (indice.vigiada && !indice.parada && evento.status !== "failed" && !naoSai) return responder(200, { ok: true });
+    // envio comum (não parado na cota) interessa quando falha e, para o consumo, quando sai, é
+    // entregue ou lido: o resto (queued) é ack sem leituras
+    if (indice.vigiada && !indice.parada && !["failed", "sent", "delivered", "read"].includes(String(evento.status)) && !naoSai) return responder(200, { ok: true });
     // lerConfigWhatsApp, não lerConexao: o negócio pode ter desconectado (sem instanceId) depois do
     // envio, e a falha daquela mensagem ainda tem de chegar à gaveta
     const segredoDaMensagem = (await lerConfigWhatsApp(adminDb, slugDaMensagem))?.atendysWebhookSecret;
@@ -100,6 +102,7 @@ export async function POST(req: Request) {
     console.log(`[webhook atendys] assinatura ${versao}: message.status de ${slugDaMensagem}`);
     const at = Date.parse(evento.at ?? "");
     await atualizarParada(slugDaMensagem, id!, String(evento.status), evento.retryAt === undefined ? undefined : (evento.retryAt ?? null), Number.isNaN(at) ? Date.now() : at, evento.errorCode);
+    await atualizarEnvio(slugDaMensagem, id!, naoSai ? "failed" : String(evento.status), naoSai ? NAO_SAI_A_TEMPO : evento.errorCode, Number.isNaN(at) ? Date.now() : at);
     if (evento.status === "failed" || naoSai) await avisarFalhaDeEnvio(slugDaMensagem, id!, naoSai ? NAO_SAI_A_TEMPO : evento.errorCode);
     return responder(200, { ok: true });
   }

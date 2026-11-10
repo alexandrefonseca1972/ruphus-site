@@ -630,7 +630,7 @@ export async function processarComandoAgendamento(
   const avisarCliente = (tipo: "confirmado" | "cancelado", cliente: string, texto: string, aceite: OptIn) =>
     oficial
       ? enviarTemplateSemOperador(oficial, cliente, templateCliente(tipo, { nome, negocio, servico: String(a.get("serviceName") ?? ""), quando: quandoVai, contato: contatoDoNegocio(tenant) }), aceite, prazo)
-      : enviarSemOperador(canal, cliente, comAvisoSair(texto), aceite, prazo);
+      : enviarSemOperador(canal, cliente, comAvisoSair(texto), aceite, prazo, { tipo });
   const semAceite = (o: string) =>
     `Agendamento de ${nome} ${o}, mas o cliente não autorizou receber mensagens pelo WhatsApp e não foi avisado. Fale com ele por outro meio (tel ${a.get("customerPhone")}).`;
 

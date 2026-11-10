@@ -509,7 +509,7 @@ export const enviarPixWhatsappAction = memberAction(
     // inteira não leva o aviso junto para o app do banco
     const texto = textoPix({ valorCents: data.valorCents, nome: recebedor.nome, codigo });
     const corte = texto.lastIndexOf("\n\n");
-    const envio = await enviarTexto(w, cliente, `${comAvisoSair(texto.slice(0, corte))}\n\n${texto.slice(corte + 2)}`, optIn);
+    const envio = await enviarTexto(w, cliente, `${comAvisoSair(texto.slice(0, corte))}\n\n${texto.slice(corte + 2)}`, optIn, undefined, { tipo: "pix" });
     return { ok: true as const, situacao: situacaoDe(envio) };
   },
 );
@@ -549,7 +549,7 @@ export const avisarClienteWhatsappAction = memberAction(
     );
     const optIn = optInDoDoc(data.tenantId, ag);
     if (!optIn) throw new UserError("O cliente não autorizou WhatsApp neste agendamento. Avise por outro meio.");
-    const envio = await enviarTexto(w, cliente, comAvisoSair(texto), optIn);
+    const envio = await enviarTexto(w, cliente, comAvisoSair(texto), optIn, undefined, { tipo: data.tipo === "remarcado" ? "reagendado" : data.tipo });
     return { ok: true as const, situacao: situacaoDe(envio) };
   },
 );

@@ -3,6 +3,8 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import QRCode from "qrcode";
 import { atualizarParada, avisarFalhaDeEnvio, NAO_SAI_A_TEMPO, prazoDaParada, registrarParada, vigiarEnvio } from "@/lib/mensagens-paradas.server";
 import { ErroPrevisto } from "@/lib/erro-previsto";
+import { agendamentoDoEnvio, statusDoAtendys, tipoDoTemplate, type TipoEnvio } from "@/lib/consumo";
+import { atualizarEnvio, registrarEnvio } from "@/lib/consumo.server";
 import { integracao } from "@/lib/integracoes.server";
 
 // Cliente da plataforma de notificações WhatsApp (atendys). Só roda no servidor:
@@ -369,9 +371,10 @@ export const OPTIN_DONO: OptIn = { origem: "ruphus-aviso-dono", evidencia: "Núm
 /** opcoes.resposta: a pessoa acabou de escrever ou tocar num botão (janela de 24 h): no atendys não
  *  conta na cota por destinatário nem no dedupe de 10 min (replyToInbound).
  *  opcoes.chave: idempotency-key (chaveDeEnvio); repetir o envio com ela devolve a mensagem já aceita. */
-export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean; chave?: string } = {}): Promise<Envio> {
+/** opcoes.tipo: o que é o aviso no consumo do negócio (sem ele: resposta ou outro). */
+export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean; chave?: string; tipo?: TipoEnvio } = {}): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
-  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", { number: digits, text: message, ...validade(prazo), ...(opcoes.resposta && { replyToInbound: true }) }, message, prazo, opcoes.resposta, opcoes.chave);
+  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", { number: digits, text: message, ...validade(prazo), ...(opcoes.resposta && { replyToInbound: true }) }, message, prazo, opcoes.resposta, opcoes.chave, { tipo: opcoes.tipo });
 }
 
 /** Idempotency-key determinística para send-text/send-template: o mesmo envio repetido (timeout, cron
@@ -406,7 +409,7 @@ export async function enviarTemplate(conn: ConexaoAtendys, phone: string, t: Tem
     ...validade(prazo),
   };
   // texto da parada (painel "Mensagens"): o template com os parâmetros, já que não há texto livre
-  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-template", corpo, `[${t.nome}] ${t.parametros.join(" · ")}`, prazo, false, opcoes.chave);
+  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-template", corpo, `[${t.nome}] ${t.parametros.join(" · ")}`, prazo, false, opcoes.chave, { tipo: tipoDoTemplate(t.nome), template: t.nome, botoes: t.botoes });
 }
 
 /** Botões (até 3) ou lista (até 10) pela API oficial, só dentro da janela de 24 h (a pessoa
@@ -434,7 +437,8 @@ export async function enviarTemplateSemOperador(conn: ConexaoAtendys, phone: str
   return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };
 }
 
-async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn, caminho: string, corpo: unknown, message: string, prazo?: Date, resposta = false, chave?: string): Promise<Envio> {
+// rotulo: o que vai para o consumo do negócio (tenants/{slug}/envios); o resto sai do próprio envio
+async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn, caminho: string, corpo: unknown, message: string, prazo?: Date, resposta = false, chave?: string, rotulo: { tipo?: TipoEnvio; template?: string; botoes?: string[] } = {}): Promise<Envio> {
   // a mesma chave nas duas tentativas (antes e depois do opt-in): a recusa NOT_OPTED_IN não grava nada no atendys
   const auth = { ...authTenant(conn), instance: conn.instanceId, ...(chave && { "idempotency-key": chave }) };
   const enviar = async (): Promise<Envio> => {
@@ -450,6 +454,12 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
     };
   };
   const registrar = async (e: Envio) => {
+    // consumo: antes do índice do webhook, para o message.status já achar o envio
+    if (conn.slug) await registrarEnvio(conn.slug, {
+      id: e.messageId, canal: "whatsapp", via: conn.oficial ? "oficial" : "salao", tipo: rotulo.tipo ?? (resposta ? "resposta" : "outro"), template: rotulo.template,
+      fone: digits, destinatario: optIn === OPTIN_DONO ? "dono" : "cliente", agendamentoId: agendamentoDoEnvio(conn.slug, optIn?.eventId, rotulo.botoes),
+      status: statusDoAtendys(e.status) ?? "aceito", erro: e.errorCode, servico: resposta,
+    });
     if (aguardaDecisao(e) && conn.slug) await registrarParada(conn.slug, { messageId: e.messageId, retryAt: e.retryAt, errorCode: e.errorCode, para: digits, texto: message, prazo });
     // todo envio aceito é vigiado: a falha que vem depois (a Meta recusou, venceu o prazo no
     // atendys) chega ao negócio pelo message.status failed
@@ -463,6 +473,7 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
       // o que a conferência achou volta para quem chama: devolver o "queued" do POST faria o
       // chamador contar como enviada e limpar o aviso que acabou de ser gravado
       if (agora?.status === "failed") {
+        await atualizarEnvio(conn.slug, e.messageId, "failed", agora.errorCode);
         await avisarFalhaDeEnvio(conn.slug, e.messageId, agora.errorCode);
         return { ...e, status: "failed", ...(agora.errorCode && { errorCode: agora.errorCode }) };
       }
@@ -558,7 +569,7 @@ export async function seguirSemOperador(conn: ConexaoAtendys, envio: Envio, praz
 }
 
 /** enviarTexto + seguirSemOperador: para quem envia sem ninguém olhando a tela. */
-export async function enviarSemOperador(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean; chave?: string } = {}) {
+export async function enviarSemOperador(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean; chave?: string; tipo?: TipoEnvio } = {}) {
   if (semFolga(prazo)) return NAO_ENVIADA;
   const envio = await enviarTexto(conn, phone, message, optIn, prazo, opcoes);
   return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };

@@ -5,6 +5,7 @@ import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { quando } from "@/lib/avisos.server";
 import { numeroSms } from "@/lib/comtele";
 import { enviarSms, smsDisponivel } from "@/lib/comtele.server";
+import { registrarEnvio } from "@/lib/consumo.server";
 import { agoraNaParede, dateIn, formatPhone, formatTime, fusoDe, todayIn } from "@/lib/datetime";
 
 // SMS para o cliente final, pela conta da Ruphus na Comtele: quando a casa confirma o horário e X h
@@ -58,6 +59,13 @@ async function enviarReservado(ref: DocumentReference, campo: "smsConfirmacaoEm"
   try {
     const id = await enviar(numero, texto);
     if (id) await ref.update({ [`${campo.replace("Em", "Id")}`]: id }).catch(() => {});
+    // consumo do negócio: SMS cobra no aceite da Comtele (sem retorno de entrega, fica "enviado").
+    // O id da Comtele quando vem (só letras, números e hífen viram id de documento); senão, um gerado
+    const docId = id && /^[A-Za-z0-9_-]{1,100}$/.test(id) ? `sms-${id}` : ref.firestore.collection("_").doc().id;
+    await registrarEnvio(ref.parent.parent!.id, {
+      id: docId, canal: "sms", via: "oficial", tipo: campo === "smsConfirmacaoEm" ? "confirmado" : "lembrete",
+      fone: numero, destinatario: "cliente", agendamentoId: ref.id, status: "enviado",
+    });
     return true;
   } catch (e) {
     // devolve a reserva: a confirmação não tenta de novo sozinha, o lembrete tenta no próximo ciclo

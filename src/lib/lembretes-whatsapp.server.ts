@@ -116,7 +116,7 @@ export async function enviarLembretesDoDia(): Promise<number> {
               comAvisoSair(`Olá, ${nome}! Lembrete do seu horário ${dia} às ${formatTime(start)}: ${a.get("serviceName")} no ${nomeNegocio}. Qualquer imprevisto, responda aqui pelo WhatsApp.`),
               optIn,
               prazo, // lembrete que sairia depois do horário não serve: fica parado
-              { chave },
+              { chave, tipo: "lembrete" },
             );
         // parado na cota: não é falha (aguarda decisão do dono); a reserva fica, para não reenviar a cada ciclo
         // parado (decisão do dono) ou que não sai antes do horário: não conta como enviado. Aceito e
