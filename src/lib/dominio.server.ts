@@ -82,3 +82,23 @@ export async function mapaDominios(db: Firestore): Promise<MapaDominios> {
   }
   return mapa;
 }
+
+/** Uma vez por dia (cron de lembretes, 4h): domínio ativo cujo DNS saiu da VPS volta a pendente,
+ *  e o proxy para de mandar o subdomínio para ele. Só decide com resposta do DNS (ou "não existe",
+ *  domínio expirado): timeout e SERVFAIL ficam para o dia seguinte, sem rebaixar.
+ *  Devolve quantos voltaram a pendente. */
+export async function reverificarDominios(db: Firestore) {
+  const snap = await db.collection("tenants").where("dominio.status", "==", "ativo").select("dominio").get();
+  let rebaixados = 0;
+  for (const d of snap.docs) {
+    const host = (d.get("dominio") as Dominio).host;
+    const decidivel = await resolve4(host).then(() => true, (e: { code?: string }) => e?.code === "ENOTFOUND" || e?.code === "ENODATA");
+    if (!decidivel) continue;
+    const r = await verificarDominio(db, d.id).catch((e) => (console.error(`[dominio] reverificar ${d.id}`, e), null));
+    if (r?.dominio.status === "pendente") {
+      rebaixados++;
+      console.warn(`[dominio] ${host} (${d.id}) não aponta mais para a VPS: voltou a pendente`);
+    }
+  }
+  return rebaixados;
+}

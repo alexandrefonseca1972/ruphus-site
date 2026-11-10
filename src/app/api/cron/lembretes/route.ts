@@ -1,5 +1,7 @@
+import { FieldValue } from "firebase-admin/firestore";
 import type { NextRequest } from "next/server";
 import { adminDb } from "@/lib/admin";
+import { reverificarDominios } from "@/lib/dominio.server";
 import { enviarLembretesDoDia } from "@/lib/lembretes-whatsapp.server";
 import { segredoIgual } from "@/lib/segredo.server";
 import { expirarSinais } from "@/lib/sinal.server";
@@ -22,6 +24,12 @@ export async function GET(request: NextRequest) {
   // SMS depois do WhatsApp: um falhar não impede o outro
   const sms = await enviarLembretesPorSms(adminDb).catch((e) => (console.error("[cron] lembretes por SMS", e), 0));
   // uma vez por hora (o cron roda a cada 10 min): conexão que caiu sem o webhook chegar
-  const conexoesCaidas = new Date().getMinutes() < 10 ? await vigiarConexoes(adminDb).catch((e) => (console.error("[cron] vigiar conexões", e), 0)) : null;
-  return Response.json({ ok: true, sinaisVencidos, comandos, enviados, sms, conexoesCaidas });
+  const agora = new Date(); // TZ=America/Sao_Paulo no ruphus-site.service
+  // uma vez por hora (o cron roda a cada 10 min): conexão que caiu sem o webhook chegar
+  const conexoesCaidas = agora.getMinutes() < 10 ? await vigiarConexoes(adminDb).catch((e) => (console.error("[cron] vigiar conexões", e), 0)) : null;
+  // uma vez por dia, de madrugada: domínio próprio cujo DNS saiu da VPS volta a pendente
+  const dominiosRebaixados = agora.getHours() === 4 && agora.getMinutes() < 10 ? await reverificarDominios(adminDb).catch((e) => (console.error("[cron] reverificar domínios", e), 0)) : null;
+  // o instrumentation confere esta marca a cada 10 min e avisa o admin se passar de 30 min
+  await adminDb.doc("config/cron").set({ ultimaExecucao: FieldValue.serverTimestamp() }, { merge: true });
+  return Response.json({ ok: true, sinaisVencidos, comandos, enviados, sms, conexoesCaidas, dominiosRebaixados });
 }
