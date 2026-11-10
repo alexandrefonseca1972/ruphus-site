@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Admin — Mensagens: preços, cobrança e recargas</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Inter,system-ui,sans-serif;color:#18181b;background:#f4f4f5;font-variant-numeric:tabular-nums}
+a{color:#0f766e}a:hover{color:#115e59}
+table{border-collapse:collapse}
+th{font-weight:600;color:#52525b;font-size:12px;text-align:left;padding:10px 12px;border-bottom:1px solid #e4e4e7}
+td{font-size:14px;padding:12px;border-bottom:1px solid #f0f0f1;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.btn{font:inherit;font-size:14px;font-weight:500;border:1px solid #d4d4d8;background:#fff;color:#18181b;border-radius:10px;padding:10px 14px;min-height:44px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.btn-p{background:#18181b;color:#fff;border-color:#18181b}
+.card{background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:14px}
+.lbl{font-size:13px;font-weight:600;color:#3f3f46}
+.hint{font-size:12px;color:#71717a}
+.inp{font:inherit;font-size:14px;border:1px solid #d4d4d8;border-radius:10px;padding:10px 12px;min-height:44px;box-sizing:border-box;background:#fff;color:#18181b}
+.money{display:inline-flex;align-items:center;border:1px solid #d4d4d8;border-radius:10px;overflow:hidden;background:#fff;min-height:44px}
+.money span{padding:0 10px;color:#71717a;font-size:14px;border-right:1px solid #e4e4e7;align-self:stretch;display:inline-flex;align-items:center}
+.money input{border:0;outline:0;font:inherit;font-size:14px;width:90px;padding:0 10px;text-align:right}
+.sw{position:relative;display:inline-flex;align-items:center;gap:10px;cursor:pointer;min-height:44px}
+.sw input{position:absolute;opacity:0;width:1px;height:1px}
+.sw .tr{width:44px;height:26px;border-radius:13px;background:#d4d4d8;position:relative;transition:.2s;flex:none}
+.sw .tr::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff}
+.sw input:checked + .tr{background:#0f766e}.sw input:checked + .tr::after{left:21px}
+.sw input:focus-visible + .tr{outline:2px solid #0f766e;outline-offset:2px}
+.pill{display:inline-flex;align-items:center;font-size:12px;font-weight:600;border-radius:999px;padding:4px 10px}
+.pill-ok{background:#ecfdf5;color:#065f46}.pill-off{background:#f4f4f5;color:#52525b}.pill-low{background:#fffbeb;color:#92400e}.pill-zero{background:#fef2f2;color:#b42318}
+</style>
+</helmet>
+<div style="max-width: 1280px; margin: 0 auto; box-sizing: border-box; padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 20px">
+
+  <nav aria-label="Admin" style="display:flex; align-items:center; gap:18px; font-size:14px; color:#52525b; flex-wrap:wrap">
+    <span style="font-weight:700; color:#18181b; font-size:15px">Administração</span>
+    <a href="#" style="color:#52525b; text-decoration:none">Lista</a><a href="#" style="color:#52525b; text-decoration:none">Funil</a><a href="#" style="color:#52525b; text-decoration:none">Clientes</a><a href="#" style="color:#52525b; text-decoration:none">Cobrança</a><a href="#" style="color:#52525b; text-decoration:none">Coleta</a>
+    <a href="#" style="color:#18181b; font-weight:600; text-decoration:none; border-bottom:2px solid #18181b; padding-bottom:2px">Ajustes</a>
+  </nav>
+
+  <header style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap">
+    <div style="display:flex; flex-direction:column; gap:6px">
+      <h1 style="margin:0; font-size:26px; font-weight:700; letter-spacing:-0.01em">Mensagens: preços, cobrança e recargas</h1>
+      <p style="margin:0; font-size:14px; color:#52525b">Vale para todos os negócios. Exceções por negócio ficam na gaveta de cada um (aba Cobrança).</p>
+    </div>
+    <span class="hint" style="padding-top:8px">Última alteração: 10/11/2026 16:02 · Fernanda</span>
+  </header>
+
+  <div style="display:grid; grid-template-columns: 1.2fr 1fr; gap:16px; align-items:start">
+
+    <div style="display:flex; flex-direction:column; gap:16px">
+      <section class="card" aria-label="Cobrança de mensagens">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px">
+          <div style="display:flex; flex-direction:column; gap:2px"><h2 style="margin:0; font-size:16px; font-weight:600">Cobrar mensagens dos negócios</h2><span class="hint">Desligado: tudo continua sendo enviado e registrado, mas sem custo para o negócio.</span></div>
+          <label class="sw"><input type="checkbox" checked><span class="tr"></span><span style="font-size:14px; font-weight:600; color:#0f766e">Ligado</span></label>
+        </div>
+        <div style="height:1px; background:#f0f0f1"></div>
+        <fieldset style="border:0; margin:0; padding:0; display:flex; flex-direction:column; gap:10px">
+          <legend class="lbl" style="margin-bottom:6px">Modelo</legend>
+          <label style="display:flex; gap:12px; align-items:flex-start; padding:12px; border:1px solid #0f766e; border-radius:12px; background:#f0fdfa; cursor:pointer"><input type="radio" name="modelo" checked style="margin-top:4px; width:18px; height:18px"><span style="display:flex; flex-direction:column; gap:2px"><strong style="font-size:14px">Pré-pago com saldo</strong><span class="hint" style="color:#3f3f46">O negócio recarrega via Pix; cada mensagem desconta do saldo. Sem saldo, os avisos param (regra abaixo).</span></span></label>
+          <label style="display:flex; gap:12px; align-items:flex-start; padding:12px; border:1px solid #e4e4e7; border-radius:12px; cursor:pointer"><input type="radio" name="modelo" style="margin-top:4px; width:18px; height:18px"><span style="display:flex; flex-direction:column; gap:2px"><strong style="font-size:14px">Pós-pago na mensalidade</strong><span class="hint" style="color:#3f3f46">Soma o consumo do mês à cobrança seguinte. Sem bloqueio.</span></span></label>
+        </fieldset>
+      </section>
+
+      <section class="card" aria-label="Preço por mensagem">
+        <div style="display:flex; flex-direction:column; gap:2px"><h2 style="margin:0; font-size:16px; font-weight:600">Preço por mensagem</h2><span class="hint">Cada envio guarda o preço vigente; mudar aqui não altera o que já foi cobrado. Custo real da Meta hoje: US$ 0,0068 ≈ R$ 0,04.</span></div>
+        <div style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:14px">
+          <div style="display:flex; flex-direction:column; gap:6px"><label class="lbl" for="p1">WhatsApp · aviso ao cliente ou ao dono</label><div class="money"><span>R$</span><input id="p1" type="text" inputmode="decimal" value="0,05"></div><span class="hint">Templates de utilidade.</span></div>
+          <div style="display:flex; flex-direction:column; gap:6px"><label class="lbl" for="p2">WhatsApp · resposta na janela de 24 h</label><div class="money"><span>R$</span><input id="p2" type="text" inputmode="decimal" value="0,00"></div><span class="hint">A Meta não cobra; padrão grátis.</span></div>
+          <div style="display:flex; flex-direction:column; gap:6px"><label class="lbl" for="p3">SMS</label><div class="money"><span>R$</span><input id="p3" type="text" inputmode="decimal" value="0,12"></div><span class="hint">Comtele cobra ≈ R$ 0,08.</span></div>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:12px; background:#fafafa; border-radius:10px">
+          <span style="font-size:13px; color:#3f3f46">Simulação de um agendamento típico (4 mensagens): <strong>R$ 0,20</strong> · 30 agendamentos/mês: <strong>R$ 6,00</strong> · margem sobre o custo real: <strong style="color:#0f766e">≈ 70%</strong></span>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Recargas e saldo">
+        <div style="display:flex; flex-direction:column; gap:2px"><h2 style="margin:0; font-size:16px; font-weight:600">Recargas e saldo</h2><span class="hint">Pacotes que aparecem para o negócio. O pagamento é Pix, igual ao da mensalidade.</span></div>
+        <div style="overflow-x:auto">
+        <table style="width:100%">
+          <thead><tr><th>Pacote</th><th>Valor</th><th>Bônus</th><th>Crédito</th><th>≈ mensagens</th><th></th></tr></thead>
+          <tbody>
+            <tr><td style="font-weight:500">Básico</td><td>R$ 20,00</td><td>0%</td><td>R$ 20,00</td><td style="color:#52525b">400 WhatsApp</td><td style="text-align:right"><button class="btn" type="button" style="min-height:36px; padding:6px 10px">Editar</button></td></tr>
+            <tr><td style="font-weight:500">Mais usado</td><td>R$ 50,00</td><td style="color:#0f766e; font-weight:600">+10%</td><td>R$ 55,00</td><td style="color:#52525b">1.100 WhatsApp</td><td style="text-align:right"><button class="btn" type="button" style="min-height:36px; padding:6px 10px">Editar</button></td></tr>
+            <tr><td style="font-weight:500">Grande</td><td>R$ 100,00</td><td style="color:#0f766e; font-weight:600">+20%</td><td>R$ 120,00</td><td style="color:#52525b">2.400 WhatsApp</td><td style="text-align:right"><button class="btn" type="button" style="min-height:36px; padding:6px 10px">Editar</button></td></tr>
+          </tbody>
+        </table>
+        </div>
+        <button class="btn" type="button" style="align-self:flex-start">+ Adicionar pacote</button>
+        <div style="height:1px; background:#f0f0f1"></div>
+        <div style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:14px">
+          <div style="display:flex; flex-direction:column; gap:6px"><label class="lbl" for="aviso">Avisar o dono quando o saldo ficar abaixo de</label><div class="money"><span>R$</span><input id="aviso" type="text" inputmode="decimal" value="5,00"></div><span class="hint">Aviso no painel e pelo WhatsApp dele, uma vez por recarga.</span></div>
+          <div style="display:flex; flex-direction:column; gap:6px"><label class="lbl" for="cortesia">Crédito de boas-vindas (negócio novo)</label><div class="money"><span>R$</span><input id="cortesia" type="text" inputmode="decimal" value="10,00"></div><span class="hint">Entra como recarga de cortesia no primeiro dia.</span></div>
+        </div>
+        <fieldset style="border:0; margin:0; padding:0; display:flex; flex-direction:column; gap:8px">
+          <legend class="lbl" style="margin-bottom:6px">Quando o saldo zerar</legend>
+          <label style="display:flex; gap:10px; align-items:center; cursor:pointer; min-height:36px"><input type="radio" name="zero" checked style="width:18px; height:18px"><span style="font-size:14px">Pausar avisos aos clientes; manter o pedido ao dono e o lembrete do dia (recomendado)</span></label>
+          <label style="display:flex; gap:10px; align-items:center; cursor:pointer; min-height:36px"><input type="radio" name="zero" style="width:18px; height:18px"><span style="font-size:14px">Pausar tudo até recarregar</span></label>
+          <label style="display:flex; gap:10px; align-items:center; cursor:pointer; min-height:36px"><input type="radio" name="zero" style="width:18px; height:18px"><span style="font-size:14px">Continuar enviando e deixar o saldo negativo até R$ <input class="inp" type="text" value="10,00" style="width:80px; min-height:36px; padding:6px 10px; text-align:right"></span></label>
+        </fieldset>
+      </section>
+
+      <div style="display:flex; gap:10px; justify-content:flex-end">
+        <button class="btn" type="button">Descartar</button>
+        <button class="btn btn-p" type="button">Salvar alterações</button>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:16px">
+      <section class="card" aria-label="Visão geral do mês">
+        <h2 style="margin:0; font-size:16px; font-weight:600">Novembro, todos os negócios</h2>
+        <div style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px">
+          <div style="display:flex; flex-direction:column; gap:2px"><span class="hint" style="text-transform:uppercase; letter-spacing:.04em; font-weight:600">Mensagens</span><span style="font-size:24px; font-weight:700">1.284</span><span class="hint">1.021 WhatsApp · 263 SMS</span></div>
+          <div style="display:flex; flex-direction:column; gap:2px"><span class="hint" style="text-transform:uppercase; letter-spacing:.04em; font-weight:600">Cobrado dos negócios</span><span style="font-size:24px; font-weight:700">R$ 82,61</span><span class="hint">custo real ≈ R$ 48,20</span></div>
+          <div style="display:flex; flex-direction:column; gap:2px"><span class="hint" style="text-transform:uppercase; letter-spacing:.04em; font-weight:600">Recargas no mês</span><span style="font-size:24px; font-weight:700">R$ 230,00</span><span class="hint">7 recargas · 5 negócios</span></div>
+          <div style="display:flex; flex-direction:column; gap:2px"><span class="hint" style="text-transform:uppercase; letter-spacing:.04em; font-weight:600">Saldo total em aberto</span><span style="font-size:24px; font-weight:700">R$ 171,90</span><span class="hint">crédito ainda não consumido</span></div>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Saldos por negócio">
+        <div style="display:flex; justify-content:space-between; align-items:baseline"><h2 style="margin:0; font-size:16px; font-weight:600">Saldo por negócio</h2><a href="#" style="font-size:13px">Ver todos (9)</a></div>
+        <table style="width:100%">
+          <thead><tr><th>Negócio</th><th style="text-align:right">Saldo</th><th>Situação</th><th style="text-align:right">Mês</th></tr></thead>
+          <tbody>
+            <tr><td><a href="#">RuphusBel</a></td><td style="text-align:right; font-weight:600">R$ 2,15</td><td><span class="pill pill-low">Baixo · avisado 09/11</span></td><td style="text-align:right">R$ 14,30</td></tr>
+            <tr><td><a href="#">Studio Ysis</a></td><td style="text-align:right; font-weight:600; color:#b42318">R$ 0,00</td><td><span class="pill pill-zero">Avisos pausados</span></td><td style="text-align:right">R$ 9,80</td></tr>
+            <tr><td><a href="#">Barbearia Force</a></td><td style="text-align:right; font-weight:600">R$ 23,40</td><td><span class="pill pill-ok">Em dia</span></td><td style="text-align:right">R$ 8,64</td></tr>
+            <tr><td><a href="#">Clínica Amigo Fiel</a></td><td style="text-align:right; font-weight:600">R$ 55,00</td><td><span class="pill pill-ok">Em dia</span></td><td style="text-align:right">R$ 1,20</td></tr>
+            <tr><td><a href="#">Espaço Luz</a></td><td style="text-align:right; font-weight:600">—</td><td><span class="pill pill-off">Cobrança desligada</span></td><td style="text-align:right">R$ 0,00</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card" aria-label="Exceções por negócio (na gaveta)">
+        <h2 style="margin:0; font-size:16px; font-weight:600">Na gaveta de cada negócio</h2>
+        <ul style="margin:0; padding-left:18px; font-size:14px; color:#3f3f46; display:flex; flex-direction:column; gap:6px">
+          <li>Ligar/desligar a cobrança só para ele (ex.: piloto, parceiro).</li>
+          <li>Preço próprio, se negociado.</li>
+          <li>Crédito manual com motivo (cortesia, estorno, acordo).</li>
+          <li>Extrato: recargas, consumo diário e ajustes.</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1460}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

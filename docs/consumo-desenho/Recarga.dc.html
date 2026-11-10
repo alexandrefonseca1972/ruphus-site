@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Saldo e recarga — celular</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Inter,system-ui,sans-serif;color:#18181b;background:#f4f4f5;font-variant-numeric:tabular-nums}
+a{color:#0f766e}a:hover{color:#115e59}
+.btn{font:inherit;font-size:14px;font-weight:500;border:1px solid #d4d4d8;background:#fff;color:#18181b;border-radius:10px;padding:10px 14px;min-height:44px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn-p{background:#18181b;color:#fff;border-color:#18181b}
+.card{background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.kpi{font-size:11px;color:#52525b;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.item{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #f0f0f1;align-items:center}
+.item:last-child{border-bottom:0}
+.pk{display:flex;flex-direction:column;gap:4px;padding:12px;border:1px solid #e4e4e7;border-radius:12px;background:#fff;cursor:pointer;text-align:left;font:inherit;color:inherit;min-height:44px}
+.pk[aria-pressed="true"]{border-color:#0f766e;box-shadow:inset 0 0 0 1px #0f766e;background:#f0fdfa}
+.tag{display:inline-flex;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:#0f766e;color:#fff;align-self:flex-start}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 1560px; box-sizing: border-box; padding: 12px 16px 96px; display: flex; flex-direction: column; gap: 12px; background:#f4f4f5">
+
+  <header style="display:flex; align-items:center; gap:10px">
+    <a href="Celular.dc.html" aria-label="Voltar para Consumo" class="btn" style="min-width:44px; padding:0; text-decoration:none"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg></a>
+    <h1 style="margin:0; font-size:20px; font-weight:700; letter-spacing:-0.01em">Saldo de mensagens</h1>
+  </header>
+
+  <section aria-label="Saldo atual" class="card" style="background:#18181b; color:#fff; border-color:#18181b; gap:6px">
+    <span class="kpi" style="color:#a1a1aa">Saldo disponível</span>
+    <span style="font-size:40px; font-weight:700; line-height:1.05; letter-spacing:-0.02em">R$ 23,40</span>
+    <span style="font-size:13px; color:#d4d4d8">Dá para cerca de <strong style="color:#fff">468 mensagens</strong> de WhatsApp, ou uns <strong style="color:#fff">2 meses</strong> no seu ritmo (R$ 8,64 em novembro).</span>
+    <div style="height:6px; background:#3f3f46; border-radius:3px; overflow:hidden; margin-top:4px" aria-hidden="true"><div style="width:43%; height:100%; background:#34d399"></div></div>
+    <span style="font-size:12px; color:#a1a1aa">43% da última recarga (R$ 55,00 em 28/10)</span>
+  </section>
+
+  <section aria-label="Aviso de saldo baixo" style="display:none"></section>
+
+  <section aria-label="Recarregar" class="card" style="gap:10px">
+    <div style="display:flex; flex-direction:column; gap:2px"><h2 style="margin:0; font-size:15px; font-weight:600">Recarregar</h2><span style="font-size:12px; color:#52525b">Pagamento por Pix, cai na hora. O crédito não vence.</span></div>
+    <div role="group" aria-label="Pacotes" style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:8px">
+      <button class="pk" type="button" aria-pressed="false"><strong style="font-size:16px">R$ 20</strong><span style="font-size:12px; color:#52525b">crédito R$ 20</span><span style="font-size:11px; color:#71717a">≈ 400 msgs</span></button>
+      <button class="pk" type="button" aria-pressed="true"><span class="tag">+10%</span><strong style="font-size:16px">R$ 50</strong><span style="font-size:12px; color:#0f766e; font-weight:600">crédito R$ 55</span><span style="font-size:11px; color:#71717a">≈ 1.100 msgs</span></button>
+      <button class="pk" type="button" aria-pressed="false"><span class="tag">+20%</span><strong style="font-size:16px">R$ 100</strong><span style="font-size:12px; color:#0f766e; font-weight:600">crédito R$ 120</span><span style="font-size:11px; color:#71717a">≈ 2.400 msgs</span></button>
+    </div>
+    <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#3f3f46"><span>Outro valor</span><span style="display:inline-flex; align-items:center; border:1px solid #d4d4d8; border-radius:10px; overflow:hidden; background:#fff; min-height:44px"><span style="padding:0 10px; color:#71717a; border-right:1px solid #e4e4e7; align-self:stretch; display:inline-flex; align-items:center">R$</span><input type="text" inputmode="decimal" placeholder="mín. 10,00" style="border:0; outline:0; font:inherit; font-size:14px; width:110px; padding:0 10px"></span></label>
+    <button class="btn btn-p" type="button" style="width:100%">Gerar Pix de R$ 50,00</button>
+    <span style="font-size:12px; color:#71717a">Recibo por e-mail após o pagamento. Dúvidas sobre cobrança: fale com a Ruphus.</span>
+  </section>
+
+  <section aria-label="Pix gerado" class="card" style="gap:10px; border-color:#99f6e4; background:#f0fdfa">
+    <div style="display:flex; justify-content:space-between; align-items:center"><h2 style="margin:0; font-size:15px; font-weight:600">Pix de R$ 50,00</h2><span style="font-size:12px; color:#0f766e; font-weight:600">faltam 14:32</span></div>
+    <div aria-label="QR code do Pix" role="img" style="width:168px; height:168px; margin:0 auto; background:repeating-linear-gradient(90deg,#18181b 0 8px,#fff 8px 16px),repeating-linear-gradient(0deg,#18181b 0 8px,#fff 8px 16px); background-blend-mode:multiply; border:8px solid #fff; border-radius:8px; box-shadow:0 0 0 1px #e4e4e7"></div>
+    <button class="btn" type="button" style="width:100%"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copiar código Pix</button>
+    <span style="font-size:12px; color:#3f3f46; text-align:center">Assim que o banco confirmar, o saldo sobe para <strong>R$ 78,40</strong>.</span>
+  </section>
+
+  <section aria-label="Extrato" class="card" style="gap:0">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px"><h2 style="margin:0; font-size:15px; font-weight:600">Extrato</h2><a href="#" style="font-size:13px">Baixar CSV</a></div>
+    <div class="item"><div style="display:flex; flex-direction:column; gap:2px"><span style="font-size:14px; font-weight:500">Consumo de hoje</span><span style="font-size:12px; color:#52525b">10/11 · 5 mensagens</span></div><span style="font-size:14px; color:#b42318">− R$ 0,25</span></div>
+    <div class="item"><div style="display:flex; flex-direction:column; gap:2px"><span style="font-size:14px; font-weight:500">Consumo de ontem</span><span style="font-size:12px; color:#52525b">09/11 · 11 mensagens (2 SMS)</span></div><span style="font-size:14px; color:#b42318">− R$ 0,69</span></div>
+    <div class="item"><div style="display:flex; flex-direction:column; gap:2px"><span style="font-size:14px; font-weight:500">Consumo</span><span style="font-size:12px; color:#52525b">08/11 · 0 mensagens (domingo)</span></div><span style="font-size:14px; color:#71717a">R$ 0,00</span></div>
+    <div class="item"><div style="display:flex; flex-direction:column; gap:2px"><span style="font-size:14px; font-weight:500">Consumo</span><span style="font-size:12px; color:#52525b">07/11 · 14 mensagens (3 SMS)</span></div><span style="font-size:14px; color:#b42318">− R$ 0,91</span></div>
+    <div class="item"><div style="display:flex; flex-direction:column; gap:2px"><span style="font-size:14px; font-weight:500; color:#0f766e">Recarga via Pix</span><span style="font-size:12px; color:#52525b">28/10 · pacote R$ 50 + bônus R$ 5 · recibo nº 2026-0042</span></div><span style="font-size:14px; color:#0f766e; font-weight:600">+ R$ 55,00</span></div>
+    <div class="item"><div style="display:flex; flex-direction:column; gap:2px"><span style="font-size:14px; font-weight:500; color:#0f766e">Crédito de boas-vindas</span><span style="font-size:12px; color:#52525b">02/10 · cortesia da Ruphus</span></div><span style="font-size:14px; color:#0f766e; font-weight:600">+ R$ 10,00</span></div>
+    <button class="btn" type="button" style="width:100%; margin-top:8px">Ver meses anteriores</button>
+  </section>
+
+  <section aria-label="O que acontece sem saldo" class="card" style="gap:4px; font-size:13px; color:#3f3f46">
+    <strong style="font-size:14px; color:#18181b">Se o saldo acabar</strong>
+    <span>Você continua recebendo os pedidos e o lembrete do dia; os avisos automáticos aos clientes ficam pausados até a próxima recarga. Avisamos quando o saldo ficar abaixo de R$ 5,00.</span>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1560}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

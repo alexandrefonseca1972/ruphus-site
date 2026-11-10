@@ -1,7 +1,9 @@
 "use server";
 
 import { RECARGA_MINIMA_CENTS } from "@/lib/consumo";
-import { criarRecarga } from "@/lib/consumo.server";
+import { criarRecarga, lerConfigMensagens } from "@/lib/consumo.server";
+import { painelDeConsumo, resumoDoSaldo } from "@/lib/consumo-painel.server";
+import { abrirCobranca, listarCobrancas } from "@/lib/cobranca";
 import { cadastrarDonoOficial, conexaoOficial, enviarConfirmacaoDono, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { adminDb } from "@/lib/admin";
 import { createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
@@ -24,7 +26,7 @@ import { situacaoDe } from "@/lib/envio-whatsapp";
 import { atualizarParada, negocioDaMensagem, paradasDoNegocio } from "@/lib/mensagens-paradas.server";
 import { htmlDoRecibo, textoDoRecibo } from "@/lib/recibo";
 import { reciboDoBanco } from "@/lib/recibo.server";
-import { agoraNaParede, formatBRL, fusoDe } from "@/lib/datetime";
+import { agoraNaParede, formatBRL, fusoDe, todayIn } from "@/lib/datetime";
 import { celularDoDono, soDigitosComDDI } from "@/lib/telefone";
 import { type ConexaoWhatsapp, lerConfigWhatsApp, lerConexao, paraTela } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
@@ -669,9 +671,42 @@ export const criarRecargaAction = memberAction(
   async ({ tenantId, pedido }, user) => {
     await exigeGestor(tenantId, user.uid);
     if (tenantId === DEMO) throw new UserError("A demonstração não recarrega mensagens.");
-    return { ok: true as const, ...(await criarRecarga(tenantId, pedido)) };
+    // o mesmo valor ainda em aberto volta o mesmo Pix: tocar duas vezes não gera duas cobranças
+    const abertas = (await listarCobrancas(adminDb, tenantId)).filter((c) => c.tipo === "recarga" && c.status === "aberta" && c.vencimento >= todayIn());
+    const valor = "valorCents" in pedido ? pedido.valorCents : (await lerConfigMensagens()).pacotes.find((p) => p.id === pedido.pacoteId)?.valorCents;
+    const mesma = abertas.find((c) => c.valorCents === valor);
+    if (!mesma && abertas.length >= 5) throw new UserError("Já há 5 recargas aguardando pagamento. Pague uma delas ou espere vencerem.");
+    const r = mesma ? { id: mesma.id, token: String((await adminDb.doc(`cobrancas/${mesma.id}`).get()).get("token") ?? "") } : await criarRecarga(tenantId, pedido);
+    return { ok: true as const, ...(await pixDaRecarga(r.id, r.token)) };
   },
 );
+
+/** O Pix de uma recarga em aberto deste negócio, para pagar de novo pela tela. */
+export const pixDaRecargaAction = memberAction(z.object({ tenantId: docIdStaff, id: docId }), async ({ tenantId, id }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  const c = await adminDb.doc(`cobrancas/${id}`).get();
+  if (!c.exists || c.get("slug") !== tenantId || c.get("tipo") !== "recarga") throw new UserError("Essa recarga não existe mais.");
+  return { ok: true as const, ...(await pixDaRecarga(id, String(c.get("token") ?? ""))) };
+});
+
+async function pixDaRecarga(id: string, token: string) {
+  const c = await abrirCobranca(adminDb, id, token);
+  if (!c) throw new UserError("Não foi possível abrir o Pix desta recarga.");
+  const doc = await adminDb.doc(`cobrancas/${id}`).get();
+  return { id, url: `${SITE_BASE}/pagar/${id}?t=${token}`, brCode: c.brCode, valorCents: c.valorCents, bonusCents: Number(doc.get("bonusCents") ?? 0), vencimento: c.vencimento, status: c.status };
+}
+
+/** Tela de consumo: envios do mês, saldo, previsão, preços, pacotes e extrato. Só quem gere. */
+export const consumoAction = memberAction(z.object({ tenantId: docIdStaff, mes: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }), async ({ tenantId, mes }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  return { ok: true as const, dados: await painelDeConsumo(tenantId, mes) };
+});
+
+/** Faixa de saldo baixo no topo do painel (null: sem conta pré-paga aberta). */
+export const resumoDoSaldoAction = memberAction(z.object({ tenantId: docIdStaff }), async ({ tenantId }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  return { ok: true as const, saldo: await resumoDoSaldo(tenantId) };
+});
 
 /** "Equipe pode atender conversas": só quem gere liga (padrão: só o dono). */
 export const permitirEquipeNasConversasAction = memberAction(z.object({ tenantId: docIdStaff, equipeAtende: z.boolean() }), async ({ tenantId, equipeAtende }, user) => {

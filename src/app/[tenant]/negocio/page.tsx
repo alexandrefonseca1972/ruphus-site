@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { urlDoSite } from "@/lib/dominio";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -196,6 +197,8 @@ export default function MeuNegocio() {
         {[["#dados", "Dados"], ["#links", "Links"], ["#recado", "Agendamento"], ["#whatsapp", "WhatsApp"], ["#pix", "Pix"], ["#sinal", "Sinal"]].map(([href, rotulo]) => (
           <a key={href} href={href} className="flex h-10 shrink-0 items-center rounded-full border bg-card px-3.5 text-sm font-medium hover:bg-muted">{rotulo}</a>
         ))}
+        {/* no celular o Consumo não cabe na barra de baixo: o caminho fica aqui */}
+        <Link href={`/${slug}/consumo`} className="flex h-10 shrink-0 items-center rounded-full border bg-card px-3.5 text-sm font-medium hover:bg-muted">Mensagens e saldo →</Link>
       </nav>
 
       {/* Uma coluna com todos os formulários e, ao lado, só os links (fixos ao rolar). Antes o

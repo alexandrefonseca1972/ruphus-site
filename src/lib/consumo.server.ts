@@ -329,7 +329,7 @@ export async function criarRecarga(slug: string, pedido: { pacoteId: string } | 
     if (!Number.isInteger(valorCents) || valorCents < RECARGA_MINIMA_CENTS) throw new ErroPrevisto(`A recarga mínima é de ${formatBRL(RECARGA_MINIMA_CENTS)}.`);
   }
   const { id, token } = await gerarCobranca(adminDb, { slug, tipo: "recarga", competencia: null, valorCents, recarga: { pacoteId, bonusCents } });
-  return { id, url: `${SITE_BASE}/pagar/${id}?t=${token}` };
+  return { id, token, valorCents, bonusCents, url: `${SITE_BASE}/pagar/${id}?t=${token}` };
 }
 
 /** Depois da baixa (marcarPaga no /admin): o valor pago mais o bônus entram no saldo, uma vez. Recibo

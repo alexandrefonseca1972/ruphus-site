@@ -5,6 +5,12 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Mensagens pré-pagas: cada WhatsApp e SMS que a Ruphus envia em nome do negócio fica registrado com o preço do momento (WhatsApp R$ 0,05 por aviso, resposta a quem escreveu grátis, SMS R$ 0,12) e, no pré-pago, sai do saldo do negócio. Falha devolve o valor; mensagem parada na cota não cobra. Negócio novo ganha R$ 10,00 de boas-vindas; negócio que já existia segue sem desconto até receber um crédito. Sem saldo, os avisos aos clientes param e o pedido ao dono e o lembrete do dia continuam (#316).
+- Painel do dono: tela Consumo (`/{slug}/consumo`) com o saldo, as mensagens do mês, a entrega e a leitura do WhatsApp, o caminho das mensagens, o custo por canal, quando os clientes leem, o gráfico por dia e as abas Por tipo, Todas as mensagens (filtros, busca e CSV) e Extrato.
+- Painel do dono: recarga por Pix em `/{slug}/consumo/recarga`, com os pacotes do admin, valor livre a partir de R$ 10,00, QR e copia e cola na tela; o mesmo valor ainda em aberto devolve o mesmo Pix. O saldo entra quando a Ruphus confirma o pagamento, com recibo por e-mail.
+- Painel do dono: faixa no topo quando o saldo de mensagens fica baixo ou acaba, com "Recarregar". Aviso também por push, e-mail e WhatsApp do dono (uma vez por recarga).
+- Admin: na gaveta do negócio (aba Cobrança), o saldo e a previsão, cobrar ou não cobrar só aquele negócio, preço próprio, crédito ou débito manual com motivo e o extrato. Em Ajustes, os preços, os pacotes e a regra sem saldo, mais o "Saldo por negócio".
+- Admin: recarga paga cujo crédito falhar depois da baixa avisa por e-mail e na tela (antes ficava paga sem saldo); recarga em aberto não marca o cliente como cobrança atrasada.
 - WhatsApp: cliente que respondeu SAIR e depois marca de novo o aceite num agendamento volta a receber as mensagens. Antes o novo aceite era recusado e nada chegava. Mensagens de agendamentos anteriores ao SAIR continuam sem sair.
 - Webhook do atendys: só a assinatura v2 (com horário) é aceita. Aviso só com a assinatura antiga é recusado, e um aviso capturado não pode ser reenviado depois de 5 minutos.
 - WhatsApp do negócio: comando do dono com erro de digitação ("CONCFIRMADO", "confimado") ou só com o código do agendamento recebe "Não entendi. Para confirmar, responda CONFIRMADO <código>; para recusar, RECUSAR <código>." Antes era ignorado em silêncio, e o dono achava que tinha confirmado.

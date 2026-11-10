@@ -8,7 +8,9 @@ import { createContext, use, useEffect, useState } from "react";
 import { MonitorConexao } from "@/components/monitor-conexao";
 import { Button } from "@/components/ui/button";
 import { AvisoSessao } from "@/components/aviso-sessao";
-import { auth } from "@/lib/firebase";
+import { auth, idToken } from "@/lib/firebase";
+import { formatBRL } from "@/lib/datetime";
+import { resumoDoSaldoAction } from "./actions";
 import { db } from "@/lib/firebase-db";
 import { Tenant } from "@/lib/tenants";
 import { ehAdminDaPlataforma } from "@/app/admin/actions";
@@ -115,9 +117,14 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
     ...(state.modulos?.conversas && (state.podeGerir || state.conversas?.equipeAtende) ? [{ href: `/${slug}/conversas`, label: "Conversas", curto: "Chat", icone: ICONES.conversas }] : []),
     // Caixa incluído no plano; dinheiro só para quem gere
     ...(state.podeGerir ? [{ href: `/${slug}/caixa`, label: "Caixa", curto: "Caixa", icone: ICONES.caixa }] : []),
+    // mensagens enviadas e saldo: custo é dinheiro, só para quem gere
+    ...(state.podeGerir ? [{ href: `/${slug}/consumo`, label: "Consumo", curto: "Consumo", icone: ICONES.consumo, soNoTopo: true }] : []),
     // os dados do negócio (site, bio, WhatsApp) só para quem gere
     ...(state.podeGerir ? [{ href: `/${slug}/negocio`, label: "Meu negócio", curto: "Negócio", icone: ICONES.negocio }] : []),
   ];
+  // barra de baixo do celular: até sete cabem em 360px; o Consumo é o que sai quando passa (fica no
+  // topo do computador, na faixa de saldo e no Meu negócio)
+  const deBaixo = links.length > 7 ? links.filter((l) => !("soNoTopo" in l)) : links;
   const isActive = (href: string) => pathname === href || (href !== `/${slug}` && pathname.startsWith(`${href}/`));
   return (
     <TenantContext value={{ ...state, atualizar: (parcial) => setLoaded({ slug, value: { ...state, ...parcial } }) }}>
@@ -144,6 +151,8 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
                 aria-current={isActive(l.href) ? "page" : undefined}
                 className={cn(
                   "flex h-16 items-center px-2 whitespace-nowrap text-muted-foreground hover:text-foreground lg:px-3.5",
+                  // oito abas não cabem no tablet: o Consumo só aparece a partir do computador
+                  links.length > 7 && "soNoTopo" in l && "max-lg:hidden",
                   isActive(l.href) && "font-semibold text-foreground shadow-[inset_0_-2px_0_var(--foreground)]",
                 )}
               >
@@ -175,15 +184,16 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
             </p>
           </div>
         )}
+        {state.podeGerir && <FaixaDeSaldo slug={slug} />}
         {children}
       </main>
       {/* Celular: as seções no alcance do polegar, sempre à vista. */}
       <nav
         aria-label="Seções"
         className="fixed inset-x-0 bottom-0 z-10 grid border-t bg-card pb-[env(safe-area-inset-bottom)] sm:hidden"
-        style={{ gridTemplateColumns: `repeat(${links.length}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${deBaixo.length}, minmax(0, 1fr))` }}
       >
-        {links.map((l) => (
+        {deBaixo.map((l) => (
           <Link
             key={l.href}
             href={l.href}
@@ -216,4 +226,36 @@ const ICONES = {
   negocio: icone(<><path d="M4 10.5 12 4l8 6.5V20H4z" /><path d="M9.5 20v-5h5v5" /></>),
   conversas: icone(<path d="M4 5.5h16v10H9l-5 4z" />),
   caixa: icone(<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h3" /></>),
+  consumo: icone(<><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>),
 };
+
+/** Saldo de mensagens baixo ou zerado: a faixa leva à recarga. Fora do pré-pago, nada. */
+function FaixaDeSaldo({ slug }: { slug: string }) {
+  const pathname = usePathname();
+  const [saldo, setSaldo] = useState<{ slug: string; nivel: string; saldoCents: number; dias: number | null; semSaldo: string } | null>(null);
+  useEffect(() => {
+    let atual = true;
+    idToken()
+      .then((t) => resumoDoSaldoAction(t, { tenantId: slug }))
+      .then((r) => atual && setSaldo(r.ok && r.saldo ? { slug, ...r.saldo } : null), () => {});
+    return () => {
+      atual = false;
+    };
+  }, [slug]);
+  // na própria tela de consumo o cartão do saldo já diz
+  if (!saldo || saldo.slug !== slug || saldo.nivel === "ok" || pathname.startsWith(`/${slug}/consumo`)) return null;
+  const zerado = saldo.saldoCents <= 0;
+  return (
+    <div role="status" className={cn("flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm", zerado ? "border-red-300 bg-red-50 text-red-950 dark:border-red-900 dark:bg-red-950 dark:text-red-100" : "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100")}>
+      <p>
+        <strong className="font-semibold">{zerado ? "Seu saldo de mensagens acabou." : "Seu saldo de mensagens está baixo."}</strong>{" "}
+        {zerado
+          ? saldo.semSaldo === "negativo" ? "As mensagens seguem por pouco tempo, no negativo." : "Os avisos aos clientes estão pausados até a recarga."
+          : `Restam ${formatBRL(saldo.saldoCents)}${saldo.dias !== null ? `, para uns ${saldo.dias} ${saldo.dias === 1 ? "dia" : "dias"}` : ""}.`}
+      </p>
+      <Link href={`/${slug}/consumo/recarga`} className="inline-flex h-10 items-center rounded-lg bg-foreground px-3.5 font-semibold text-background">
+        Recarregar
+      </Link>
+    </div>
+  );
+}
