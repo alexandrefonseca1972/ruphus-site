@@ -2248,7 +2248,7 @@ export default function AdminPage() {
                     onEnviar={(para) => enviarConviteEmail(aberto.slug, para)}
                   />
                 </div>
-              ) : (
+              ) : aberto.acessos > 1 ? null : (
                 // Barrar aqui, e não na mensagem de erro depois do clique: o que
                 // falta é um dado de uma aba ao lado, e o vendedor resolve em 10s
                 <span className="text-[13px] leading-relaxed text-[#B8791F]">
@@ -2380,7 +2380,7 @@ export default function AdminPage() {
                     {a.limite !== null && (
                       <div className="flex items-center justify-between gap-3 border-t border-[#EFEBE3] pt-3 text-xs">
                         <span className="text-[#6F6A5E]">
-                          Negócios nesta conta: <b className="font-semibold text-[#17150F]">{a.usados}</b> de {a.limite}
+                          Negócios nesta conta: <b className="font-semibold text-[#17150F]">{a.usados}</b>{a.usados > a.limite ? ` (cota ${a.limite})` : ` de ${a.limite}`}
                         </span>
                         <span className="flex items-center gap-1.5">
                           <button

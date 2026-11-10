@@ -4,7 +4,7 @@ import { confirmar } from "@/components/confirmar";
 import { Label } from "@/components/ui/label";
 import type { Personal } from "@/lib/site-editorial";
 import { useEffect, useRef, useState } from "react";
-import { conversarVisual, definirVisual, previewVisual } from "./actions";
+import { conversarVisual, definirVisual, descartarFotoRascunho, previewVisual } from "./actions";
 import { BOTAO_CLARO, BOTAO_ESCURO, PreviaModelo, type Tela } from "./site-gaveta";
 
 // Seção "Visual" da aba Site: fotos próprias por posição, cores, fonte e textos do site
@@ -120,14 +120,17 @@ export function VisualDoSite({ slug, token, personal, doModelo, fontes, temIA, o
     setAviso({ ok: true, texto: `${SLOTS.find((s) => s.slot === slot)?.rotulo}: foto enviada. Entra no site ao publicar.` });
   }
 
-  // só tira do rascunho: o arquivo some do Storage ao publicar
-  function usarDoModelo(slot: Slot) {
+  // tira do rascunho e apaga o arquivo enviado: sem isso ele ficava acessível em /s/{slug}/fotos/rascunho-{slot}.jpg
+  async function usarDoModelo(slot: Slot) {
     setErroFoto(null);
     setRascunho((p) => {
       const fotos = { ...p.fotos };
       delete fotos[slot];
       return { ...p, fotos };
     });
+    const tk = await tokenOuNull();
+    const r = tk ? await descartarFotoRascunho(tk, slug, slot).catch(() => null) : null;
+    if (!r?.ok) setErroFoto({ slot, texto: "Não consegui apagar o rascunho. Tente de novo." });
   }
 
   const cor = (c: "ink" | "acc", v: string) => setRascunho((p) => ({ ...p, cores: { ...p.cores, [c]: v } }));

@@ -455,6 +455,7 @@ body:has(.barra.dentro) .zap-flutua{bottom:calc(clamp(12px,2vw,20px) + 84px)}
 @media (max-width:720px){
   .barra-c{padding:8px 8px 8px 16px;gap:10px}
   .barra-n{display:none}
+  .barra-espaco{display:none}
   .barra .bt-fantasma{display:none}
   .barra .bt-volt{flex:1;justify-content:center}
 }
@@ -1214,7 +1215,7 @@ button,a,input{touch-action:manipulation}
 <div class="barra" id="barra">
   <div class="barra-c">
     <span class="barra-n mono"><i></i><span id="barra-n">— exemplos e propostas de sites</span></span>
-    <span style="flex-grow:1"></span>
+    <span class="barra-espaco" style="flex-grow:1"></span>
     <a class="bt bt-fantasma" id="barra-demo" href="https://barbearia-force.ruphus.site/agendar" target="_blank" rel="noopener">Ver uma agenda</a>
     <a class="bt bt-volt" href="#q">Procurar o meu negócio</a>
   </div>
@@ -1297,7 +1298,7 @@ function numeros(){
   document.getElementById('n-bairros').textContent = Math.max(bairros.size, RESUMO ? RESUMO.bairros : 0);
 }
 numeros();
-document.getElementById('n-cidades').textContent = CIDADES;
+document.getElementById('n-cidades').textContent = CIDADES.toLocaleString('pt-BR');
 
 /* ——— esteira: os sites do gerador, espalhados para as cidades se misturarem ——— */
 // a amostra que o servidor tira do catálogo inteiro; sem ela (falhou), a VITRINE
@@ -1399,17 +1400,17 @@ function mostrarAchados(termos, achados, quantos){
     achadosEl.replaceChildren(...itens); achadosEl.hidden = false;
   }
   contagem.innerHTML = !termos.length
-    ? '<b>' + TOTAL + ' exemplos e propostas</b> em ' + CIDADES + ' cidades'
+    ? '<b>' + TOTAL.toLocaleString('pt-BR') + ' exemplos e propostas</b> em ' + CIDADES.toLocaleString('pt-BR') + ' cidades'
     : quantos === 0 ? 'Nenhum site com esse nome'
     : '<b>' + quantos + (quantos === 1 ? ' site' : ' sites') + '</b> com “'
       + termo.replace(/[<>&]/g, '') + '”';
-  rotulo.textContent = !termos.length ? TOTAL + ' exemplos e propostas'
+  rotulo.textContent = !termos.length ? TOTAL.toLocaleString('pt-BR') + ' exemplos e propostas'
     : quantos === 0 ? 'Nenhum resultado'
     : quantos === 1 ? '1 site encontrado'
     : quantos > LIMITE ? quantos + ' sites encontrados · mostrando ' + LIMITE
     : quantos + ' sites encontrados';
   restam.textContent = !termos.length && TOTAL > LIMITE
-    ? '+ ' + (TOTAL - LIMITE) + ' unidades na mesma lista'
+    ? '+ ' + (TOTAL - LIMITE).toLocaleString('pt-BR') + ' unidades na mesma lista'
     : '';
 }
 q.addEventListener('input', render);
@@ -1427,14 +1428,14 @@ fetch('/api/catalogo').then(r => r.ok ? r.json() : null).then(res => {
       if (fora.has(lista[i].s)) lista.splice(i, 1);
   TOTAL = Math.max(SITES.length, res.total);
   CIDADES = new Set([...CIDADES_FABRICA, ...SITES.map(o => o.c), ...res.cidades].filter(Boolean).map(norm)).size;
-  document.getElementById('n-cidades').textContent = CIDADES;
+  document.getElementById('n-cidades').textContent = CIDADES.toLocaleString('pt-BR');
   numeros(); render();
-  document.getElementById('barra-n').textContent = TOTAL + ' exemplos e propostas de sites';
+  document.getElementById('barra-n').textContent = TOTAL.toLocaleString('pt-BR') + ' exemplos e propostas de sites';
 }).catch(() => {}).finally(() => { montarEsteira(); iniciarPalco(); });
 
 /* ——— barra de ação: aparece quando o hero sai de vista ——— */
 const barra = document.getElementById('barra');
-document.getElementById('barra-n').textContent = TOTAL + ' exemplos e propostas de sites';
+document.getElementById('barra-n').textContent = TOTAL.toLocaleString('pt-BR') + ' exemplos e propostas de sites';
 const gatilho = document.querySelector('.hero');
 if (gatilho && 'IntersectionObserver' in window){
   new IntersectionObserver(([e]) => {
@@ -1456,7 +1457,7 @@ if ('IntersectionObserver' in window){
     if (!e.isIntersecting) return;
     const d = e.target.dataset;
     demo.href = d.demo; demo.textContent = d.demoRot + ' ↗';
-    qtd.textContent = (d.demoTxt.startsWith('sites') ? TOTAL + ' ' : '') + d.demoTxt;
+    qtd.textContent = (d.demoTxt.startsWith('sites') ? TOTAL.toLocaleString('pt-BR') + ' ' : '') + d.demoTxt;
   }), { rootMargin: '-45% 0px -45% 0px' });
   document.querySelectorAll('[data-demo]').forEach(s => o.observe(s));
 }

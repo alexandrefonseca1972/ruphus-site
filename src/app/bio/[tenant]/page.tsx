@@ -403,7 +403,7 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
           </a>
           <p>
             {bio.nome} · feito com{" "}
-            <a href="https://www.ruphus.site/sobre" className="underline underline-offset-2">
+            <a href="https://www.ruphus.site/" className="underline underline-offset-2">
               Ruphus
             </a>
           </p>

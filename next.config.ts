@@ -4,6 +4,7 @@ import { version } from "./package.json";
 // Versão no rodapé do /admin: o número vem do package.json e o commit do deploy na VPS (GIT_COMMIT_SHA),
 // que só existe no build lá. Em desenvolvimento fica "local", sem enfeite.
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   async headers() {
     return [
       // Em toda resposta: sem adivinhar tipo de arquivo, e /admin e /painel fora de

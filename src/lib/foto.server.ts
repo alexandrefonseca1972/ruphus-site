@@ -110,6 +110,11 @@ export async function apagarFoto(slug: string, slot: Slot) {
   await Promise.all([objeto(slug, slot, true), objeto(slug, slot)].map((f) => f.delete({ ignoreNotFound: true })));
 }
 
+/** Tira do Storage só o rascunho da posição ("Do modelo" antes de publicar): a foto publicada segue no ar. */
+export async function apagarRascunho(slug: string, slot: Slot) {
+  await objeto(slug, slot, true).delete({ ignoreNotFound: true });
+}
+
 /** Ao publicar: apaga do Storage as posições que o visual publicado não usa mais. Até lá o
  *  arquivo fica, porque um `gerado.personal` já publicado pode apontar para ele. */
 export async function apagarFotosFora(slug: string, emUso: Partial<Record<Slot, string>> | undefined) {
