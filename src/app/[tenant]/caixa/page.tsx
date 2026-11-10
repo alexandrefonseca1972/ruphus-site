@@ -93,10 +93,16 @@ export default function CaixaPage() {
   // daqui precisa saber que já foi estornada. ponytail: estorno 2+ meses depois, só o servidor barra
   const ate = mes < hoje.slice(0, 7) ? mesSeguinte(mes, 1) : mes;
   // as consultas só sobem com o Caixa ligado: desligado, a regra negaria a leitura
-  const [comAnteriorLido, erroLeitura] = useCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mes", "in", [...new Set([desde, mes, ate])])], `${desde}/${mes}/${ate}`);
+  const [comAnteriorLido, erroLeitura, foraDoMes] = useCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mes", "in", [...new Set([desde, mes, ate])])], `${desde}/${mes}/${ate}`);
+  // o sinal pago 2+ meses antes do atendimento conta na comissão do mês em que o atendimento foi
+  // recebido (mesComissao). O servidor soma por aqui também: sem esta leitura, a tela pagava menos
+  // e o "Pagar" era recusado
+  const [daComissaoLido, erroComissao, foraDaComissao] = useCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mesComissao", "==", mes)], `comissao/${mes}`);
   // leitura com erro chega vazia: tratada como "carregando", senão a tela daria R$ 0, tudo a
   // receber de novo e todas as contas em aberto como se fosse verdade
-  const comAnterior = erroLeitura ? null : comAnteriorLido;
+  const comAnterior =
+    erroLeitura || erroComissao || !comAnteriorLido || !daComissaoLido ? null : [...new Map([...comAnteriorLido, ...daComissaoLido].map((l) => [l.id, l])).values()];
+  const descartados = foraDoMes + foraDaComissao;
   const lancamentos = comAnterior && comAnterior.filter((l) => l.mes === mes);
   const [doMes, erroAgenda] = useCollection(
     ligado ? tenant.id : "",
@@ -146,8 +152,7 @@ export default function CaixaPage() {
   const pctsPendentes = Object.fromEntries(Object.entries(pcts).map(([k, o]) => [k, o.pct]));
   // nome de quem só tem crédito no mês: o cadastro, ou o último lançamento dele que a tela tem
   const nomes = Object.fromEntries([...(comAnterior ?? []).filter((l) => l.staffId && l.staffName).map((l) => [l.staffId!, l.staffName!]), ...(equipe ?? []).map((p) => [p.id, p.name])]);
-  // pelo mês da comissão: o sinal só depois de o atendimento ser recebido, no mês do recebimento.
-  // ponytail: sinal pago 2+ meses antes do recebimento fica fora da tela (o servidor conta certo)
+  // pelo mês da comissão: o sinal só depois de o atendimento ser recebido, no mês do recebimento
   const daComissao = (comAnterior ?? []).filter((l) => mesDaComissao(l) === mes);
   const todasComissoes = comissoesDoMes(lancamentos ? daComissao : [], { ...config.comissoes, ...pctsPendentes }, config.descontos, nomes);
   // sem % no cadastro, sem comissão: fica fora da lista e do total. Só fica quem, mesmo sem %,
@@ -211,6 +216,12 @@ export default function CaixaPage() {
           <Button variant="ghost" className="h-10 px-3 max-sm:h-11" disabled={mes === hoje.slice(0, 7)} onClick={() => setMes(hoje.slice(0, 7))}>Este mês</Button>
         </div>
       </PageTitle>
+
+      {descartados > 0 && (
+        <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          {descartados === 1 ? "1 lançamento não pôde ser lido e ficou fora das contas." : `${descartados} lançamentos não puderam ser lidos e ficaram fora das contas.`} Os totais podem estar errados. Fale com a Ruphus.
+        </p>
+      )}
 
       {/* No celular, três cartões de ~115 px partiam "R$ 12.345,00" no meio: o Sobrou (o que o
           dono quer saber) ocupa a linha de cima, maior, e Entrou/Saiu dividem a de baixo. */}
@@ -542,8 +553,9 @@ function Bloco({ titulo, linhas, vazio = "Nada neste mês." }: { titulo: string;
       {linhas.length === 0 ? (
         <p className="text-sm text-muted-foreground">{vazio}</p>
       ) : (
-        linhas.map(([nome, valor]) => (
-          <div key={nome} className="grid gap-1">
+        // por posição: o nome se repete (duas "Ana" na equipe) e a lista não muda de ordem na tela
+        linhas.map(([nome, valor], i) => (
+          <div key={i} className="grid gap-1">
             <div className="flex justify-between gap-3 text-sm">
               <span className="truncate">{nome}</span>
               <span className="tabular-nums">{brl(valor)}</span>
