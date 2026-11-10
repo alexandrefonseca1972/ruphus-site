@@ -10,7 +10,8 @@ import { LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/
 import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
 import { criarProfissional, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
-import { assumirEnvio, deslogarInstancia, enviarTexto, ErroAtendys, manterAgendada, qrDaConexao, statusDaConexao, statusDaMensagem, type ConexaoAtendys } from "@/lib/atendys";
+import { atenderComo, type Atendimento, conversaVisivel, exigeConversaVisivel, exigeMensagemVisivel, permitirEquipeNasConversas, visiveis } from "@/lib/conversas.server";
+import { agirNaMensagem, arquivarConversa, assumirEnvio, buscarNasConversas, CHAVE_IDEMPOTENCIA, deslogarInstancia, ID_INBOX, enviarTexto, ErroAtendys, listarConversas, manterAgendada, marcarConversa, mensagensDaConversa, qrDaConexao, responderConversa, statusDaConexao, statusDaMensagem, type ConexaoAtendys } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
@@ -598,6 +599,111 @@ export const mensagensParadasAction = memberAction(SoTenant, async ({ tenantId }
     }),
   );
   return { ok: true as const, mensagens: lista.filter((_, i) => valem[i]) };
+});
+
+// ─── Central de conversas (/v1/inbox do atendys) ────────────────────────────
+// A apikey nunca sai do servidor: o navegador chama estas ações, que conferem sessão, membro,
+// negócio e a permissão da equipe (atenderComo) e falam com o atendys na mesma máquina.
+
+/** Valida a entrada, confere quem atende e devolve a recusa do atendys com o código (a tela
+ *  decide: janela fechada desliga o campo, opt-out bloqueia de vez) e o Retry-After. */
+function conversaAction<S extends z.ZodType<{ tenantId: string }>, R>(schema: S, run: (data: z.infer<S>, a: Atendimento) => Promise<R>) {
+  return async (idToken: string, input: unknown) => {
+    const parsed = schema.safeParse(input);
+    if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0].message };
+    try {
+      return await run(parsed.data, await atenderComo(verifyFirebaseToken, adminDb, idToken, parsed.data.tenantId));
+    } catch (e) {
+      if (e instanceof ErroAtendys) return { ok: false as const, error: e.message, codigo: e.codigo, retryAfter: e.retryAfter };
+      if (e instanceof ErroPrevisto) return { ok: false as const, error: e.message };
+      console.error("[conversas] erro inesperado", e);
+      return { ok: false as const, error: "Não foi possível concluir agora. Tente de novo." };
+    }
+  };
+}
+
+const soGestor = (a: Atendimento, oque: string) => {
+  if (!a.gestor) throw new UserError(`Só o dono ou um administrador do negócio pode ${oque}.`);
+};
+const idOpaco = z.string().regex(ID_INBOX, "Conversa inválida. Atualize a lista.");
+const cursor = z.string().min(1).max(1024).optional();
+const chaveEnvio = z.string().regex(CHAVE_IDEMPOTENCIA, "Chave de envio inválida.");
+const ComConversa = z.object({ tenantId: docIdStaff, conversa: idOpaco });
+
+export const listarConversasAction = conversaAction(
+  z.object({ tenantId: docIdStaff, filtro: z.enum(["active", "unread", "archived"]).optional(), cursor, limite: z.number().int().min(1).max(100).optional() }),
+  async ({ tenantId: _t, ...q }, a) => {
+    const pagina = await listarConversas(a.conn, q);
+    return { ok: true as const, pagina: { ...pagina, items: visiveis(a, pagina.items) } };
+  },
+);
+
+// a busca devolve trechos sem o telefone: não dá para tirar dela a conversa do dono, e por isso
+// fica com quem gere; a equipe acha o cliente pela lista
+export const buscarConversasAction = conversaAction(
+  z.object({ tenantId: docIdStaff, termo: z.string().trim().min(3, "Digite pelo menos 3 letras.").max(100), cursor }),
+  async ({ termo, cursor }, a) => {
+    soGestor(a, "buscar nas conversas");
+    return { ok: true as const, pagina: await buscarNasConversas(a.conn, termo, cursor) };
+  },
+);
+
+export const mensagensDaConversaAction = conversaAction(
+  ComConversa.extend({ cursor, limite: z.number().int().min(1).max(100).optional() }),
+  async ({ conversa, cursor, limite }, a) => {
+    await exigeConversaVisivel(a, conversa);
+    return { ok: true as const, pagina: await mensagensDaConversa(a.conn, conversa, { cursor, limite }) };
+  },
+);
+
+/** Conversa aberta por id (busca, link): os dados dela, para a tela saber número e bloqueios. */
+export const obterConversaAction = conversaAction(ComConversa, async ({ conversa }, a) => ({ ok: true as const, conversa: await conversaVisivel(a, conversa) }));
+
+export const marcarConversaAction = conversaAction(ComConversa.extend({ lida: z.boolean() }), async ({ conversa, lida }, a) => {
+  await exigeConversaVisivel(a, conversa);
+  await marcarConversa(a.conn, conversa, lida);
+  return { ok: true as const };
+});
+
+export const arquivarConversaAction = conversaAction(ComConversa.extend({ arquivada: z.boolean() }), async ({ conversa, arquivada }, a) => {
+  await exigeConversaVisivel(a, conversa);
+  await arquivarConversa(a.conn, conversa, arquivada);
+  return { ok: true as const };
+});
+
+export const responderConversaAction = conversaAction(
+  ComConversa.extend({ texto: z.string().trim().min(1, "Escreva a mensagem.").max(4096, "Mensagem longa demais."), chave: chaveEnvio, citada: idOpaco.optional() }),
+  async ({ conversa, texto, chave, citada }, a) => {
+    await exigeConversaVisivel(a, conversa);
+    return { ok: true as const, envio: await responderConversa(a.conn, conversa, texto, chave, citada) };
+  },
+);
+
+export const agirNaMensagemAction = conversaAction(
+  z.object({
+    tenantId: docIdStaff,
+    mensagem: idOpaco,
+    // a conversa da mensagem: a equipe só reage em mensagem de conversa que pode ver
+    conversa: idOpaco.optional(),
+    chave: chaveEnvio,
+    acao: z.discriminatedUnion("tipo", [
+      z.object({ tipo: z.literal("reacao"), emoji: z.string().regex(/^(\p{Extended_Pictographic}[\p{Emoji_Modifier}️‍\p{Extended_Pictographic}]*)?$/u, "Reação inválida.").max(16) }),
+      z.object({ tipo: z.literal("editar"), texto: z.string().trim().min(1).max(4096) }),
+      z.object({ tipo: z.literal("apagar") }),
+    ]),
+  }),
+  async ({ mensagem, conversa, chave, acao }, a) => {
+    // editar e apagar para todos mexem no que o dono, a IA e as confirmações automáticas mandaram
+    if (acao.tipo !== "reacao") soGestor(a, acao.tipo === "editar" ? "editar mensagens enviadas" : "apagar mensagens enviadas");
+    await exigeMensagemVisivel(a, conversa ?? null, mensagem);
+    return { ok: true as const, resultado: await agirNaMensagem(a.conn, mensagem, acao, chave) };
+  },
+);
+
+/** "Equipe pode atender conversas": só quem gere liga (padrão: só o dono). */
+export const permitirEquipeNasConversasAction = memberAction(z.object({ tenantId: docIdStaff, equipeAtende: z.boolean() }), async ({ tenantId, equipeAtende }, user) => {
+  await permitirEquipeNasConversas(adminDb, tenantId, user.uid, equipeAtende);
+  return { ok: true as const, equipeAtende };
 });
 
 // Mensagem parada pode ter saído pelo número do salão ou pelo canal oficial (tenant da plataforma

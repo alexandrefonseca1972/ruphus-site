@@ -1,0 +1,294 @@
+{
+  "revision": 7,
+  "updatedAt": "2026-11-09T15:49:41.115325+00:00",
+  "currentPhase": "3",
+  "plan": "/Users/alexandrefonseca/AI/projects/atendys/docs/plano-conversas-ruphus-site-2026-11-08.md",
+  "phases": [
+    {
+      "id": "1",
+      "title": "Fundação"
+    },
+    {
+      "id": "2",
+      "title": "Tela de conversas (dono)"
+    },
+    {
+      "id": "3",
+      "title": "Tempo real e avisos"
+    },
+    {
+      "id": "4",
+      "title": "IA de atendimento"
+    },
+    {
+      "id": "5",
+      "title": "Admin do ruphus.site"
+    },
+    {
+      "id": "6",
+      "title": "QA e publicação"
+    }
+  ],
+  "items": [
+    {
+      "id": "1.1",
+      "phase": "1",
+      "description": "Cliente tipado para /v1/inbox em src/lib/atendys.ts, com erros previstos",
+      "owner": "executor",
+      "state": "concluído",
+      "updatedAt": "2026-11-09T12:33:17.463751+00:00",
+      "evidence": [
+        "src/lib/atendys.ts: tipos ConversaInbox/MensagemInbox/RespostaInbox; listarConversas, buscarNasConversas, mensagensDaConversa, marcarConversa, arquivarConversa, responderConversa, responderComMidia, agirNaMensagem (reação/edição/exclusão), midiaDaMensagem (bytes). Ids codificados no caminho, Idempotency-Key validada (8–80 [A-Za-z0-9._:-]).",
+        "Erros: ErroAtendys ganhou retryAfter (Retry-After do 429); frases para REPLY_WINDOW_CLOSED, RECIPIENT_OPTED_OUT, INSTANCE_PAUSED, SENDER_CHANGED, CONVERSATION_NOT_ADDRESSABLE, INSUFFICIENT_SCOPE, INBOX_RATE_LIMITED, NOT_FOUND, MESSAGE_TYPE_NOT_ALLOWED, MEDIA_UNAVAILABLE, TOO_MANY_STREAMS; RATE_LIMITED (cota) usa a explicação do atendys. Recusas previstas da Central vão como aviso no log.",
+        "Refatoração: erroDaResposta e pedir extraídos de chamar (mesmo comportamento; test:atendys ok)."
+      ],
+      "blockReason": ""
+    },
+    {
+      "id": "1.2",
+      "phase": "1",
+      "description": "Server actions e rota de mídia com checagem de membro, negócio e permissão da equipe",
+      "owner": "executor",
+      "state": "concluído",
+      "updatedAt": "2026-11-09T12:33:17.463751+00:00",
+      "evidence": [
+        "src/app/[tenant]/actions.ts: listarConversasAction, buscarConversasAction, mensagensDaConversaAction, marcarConversaAction, arquivarConversaAction, responderConversaAction, responderComMidiaAction (só data: base64), agirNaMensagemAction — memberAction + conexaoParaAtender; erro do atendys volta com codigo e retryAfter.",
+        "src/app/api/conversas/[tenant]/midia/[mensagem]/route.ts: proxy da mídia com token no Authorization, mesmas checagens, cache-control private no-store, nosniff, CSP sandbox; 404/410/429 repassados.",
+        "src/lib/conversas.server.ts: podeAtenderConversas/conexaoParaAtender. A apikey só no servidor; atendys por ATENDYS_BASE_URL (padrão 127.0.0.1:3002)."
+      ],
+      "blockReason": ""
+    },
+    {
+      "id": "1.3",
+      "phase": "1",
+      "description": "Configuração por negócio: equipe pode atender conversas (padrão: só o dono)",
+      "owner": "executor",
+      "state": "concluído",
+      "updatedAt": "2026-11-09T12:33:17.463751+00:00",
+      "evidence": [
+        "tenants/{t}.conversas.equipeAtende (padrão ausente = só dono/admin/plataforma); permitirEquipeNasConversasAction com exigeGestor; campo no esquema Tenant (lido pelo painel na Fase 2). Regras do Firestore já impedem escrita do cliente no doc do negócio."
+      ],
+      "blockReason": ""
+    },
+    {
+      "id": "1.4",
+      "phase": "1",
+      "description": "Testes de permissão (dono, equipe, outro negócio) e dos erros previstos; typecheck, lint e testes",
+      "owner": "executor",
+      "state": "concluído",
+      "updatedAt": "2026-11-09T12:33:17.463751+00:00",
+      "evidence": [
+        "conversas.test.mts (npm run test:conversas, emulador): permissão de dono, admin, plataforma, equipe sem e com liberação, outro negócio, não membro, negócio inexistente, sem conexão; cliente: query, codificação de id, idempotência, contingência manual, ações, mídia, 8 erros previstos, INBOX_RATE_LIMITED e RATE_LIMITED com Retry-After, MEDIA_UNAVAILABLE, erro fora do contrato.",
+        "typecheck ok, lint ok, test:conversas ok, test:atendys ok, test:whatsapp ok. Sem deploy."
+      ],
+      "blockReason": ""
+    },
+    {
+      "id": "2.1",
+      "phase": "2",
+      "description": "Página /[tenant]/conversas: lista com busca, não lidas primeiro, nome do CRM",
+      "owner": "executor",
+      "state": "concluído",
+      "updatedAt": "2026-11-09T15:31:56.534513+00:00",
+      "evidence": [
+        "459f720a: /[tenant]/conversas com filtros Todas/Não lidas/Arquivadas, não lidas primeiro (ordenarConversas), busca para quem gere, nome do cadastro com ou sem o 9º dígito (indiceDeClientes), \"Mais conversas\". Gate: modulos.conversas (piloto) + gestor ou equipeAtende; aba no menu."
+      ],
+      "blockReason": ""
+    },
+    {
+      "id": "2.2",
+      "phase": "2",
+      "description": "Thread: histórico paginado, mídia via proxy, status de entrega e leitura",
+      "owner": "executor",
+      "state": "concluído",
+      "updatedAt": "2026-11-09T15:31:56.534513+00:00",
+      "evidence": [
+        "Histórico paginado (\"Mensagens anteriores\"), mídia via /api/conversas/[tenant]/midia em object URL (documento só baixa), status de entrega e resposta automática marcada."
+      ],
+      "blockReason": ""
+    },
+    {
+      "id": "2.3",
+      "phase": "2",
+      "description": "Responder texto e mídia, estados de envio, idempotência",
+      "owner": "executor",
+      "state": "concluído",
+      "updatedAt": "2026-11-09T15:31:56.534513+00:00",
+      "evidence": [
+        "Resposta em texto (server action) ou arquivo até 12 MB (91cf222b, rota multipart); chave de idempotência por mensagem composta, botão desabilitado enquanto envia; fila com horário e envio manual com link."
+      ],
+      "blockReason": ""
+    },
+    {
+      "id": "2.4",
+      "phase": "2",
+      "description": "Indicadores: janela de 24 h, opt-out, pausa ou restrição, cota",
+      "owner": "executor",
+      "state": "concluído",
+      "updatedAt": "2026-11-09T15:31:56.534513+00:00",
+      "evidence": [
+        "Janela de 24 h com tempo restante, bloqueios (fora da janela, opt-out, pausa, contato sem número) desligam o campo; cota/fila pelo aviso do envio; erro 5xx com código para suporte (requestId)."
+      ],
+      "blockReason": ""
+    },
+    {
+      "id": "2.5",
+      "phase": "2",
+      "description": "Atalhos: agendamentos do cliente e novo agendamento",
+      "owner": "executor",
+      "state": "concluído",
+      "updatedAt": "2026-11-09T15:31:56.534513+00:00",
+      "evidence": [
+        "\"Ver cliente e horários\" (cadastro) e \"Novo agendamento\" (PlanForm com o cliente preenchido)."
+      ],
+      "blockReason": ""
+    },
+    {
+      "id": "3.1",
+      "phase": "3",
+      "description": "Escuta de whatsappInbox com busca periódica de reserva",
+      "owner": "executor",
+      "state": "pendente",
+      "updatedAt": "2026-11-09T12:22:11.033217+00:00",
+      "evidence": [],
+      "blockReason": ""
+    },
+    {
+      "id": "3.2",
+      "phase": "3",
+      "description": "Push de mensagem nova sem conteúdo sensível",
+      "owner": "executor",
+      "state": "pendente",
+      "updatedAt": "2026-11-09T12:22:11.033217+00:00",
+      "evidence": [],
+      "blockReason": ""
+    },
+    {
+      "id": "3.3",
+      "phase": "3",
+      "description": "Contador de não lidas no menu",
+      "owner": "executor",
+      "state": "pendente",
+      "updatedAt": "2026-11-09T12:22:11.033217+00:00",
+      "evidence": [],
+      "blockReason": ""
+    },
+    {
+      "id": "4.1",
+      "phase": "4",
+      "description": "Ligar e desligar a IA do atendys por negócio",
+      "owner": "executor",
+      "state": "pendente",
+      "updatedAt": "2026-11-09T12:22:11.033217+00:00",
+      "evidence": [],
+      "blockReason": ""
+    },
+    {
+      "id": "4.2",
+      "phase": "4",
+      "description": "Thread mostra IA e transferência para humano",
+      "owner": "executor",
+      "state": "pendente",
+      "updatedAt": "2026-11-09T12:22:11.033217+00:00",
+      "evidence": [],
+      "blockReason": ""
+    },
+    {
+      "id": "5.1",
+      "phase": "5",
+      "description": "Visão por negócio no admin: número, estado, cotas, pausas e alertas",
+      "owner": "executor",
+      "state": "pendente",
+      "updatedAt": "2026-11-09T12:22:11.033217+00:00",
+      "evidence": [],
+      "blockReason": ""
+    },
+    {
+      "id": "5.2",
+      "phase": "5",
+      "description": "Acesso de suporte às conversas, somente leitura e auditado",
+      "owner": "executor",
+      "state": "pendente",
+      "updatedAt": "2026-11-09T12:22:11.033217+00:00",
+      "evidence": [],
+      "blockReason": ""
+    },
+    {
+      "id": "6.1",
+      "phase": "6",
+      "description": "Testes: permissões, erros, idempotência, listener e fallback",
+      "owner": "executor",
+      "state": "pendente",
+      "updatedAt": "2026-11-09T12:22:11.033217+00:00",
+      "evidence": [],
+      "blockReason": ""
+    },
+    {
+      "id": "6.2",
+      "phase": "6",
+      "description": "Typecheck, lint, emulador e verificação visual 375/768/1440",
+      "owner": "executor",
+      "state": "em andamento",
+      "updatedAt": "2026-11-09T15:31:56.534513+00:00",
+      "evidence": [
+        "Fase 2: verificação visual com o ruphusbel real (túnel até o atendys, modulos.conversas ligado, login do dono): 1440, 768 e 375/500 px, teclado e foco, sem erro no console. Ajustes em 0e450454 e b71a3668 (lista transbordando, ordem do histórico, altura no celular, abas no tablet, filtro Não lidas, busca abrindo conversa). Nenhuma mensagem enviada."
+      ],
+      "blockReason": ""
+    },
+    {
+      "id": "6.3",
+      "phase": "6",
+      "description": "Revisão independente, correções e reteste",
+      "owner": "executor",
+      "state": "concluído",
+      "updatedAt": "2026-11-09T14:35:17.564491+00:00",
+      "evidence": [
+        "Revisão independente da Fase 1 (5435ea54, revisor separado, Opus): sem bloqueador nem alto; 4 médios e 6 baixos.",
+        "Corrigidos: (1) a equipe não vê a conversa do WhatsApp pessoal do dono nem o self-chat (visiveis) e não usa a busca; (2) mídia limitada a ~700 KB com mensagem clara (teto da server action); (3) rota de mídia com 401/403/409/502/504 por tipo de falha; (4) testes de sessão inválida, revogada, membro removido, outro negócio e da rota de mídia com verificador simulado; (5) ids só [A-Za-z0-9_-] (\".\" e \"..\" reescreviam o caminho); (6) permitirEquipe com update (sem negócio fantasma) e checagem de gestor no lib; (7) rota de mídia com lista fixa de tipos inline (SVG/HTML viram download); (8) só recusas previstas da Central vão como aviso, Object.hasOwn na frase; (9) data URL validada por inteiro, mimetype tirado do próprio arquivo, reação só emoji; (10) prazo da mídia só até o cabeçalho.",
+        "Decisão de política: editar e apagar para todos ficam com quem gere; a equipe só reage.",
+        "Reteste: test:conversas, test:atendys, test:whatsapp, typecheck e lint ok.",
+        "Fase 1: correções em 15c3bcde; reteste ok. Fase 1 fechada com PR para o main (sem deploy: ainda sem tela). A 6.3 volta a valer para a revisão do fim da Fase 2.",
+        "Fase 2: revisão independente (Opus) — 4 altos, 6 médios, 7 baixos; todos corrigidos em b71a3668 (chave por conteúdo, conversa aberta fora da lista, mescla na recarga, visibilidade da equipe por id no servidor, fuso, acessibilidade, upload). Reteste: test:conversas, typecheck, lint e reteste visual do filtro Não lidas e da busca."
+      ],
+      "blockReason": ""
+    },
+    {
+      "id": "6.4",
+      "phase": "6",
+      "description": "PR e deploy na VPS com rollback",
+      "owner": "executor",
+      "state": "pendente",
+      "updatedAt": "2026-11-09T12:22:11.033217+00:00",
+      "evidence": [],
+      "blockReason": ""
+    },
+    {
+      "id": "6.5",
+      "phase": "6",
+      "description": "Piloto no ruphusbel antes dos demais salões",
+      "owner": "executor",
+      "state": "pendente",
+      "updatedAt": "2026-11-09T12:22:11.033217+00:00",
+      "evidence": [],
+      "blockReason": ""
+    }
+  ],
+  "nextItems": [
+    "3.1",
+    "3.2",
+    "3.3"
+  ],
+  "limitations": [
+    "Plano aprovado pelo usuário (Alexandre), pedido vindo da sessão do atendys em 2026-11-09.",
+    "Branch conversas/fase1-fundacao a partir de origin/main: o branch de integração do WhatsApp já foi integrado ao main.",
+    "Fase 1 sem deploy.",
+    "Presença (digitando) e SSE /events ficaram fora da Fase 1: entram com a tela (Fase 2/3).",
+    "Server action tem teto de corpo de 1 MB: mídia maior que isso precisará de rota própria na Fase 2.",
+    "Ids de conversa obtidos antes por um gestor continuam abrindo a conversa para a equipe (são selados e não forjáveis); filtro no atendys por número excluído resolveria de vez.",
+    "Platform admin lê conversas de qualquer negócio sem trilha de auditoria do lado do ruphus.site (Fase 5.2).",
+    "Fase 2: lista atualiza a cada 30 s com a aba à vista (a escuta é a 3.1).",
+    "ruphusbel com modulos.conversas=true no Firestore de produção desde 2026-11-09 (piloto); produção ignora até o deploy da Fase 2.",
+    "Chrome não reduz a janela abaixo de ~500 px: a medida de 375 foi feita em 500 px.",
+    "Branch conversas/conversa-por-id: a equipe é conferida por GET /v1/inbox/conversations/:id (uma chamada, sem varrer a lista); mídia e reação só com a conversa (?c=) e com a mensagem nas 500 mais novas dela; conversa aberta por busca ou link busca os dados reais. DEPENDE do deploy do atendys com essa rota: não publicar antes."
+  ]
+}
