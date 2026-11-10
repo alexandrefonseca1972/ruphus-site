@@ -174,7 +174,22 @@ export function saldoPorDia(creditos: { em: number; saldoAposCents: number }[], 
 
 /** CSV das mensagens do mês (separador ;, como o Excel brasileiro abre). */
 export function csvDasMensagens(linhas: { quando: string; tipo: string; para: string; canal: string; situacao: string; agendamento: string; custo: string }[]) {
-  const esc = (v: string) => (/[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  // o nome do cliente vem do agendamento público: "=HYPERLINK(…)" viraria fórmula no Excel
+  const esc = (t: string) => {
+    const v = /^[=+\-@\t\r]/.test(t) ? `'${t}` : t;
+    return /[;"\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  };
   const cab = ["Quando", "Tipo", "Para", "Canal", "Situação", "Agendamento", "Custo"];
   return [cab, ...linhas.map((l) => [l.quando, l.tipo, l.para, l.canal, l.situacao, l.agendamento, l.custo])].map((l) => l.map(esc).join(";")).join("\n");
 }
+
+/** "12,50", "1.234,50", "10.50" ou "-3" → centavos (com sinal); inválido → null. Ponto só vale como
+ *  milhar no formato 1.234(,56); sozinho com até 2 casas é decimal ("10.50" = R$ 10,50, nunca 1.050). */
+export const centavos = (t: string) => {
+  const b = t.trim().replace(/\s/g, "").replace(/^R\$/i, "");
+  let v: string;
+  if (/^-?\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(b)) v = b.replace(/\./g, "").replace(",", ".");
+  else if (/^-?\d+([.,]\d{1,2})?$/.test(b)) v = b.replace(",", ".");
+  else return null;
+  return Math.round(Number(v) * 100);
+};

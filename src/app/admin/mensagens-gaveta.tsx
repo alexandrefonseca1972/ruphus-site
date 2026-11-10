@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { Conta, CreditoTela, saldosDosNegocios } from "@/lib/consumo-painel.server";
+import { confirmar } from "@/components/confirmar";
+import { centavos } from "@/lib/consumo-tela";
 import { formatBRL } from "@/lib/datetime";
 import { idToken as tokenAtual } from "@/lib/firebase";
 import { ajustarSaldoAction, definirMensagensDoNegocioAction, mensagensDoNegocioAction, saldosDosNegociosAction } from "./actions";
@@ -11,12 +13,6 @@ const BOTAO = "inline-flex h-11 items-center justify-center rounded-[10px] px-4 
 const BOTAO_ESCURO = `${BOTAO} bg-[#17150F] text-white hover:bg-[#2C2920] disabled:opacity-50`;
 const BOTAO_LINHA = `${BOTAO} border border-[#D8D2C6] bg-white hover:bg-[#F6F3EC] disabled:opacity-50`;
 
-/** "12,50" ou "-3" → centavos (com sinal); inválido → null. */
-const centavos = (t: string) => {
-  const v = t.trim().replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
-  if (!/^-?\d+(\.\d{1,2})?$/.test(v)) return null;
-  return Math.round(Number(v) * 100);
-};
 const reais = (c: number | undefined) => (c === undefined ? "" : (c / 100).toFixed(2).replace(".", ","));
 const dia = (ms: number) => new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" }).format(new Date(ms));
 
@@ -56,6 +52,8 @@ export function MensagensDoNegocio({ slug, token }: { slug: string; token: () =>
     const v = centavos(valor);
     if (v === null || v === 0) return setAviso("Informe um valor diferente de zero, como 10,00 ou -5,00.");
     if (motivo.trim().length < 3) return setAviso("Informe o motivo do ajuste.");
+    // o valor como foi entendido, antes de mexer no saldo de alguém
+    if (!(await confirmar({ titulo: `${v > 0 ? "Creditar" : "Debitar"} ${formatBRL(Math.abs(v))}?`, texto: `No saldo de mensagens deste negócio, com o motivo "${motivo.trim()}". Aparece no extrato do dono.`, acao: v > 0 ? "Creditar" : "Debitar" }))) return;
     setBusy(true);
     setAviso("");
     const r = await ajustarSaldoAction(await token(), slug, v, motivo).catch(() => null);
@@ -241,7 +239,7 @@ export function SaldosDosNegocios() {
               <dd className="font-semibold tabular-nums">{msgs.toLocaleString("pt-BR")}</dd>
             </div>
             <div className="grid">
-              <dt className="text-xs text-[#6F6A5E]">Cobrado no mês</dt>
+              <dt className="text-xs text-[#6F6A5E]">Consumo no mês</dt>
               <dd className="font-semibold tabular-nums">{formatBRL(mes)}</dd>
             </div>
             <div className="grid">

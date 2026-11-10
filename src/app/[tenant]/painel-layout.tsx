@@ -250,10 +250,14 @@ function FaixaDeSaldo({ slug }: { slug: string }) {
       <p>
         <strong className="font-semibold">{zerado ? "Seu saldo de mensagens acabou." : "Seu saldo de mensagens está baixo."}</strong>{" "}
         {zerado
-          ? saldo.semSaldo === "negativo" ? "As mensagens seguem por pouco tempo, no negativo." : "Os avisos aos clientes estão pausados até a recarga."
+          ? saldo.semSaldo === "negativo"
+            ? "As mensagens seguem por pouco tempo, no negativo."
+            : saldo.semSaldo === "pausar-tudo"
+              ? "Os avisos aos clientes estão pausados até a recarga."
+              : "Os avisos aos clientes estão pausados até a recarga; o lembrete do dia e os pedidos para você continuam."
           : `Restam ${formatBRL(saldo.saldoCents)}${saldo.dias !== null ? `, para uns ${saldo.dias} ${saldo.dias === 1 ? "dia" : "dias"}` : ""}.`}
       </p>
-      <Link href={`/${slug}/consumo/recarga`} className="inline-flex h-10 items-center rounded-lg bg-foreground px-3.5 font-semibold text-background">
+      <Link href={`/${slug}/consumo/recarga`} className="inline-flex h-11 items-center rounded-lg bg-foreground px-3.5 font-semibold text-background">
         Recarregar
       </Link>
     </div>

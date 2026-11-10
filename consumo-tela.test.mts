@@ -1,6 +1,6 @@
 // Rode: npm run test:consumo  (contas da tela de consumo: resumo, funil, por tipo, por dia e leitura; sem rede)
 import assert from "node:assert/strict";
-import { csvDasMensagens, funil, mapaDeLeitura, mensagensNoSaldo, porDia, porTipo, resumo, saldoPorDia, situacao, type EnvioDaTela } from "@/lib/consumo-tela";
+import { centavos, csvDasMensagens, funil, mapaDeLeitura, mensagensNoSaldo, porDia, porTipo, resumo, saldoPorDia, situacao, type EnvioDaTela } from "@/lib/consumo-tela";
 
 // 10/11/2026 12:00 em Brasília = 15:00Z (terça-feira)
 const t = (iso: string) => Date.parse(iso);
@@ -61,5 +61,18 @@ const s = saldoPorDia([{ em: t("2026-11-08T15:00:00Z"), saldoAposCents: 1000 }, 
 assert.deepEqual(s.map((d) => d.saldoCents), [1000, 900, 850]);
 
 assert.equal(csvDasMensagens([{ quando: "10/11 12:00", tipo: "Lembrete", para: 'Ana "A"', canal: "SMS", situacao: "Enviado", agendamento: "Corte; barba", custo: "0,12" }]), 'Quando;Tipo;Para;Canal;Situação;Agendamento;Custo\n10/11 12:00;Lembrete;"Ana ""A""";SMS;Enviado;"Corte; barba";0,12');
+
+// nome com fórmula não vira fórmula no Excel
+assert.equal(csvDasMensagens([{ quando: "x", tipo: "x", para: "=HYPERLINK(\"a\")", canal: "x", situacao: "-1", agendamento: "a\rb", custo: "0" }]).split("\n")[1], `x;x;"'=HYPERLINK(""a"")";x;'-1;"a\rb";0`);
+
+// valor digitado no admin: ponto sozinho com até 2 casas é decimal, nunca milhar ("10.50" ≠ R$ 1.050)
+assert.equal(centavos("10.50"), 1050);
+assert.equal(centavos("10.5"), 1050);
+assert.equal(centavos("10,50"), 1050);
+assert.equal(centavos("1.234,56"), 123456);
+assert.equal(centavos("-5"), -500);
+assert.equal(centavos("R$ 20"), 2000);
+assert.equal(centavos("abc"), null);
+assert.equal(centavos("1.2.3"), null);
 
 console.log("consumo-tela ok");

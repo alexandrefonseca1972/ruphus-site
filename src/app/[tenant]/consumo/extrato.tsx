@@ -25,14 +25,14 @@ export function quando(ms: number, hoje: string) {
 export const mesAtual = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date()).slice(0, 7);
 
 /** Os dados da tela de consumo de um mês (null: carregando). Erro volta como texto. */
-export function useConsumo(slug: string, mes: string) {
+export function useConsumo(slug: string, mes: string, leve = false) {
   const [estado, setEstado] = useState<{ chave: string; dados: PainelConsumo | null; erro: string } | null>(null);
   const [vez, setVez] = useState(0);
-  const chave = `${slug}/${mes}/${vez}`;
+  const chave = `${slug}/${mes}/${leve}/${vez}`;
   useEffect(() => {
     let atual = true;
     idToken()
-      .then((t) => consumoAction(t, { tenantId: slug, mes }))
+      .then((t) => consumoAction(t, { tenantId: slug, mes, leve }))
       .then(
         (r) => atual && setEstado({ chave, dados: r.ok ? r.dados : null, erro: r.ok ? "" : r.error }),
         () => atual && setEstado({ chave, dados: null, erro: "Não foi possível carregar o consumo. Confira a internet e tente de novo." }),
@@ -40,7 +40,7 @@ export function useConsumo(slug: string, mes: string) {
     return () => {
       atual = false;
     };
-  }, [slug, mes, chave]);
+  }, [slug, mes, leve, chave]);
   const pronto = estado?.chave === chave ? estado : null;
   return { dados: pronto?.dados ?? null, erro: pronto?.erro ?? "", carregando: !pronto, recarregar: () => setVez((v) => v + 1) };
 }
@@ -85,7 +85,7 @@ export function Extrato({ creditos, limite }: { creditos: CreditoTela[]; limite?
         })}
       </ul>
       {limite && creditos.length > limite && !todos && (
-        <button type="button" onClick={() => setTodos(true)} className="h-11 justify-self-start rounded-lg px-1 text-sm font-medium underline underline-offset-4">
+        <button type="button" onClick={() => setTodos(true)} className="min-h-11 justify-self-start rounded-lg px-1 text-sm font-medium underline underline-offset-4">
           Ver mais ({creditos.length - limite})
         </button>
       )}

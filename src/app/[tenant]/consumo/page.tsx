@@ -57,6 +57,15 @@ const FILTROS: { id: Filtro; rotulo: string; vale: (e: EnvioTela) => boolean }[]
   { id: "lembretes", rotulo: "Lembretes", vale: (e) => e.tipo === "lembrete" },
 ];
 const POR_PAGINA = 50;
+const SINGULAR: Record<string, string> = { lida: "lida", entregue: "entregue", enviada: "enviada", parada: "parada", falhou: "falha" };
+const PLURAL: Record<string, string> = { lida: "lidas", entregue: "entregues", enviada: "enviadas", parada: "paradas", falhou: "falhas" };
+
+/** O que acontece com o saldo zerado, pela regra do admin (texto curto, para selo e faixa). */
+export function textoSemSaldo(modo: string) {
+  if (modo === "negativo") return "As mensagens seguem por pouco tempo, com o saldo no negativo.";
+  if (modo === "pausar-tudo") return "Os avisos aos clientes estão pausados até a recarga.";
+  return "Os avisos aos clientes estão pausados até a recarga; o lembrete do dia e os pedidos para você continuam.";
+}
 
 export default function ConsumoPage() {
   const tenant = useTenant();
@@ -166,7 +175,7 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
         <Saldo dados={dados} slug={slug} gastoCents={r.custoCents} />
         <div className={cartao}>
           <span className={kpi}>Mensagens</span>
-          <span className="text-3xl leading-tight font-bold tabular-nums">{r.total}</span>
+          <span className="text-3xl leading-tight font-bold tabular-nums">{dados.truncado ? dados.doMes.total : r.total}</span>
           <span className="text-[13px]">
             {delta !== null ? (
               <>
@@ -205,7 +214,7 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
               <span className="text-[13px] text-muted-foreground">
                 {r.situacoes.falhou} {r.situacoes.falhou === 1 ? "falha" : "falhas"}
                 {r.semSaldo > 0 && ` (${r.semSaldo} sem saldo)`} · {r.situacoes.parada} {r.situacoes.parada === 1 ? "parada" : "paradas"} ·{" "}
-                <button type="button" className="underline underline-offset-4" onClick={() => (setAba("todas"), document.getElementById("detalhes")?.scrollIntoView({ behavior: "smooth" }))}>
+                <button type="button" className="-my-3 inline-flex min-h-11 items-center px-1 underline underline-offset-4" onClick={() => (setAba("todas"), document.getElementById("detalhes")?.scrollIntoView({ behavior: "smooth" }))}>
                   ver
                 </button>
               </span>
@@ -284,8 +293,10 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
               </div>
             </div>
           </section>
+        </>
+      )}
 
-          <div id="detalhes" role="tablist" aria-label="Detalhes" className="inline-flex gap-1 justify-self-start rounded-xl bg-muted p-1">
+          <div id="detalhes" role="tablist" aria-label="Detalhes" className="inline-flex max-w-full gap-1 justify-self-start overflow-x-auto rounded-xl bg-muted p-1">
             {(
               [
                 ["tipo", "Por tipo"],
@@ -301,7 +312,18 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
                 aria-controls={`painel-${id}`}
                 type="button"
                 onClick={() => setAba(id)}
-                className={cn("min-h-10 rounded-lg px-3 text-sm font-medium text-muted-foreground sm:px-4", aba === id && "bg-card font-semibold text-foreground shadow-sm")}
+                tabIndex={aba === id ? 0 : -1}
+                onKeyDown={(ev) => {
+                  // setas trocam de aba, como nas abas do sistema
+                  const ordem = ["tipo", "todas", "extrato"] as const;
+                  const i = ordem.indexOf(aba);
+                  const prox = ev.key === "ArrowRight" ? ordem[(i + 1) % 3] : ev.key === "ArrowLeft" ? ordem[(i + 2) % 3] : null;
+                  if (!prox) return;
+                  ev.preventDefault();
+                  setAba(prox);
+                  document.getElementById(`aba-${prox}`)?.focus();
+                }}
+                className={cn("min-h-11 shrink-0 rounded-lg px-3 text-sm font-medium whitespace-nowrap text-muted-foreground sm:px-4", aba === id && "bg-card font-semibold text-foreground shadow-sm")}
               >
                 {nome}
                 {id === "todas" && <span className="ml-1.5 text-muted-foreground/70">{r.total}</span>}
@@ -314,8 +336,6 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
             {aba === "todas" && <Todas dados={dados} />}
             {aba === "extrato" && (prepago || dados.creditos.length ? <Extrato creditos={dados.creditos} limite={20} /> : <p className="text-sm text-muted-foreground">Este negócio ainda não tem saldo pré-pago: não há extrato.</p>)}
           </section>
-        </>
-      )}
 
       <section aria-label="Como funciona a cobrança" className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card px-5 py-4">
         <div className="grid gap-1 text-[13px]">
@@ -389,9 +409,10 @@ function Saldo({ dados, slug, gastoCents }: { dados: PainelConsumo; slug: string
       </div>
       {nivel !== "ok" && (
         <span role="status" className={cn("w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold", nivel === "critico" ? "bg-red-500/20 text-red-200" : "bg-amber-400/20 text-amber-200")}>
-          {saldo <= 0 ? "Sem saldo: avisos aos clientes pausados" : "Saldo baixo"}
+          {saldo <= 0 ? (conta.semSaldo === "negativo" ? "Sem saldo: seguindo no negativo" : "Sem saldo: avisos aos clientes pausados") : "Saldo baixo"}
         </span>
       )}
+      {saldo <= 0 && <span className="text-xs text-zinc-300">{textoSemSaldo(conta.semSaldo)}</span>}
       <LinhaDoSaldo pontos={pontos} rotulo={`Saldo nos últimos ${pontos.length} dias, de ${brl(pontos[0] ?? saldo)} para ${brl(saldo)}`} />
       {gasto}
     </div>
@@ -431,7 +452,7 @@ function PorTipo({ tipos, total }: { tipos: ReturnType<typeof porTipo>; total: R
   const partes = (s: Record<string, number>) => SITUACOES.map((k) => ({ cor: COR_SITUACAO[k], n: s[k] }));
   const descreve = (s: Record<string, number>) =>
     SITUACOES.filter((k) => s[k] > 0)
-      .map((k) => `${s[k]} ${ROTULO_SITUACAO[k].toLowerCase()}${s[k] > 1 ? "s" : ""}`)
+      .map((k) => `${s[k]} ${s[k] > 1 ? PLURAL[k] : SINGULAR[k]}`)
       .join(", ");
   return (
     <>
@@ -545,7 +566,7 @@ function Todas({ dados }: { dados: PainelConsumo }) {
               type="button"
               aria-pressed={filtro === x.id}
               onClick={() => (setFiltro(x.id), setMostrar(POR_PAGINA))}
-              className={cn("inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px]", filtro === x.id ? "border-foreground bg-foreground text-background" : "bg-card hover:bg-muted")}
+              className={cn("inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[13px]", filtro === x.id ? "border-foreground bg-foreground text-background" : "bg-card hover:bg-muted")}
             >
               {x.id === "whatsapp" && <span aria-hidden="true" className="size-2 rounded-full" style={{ background: COR.whatsapp }} />}
               {x.id === "sms" && <span aria-hidden="true" className="size-2 rounded-full" style={{ background: COR.sms }} />}

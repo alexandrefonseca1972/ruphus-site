@@ -59,6 +59,8 @@ export const CONFIG_PADRAO: ConfigMensagens = {
 };
 /** Recarga avulsa (sem pacote): no mínimo R$ 10,00. */
 export const RECARGA_MINIMA_CENTS = 1000;
+/** Recarga avulsa: no máximo R$ 10.000,00 por Pix. */
+export const RECARGA_MAXIMA_CENTS = 1_000_000;
 
 /** O que vale para o negócio: a config geral com o que o /admin mudou só para ele
  *  (tenants/{slug}/privado/mensagens: cobrar e preços). */

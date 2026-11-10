@@ -114,21 +114,37 @@ export type PainelConsumo = {
   envios: EnvioTela[];
   truncado: boolean;
   anterior: { mes: string; total: number; custoCents: number };
+  /** o agregado do mês (consumo/{mes}): vale mesmo quando a lista de envios foi cortada ou não foi lida */
+  doMes: { total: number; custoCents: number };
   creditos: CreditoTela[];
   recargasAbertas: RecargaAberta[];
 };
 
-export async function painelDeConsumo(slug: string, mes: string): Promise<PainelConsumo> {
+/** Início do mês em Brasília (UTC−3, sem horário de verão desde 2019). */
+const inicioDoMes = (mes: string) => new Date(`${mes}-01T03:00:00Z`);
+const mesSeguinte = (mes: string) => {
+  const [a, m] = mes.split("-").map(Number);
+  const d = new Date(Date.UTC(a, m, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+};
+
+/** opcoes.envios = false: sem a lista do mês (tela de recarga), só saldo, extrato e agregados. */
+export async function painelDeConsumo(slug: string, mes: string, opcoes: { envios?: boolean } = {}): Promise<PainelConsumo> {
   const ant = mesAnterior(mes);
-  const [conta, geral, snap, docAnt, creditos, cobrancas] = await Promise.all([
+  const comEnvios = opcoes.envios !== false;
+  const [conta, geral, snap, docAnt, docMes, creditos, cobrancas] = await Promise.all([
     contaDoNegocio(slug),
     lerConfigMensagens(),
-    adminDb.collection(`tenants/${slug}/envios`).where("mes", "==", mes).limit(TETO_ENVIOS).get(),
+    // por data (o mesmo campo no filtro e na ordem: sem índice composto), os mais recentes primeiro
+    comEnvios
+      ? adminDb.collection(`tenants/${slug}/envios`).where("em", ">=", inicioDoMes(mes)).where("em", "<", inicioDoMes(mesSeguinte(mes))).orderBy("em", "desc").limit(TETO_ENVIOS).get()
+      : null,
     adminDb.doc(`tenants/${slug}/consumo/${ant}`).get(),
+    adminDb.doc(`tenants/${slug}/consumo/${mes}`).get(),
     extratoDoNegocio(slug),
     listarCobrancas(adminDb, slug),
   ]);
-  const docs = snap.docs.sort((a, b) => (ms(b.get("em")) ?? 0) - (ms(a.get("em")) ?? 0));
+  const docs = snap?.docs ?? [];
 
   // o nome do cliente e o serviço vêm do agendamento (o envio não guarda nome nem telefone)
   const ids = [...new Set(docs.map((d) => d.get("agendamentoId")).filter((x): x is string => typeof x === "string" && /^[A-Za-z0-9]{1,40}$/.test(x)))].slice(0, TETO_AGENDAMENTOS);
@@ -159,7 +175,8 @@ export async function painelDeConsumo(slug: string, mes: string): Promise<Painel
     conta: { ...conta, ultimaRecarga: ultima ? { valorCents: ultima.valorCents, em: ultima.em } : null },
     pacotes: geral.pacotes.filter((p) => p.ativo).sort((a, b) => a.valorCents - b.valorCents),
     envios,
-    truncado: snap.size >= TETO_ENVIOS,
+    truncado: (snap?.size ?? 0) >= TETO_ENVIOS,
+    doMes: { total: Number(docMes.get("total") ?? 0), custoCents: Number(docMes.get("custoCents") ?? 0) },
     anterior: { mes: ant, total: Number(docAnt.get("total") ?? 0), custoCents: Number(docAnt.get("custoCents") ?? 0) },
     creditos,
     recargasAbertas: cobrancas

@@ -1,6 +1,6 @@
 "use server";
 
-import { RECARGA_MINIMA_CENTS } from "@/lib/consumo";
+import { RECARGA_MAXIMA_CENTS, RECARGA_MINIMA_CENTS } from "@/lib/consumo";
 import { criarRecarga, lerConfigMensagens } from "@/lib/consumo.server";
 import { painelDeConsumo, resumoDoSaldo } from "@/lib/consumo-painel.server";
 import { abrirCobranca, listarCobrancas } from "@/lib/cobranca";
@@ -667,16 +667,26 @@ export const responderConversaAction = conversaAction(
 /** Recarga de mensagens pré-pagas: pacote do /admin ou valor livre (mínimo R$ 10,00). Devolve a
  *  cobrança Pix (a mesma página /pagar da mensalidade); o saldo entra quando o pagamento é baixado. */
 export const criarRecargaAction = memberAction(
-  z.object({ tenantId: docIdStaff, pedido: z.union([z.object({ pacoteId: z.string().regex(/^[a-z0-9-]{1,20}$/) }).strict(), z.object({ valorCents: z.number().int().min(RECARGA_MINIMA_CENTS, "A recarga mínima é de R$ 10,00.").max(1_000_000) }).strict()]) }),
+  z.object({
+    tenantId: docIdStaff,
+    pedido: z.union([
+      z.object({ pacoteId: z.string().regex(/^[a-z0-9-]{1,20}$/) }).strict(),
+      z.object({ valorCents: z.number().int().min(RECARGA_MINIMA_CENTS, "A recarga mínima é de R$ 10,00.").max(RECARGA_MAXIMA_CENTS, "A recarga máxima é de R$ 10.000,00.") }).strict(),
+    ]),
+  }),
   async ({ tenantId, pedido }, user) => {
     await exigeGestor(tenantId, user.uid);
     if (tenantId === DEMO) throw new UserError("A demonstração não recarrega mensagens.");
-    // o mesmo valor ainda em aberto volta o mesmo Pix: tocar duas vezes não gera duas cobranças
+    // o mesmo pedido (valor, bônus e pacote) ainda em aberto volta o mesmo Pix: tocar duas vezes não gera
+    // duas cobranças. Bônus diferente (pacote × valor livre, bônus mudado no admin) é outra cobrança
+    const pacote = "pacoteId" in pedido ? (await lerConfigMensagens()).pacotes.find((p) => p.id === pedido.pacoteId && p.ativo) : null;
+    if ("pacoteId" in pedido && !pacote) throw new UserError("Esse pacote não está mais disponível.");
+    const quer = { valorCents: pacote ? pacote.valorCents : (pedido as { valorCents: number }).valorCents, bonusCents: pacote?.bonusCents ?? 0, pacoteId: pacote?.id ?? null };
     const abertas = (await listarCobrancas(adminDb, tenantId)).filter((c) => c.tipo === "recarga" && c.status === "aberta" && c.vencimento >= todayIn());
-    const valor = "valorCents" in pedido ? pedido.valorCents : (await lerConfigMensagens()).pacotes.find((p) => p.id === pedido.pacoteId)?.valorCents;
-    const mesma = abertas.find((c) => c.valorCents === valor);
+    const docs = abertas.length ? await adminDb.getAll(...abertas.map((c) => adminDb.doc(`cobrancas/${c.id}`))) : [];
+    const mesma = docs.find((d) => d.get("valorCents") === quer.valorCents && Number(d.get("bonusCents") ?? 0) === quer.bonusCents && (d.get("pacoteId") ?? null) === quer.pacoteId);
     if (!mesma && abertas.length >= 5) throw new UserError("Já há 5 recargas aguardando pagamento. Pague uma delas ou espere vencerem.");
-    const r = mesma ? { id: mesma.id, token: String((await adminDb.doc(`cobrancas/${mesma.id}`).get()).get("token") ?? "") } : await criarRecarga(tenantId, pedido);
+    const r = mesma ? { id: mesma.id, token: String(mesma.get("token") ?? "") } : await criarRecarga(tenantId, pedido);
     return { ok: true as const, ...(await pixDaRecarga(r.id, r.token)) };
   },
 );
@@ -697,9 +707,10 @@ async function pixDaRecarga(id: string, token: string) {
 }
 
 /** Tela de consumo: envios do mês, saldo, previsão, preços, pacotes e extrato. Só quem gere. */
-export const consumoAction = memberAction(z.object({ tenantId: docIdStaff, mes: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }), async ({ tenantId, mes }, user) => {
+/** leve: sem a lista de envios do mês (a tela de recarga só precisa do saldo, do extrato e do gasto). */
+export const consumoAction = memberAction(z.object({ tenantId: docIdStaff, mes: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), leve: z.boolean().optional() }), async ({ tenantId, mes, leve }, user) => {
   await exigeGestor(tenantId, user.uid);
-  return { ok: true as const, dados: await painelDeConsumo(tenantId, mes) };
+  return { ok: true as const, dados: await painelDeConsumo(tenantId, mes, { envios: !leve }) };
 });
 
 /** Faixa de saldo baixo no topo do painel (null: sem conta pré-paga aberta). */

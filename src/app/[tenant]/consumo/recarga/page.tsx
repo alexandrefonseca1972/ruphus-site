@@ -4,8 +4,8 @@ import Link from "next/link";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { RECARGA_MINIMA_CENTS } from "@/lib/consumo";
-import { mensagensNoSaldo } from "@/lib/consumo-tela";
+import { RECARGA_MAXIMA_CENTS, RECARGA_MINIMA_CENTS } from "@/lib/consumo";
+import { centavos as lerCentavos, mensagensNoSaldo } from "@/lib/consumo-tela";
 import type { PainelConsumo } from "@/lib/consumo-painel.server";
 import { formatBRL } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
@@ -24,16 +24,10 @@ const SEM_SALDO: Record<string, string> = {
   negativo: "As mensagens continuam saindo por um tempo, e o saldo fica negativo até o limite combinado com a Ruphus. A próxima recarga desconta o que ficou negativo.",
 };
 
-/** "12,50" → 1250; vazio ou inválido → null. */
-const centavos = (t: string) => {
-  const v = t.replace(/[^\d,]/g, "").replace(",", ".");
-  const n = Math.round(Number(v) * 100);
-  return v && Number.isFinite(n) ? n : null;
-};
 
 export default function RecargaPage() {
   const tenant = useTenant();
-  const { dados, erro, carregando, recarregar } = useConsumo(tenant.id, mesAtual());
+  const { dados, erro, carregando, recarregar } = useConsumo(tenant.id, mesAtual(), true);
   if (!tenant.podeGerir) return <p className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">Só o dono ou um administrador do negócio recarrega as mensagens.</p>;
   return (
     <>
@@ -63,16 +57,21 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
   const preco = conta.precos.whatsappUtilityCents;
   const saldo = conta.saldoCents ?? 0;
   const prepago = conta.cobrar && conta.modelo === "prepago";
-  const indicado = conta.previsao?.pacoteIndicado?.id;
+  // o indicado só vale se o pacote ainda está ativo (o admin pode ter desligado depois da previsão)
+  const indicado = pacotes.some((p) => p.id === conta.previsao?.pacoteIndicado?.id) ? conta.previsao?.pacoteIndicado?.id : undefined;
   const [escolha, setEscolha] = useState<string>(() => indicado ?? pacotes[1]?.id ?? pacotes[0]?.id ?? "outro");
   const [outro, setOutro] = useState("");
   const [pix, setPix] = useState<Pix | null>(null);
   const [busy, setBusy] = useState(false);
   const [erro, setErro] = useState("");
-  const gastoMes = dados.envios.reduce((t, e) => t + e.custoCents, 0);
+  const gastoMes = dados.doMes.custoCents;
   const dias = conta.previsao?.diasRestantesEstimados ?? null;
   const msgs = mensagensNoSaldo(saldo, preco);
   const ultima = conta.ultimaRecarga;
+  const frase = [
+    ...(msgs !== null ? [`Dá para cerca de ${msgs.toLocaleString("pt-BR")} mensagens de WhatsApp`] : []),
+    ...(dias !== null ? [`${msgs !== null ? "ou " : "Dura "}${dias === 0 ? "menos de um dia" : `uns ${dias} ${dias === 1 ? "dia" : "dias"}`} no seu ritmo`] : []),
+  ];
 
   if (!prepago) {
     return (
@@ -83,14 +82,16 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
   }
 
   const pacote = pacotes.find((p) => p.id === escolha);
-  const valorOutro = centavos(outro);
+  const lido = lerCentavos(outro);
+  const valorOutro = lido !== null && lido > 0 ? lido : null;
   const valor = pacote ? pacote.valorCents : valorOutro;
   const credito = pacote ? pacote.valorCents + pacote.bonusCents : (valorOutro ?? 0);
-  const outroInvalido = escolha === "outro" && outro !== "" && (valorOutro === null || valorOutro < RECARGA_MINIMA_CENTS);
+  const outroInvalido = escolha === "outro" && outro !== "" && (valorOutro === null || valorOutro < RECARGA_MINIMA_CENTS || valorOutro > RECARGA_MAXIMA_CENTS);
 
   async function gerar() {
     if (busy) return;
     if (!pacote && (valorOutro === null || valorOutro < RECARGA_MINIMA_CENTS)) return setErro(`A recarga mínima é de ${formatBRL(RECARGA_MINIMA_CENTS)}.`);
+    if (!pacote && valorOutro! > RECARGA_MAXIMA_CENTS) return setErro(`A recarga máxima é de ${formatBRL(RECARGA_MAXIMA_CENTS)}.`);
     setBusy(true);
     setErro("");
     const r = await idToken()
@@ -116,11 +117,7 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
         <section aria-label="Saldo" className="flex flex-col gap-2 rounded-2xl border border-zinc-900 bg-zinc-900 p-5 text-white dark:border-zinc-700">
           <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Saldo disponível</span>
           <span className={cn("text-4xl leading-none font-bold tracking-tight tabular-nums", saldo <= 0 && "text-red-300")}>{brl(saldo)}</span>
-          <span className="text-sm text-zinc-300">
-            {msgs !== null && <>Dá para cerca de {msgs.toLocaleString("pt-BR")} mensagens de WhatsApp</>}
-            {dias !== null && <>, ou {dias === 0 ? "menos de um dia" : `uns ${dias} ${dias === 1 ? "dia" : "dias"}`} no seu ritmo</>}
-            {gastoMes > 0 && <> ({brl(gastoMes)} este mês)</>}.
-          </span>
+          {frase.length > 0 && <span className="text-sm text-zinc-300">{frase.join(", ")}{gastoMes > 0 ? ` (${brl(gastoMes)} este mês)` : ""}.</span>}
           {ultima && ultima.valorCents > 0 && (
             <>
               <div aria-hidden="true" className="mt-1 h-2 overflow-hidden rounded-full bg-white/15">
@@ -176,12 +173,12 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
                     placeholder="30,00"
                     value={outro}
                     onFocus={() => setEscolha("outro")}
-                    onChange={(e) => setOutro(e.target.value.replace(/[^\d,]/g, "").slice(0, 9))}
+                    onChange={(e) => setOutro(e.target.value.replace(/[^\d,.]/g, "").slice(0, 10))}
                     className="h-11 w-28 rounded-lg border bg-background px-3 text-right text-base tabular-nums aria-invalid:border-destructive"
                   />
                 </span>
                 <span id="outro-ajuda" className={cn("w-full text-xs", outroInvalido ? "text-destructive" : "text-muted-foreground")}>
-                  Mínimo de {formatBRL(RECARGA_MINIMA_CENTS)}, sem bônus.
+                  De {formatBRL(RECARGA_MINIMA_CENTS)} a {formatBRL(RECARGA_MAXIMA_CENTS)}, sem bônus.
                 </span>
               </label>
             </fieldset>
@@ -203,7 +200,7 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
                   <span className="tabular-nums">
                     {formatBRL(r.valorCents)} · vence {r.vencimento.slice(8, 10)}/{r.vencimento.slice(5, 7)}
                   </span>
-                  <Button variant="outline" className="h-10 bg-white px-3 dark:bg-transparent" disabled={busy} onClick={() => abrir(r.id)}>
+                  <Button variant="outline" className="h-11 bg-white px-3 dark:bg-transparent" disabled={busy} onClick={() => abrir(r.id)}>
                     Abrir o Pix
                   </Button>
                 </li>
