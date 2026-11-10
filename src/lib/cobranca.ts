@@ -136,7 +136,7 @@ export async function gerarCobranca(
       vencimento,
       status: "aberta",
       token,
-      txid: txidDe(a.slug, a.tipo, a.competencia),
+      txid: txidDe(a.slug, a.tipo, a.competencia, n),
       pagoEm: null,
       recebidoCents: null,
       baixaPor: null,
