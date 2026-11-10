@@ -14,8 +14,13 @@ export async function GET(request: NextRequest) {
   if (segredo && !segredoIgual(request.headers.get("x-ruphus"), segredo)) {
     return new NextResponse("nao encontrado", { status: 404 });
   }
-  const slugs = await desativados(adminDb).catch(() => [] as string[]);
-  return NextResponse.json(slugs, {
-    headers: { "cache-control": segredo ? "private, max-age=30" : "public, max-age=30, stale-while-revalidate=300" },
-  });
+  try {
+    return NextResponse.json(await desativados(adminDb), {
+      headers: { "cache-control": segredo ? "private, max-age=30" : "public, max-age=30, stale-while-revalidate=300" },
+    });
+  } catch (e) {
+    // 503, não lista vazia: o proxy só troca a lista com 200, e lista vazia poria no ar quem não pagou
+    console.error("[desativados] lista", e);
+    return new NextResponse("indisponivel", { status: 503, headers: { "cache-control": "no-store" } });
+  }
 }

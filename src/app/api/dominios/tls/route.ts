@@ -12,14 +12,28 @@ import { normalizarHost } from "@/lib/dominio";
 //   }
 //
 // Só responde a quem chama pelo próprio servidor: de fora, o Host é o domínio visitado.
+// host recusado fica 5 min sem nova consulta: bot varrendo o IP pede certificado para nomes
+// aleatórios. Domínio recém-ligado no admin espera no máximo esses 5 min pelo certificado.
+// ponytail: limpa tudo ao bater o teto; LRU se o mapa encher sempre
+const recusados = new Map<string, number>();
+const RECUSA_MS = 5 * 60_000;
+const TETO_RECUSADOS = 1000;
+
 export async function GET(request: NextRequest) {
   if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(request.headers.get("host") ?? "")) return new NextResponse(null, { status: 404 });
   const host = normalizarHost(request.nextUrl.searchParams.get("domain") ?? "");
   if (!host) return new NextResponse(null, { status: 404 });
+  if ((recusados.get(host) ?? 0) > Date.now()) return new NextResponse(null, { status: 404 });
   const tenants = adminDb.collection("tenants");
   const [principal, raiz] = await Promise.all([
     tenants.where("dominio.host", "==", host).limit(1).get(),
     tenants.where("dominio.raiz", "==", host).limit(1).get(),
   ]);
-  return new NextResponse(null, { status: principal.empty && raiz.empty ? 404 : 200 });
+  if (principal.empty && raiz.empty) {
+    if (recusados.size >= TETO_RECUSADOS) recusados.clear();
+    recusados.set(host, Date.now() + RECUSA_MS);
+    return new NextResponse(null, { status: 404 });
+  }
+  recusados.delete(host);
+  return new NextResponse(null, { status: 200 });
 }
