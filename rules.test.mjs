@@ -245,14 +245,14 @@ await assertFails(getDoc(doc(alice, "tenants/acme/inventada/x")));
 // "viaConvite" é do servidor: sem isto dá para queimar a cota de outra conta
 await assertFails(setDoc(doc(alice, "tenants/acme/members/vitima"), { uid: "vitima", role: "admin", viaConvite: true }));
 
-// Caixa: só quem gere lê, só com o módulo ligado, e ninguém grava pelo app
+// Caixa incluído: só quem gere lê, mesmo com o campo legado desligado, e ninguém grava pelo app
 await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(ctx.firestore(), "tenants/acme/members/carla"), { uid: "carla", role: "member" });
   await setDoc(doc(ctx.firestore(), "tenants/acme/lancamentos/l1"), { tipo: "entrada", valorCents: 5000, mes: "2026-10" });
 });
 const carla = as("carla");
 const lanc = (db) => doc(db, "tenants/acme/lancamentos/l1");
-await assertFails(getDoc(lanc(alice)), "modulo desligado: nem o dono le");
+await assertSucceeds(getDoc(lanc(alice)), "campo legado desligado nao bloqueia o dono");
 await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), "tenants/acme"), { "modulos.financeiro": true }));
 await assertSucceeds(getDoc(lanc(alice)));
 await assertSucceeds(getDoc(lanc(bob)), "admin do negocio le");

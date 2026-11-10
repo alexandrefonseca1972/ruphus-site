@@ -108,8 +108,8 @@ export default function AgendaPage() {
     semana,
   );
   const items = daSemana?.filter((a) => dateIn(a.start.toDate()) === date) ?? null;
-  // Caixa ligado: o que já foi recebido na semana (só quem gere lê dinheiro)
-  const caixa = tenant.podeGerir && tenant.modulos?.financeiro === true;
+  // O que já foi recebido na semana (só quem gere lê dinheiro)
+  const caixa = tenant.podeGerir;
   // quem é da equipe vê a agenda toda, mas só mexe nos próprios horários (o servidor e as regras conferem)
   const meu = (a: { staffId: string }) => tenant.podeGerir || !tenant.staffId || a.staffId === tenant.staffId;
   const [recebidosDaSemana] = useCollection(

@@ -29,7 +29,7 @@ const hoje = new Date().toISOString().slice(0, 10);
     name: { x: 1 }, "site.phone": "ligar", "site.city": 42, "site.uf": "Pará", "site.rating": 50, "site.reviews": -3, limiteStaff: "9", "modulos.financeiro": "sim",
   }), 1);
   assert.equal(sujo.corrigido, true);
-  assert.deepEqual(sujo.espaco, { slug: "sujo", nome: "sujo", telefone: null, nicho: "Outros", cidade: null, uf: null, nota: null, avaliacoes: null, acessos: 1, limiteStaff: espacoDe("x", () => undefined, 1).espaco.limiteStaff, caixa: false });
+  assert.deepEqual(sujo.espaco, { slug: "sujo", nome: "sujo", telefone: null, nicho: "Outros", cidade: null, uf: null, nota: null, avaliacoes: null, acessos: 1, limiteStaff: espacoDe("x", () => undefined, 1).espaco.limiteStaff, caixa: true });
   assert.equal(espacoDe("vazio", () => undefined, 1).corrigido, false, "campo ausente não é correção");
   assert.equal(espacoDe("v", doc({ name: "   " }), 1).espaco.nome, "v", "nome vazio usa o slug");
   assert.equal(espacoDe("v", doc({ name: "x".repeat(500) }), 1).espaco.nome.length, 120);

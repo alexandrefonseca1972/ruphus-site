@@ -12,13 +12,13 @@ export const idDoSinal = (appointmentId: string) => `sn-${appointmentId}`;
 /** Rodadas do cron que podem falhar no mesmo agendamento antes de ele sair da consulta. */
 const TENTATIVAS_SINAL = 3;
 
-/** "Sinal recebido": o salão conferiu no banco. O horário fica confirmado e, com o Caixa
- *  ligado, o sinal entra como recebido (com o profissional, para a comissão). */
+/** "Sinal recebido": o salão conferiu no banco. O horário fica confirmado e o sinal
+ *  entra no Caixa como recebido (com o profissional, para a comissão). */
 export async function confirmarSinal(db: Firestore, tenantId: string, appointmentId: string, quem: Quem) {
   const t = db.doc(`tenants/${tenantId}`);
   const agendamento = t.collection("appointments").doc(appointmentId);
   await db.runTransaction(async (tx) => {
-    const [a, tenant, baixa] = await Promise.all([tx.get(agendamento), tx.get(t), tx.get(t.collection("lancamentos").doc(idDaBaixa(appointmentId)))]);
+    const [a, baixa] = await Promise.all([tx.get(agendamento), tx.get(t.collection("lancamentos").doc(idDaBaixa(appointmentId)))]);
     if (!a.exists) throw new UserError("Agendamento não encontrado.");
     // vencido com o horário ainda marcado (o cliente chegou) e erro do cron: o salão ainda registra
     if (!["pendente", "vencido", "erro"].includes(a.get("sinal.status"))) throw new UserError("Este agendamento não tem sinal a confirmar.");
@@ -26,7 +26,7 @@ export async function confirmarSinal(db: Firestore, tenantId: string, appointmen
     const cents = Number(a.get("sinal.cents"));
     if (!Number.isInteger(cents) || cents <= 0) throw new UserError("O valor do sinal deste agendamento está inválido. Fale com o suporte.");
     // o sinal entra hoje no Caixa, mas só conta para a comissão quando o atendimento for recebido
-    const entraNoCaixa = tenant.get("modulos.financeiro") === true && !baixa.exists;
+    const entraNoCaixa = !baixa.exists;
     const mudanca: Record<string, unknown> = { "sinal.status": "pago", "sinal.pagoEm": FieldValue.serverTimestamp() };
     if (a.get("status") === "booked") {
       const historico = t.collection("history").doc();

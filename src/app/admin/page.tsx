@@ -27,7 +27,6 @@ import {
   encerrarSessoes,
   definirMinutosInativo,
   definirPixel,
-  definirCaixa,
   definirLimiteStaff,
   linkDaProposta,
   enviarPropostaPorEmail,
@@ -430,19 +429,6 @@ export default function AdminPage() {
     if (!r.ok) return setAviso(r.error);
     setProposta({ slug, url: r.dados.url, valeAte: r.dados.valeAte });
     setAviso(r.dados.nova ? `Proposta válida até ${diaCurto(r.dados.valeAte)}.` : "");
-  }
-
-  async function mudarCaixa(slug: string, nome: string, ligado: boolean) {
-    const pergunta = ligado
-      ? { titulo: `Ligar o Caixa para ${nome}?`, texto: "O link aparece no painel do dono.", acao: "Ligar", tom: "normal" as const }
-      : { titulo: `Desligar o Caixa de ${nome}?`, texto: "O link some do painel; os lançamentos ficam guardados.", acao: "Desligar" };
-    if (!(await confirmar(pergunta))) return;
-    const r = await definirCaixa(await token(), slug, ligado);
-    setRecarga((x) => x + 1);
-    if (!r.ok) return setAviso(r.error);
-    setAviso(r.dados ? "Caixa ligado: aparece no painel do negócio" : "Caixa desligado: os lançamentos ficam guardados");
-    setEspacos((e) => (e[slug] ? { ...e, [slug]: { ...e[slug], caixa: r.dados } } : e));
-    setAberto((x) => (x && x.slug === slug ? { ...x, caixa: r.dados } : x));
   }
 
   async function mudarLimiteStaff(slug: string, profissionais: number) {
@@ -2284,41 +2270,10 @@ export default function AdminPage() {
               </span>
             </section>
 
-            {/* Módulo opcional por cliente: desligar só esconde, os lançamentos ficam */}
-            <label className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-[#E2DDD3] p-4 text-xs text-[#6F6A5E]">
-              <span>
-                <b className="font-semibold text-[#17150F]">Caixa (financeiro)</b> · entradas, saídas e atendimentos a receber no painel do dono
-              </span>
-              <input type="checkbox" className="size-5 accent-[#17150F]" checked={aberto.caixa} onChange={(e) => mudarCaixa(aberto.slug, aberto.nome, e.target.checked)} />
-            </label>
-            {aberto.caixa && (
-              <label htmlFor="caixa-valor" className="-mt-1.5 flex flex-col gap-1 text-xs text-[#6F6A5E]">
-                Valor do Caixa, somado à mensalidade
-                <span className="flex h-11 items-center rounded-[10px] border border-[#D8D2C6] bg-white focus-within:border-[#17150F]">
-                  <span className="pl-3 pr-1.5 text-sm text-[#8B8578]">R$</span>
-                  <input
-                    key={`caixa-${aberto.slug}`}
-                    id="caixa-valor"
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="0,00"
-                    defaultValue={crm[aberto.slug]?.caixaCents ? emReais(crm[aberto.slug]!.caixaCents!) : ""}
-                    onBlur={(ev) => {
-                      const valor = cents(ev.target.value);
-                      if (ev.target.value.trim() && (Number.isNaN(valor) || valor < 0)) {
-                        ev.target.value = crm[aberto.slug]?.caixaCents ? emReais(crm[aberto.slug]!.caixaCents!) : "";
-                        return setAviso("Valor inválido. Use 19,90.");
-                      }
-                      const novo = ev.target.value.trim() ? valor : null;
-                      ev.target.value = novo === null ? "" : emReais(novo);
-                      if (novo !== (crm[aberto.slug]?.caixaCents ?? null)) mudarNegocio(aberto.slug, { caixaCents: novo });
-                    }}
-                    className="h-full min-w-0 grow bg-transparent text-sm tabular-nums text-[#17150F] outline-none"
-                  />
-                  <span className="pr-3 text-xs text-[#8B8578]">/mês</span>
-                </span>
-              </label>
-            )}
+            <section aria-label="Caixa incluído" className="rounded-2xl border border-[#E2DDD3] p-4 text-xs text-[#6F6A5E]">
+              <b className="font-semibold text-[#17150F]">Caixa incluído no plano</b>
+              <span className="mt-1 block">Entradas, saídas, contas fixas e comissões no painel do dono, sem adicional na mensalidade.</span>
+            </section>
 
             <section aria-label="Quem tem acesso" className="flex flex-col gap-2.5">
               <div className="flex items-baseline gap-2">

@@ -214,11 +214,10 @@ console.log("revogacao: ok");
 }
 console.log("outros contatos: ok");
 
-// Caixa: o valor acertado só entra na mensalidade com o módulo ligado
-assert.equal(mensalidadeDe({ mensalCents: 8990, caixaCents: 1990 }, true), 10980);
-assert.equal(mensalidadeDe({ mensalCents: 8990, caixaCents: 1990 }, false), 8990);
-assert.equal(mensalidadeDe({ mensalCents: 8990, caixaCents: null }, true), 8990);
-assert.equal(mensalidadeDe(undefined, true), 0);
+// Caixa incluído: o valor legado não entra em novas mensalidades
+assert.equal(mensalidadeDe({ mensalCents: 8990, caixaCents: 1990 }), 8990);
+assert.equal(mensalidadeDe({ mensalCents: 8990, caixaCents: null }), 8990);
+assert.equal(mensalidadeDe(undefined), 0);
 console.log("caixa na mensalidade ok");
 
 // o importado que ninguém tocou não vai para a tela: ela já trata a falta como "novo" e "importado"

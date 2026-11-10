@@ -2,7 +2,7 @@
 // para public/termos/{versão}/ (npm run termos). Uma versão publicada não muda: mudou
 // o texto, suba CONTRATO_VERSAO e a versão no topo do contrato. O aceite guarda a
 // versão que a pessoa leu, e o link aponta para ela para sempre.
-export const CONTRATO_VERSAO = "1.1";
+export const CONTRATO_VERSAO = "1.2";
 export const CONTRATO_URL = `/termos/${CONTRATO_VERSAO}`;
 export const CONTRATO_RECUSADO = "Para continuar, aceite os Termos de Contratação.";
 
@@ -12,6 +12,7 @@ export const RESUMO_CONTRATO = [
   "Sem fidelidade: cancele quando quiser, sem multa.",
   "7 dias para desistir, com devolução de tudo o que você pagou.",
   "Taxa de ativação e mensalidade pré-paga (dia 10), nos valores da proposta ou da tabela dos Termos. Reajuste só uma vez por ano, pelo IPCA.",
+  "Caixa e comissões incluídos, sem adicional na mensalidade.",
   "Depois de 10 dias de atraso, o site e o agendamento podem sair do ar. Nada é apagado.",
   "Manutenção incluída dentro dos limites mensais. Edição de imagem e vídeo não está incluída.",
 ] as const;

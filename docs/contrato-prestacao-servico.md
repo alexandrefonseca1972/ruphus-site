@@ -5,7 +5,7 @@
      CONTRATO_VERSAO em src/lib/contrato.ts. O script recusa sobrescrever uma versão
      já publicada e recusa gerar com marcador [[...]] pendente. -->
 
-**Versão 1.1 — vigente a partir de 6 de novembro de 2026**
+**Versão 1.2 — vigente a partir de 10 de novembro de 2026**
 
 Estes Termos são o contrato de prestação de serviço entre a Ruphus e quem
 contrata o site e a agenda online. Ao marcar "Li e aceito", o Cliente declara
@@ -17,6 +17,8 @@ que leu, entendeu e concorda com eles.
 > - **7 dias para desistir:** dentro desse prazo, devolvemos tudo o que você pagou.
 > - **Preço:** taxa de ativação e mensalidade pré-paga, com vencimento no dia 10,
 >   nos valores da proposta ou do Anexo I. Reajuste só uma vez por ano, pelo IPCA.
+> - **Caixa e comissões incluídos:** entradas, saídas, contas fixas e o percentual
+>   de cada profissional, sem adicional na mensalidade.
 > - **Atraso:** depois de 10 dias de atraso, o site e o agendamento podem sair do
 >   ar. Nada é apagado.
 > - **Manutenção incluída**, dentro dos limites mensais da cláusula 4. Edição de
@@ -56,7 +58,9 @@ online** para atendimento ao público, composto por:
    (histórico, etiquetas e anotações) e planos de clientes.
 4. **Acesso da equipe**: o Cliente pode dar acesso ao painel aos seus
    profissionais, com permissões limitadas.
-5. **Manutenção de conteúdo** conforme a cláusula 4.
+5. **Caixa e comissões**, incluídos sem adicional na mensalidade, com registro de
+   entradas, saídas, contas fixas e percentual de comissão de cada profissional.
+6. **Manutenção de conteúdo** conforme a cláusula 4.
 
 ### 2.1 Recursos opcionais
 
@@ -69,7 +73,6 @@ Mediante ativação, com os preços do **Anexo I**:
   horário, enviada pelo número do próprio Cliente (cláusula 10.3).
 - **Sinal por Pix**: o cliente final paga parte do valor para garantir o horário,
   na chave Pix do Cliente.
-- **Caixa**: registro de entradas e saídas do mês.
 - **Profissionais além de 5**: o plano inclui até 5 profissionais ativos.
 - **Mais de um negócio na conta**: o plano inclui 1 negócio por conta.
 
@@ -399,7 +402,7 @@ trouxer outro valor.
 | Domínio próprio | R$ 100,00 | uma vez, pela configuração |
 | Lembretes por WhatsApp | incluído | — |
 | Sinal por Pix | incluído | — |
-| Caixa | R$ 20,00 | por mês |
+| Caixa e comissões | incluído | — |
 | Profissional além de 5 | R$ 15,00 | por mês, por profissional |
 | Negócio adicional na conta | 70% da mensalidade vigente | por mês, por negócio |
 | Pedido avulso de manutenção (além dos limites da cl. 4.1) | R$ 50,00 | por pedido |

@@ -48,9 +48,8 @@ export const DETALHE_PAROU = "Pediu para não receber mensagens";
 /** Depois disto, sem resposta, insistir vira spam */
 export const TOQUES_MAX = 3;
 
-/** O que se cobra por mês: a mensalidade mais o Caixa, quando o módulo está ligado no negócio. */
-export const mensalidadeDe = (c: Pick<Crm, "mensalCents" | "caixaCents"> | undefined, caixaLigado: boolean) =>
-  (c?.mensalCents ?? 0) + (caixaLigado ? (c?.caixaCents ?? 0) : 0);
+/** O que se cobra por mês: o Caixa está incluído e não entra como adicional. */
+export const mensalidadeDe = (c: Pick<Crm, "mensalCents" | "caixaCents"> | undefined) => c?.mensalCents ?? 0;
 
 /** Por que um negócio saiu do funil sem fechar. Obrigatório ao marcar "perdido". */
 export const MOTIVOS_PERDA = {
@@ -83,7 +82,7 @@ export type Crm = {
   entradaCents: number | null;
   /** Mensalidade: e ela que se acumula, e por isso manda nos totais */
   mensalCents: number | null;
-  /** Valor do Caixa por mês, acertado com o cliente; só soma com o módulo ligado */
+  /** Valor legado do antigo adicional; não entra em novas cobranças porque o Caixa está incluído */
   caixaCents: number | null;
   fechadoEm: string | null;
   proximaAcao: string | null;

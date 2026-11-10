@@ -20,6 +20,7 @@ const FUNCIONALIDADES = [
   ["Serviços com preço e duração", "O encaixe é calculado na hora: serviço de uma hora reserva uma hora."],
   ["Ficha de cada cliente", "Histórico, etiquetas e anotações: alergias, preferências, o que foi combinado."],
   ["Seu endereço na internet", "Site com seus serviços e o link de agendamento pronto para a bio do Instagram."],
+  ["Caixa e comissões incluídos", "Entradas, saídas, contas fixas e o percentual de cada profissional, sem adicional na mensalidade."],
   ["Manutenção incluída", "Mudou horário, preço ou telefone? A gente atualiza. A mensalidade cobre isso, dentro dos limites dos Termos de Contratação."],
 ] as const;
 

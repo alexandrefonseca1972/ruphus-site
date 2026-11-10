@@ -15,7 +15,7 @@ const VAZIO: Crm = {
   toques: 0, respondeuEm: null, naoContatarEm: null, propostaVistaEm: null,
 };
 const espaco = (slug: string, e: Partial<Espaco> = {}): Espaco => ({
-  slug, nome: slug, telefone: null, nicho: "Barbearia", cidade: "Belém", uf: "PA", nota: null, avaliacoes: null, acessos: 1, limiteStaff: 2, caixa: false, ...e,
+  slug, nome: slug, telefone: null, nicho: "Barbearia", cidade: "Belém", uf: "PA", nota: null, avaliacoes: null, acessos: 1, limiteStaff: 2, caixa: true, ...e,
 });
 const HOJE = "2026-11-01";
 const f = (x: Partial<Filtros> = {}): Filtros => ({ ...SEM_FILTROS, ...x });
@@ -53,7 +53,7 @@ const slugs = (r: ResultadoPainel) => r.lista.map((e) => e.slug);
   assert.deepEqual(slugs(consultar(base, f({ prazo: "atrasada" }), ctx)), ["ana-barbearia"]);
   assert.deepEqual(slugs(consultar(base, f({ prazo: "hoje" }), ctx)), ["jose-salao"]);
   assert.deepEqual(slugs(consultar(base, f({ fora: true }), ctx)), ["jose-salao"]);
-  assert.deepEqual(slugs(consultar(base, f({ caixa: true }), ctx)), ["cliente"]);
+  assert.deepEqual(slugs(consultar(base, f({ caixa: true }), ctx)), ["cliente", "ana-barbearia", "jose-salao", "sem-cidade"]);
   assert.deepEqual(slugs(consultar(base, f({ contato: true }), ctx)), ["jose-salao"]);
   assert.deepEqual(slugs(consultar(base, f({ fixados: true }), ctx)), ["cliente"]);
 
@@ -69,10 +69,10 @@ const slugs = (r: ResultadoPainel) => r.lista.map((e) => e.slug);
   const todos = consultar(base, f(), ctx);
   assert.deepEqual(todos.prazos, { atrasada: 1, hoje: 1, futura: 0 });
   assert.deepEqual(todos.estagios, { novo: 2, oferta: 0, negociando: 1, fechado: 1, perdido: 0 });
-  assert.equal(todos.caixa, 1);
+  assert.equal(todos.caixa, 4, "Caixa incluído em todos os negócios");
   assert.deepEqual(todos.visoes, { atrasados: 1, hoje: 1, falei: 1, fixados: 1, todos: 4, pendentes: 3, negociando: 1, foradoar: 1 });
-  // totais olham todos os negócios: fechado com caixa soma o caixa; aberto soma a mensalidade
-  assert.deepEqual(todos.totais, { contratadoCents: 8990 + 1990, negociacaoCents: 9000 });
+  // o valor legado do Caixa não soma mais na mensalidade
+  assert.deepEqual(todos.totais, { contratadoCents: 8990, negociacaoCents: 9000 });
   // a visão "Atrasados" ignora o filtro de prazo ligado, mas respeita a busca
   assert.equal(consultar(base, f({ prazo: "hoje", busca: "ana" }), ctx).visoes.atrasados, 1);
   assert.equal(consultar(base, f({ busca: "jose" }), ctx).visoes.atrasados, 0);
@@ -251,7 +251,7 @@ function antigo(espacos: Espaco[], x: Filtros, crm: Record<string, Crm>, dataDeH
     tirando: { cidade: espacos.filter((y) => passa(y, "cidade")).length, nicho: espacos.filter((y) => passa(y, "nicho")).length },
     visoes,
     totais: {
-      contratadoCents: espacos.reduce((t, e) => t + (crm[e.slug]?.estagio === "fechado" ? mensalidadeDe(crm[e.slug], e.caixa) : 0), 0),
+      contratadoCents: espacos.reduce((t, e) => t + (crm[e.slug]?.estagio === "fechado" ? mensalidadeDe(crm[e.slug]) : 0), 0),
       negociacaoCents: espacos.reduce((t, e) => t + (["oferta", "negociando"].includes(crm[e.slug]?.estagio ?? "novo") ? crm[e.slug]?.mensalCents ?? PRECO_PADRAO.mensalCents : 0), 0),
     },
   };

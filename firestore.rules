@@ -150,17 +150,15 @@ service cloud.firestore {
       match /plans/{p} {
         allow read: if isMember(t);
       }
-      // Caixa: dinheiro só para quem gere (o funcionário não vê) e só com o módulo
-      // ligado pelo admin da plataforma. Gravar, só o servidor (financeiro.server).
+      // Caixa incluído: dinheiro só para quem gere (o funcionário não vê).
+      // Gravar, só o servidor (financeiro.server).
       match /lancamentos/{l} {
-        allow read: if (ehAdminPlataforma() || hasRole(t, ['owner', 'admin']))
-          && get(/databases/$(database)/documents/tenants/$(t)).data.get('modulos', {}).get('financeiro', false) == true;
+        allow read: if ehAdminPlataforma() || hasRole(t, ['owner', 'admin']);
         allow write: if false;
       }
       // contas fixas e comissões (%) do Caixa: mesma porta dos lançamentos
       match /caixa/{c} {
-        allow read: if (ehAdminPlataforma() || hasRole(t, ['owner', 'admin']))
-          && get(/databases/$(database)/documents/tenants/$(t)).data.get('modulos', {}).get('financeiro', false) == true;
+        allow read: if ehAdminPlataforma() || hasRole(t, ['owner', 'admin']);
         allow write: if false;
       }
 
