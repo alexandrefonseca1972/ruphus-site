@@ -76,6 +76,11 @@ novo({
 });
 assert.deepEqual(await garantirTenant("casa", "Casa"), { tenantId: "t1", apikey: "k1", keyId: "", webhookSecret: "s1" });
 assert.equal(chamadas[0].headers["x-admin-key"], "chave-admin");
+assert.deepEqual(
+  { dia: (chamadas[1].corpo as { recipientMsgPerDay?: number }).recipientMsgPerDay, semana: (chamadas[1].corpo as { recipientMsgPerWeek?: number }).recipientMsgPerWeek },
+  { dia: 30, semana: 150 },
+  "tenant novo nasce com o limite por destinatário da Ruphus, não com o padrão 3/10",
+);
 
 // tenant que já existe, com segredo gravado do lado de cá: não rotaciona
 novo({ "GET /admin/tenants": json([{ id: "t1", slug: "casa" }]), "GET /admin/tenants/t1/keys": json([{ id: "c0", label: "default", createdAt: "x", revokedAt: null }]) });
@@ -358,8 +363,20 @@ assert.equal((await db.doc("tenants/salao/appointments/bCdegr").get()).get("stat
   await marcar("Yy22bb");
   assert.equal(await comando("confirmado yy22", "5511966665555"), "confirmado", "WhatsApp pessoal do dono gravado sem o 9");
   assert.equal(await comando("confirmado", "5511955554444"), "ignorado", "terceiro continua sem poder confirmar");
+  enviadas.length = 0;
+  assert.equal(await comando("confimado", "5511966665555"), "nao entendido");
+  assert.equal(enviadas.at(-1)?.para, "5511966665555", "a resposta volta ao WhatsApp pessoal de quem mandou, não ao self-chat");
+  assert.equal((chamadas.at(-1)!.corpo as { replyToInbound?: boolean }).replyToInbound, true, "resposta ao pessoal vai como replyToInbound");
   await gravarOwnerPhone(db, "salao", null);
   await gravarConexao(db, "salao", { ...c! });
+}
+
+// atendys fora do ar com comando do dono: lança (o pendente fica para o cron); conversa comum, não
+{
+  novo({ ...salao, "GET /v1/instance/salao-main/status": () => new Response("fora", { status: 503 }) });
+  await assert.rejects(comando("confirmado"), "comando não some quando o atendys não responde");
+  assert.equal(await comando("bom dia"), "ignorado", "conversa comum segue ignorada");
+  novo(salao);
 }
 
 // ── WhatsApp pessoal do dono: fora do documento do negócio (a equipe o lê pelo navegador) ──
@@ -374,6 +391,14 @@ assert.equal((await db.doc("tenants/salao/appointments/bCdegr").get()).get("stat
   assert.equal(paraTela(c)?.ownerPhone, "5511933334444", "e a tela de quem gere, pela ação do servidor");
   await gravarConexao(db, "salao", { ...c!, status: "connected" });
   assert.equal((await db.doc("tenants/salao").get()).get("whatsapp.ownerPhone"), undefined, "regravar a conexão não o devolve ao documento");
+}
+
+// ── aviso de novo agendamento: o pessoal do dono primeiro; o self-chat só avisa ──
+{
+  const { destinoDoAvisoAoDono } = await import("@/lib/whatsapp.server");
+  assert.deepEqual(destinoDoAvisoAoDono({ phone: "5511900000099", ownerPhone: "5511933334444" }), { para: "5511933334444", podeResponder: true }, "o pessoal do dono vem primeiro");
+  assert.deepEqual(destinoDoAvisoAoDono({ phone: "5511900000099", ownerPhone: null }), { para: "5511900000099", podeResponder: false }, "self-chat: só aviso, sem pedir resposta");
+  assert.equal(destinoDoAvisoAoDono({ phone: null, ownerPhone: null }), null);
 }
 
 // ── demonstração: não conecta e nada sai dela, mesmo com conexão esquecida no documento ──
@@ -666,6 +691,10 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.equal(await reprocessarComandos(db), 0);
   assert.ok(!(await pend.get()).exists);
   assert.match((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError?.message ?? "", /comando do dono .* descartado/);
+  // sem messageId: fica na caixa de entrada, sem pendente
+  const pendentesAntes = (await db.collection("comandosPendentes").get()).size;
+  assert.equal(await registrarMensagemRecebida(db, "loja", { phone: "5511900000001", data: { text: "CONFIRMADO" } }, "salao"), true);
+  assert.equal((await db.collection("comandosPendentes").get()).size, pendentesAntes);
 }
 
 // ── botões: o cliente confirma presença, remarca por lista e cancela; o dono confirma por botão ──

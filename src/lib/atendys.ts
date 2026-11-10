@@ -255,6 +255,7 @@ export async function garantirTenant(
       name: nomeNegocio,
       slug,
       webhookUrl: WEBHOOK_URL(),
+      ...LIMITES_DESTINATARIO,
     });
     tenantId = criado.tenant.id;
     apikey = criado.apikey;
@@ -290,6 +291,21 @@ export async function revogarChavesAntigas(tenantId: string, nova: string, grava
 /** Aponta os webhooks do tenant para o ruphus.site (o tenant da plataforma nasceu sem URL). */
 export function apontarWebhook(tenantId: string) {
   return chamarAdmin("PATCH", `/admin/tenants/${encodeURIComponent(tenantId)}`, { webhookUrl: WEBHOOK_URL() });
+}
+
+/** Limite por destinatário no atendys (o padrão dele é 3 por dia e 10 por semana). O dono recebe um
+ *  aviso por agendamento no WhatsApp pessoal, e o cliente recibo, confirmação e lembrete no mesmo dia:
+ *  com 3 por dia, o 4º agendamento do dia parava na cota. Máximo do atendys: 100 por dia, 500 por semana. */
+export const LIMITES_DESTINATARIO = { recipientMsgPerDay: 30, recipientMsgPerWeek: 150 } as const;
+
+/** Tenants que já existiam: o mesmo limite por PATCH (scripts/limites-whatsapp.mts). */
+export function ajustarLimitesDoTenant(tenantId: string) {
+  return chamarAdmin("PATCH", `/admin/tenants/${encodeURIComponent(tenantId)}`, LIMITES_DESTINATARIO);
+}
+
+/** Todos os tenants ativos do atendys, com os limites atuais (só leitura). */
+export function listarTenantsAtendys() {
+  return chamarAdmin<Array<{ id: string; slug: string; recipientMsgPerDay?: number; recipientMsgPerWeek?: number }>>("GET", "/admin/tenants");
 }
 
 /** Cria a instância do número (uma por negócio). O nome vem da resposta do atendys; o 409 diz

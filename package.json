@@ -29,6 +29,7 @@
     "oferta-para-novo": "tsx --conditions=react-server --env-file=.env.local scripts/oferta-para-novo.mts",
     "backfill:maps": "tsx --conditions=react-server --env-file=.env.local scripts/backfill-maps.mts",
     "mover:segredos-whatsapp": "tsx --conditions=react-server --env-file=.env.local scripts/mover-segredos-whatsapp.mts",
+    "limites:whatsapp": "tsx --conditions=react-server --env-file=.env.local scripts/limites-whatsapp.mts",
     "converter:fabrica": "tsx --conditions=react-server --env-file=.env.local scripts/converter-fabrica.mts",
     "conferir:indice": "tsx --conditions=react-server --env-file=.env.local --expose-gc scripts/conferir-indice.mts",
     "membros": "tsx --env-file=.env.local scripts/preencher-membros.mts",

@@ -216,6 +216,16 @@ export async function conectarNegocio(
   return conexao;
 }
 
+/** Para onde vai o aviso de novo agendamento pelo número do salão. O WhatsApp pessoal do dono vem
+ *  primeiro: é dele que CONFIRMADO/RECUSAR volta como mensagem recebida. O self-chat do salão é só
+ *  aviso: o que o dono escreve no próprio número chega ao atendys como eco (fromMe) e não vira
+ *  comando, então ali o texto não pede resposta. null: não há para onde mandar. */
+export function destinoDoAvisoAoDono(conn: Pick<ConexaoWhatsapp, "phone" | "ownerPhone">): { para: string; podeResponder: boolean } | null {
+  if (conn.ownerPhone) return { para: conn.ownerPhone, podeResponder: true };
+  if (conn.phone) return { para: conn.phone, podeResponder: false };
+  return null;
+}
+
 /** O número pessoal do dono: recebe os avisos e confirma respondendo. Vazio desliga. */
 export async function gravarOwnerPhone(db: Firestore, slug: string, ownerPhone: string | null) {
   // no privado (a equipe lê o documento do negócio); o antigo, se houver, sai do documento
@@ -270,7 +280,9 @@ export async function registrarMensagemRecebida(
       receivedAt: Date.now(),
     });
     const texto = (msg.data as { text?: unknown } | null)?.text;
-    if (comando && typeof texto === "string") {
+    // sem messageId (o contrato sempre manda; é defesa) não há dedupe das reentregas nem quem processe
+    // na hora (o webhook dispara pelo messageId): a mensagem fica só na caixa de entrada
+    if (comando && msg.messageId && typeof texto === "string") {
       // pegoEm = agora: quem recebeu processa já (after); o cron só pega o que ficou 5 min parado
       b.set(db.doc(`${PENDENTES}/${idDoComando(slug, ref.id)}`), { slug, phone: msg.phone ?? null, text: texto, via: comando, pegoEm: Date.now(), tentativas: 1, ...(esperado && { esperado }) });
     }
@@ -489,12 +501,11 @@ export function pareceComando(texto: string): boolean {
 
 const AJUDA_COMANDO = "Não entendi. Para confirmar, responda CONFIRMADO <código>; para recusar, RECUSAR <código>.";
 
-/** O salão respondeu ao aviso de agendamento no próprio WhatsApp: CONFIRMADO
- *  confirma o agendamento pendente mais recente; RECUSAR cancela. Em ambos os
- *  casos o cliente é avisado pelo número do salão. O comando pode vir do
- *  self-chat do salão (dono operando o próprio número — comunicação toda pelo
- *  número do negócio) ou do WhatsApp pessoal dele, quando cadastrado como
- *  fallback. Não é comando: "ignorado" (a mensagem já ficou na caixa de
+/** O dono respondeu ao aviso de agendamento: CONFIRMADO confirma o agendamento
+ *  pendente; RECUSAR cancela. Em ambos os casos o cliente é avisado pelo número
+ *  do salão. O comando vem do WhatsApp pessoal do dono (o self-chat do salão
+ *  chega ao atendys como eco e não vira mensagem recebida). A resposta volta a
+ *  quem mandou. Não é comando: "ignorado" (a mensagem já ficou na caixa de
  *  entrada, como qualquer outra). */
 export async function processarComandoAgendamento(
   db: Firestore,
@@ -519,27 +530,33 @@ export async function processarComandoAgendamento(
   const numeroSalao = !oficial && conexao?.phone ? soDigitosComDDI(conexao.phone) : null;
   const remetente = msg.phone ? soDigitosComDDI(msg.phone) : null;
   if (!conexao || !canal || remetente == null) return "ignorado";
-  // quem manda no fluxo é o número do salão (self-chat do dono) ou, em
-  // fallback, o WhatsApp pessoal cadastrado na gaveta
+  // quem manda no fluxo é o WhatsApp pessoal do dono ou o próprio número do salão
   if (remetente !== numeroSalao && remetente !== dono) return "ignorado";
-  const respostaPara = numeroSalao ?? dono;
-  if (!respostaPara) return "ignorado"; // inalcançável (remetente bateu com um dos dois), satisfeito só o TS
-  // canal oficial: o dono acabou de escrever (replyToInbound): a resposta não conta na cota por
-  // destinatário, não cai no dedupe de 10 min nem espera o horário silencioso
-  const responderDono = (texto: string) => enviarSemOperador(canal, respostaPara, texto, OPTIN_DONO, undefined, { resposta: !!oficial });
+  // a resposta volta para quem mandou: o dono que escreveu do pessoal lê no pessoal
+  const respostaPara = remetente;
+  // quem escreveu do pessoal acabou de mandar mensagem (janela de 24 h aberta): replyToInbound não conta
+  // na cota por destinatário, não cai no dedupe de 10 min nem espera o horário silencioso. Vale também
+  // no canal oficial. O self-chat não tem mensagem recebida no atendys (é eco), então ali não vale
+  const resposta = !!oficial || remetente === dono;
+  const responderDono = (texto: string) => enviarSemOperador(canal, respostaPara, texto, OPTIN_DONO, undefined, { resposta });
   // nos ramos que não mudam nada, o pendente sai antes da resposta: uma resposta que falha não o
   // prende (o cron repetiria e acabaria num falso "comando descartado")
   const soltarPendente = async () => {
     if (pendente) await db.doc(`${PENDENTES}/${pendente}`).delete();
   };
-  // estado de verdade vem do gateway ao vivo — o status cacheado no documento
-  // do tenant pode estar desatualizado se um webhook de reconexão se perder
-  if (!oficial) {
-    const vivo = await statusDaConexao(conexao).catch(() => null);
-    if (!vivo || vivo.status !== "connected") return "ignorado";
-  }
   const texto = String((msg.data as { text?: unknown } | undefined)?.text ?? "");
   const comando = lerComando(texto);
+  // estado de verdade vem do gateway ao vivo — o status cacheado no documento
+  // do tenant pode estar desatualizado se um webhook de reconexão se perder.
+  // Atendys sem resposta com um comando na mão: lança, o pendente fica e o cron
+  // (reprocessarComandos) tenta de novo. Conversa comum do dono segue "ignorado"
+  if (!oficial) {
+    const vivo = await statusDaConexao(conexao).catch((e) => {
+      if (comando || pareceComando(texto)) throw e;
+      return null;
+    });
+    if (!vivo || vivo.status !== "connected") return "ignorado";
+  }
 
   // só os que ainda vão acontecer; com código, o do aviso respondido. Sem código vale
   // só quando há um pendente: com mais de um, adivinhar confirmaria o cliente errado
@@ -669,7 +686,7 @@ export async function processarComandoAgendamento(
       if (ruim) await responderDono(`Agendamento de ${nome} confirmado. ${ruim}`).catch(() => {});
     } catch (e) {
       // o agendamento já está confirmado; quem precisa saber que o cliente não
-      // foi avisado é quem opera o salão (self-chat), que está esperando o eco
+      // foi avisado é o dono, que está esperando a resposta
       const motivo = e instanceof Error ? e.message : String(e);
       await responderDono(`Agendamento de ${nome} confirmado, mas o aviso ao cliente falhou: ${motivo}`).catch(() => {});
       if (saiuDepoisDoAceite(e)) return "confirmado"; // o dono já sabe; não é erro

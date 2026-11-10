@@ -4,7 +4,7 @@ import { adminDb } from "@/lib/admin";
 import { book } from "@/lib/booking.server";
 import { MAX_DAYS_AHEAD, dentroDaJanela, fusoDe, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
-import { codigoDoAgendamento, espelharStatusVivo, lerConexao, lerConfigWhatsApp, registrarErroNotificacao } from "@/lib/whatsapp.server";
+import { codigoDoAgendamento, destinoDoAvisoAoDono, espelharStatusVivo, lerConexao, lerConfigWhatsApp, registrarErroNotificacao } from "@/lib/whatsapp.server";
 import { conexaoOficial, templateCliente, templateNovoDono, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { motivoDaFalha } from "@/lib/mensagens-paradas.server";
 import { soDigitosComDDI } from "@/lib/telefone";
@@ -42,10 +42,11 @@ export async function POST(req: Request) {
       }).catch((e) => console.error("aviso de agendamento", e)),
     );
     // A reserva nasce "booked" (aguardando confirmação): quem confirma é o dono,
-    // respondendo CONFIRMADO no self-chat do próprio número do salão — toda a
-    // comunicação rola pelo número do negócio, nada pelo WhatsApp pessoal dele.
+    // respondendo CONFIRMADO no WhatsApp pessoal dele (ownerPhone), que recebe o aviso
+    // pelo número do salão. Sem o pessoal cadastrado, o aviso vai ao self-chat do salão
+    // e o dono decide pelo painel (o que ele escreve no self-chat não chega como mensagem).
     // O cliente recebe recibo na hora ("o salão vai confirmar") e a confirmação
-    // depois, também pelo número do salão. Falha de qualquer aviso fica gravada
+    // depois, pelo número do salão. Falha de qualquer aviso fica gravada
     // no negócio: a gaveta mostra, em vez de o dono descobrir pelo silêncio.
     after(() =>
       (async () => {
@@ -97,15 +98,21 @@ export async function POST(req: Request) {
         // WhatsApp pelo próprio WhatsApp.
         const recadoDono = String(tenant?.get("agenda.recado") ?? "").trim();
         const falhas: string[] = [];
-        // aviso vai pro self-chat do salão (conn.phone): o dono opera tudo no
-        // próprio número do negócio, nenhuma comunicação depende do pessoal dele
-        const avisoPara = conn.phone ?? conn.ownerPhone;
-        if (avisoPara) {
+        // aviso ao dono: no WhatsApp pessoal (ownerPhone), de onde CONFIRMADO/RECUSAR volta como
+        // mensagem recebida. Sem ele, vai ao self-chat do salão, só como aviso: o que o dono escreve
+        // no próprio número chega ao atendys como eco (fromMe) e nunca vira comando
+        const destino = destinoDoAvisoAoDono(conn);
+        if (destino) {
+          const codigo = codigoDoAgendamento(nova.id);
+          const painel = `${(process.env.SITE_URL ?? "https://www.ruphus.site").replace(/\/+$/, "")}/${tenantId}`;
+          const pedido = destino.podeResponder
+            ? `Responda CONFIRMADO ${codigo} para confirmar ou RECUSAR ${codigo} para recusar.`
+            : `Confirme ou recuse no painel: ${painel}`;
           try {
             const ruim = naoSaiu(await enviarSemOperador(
               conn,
-              avisoPara,
-              `Novo agendamento (código ${codigoDoAgendamento(nova.id)}): ${customerName.trim()} · ${partes.join(" · ")} · tel ${b.data.customerPhone}. Responda CONFIRMADO ${codigoDoAgendamento(nova.id)} para confirmar ou RECUSAR ${codigoDoAgendamento(nova.id)} para recusar.`,
+              destino.para,
+              `Novo agendamento (código ${codigo}): ${customerName.trim()} · ${partes.join(" · ")} · tel ${b.data.customerPhone}. ${pedido}`,
               OPTIN_DONO,
               prazo,
             ));
@@ -115,7 +122,7 @@ export async function POST(req: Request) {
             console.error("aviso de agendamento via WhatsApp", e);
           }
         } else {
-          console.warn(`[whatsapp] ${tenantId}: número do salão sem telefone pareado; aviso de novo agendamento não enviado`);
+          console.warn(`[whatsapp] ${tenantId}: sem WhatsApp pessoal do dono nem número do salão pareado; aviso de novo agendamento não enviado`);
         }
         // recibo pro cliente: o pedido foi recebido e a confirmação vem pelo salão.
         // Só com o aceite marcado no formulário; sem ele o agendamento vale e nada é enviado
