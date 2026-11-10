@@ -49,8 +49,9 @@ export async function editar(db: Firestore, tenantId: string, id: string, l: Lan
   await db.runTransaction(async (tx) => {
     const [atual, estorno] = await Promise.all([tx.get(ref), tx.get(col(db, tenantId).doc(idDoEstorno(id)))]);
     if (!atual.exists) throw new UserError("Lançamento não encontrado.");
-    // R$ 0 só no pagamento de comissão que já era R$ 0 (todo abatido por estorno): corrige forma e descrição
-    if (!l.valorCents && !(id.startsWith("cm-") && Number(atual.get("descontoCents")) > 0 && Number(atual.get("valorCents")) === 0)) throw new UserError("Informe o valor.");
+    // comissão paga: o valor é a conta do mês (pagar confere); aqui só forma e descrição. Inclui o R$ 0 todo abatido
+    if (id.startsWith("cm-") && l.valorCents !== Number(atual.get("valorCents"))) throw new UserError("O valor de uma comissão paga não muda. Para corrigir, apague o pagamento e pague de novo.");
+    if (!l.valorCents && !id.startsWith("cm-")) throw new UserError("Informe o valor.");
     // entrada estornada continua entrada, e não fica menor que o que já foi devolvido
     if (estorno.exists && l.tipo !== "entrada") throw new UserError("Este recebimento tem estorno: continua entrada.");
     if (estorno.exists && l.valorCents < Number(estorno.get("valorCents"))) throw new UserError(`Já foram estornados ${formatBRL(Number(estorno.get("valorCents")))}: o recebimento não fica menor que isso.`);

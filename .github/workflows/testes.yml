@@ -49,6 +49,7 @@ jobs:
       - run: npm run test:sinal-puro
       - run: npm run test:admin
       - run: npm run test:painel
+      - run: npm run test:sessao
       - run: npm run test:sms
       - run: npm run test:gerador
       - run: npm run test:ia

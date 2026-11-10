@@ -3,7 +3,7 @@ import { enviarTexto, OPTIN_DONO, versaoDaAssinatura, type CabecalhosWebhook } f
 import { adminDb } from "@/lib/admin";
 import { DEMO } from "@/lib/demo";
 import { atualizarParada, avisarFalhaDeEnvio, lerIndice, NAO_SAI_A_TEMPO } from "@/lib/mensagens-paradas.server";
-import { avisarQueda, codigoDoAgendamento, espelharStatusDaInstancia, executarComandoPendente, idDoComando, lerConexao, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
+import { avisarQueda, codigoDoAgendamento, espelharStatusDaInstancia, executarComandoPendente, idDoComando, lerConexao, lerConfigWhatsApp, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
 import { conexaoOficial, instanciaPlataforma, lerBotao, negocioDoComando, negociosDoDono, segredoPlataforma, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { acaoDoCliente, pedidoDesatualizado } from "@/lib/botoes-whatsapp.server";
 
@@ -84,7 +84,9 @@ export async function POST(req: Request) {
     const naoSai = evento.status === "queued" && indice.vigiada && indice.prazo !== null && retry >= indice.prazo;
     // envio comum (não parado na cota) só interessa quando falha: o resto é ack sem leituras
     if (indice.vigiada && !indice.parada && evento.status !== "failed" && !naoSai) return responder(200, { ok: true });
-    const segredoDaMensagem = (await lerConexao(adminDb, slugDaMensagem))?.atendysWebhookSecret;
+    // lerConfigWhatsApp, não lerConexao: o negócio pode ter desconectado (sem instanceId) depois do
+    // envio, e a falha daquela mensagem ainda tem de chegar à gaveta
+    const segredoDaMensagem = (await lerConfigWhatsApp(adminDb, slugDaMensagem))?.atendysWebhookSecret;
     // assinatura conferida antes de gravar qualquer coisa. Recusada, responde 200 como a desconhecida
     // (um 401 só aqui diria a quem não assina que esse id é de uma mensagem parada). A mensagem
     // parada pode ter saído pelo canal oficial: aí quem assina é o tenant da plataforma

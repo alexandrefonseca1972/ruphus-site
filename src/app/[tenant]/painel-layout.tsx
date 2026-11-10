@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, use, useEffect, useState } from "react";
 import { MonitorConexao } from "@/components/monitor-conexao";
+import { Button } from "@/components/ui/button";
+import { AvisoSessao } from "@/components/aviso-sessao";
 import { auth } from "@/lib/firebase";
 import { db } from "@/lib/firebase-db";
 import { Tenant } from "@/lib/tenants";
@@ -42,18 +44,21 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   // Resultado guardado com o slug: ao trocar de espaço nunca mostra o anterior
-  const [loaded, setLoaded] = useState<{ slug: string; value: TenantCtx | "denied" } | null>(null);
+  const [loaded, setLoaded] = useState<{ slug: string; value: TenantCtx | "denied" | "erro" } | null>(null);
   const state = loaded?.slug === slug ? loaded.value : "loading";
+  // "Tentar de novo" refaz as leituras
+  const [tentativa, setTentativa] = useState(0);
 
   useSerifaNoBody();
-  useAutoLogout(useMinutosInativo());   // sai sozinho depois de X minutos parado, se o admin ligou
+  // sai sozinho depois de X minutos parado, se o admin ligou; avisa um minuto antes
+  const [avisoSessao, continuarSessao] = useAutoLogout(useMinutosInativo());
 
   useEffect(() => {
     let current = true;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       // volta para a tela que abriu (link do aviso, favorito) depois de entrar
       if (!user) return router.replace(`/login?next=${encodeURIComponent(location.pathname)}`);
-      let value: TenantCtx | "denied";
+      let value: TenantCtx | "denied" | "erro";
       try {
         // As regras negam a leitura para quem não é membro
         // O admin da plataforma pode ser membro (é dono dos sites da fábrica até o cliente
@@ -69,8 +74,13 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
         const podeGerir = adminPlataforma || ["owner", "admin"].includes(member.get("role"));
         const varios = (membros?.size ?? 2) > 1;
         value = snap.exists() ? { id: snap.id, ...Tenant.parse(snap.data()), podeGerir, adminPlataforma, varios, staffId: (member.get("staffId") as string | undefined) || undefined } : "denied";
-      } catch {
-        value = "denied";
+      } catch (e) {
+        // só a recusa das regras é "sem acesso"; rede caída ou dado estranho pede outra tentativa
+        if ((e as { code?: string } | null)?.code === "permission-denied") value = "denied";
+        else {
+          console.error("[painel] não abriu o negócio", e);
+          value = "erro";
+        }
       }
       if (current) setLoaded({ slug, value });
     });
@@ -78,7 +88,7 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
       current = false;
       unsubscribe();
     };
-  }, [slug, router]);
+  }, [slug, router, tentativa]);
 
   if (state === "loading") return <p role="status" className="p-8">Carregando…</p>;
   if (state === "denied")
@@ -86,6 +96,13 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
       <p role="alert" className="p-8">
         Você não tem acesso a este negócio. <Link href="/painel" className="underline underline-offset-4">Voltar aos seus negócios</Link>
       </p>
+    );
+  if (state === "erro")
+    return (
+      <div role="alert" className="grid gap-3 p-8">
+        <p>Não foi possível abrir este negócio. Confira a internet e tente de novo.</p>
+        <Button className="h-11 w-fit px-4" onClick={() => (setLoaded(null), setTentativa((t) => t + 1))}>Tentar de novo</Button>
+      </div>
     );
 
   // curto: o rótulo da barra de baixo no celular (até sete lado a lado em 360px: rótulos de até 8 letras) e das abas no tablet
@@ -107,6 +124,7 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
       <div className={`painel ${serifa.variable} flex min-h-dvh flex-col bg-background`}>
         <MonitorConexao />
         <AvisoNovoAgendamento />
+        <AvisoSessao aberto={avisoSessao} onContinuar={continuarSessao} />
       <header className="sticky top-0 z-10 border-b bg-card pt-[env(safe-area-inset-top)] sm:static">
         <div className="mx-auto flex max-w-6xl items-center gap-x-4 px-4 lg:gap-x-6">
           {/* O logo e o nome levam à página inicial do negócio (a agenda), para todo mundo.

@@ -22,6 +22,7 @@ import { errorMessage } from "@/lib/auth-errors";
 import { auth } from "@/lib/firebase";
 import { handleSubmit } from "@/lib/utils";
 import { guardarUtm } from "@/lib/anuncios";
+import { DIAS_CONVITE } from "@/lib/limites";
 import { erroNome, mascaraNome } from "@/lib/nome";
 
 // Máscaras: o que o campo aceita enquanto a pessoa digita. O schema confere de novo no envio.
@@ -135,7 +136,7 @@ function Login() {
         } else {
           // convite vencido ou já usado: sem isto a tela vira um login comum e
           // a pessoa não entende por que o link "não fez nada"
-          setError("Este convite não vale mais. Peça outro à Ruphus — eles valem 7 dias.");
+          setError(`Este convite não vale mais. Peça um link novo a quem enviou — cada link vale ${DIAS_CONVITE} dias.`);
         }
       },
       () => {},
