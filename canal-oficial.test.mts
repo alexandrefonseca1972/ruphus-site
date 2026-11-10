@@ -1,6 +1,6 @@
 // Rode: npx tsx --conditions=react-server canal-oficial.test.mts  (só funções puras do canal oficial)
 import assert from "node:assert/strict";
-import { parametro, templateCliente, templateNovoDono, TEMPLATES } from "@/lib/canal-oficial.server";
+import { idBotao, lerBotao, parametro, templateCliente, templateConfirmarDono, templateNovoDono, TEMPLATES } from "@/lib/canal-oficial.server";
 
 // a Meta recusa parâmetro com quebra de linha, tab ou mais de 4 espaços seguidos; vazio também
 assert.equal(parametro("Corte\n e\t\tescova     longa"), "Corte e escova longa");
@@ -19,4 +19,9 @@ assert.deepEqual(
 );
 // asterisco dentro do valor sairia do negrito: cai fora
 assert.equal(templateCliente("confirmado", { nome: "A", negocio: "Bela*Vista", servico: "C", quando: "D" }).parametros[1], "*BelaVista*");
+// confirmação do WhatsApp do dono: {{1}} negócio e o botão "Sou eu" com rph:ok:{slug}:dono
+assert.deepEqual(templateConfirmarDono("Salão Bela", "bela"), { nome: "ruphus_confirmar_whatsapp_dono", parametros: ["*Salão Bela*"], botoes: ["rph:ok:bela:dono"] });
+assert.deepEqual(lerBotao(idBotao("ok", "bela", "dono")), { acao: "ok", slug: "bela", agendamento: "dono" });
+assert.equal(lerBotao("rph:ok:../x:dono"), null, "slug fora do formato");
+assert.equal(lerBotao("rph:okk:bela:dono"), null, "ação desconhecida");
 console.log("canal-oficial: ok");
