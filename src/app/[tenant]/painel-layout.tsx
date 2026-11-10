@@ -11,7 +11,7 @@ import { db } from "@/lib/firebase-db";
 import { Tenant } from "@/lib/tenants";
 import { ehAdminDaPlataforma } from "@/app/admin/actions";
 import { serifa, useSerifaNoBody } from "@/app/fonte-serifa";
-import { loginComMotivo, useAutoLogout } from "@/lib/sessao";
+import { useAutoLogout } from "@/lib/sessao";
 import { useMinutosInativo } from "@/lib/sessao-config";
 import { AccountMenu } from "./account-menu";
 import { ShareLink } from "./share-link";
@@ -52,7 +52,7 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
     let current = true;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       // volta para a tela que abriu (link do aviso, favorito) depois de entrar
-      if (!user) return router.replace(loginComMotivo(`/login?next=${encodeURIComponent(location.pathname)}`));
+      if (!user) return router.replace(`/login?next=${encodeURIComponent(location.pathname)}`);
       let value: TenantCtx | "denied";
       try {
         // As regras negam a leitura para quem não é membro

@@ -86,7 +86,8 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     const novo = { status: cfg?.status, instanceId: cfg?.instanceId, ownerManaged: cfg?.ownerManaged, conectadoEm: cfg?.conectadoEm };
     const atual = tenant.whatsapp ?? {};
     if ((Object.keys(novo) as (keyof typeof novo)[]).every((k) => novo[k] === atual[k])) return;
-    tenant.atualizar({ whatsapp: novo });
+    // mantém o resto (canalOficial): o que esta tela não lê não pode sumir das outras
+    tenant.atualizar({ whatsapp: { ...atual, ...novo } });
   }, [cfg, tenant]);
 
   useEffect(() => {
@@ -102,6 +103,13 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
       atual = false;
     };
   }, [slug, tentativa]);
+
+  // a seção só ganha altura depois da leitura: o navegador já tentou o #whatsapp (push de aviso
+  // não entregue, faixa do painel) antes disso e ficou no topo
+  const carregou = cfg !== undefined;
+  useEffect(() => {
+    if (carregou && window.location.hash === "#whatsapp") document.getElementById("whatsapp")?.scrollIntoView();
+  }, [carregou]);
 
   // enquanto não conecta, pergunta ao gateway e renova o QR (ele expira): uma chamada por vez,
   // só com a aba visível, e por no máximo POLL_MAX_MS
@@ -203,6 +211,15 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     });
   }
 
+  // antes só o /admin via: o dono não sabia que um aviso ou lembrete tinha falhado. Também antes do
+  // termo: no canal oficial os avisos saem pela plataforma sem o dono ter aceitado o termo do número próprio
+  const ultimoErro = cfg?.lastNotifyError?.message && (
+    <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm [overflow-wrap:anywhere] text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+      <span className="font-semibold">Último aviso que não saiu</span>
+      {cfg.lastNotifyError.at ? ` (${new Date(cfg.lastNotifyError.at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })})` : ""}: {cfg.lastNotifyError.message}
+    </p>
+  );
+
   if (cfg === undefined) return <p id="whatsapp" className="text-sm text-muted-foreground lg:col-start-1">Carregando…</p>;
 
   // a leitura falhou: não é "sem termo aceito". Mostrar o termo aqui gravaria um aceite novo por
@@ -224,6 +241,7 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     return (
       <section id="whatsapp" className="grid scroll-mt-20 gap-3 rounded-2xl border bg-card p-5 sm:p-7 lg:col-start-1" aria-label="WhatsApp do negócio">
         <h2 className="text-[15px] font-semibold">WhatsApp do negócio</h2>
+        {ultimoErro}
         <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
           <p className="mb-1.5 font-semibold text-foreground">{TERMO_WHATSAPP.titulo}</p>
           {TERMO_WHATSAPP.paragrafos.map((p) => (
@@ -259,13 +277,7 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
         <span className="rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground">{rotulo(cfg?.status)}</span>
       </div>
 
-      {/* antes só o /admin via: o dono não sabia que um aviso ou lembrete tinha falhado */}
-      {cfg?.lastNotifyError?.message && (
-        <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm [overflow-wrap:anywhere] text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
-          <span className="font-semibold">Último aviso que não saiu</span>
-          {cfg.lastNotifyError.at ? ` (${new Date(cfg.lastNotifyError.at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })})` : ""}: {cfg.lastNotifyError.message}
-        </p>
-      )}
+      {ultimoErro}
 
       {adminGerencia ? (
         <>
