@@ -409,8 +409,11 @@ Pré: convite aceito (`CONV-03`) para o profissional A, numa conta sua.
 - [ ] `AJU-04` ⚠ Testar e-mail (seu e-mail) com Automático, Só Resend, Só Gmail → "Enviado para X…"; conferir remetente e "responder para" `contato@ruphus.site`.
 - [ ] `AJU-05` ⚠ Testar alerta → chega no e-mail de alertas.
 - [ ] `AJU-06` ⚠ Testar SMS (seu celular, gasta 1 crédito) → "Enviado…"; fixo → "Fixo não recebe SMS…".
-- [ ] `AJU-07` Bloco "Preço por mensagem (cobrado do negócio)": sem nada salvo mostra 0,05 / 0,00 / 0,12. Mudar para 0,07 / 0,01 / 0,20 → "Preços salvos…"; recarregar mantém. Valor negativo ou texto → botão desabilitado.
+- [ ] `AJU-07` Bloco "Preço por mensagem (cobrado do negócio)": sem nada salvo mostra Cobrar ✓, Pré-pago, "Pausar mensagens a clientes", 0,05 / 0,00 / 0,12, aviso 5,00, boas-vindas 10,00, limite 0,00 e os pacotes 20+0, 50+5, 100+20. Mudar o SMS para 0,20 → "Salvo…"; recarregar mantém. Valor negativo ou texto → botão desabilitado.
 - [ ] `AJU-08` Depois do `AJU-07`, um envio no negócio de teste (lembrete ou confirmação) grava `tenants/{slug}/envios/{id}` com `precoCents` novo, destino mascarado `(DD) •••••-1234` e sem o texto; `tenants/{slug}/consumo/{AAAA-MM}` soma `total` e `custoCents` (conferir no console do Firestore). Voltar os preços ao padrão.
+- [ ] `AJU-09` Pré-pago (console do Firestore, negócio de teste): negócio criado pelo cadastro nasce com `privado/mensagens.saldoCents` 1000 e `creditos/boas-vindas`. Cada aviso cobrado baixa o saldo e soma em `creditos/consumo:AAAA-MM-DD`; `privado/mensagens.previsao` traz média, dias restantes, pacote indicado e nível.
+- [ ] `AJU-10` ⚠ Sem saldo (deixar o saldo em 0 com `ajustarSaldoAction`, motivo obrigatório): confirmação ao cliente não sai e vira envio `sem-saldo` (custo 0); lembrete e pedido ao dono saem. Nível de saldo piorou → push e e-mail ao dono (uma vez até a próxima recarga) e `creditos/aviso:*` com valor 0.
+- [ ] `AJU-11` ⚠ Recarga: `criarRecargaAction` (pacote ou valor ≥ R$ 10) devolve o link `/pagar/{id}` com "Recarga de mensagens"; na aba Cobrança do /admin, marcar paga → saldo soma valor + bônus, `creditos/recarga:{id}` e e-mail de recibo ao dono. Marcar paga de novo não credita duas vezes.
 
 ### 5.9 Demonstração
 - [ ] `DEMO-01` Links Site, Bio, Agendamento, Painel do dono.
@@ -424,7 +427,7 @@ Pré: convite aceito (`CONV-03`) para o profissional A, numa conta sua.
 - [ ] `AUTO-01` Cron de lembretes (a cada 10 min): horário seu confirmado no negócio de teste com lembretes ligados → lembrete chega X horas antes; nada entre 22h e 7h30 (vai às 7h30).
 - [ ] `AUTO-02` Sinal vencido: agendamento com sinal não pago → após o prazo, Cancelado com histórico "Sinal não pago no prazo".
 - [ ] `AUTO-03` ⚠ SMS (com SMS ligado no negócio de teste): confirmação e lembrete chegam; falha → e-mail de alerta (máx. 1 a cada 6 h).
-- [ ] `AUTO-05` Consumo: WhatsApp entregue/lido no celular → o envio em `tenants/{slug}/envios` passa a `entregue`/`lido` (webhook); número inválido → `falhou` com o erro e `custoCents` 0, e o mês desconta o valor. SMS fica `enviado` (a Comtele não devolve entrega).
+- [ ] `AUTO-09` Consumo: WhatsApp entregue/lido no celular → o envio em `tenants/{slug}/envios` passa a `entregue`/`lido` (webhook); número inválido → `falhou` com o erro e `custoCents` 0, e o mês desconta o valor. SMS fica `enviado` (a Comtele não devolve entrega). No pré-pago, a falha devolve o valor ao saldo (`creditos/estorno:AAAA-MM-DD`).
 - [ ] `AUTO-04` Vigia de conexões (de hora em hora): deslogar o WhatsApp do negócio de teste pelo celular → em até 1 h: faixa "Seu WhatsApp desconectou" e push ao dono.
 - [ ] `AUTO-05` Webhook de status: reconectar → faixa some e "último aviso" é limpo.
 - [ ] `AUTO-06` Cron da demo (03:00): no dia seguinte, senha da demo mudou e dados voltaram ao exemplo.
