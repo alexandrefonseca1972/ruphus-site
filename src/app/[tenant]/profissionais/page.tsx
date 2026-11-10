@@ -326,7 +326,7 @@ export default function StaffPage() {
       {excluindo && (
         <ConfirmDialog
           title={`Excluir ${excluindo.name}?`}
-          description="Sai do link de agendamento e perde o acesso ao painel, se tiver. Os agendamentos já feitos continuam na agenda. Para só pausar, use “Tirar do link”."
+          description="Sai do link de agendamento e perde o acesso ao painel, se tiver. Com horário marcado ou plano ativo não dá para excluir: remarque, cancele ou encerre antes. Para só pausar, use “Tirar do link”."
           confirmLabel="Excluir profissional"
           onConfirm={async () => {
             const id = excluindo.id;

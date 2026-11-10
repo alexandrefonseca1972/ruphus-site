@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { idToken } from "@/lib/firebase";
 import { erroEmail, mascaraEmail } from "@/lib/cliente-dados";
-import { MAX_DAYS_AHEAD, WEEKDAYS, addDays, datasDoPlano, formatDuration, formatLongDate, formatPhone, planDates, todayIn, weekday, zonedTime, precoDe } from "@/lib/datetime";
+import { MAX_DAYS_AHEAD, WEEKDAYS, addDays, datasDoPlano, formatDuration, formatLongDate, formatPhone, fusoDe, planDates, todayIn, weekday, zonedTime, precoDe } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { cn } from "@/lib/utils";
@@ -45,7 +45,7 @@ export function PlanForm(props: {
   const tenant = useTenant();
   const preso = !tenant.podeGerir && tenant.staffId ? tenant.staffId : "";
   const [staffId, setStaffId] = useState(preso);
-  const [hoje] = useState(todayIn);
+  const [hoje] = useState(() => todayIn(fusoDe(tenant.site)));
   const [from, setFrom] = useState(hoje);
   const [buscado, setBuscado] = useState<{ para: string; dias: Dia[] } | null>(null);
   const [date, setDate] = useState("");

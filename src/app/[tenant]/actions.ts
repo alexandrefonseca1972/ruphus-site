@@ -2,7 +2,7 @@
 
 import { conexaoOficial } from "@/lib/canal-oficial.server";
 import { adminDb } from "@/lib/admin";
-import { createPlan, deleteCustomer, endPlan, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
+import { createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
 import { erroNome } from "@/lib/nome";
 import { z } from "zod";
@@ -22,7 +22,7 @@ import { situacaoDe } from "@/lib/envio-whatsapp";
 import { atualizarParada, negocioDaMensagem, paradasDoNegocio } from "@/lib/mensagens-paradas.server";
 import { htmlDoRecibo, textoDoRecibo } from "@/lib/recibo";
 import { reciboDoBanco } from "@/lib/recibo.server";
-import { formatBRL } from "@/lib/datetime";
+import { agoraNaParede, formatBRL, fusoDe } from "@/lib/datetime";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { aceitarTermoWhatsApp, conectarNegocio, type ConexaoWhatsapp, desligarConexao, espelharStatusVivo, lerConfigWhatsApp, lerConexao, paraTela } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
@@ -47,7 +47,7 @@ export async function getRescheduleSlots(idToken: string, input: unknown) {
   if (!q.success) return { ok: false as const, error: "Dados inválidos." };
   try {
     await requireMember(verifyFirebaseToken, adminDb, idToken, q.data.tenantId);
-    return { ok: true as const, slots: await rescheduleSlots(adminDb, q.data) };
+    return { ok: true as const, slots: await rescheduleSlots(adminDb, q.data, false) };
   } catch (err) {
     if (err instanceof UserError) return { ok: false as const, error: err.message };
     console.error("[agenda] falha ao buscar horários para remarcar", err);
@@ -96,7 +96,8 @@ export const meuContratoAction = memberAction(z.object({ tenantId: docIdStaff })
   return { ok: true as const, contrato: a ? { versao: a.versao as string, em: (a.em?.toMillis?.() as number | undefined) ?? null } : null };
 });
 
-export const rescheduleAppointment = memberAction(RescheduleInput, (data, user) => reschedule(adminDb, data, user));
+// painel: remarca mesmo com o serviço oculto ou o profissional fora do link
+export const rescheduleAppointment = memberAction(RescheduleInput, (data, user) => reschedule(adminDb, data, user, { exigirAtivo: false }));
 export const createPlanAction = memberAction(PlanInput, (data, user) => createPlan(adminDb, data, user));
 const docId = z.string().min(1).max(128).regex(/^[^/]+$/);
 export const endPlanAction = memberAction(
@@ -171,6 +172,8 @@ export const tirarAcessoEquipeAction = memberAction(z.object({ tenantId: docIdSt
  *  clientes, e o "Tirar acesso" sumia da tela com o profissional. */
 export const excluirProfissionalAction = memberAction(z.object({ tenantId: docIdStaff, staffId: docId }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid);
+  // antes de tirar os acessos: recusado, nada muda
+  await exigeProfissionalSemCompromisso(adminDb, data.tenantId, data.staffId);
   await tirarAcessosDoProfissional(adminDb, data.tenantId, data.staffId);
   await adminDb.doc(`tenants/${data.tenantId}/staff/${data.staffId}`).delete();
   return { ok: true as const };
@@ -531,7 +534,8 @@ export const avisarClienteWhatsappAction = memberAction(
     const start = (ag.get("start") as Timestamp).toDate();
     const valeAviso = data.tipo === "cancelado" ? status === "cancelled" : data.tipo === "confirmado" ? status === "confirmed" : status === "booked" || status === "confirmed";
     if (!valeAviso) throw new UserError("O horário mudou desde então: esse aviso não vale mais.");
-    if (start.getTime() < Date.now()) throw new UserError("Esse horário já passou.");
+    // "start" é hora de parede: compara com o agora do fuso do negócio
+    if (start.getTime() < agoraNaParede(fusoDe(tenant.get("site"))).getTime()) throw new UserError("Esse horário já passou.");
     const cliente = soDigitosComDDI(String(ag.get("customerPhone") ?? ""));
     if (!cliente) throw new UserError("O cliente não tem WhatsApp válido.");
     const w = await lerConexao(adminDb, data.tenantId);

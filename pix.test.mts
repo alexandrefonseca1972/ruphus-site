@@ -47,6 +47,11 @@ assert.equal(txidDe("barbaros-barbearia", "entrada", null), "BARBAROSBARBEARIAE"
 assert.notEqual(txidDe("acme", "mensal", "2026-10"), txidDe("acme", "mensal", "2026-11"));
 assert.match(txidDe("Açaí & Cia", "mensal", "2026-10"), /^[A-Z0-9]+$/);
 assert.ok(txidDe("a".repeat(40), "mensal", "2026-10").length <= 25);
+const longoTx = txidDe("a".repeat(40), "mensal", "2026-10");
+assert.ok(longoTx.endsWith("M2610") && longoTx.length === 25, "slug longo não come o mês");
+assert.notEqual(longoTx, txidDe("a".repeat(40), "mensal", "2026-11"), "um mês do outro, mesmo com slug longo");
+assert.ok(txidDe("a".repeat(40), "mensal", "2026-10", 2).endsWith("M2610R2"), "reemissão tem txid próprio");
+assert.equal(txidDe("acme", "mensal", "2026-10", 1), "ACMEM2610", "primeira emissão igual a antes");
 
 // Competência no fuso do projeto: 23h30 de 31/10 em São Paulo ainda é outubro
 assert.equal(competenciaAtual(new Date("2026-11-01T02:30:00Z")), "2026-10");
@@ -75,6 +80,8 @@ assert.equal(typeof recebedorDe({ chave: "x", nome: "Ana", cidade: "Belém" }), 
 assert.deepEqual(recebedorDe({ chave: "52998224725", nome: " Ana ", cidade: "Belém" }), { chave: "52998224725", nome: "Ana", cidade: "Belém" });
 const tx = txidLivre("salao-da-ana");
 assert.match(tx, /^[A-Z0-9]{1,25}$/);
+assert.notEqual(txidLivre("salao-da-ana"), txidLivre("salao-da-ana"), "mesmo milissegundo, txid diferente");
+assert.match(txidLivre("s".repeat(40)), /^[A-Z0-9]{25}$/, "slug longo: corta no começo, cabe em 25");
 console.log("chave do salão ok");
 
 // Validação do BR Code: entrada fora do formato não vira QR que o banco recusa
