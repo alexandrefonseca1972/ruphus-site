@@ -33,7 +33,7 @@ Versão de referência: `main` em `a85ee5e` (05/11/2026). Cada item tem um códi
 
 - [ ] `AUT-01` `npm run lint && npm run typecheck` → sem erro.
 - [ ] `AUT-02` Suítes com emulador: `npm run test:rules`, `test:booking`, `test:scale`, `test:convite`, `test:cobranca`, `test:financeiro`, `test:atendys`, `test:integracoes`, `test:painel-indice`, `test:gerador-banco`, `test:sinal` → cada uma termina com "… ok" e `exited successfully`.
-- [ ] `AUT-03` Suítes sem emulador: `test:proxy`, `test:site-arquivo`, `test:avisos`, `test:clientes`, `test:crm`, `test:pix`, `test:whatsapp`, `test:admin`, `test:sms`, `test:painel`, `test:gerador`, `test:ia`, `test:foto-rota`, `test:coleta`, `test:lembrete`, `test:proposta-email`, `test:convite-email`, `test:sinal-puro`, `test:conexao`, `test:coleta-tempo`, `test:coleta-selecao` → todas ok.
+- [ ] `AUT-03` Suítes sem emulador: `test:proxy`, `test:site-arquivo`, `test:avisos`, `test:clientes`, `test:crm`, `test:pix`, `test:whatsapp`, `test:admin`, `test:sms`, `test:consumo`, `test:painel`, `test:gerador`, `test:ia`, `test:foto-rota`, `test:coleta`, `test:lembrete`, `test:proposta-email`, `test:convite-email`, `test:sinal-puro`, `test:conexao`, `test:coleta-tempo`, `test:coleta-selecao` → todas ok.
 - [ ] `AUT-04` CI do PR verde (job `testes`).
 
 ---
@@ -409,6 +409,8 @@ Pré: convite aceito (`CONV-03`) para o profissional A, numa conta sua.
 - [ ] `AJU-04` ⚠ Testar e-mail (seu e-mail) com Automático, Só Resend, Só Gmail → "Enviado para X…"; conferir remetente e "responder para" `contato@ruphus.site`.
 - [ ] `AJU-05` ⚠ Testar alerta → chega no e-mail de alertas.
 - [ ] `AJU-06` ⚠ Testar SMS (seu celular, gasta 1 crédito) → "Enviado…"; fixo → "Fixo não recebe SMS…".
+- [ ] `AJU-07` Bloco "Preço por mensagem (cobrado do negócio)": sem nada salvo mostra 0,05 / 0,00 / 0,12. Mudar para 0,07 / 0,01 / 0,20 → "Preços salvos…"; recarregar mantém. Valor negativo ou texto → botão desabilitado.
+- [ ] `AJU-08` Depois do `AJU-07`, um envio no negócio de teste (lembrete ou confirmação) grava `tenants/{slug}/envios/{id}` com `precoCents` novo, destino mascarado `(DD) •••••-1234` e sem o texto; `tenants/{slug}/consumo/{AAAA-MM}` soma `total` e `custoCents` (conferir no console do Firestore). Voltar os preços ao padrão.
 
 ### 5.9 Demonstração
 - [ ] `DEMO-01` Links Site, Bio, Agendamento, Painel do dono.
@@ -422,6 +424,7 @@ Pré: convite aceito (`CONV-03`) para o profissional A, numa conta sua.
 - [ ] `AUTO-01` Cron de lembretes (a cada 10 min): horário seu confirmado no negócio de teste com lembretes ligados → lembrete chega X horas antes; nada entre 22h e 7h30 (vai às 7h30).
 - [ ] `AUTO-02` Sinal vencido: agendamento com sinal não pago → após o prazo, Cancelado com histórico "Sinal não pago no prazo".
 - [ ] `AUTO-03` ⚠ SMS (com SMS ligado no negócio de teste): confirmação e lembrete chegam; falha → e-mail de alerta (máx. 1 a cada 6 h).
+- [ ] `AUTO-05` Consumo: WhatsApp entregue/lido no celular → o envio em `tenants/{slug}/envios` passa a `entregue`/`lido` (webhook); número inválido → `falhou` com o erro e `custoCents` 0, e o mês desconta o valor. SMS fica `enviado` (a Comtele não devolve entrega).
 - [ ] `AUTO-04` Vigia de conexões (de hora em hora): deslogar o WhatsApp do negócio de teste pelo celular → em até 1 h: faixa "Seu WhatsApp desconectou" e push ao dono.
 - [ ] `AUTO-05` Webhook de status: reconectar → faixa some e "último aviso" é limpo.
 - [ ] `AUTO-06` Cron da demo (03:00): no dia seguinte, senha da demo mudou e dados voltaram ao exemplo.
