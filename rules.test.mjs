@@ -272,9 +272,11 @@ await assertFails(setDoc(cfg(alice), { fixas: [], comissoes: {} }), "so o servid
 await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(ctx.firestore(), "tenants/acme/envios/m1"), { canal: "whatsapp", status: "aceito", custoCents: 5 });
   await setDoc(doc(ctx.firestore(), "tenants/acme/consumo/2026-11"), { total: 1, custoCents: 5 });
-  await setDoc(doc(ctx.firestore(), "config/precos"), { whatsappUtilityCents: 5, whatsappServiceCents: 0, smsCents: 12 });
+  await setDoc(doc(ctx.firestore(), "tenants/acme/creditos/recarga:c1"), { tipo: "recarga", valorCents: 2000, saldoAposCents: 2000 });
+  await setDoc(doc(ctx.firestore(), "tenants/acme/privado/mensagens"), { saldoCents: 2000 });
+  await setDoc(doc(ctx.firestore(), "config/mensagens"), { whatsappUtilityCents: 5, whatsappServiceCents: 0, smsCents: 12 });
 });
-for (const caminho of ["tenants/acme/envios/m1", "tenants/acme/consumo/2026-11"]) {
+for (const caminho of ["tenants/acme/envios/m1", "tenants/acme/consumo/2026-11", "tenants/acme/creditos/recarga:c1"]) {
   await assertSucceeds(getDoc(doc(alice, caminho)), `dono le ${caminho}`);
   await assertSucceeds(getDoc(doc(bob, caminho)), `admin do negocio le ${caminho}`);
   await assertSucceeds(getDoc(doc(suporte, caminho)), `admin da plataforma le ${caminho}`);
@@ -283,9 +285,11 @@ for (const caminho of ["tenants/acme/envios/m1", "tenants/acme/consumo/2026-11"]
   await assertFails(setDoc(doc(alice, caminho), { custoCents: 0 }), "so o servidor grava");
   await assertFails(setDoc(doc(suporte, caminho), { custoCents: 0 }), "nem o admin grava pelo app");
 }
-await assertSucceeds(getDoc(doc(suporte, "config/precos")), "admin da plataforma le o preco");
-await assertFails(getDoc(doc(alice, "config/precos")), "o dono nao le config");
-await assertFails(setDoc(doc(suporte, "config/precos"), { smsCents: 0 }), "preco so pelo servidor");
+await assertSucceeds(getDoc(doc(suporte, "config/mensagens")), "admin da plataforma le o preco");
+await assertFails(getDoc(doc(alice, "config/mensagens")), "o dono nao le config");
+await assertFails(setDoc(doc(suporte, "config/mensagens"), { smsCents: 0 }), "preco so pelo servidor");
+await assertFails(getDoc(doc(alice, "tenants/acme/privado/mensagens")), "o saldo cru fica no privado: o dono le pelo servidor");
+await assertFails(setDoc(doc(alice, "tenants/acme/privado/mensagens"), { saldoCents: 999999 }), "ninguem se da saldo");
 
 // Funcionário (convite da equipe): lê a agenda e o cadastro, não muda preço, equipe, site nem notas
 await assertSucceeds(getDoc(doc(carla, "tenants/acme/services/s1")));

@@ -56,9 +56,9 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Preço por mensagem (cobrado do negócio): só o admin da plataforma lê; grava pelo servidor.
+    // Mensagens pré-pagas (preço, saldo, pacotes): só o admin da plataforma lê; grava pelo servidor.
     // A tela do dono recebe o preço pelo servidor, não lê config.
-    match /config/precos {
+    match /config/mensagens {
       allow read: if ehAdminPlataforma();
       allow write: if false;
     }
@@ -175,6 +175,11 @@ service cloud.firestore {
         allow write: if false;
       }
       match /consumo/{m} {
+        allow read: if gere(t);
+        allow write: if false;
+      }
+      // extrato do saldo de mensagens (recarga, consumo do dia, estorno, ajuste, boas-vindas)
+      match /creditos/{c} {
         allow read: if gere(t);
         allow write: if false;
       }
