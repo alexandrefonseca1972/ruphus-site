@@ -44,6 +44,8 @@ const Appointment = z.object({
   end: z.instanceof(Timestamp),
   customerName: z.string(),
   customerPhone: z.string(),
+  // a chave gravada na reserva: a ficha antiga (sem o 9º dígito) continua achando o cliente
+  customerKey: z.string().optional(),
   planId: z.string().optional(),
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
   // sinal do agendamento online (Pix na chave do salão); só o servidor grava
@@ -362,7 +364,7 @@ export default function AgendaPage() {
                 </div>
                 <div className="grid min-w-0 gap-1.5">
                   <p className="flex flex-wrap items-center gap-2">
-                    <Link href={`/${tenant.id}/clientes/${customerKey(a.customerPhone)}`} className="text-base font-semibold underline-offset-4 hover:underline">
+                    <Link href={`/${tenant.id}/clientes/${a.customerKey ?? customerKey(a.customerPhone)}`} className="text-base font-semibold underline-offset-4 hover:underline">
                       {a.customerName}
                     </Link>
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS[a.status].className}`}>{STATUS[a.status].label}</span>

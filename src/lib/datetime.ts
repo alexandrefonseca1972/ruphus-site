@@ -1,4 +1,5 @@
 // Datas, horários e formatação — sem zod, para não entrar no pacote do celular
+import { canonicalBrMobile } from "@/lib/telefone";
 export const TIMEZONE = "America/Sao_Paulo";
 export const SLOT_STEP_MIN = 15;
 /** Até quantos dias à frente o cliente pode agendar pela página pública */
@@ -160,10 +161,12 @@ export function phoneError(value: string) {
   return "";
 }
 
-/** Telefone só com dígitos e DDI (55 quando vier com 10-11 dígitos). Também é o id do cliente. */
+/** Telefone só com dígitos e DDI (55 quando vier com 10-11 dígitos). Também é o id do cliente.
+ *  Celular sem o 9º dígito ganha o 9 (canonicalBrMobile, a mesma regra do WhatsApp): o mesmo
+ *  celular, digitado com ou sem o 9, é um cliente só e conta um limite só. */
 export function customerKey(phone: string) {
   const digits = phone.replace(/\D/g, "");
-  return digits.length <= 11 ? `55${digits}` : digits;
+  return canonicalBrMobile(digits.length <= 11 ? `55${digits}` : digits);
 }
 
 export function whatsappLink(phone: string, text?: string) {

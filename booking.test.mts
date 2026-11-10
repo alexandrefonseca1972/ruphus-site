@@ -46,6 +46,8 @@ assert.notEqual(phoneError("(11) 9123"), "");
 const phoneOk = (p: string) => BookingInput.shape.customerPhone.safeParse(p).success;
 assert.ok(phoneOk("(11) 91234-5678") && phoneOk("+55 11 91234-5678") && phoneOk("1133334444"));
 assert.ok(!phoneOk("--------") && !phoneOk("(((())))") && !phoneOk("1234-5678"), "telefone sem dígitos suficientes");
+assert.ok(!phoneOk("123456789012") && !phoneOk("1191234567890"), "12-13 dígitos sem o 55");
+assert.ok(phoneOk("5511912345678") && phoneOk("551133334444"), "com o 55 continua valendo");
 const day = "2030-01-07"; // segunda-feira
 const at = (t: string) => zonedTime(day, t);
 const w = { start: "09:00", end: "10:00" };
@@ -937,6 +939,17 @@ const lista = await negociosDe(db, "lista");
 assert.deepEqual(Object.fromEntries(lista.map((n) => [n.id, n.role])), { salao: "member", zeta: "admin" }, "papel desconhecido vira member");
 assert.deepEqual(lista.map((n) => n.id), ["zeta", "salao"], "por nome");
 assert.deepEqual(await negociosDe(db, "ninguem"), []);
+
+// M1: celular antigo (sem o 9) tem a mesma chave do número com o 9, no cliente e no limite
+{
+  assert.equal(customerKey("(11) 8123-4567"), "5511981234567");
+  assert.equal(customerKey("551181234567"), "5511981234567");
+  assert.equal(customerKey("(11) 3333-4444"), "551133334444", "fixo fica como está");
+  await t.collection("staff").doc("m1-prof").set({ name: "Edu", serviceIds: ["corte"], hours, active: true });
+  const r = await book(db, { tenantId: "salao", staffId: "m1-prof", serviceIds: ["corte"], date: addDays(todayIn(), 41), time: "09:00", customerName: "Gil", customerPhone: "(11) 8123-4567" });
+  assert.ok(r.ok);
+  assert.equal((await t.collection("customers").doc("5511981234567").get()).exists, true, "cadastro na chave com o 9");
+}
 
 console.log("booking ok");
 process.exit(0);
