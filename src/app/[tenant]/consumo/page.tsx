@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ROTULO_TIPO, csvDasMensagens, funil, mapaDeLeitura, mensagensNoSaldo, porDia, porTipo, resumo, saldoPorDia, situacao, SITUACOES } from "@/lib/consumo-tela";
+import { ROTULO_TIPO, csvDasMensagens, dataHora, duracaoDoSaldo, erroLegivel, plural, funil, mapaDeLeitura, mensagensNoSaldo, porDia, porTipo, resumo, saldoPorDia, situacao, SITUACOES } from "@/lib/consumo-tela";
 import type { EnvioTela, PainelConsumo } from "@/lib/consumo-painel.server";
 import { useValores } from "@/lib/valores";
 import { cn } from "@/lib/utils";
 import { PageTitle } from "../page-title";
 import { useTenant } from "../painel-layout";
 import { Extrato, mesAtual, quando, useConsumo } from "./extrato";
-import { Anel, COR, COR_SITUACAO, Faisca, Funil, LinhaDoSaldo, LinhaDoTempo, MapaLeitura, PorDia, ROTULO_SITUACAO, Rosca, Segmentos, SEMANA_LONGA } from "./graficos";
+import { Anel, COR, larguraPorDia, COR_SITUACAO, Faisca, Funil, LinhaDoSaldo, LinhaDoTempo, MapaLeitura, PorDia, ROTULO_SITUACAO, Rosca, Segmentos, SEMANA_LONGA } from "./graficos";
 
 const mesVizinho = (mes: string, n: number) => {
   const [a, m] = mes.split("-").map(Number);
@@ -40,7 +40,8 @@ function textoStatus(e: EnvioTela, hora: (ms: number) => string) {
   if (e.status === "aceito") return "Na fila";
   if (e.status === "parado") return "Parada na cota";
   if (e.status === "sem-saldo") return "Não saiu · sem saldo";
-  return e.erro && /\s/.test(e.erro) && e.erro.length < 60 ? `Falhou · ${e.erro}` : "Falhou";
+  const motivo = erroLegivel(e.erro);
+  return motivo ? `Falhou · ${motivo}` : "Falhou";
 }
 
 const horaBR = (ms: number) => new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }).format(new Date(ms));
@@ -123,12 +124,12 @@ function Seta({ d }: { d: string }) {
 function BaixarCsv({ dados }: { dados: PainelConsumo }) {
   function baixar() {
     const linhas = dados.envios.map((e) => ({
-      quando: quando(e.em, dados.hoje),
+      quando: dataHora(e.em),
       tipo: ROTULO_TIPO[e.tipo] ?? e.tipo,
       para: `${e.destinatario === "dono" ? "Você" : (e.agendamento?.cliente ?? "Cliente")} · ${e.destino}`,
       canal: e.canal === "sms" ? "SMS" : "WhatsApp",
       situacao: textoStatus(e, horaBR),
-      agendamento: e.agendamento ? `${e.agendamento.servico} · ${quandoAg(e.agendamento.inicio, dados.hoje)}` : "",
+      agendamento: e.agendamento ? `${e.agendamento.servico} · ${dataHora(e.agendamento.inicio)}` : "",
       custo: (e.custoCents / 100).toFixed(2).replace(".", ","),
     }));
     // BOM: o Excel abre os acentos certos
@@ -150,6 +151,11 @@ function BaixarCsv({ dados }: { dados: PainelConsumo }) {
     </Button>
   );
 }
+
+/** o gráfico por dia abre no fim (hoje) quando não cabe na tela */
+const rolarAoFim = (el: HTMLDivElement | null) => {
+  if (el) el.scrollLeft = el.scrollWidth;
+};
 
 const cartao = "flex flex-col gap-1.5 rounded-2xl border bg-card p-4 sm:p-5";
 const kpi = "text-xs font-semibold tracking-wide text-muted-foreground uppercase";
@@ -186,7 +192,7 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
               <span className="text-muted-foreground">{r.canais.whatsapp.total} WhatsApp · {sms.total} SMS</span>
             )}
           </span>
-          <Faisca valores={dias.map((d) => d.whatsapp + d.sms)} />
+          {r.total > 0 && <Faisca valores={dias.map((d) => d.whatsapp + d.sms)} />}
         </div>
         <div className={cartao}>
           <span className={kpi}>Entrega</span>
@@ -198,7 +204,7 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
               <div className="grid">
                 <span className="text-3xl leading-tight font-bold tabular-nums">{r.entrega.pct}%</span>
                 <span className="text-[13px] text-muted-foreground">
-                  {r.entrega.chegaram} entregues · {r.entrega.lidas} lidas
+                  {plural(r.entrega.chegaram, "entregue", "entregues")} · {plural(r.entrega.lidas, "lida", "lidas")}
                 </span>
               </div>
             </div>
@@ -239,7 +245,8 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
               </div>
               <Funil etapas={funil(dados.envios)} />
               <p className="text-[13px] text-muted-foreground">
-                {r.situacoes.falhou} falharam (número sem WhatsApp, inválido ou sem saldo) · {r.situacoes.parada} pararam na cota · {r.situacoes.entregue} entregues ainda sem leitura.
+                {plural(r.situacoes.falhou, "falhou", "falharam")} (número sem WhatsApp, inválido, recusada ou sem saldo) · {plural(r.situacoes.parada, "parou", "pararam")} na cota ·{" "}
+                {plural(r.situacoes.entregue, "entregue", "entregues")} ainda sem leitura.
               </p>
             </div>
             <div className={cn(cartao, "gap-2.5")}>
@@ -262,7 +269,7 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
               {leitura.total ? (
                 <>
                   <MapaLeitura celulas={leitura.celulas} max={leitura.max} rotulo={`Leituras por dia da semana e faixa de hora${leitura.pico ? `: maior leitura ${SEMANA_LONGA[leitura.pico.dia]}, ${leitura.pico.faixa}` : ""}`} />
-                  {leitura.pico && <span className="text-xs text-muted-foreground">Pico de leitura: {SEMANA_LONGA[leitura.pico.dia]}, {leitura.pico.faixa}. {leitura.total} leituras no mês.</span>}
+                  {leitura.pico && <span className="text-xs text-muted-foreground">Pico de leitura: {SEMANA_LONGA[leitura.pico.dia]}, {leitura.pico.faixa}. {plural(leitura.total, "leitura", "leituras")} no mês.</span>}
                 </>
               ) : (
                 <p className="text-[13px] text-muted-foreground">Ainda sem leituras confirmadas neste mês. Só o WhatsApp informa quando a pessoa lê.</p>
@@ -287,8 +294,9 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
                 </span>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <div className="min-w-[640px]">
+            {/* no celular o mês não cabe legível: o gráfico rola, e abre já no fim (hoje) */}
+            <div className="overflow-x-auto" ref={rolarAoFim}>
+              <div style={{ minWidth: larguraPorDia(dias.length) }}>
                 <PorDia dias={dias} hoje={corrente ? dados.hoje : ""} brl={brl} />
               </div>
             </div>
@@ -299,11 +307,11 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
           <div id="detalhes" role="tablist" aria-label="Detalhes" className="inline-flex max-w-full gap-1 justify-self-start overflow-x-auto rounded-xl bg-muted p-1">
             {(
               [
-                ["tipo", "Por tipo"],
-                ["todas", `Todas as mensagens`],
-                ["extrato", "Extrato do saldo"],
+                ["tipo", "Por tipo", "Tipos"],
+                ["todas", "Todas as mensagens", "Todas"],
+                ["extrato", "Extrato do saldo", "Extrato"],
               ] as const
-            ).map(([id, nome]) => (
+            ).map(([id, nome, curto]) => (
               <button
                 key={id}
                 role="tab"
@@ -325,7 +333,8 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
                 }}
                 className={cn("min-h-11 shrink-0 rounded-lg px-3 text-sm font-medium whitespace-nowrap text-muted-foreground sm:px-4", aba === id && "bg-card font-semibold text-foreground shadow-sm")}
               >
-                {nome}
+                <span className="sm:hidden">{curto}</span>
+                <span className="max-sm:hidden">{nome}</span>
                 {id === "todas" && <span className="ml-1.5 text-muted-foreground/70">{r.total}</span>}
               </button>
             ))}
@@ -368,14 +377,14 @@ function Saldo({ dados, slug, gastoCents }: { dados: PainelConsumo; slug: string
   const escuro = "flex flex-col gap-1.5 rounded-2xl border border-zinc-900 bg-zinc-900 p-4 text-white sm:col-span-2 sm:p-5 lg:col-span-1 dark:border-zinc-700";
   const gasto = (
     <span className="text-[13px] text-zinc-300">
-      Gasto em {soMes(dados.mes)}: <strong className="text-white">{brl(gastoCents)}</strong>
+      {conta.cobrar && conta.aberta ? "Gasto" : "Consumo"} em {soMes(dados.mes)}: <strong className="text-white">{brl(gastoCents)}</strong>
       {dados.anterior.custoCents > 0 && ` · ${soMes(dados.anterior.mes)}: ${brl(dados.anterior.custoCents)}`}
     </span>
   );
   if (!conta.cobrar || conta.modelo !== "prepago" || !conta.aberta) {
     return (
       <div className={escuro}>
-        <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">{conta.modelo === "pospago" && conta.cobrar ? "Cobrado na mensalidade" : "Mensagens"}</span>
+        <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">{conta.modelo === "pospago" && conta.cobrar ? "Cobrado na mensalidade" : "Saldo de mensagens"}</span>
         <span className="text-[15px] leading-snug text-zinc-200">
           {!conta.cobrar
             ? "Incluídas no seu plano: nada é descontado."
@@ -400,7 +409,7 @@ function Saldo({ dados, slug, gastoCents }: { dados: PainelConsumo; slug: string
           <span className={cn("text-4xl leading-none font-bold tracking-tight tabular-nums", saldo <= 0 && "text-red-300")}>{brl(saldo)}</span>
           <span className="text-[13px] text-zinc-300">
             {msgs !== null && `≈ ${msgs.toLocaleString("pt-BR")} mensagens`}
-            {dias !== null && ` · ${dias === 0 ? "acaba hoje" : `uns ${duracao(dias)} no seu ritmo`}`}
+            {dias !== null && ` · ${dias === 0 ? "acaba hoje" : dias > 90 ? "dura mais de 3 meses no seu ritmo" : `uns ${duracaoDoSaldo(dias)} no seu ritmo`}`}
           </span>
         </div>
         <Link href={`/${slug}/consumo/recarga`} className="inline-flex h-11 shrink-0 items-center rounded-lg bg-white px-3.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-100">
@@ -419,14 +428,6 @@ function Saldo({ dados, slug, gastoCents }: { dados: PainelConsumo; slug: string
   );
 }
 
-/** 3 → "3 dias"; 45 → "1 mês e meio"; 70 → "2 meses". */
-function duracao(dias: number) {
-  if (dias < 30) return `${dias} ${dias === 1 ? "dia" : "dias"}`;
-  const meses = dias / 30;
-  if (meses < 1.75 && meses >= 1.25) return "1 mês e meio";
-  const n = Math.round(meses);
-  return `${n} ${n === 1 ? "mês" : "meses"}`;
-}
 
 function Legenda({ cor, nome, valor, detalhe }: { cor: string; nome: string; valor: string; detalhe: string }) {
   return (
@@ -454,6 +455,7 @@ function PorTipo({ tipos, total }: { tipos: ReturnType<typeof porTipo>; total: R
     SITUACOES.filter((k) => s[k] > 0)
       .map((k) => `${s[k]} ${s[k] > 1 ? PLURAL[k] : SINGULAR[k]}`)
       .join(", ");
+  if (!tipos.length) return <p className="text-sm text-muted-foreground">Nenhuma mensagem neste mês.</p>;
   return (
     <>
       <div className="flex flex-wrap items-baseline justify-between gap-3">

@@ -5,7 +5,7 @@ import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RECARGA_MAXIMA_CENTS, RECARGA_MINIMA_CENTS } from "@/lib/consumo";
-import { centavos as lerCentavos, mensagensNoSaldo } from "@/lib/consumo-tela";
+import { centavos as lerCentavos, duracaoDoSaldo, mensagensNoSaldo } from "@/lib/consumo-tela";
 import type { PainelConsumo } from "@/lib/consumo-painel.server";
 import { formatBRL } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
@@ -58,10 +58,13 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
   const saldo = conta.saldoCents ?? 0;
   const prepago = conta.cobrar && conta.modelo === "prepago";
   // o indicado só vale se o pacote ainda está ativo (o admin pode ter desligado depois da previsão)
-  const indicado = pacotes.some((p) => p.id === conta.previsao?.pacoteIndicado?.id) ? conta.previsao?.pacoteIndicado?.id : undefined;
+  // e só com consumo para basear a conta: sem média, "indicado para o seu mês" seria chute
+  const indicado = conta.previsao?.mediaDiariaCents != null && pacotes.some((p) => p.id === conta.previsao?.pacoteIndicado?.id) ? conta.previsao?.pacoteIndicado?.id : undefined;
   const [escolha, setEscolha] = useState<string>(() => indicado ?? pacotes[1]?.id ?? pacotes[0]?.id ?? "outro");
   const [outro, setOutro] = useState("");
   const [pix, setPix] = useState<Pix | null>(null);
+  // o Pix gerado aqui entra na lista de "aguardando" sem recarregar a tela
+  const [abertas, setAbertas] = useState(dados.recargasAbertas);
   const [busy, setBusy] = useState(false);
   const [erro, setErro] = useState("");
   const gastoMes = dados.doMes.custoCents;
@@ -70,7 +73,7 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
   const ultima = conta.ultimaRecarga;
   const frase = [
     ...(msgs !== null ? [`Dá para cerca de ${msgs.toLocaleString("pt-BR")} mensagens de WhatsApp`] : []),
-    ...(dias !== null ? [`${msgs !== null ? "ou " : "Dura "}${dias === 0 ? "menos de um dia" : `uns ${dias} ${dias === 1 ? "dia" : "dias"}`} no seu ritmo`] : []),
+    ...(dias !== null ? [`${msgs !== null ? "ou " : "Dura "}${dias === 0 ? "menos de um dia" : dias > 90 ? "mais de 3 meses" : `uns ${duracaoDoSaldo(dias)}`} no seu ritmo`] : []),
   ];
 
   if (!prepago) {
@@ -100,6 +103,7 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
     setBusy(false);
     if (!r?.ok) return setErro(r?.error ?? "Não foi possível gerar o Pix agora. Tente de novo.");
     setPix(r);
+    setAbertas((l) => (l.some((x) => x.id === r.id) ? l : [{ id: r.id, valorCents: r.valorCents, vencimento: r.vencimento }, ...l]));
   }
 
   async function abrir(id: string) {
@@ -118,13 +122,13 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
           <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Saldo disponível</span>
           <span className={cn("text-4xl leading-none font-bold tracking-tight tabular-nums", saldo <= 0 && "text-red-300")}>{brl(saldo)}</span>
           {frase.length > 0 && <span className="text-sm text-zinc-300">{frase.join(", ")}{gastoMes > 0 ? ` (${brl(gastoMes)} este mês)` : ""}.</span>}
-          {ultima && ultima.valorCents > 0 && (
+          {ultima && ultima.saldoAposCents > 0 && (
             <>
               <div aria-hidden="true" className="mt-1 h-2 overflow-hidden rounded-full bg-white/15">
-                <i className="block h-full rounded-full bg-emerald-400" style={{ width: `${Math.max(0, Math.min(100, (saldo / ultima.valorCents) * 100))}%` }} />
+                <i className="block h-full rounded-full bg-emerald-400" style={{ width: `${Math.max(0, Math.min(100, (saldo / ultima.saldoAposCents) * 100))}%` }} />
               </div>
               <span className="text-xs text-zinc-400">
-                {Math.max(0, Math.round((saldo / ultima.valorCents) * 100))}% do último crédito ({brl(ultima.valorCents)} em {diaCurto(ultima.em)})
+                Resta {Math.max(0, Math.min(100, Math.round((saldo / ultima.saldoAposCents) * 100)))}% do saldo depois do último crédito ({brl(ultima.valorCents)} em {diaCurto(ultima.em)})
               </span>
             </>
           )}
@@ -190,12 +194,12 @@ function Tela({ dados, slug }: { dados: PainelConsumo; slug: string }) {
           </section>
         )}
 
-        {dados.recargasAbertas.length > 0 && !pix && (
+        {abertas.length > 0 && !pix && (
           <section aria-label="Pix aguardando confirmação" className="grid gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
             <strong>Pix aguardando confirmação</strong>
             <p className="text-[13px]">Já pagou? O saldo entra quando a Ruphus confirmar. Se ainda não pagou, abra o Pix de novo:</p>
             <ul className="grid gap-1.5">
-              {dados.recargasAbertas.map((r) => (
+              {abertas.map((r) => (
                 <li key={r.id} className="flex flex-wrap items-center justify-between gap-2">
                   <span className="tabular-nums">
                     {formatBRL(r.valorCents)} · vence {r.vencimento.slice(8, 10)}/{r.vencimento.slice(5, 7)}

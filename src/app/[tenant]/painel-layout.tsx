@@ -255,7 +255,7 @@ function FaixaDeSaldo({ slug }: { slug: string }) {
             : saldo.semSaldo === "pausar-tudo"
               ? "Os avisos aos clientes estão pausados até a recarga."
               : "Os avisos aos clientes estão pausados até a recarga; o lembrete do dia e os pedidos para você continuam."
-          : `Restam ${formatBRL(saldo.saldoCents)}${saldo.dias !== null ? `, para uns ${saldo.dias} ${saldo.dias === 1 ? "dia" : "dias"}` : ""}.`}
+          : `Restam ${formatBRL(saldo.saldoCents)}${saldo.dias !== null && saldo.dias <= 30 ? `, para uns ${saldo.dias} ${saldo.dias === 1 ? "dia" : "dias"}` : ""}.`}
       </p>
       <Link href={`/${slug}/consumo/recarga`} className="inline-flex h-11 items-center rounded-lg bg-foreground px-3.5 font-semibold text-background">
         Recarregar

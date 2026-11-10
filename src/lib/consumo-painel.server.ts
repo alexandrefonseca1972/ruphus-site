@@ -38,7 +38,8 @@ export type Conta = {
   aberta: boolean;
   saldoCents: number | null;
   previsao: Previsao | null;
-  ultimaRecarga: { valorCents: number; em: number } | null;
+  /** o último crédito (recarga ou boas-vindas) e o saldo logo depois dele */
+  ultimaRecarga: { valorCents: number; em: number; saldoAposCents: number } | null;
   /** cobrança e preços do negócio (o override do /admin já aplicado) */
   cobrar: boolean;
   modelo: ConfigMensagens["modelo"];
@@ -172,7 +173,7 @@ export async function painelDeConsumo(slug: string, mes: string, opcoes: { envio
   return {
     mes,
     hoje: dateIn(new Date()),
-    conta: { ...conta, ultimaRecarga: ultima ? { valorCents: ultima.valorCents, em: ultima.em } : null },
+    conta: { ...conta, ultimaRecarga: ultima ? { valorCents: ultima.valorCents, em: ultima.em, saldoAposCents: ultima.saldoAposCents } : null },
     pacotes: geral.pacotes.filter((p) => p.ativo).sort((a, b) => a.valorCents - b.valorCents),
     envios,
     truncado: (snap?.size ?? 0) >= TETO_ENVIOS,

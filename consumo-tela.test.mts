@@ -1,6 +1,6 @@
 // Rode: npm run test:consumo  (contas da tela de consumo: resumo, funil, por tipo, por dia e leitura; sem rede)
 import assert from "node:assert/strict";
-import { centavos, csvDasMensagens, funil, mapaDeLeitura, mensagensNoSaldo, porDia, porTipo, resumo, saldoPorDia, situacao, type EnvioDaTela } from "@/lib/consumo-tela";
+import { centavos, csvDasMensagens, dataHora, duracaoDoSaldo, erroLegivel, plural, tetoDoEixo, funil, mapaDeLeitura, mensagensNoSaldo, porDia, porTipo, resumo, saldoPorDia, situacao, type EnvioDaTela } from "@/lib/consumo-tela";
 
 // 10/11/2026 12:00 em Brasília = 15:00Z (terça-feira)
 const t = (iso: string) => Date.parse(iso);
@@ -74,5 +74,18 @@ assert.equal(centavos("-5"), -500);
 assert.equal(centavos("R$ 20"), 2000);
 assert.equal(centavos("abc"), null);
 assert.equal(centavos("1.2.3"), null);
+
+assert.equal(plural(1, "lida", "lidas"), "1 lida");
+assert.equal(plural(2, "lida", "lidas"), "2 lidas");
+assert.equal(duracaoDoSaldo(1), "1 dia");
+assert.equal(duracaoDoSaldo(45), "1 mês e meio");
+assert.equal(duracaoDoSaldo(70), "2 meses");
+assert.equal(duracaoDoSaldo(6090), "mais de 3 meses");
+assert.equal(erroLegivel("CLOUD_API_REJECTED"), "recusada pelo WhatsApp");
+assert.equal(erroLegivel("XYZ_123"), null);
+assert.equal(dataHora(t("2026-11-10T20:38:00Z")), "10/11/2026 17:38");
+assert.equal(tetoDoEixo(2), 3);
+assert.equal(tetoDoEixo(4), 6);
+assert.equal(tetoDoEixo(14), 15);
 
 console.log("consumo-tela ok");

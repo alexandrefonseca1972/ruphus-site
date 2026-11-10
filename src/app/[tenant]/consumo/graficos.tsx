@@ -1,5 +1,5 @@
 import type { Dia, Situacao } from "@/lib/consumo-tela";
-import { FAIXAS } from "@/lib/consumo-tela";
+import { FAIXAS, tetoDoEixo } from "@/lib/consumo-tela";
 
 // Gráficos da tela de consumo em SVG puro (sem biblioteca): o desenho aprovado em 10/11 (pranchas em
 // docs/consumo-desenho). Cada um tem aria-label com o que mostra, para quem não vê o desenho.
@@ -66,27 +66,27 @@ export function Segmentos({ partes, rotulo, alta }: { partes: { cor: string; n: 
   );
 }
 
-/** O caminho das mensagens de WhatsApp: enviadas → aceitas → entregues → lidas. */
+/** O caminho das mensagens de WhatsApp: enviadas → aceitas → entregues → lidas. Em HTML (não SVG):
+ *  o texto fica do tamanho de texto no celular. */
 export function Funil({ etapas }: { etapas: { rotulo: string; n: number }[] }) {
   const max = Math.max(1, etapas[0]?.n ?? 0);
   const cores = ["#0f766e", "#14857c", "#2a9d8f", "#5eb5a8"];
-  const larg = 560 / etapas.length;
   return (
-    <svg viewBox="0 0 560 76" width="100%" height="76" role="img" aria-label={`Caminho das mensagens de WhatsApp: ${etapas.map((e) => `${e.n} ${e.rotulo}`).join(", ")}`}>
-      <g fontFamily="inherit" fontSize="12">
-        {etapas.map((e, i) => {
-          const h = Math.max(14, (e.n / max) * 36);
-          const x = i * larg;
-          return (
-            <g key={e.rotulo}>
-              <rect x={x} y={26 - h / 2} width={larg - 16} height={h} rx="6" fill={cores[i] ?? cores.at(-1)} />
-              <text x={x + (larg - 16) / 2} y="30.5" textAnchor="middle" fill="#fff" fontWeight="700" fontSize="14">{e.n}</text>
-              <text x={x + (larg - 16) / 2} y="64" textAnchor="middle" fill="#52525b">{e.rotulo}</text>
-            </g>
-          );
-        })}
-      </g>
-    </svg>
+    <ol aria-label={`Caminho das mensagens de WhatsApp: ${etapas.map((e) => `${e.n} ${e.rotulo}`).join(", ")}`} className="grid grid-cols-4 gap-2">
+      {etapas.map((e, i) => (
+        <li key={e.rotulo} className="grid justify-items-center gap-1.5 text-center">
+          <span className="flex h-10 w-full items-center">
+            <span
+              className="grid w-full place-items-center rounded-md text-sm font-bold text-white tabular-nums"
+              style={{ height: `${Math.max(40, (e.n / max) * 100)}%`, minHeight: 22, background: cores[i] ?? cores.at(-1) }}
+            >
+              {e.n}
+            </span>
+          </span>
+          <span className="text-xs text-muted-foreground">{e.rotulo}</span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -121,13 +121,16 @@ export function MapaLeitura({ celulas, max, rotulo }: { celulas: number[][]; max
 }
 
 /** Barras por dia (WhatsApp + SMS empilhados) com a linha do custo acumulado no eixo da direita. */
+/** Largura do gráfico por dia: 34 px por dia, legível também no celular (onde ele rola). */
+export const larguraPorDia = (n: number) => Math.max(1000, n * 34 + 150);
+
 export function PorDia({ dias, hoje, brl }: { dias: Dia[]; hoje: string; brl: (c: number) => string }) {
-  const W = 1200;
+  const W = larguraPorDia(dias.length);
   const esq = 40;
-  const dir = 1130;
+  const dir = W - 76;
   const topo = 20;
   const base = 170;
-  const maxMsg = Math.max(4, ...dias.map((d) => d.whatsapp + d.sms));
+  const maxMsg = tetoDoEixo(Math.max(0, ...dias.map((d) => d.whatsapp + d.sms)));
   const maxCusto = Math.max(1, dias.at(-1)?.acumuladoCents ?? 0);
   const passo = (dir - esq) / Math.max(1, dias.length);
   const barra = Math.min(44, passo * 0.6);
@@ -136,9 +139,7 @@ export function PorDia({ dias, hoje, brl }: { dias: Dia[]; hoje: string; brl: (c
   const cx = (i: number) => esq + passo * i + passo / 2;
   const linha = dias.map((d, i) => `${i ? "L" : "M"}${cx(i).toFixed(1)} ${yC(d.acumuladoCents).toFixed(1)}`).join(" ");
   const pico = dias.reduce((m, d) => (d.whatsapp + d.sms > m.whatsapp + m.sms ? d : m), dias[0]);
-  const marcas = [0, 0.33, 0.66, 1];
-  // rótulo de dia a cada N barras para não encavalar no mês de 31 dias
-  const cada = dias.length > 16 ? 3 : 1;
+  const marcas = [0, 1 / 3, 2 / 3, 1];
   const semana = (dia: string) => ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][new Date(`${dia}T12:00:00Z`).getUTCDay()];
   return (
     <svg viewBox={`0 0 ${W} 222`} width="100%" height="222" role="img" aria-label={`Mensagens por dia, WhatsApp e SMS empilhados${pico ? `; pico de ${pico.whatsapp + pico.sms} no dia ${Number(pico.dia.slice(8))}` : ""}; custo acumulado chega a ${brl(maxCusto === 1 && !dias.at(-1)?.acumuladoCents ? 0 : maxCusto)}`}>
@@ -156,11 +157,13 @@ export function PorDia({ dias, hoje, brl }: { dias: Dia[]; hoje: string; brl: (c
             {ts > 0 && <rect x={x} y={yM(ts)} width={barra} height={base - yM(ts)} fill={COR.sms} />}
             {tz > 0 && <rect x={x} y={yM(tz + ts)} width={barra} height={yM(ts) - yM(tz + ts)} rx="4" fill={COR.whatsapp} />}
             {tz + ts > 0 && <text x={cx(i)} y={yM(tz + ts) - 6} textAnchor="middle" fontSize="11" fontWeight="600" fill="currentColor">{tz + ts}</text>}
-            {(i % cada === 0 || d.dia === hoje) && (
-              <text x={cx(i)} y="194" textAnchor="middle" fontSize="12" fill={d.dia === hoje ? COR.whatsapp : "#71717a"} fontWeight={d.dia === hoje ? 600 : 400}>
-                {d.dia === hoje ? "hoje" : `${semana(d.dia)} ${Number(d.dia.slice(8))}`}
-              </text>
-            )}
+            {/* dia em cima, semana embaixo: 34 px por dia não cabem "seg 12" numa linha */}
+            <text x={cx(i)} y="192" textAnchor="middle" fontSize="12" fill={d.dia === hoje ? COR.whatsapp : "#71717a"} fontWeight={d.dia === hoje ? 600 : 400}>
+              {d.dia === hoje ? "hoje" : Number(d.dia.slice(8))}
+            </text>
+            <text x={cx(i)} y="207" textAnchor="middle" fontSize="10" fill="#a1a1aa">
+              {semana(d.dia)}
+            </text>
             <title>{`${Number(d.dia.slice(8))}/${d.dia.slice(5, 7)}: ${tz} WhatsApp, ${ts} SMS, ${brl(d.custoCents)}`}</title>
           </g>
         );
