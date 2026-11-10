@@ -6,7 +6,11 @@ import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { chaveDoHorario, dateIn, formatTime, instanteReal } from "@/lib/datetime";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { optInDoDoc } from "@/lib/consentimento-whatsapp";
-import { enviarSemOperador, enviarTemplateSemOperador, OPTIN_DONO, saiuDepoisDoAceite, type OptIn } from "@/lib/atendys";
+import { chaveDeEnvio, enviarSemOperador, enviarTemplateSemOperador, motivoLegivel, OPTIN_DONO, saiuDepoisDoAceite, type ConexaoAtendys, type OptIn } from "@/lib/atendys";
+import type { ResultadoAviso } from "@/lib/aviso-cliente";
+import { SemSaldo } from "@/lib/consumo.server";
+import { ErroPrevisto } from "@/lib/erro-previsto";
+import { motivoDaFalha } from "@/lib/mensagens-paradas.server";
 import { conexaoOficial, contatoDoNegocio, templateCliente } from "@/lib/canal-oficial.server";
 
 // Configuração do WhatsApp do negócio. Os avisos saem só pelo canal oficial (número da plataforma
@@ -307,20 +311,12 @@ export async function processarComandoAgendamento(
     return "sem pendente";
   }
   const a = pendentes[0];
-  const start = startDe(a);
-  const nome = String(a.get("customerName") ?? "").trim().split(/\s+/)[0] ?? "";
-  // start é gravado no fuso de referência (como em reservaDe), então formata sem fuso local
-  const quandoVai = quando(dateIn(start), formatTime(start));
+  const { nome, quandoVai } = dadosDoAviso(a);
   const servico = `${a.get("serviceName")} · ${quandoVai}`;
   // só fala com o cliente quem aceitou o WhatsApp no agendamento; os antigos (sem o campo) não
   const optIn = optInDoDoc(slug, a);
-  // cliente: template (fora da janela de 24 h só template sai)
   const tenant = await db.doc(`tenants/${slug}`).get();
-  const negocio = String(tenant.get("name") ?? "").trim() || slug;
-  // prazo: o horário no fuso do negócio (start é hora de parede)
-  const prazo = instanteReal(start, tenant.get("site"));
-  const avisarCliente = (tipo: "confirmado" | "cancelado", cliente: string, aceite: OptIn) =>
-    enviarTemplateSemOperador(oficial, cliente, templateCliente(tipo, { nome, negocio, servico: String(a.get("serviceName") ?? ""), quando: quandoVai, contato: contatoDoNegocio(tenant) }), aceite, prazo);
+  const avisarCliente = (tipo: "confirmado" | "cancelado", cliente: string, aceite: OptIn) => enviarAvisoCliente(oficial, tenant, a, tipo, cliente, aceite);
   const semAceite = (o: string) =>
     `Agendamento de ${nome} ${o}, mas o cliente não autorizou receber mensagens pelo WhatsApp e não foi avisado. Fale com ele por outro meio (tel ${a.get("customerPhone")}).`;
 
@@ -393,4 +389,56 @@ export async function processarComandoAgendamento(
     }
   }
   return "confirmado";
+}
+
+/** Nome (primeiro) e quando, como vão no template ao cliente. start é gravado no fuso de referência
+ *  (como em reservaDe), então formata sem fuso local. */
+function dadosDoAviso(a: FirebaseFirestore.DocumentSnapshot) {
+  const v = a.get("start");
+  const start: Date = v instanceof Date ? v : (v as FirebaseFirestore.Timestamp).toDate();
+  return { start, nome: String(a.get("customerName") ?? "").trim().split(/\s+/)[0] ?? "", quandoVai: quando(dateIn(start), formatTime(start)) };
+}
+
+/** Confirmação ou cancelamento ao cliente por template (fora da janela de 24 h só template sai), com
+ *  prazo no horário do agendamento (no fuso do negócio): o que não sair até lá é descartado. */
+function enviarAvisoCliente(oficial: ConexaoAtendys, tenant: FirebaseFirestore.DocumentSnapshot, a: FirebaseFirestore.DocumentSnapshot, tipo: "confirmado" | "cancelado", cliente: string, aceite: OptIn, chave?: string) {
+  const { start, nome, quandoVai } = dadosDoAviso(a);
+  const negocio = String(tenant.get("name") ?? "").trim() || tenant.id;
+  const prazo = instanteReal(start, tenant.get("site"));
+  return enviarTemplateSemOperador(oficial, cliente, templateCliente(tipo, { nome, negocio, servico: String(a.get("serviceName") ?? ""), quando: quandoVai, contato: contatoDoNegocio(tenant) }), aceite, prazo, chave ? { chave } : {});
+}
+
+/** Confirmar/Cancelar pelo painel: o status já foi gravado pelo navegador; isto avisa o cliente pelo
+ *  canal oficial e diz o que aconteceu, para a tela oferecer o wa.me quando não saiu. Só com o aceite
+ *  do cliente e no canal oficial. preso: o profissional da conta da equipe (só mexe nos horários dele).
+ *  A chave de envio é a do registro no histórico: repetir (resposta perdida, segundo toque) não manda
+ *  outra mensagem. No pré-pago custa ao negócio (quem confirma pelo painel escolheu avisar); sem saldo,
+ *  volta sem_saldo e a tela oferece o wa.me. */
+export async function avisarClientePeloPainel(db: Firestore, slug: string, id: string, tipo: "confirmado" | "cancelado", preso: string | null): Promise<ResultadoAviso> {
+  const a = await db.doc(`tenants/${slug}/appointments/${id}`).get();
+  if (!a.exists) throw new ErroPrevisto("Esse horário não existe mais.");
+  if (preso && a.get("staffId") !== preso) throw new ErroPrevisto("Esse horário é de outro profissional: só quem gere o negócio mexe nele.");
+  if (a.get("status") !== (tipo === "confirmado" ? "confirmed" : "cancelled")) throw new ErroPrevisto("O horário mudou antes do aviso. Confira a agenda.");
+  const optIn = optInDoDoc(slug, a);
+  const cliente = soDigitosComDDI(String(a.get("customerPhone") ?? ""));
+  if (!optIn || !cliente) return { situacao: "sem_aceite" };
+  let oficial: ConexaoAtendys | null;
+  try {
+    oficial = await conexaoOficial(db, slug);
+  } catch (e) {
+    console.error(`[whatsapp] canal oficial de ${slug}`, e);
+    return { situacao: "falhou", motivo: motivoLegivel(e) };
+  }
+  if (!oficial) return { situacao: "sem_canal" };
+  const tenant = await db.doc(`tenants/${slug}`).get();
+  try {
+    const e = await enviarAvisoCliente(oficial, tenant, a, tipo, cliente, optIn, chaveDeEnvio(`painel-${tipo}`, slug, id, String(a.get("lastHistoryId") ?? "")));
+    if (e.destino === "enviada" || e.destino === "agendada" || e.destino === "parada") return { situacao: e.destino };
+    return { situacao: "falhou", motivo: e.destino === "nao_sai" ? "não sai antes do horário do agendamento" : motivoDaFalha(e.errorCode) };
+  } catch (e) {
+    if (e instanceof SemSaldo) return { situacao: "sem_saldo" };
+    if (saiuDepoisDoAceite(e)) return { situacao: "falhou", motivo: "o cliente pediu para não receber mensagens (SAIR)" };
+    if (!(e instanceof ErroPrevisto)) console.error(`[whatsapp] aviso ao cliente pelo painel em ${slug}`, e);
+    return { situacao: "falhou", motivo: motivoLegivel(e) };
+  }
 }

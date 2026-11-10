@@ -1244,5 +1244,107 @@ assert.equal(curta.status, 401);
   await salvarConfigMensagens(CONFIG_PADRAO, "teste");
 }
 
+// ── aviso ao cliente que não chegou: a marca avisoFalhou no agendamento (a agenda mostra o wa.me) e o
+// Confirmar/Cancelar do painel pela API ──
+{
+  const { ajustarSaldo, salvarConfigMensagens } = await import("@/lib/consumo.server");
+  const { CONFIG_PADRAO } = await import("@/lib/consumo");
+  const { optInDoAgendamento } = await import("@/lib/consentimento-whatsapp");
+  const { enviarTemplate, OPTIN_DONO } = await import("@/lib/atendys");
+  const { idBotao } = await import("@/lib/canal-oficial.server");
+  const { avisarClientePeloPainel } = await import("@/lib/whatsapp.server");
+  await salvarConfigMensagens(CONFIG_PADRAO, "teste");
+  await db.doc("tenants/marca").set({ name: "Marca" });
+  const conn = await ligarOficial("marca");
+  const daqui2 = new Date(Date.now() + 2 * 86_400_000);
+  const ag = (id: string, extra: Record<string, unknown> = {}) =>
+    db.doc(`tenants/marca/appointments/${id}`).set({ status: "confirmed", start: daqui2, customerName: "Ana Souza", customerPhone: "(91) 98877-6389", serviceName: "Corte", staffId: "P1", lastHistoryId: "h1", whatsappConsent: { aceito: true, versao: "v", em: new Date() }, ...extra });
+  const marca = async (id: string) => (await db.doc(`tenants/marca/appointments/${id}`).get()).get("avisoFalhou") as { tipo: string; em: number; motivo?: string } | undefined;
+  const aceite = (id: string) => optInDoAgendamento({ tenantId: "marca", agendamentoId: id, versao: "v", em: new Date() });
+  const uuid = (n: number) => `c${String(n).padStart(7, "0")}-4361-4153-bc2c-60db816d8b77`;
+  const sai = (id: string, status = "queued") => novo({ "POST /v1/message/send-text": json({ id, status }), "POST /v1/message/send-template": json({ id, status }) });
+
+  // falha no webhook depois do aceite: marca com o tipo e o motivo legível
+  await ag("M1");
+  sai(uuid(1));
+  await enviarSemOperador(conn, "5591988776389", "Confirmado", aceite("M1"), undefined, { tipo: "confirmado" });
+  assert.equal(await marca("M1"), undefined, "aceito não marca");
+  await entregar({ event: "message.status", messageId: uuid(1), status: "failed", errorCode: "META_131026" });
+  const m1 = await marca("M1");
+  assert.deepEqual([m1?.tipo, m1?.motivo, typeof m1?.em], ["confirmado", "número sem WhatsApp", "number"]);
+  // um aviso de outro tipo que sai não apaga; um do mesmo tipo, sim
+  sai(uuid(2));
+  await enviarSemOperador(conn, "5591988776389", "Lembrete", aceite("M1"), undefined, { tipo: "lembrete" });
+  await entregar({ event: "message.status", messageId: uuid(2), status: "delivered" });
+  assert.equal((await marca("M1"))?.tipo, "confirmado", "lembrete entregue não apaga a falha da confirmação");
+  sai(uuid(3));
+  await enviarSemOperador(conn, "5591988776389", "Confirmado de novo", aceite("M1"), undefined, { tipo: "confirmado" });
+  await entregar({ event: "message.status", messageId: uuid(3), status: "sent" });
+  assert.equal(await marca("M1"), undefined, "confirmação que saiu apaga a marca");
+
+  // mensagem ao dono (o pedido com botões aponta o agendamento) que falha: o agendamento fica como está
+  await ag("M2");
+  sai(uuid(4));
+  await enviarTemplate(conn, "5511900000099", { nome: "agendamento_pedido_dono_botoes", parametros: ["x"], botoes: [idBotao("dc", "marca", "M2")] }, OPTIN_DONO);
+  assert.equal((await db.doc(`tenants/marca/envios/${uuid(4)}`).get()).get("agendamentoId"), "M2");
+  await entregar({ event: "message.status", messageId: uuid(4), status: "failed", errorCode: "META_131026" });
+  assert.equal(await marca("M2"), undefined, "falha ao dono não marca o agendamento");
+
+  // já registrada como falha no aceite e recusada pelo atendys (sem envio no consumo): marca também
+  sai(uuid(5), "failed");
+  await enviarSemOperador(conn, "5591988776389", "Recebemos", aceite("M2"), undefined, { tipo: "recebido" });
+  assert.equal((await marca("M2"))?.tipo, "recebido");
+  await ag("M3");
+  novo({ "POST /v1/message/send-text": json({ error: { code: "INVALID_NUMBER" } }, 400) });
+  await assert.rejects(enviarSemOperador(conn, "5591988776389", "Lembrete", aceite("M3"), undefined, { tipo: "lembrete" }));
+  assert.deepEqual([(await marca("M3"))?.tipo, (await marca("M3"))?.motivo], ["lembrete", "Número de WhatsApp inválido. Confira o DDD e os dígitos."]);
+  // agendamento que não existe não é criado pela marca
+  sai(uuid(6), "failed");
+  await enviarSemOperador(conn, "5591988776389", "x", aceite("NAOEXISTE"), undefined, { tipo: "confirmado" });
+  assert.equal((await db.doc("tenants/marca/appointments/NAOEXISTE").get()).exists, false);
+
+  // sem saldo: o aviso não sai e o agendamento ganha a marca; o painel devolve sem_saldo (a tela cai no wa.me)
+  await ag("M4");
+  await ajustarSaldo("marca", 1, "abre a conta com pouco", "teste");
+  sai(uuid(7));
+  assert.deepEqual(await avisarClientePeloPainel(db, "marca", "M4", "confirmado", null), { situacao: "sem_saldo" });
+  assert.equal(chamadas.length, 0, "nem chega ao atendys");
+  assert.deepEqual([(await marca("M4"))?.tipo, (await marca("M4"))?.motivo], ["confirmado", "sem saldo de mensagens"]);
+  await ajustarSaldo("marca", 100, "recarga de teste", "teste");
+
+  // painel com saldo: template pelo canal oficial, com prazo e chave do registro no histórico; a
+  // confirmação que sai limpa a marca
+  sai(uuid(8));
+  assert.deepEqual(await avisarClientePeloPainel(db, "marca", "M4", "confirmado", null), { situacao: "enviada" });
+  const tpl = chamadas.find((c) => c.caminho === "/v1/message/send-template")!;
+  assert.equal((tpl.corpo as { name: string }).name.startsWith("agendamento_confirmado_cliente"), true);
+  assert.ok((tpl.corpo as { expiresAt?: string }).expiresAt, "prazo no horário do agendamento");
+  const chave = tpl.headers["idempotency-key"];
+  assert.ok(chave?.startsWith("painel-confirmado-"));
+  sai(uuid(8));
+  await avisarClientePeloPainel(db, "marca", "M4", "confirmado", null);
+  assert.equal(chamadas.find((c) => c.caminho === "/v1/message/send-template")!.headers["idempotency-key"], chave, "o mesmo aviso repetido leva a mesma chave");
+  await entregar({ event: "message.status", messageId: uuid(8), status: "delivered" });
+  assert.equal(await marca("M4"), undefined);
+  // recusado logo depois do aceite: falhou, com o motivo
+  sai(uuid(9), "failed");
+  const r9 = await avisarClientePeloPainel(db, "marca", "M4", "confirmado", null);
+  assert.equal(r9.situacao, "falhou");
+  assert.ok(r9.motivo);
+  // quem pode mexer, o status certo, o aceite e o canal
+  await assert.rejects(avisarClientePeloPainel(db, "marca", "M4", "confirmado", "P2"), /outro profissional/);
+  assert.equal((await avisarClientePeloPainel(db, "marca", "M4", "confirmado", "P1")).situacao, "falhou", "o próprio profissional avisa");
+  await assert.rejects(avisarClientePeloPainel(db, "marca", "M4", "cancelado", null), /mudou/);
+  await ag("M5", { whatsappConsent: null });
+  assert.deepEqual(await avisarClientePeloPainel(db, "marca", "M5", "confirmado", null), { situacao: "sem_aceite" });
+  await db.doc("tenants/fora").set({ name: "Fora" });
+  await db.doc("tenants/fora/appointments/F1").set({ status: "cancelled", start: daqui2, customerName: "Ana", customerPhone: "(91) 98877-6389", serviceName: "Corte", staffId: "P1", whatsappConsent: { aceito: true, versao: "v", em: new Date() } });
+  assert.deepEqual(await avisarClientePeloPainel(db, "fora", "F1", "cancelado", null), { situacao: "sem_canal" });
+  // push da falha: aviso ao cliente de agendamento leva à agenda; o resto, à gaveta do WhatsApp
+  const { pushDaFalha } = await import("@/lib/mensagens-paradas.server");
+  assert.deepEqual(pushDaFalha("marca", true, "x", "META_131026"), { body: "Um aviso ao cliente não foi entregue (o número do cliente não recebe mensagens no WhatsApp). Envie pelo WhatsApp na agenda, no horário dele.", url: "/marca" });
+  assert.deepEqual(pushDaFalha("marca", false, "Um aviso pelo WhatsApp não foi entregue", "META_131026"), { body: "Um aviso pelo WhatsApp não foi entregue", url: "/marca/negocio#whatsapp" });
+}
+
 console.log("atendys ok");
 process.exit(0);

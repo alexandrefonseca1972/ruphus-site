@@ -28,10 +28,11 @@ import { Reschedule } from "./reschedule";
 import { RowMenu } from "./row-menu";
 import { ShareLink } from "./share-link";
 import { mudarStatus, STATUS } from "./status";
-import { avisarConfirmacaoSmsAction, confirmarSinalAction } from "./actions";
+import { avisarClienteAction, avisarConfirmacaoSmsAction, confirmarSinalAction, resolverAvisoAction } from "./actions";
 import { idToken } from "@/lib/firebase";
 import { restanteDe } from "@/lib/sinal";
 import { type AvisoCliente, textoAvisoCliente } from "@/lib/mensagens";
+import { avisaPelaApi, avisoPendente, faixaDoAviso, TIPOS_AVISO } from "@/lib/aviso-cliente";
 
 const Appointment = z.object({
   serviceName: z.string(),
@@ -51,6 +52,10 @@ const Appointment = z.object({
   sinal: z.object({ cents: z.number(), status: z.enum(["pendente", "pago", "vencido", "dispensado", "erro"]), hora: z.string() }).optional().catch(undefined),
   // o cliente tocou em "Confirmar presença" no WhatsApp (instante real); a remarcação apaga
   presencaConfirmadaEm: z.instanceof(Timestamp).optional().catch(undefined),
+  // aceite do WhatsApp no agendamento online: com ele (e o canal oficial), Confirmar/Cancelar avisam pela API
+  whatsappConsent: z.object({ aceito: z.boolean() }).optional().catch(undefined),
+  // o aviso automático ao cliente não chegou (o servidor grava, consumo.server): a linha oferece o wa.me
+  avisoFalhou: z.object({ tipo: z.enum(TIPOS_AVISO), em: z.number(), motivo: z.string().optional() }).optional().catch(undefined),
 });
 export type Appointment = z.infer<typeof Appointment> & { id: string };
 
@@ -75,7 +80,8 @@ export default function AgendaPage() {
   const [staff] = useCollection(tenant.id, "staff", Staff, [orderBy("name")]);
   // aviso no topo; com a mensagem, oferece mandar ao cliente pelo WhatsApp do aparelho
   // recibo: id do lançamento recebido agora; o aviso oferece o recibo dele
-  const [notice, setNotice] = useState<{ text: string; aviso?: { a: Appointment; tipo: AvisoCliente; start: Date }; recibo?: string } | null>(null);
+  // aviso.resolver: o wa.me resolve o "Aviso não chegou" do horário (o aviso pela API que falhou)
+  const [notice, setNotice] = useState<{ text: string; aviso?: { a: Appointment; tipo: AvisoCliente; start: Date; resolver?: boolean }; recibo?: string } | null>(null);
   const fuso = fusoDe(tenant.site);
   const mensagem = (a: Appointment, tipo: AvisoCliente, start = a.start.toDate()) =>
     textoAvisoCliente(tipo, { ...a, start }, tenant.name, `${location.origin}/agendar/${tenant.id}`);
@@ -145,6 +151,20 @@ export default function AgendaPage() {
 
   async function notifyAndChange(a: Appointment, status: "confirmed" | "cancelled") {
     const tipo = status === "confirmed" ? "confirmado" : "cancelado";
+    // canal oficial e cliente que aceitou: o aviso sai pela API; o wa.me fica de reserva na faixa,
+    // num botão (depois do await a aba nova seria bloqueada, e não abre nada sozinho)
+    if (avisaPelaApi(tenant.whatsapp?.canalOficial, a.whatsappConsent)) {
+      setPending(a.id);
+      const saved = await changeStatus(a, status);
+      if (!saved) return setPending(null);
+      const r = await idToken()
+        .then((t) => avisarClienteAction(t, { tenantId: tenant.id, appointmentId: a.id, tipo }))
+        .catch(() => null);
+      setPending(null);
+      const faixa = faixaDoAviso(r && r.ok ? r : r ? { situacao: "falhou", motivo: r.error } : null, `${a.customerName}: horário ${status === "confirmed" ? "confirmado" : "cancelado"}`);
+      setNotice({ text: faixa.texto, ...(faixa.waMe && { aviso: { a, tipo, start: a.start.toDate(), resolver: true } }) });
+      return;
+    }
     // a aba abre ainda dentro do clique: depois do await da gravação o navegador já não conta
     // como gesto, bloqueava a aba nova, e o WhatsApp tomava o lugar do painel
     const aba = window.open("", "_blank");
@@ -184,6 +204,10 @@ export default function AgendaPage() {
     return { date: d, count: daSemana?.filter((a) => ATIVO(a) && dateIn(a.start.toDate()) === d).length ?? 0 };
   });
   const hoje = todayIn();
+  // aviso automático que não chegou e ainda serve: o texto do wa.me de reserva de cada horário
+  const avisoDe = (a: Appointment) => avisoPendente({ avisoFalhou: a.avisoFalhou, status: a.status, start: a.start.toMillis() }, now);
+  // depois do toque no wa.me a marca sai (o servidor confere quem pode); falha só deixa o selo
+  const resolverAviso = (a: Appointment) => void idToken().then((t) => resolverAvisoAction(t, { tenantId: tenant.id, appointmentId: a.id })).catch(() => {});
   // Linha do "agora": antes do primeiro horário que ainda não começou, só no dia de hoje
   const agoraAntesDe = date === hoje ? shown?.find((a) => a.start.toMillis() > now)?.id : undefined;
   const stats = [
@@ -256,7 +280,7 @@ export default function AgendaPage() {
           <span>{notice.text}</span>
           <div className="flex gap-2">
             {aviso && (
-              <a href={whatsappLink(aviso.a.customerPhone, mensagem(aviso.a, aviso.tipo, aviso.start))} target="_blank" rel="noreferrer" className={BOTAO_AVISO}>
+              <a href={whatsappLink(aviso.a.customerPhone, mensagem(aviso.a, aviso.tipo, aviso.start))} target="_blank" rel="noreferrer" onClick={() => aviso.resolver && resolverAviso(aviso.a)} className={cn(BOTAO_AVISO, "max-sm:h-11")}>
                 Avisar pelo WhatsApp
               </a>
             )}
@@ -342,6 +366,7 @@ export default function AgendaPage() {
                     {a.sinal?.status === "pago" && <span className="rounded-full border px-2.5 py-0.5 text-xs">Sinal pago · {brl(a.sinal.cents)}</span>}
                     {a.sinal?.status === "vencido" && ATIVO(a) && <span className="rounded-full border px-2.5 py-0.5 text-xs">Sinal não pago · {brl(a.sinal.cents)}</span>}
                     {recebidos.has(idDaBaixa(a.id)) && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">Recebido</span>}
+                    {avisoDe(a) && <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-900 dark:bg-red-950 dark:text-red-200">Aviso não chegou</span>}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {[a.serviceName, `com ${a.staffName}`, (oculto ? OCULTO : precoDe({ priceCents: a.priceCents, tipoPreco: a.precoAberto ? "aPartir" : "fixo" }))].filter(Boolean).join(" · ")} ·{" "}
@@ -349,8 +374,22 @@ export default function AgendaPage() {
                       {a.customerPhone}
                     </a>
                   </p>
+                  {avisoDe(a) && a.avisoFalhou?.motivo && (
+                    <p className="text-sm text-red-800 dark:text-red-300">O aviso automático pelo WhatsApp não chegou ao cliente: {a.avisoFalhou.motivo.replace(/\.$/, "")}.</p>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {avisoDe(a) && meu(a) && (
+                    <a
+                      href={whatsappLink(a.customerPhone, mensagem(a, avisoDe(a)!))}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => resolverAviso(a)}
+                      className={cn(BOTAO_AVISO, "max-sm:h-11")}
+                    >
+                      Enviar pelo WhatsApp
+                    </a>
+                  )}
                   {/* o salão conferiu no banco: confirma o horário e lança o sinal no Caixa */}
                   {(a.sinal?.status === "pendente" || a.sinal?.status === "vencido" || a.sinal?.status === "erro") && ATIVO(a) && tenant.podeGerir && (
                     <Button className="h-10 px-4" disabled={pending === a.id} onClick={() => setConfirming({ id: a.id, kind: "sinal" })}>
@@ -373,7 +412,7 @@ export default function AgendaPage() {
                     label={`Mais ações: ${a.customerName} às ${formatTime(a.start.toDate())}`}
                     actions={[
                       ...(caixa && recebidosDaSemana && ATIVO(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) && restanteDe(a) > 0
-                        ? [{ label: "Recebido", onClick: () => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, serviceName: a.serviceName, priceCents: restanteDe(a), sinalCents: a.sinal?.status === "pago" ? a.sinal.cents : 0 } }) }]
+                        ? [{ label: "Recebido", onClick: () => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, customerPhone: a.customerPhone, serviceName: a.serviceName, priceCents: restanteDe(a), sinalCents: a.sinal?.status === "pago" ? a.sinal.cents : 0 } }) }]
                         : []),
                       ...(caixa && recebidos.has(idDaBaixa(a.id)) ? [{ label: "Recibo", onClick: () => abrirRecibo(idDaBaixa(a.id)) }] : []),
                       // recebido no Caixa não vira falta: a entrada contaria um atendimento que não houve

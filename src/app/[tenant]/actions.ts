@@ -6,7 +6,7 @@ import { painelDeConsumo, resumoDoSaldo } from "@/lib/consumo-painel.server";
 import { abrirCobranca, listarCobrancas } from "@/lib/cobranca";
 import { cadastrarDonoOficial, conexaoOficial, enviarConfirmacaoDono, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { adminDb } from "@/lib/admin";
-import { createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
+import { createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
 import { erroNome } from "@/lib/nome";
 import { z } from "zod";
@@ -25,7 +25,7 @@ import { htmlDoRecibo, textoDoRecibo } from "@/lib/recibo";
 import { reciboDoBanco } from "@/lib/recibo.server";
 import { formatBRL, todayIn } from "@/lib/datetime";
 import { celularDoDono } from "@/lib/telefone";
-import { lerConfigWhatsApp } from "@/lib/whatsapp.server";
+import { avisarClientePeloPainel, lerConfigWhatsApp } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { criarConvite, revogarConvitesDaEquipe, tirarAcessosDoProfissional } from "@/lib/convite";
@@ -435,6 +435,28 @@ export const estornarAction = memberAction(z.object({ tenantId: docIdStaff, esto
  *  e confere no banco que o horário está mesmo confirmado. */
 export const avisarConfirmacaoSmsAction = memberAction(z.object({ tenantId: docIdStaff, appointmentId: docIdStaff }), async (data) => {
   return { ok: true as const, resultado: await avisarConfirmacaoPorSms(adminDb, data.tenantId, data.appointmentId) };
+});
+
+/** Confirmar/Cancelar pelo painel no canal oficial: o navegador grava o status (regras) e pede aqui o
+ *  aviso ao cliente pela API. Quem pode mudar o status pode avisar: a equipe presa a um profissional
+ *  só nos horários dele (como as regras e o remarcar). */
+export const avisarClienteAction = memberAction(
+  z.object({ tenantId: docIdStaff, appointmentId: docId, tipo: z.enum(["confirmado", "cancelado"]) }),
+  async (data, user) => {
+    const preso = await profissionalDaConta(adminDb, data.tenantId, user.uid);
+    return { ok: true as const, ...(await avisarClientePeloPainel(adminDb, data.tenantId, data.appointmentId, data.tipo, preso)) };
+  },
+);
+
+/** "Enviar pelo WhatsApp" de um aviso que não chegou: depois do toque no wa.me, a marca sai do horário. */
+export const resolverAvisoAction = memberAction(z.object({ tenantId: docIdStaff, appointmentId: docId }), async (data, user) => {
+  const preso = await profissionalDaConta(adminDb, data.tenantId, user.uid);
+  const ref = adminDb.doc(`tenants/${data.tenantId}/appointments/${data.appointmentId}`);
+  const a = await ref.get();
+  if (!a.exists) throw new UserError("Esse horário não existe mais.");
+  if (preso && a.get("staffId") !== preso) throw new UserError("Esse horário é de outro profissional: só quem gere o negócio mexe nele.");
+  if (a.get("avisoFalhou") !== undefined) await ref.update({ avisoFalhou: FieldValue.delete() });
+  return { ok: true as const };
 });
 
 /** Mensagem parada na cota do dia: "Enviar agora" (o atendys marca a ação manual e devolve o

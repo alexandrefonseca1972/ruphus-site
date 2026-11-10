@@ -8,6 +8,7 @@ import {
   CONFIG_PADRAO, configDoNegocio, deltaDoConsumo, deveAvisar, ehDaPlataforma, diasNoMes, previsaoDeSaldo, somaDias, textoDoAvisoDeSaldo, mascararDestino, MODOS_SEM_SALDO, podeEnviar, precoDe, quandoFoi, RECARGA_MAXIMA_CENTS, RECARGA_MINIMA_CENTS, statusDoAtendys, avanca,
   type Canal, type ConfigMensagens, type NivelSaldo, type Previsao, type Destinatario, type Pacote, type StatusEnvio, type TipoEnvio, type Via,
 } from "@/lib/consumo";
+import { efeitoNoAviso } from "@/lib/aviso-cliente";
 import { dateIn, formatBRL } from "@/lib/datetime";
 import { SITE_BASE } from "@/lib/dominio";
 import { enviarEmail } from "@/lib/email.server";
@@ -192,6 +193,23 @@ export type NovoEnvio = DadosEnvio & {
   erro?: string;
 };
 
+/** Aviso ao cliente que não chegou: a agenda mostra "Aviso não chegou" com o wa.me no horário
+ *  (avisoFalhou). Um do mesmo tipo que sai depois apaga a marca; de outro tipo, não. Agendamento
+ *  que não existe (apagado, id de outro lugar) fica como está. Nunca lança. */
+export async function marcarAviso(slug: string, agendamentoId: string, efeito: NonNullable<ReturnType<typeof efeitoNoAviso>>): Promise<void> {
+  try {
+    const ref = adminDb.doc(`tenants/${slug}/appointments/${agendamentoId}`);
+    await adminDb.runTransaction(async (tx) => {
+      const a = await tx.get(ref);
+      if (!a.exists) return;
+      if (efeito.acao === "marca") tx.update(ref, { avisoFalhou: { tipo: efeito.tipo, em: Date.now(), motivo: efeito.motivo.slice(0, 160) } });
+      else if (a.get("avisoFalhou.tipo") === efeito.tipo) tx.update(ref, { avisoFalhou: FieldValue.delete() });
+    });
+  } catch (e) {
+    console.error(`[consumo] marca do aviso no agendamento ${agendamentoId} de ${slug}`, e);
+  }
+}
+
 /** Grava o envio, soma no mês e, no pré-pago com conta aberta, debita o saldo — tudo numa transação.
  *  O mesmo id outra vez (idempotency-key devolve a mensagem já aceita) não soma de novo. Nunca lança. */
 export async function registrarEnvio(slug: string, n: NovoEnvio, agora = new Date()): Promise<void> {
@@ -234,6 +252,10 @@ export async function registrarEnvio(slug: string, n: NovoEnvio, agora = new Dat
   } catch (e) {
     console.error(`[consumo] não registrou o envio ${n.id} de ${slug}`, e);
   }
+  // fora da transação do consumo: a marca no agendamento não pode desfazer o registro (e repetir
+  // a marca de um envio repetido só confirma o mesmo fato)
+  const efeito = efeitoNoAviso(n);
+  if (efeito && n.agendamentoId) await marcarAviso(slug, n.agendamentoId, efeito);
 }
 
 /** Status novo (webhook message.status, conferência logo depois do aceite): atualiza o envio, acerta o
@@ -242,12 +264,16 @@ export async function registrarEnvio(slug: string, n: NovoEnvio, agora = new Dat
 export async function atualizarEnvio(slug: string, id: string, statusAtendys: string, erro?: string | null, at = Date.now()): Promise<void> {
   const para = statusDoAtendys(statusAtendys);
   if (!para) return;
+  // o envio como ficou (só quando o status mudou): a marca do aviso no agendamento sai dele
+  let mudou: Parameters<typeof efeitoNoAviso>[0] | null = null;
   try {
     const aviso = await adminDb.runTransaction(async (tx) => {
+      mudou = null;
       const d = await tx.get(envioRef(slug, id));
       if (!d.exists) return null;
       const de = d.get("status") as StatusEnvio;
       if (!avanca(de, para) || Number(d.get("statusEm") ?? 0) > at) return null;
+      mudou = { canal: d.get("canal"), destinatario: d.get("destinatario"), tipo: d.get("tipo"), agendamentoId: d.get("agendamentoId"), status: para, erro: erro ?? d.get("erro") };
       const prepago = d.get("prepago") === true;
       const conta = prepago ? await contaDe(slug, tx) : null;
       const e = { canal: d.get("canal") as Canal, via: d.get("via") as Via, tipo: d.get("tipo") as TipoEnvio, precoCents: Number(d.get("precoCents") ?? 0), dia: "" };
@@ -271,7 +297,11 @@ export async function atualizarEnvio(slug: string, id: string, statusAtendys: st
     if (aviso !== null) await avisarSaldoBaixo(slug, aviso);
   } catch (e) {
     console.error(`[consumo] não atualizou o envio ${id} de ${slug}`, e);
+    return;
   }
+  const m = mudou as Parameters<typeof efeitoNoAviso>[0] | null;
+  const efeito = m && efeitoNoAviso(m);
+  if (efeito && m?.agendamentoId) await marcarAviso(slug, m.agendamentoId, efeito);
 }
 
 type Credito = { tipo: "recarga" | "ajuste" | "boas-vindas"; valorCents: number; ref?: Record<string, string>; motivo?: string; por?: string };

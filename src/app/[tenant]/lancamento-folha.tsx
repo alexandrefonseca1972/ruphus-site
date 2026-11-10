@@ -19,7 +19,7 @@ import { useTenant } from "./painel-layout";
 export type Folha =
   | { modo: "novo"; tipo: "entrada" | "saida"; data: string }
   | { modo: "editar"; lancamento: Lancamento }
-  | { modo: "baixa"; atendimento: { id: string; customerName: string; serviceName: string; priceCents: number; sinalCents: number } }
+  | { modo: "baixa"; atendimento: { id: string; customerName: string; customerPhone?: string; serviceName: string; priceCents: number; sinalCents: number } }
   | { modo: "pagar"; titulo: string; detalhe: string; valorCents: number; pagamento: { tipo: "fixa" | "comissao"; alvoId: string; mes: string; descontoCents?: number } };
 
 export const Chip = ({ ativo, onClick, children }: { ativo: boolean; onClick: () => void; children: React.ReactNode }) => (
@@ -197,7 +197,7 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
 
           {podePix && pix && (
             mostrarPix && centavos ? (
-              <PixQr key={centavos} recebedor={pix} valorCents={centavos} txid={txid} />
+              <PixQr key={centavos} recebedor={pix} valorCents={centavos} txid={txid} telefone={folha.modo === "baixa" ? folha.atendimento.customerPhone : null} />
             ) : (
               <Button type="button" variant="outline" className="h-11" disabled={!centavos} onClick={() => setMostrarPix(true)}>
                 Mostrar QR do Pix

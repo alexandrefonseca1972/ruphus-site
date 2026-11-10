@@ -3,7 +3,8 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto
 import { atualizarParada, avisarFalhaDeEnvio, NAO_SAI_A_TEMPO, prazoDaParada, registrarParada, vigiarEnvio } from "@/lib/mensagens-paradas.server";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { agendamentoDoEnvio, statusDoAtendys, tipoDoTemplate, type TipoEnvio } from "@/lib/consumo";
-import { atualizarEnvio, registrarEnvio, SemSaldo, verificarEnvio } from "@/lib/consumo.server";
+import { atualizarEnvio, marcarAviso, registrarEnvio, SemSaldo, verificarEnvio } from "@/lib/consumo.server";
+import { efeitoNoAviso } from "@/lib/aviso-cliente";
 import { integracao } from "@/lib/integracoes.server";
 
 // Cliente da plataforma de notificações WhatsApp (atendys). Só roda no servidor:
@@ -426,22 +427,36 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
     return e;
   };
   try {
-    return await registrar(await enviar());
+    return await tentar();
   } catch (e) {
-    if (optIn && e instanceof ErroAtendys && e.codigo === "NOT_OPTED_IN") {
-      await registrarOptIn(conn, digits, optIn).catch((r) => {
-        // o mesmo aceite (eventId) já está lá: não é erro, segue para o envio
-        if (r instanceof ErroAtendys && r.status === 409 && /já foi registrado/i.test(r.message)) return;
-        // o cliente respondeu SAIR depois deste aceite: respeita, sem nova tentativa e sem enviar
-        if (r instanceof ErroAtendys && r.status === 409 && /posterior à revogação/i.test(r.message)) {
-          console.warn(`[atendys] ${optIn.eventId ?? digits}: o cliente saiu (SAIR) depois deste aceite; mensagem não enviada`);
-          throw new ErroAtendys("O cliente pediu para não receber mais mensagens (SAIR) depois deste aceite.", 409, "OPT_OUT");
-        }
-        throw r;
-      });
-      return registrar(await enviar());
+    // recusa do atendys (número inválido, SAIR, credencial) não vira envio no consumo: a marca do
+    // aviso no agendamento sai daqui. Sem resposta (prazo, rede) não marca: pode ter saído
+    if (conn.slug && consumo?.destinatario === "cliente" && consumo.agendamentoId && e instanceof ErroAtendys && e.codigo !== "IDEMPOTENCY_CONFLICT") {
+      const efeito = efeitoNoAviso({ ...consumo, status: "falhou" });
+      if (efeito?.acao === "marca") await marcarAviso(conn.slug, consumo.agendamentoId, { ...efeito, motivo: e.message });
     }
     throw e;
+  }
+
+  async function tentar(): Promise<Envio> {
+    try {
+      return await registrar(await enviar());
+    } catch (e) {
+      if (optIn && e instanceof ErroAtendys && e.codigo === "NOT_OPTED_IN") {
+        await registrarOptIn(conn, digits, optIn).catch((r) => {
+          // o mesmo aceite (eventId) já está lá: não é erro, segue para o envio
+          if (r instanceof ErroAtendys && r.status === 409 && /já foi registrado/i.test(r.message)) return;
+          // o cliente respondeu SAIR depois deste aceite: respeita, sem nova tentativa e sem enviar
+          if (r instanceof ErroAtendys && r.status === 409 && /posterior à revogação/i.test(r.message)) {
+            console.warn(`[atendys] ${optIn.eventId ?? digits}: o cliente saiu (SAIR) depois deste aceite; mensagem não enviada`);
+            throw new ErroAtendys("O cliente pediu para não receber mais mensagens (SAIR) depois deste aceite.", 409, "OPT_OUT");
+          }
+          throw r;
+        });
+        return registrar(await enviar());
+      }
+      throw e;
+    }
   }
 }
 

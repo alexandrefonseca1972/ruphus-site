@@ -102,6 +102,7 @@ Pré: negócio de teste (ou demo) com serviços, profissionais e agenda online l
 - [ ] `AG-18` Sem sinal: passos "Horário guardado" → "{nome} confirma pelo seu WhatsApp".
 - [ ] `AG-19` Com sinal: QR do Pix, "Copiar código Pix" ("Código copiado"), "Ver o código", contagem "faltam N min para pagar", "Enviar comprovante".
 - [ ] `AG-20` Recado do dono aparece (se configurado em `PN-NEG-09`).
+- [ ] `AG-20b` Botão de WhatsApp para o negócio: com o canal oficial e o WhatsApp do dono confirmado ("Sou eu"), "Confirmar pelo WhatsApp" com "Opcional: o pedido já chegou para {nome}."; fora do canal oficial (ou dono sem confirmar, ou a demo), vira o botão escuro principal "Avise {nome} pelo WhatsApp para confirmar" com "Sem esta mensagem, {nome} só vê o pedido quando abrir a agenda online." O telefone do dono não aparece no código da página.
 - [ ] `AG-21` "Mandar o resumo no WhatsApp", "como chegar" (mapa, Google Maps, Waze, Copiar endereço), "precisa desmarcar ou mudar?".
 - [ ] `AG-22` "Salvar na agenda": celular baixa `agendamento.ics`; "Google Agenda" abre link.
 - [ ] `AG-23` "Fazer outro agendamento" recarrega.
@@ -211,10 +212,12 @@ Pré: negócio de teste (ou demo) com serviços, profissionais e agenda online l
 - [ ] `PN-AG-04` Linha "Agora · HH:MM" em hoje, antes do próximo horário.
 - [ ] `PN-AG-05` Etiquetas: Aguardando confirmação, Confirmado, Cancelado (riscado), Faltou, Recorrente, Sinal pendente/pago, Recebido.
 - [ ] `PN-AG-06` "Confirmar pelo WhatsApp" (horário futuro aguardando) → status Confirmado e abre wa.me com "Olá, {nome}! Seu horário… está confirmado…". ⚠ Com SMS ligado no admin, sai SMS de confirmação.
+- [ ] `PN-AG-06b` ⚠ Canal oficial e cliente que aceitou o WhatsApp no agendamento: "Confirmar pelo WhatsApp" não abre aba; o aviso sai pela API (template, custa no pré-pago) e a faixa diz "{nome}: horário confirmado. Cliente avisado pelo WhatsApp." Se não sair (sem saldo, número sem WhatsApp, SAIR, recusa), a faixa diz o motivo e oferece "Avisar pelo WhatsApp" (wa.me). Parada na cota: a faixa manda decidir em Mensagens paradas, sem wa.me. Sem aceite ou fora do canal oficial: wa.me como em `PN-AG-06`.
 - [ ] `PN-AG-07` "Remarcar" → data (até +180 dias), horários livres do mesmo profissional, "Remarcar para HH:MM" → volta "Aguardando", faixa verde com "Avisar pelo WhatsApp", agenda pula para a data.
 - [ ] `PN-AG-08` Remarcar para horário que acabou de ser ocupado → "Esse horário não está livre. Escolha outro."
 - [ ] `PN-AG-09` ⋯ → "Faltou" (só depois do início) → confirmação → Faltou.
-- [ ] `PN-AG-10` ⋯ → "Cancelar horário" → diálogo com "Avisar o cliente pelo WhatsApp" marcado → "Sim, cancelar" → Cancelado e wa.me com texto de cancelamento; desmarcado → sem wa.me.
+- [ ] `PN-AG-10` ⋯ → "Cancelar horário" → diálogo com "Avisar o cliente pelo WhatsApp" marcado → "Sim, cancelar" → Cancelado e wa.me com texto de cancelamento; desmarcado → sem wa.me. Canal oficial + aceite: o cancelamento sai pela API, como em `PN-AG-06b`.
+- [ ] `PN-AG-10b` ⚠ Aviso automático ao cliente que não chegou (recibo, confirmação, cancelamento, lembrete; falha da Meta, sem saldo ou recusa): a linha do horário mostra "Aviso não chegou", a frase com o motivo e "Enviar pelo WhatsApp" (wa.me para o cliente com o texto do aviso). Tocar abre o WhatsApp e tira o selo. Um aviso do mesmo tipo que sai depois também tira. A equipe presa a um profissional vê o selo de todos, mas o botão só nos horários dela. O push "Aviso do WhatsApp não entregue" de um aviso ao cliente abre a agenda e diz para enviar por lá.
 - [ ] `PN-AG-11` ⋯ → "Histórico" → lista com autor e data (Agendado online, Confirmado, Remarcado de X para Y, Cancelado…).
 - [ ] `PN-AG-12` Horário com sinal pendente → "Sinal recebido" → "O sinal de R$X caiu na sua conta?" → Confirmado + sinal pago (+ lançamento no Caixa se ligado).
 - [ ] `PN-AG-13` Com Caixa: ⋯ → "Recebido" em horário passado → folha de baixa (`PN-CX-04`).
@@ -259,7 +262,7 @@ Pré: negócio de teste (ou demo) com serviços, profissionais e agenda online l
 - [ ] `PN-CX-03` "+ Entrada" / "− Saída": valor (3500 = R$ 35,00), categoria, forma (lembrada), data, descrição → "Entrada de R$X lançada."; R$ 0,35 → aviso de valor baixo e pede segundo toque.
 - [ ] `PN-CX-04` "A receber da agenda" → "Recebi" → baixa ("Recebido: R$X."), horário vira Confirmado e marca "Recebido" na agenda; com sinal pago → "(com sinal de R$X)".
 - [ ] `PN-CX-05` "Não veio" → "Falta registrada."
-- [ ] `PN-CX-06` Pix: forma Pix + chave cadastrada → "Mostrar QR do Pix" e "Copiar código Pix"; sem chave → orientação para cadastrar.
+- [ ] `PN-CX-06` Pix: forma Pix + chave cadastrada → "Mostrar QR do Pix" e "Copiar código Pix"; sem chave → orientação para cadastrar. Recebendo um horário (da agenda ou de "A receber"), "Enviar por WhatsApp" abre a conversa com o cliente; entrada avulsa abre o WhatsApp para escolher o contato.
 - [ ] `PN-CX-07` Tocar num lançamento → "Corrigir lançamento"; apagar → confirmação conforme o tipo.
 - [ ] `PN-CX-08` Estornar entrada (total/parcial) → aparece "Estornado"; acima do recebido → "O estorno vai até R$X…"; segunda vez → recusado.
 - [ ] `PN-CX-09` Contas fixas: adicionar (nome, valor, dia 1–31), "Paguei" no mês, "Tirar"; 31 contas → "No máximo 30 contas fixas."

@@ -32,6 +32,8 @@ const Atendimento = z.object({
   staffName: z.string(),
   priceCents: z.number(),
   customerName: z.string(),
+  // o Pix pelo WhatsApp abre a conversa com o cliente
+  customerPhone: z.string().optional().catch(undefined),
   start: z.instanceof(Timestamp),
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
   // sinal pago pelo agendamento online: já entrou no Caixa, sai do que falta receber
@@ -283,7 +285,7 @@ export default function CaixaPage() {
                 {/* serviço sem preço no cadastro: o valor se digita ao receber */}
                 <span className="font-serifa text-xl tabular-nums max-sm:mr-auto">{restanteDe(a) ? brl(restanteDe(a)) : "a combinar"}</span>
                 <div className="flex gap-2">
-                  <Button className="h-10 px-4" onClick={() => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, serviceName: a.serviceName, priceCents: restanteDe(a), sinalCents: sinalDe(a) } })}>Recebi</Button>
+                  <Button className="h-10 px-4" onClick={() => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, customerPhone: a.customerPhone, serviceName: a.serviceName, priceCents: restanteDe(a), sinalCents: sinalDe(a) } })}>Recebi</Button>
                   <Button variant="outline" className="h-10 px-4" onClick={() => setFaltou({ id: a.id, nome: a.customerName })}>Não veio</Button>
                 </div>
               </li>

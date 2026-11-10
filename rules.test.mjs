@@ -1,6 +1,6 @@
 // Rode: npm run test:rules
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
-import { collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from "firebase/firestore";
+import { collection, collectionGroup, deleteDoc, deleteField, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from "firebase/firestore";
 import { getBytes, ref, uploadBytes } from "firebase/storage";
 import { readFileSync } from "node:fs";
 
@@ -160,6 +160,15 @@ await env.withSecurityRulesDisabled(async (ctx) => {
 await assertFails(changeStatus(bob, "bob", "cancelled", { apptId: "pago" }));
 await assertFails(changeStatus(bob, "bob", "no_show", { apptId: "pago" }));
 await assertSucceeds(changeStatus(bob, "bob", "confirmed", { apptId: "pago" }));
+// aviso ao cliente que não chegou (avisoFalhou, gravado pelo servidor): a equipe lê, muda o status com
+// ele no documento, e não o apaga nem o escreve pelo navegador (a marca sai pela ação do servidor)
+await env.withSecurityRulesDisabled((ctx) =>
+  setDoc(doc(ctx.firestore(), "tenants/acme/appointments/aviso"), { status: "booked", staffId: "ana", start: new Date(), customerName: "V", avisoFalhou: { tipo: "recebido", em: 1, motivo: "sem saldo de mensagens" } }),
+);
+if ((await assertSucceeds(getDoc(doc(dani, "tenants/acme/appointments/aviso")))).get("avisoFalhou.tipo") !== "recebido") throw new Error("a equipe lê avisoFalhou");
+await assertSucceeds(changeStatus(dani, "dani", "confirmed", { apptId: "aviso" }));
+await assertFails(changeStatus(bob, "bob", "cancelled", { apptId: "aviso", apptExtra: { avisoFalhou: deleteField() } }));
+await assertFails(updateDoc(doc(bob, "tenants/acme/appointments/aviso"), { avisoFalhou: { tipo: "confirmado", em: 2 } }));
 await assertFails(deleteDoc(doc(alice, "tenants/acme/history/old")));
 await assertFails(deleteDoc(doc(alice, "tenants/acme/appointments/a1")));
 await assertFails(setDoc(doc(alice, "tenants/acme/appointments/novo"), { status: "booked" })); // só o servidor cria

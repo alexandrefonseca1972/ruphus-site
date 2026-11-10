@@ -159,6 +159,14 @@ export async function usaCanalOficial(db: Firestore, slug: string): Promise<bool
   return (await db.doc(`tenants/${slug}`).get()).get("whatsapp.canalOficial") === true;
 }
 
+/** O pedido de agendamento chega ao dono pela API? Canal oficial e WhatsApp do dono confirmado
+ *  ("Sou eu"). A página pública só recebe o sim/não: o telefone do dono nunca sai do servidor. */
+export async function donoRecebePelaApi(db: Firestore, slug: string): Promise<boolean> {
+  if (!(await usaCanalOficial(db, slug))) return false;
+  const p = await db.doc(`tenants/${slug}/privado/whatsapp`).get();
+  return !!soDigitosComDDI(String(p.get("ownerPhone") ?? "")) && !!p.get("ownerPhoneVerifiedAt");
+}
+
 /** Conexão da plataforma para um negócio do canal oficial (slug = o negócio, para as mensagens
  *  paradas na cota aparecerem no painel dele). null = negócio fora do canal oficial. Negócio
  *  marcado sem a plataforma provisionada LANÇA: quem chama registra a falha. */
