@@ -5,7 +5,7 @@ import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { quando } from "@/lib/avisos.server";
 import { numeroSms } from "@/lib/comtele";
 import { enviarSms, smsDisponivel } from "@/lib/comtele.server";
-import { registrarEnvio } from "@/lib/consumo.server";
+import { registrarEnvio, verificarEnvio } from "@/lib/consumo.server";
 import { agoraNaParede, dateIn, formatPhone, formatTime, fusoDe, todayIn } from "@/lib/datetime";
 
 // SMS para o cliente final, pela conta da Ruphus na Comtele: quando a casa confirma o horário e X h
@@ -56,16 +56,21 @@ async function reservar(db: Firestore, ref: DocumentReference, campo: "smsConfir
 }
 
 async function enviarReservado(ref: DocumentReference, campo: "smsConfirmacaoEm" | "smsLembreteEm", numero: string, texto: string, enviar: Enviar, alertar: Alertar) {
+  const consumo = { canal: "sms" as const, via: "oficial" as const, tipo: campo === "smsConfirmacaoEm" ? "confirmado" as const : "lembrete" as const, fone: numero, destinatario: "cliente" as const, agendamentoId: ref.id };
+  const slug = ref.parent.parent!.id;
+  // pré-pago sem saldo: não sai e a reserva fica (sem nova tentativa a cada ciclo); o painel mostra "sem-saldo"
+  const v = await verificarEnvio(slug, consumo);
+  if (!v.envia) {
+    await registrarEnvio(slug, { ...consumo, id: `sem-saldo-sms-${ref.id}-${campo}`, status: "sem-saldo", erro: v.motivo });
+    return false;
+  }
   try {
     const id = await enviar(numero, texto);
     if (id) await ref.update({ [`${campo.replace("Em", "Id")}`]: id }).catch(() => {});
     // consumo do negócio: SMS cobra no aceite da Comtele (sem retorno de entrega, fica "enviado").
     // O id da Comtele quando vem (só letras, números e hífen viram id de documento); senão, um gerado
     const docId = id && /^[A-Za-z0-9_-]{1,100}$/.test(id) ? `sms-${id}` : ref.firestore.collection("_").doc().id;
-    await registrarEnvio(ref.parent.parent!.id, {
-      id: docId, canal: "sms", via: "oficial", tipo: campo === "smsConfirmacaoEm" ? "confirmado" : "lembrete",
-      fone: numero, destinatario: "cliente", agendamentoId: ref.id, status: "enviado",
-    });
+    await registrarEnvio(slug, { ...consumo, id: docId, status: "enviado" });
     return true;
   } catch (e) {
     // devolve a reserva: a confirmação não tenta de novo sozinha, o lembrete tenta no próximo ciclo

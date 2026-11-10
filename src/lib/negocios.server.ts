@@ -82,6 +82,9 @@ export async function criarNegocio(db: Firestore, user: { uid: string; email?: s
     // se o negócio não for criado, o aceite também não fica gravado
     if (aceite) tx.set(db.collection("aceites").doc(), { ...aceite, slug });
   });
+  // mensagens pré-pagas: o negócio novo nasce com o crédito de boas-vindas (uma vez só). Import na
+  // hora: consumo.server abre o app do Admin SDK, e quem só importa este arquivo (testes) abre o seu
+  await (await import("@/lib/consumo.server")).boasVindas(slug);
   return slug;
 }
 

@@ -1061,38 +1061,61 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.ok((await db.doc("config/atendys-plataforma/respostas/5511966665555").get()).exists);
 }
 
-// ── consumo de mensagens: cada envio vai para tenants/{slug}/envios e soma no mês (consumo/{YYYY-MM}) ──
+// ── mensagens pré-pagas: cada envio vai para tenants/{slug}/envios, soma no mês (consumo/{YYYY-MM}) e,
+// com a conta aberta, sai do saldo (privado/mensagens) com o lançamento no extrato (creditos) ──
 {
-  const { salvarPrecos } = await import("@/lib/consumo.server");
-  const { quandoFoi } = await import("@/lib/consumo");
+  const { salvarConfigMensagens, ajustarSaldo, boasVindas, criarRecarga, creditarRecarga, definirMensagensDoNegocio, SemSaldo } = await import("@/lib/consumo.server");
+  const { CONFIG_PADRAO, quandoFoi } = await import("@/lib/consumo");
+  const { baixar } = await import("@/lib/cobranca");
   const { avisarConfirmacaoPorSms } = await import("@/lib/sms-agendamento.server");
   const { zonedTime, addDays, todayIn } = await import("@/lib/datetime");
   const { optInDoAgendamento } = await import("@/lib/consentimento-whatsapp");
+  const { OPTIN_DONO } = await import("@/lib/atendys");
   await db.doc("tenants/gasto").set({ name: "Gasto", sms: { ligado: true } });
   await gravarConexao(db, "gasto", { atendysTenantId: "t-g", atendysApiKey: "k-g", atendysWebhookSecret: "s-gasto", instanceId: "gasto-main", phone: null, status: "connected", updatedAt: 0 });
   const conn = (await lerConexao(db, "gasto"))!;
   // preço do /admin: o snapshot de cada envio usa o vigente
-  await salvarPrecos({ whatsappUtilityCents: 7, whatsappServiceCents: 1, smsCents: 20 }, "teste");
+  await salvarConfigMensagens({ ...CONFIG_PADRAO, whatsappUtilityCents: 7, whatsappServiceCents: 1, smsCents: 20, avisoSaldoCents: 95 }, "teste");
   const { mes } = quandoFoi(new Date());
   const consumo = async () => (await db.doc(`tenants/gasto/consumo/${mes}`).get()).data()!;
   const envio = async (id: string) => (await db.doc(`tenants/gasto/envios/${id}`).get()).data()!;
+  const saldo = async () => (await db.doc("tenants/gasto/privado/mensagens").get()).get("saldoCents");
+  // o extrato fecha com o saldo: a soma dos lançamentos é o saldo, e o último saldoApos também
+  const extratoFecha = async () => {
+    const docs = (await db.collection("tenants/gasto/creditos").get()).docs;
+    assert.equal(docs.reduce((t, d) => t + Number(d.get("valorCents")), 0), await saldo(), "soma do extrato = saldo");
+    const ultimo = docs.sort((a, b) => a.get("em").toMillis() - b.get("em").toMillis()).at(-1)!;
+    assert.equal(ultimo.get("saldoAposCents"), await saldo(), "saldoApos do último lançamento = saldo");
+  };
 
-  // lembrete pelo número do salão: tipo, via, destino mascarado, agendamento (do aceite) e custo
+  // conta aberta pelo ajuste do /admin (com motivo)
+  await assert.rejects(ajustarSaldo("gasto", 100, " ", "teste"), /motivo/);
+  assert.equal(await ajustarSaldo("gasto", 100, "crédito de teste", "teste"), 100);
+
+  // lembrete pelo número do salão: tipo, via, destino mascarado, agendamento (do aceite), custo e débito
   const G1 = "a1d4d428-4361-4153-bc2c-60db816d8b77";
   const optIn = optInDoAgendamento({ tenantId: "gasto", agendamentoId: "AG1", versao: "v", em: new Date() });
   novo({ "POST /v1/message/send-text": json({ id: G1, status: "queued" }) });
   await enviarSemOperador(conn, "5591988776389", "Lembrete do seu horário", optIn, undefined, { tipo: "lembrete" });
   const e1 = await envio(G1);
   assert.deepEqual(
-    [e1.canal, e1.via, e1.tipo, e1.destino, e1.destinatario, e1.agendamentoId, e1.status, e1.precoCents, e1.custoCents, e1.moeda, e1.mes],
-    ["whatsapp", "salao", "lembrete", "(91) •••••-6389", "cliente", "AG1", "aceito", 7, 7, "BRL", mes],
+    [e1.canal, e1.via, e1.tipo, e1.destino, e1.destinatario, e1.agendamentoId, e1.status, e1.precoCents, e1.custoCents, e1.debitadoCents, e1.moeda, e1.mes],
+    ["whatsapp", "salao", "lembrete", "(91) •••••-6389", "cliente", "AG1", "aceito", 7, 7, 7, "BRL", mes],
   );
   assert.ok(!JSON.stringify(e1).includes("988776389") && !JSON.stringify(e1).includes("Lembrete do seu"), "nem telefone inteiro nem texto (LGPD)");
+  assert.equal(await saldo(), 93);
+  // cruzou o aviso (95) para baixo: marcado uma vez
+  assert.ok((await db.doc("tenants/gasto/privado/mensagens").get()).get("avisadoSaldoBaixoEm"), "aviso de saldo baixo marcado");
+  const avisos = async () => (await db.collection("tenants/gasto/creditos").where("tipo", "==", "aviso").get()).docs;
+  const [av] = await avisos();
+  assert.deepEqual([av.get("valorCents"), av.get("saldoAposCents")], [0, 93], "o aviso aparece no extrato, com valor 0");
+  assert.match(av.get("motivo"), /^Seu saldo de mensagens está em R\$ 0,93 e deve acabar em ~\d+ dias\. Para garantir o mês, recarregue R\$ \d+,00 \(pacote/);
+  assert.equal((await db.doc("tenants/gasto/privado/mensagens").get()).get("previsao").nivel, "atencao", "a previsão fica pronta na conta");
   let c = await consumo();
   assert.deepEqual([c.total, c.custoCents, c.canais.whatsapp.total, c.vias.salao, c.tipos.lembrete.total, c.status.aceito], [1, 7, 1, 1, 1, 1]);
-  // o mesmo envio de novo (idempotency-key devolve a mensagem já aceita): não soma duas vezes
+  // o mesmo envio de novo (idempotency-key devolve a mensagem já aceita): não soma nem debita duas vezes
   await enviarSemOperador(conn, "5591988776389", "Lembrete do seu horário", optIn, undefined, { tipo: "lembrete" });
-  assert.equal((await consumo()).total, 1);
+  assert.deepEqual([(await consumo()).total, await saldo()], [1, 93]);
 
   // webhook: entregue e lido seguem cobrados; um delivered atrasado não volta o status
   await entregar({ event: "message.status", messageId: G1, status: "delivered", at: "2030-01-01T00:00:01Z" }, "s-gasto");
@@ -1100,43 +1123,118 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   await entregar({ event: "message.status", messageId: G1, status: "delivered", at: "2030-01-01T00:00:01Z" }, "s-gasto");
   assert.equal((await envio(G1)).status, "lido");
   c = await consumo();
-  assert.deepEqual([c.status.aceito, c.status.entregue, c.status.lido, c.custoCents], [0, 0, 1, 7]);
+  assert.deepEqual([c.status.aceito, c.status.entregue, c.status.lido, c.custoCents, await saldo()], [0, 0, 1, 7, 93]);
 
-  // webhook failed: o status muda, o erro fica e o custo volta (falhou não cobra)
+  // webhook failed: o status muda, o erro fica, o custo sai do mês e o saldo é estornado
   const G2 = "a2d4d428-4361-4153-bc2c-60db816d8b77";
   novo({ "POST /v1/message/send-text": json({ id: G2, status: "queued" }) });
   await enviarSemOperador(conn, "5591988776389", "Seu horário está confirmado", optIn, undefined, { tipo: "confirmado" });
-  assert.equal((await consumo()).custoCents, 14);
+  assert.deepEqual([(await consumo()).custoCents, await saldo()], [14, 86]);
   assert.equal((await entregar({ event: "message.status", messageId: G2, status: "failed", errorCode: "META_131026" }, "s-gasto")).status, 200);
   const e2 = await envio(G2);
-  assert.deepEqual([e2.status, e2.erro, e2.custoCents], ["falhou", "META_131026", 0]);
+  assert.deepEqual([e2.status, e2.erro, e2.custoCents, e2.debitadoCents], ["falhou", "META_131026", 0, 0]);
   c = await consumo();
   assert.deepEqual([c.total, c.custoCents, c.status.falhou, c.tipos.confirmado.custoCents, c.canais.whatsapp.custoCents], [2, 7, 1, 0, 7]);
-  // assinatura errada não mexe no consumo
+  assert.equal(await saldo(), 93, "falhou estorna");
+  const dia = `${mes}-${quandoFoi(new Date()).dia}`;
+  assert.equal((await db.doc(`tenants/gasto/creditos/estorno:${dia}`).get()).get("valorCents"), 7);
+  assert.equal((await db.doc(`tenants/gasto/creditos/consumo:${dia}`).get()).get("valorCents"), -14, "o consumo do dia num documento só");
+  // reentrega do failed: não estorna de novo
+  await entregar({ event: "message.status", messageId: G2, status: "failed", errorCode: "META_131026" }, "s-gasto");
+  assert.equal(await saldo(), 93);
+  // assinatura errada não mexe em nada
   const G3 = "a3d4d428-4361-4153-bc2c-60db816d8b77";
   novo({ "POST /v1/message/send-text": json({ id: G3, status: "queued" }) });
   await enviarSemOperador(conn, "5591988776389", "oi", optIn);
   await entregar({ event: "message.status", messageId: G3, status: "failed" }, "errado");
-  assert.equal((await envio(G3)).status, "aceito");
-  assert.equal((await envio(G3)).tipo, "outro", "sem tipo de quem chama: outro");
+  assert.deepEqual([(await envio(G3)).status, (await envio(G3)).tipo, await saldo()], ["aceito", "outro", 86]);
 
   // parada na cota não cobra; voltou à fila (queued) cobra
   const G4 = "a4d4d428-4361-4153-bc2c-60db816d8b77";
   novo({ "POST /v1/message/send-text": json({ id: G4, status: "awaiting_manual", retryAt: "2030-01-01T03:00:00.000Z" }, 202) });
-  await enviarTexto(conn, "5591988776389", "aviso", (await import("@/lib/atendys")).OPTIN_DONO);
-  assert.deepEqual([(await envio(G4)).status, (await envio(G4)).custoCents, (await envio(G4)).destinatario], ["parado", 0, "dono"]);
+  await enviarTexto(conn, "5591988776389", "aviso", OPTIN_DONO);
+  assert.deepEqual([(await envio(G4)).status, (await envio(G4)).custoCents, (await envio(G4)).destinatario, await saldo()], ["parado", 0, "dono", 86]);
   await entregar({ event: "message.status", messageId: G4, status: "queued" }, "s-gasto");
-  assert.deepEqual([(await envio(G4)).status, (await envio(G4)).custoCents], ["aceito", 7]);
+  assert.deepEqual([(await envio(G4)).status, (await envio(G4)).custoCents, await saldo()], ["aceito", 7, 79]);
 
-  // SMS: grava no aceite da Comtele, com o preço do SMS
+  // SMS: grava no aceite da Comtele, com o preço do SMS, e debita
   const amanha = addDays(todayIn(), 1);
   await db.doc("tenants/gasto/appointments/AGS").set({ status: "confirmed", start: zonedTime(amanha, "10:00"), customerName: "Ana", customerPhone: "(91) 98877-6389", serviceName: "Corte" });
   assert.equal(await avisarConfirmacaoPorSms(db, "gasto", "AGS", { enviar: async () => "req-123", alertar: async () => {} }), "enviado");
   const s1 = await envio("sms-req-123");
   assert.deepEqual([s1.canal, s1.tipo, s1.status, s1.destino, s1.agendamentoId, s1.custoCents], ["sms", "confirmado", "enviado", "(91) •••••-6389", "AGS", 20]);
   c = await consumo();
-  assert.deepEqual([c.canais.sms.total, c.canais.sms.custoCents, c.dias[quandoFoi(new Date()).dia].sms], [1, 20, 1]);
-  await salvarPrecos({ whatsappUtilityCents: 5, whatsappServiceCents: 0, smsCents: 12 }, "teste");
+  assert.deepEqual([c.canais.sms.total, c.canais.sms.custoCents, c.dias[quandoFoi(new Date()).dia].sms, await saldo()], [1, 20, 1, 59]);
+  await extratoFecha();
+
+  // sem saldo (pausar-clientes): aviso ao cliente não sai e fica "sem-saldo"; lembrete e aviso ao dono saem
+  await ajustarSaldo("gasto", -55, "zerar para o teste", "teste");
+  novo({ "POST /v1/message/send-text": json({ id: "a5d4d428-4361-4153-bc2c-60db816d8b77", status: "queued" }) });
+  await assert.rejects(enviarSemOperador(conn, "5591988776389", "Confirmado!", optIn, undefined, { tipo: "confirmado", chave: "confirmado-gasto-1" }), (e: unknown) => e instanceof SemSaldo);
+  assert.equal(chamadas.length, 0, "nem chega ao atendys");
+  const bloqueado = await envio("sem-saldo-confirmado-gasto-1");
+  assert.deepEqual([bloqueado.status, bloqueado.custoCents, bloqueado.tipo, await saldo()], ["sem-saldo", 0, "confirmado", 4]);
+  assert.equal((await consumo()).status["sem-saldo"], 1);
+  await enviarSemOperador(conn, "5591988776389", "Lembrete", optIn, undefined, { tipo: "lembrete" });
+  assert.equal(await saldo(), -3, "lembrete sai mesmo sem saldo");
+  // SMS a cliente sem saldo: não sai, a reserva fica
+  await db.doc("tenants/gasto/appointments/AGS2").set({ status: "confirmed", start: zonedTime(amanha, "11:00"), customerName: "Ana", customerPhone: "(91) 98877-6389", serviceName: "Corte" });
+  let smsSaiu = false;
+  assert.equal(await avisarConfirmacaoPorSms(db, "gasto", "AGS2", { enviar: async () => ((smsSaiu = true), "req-9"), alertar: async () => {} }), "falhou");
+  assert.equal(smsSaiu, false);
+  assert.equal((await envio("sem-saldo-sms-AGS2-smsConfirmacaoEm")).status, "sem-saldo");
+  assert.ok((await db.doc("tenants/gasto/appointments/AGS2").get()).get("smsConfirmacaoEm"), "a reserva fica: sem nova tentativa a cada ciclo");
+  // pausar-tudo: até o lembrete para; o pedido ao dono sempre sai
+  await salvarConfigMensagens({ ...CONFIG_PADRAO, whatsappUtilityCents: 7, whatsappServiceCents: 1, smsCents: 20, semSaldo: "pausar-tudo" }, "teste");
+  await assert.rejects(enviarSemOperador(conn, "5591988776389", "Lembrete", optIn, undefined, { tipo: "lembrete" }), (e: unknown) => e instanceof SemSaldo);
+  novo({ "POST /v1/message/send-text": json({ id: "a6d4d428-4361-4153-bc2c-60db816d8b77", status: "queued" }) });
+  await enviarSemOperador(conn, "5591988776389", "Novo agendamento", OPTIN_DONO, undefined, { tipo: "pedido_dono" });
+  assert.equal(await saldo(), -10);
+  // o /admin desliga a cobrança só deste negócio: sai e não debita
+  await definirMensagensDoNegocio("gasto", { cobrar: false, precos: null });
+  novo({ "POST /v1/message/send-text": json({ id: "a7d4d428-4361-4153-bc2c-60db816d8b77", status: "queued" }) });
+  await enviarSemOperador(conn, "5591988776389", "Confirmado", optIn, undefined, { tipo: "confirmado" });
+  assert.deepEqual([(await envio("a7d4d428-4361-4153-bc2c-60db816d8b77")).custoCents, await saldo()], [0, -10]);
+  await definirMensagensDoNegocio("gasto", { cobrar: null, precos: { smsCents: 3 } });
+  assert.equal((await db.doc("tenants/gasto/privado/mensagens").get()).get("cobrar"), undefined, "null volta ao geral");
+  await extratoFecha();
+
+  // recarga por Pix: pacote de R$ 50 + R$ 5 de bônus; o saldo entra só depois da baixa, uma vez
+  await assert.rejects(criarRecarga("gasto", { valorCents: 500 }), /mínima/);
+  await assert.rejects(criarRecarga("gasto", { pacoteId: "nao-existe" }), /pacote/);
+  const r = await criarRecarga("gasto", { pacoteId: "p50" });
+  assert.ok(r.url.endsWith(`/pagar/${r.id}?t=${(await db.doc(`cobrancas/${r.id}`).get()).get("token")}`));
+  const cob = await db.doc(`cobrancas/${r.id}`).get();
+  assert.deepEqual([cob.get("tipo"), cob.get("valorCents"), cob.get("bonusCents"), cob.get("status")], ["recarga", 5000, 500, "aberta"]);
+  await assert.rejects(creditarRecarga(r.id), /não paga/);
+  assert.equal(await saldo(), -10);
+  assert.equal((await baixar(db, r.id, { recebidoCents: 5000, pagoEm: todayIn(), por: "teste" })).tipo, "recarga");
+  assert.equal(await creditarRecarga(r.id), 5490);
+  assert.equal(await creditarRecarga(r.id), null, "a mesma recarga não credita duas vezes");
+  const conta = await db.doc("tenants/gasto/privado/mensagens").get();
+  assert.deepEqual([conta.get("saldoCents"), conta.get("previsao").nivel, typeof conta.get("ultimaRecargaEm")], [5490, "ok", "number"], "recarga soma valor + bônus e a previsão volta a ok");
+  // até a recarga, um aviso só (o saldo passou por atenção e crítico); depois dela, um novo aviso cabe
+  assert.equal((await avisos()).length, 1, "um aviso por recarga");
+  await ajustarSaldo("gasto", -5450, "baixar para o teste", "teste");
+  assert.equal((await avisos()).length, 2, "depois da recarga, o nível piorou: novo aviso");
+  await ajustarSaldo("gasto", -30, "baixar mais", "teste");
+  assert.equal((await avisos()).length, 2, "piorou de novo sem recarga: não repete");
+  const lanc = await db.doc(`tenants/gasto/creditos/recarga:${r.id}`).get();
+  assert.deepEqual([lanc.get("tipo"), lanc.get("valorCents"), lanc.get("saldoAposCents"), lanc.get("ref").cobrancaId], ["recarga", 5500, 5490, r.id]);
+  // recarga livre (mínimo R$ 10)
+  const livre = await criarRecarga("gasto", { valorCents: 1500 });
+  assert.equal((await db.doc(`cobrancas/${livre.id}`).get()).get("bonusCents"), 0);
+  await extratoFecha();
+
+  // boas-vindas: uma vez só por negócio (cobrar e pré-pago)
+  await boasVindas("novo-negocio");
+  await boasVindas("novo-negocio");
+  const bv = await db.collection("tenants/novo-negocio/creditos").get();
+  assert.deepEqual([bv.size, bv.docs[0].get("tipo"), bv.docs[0].get("valorCents"), (await db.doc("tenants/novo-negocio/privado/mensagens").get()).get("saldoCents")], [1, "boas-vindas", 1000, 1000]);
+  await salvarConfigMensagens({ ...CONFIG_PADRAO, cobrar: false }, "teste");
+  await boasVindas("sem-cobranca");
+  assert.equal((await db.collection("tenants/sem-cobranca/creditos").get()).size, 0, "sem cobrar: sem boas-vindas");
+  await salvarConfigMensagens(CONFIG_PADRAO, "teste");
 }
 
 console.log("atendys ok");

@@ -1,10 +1,10 @@
 import "server-only";
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import QRCode from "qrcode";
 import { atualizarParada, avisarFalhaDeEnvio, NAO_SAI_A_TEMPO, prazoDaParada, registrarParada, vigiarEnvio } from "@/lib/mensagens-paradas.server";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { agendamentoDoEnvio, statusDoAtendys, tipoDoTemplate, type TipoEnvio } from "@/lib/consumo";
-import { atualizarEnvio, registrarEnvio } from "@/lib/consumo.server";
+import { atualizarEnvio, registrarEnvio, SemSaldo, verificarEnvio } from "@/lib/consumo.server";
 import { integracao } from "@/lib/integracoes.server";
 
 // Cliente da plataforma de notificações WhatsApp (atendys). Só roda no servidor:
@@ -441,6 +441,19 @@ export async function enviarTemplateSemOperador(conn: ConexaoAtendys, phone: str
 async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn, caminho: string, corpo: unknown, message: string, prazo?: Date, resposta = false, chave?: string, rotulo: { tipo?: TipoEnvio; template?: string; botoes?: string[] } = {}): Promise<Envio> {
   // a mesma chave nas duas tentativas (antes e depois do opt-in): a recusa NOT_OPTED_IN não grava nada no atendys
   const auth = { ...authTenant(conn), instance: conn.instanceId, ...(chave && { "idempotency-key": chave }) };
+  // consumo do negócio (tenants/{slug}/envios): o que é, para quem e por qual número
+  const consumo = conn.slug ? {
+    canal: "whatsapp" as const, via: conn.oficial ? "oficial" as const : "salao" as const, tipo: rotulo.tipo ?? (resposta ? "resposta" : "outro"), template: rotulo.template,
+    fone: digits, destinatario: optIn === OPTIN_DONO ? "dono" as const : "cliente" as const, agendamentoId: agendamentoDoEnvio(conn.slug, optIn?.eventId, rotulo.botoes), servico: resposta,
+  } : null;
+  // pré-pago sem saldo: não sai; fica registrada como "sem-saldo" (custo 0) para o painel
+  if (conn.slug && consumo) {
+    const v = await verificarEnvio(conn.slug, consumo);
+    if (!v.envia) {
+      await registrarEnvio(conn.slug, { ...consumo, id: `sem-saldo-${chave ?? randomUUID()}`, status: "sem-saldo", erro: v.motivo });
+      throw new SemSaldo(`Mensagem não enviada: ${v.motivo}. Recarregue o saldo de mensagens no painel.`);
+    }
+  }
   const enviar = async (): Promise<Envio> => {
     const r = await chamar<{ id: string; status: string } & Omit<Envio, "messageId" | "status">>(auth, "POST", caminho, corpo);
     // os campos da cota só quando vêm: o envio comum continua { messageId, status }
@@ -455,11 +468,7 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
   };
   const registrar = async (e: Envio) => {
     // consumo: antes do índice do webhook, para o message.status já achar o envio
-    if (conn.slug) await registrarEnvio(conn.slug, {
-      id: e.messageId, canal: "whatsapp", via: conn.oficial ? "oficial" : "salao", tipo: rotulo.tipo ?? (resposta ? "resposta" : "outro"), template: rotulo.template,
-      fone: digits, destinatario: optIn === OPTIN_DONO ? "dono" : "cliente", agendamentoId: agendamentoDoEnvio(conn.slug, optIn?.eventId, rotulo.botoes),
-      status: statusDoAtendys(e.status) ?? "aceito", erro: e.errorCode, servico: resposta,
-    });
+    if (conn.slug && consumo) await registrarEnvio(conn.slug, { ...consumo, id: e.messageId, status: statusDoAtendys(e.status) ?? "aceito", erro: e.errorCode });
     if (aguardaDecisao(e) && conn.slug) await registrarParada(conn.slug, { messageId: e.messageId, retryAt: e.retryAt, errorCode: e.errorCode, para: digits, texto: message, prazo });
     // todo envio aceito é vigiado: a falha que vem depois (a Meta recusou, venceu o prazo no
     // atendys) chega ao negócio pelo message.status failed
