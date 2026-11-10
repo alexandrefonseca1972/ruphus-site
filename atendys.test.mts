@@ -1023,6 +1023,97 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   const resposta = await comAfter(() => agendar(pedido));
   assert.equal(((await resposta.json()) as { ok: boolean }).ok, true);
   assert.match((await lerConfigWhatsApp(db, "ofc"))?.lastNotifyError?.message ?? "", /aviso ao salão parou na cota/);
+
+  // ── WhatsApp do dono pelo painel: salvar liga o canal oficial e manda o "Sou eu"; só o número cadastrado confirma ──
+  const { cadastrarDonoOficial, enviarConfirmacaoDono, instanciaPlataforma } = await import("@/lib/canal-oficial.server");
+  const { gravarOwnerPhone } = await import("@/lib/whatsapp.server");
+  const saidas: { caminho: string; corpo: Record<string, unknown> }[] = [];
+  const sai = (caminho: string) => (corpo: unknown) => (saidas.push({ caminho, corpo: corpo as Record<string, unknown> }), Response.json({ id: `d${saidas.length}`, status: "queued" }));
+  const rotasDono = { "POST /v1/message/send-template": sai("template"), "POST /v1/message/send-text": sai("texto") };
+  novo(rotasDono);
+  const negocio = db.doc("tenants/dono-novo");
+  const privDono = db.doc("tenants/dono-novo/privado/whatsapp");
+  await negocio.set({ name: "Bela*Vista", site: { phone: "(91) 3233-4455" } });
+  // plataforma sem credenciais: erro previsto e nada muda no negócio
+  const credenciais = (await db.doc("config/atendys-plataforma").get()).data()!;
+  await db.doc("config/atendys-plataforma").delete();
+  await assert.rejects(cadastrarDonoOficial(db, "dono-novo", "5591992361726"), /O canal oficial ainda não está pronto: fale com a Ruphus/);
+  assert.equal((await negocio.get()).get("whatsapp.canalOficial"), undefined);
+  await db.doc("config/atendys-plataforma").set(credenciais);
+  await assert.rejects(cadastrarDonoOficial(db, DEMO, "5591992361726"), /demonstração/);
+
+  assert.equal(await cadastrarDonoOficial(db, "dono-novo", "5591992361726"), "enviado");
+  assert.equal((await negocio.get()).get("whatsapp.canalOficial"), true, "salvar liga o canal oficial");
+  assert.equal((await privDono.get()).get("ownerPhone"), "5591992361726");
+  const confirmacao = saidas.at(-1)!;
+  assert.deepEqual([confirmacao.caminho, confirmacao.corpo.name, confirmacao.corpo.number], ["template", "ruphus_confirmar_whatsapp_dono", "5591992361726"]);
+  const partes = confirmacao.corpo.components as { type: string; parameters: { text?: string; payload?: string }[] }[];
+  assert.deepEqual(partes.map((p) => p.parameters[0].text ?? p.parameters[0].payload), ["*BelaVista*", "rph:ok:dono-novo:dono"]);
+  // reenviar em menos de 10 min: nada sai
+  const antes = saidas.length;
+  assert.equal(await enviarConfirmacaoDono(db, "dono-novo"), "aguarde");
+  assert.equal(saidas.length, antes);
+  // envio recusado: a marca sai e o dono pode reenviar já
+  await privDono.update({ confirmacaoEnviadaEm: Date.now() - 11 * 60_000 });
+  novo({ "POST /v1/message/send-template": json({ message: "recusado" }, 400) });
+  assert.equal(await enviarConfirmacaoDono(db, "dono-novo"), "falhou");
+  assert.equal((await privDono.get()).get("confirmacaoEnviadaEm"), undefined);
+  novo(rotasDono);
+  assert.equal(await enviarConfirmacaoDono(db, "dono-novo"), "enviado");
+
+  // webhook: "Sou eu" de outro telefone é ignorado
+  const souEu = (phone: string, messageId: string) => comAfter(() => entregar({ event: "message.received", instance: instanciaPlataforma(), type: "text", messageId, phone, text: "Sou eu", reply: { id: "rph:ok:dono-novo:dono", title: "Sou eu" }, at: new Date().toISOString() }, "sp"));
+  const antesDoToque = saidas.length;
+  assert.equal((await souEu("5511977770000", "wamid-ok-1")).status, 200);
+  assert.equal((await privDono.get()).get("ownerPhoneVerifiedAt"), undefined, "outro telefone não confirma");
+  assert.equal(saidas.length, antesDoToque, "nem recebe resposta");
+  // do número cadastrado (aqui na forma antiga, sem o 9): confirma e responde uma vez
+  assert.equal((await souEu("559192361726", "wamid-ok-2")).status, 200);
+  assert.equal(typeof (await privDono.get()).get("ownerPhoneVerifiedAt"), "number");
+  assert.deepEqual([saidas.at(-1)!.caminho, saidas.at(-1)!.corpo.text, saidas.at(-1)!.corpo.replyToInbound], ["texto", "Pronto! Os pedidos de agendamento de *BelaVista* chegam neste número.", true]);
+  await souEu("5591992361726", "wamid-ok-3");
+  assert.equal(saidas.length, antesDoToque + 1, "toque repetido não responde de novo");
+  assert.equal(await enviarConfirmacaoDono(db, "dono-novo"), "confirmado", "confirmado não reenvia");
+  // salvar o mesmo número: continua confirmado e nada sai
+  assert.equal(await cadastrarDonoOficial(db, "dono-novo", "5591992361726"), "confirmado");
+  assert.equal(saidas.length, antesDoToque + 1);
+  // número novo (pelo painel ou pelo /admin): a confirmação era do anterior
+  assert.equal(await cadastrarDonoOficial(db, "dono-novo", "5591988887766"), "enviado");
+  assert.equal((await privDono.get()).get("ownerPhoneVerifiedAt"), undefined);
+  await privDono.set({ ownerPhoneVerifiedAt: Date.now() }, { merge: true });
+  await gravarOwnerPhone(db, "dono-novo", "5591988887766");
+  assert.equal(typeof (await privDono.get()).get("ownerPhoneVerifiedAt"), "number", "admin regravando o mesmo número mantém");
+  await gravarOwnerPhone(db, "dono-novo", "5591977776655");
+  assert.equal((await privDono.get()).get("ownerPhoneVerifiedAt"), undefined, "admin trocando o número zera");
+
+  // teto diário: no máximo 5 confirmações por negócio por dia, mesmo trocando de número
+  const { todayIn: hojeNoFuso } = await import("@/lib/datetime");
+  await privDono.set({ confirmacoesHoje: { dia: hojeNoFuso(), n: 4 } }, { merge: true });
+  assert.equal(await cadastrarDonoOficial(db, "dono-novo", "5591966665544"), "enviado", "a 5ª sai");
+  assert.deepEqual((await privDono.get()).get("confirmacoesHoje"), { dia: hojeNoFuso(), n: 5 });
+  const noTeto = saidas.length;
+  assert.equal(await cadastrarDonoOficial(db, "dono-novo", "5591955554433"), "limite", "a 6ª não sai, número novo também");
+  assert.equal(saidas.length, noTeto);
+  assert.equal((await privDono.get()).get("ownerPhone"), "5591955554433", "o número fica salvo");
+  // contagem de outro dia não conta
+  await privDono.set({ confirmacoesHoje: { dia: "2000-01-01", n: 5 } }, { merge: true });
+  assert.equal(await cadastrarDonoOficial(db, "dono-novo", "5591944443322"), "enviado");
+  // envio que falha devolve a vaga do dia
+  await privDono.set({ confirmacaoEnviadaEm: Date.now() - 11 * 60_000 }, { merge: true });
+  novo({ "POST /v1/message/send-template": json({ message: "recusado" }, 400) });
+  assert.equal(await enviarConfirmacaoDono(db, "dono-novo"), "falhou");
+  assert.equal((await privDono.get()).get("confirmacoesHoje.n"), 1);
+  novo(rotasDono);
+
+  // número próprio gerenciado pela Ruphus fora do canal oficial: o dono não troca pelo painel
+  const gerido = db.doc("tenants/dono-gerido");
+  await gerido.set({ name: "Gerido", whatsapp: { ownerManaged: false, instanceId: "gerido-main" } });
+  await assert.rejects(cadastrarDonoOficial(db, "dono-gerido", "5591992361726"), /Gerenciado pela plataforma — fale com o suporte para trocar o número/);
+  assert.equal((await db.doc("tenants/dono-gerido/privado/whatsapp").get()).exists, false);
+  assert.equal((await gerido.get()).get("whatsapp.canalOficial"), undefined);
+  // já no canal oficial, o dono troca normalmente
+  await gerido.set({ whatsapp: { canalOficial: true } }, { merge: true });
+  assert.equal(await cadastrarDonoOficial(db, "dono-gerido", "5591992361726"), "enviado");
 }
 
 // ── resposta automática a quem escreve ao número da plataforma fora do fluxo ──

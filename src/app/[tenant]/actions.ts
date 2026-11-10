@@ -1,6 +1,6 @@
 "use server";
 
-import { conexaoOficial } from "@/lib/canal-oficial.server";
+import { cadastrarDonoOficial, conexaoOficial, enviarConfirmacaoDono, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { adminDb } from "@/lib/admin";
 import { createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
@@ -12,7 +12,7 @@ import { renovarSite } from "@/lib/renovar-site.server";
 import { criarProfissional, gastarCota, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
 import { SITE_BASE } from "@/lib/dominio";
 import { atenderComo, type Atendimento, conversaVisivel, exigeConversaVisivel, permitirEquipeNasConversas, visiveis } from "@/lib/conversas.server";
-import { AtendysForaDoAr, assumirEnvio, buscarNasConversas, CHAVE_IDEMPOTENCIA, deslogarInstancia, ID_INBOX, enviarTexto, ErroAtendys, listarConversas, manterAgendada, marcarConversa, mensagensDaConversa, qrDaConexao, responderConversa, statusDaConexao, statusDaMensagem, type ConexaoAtendys } from "@/lib/atendys";
+import { AtendysForaDoAr, assumirEnvio, buscarNasConversas, CHAVE_IDEMPOTENCIA, ID_INBOX, enviarTexto, ErroAtendys, listarConversas, manterAgendada, marcarConversa, mensagensDaConversa, responderConversa, statusDaMensagem, type ConexaoAtendys } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
@@ -23,8 +23,8 @@ import { atualizarParada, negocioDaMensagem, paradasDoNegocio } from "@/lib/mens
 import { htmlDoRecibo, textoDoRecibo } from "@/lib/recibo";
 import { reciboDoBanco } from "@/lib/recibo.server";
 import { agoraNaParede, formatBRL, fusoDe } from "@/lib/datetime";
-import { soDigitosComDDI } from "@/lib/telefone";
-import { aceitarTermoWhatsApp, conectarNegocio, type ConexaoWhatsapp, desligarConexao, espelharStatusVivo, lerConfigWhatsApp, lerConexao, paraTela } from "@/lib/whatsapp.server";
+import { celularDoDono, soDigitosComDDI } from "@/lib/telefone";
+import { type ConexaoWhatsapp, lerConfigWhatsApp, lerConexao, paraTela } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { criarConvite, revogarConvitesDaEquipe, tirarAcessosDoProfissional } from "@/lib/convite";
@@ -277,8 +277,8 @@ export const salvarNegocioAction = memberAction(z.object({ tenantId: docIdStaff,
 });
 
 // ─── WhatsApp do negócio (painel do dono) ────────────────────────────────────
-// A mesma seção existe no /admin da plataforma, com prioridade: quando a
-// plataforma assume a conexão (ownerManaged false), aqui vira só leitura.
+// Os avisos saem pelo canal oficial (número da Ruphus): o dono só cadastra o WhatsApp pessoal, que
+// recebe os pedidos. Parear número próprio (QR) ficou só no /admin.
 
 const SoTenant = z.object({ tenantId: docIdStaff });
 
@@ -289,72 +289,37 @@ export const lerWhatsAppDoNegocioAction = memberAction(SoTenant, async ({ tenant
   return paraTela((await lerConfigWhatsApp(adminDb, tenantId)) ?? vazia);
 });
 
-export const aceitarTermoWhatsAppAction = memberAction(SoTenant, async ({ tenantId }, user) => {
-  await exigeGestor(tenantId, user.uid);
-  await aceitarTermoWhatsApp(adminDb, tenantId);
-  return true;
-});
+/** WhatsApp pessoal do dono no canal oficial: só celular brasileiro (celularDoDono; o fixo do
+ *  negócio com um 9 na frente é conferido depois, com o site.phone). Salvar liga o canal oficial e
+ *  manda a confirmação "Sou eu" pelo número da Ruphus. */
+export const definirWhatsAppDonoAction = memberAction(
+  z.object({
+    tenantId: docIdStaff,
+    telefone: z.string().max(40).transform((v, ctx) => {
+      const r = celularDoDono(v);
+      if ("erro" in r) {
+        ctx.addIssue({ code: "custom", message: r.erro });
+        return z.NEVER;
+      }
+      return r.numero;
+    }),
+  }),
+  async ({ tenantId, telefone }, user) => {
+    await exigeGestor(tenantId, user.uid);
+    // ownerManaged false fora do canal oficial é recusado em cadastrarDonoOficial (quem troca é o suporte)
+    const r = celularDoDono(telefone, (await adminDb.doc(`tenants/${tenantId}`).get()).get("site.phone") as string | undefined);
+    if ("erro" in r) throw new UserError(r.erro);
+    const envio = await cadastrarDonoOficial(adminDb, tenantId, r.numero);
+    return { envio, cfg: paraTela((await lerConfigWhatsApp(adminDb, tenantId)) ?? ({} as Partial<ConexaoWhatsapp>)) };
+  },
+);
 
-// ponytail: trava em memória por negócio (um processo na VPS); vira doc de lock se houver mais de um processo
-const conectando = new Map<string, Promise<unknown>>();
-
-export const conectarWhatsAppDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
+/** Manda de novo o "Sou eu" (no máximo um a cada 10 min, conferido em enviarConfirmacaoDono). */
+export const reenviarConfirmacaoDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
   await exigeGestor(tenantId, user.uid);
-  // dois cliques seguidos passavam os dois pelo "já existe conexão?" e criavam duas instâncias
-  if (conectando.has(tenantId)) throw new UserError("Já estamos conectando. Aguarde o QR.");
-  const tarefa = (async () => {
-    const config = await lerConfigWhatsApp(adminDb, tenantId);
-    if (config?.ownerManaged === false) {
-      throw new UserError("O WhatsApp do seu negócio é gerenciado pela plataforma. Fale com o suporte para conectar ou alterar.");
-    }
-    if (!config?.termsAcceptedAt) {
-      throw new UserError("Leia e aceite o termo sobre o WhatsApp antes de conectar.");
-    }
-    if (await lerConexao(adminDb, tenantId)) throw new UserError("Já existe um WhatsApp conectado. Desconecte antes de trocar de número.");
-    return paraTela(await conectarNegocio(adminDb, tenantId, tenantId, true));
-  })();
-  conectando.set(tenantId, tarefa);
-  try {
-    return await tarefa;
-  } finally {
-    conectando.delete(tenantId);
-  }
-});
-
-export const refreshWhatsAppStatusDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
-  await exigeGestor(tenantId, user.uid);
-  const salva = await lerConexao(adminDb, tenantId);
-  if (!salva) return null;
-  const lidoEm = Date.now();
-  const vivo = await statusDaConexao(salva);
-  await espelharStatusVivo(adminDb, tenantId, vivo, lidoEm);
-  return paraTela(await lerConfigWhatsApp(adminDb, tenantId));
-});
-
-export const qrWhatsAppDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
-  await exigeGestor(tenantId, user.uid);
-  const config = await lerConfigWhatsApp(adminDb, tenantId);
-  if (config?.ownerManaged === false) throw new UserError("Gerenciado pela plataforma — quem conecta é o suporte.");
-  const salva = await lerConexao(adminDb, tenantId);
-  if (!salva) throw new UserError("Conecte o WhatsApp antes de pedir o QR.");
-  return qrDaConexao(salva);
-});
-
-export const desconectarWhatsAppDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
-  await exigeGestor(tenantId, user.uid);
-  const config = await lerConfigWhatsApp(adminDb, tenantId);
-  if (config?.ownerManaged === false) throw new UserError("Gerenciado pela plataforma — quem desconecta é o suporte.");
-  const salva = await lerConexao(adminDb, tenantId);
-  // solta o vínculo ANTES de despareiar: o "disconnected" que o atendys manda no logout chega
-  // sem negócio para achar, e o dono não recebe "seu WhatsApp desconectou" pelo que ele pediu
-  await desligarConexao(adminDb, tenantId);
-  if (salva) {
-    // o gateway não respondeu: o número pode seguir logado lá, e reconectar criaria uma segunda
-    // instância. O vínculo já foi solto; o dono precisa saber, não ler "desconectado"
-    const saiu = await deslogarInstancia(salva.instanceId).then(() => true, () => false);
-    if (!saiu) return "desconectado-sem-confirmacao" as const;
-  }
-  return "desconectado" as const;
+  if (!(await usaCanalOficial(adminDb, tenantId))) throw new UserError("Salve o seu WhatsApp antes.");
+  const envio = await enviarConfirmacaoDono(adminDb, tenantId);
+  return { envio, cfg: paraTela((await lerConfigWhatsApp(adminDb, tenantId)) ?? ({} as Partial<ConexaoWhatsapp>)) };
 });
 
 /** Lembretes de horário: o dono liga/desliga e escolhe quantas horas antes de
@@ -369,7 +334,8 @@ export const configurarLembretesWhatsAppAction = memberAction(
     await exigeGestor(tenantId, user.uid);
     // a tela esconde quando a plataforma gerencia; o servidor também tem que recusar
     if ((await lerConfigWhatsApp(adminDb, tenantId))?.ownerManaged === false) throw new UserError("Gerenciado pela plataforma — quem configura os lembretes é o suporte.");
-    if (!(await lerConexao(adminDb, tenantId))) throw new UserError("Conecte o WhatsApp do negócio antes de ligar os lembretes.");
+    // os lembretes saem pelo canal oficial (número da Ruphus) ou pelo número próprio que a Ruphus conectou
+    if (!(await usaCanalOficial(adminDb, tenantId)) && !(await lerConexao(adminDb, tenantId))) throw new UserError("Salve o seu WhatsApp antes de ligar os lembretes.");
     await adminDb.doc(`tenants/${tenantId}`).set({ whatsapp: { remindersEnabled: enabled, remindersBeforeHours: hours } }, { merge: true });
     return { enabled, hours };
   },

@@ -4,7 +4,7 @@ import { adminDb } from "@/lib/admin";
 import { DEMO } from "@/lib/demo";
 import { atualizarParada, avisarFalhaDeEnvio, lerIndice, NAO_SAI_A_TEMPO } from "@/lib/mensagens-paradas.server";
 import { avisarQueda, codigoDoAgendamento, espelharStatusDaInstancia, executarComandoPendente, idDoComando, lerConexao, lerConfigWhatsApp, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
-import { conexaoOficial, instanciaPlataforma, lerBotao, negocioDoComando, negociosDoDono, responderForaDoFluxo, segredoPlataforma, usaCanalOficial } from "@/lib/canal-oficial.server";
+import { confirmarDono, conexaoOficial, instanciaPlataforma, lerBotao, negocioDoComando, negociosDoDono, responderForaDoFluxo, segredoPlataforma, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { acaoDoCliente, pedidoDesatualizado } from "@/lib/botoes-whatsapp.server";
 
 // Onde o atendys avisa o que acontece nas instâncias: mensagem recebida do
@@ -115,6 +115,19 @@ export async function POST(req: Request) {
     if (!versao) return recusar("Assinatura inválida.", " na plataforma");
     if (evento.event !== "message.received" || evento.type !== "text" || !evento.phone) return responder(200, { ok: true });
     const botao = lerBotao(evento.reply?.id);
+    // "Sou eu" do dono que cadastrou o WhatsApp no painel: vale só do número cadastrado. A marca já
+    // gravada é o dedupe das reentregas (a resposta sai uma vez)
+    if (botao?.acao === "ok") {
+      const r = botao.agendamento === "dono" ? await confirmarDono(adminDb, botao.slug, evento.phone) : "id inválido";
+      if (typeof r === "string") {
+        console.warn(`[webhook atendys] "Sou eu" de ${botao.slug} ignorado: ${r} (${evento.phone.slice(-4)})`);
+        return responder(200, { ok: true });
+      }
+      const oficial = await conexaoOficial(adminDb, botao.slug).catch(() => null);
+      const texto = `Pronto! Os pedidos de agendamento de *${r.negocio.replace(/\*/g, "")}* chegam neste número.`;
+      if (oficial) after(() => enviarTexto(oficial, evento.phone!, texto, OPTIN_DONO, undefined, { resposta: true }).catch((e) => console.error("[atendys] resposta ao Sou eu", e)));
+      return responder(200, { ok: true });
+    }
     // botão do cliente (lembrete/lista de horários): a caixa de entrada é o dedupe das reentregas
     if (botao && botao.acao.startsWith("c")) {
       // id é dado de fora: só grava na caixa de um negócio do canal oficial (o resto confere acaoDoCliente)
