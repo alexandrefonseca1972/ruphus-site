@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
+import { ErroPrevisto } from "@/lib/erro-previsto";
 import { idToken } from "@/lib/firebase";
 import { db } from "@/lib/firebase-db";
 import { criarProfissionalAction, definirComissaoAction, excluirProfissionalAction } from "../actions";
@@ -80,7 +81,7 @@ export default function StaffPage() {
       const texto = String(form.get("comissao") ?? "").trim();
       const inicial = Number(form.get("comissaoInicial") ?? 0); // o % de quando o formulário abriu
       let pct = comissoes ? pctDoTexto(texto) : null;
-      if (comissoes && texto && pct === null) throw new Error("Comissão inválida. Use um número, como 40 ou 12,5.");
+      if (comissoes && texto && pct === null) throw new ErroPrevisto("Comissão inválida. Use um número, como 40 ou 12,5.");
       if (comissoes && !texto && inicial) pct = 0; // esvaziar o campo tira a comissão
       // Criar passa pelo servidor, que conta a equipe numa transação; as regras
       // não deixam o cliente criar profissional. Editar segue direto.
@@ -90,7 +91,7 @@ export default function StaffPage() {
         staffId = editing.id;
       } else {
         const r = await criarProfissionalAction(await idToken(), { tenantId: tenant.id, dados: data });
-        if (!r.ok) throw new Error(r.error);
+        if (!r.ok) throw new ErroPrevisto(r.error);
         staffId = r.id;
       }
       // o profissional já está salvo: se o % falhar, avisa sem desfazer nem duplicar.
@@ -250,13 +251,13 @@ export default function StaffPage() {
                   );
                 })}
               </dl>
-              {membros && <AcessoProfissional tenantId={tenant.id} negocio={tenant.name} staffId={p.id} nome={p.name} membro={acessoDe.get(p.id)} />}
+              {membros && <AcessoProfissional tenantId={tenant.id} negocio={tenant.name} staffId={p.id} nome={p.name} membro={acessoDe.get(p.id)} onAbrir={() => setError("")} />}
             </article>
           ))}
           {semProfissional.map((m) => (
             <article key={m.id} className="grid gap-2 rounded-2xl border border-dashed bg-card p-5 sm:p-6">
               <h2 className="text-[15px] font-semibold">Acesso sem profissional no cadastro</h2>
-              <AcessoProfissional tenantId={tenant.id} negocio={tenant.name} staffId={m.staffId ?? ""} nome={m.email ?? "esta conta"} membro={m} />
+              <AcessoProfissional tenantId={tenant.id} negocio={tenant.name} staffId={m.staffId ?? ""} nome={m.email ?? "esta conta"} membro={m} onAbrir={() => setError("")} />
             </article>
           ))}
         </div>
@@ -317,7 +318,7 @@ export default function StaffPage() {
 
               <div className="flex gap-2">
                 <Button type="submit" className="h-11 flex-1 px-4">{editing ? "Salvar alterações" : "Adicionar profissional"}</Button>
-                {editing && <Button type="button" variant="ghost" className="h-11 px-4" onClick={() => setEditing(null)}>Cancelar</Button>}
+                {editing && <Button type="button" variant="ghost" className="h-11 px-4" onClick={() => { setEditing(null); setError(""); }}>Cancelar</Button>}
               </div>
             </form>
           )}
@@ -332,7 +333,7 @@ export default function StaffPage() {
             const id = excluindo.id;
             await run((async () => {
               const r = await excluirProfissionalAction(await idToken(), { tenantId: tenant.id, staffId: id });
-              if (!r.ok) throw new Error(r.error);
+              if (!r.ok) throw new ErroPrevisto(r.error);
             })());
             setExcluindo(null);
           }}

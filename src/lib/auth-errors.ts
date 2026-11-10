@@ -1,5 +1,6 @@
 import { FirebaseError } from "firebase/app";
 import { z } from "zod";
+import { ErroPrevisto } from "@/lib/erro-previsto";
 
 const messages: Record<string, string> = {
   "auth/invalid-credential": "E-mail ou senha incorretos.",
@@ -19,6 +20,8 @@ const messages: Record<string, string> = {
 
 export function errorMessage(err: unknown) {
   if (err instanceof z.ZodError) return err.issues[0].message;
+  // texto que o servidor escreveu para o usuário (ex.: "Seu plano inclui 5 profissionais")
+  if (err instanceof ErroPrevisto) return err.message;
   if (err instanceof FirebaseError) return messages[err.code] ?? `Erro: ${err.code}`;
   return "Algo deu errado. Tente de novo.";
 }

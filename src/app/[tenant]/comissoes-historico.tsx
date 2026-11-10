@@ -48,7 +48,7 @@ export function ComissoesHistorico({ tenantId, staffId, nome, pct, guardado, onC
             <Dialog.Title className="font-serifa text-2xl leading-tight">Comissões de {nome}</Dialog.Title>
             <Dialog.Description className="text-sm text-muted-foreground">
               {pct ? `${String(pct).replace(".", ",")}% hoje` : "Sem % definido"}
-              {guardado > 0 && ` · ${brl(guardado)} de estorno a descontar no próximo pagamento`}
+              {guardado > 0 && ` · ${brl(guardado)} de vale e estorno a descontar no próximo pagamento`}
               {guardado < 0 && ` · ${brl(-guardado)} de estorno desfeito a devolver no próximo pagamento`}
             </Dialog.Description>
           </div>

@@ -15,7 +15,7 @@ export const Membro = z.object({ uid: z.string(), role: z.string(), email: z.str
 export type Membro = z.infer<typeof Membro> & { id: string };
 
 /** O acesso de um profissional ao painel: quem já entra (e tirar) ou o convite para entrar. */
-export function AcessoProfissional({ tenantId, negocio, staffId, nome, membro }: { tenantId: string; negocio: string; staffId: string; nome: string; membro?: Membro }) {
+export function AcessoProfissional({ tenantId, negocio, staffId, nome, membro, onAbrir }: { tenantId: string; negocio: string; staffId: string; nome: string; membro?: Membro; onAbrir?: () => void }) {
   const [convidando, setConvidando] = useState(false);
   const [tirando, setTirando] = useState(false);
   const [erro, setErro] = useState("");
@@ -44,7 +44,7 @@ export function AcessoProfissional({ tenantId, negocio, staffId, nome, membro }:
   }
   return (
     <>
-      <button type="button" onClick={() => setConvidando(true)} className="min-h-10 justify-self-start text-[13px] underline underline-offset-4 hover:text-muted-foreground">
+      <button type="button" onClick={() => { onAbrir?.(); setConvidando(true); }}className="min-h-10 justify-self-start text-[13px] underline underline-offset-4 hover:text-muted-foreground">
         Dar acesso ao painel
       </button>
       {convidando && <Convite tenantId={tenantId} negocio={negocio} staffId={staffId} nome={nome} onClose={() => setConvidando(false)} />}

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatBRL, fusoDe, maskBRL, todayIn } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
-import { categorias, ehSinal, ehVinculado, FORMAS, ROTULO_FORMA, type Lancamento } from "@/lib/financeiro";
+import { categorias, ehSinal, ehVale, ehVinculado, FORMAS, ROTULO_FORMA, type Lancamento } from "@/lib/financeiro";
 import { cn } from "@/lib/utils";
 import { baixarAgendamentoAction, editarLancamentoAction, enviarPixWhatsappAction, estornarAction, excluirLancamentoAction, lancarAction, pagarAction } from "./actions";
 import { whatsappDoNegocio } from "@/lib/tenants";
@@ -283,7 +283,7 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
               confirmLabel="Sim, apagar"
               onConfirm={async () => {
                 setApagar(false);
-                await rodar(async () => excluirLancamentoAction(await idToken(), { tenantId, id: folha.lancamento.id }), eEstorno ? "Estorno apagado: o recebimento voltou a valer." : eSinal ? "Sinal apagado do Caixa." : daAgenda ? "Recebimento apagado: o atendimento voltou para “A receber da agenda”." : ePagamento ? "Pagamento apagado: voltou para as contas do mês." : "Lançamento apagado.");
+                await rodar(async () => excluirLancamentoAction(await idToken(), { tenantId, id: folha.lancamento.id }), eEstorno ? "Estorno apagado: o recebimento voltou a valer." : eSinal ? "Sinal apagado do Caixa." : daAgenda ? "Recebimento apagado: o atendimento voltou para “A receber da agenda”." : ehVale(base?.id ?? "") ? "Vale apagado." : ePagamento ? "Pagamento apagado: voltou para as contas do mês." : "Lançamento apagado.");
               }}
               onCancel={() => setApagar(false)}
             />
