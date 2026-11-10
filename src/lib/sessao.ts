@@ -84,12 +84,15 @@ export function useAutoLogout(minutos: number) {
     let gravado = 0;
     const marcar = () => {
       ultimo = Date.now();
-      if (ultimo - gravado >= GRAVAR_A_CADA) gravarToque((gravado = ultimo));
+      if (ultimo - gravado >= GRAVAR_A_CADA) {
+        gravarToque((gravado = ultimo));
+        setAvisando(false);
+      }
     };
     marcarRef.current = marcar;
     const conferir = async () => {
       if (!auth.currentUser) return;
-      if (document.querySelector(DIALOGO)) return marcar();
+      if (document.visibilityState === "visible" && document.querySelector(DIALOGO)) { setAvisando(false); return marcar(); }
       const fase = faseDaSessao(Date.now() - Math.max(ultimo, lerToque()), minutos);
       setAvisando(fase === "aviso");
       if (fase !== "sair") return;

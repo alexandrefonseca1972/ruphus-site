@@ -102,7 +102,7 @@ export default function CaixaPage() {
   // receber de novo e todas as contas em aberto como se fosse verdade
   const comAnterior =
     erroLeitura || erroComissao || !comAnteriorLido || !daComissaoLido ? null : [...new Map([...comAnteriorLido, ...daComissaoLido].map((l) => [l.id, l])).values()];
-  const descartados = foraDoMes + foraDaComissao;
+  const descartados = new Set([...foraDoMes, ...foraDaComissao]).size;
   const lancamentos = comAnterior && comAnterior.filter((l) => l.mes === mes);
   const [doMes, erroAgenda] = useCollection(
     ligado ? tenant.id : "",
