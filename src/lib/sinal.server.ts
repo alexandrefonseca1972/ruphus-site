@@ -89,7 +89,7 @@ export async function expirarSinais(db: Firestore, agora = new Date()) {
       // sai da consulta (um documento que sempre falha não pode ocupar todas as rodadas)
       const tentativas = (Number(d.get("sinal.tentativas")) || 0) + 1;
       await d.ref
-        .update(tentativas >= TENTATIVAS_SINAL ? { "sinal.status": "erro", "sinal.tentativas": tentativas } : { "sinal.tentativas": tentativas })
+        .update(tentativas >= TENTATIVAS_SINAL ? { "sinal.status": "erro", "sinal.tentativas": tentativas } : { "sinal.tentativas": tentativas }, { lastUpdateTime: d.updateTime! })
         .catch(() => undefined);
       return false;
     });

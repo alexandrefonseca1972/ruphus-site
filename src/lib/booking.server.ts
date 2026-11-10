@@ -10,6 +10,7 @@ import type { DadosCliente } from "@/lib/cliente-dados";
 import { prazoDoSinal, type SinalDoAgendamento, valorDoSinal } from "@/lib/sinal";
 import { ConfigSinal } from "@/lib/sinal-config";
 import { recebedorDe, txidLivre } from "@/lib/pix";
+import { canonicalBrMobile } from "@/lib/telefone";
 import { foraDoLimite, limitesDe, Service, Staff, type AgendaQuery, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
@@ -192,8 +193,9 @@ export async function deleteCustomer(
  *  sem estar na agenda de ninguém: como no cliente, encerrar/cancelar primeiro. */
 export async function exigeProfissionalSemCompromisso(db: Firestore, tenantId: string, staffId: string) {
   const t = db.collection("tenants").doc(tenantId);
+  const agora = agoraNaParede(fusoDe((await t.get()).get("site")));
   const [futuros, planos] = await Promise.all([
-    t.collection("appointments").where("staffId", "==", staffId).where("start", ">", new Date()).get(),
+    t.collection("appointments").where("staffId", "==", staffId).where("start", ">", agora).get(),
     t.collection("plans").where("staffId", "==", staffId).where("status", "==", "active").limit(1).get(),
   ]);
   if (!planos.empty) throw new UserError("Encerre os planos recorrentes deste profissional antes de excluir.");
@@ -537,7 +539,7 @@ async function reservaDoPedido(
   if (!marca.exists) return null;
   const ja = await ler(t.collection("appointments").doc(String(marca.get("appointmentId"))));
   // cancelada: o pedido vale para uma reserva nova
-  if (ja.get("status") === "cancelled" || ja.get("customerKey") !== customerKey(input.customerPhone)) return null;
+  if (ja.get("status") === "cancelled" || (ja.get("customerKey") !== customerKey(input.customerPhone) && canonicalBrMobile(String(ja.get("customerKey"))) !== customerKey(input.customerPhone))) return null;
   return ja.exists ? reservaDe(ja.id, ja.data()!) : null;
 }
 

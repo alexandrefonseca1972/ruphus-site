@@ -44,7 +44,7 @@ async function main() {
       for (const d of (await tenant.collection(col).where("customerKey", "==", c.id).get()).docs) bw.update(d.ref, { customerKey: nova });
     }
     for (const n of (await c.ref.collection("notas").get()).docs) bw.set(destino.collection("notas").doc(n.id), n.data());
-    bw.set(destino, { ...c.data(), migradoDe: c.id });
+    bw.set(destino, { ...c.data(), migradoDe: c.id }, { merge: true });
     await bw.close();
     await db.recursiveDelete(c.ref); // só depois de tudo copiado
   }
