@@ -13,28 +13,15 @@ export { MINUTOS_MAX };
  *  A conta é por relógio, não por setTimeout: aba em segundo plano tem o timer
  *  estrangulado pelo navegador, e o computador que dorme não dispara nada. */
 
-/** Onde o motivo fica entre o logout e o redirecionamento. */
-const MOTIVO = "ruphus.sessaoExpirou";
-
-/** "/login" com o porquê, quando a saída foi por inatividade. Quem redireciona
- *  ao perder a sessão chama isto: o logout automático avisa por aqui. */
-export function loginComMotivo(base = "/login") {
-  let minutos = 0;
-  try {
-    minutos = Number(sessionStorage.getItem(MOTIVO)) || 0;
-    if (minutos) sessionStorage.removeItem(MOTIVO);
-  } catch {
-    // sem sessionStorage, vai sem o aviso
-  }
-  return minutos ? `${base}${base.includes("?") ? "&" : "?"}expirou=${minutos}` : base;
-}
-
 /** Sai da conta e apaga do aparelho os dados que o painel guardou para funcionar
  *  sem internet. O Firestore é carregado só aqui, e só se a página já o usava:
  *  o login e o admin não o baixam. Termina recarregando em /login: o Firestore encerrado
  *  não volta, e navegar sem recarregar (router) deixava o painel seguinte quebrado com
- *  "The client has already been terminated". */
-export async function sair() {
+ *  "The client has already been terminated".
+ *
+ *  O destino vem daqui, e não dos listeners de sessão: o signOut também os acorda, e o
+ *  router.replace deles perde para esta recarga. */
+export async function sair(destino = "/login") {
   // aparelho compartilhado: quem entrar depois não recebe os avisos deste negócio
   try {
     const reg = await navigator.serviceWorker?.getRegistration();
@@ -49,7 +36,7 @@ export async function sair() {
   } catch {
     // sem IndexedDB (aba anônima antiga): não havia cache para apagar
   }
-  window.location.replace("/login");
+  window.location.replace(destino);
 }
 
 const EVENTOS = ["pointerdown", "keydown", "scroll", "touchstart"] as const;
@@ -65,17 +52,8 @@ export function useAutoLogout(minutos: number) {
     };
     const conferir = async () => {
       if (Date.now() - ultimo < limite || !auth.currentUser) return;
-      // Antes do signOut: ele acorda os listeners de sessão, que mandam para
-      // /login sem dizer por quê. O login lê daqui quando o parâmetro se perde.
-      try {
-        sessionStorage.setItem(MOTIVO, String(minutos));
-      } catch {
-        // navegador sem sessionStorage: resta o parâmetro na URL
-      }
-      await sair();
-      // Recarga de verdade, não router.push: sessão encerrada tem de limpar o
-      // que já está em memória na tela (listas, gaveta aberta, rascunhos).
-      window.location.replace(loginComMotivo());
+      // o motivo e a tela vão na URL: o login avisa por que saiu e volta para cá depois
+      await sair(`/login?expirou=${minutos}&next=${encodeURIComponent(location.pathname)}`);
     };
     // capture: "scroll" não borbulha, e aqui quem rola é a gaveta e as listas,
     // não o documento — sem isto, ler uma lista longa era ficar "parado"

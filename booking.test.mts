@@ -320,8 +320,9 @@ assert.equal((await endPlan(db, { tenantId: "salao", planId: plan.planId }, acto
 // Limites contra reservas em massa (telefone e dispositivo)
 // Longe da janela do plano (hoje+14 a hoje+35): com hoje+20, o 3º dia deste bloco
 // caía em segundas[1] às 10:00 sempre que o teste rodava num domingo, e a recusa
-// vinha do horário ocupado na linha 176, não do limite.
-const limDate = addDays(todayIn(), 60);
+// vinha do horário ocupado na linha 176, não do limite. Também longe do plano da Yara
+// (segunda às 10:00 entre hoje+60 e hoje+66): com hoje+60, o mesmo choque num sábado.
+const limDate = addDays(todayIn(), 75);
 const spam = { tenantId: "salao", staffId: "bia", serviceIds: ["corte"], customerName: "Robô", customerPhone: "11 98888-1111" };
 const horarios = ["09:00", "09:30", "10:00", "10:30", "11:00"];
 const feitas = [];
