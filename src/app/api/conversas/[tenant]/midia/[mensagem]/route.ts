@@ -8,5 +8,6 @@ import { verifyFirebaseToken } from "@/lib/verify-token";
 export async function GET(req: Request, { params }: { params: Promise<{ tenant: string; mensagem: string }> }) {
   const { tenant, mensagem } = await params;
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  return midiaParaNavegador(verifyFirebaseToken, adminDb, token, tenant, mensagem);
+  // ?c=: a conversa da mensagem (a equipe só abre mídia de conversa que pode ver)
+  return midiaParaNavegador(verifyFirebaseToken, adminDb, token, tenant, mensagem, new URL(req.url).searchParams.get("c"));
 }

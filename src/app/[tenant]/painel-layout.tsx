@@ -87,12 +87,14 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
       </p>
     );
 
-  // curto: o rótulo da barra de baixo no celular, onde seis cabem lado a lado (360px)
+  // curto: o rótulo da barra de baixo no celular (até sete lado a lado em 360px: rótulos de até 8 letras) e das abas no tablet
   const links = [
     { href: `/${slug}`, label: "Agenda", curto: "Agenda", icone: ICONES.agenda },
     { href: `/${slug}/servicos`, label: "Serviços", curto: "Serviços", icone: ICONES.servicos },
     { href: `/${slug}/profissionais`, label: "Profissionais", curto: "Equipe", icone: ICONES.equipe },
     { href: `/${slug}/clientes`, label: "Clientes", curto: "Clientes", icone: ICONES.clientes },
+    // Central de conversas: liberada por negócio (piloto) e, para a equipe, só com o dono deixando
+    ...(state.modulos?.conversas && (state.podeGerir || state.conversas?.equipeAtende) ? [{ href: `/${slug}/conversas`, label: "Conversas", curto: "Chat", icone: ICONES.conversas }] : []),
     // dinheiro só para quem gere, e só com o Caixa ligado pelo admin da plataforma
     ...(state.podeGerir && state.modulos?.financeiro ? [{ href: `/${slug}/caixa`, label: "Caixa", curto: "Caixa", icone: ICONES.caixa }] : []),
     // os dados do negócio (site, bio, WhatsApp) só para quem gere
@@ -104,7 +106,7 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
       <div className={`painel ${serifa.variable} flex min-h-dvh flex-col bg-background`}>
         <MonitorConexao />
       <header className="sticky top-0 z-10 border-b bg-card pt-[env(safe-area-inset-top)] sm:static">
-        <div className="mx-auto flex max-w-6xl items-center gap-x-6 px-4">
+        <div className="mx-auto flex max-w-6xl items-center gap-x-4 px-4 lg:gap-x-6">
           {/* O logo e o nome levam à página inicial do negócio (a agenda), para todo mundo.
               Trocar de negócio e voltar ao admin ficam no menu da conta. */}
           <Link href={`/${slug}`} className="flex h-14 min-w-0 flex-1 items-center gap-2.5 sm:h-16 sm:flex-none">
@@ -121,11 +123,13 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
                 href={l.href}
                 aria-current={isActive(l.href) ? "page" : undefined}
                 className={cn(
-                  "flex h-16 items-center px-3.5 whitespace-nowrap text-muted-foreground hover:text-foreground",
+                  "flex h-16 items-center px-2 whitespace-nowrap text-muted-foreground hover:text-foreground lg:px-3.5",
                   isActive(l.href) && "font-semibold text-foreground shadow-[inset_0_-2px_0_var(--foreground)]",
                 )}
               >
-                {l.label}
+                {/* tablet: os rótulos curtos (Equipe, Negócio) para as sete abas caberem ao lado da conta */}
+                <span className="lg:hidden">{l.curto}</span>
+                <span className="max-lg:hidden">{l.label}</span>
               </Link>
             ))}
           </nav>
@@ -194,5 +198,6 @@ const ICONES = {
   equipe: icone(<><circle cx="12" cy="7.5" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></>),
   clientes: icone(<><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6" /></>),
   negocio: icone(<><path d="M4 10.5 12 4l8 6.5V20H4z" /><path d="M9.5 20v-5h5v5" /></>),
+  conversas: icone(<path d="M4 5.5h16v10H9l-5 4z" />),
   caixa: icone(<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h3" /></>),
 };

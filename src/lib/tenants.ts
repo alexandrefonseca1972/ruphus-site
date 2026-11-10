@@ -12,7 +12,7 @@ export const Tenant = z.object({
   limiteStaff: z.number().int().positive().optional(),
   // módulos que o admin da plataforma liga por cliente; o nicho escolhe as categorias do Caixa
   // .catch: um campo fora do formato não pode derrubar o painel inteiro
-  modulos: z.object({ financeiro: z.boolean().optional() }).optional().catch(undefined),
+  modulos: z.object({ financeiro: z.boolean().optional(), conversas: z.boolean().optional() }).optional().catch(undefined),
   gerado: z.object({ nicho: z.string().optional() }).optional().catch(undefined),
   // domínio próprio do cliente (www.salao.com.br): ativo, é o endereço do site
   dominio: z.object({ host: z.string(), status: z.enum(["pendente", "ativo"]) }).optional().catch(undefined),
