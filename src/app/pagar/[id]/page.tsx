@@ -28,7 +28,7 @@ export default async function Pagar({ params, searchParams }: PageProps<"/pagar/
   const svg = cobranca.brCode
     ? await QRCode.toString(cobranca.brCode, { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#17150F", light: "#FFFFFF" } })
     : null;
-  const oque = cobranca.tipo === "entrada" ? "Taxa de ativação" : `Mensalidade · ${MES(cobranca.competencia!)}`;
+  const oque = cobranca.tipo === "entrada" ? "Taxa de ativação" : cobranca.tipo === "recarga" ? "Recarga de mensagens" : `Mensalidade · ${MES(cobranca.competencia!)}`;
   const vencida = cobranca.status === "aberta" && cobranca.vencimento < hojeISO();
   const comprovante = linkWhatsApp(
     pix?.whatsapp ?? null,
