@@ -41,7 +41,7 @@ import {
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
 import { emDestaque, local, VISOES, visaoDe, type Visao } from "@/lib/painel-consulta";
-import { ehOrdem, PAGINA, PAGINA_MAX, type Filtros, type Ordem } from "@/lib/painel-tipos";
+import { ehOrdem, PAGINA, PAGINA_MAX, type Fila, type Filtros, type Ordem } from "@/lib/painel-tipos";
 import { cents, emReais } from "@/lib/dinheiro";
 import { MINUTOS_MAX, sair, useAutoLogout } from "@/lib/sessao";
 import { AvisoSessao } from "@/components/aviso-sessao";
@@ -59,7 +59,7 @@ import { ColetaMaps } from "./coleta";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
 import { DemoMenu } from "./demo-menu";
-import { AUTOR_LEVANTAMENTO, COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, campanhaDe, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
+import { AUTOR_LEVANTAMENTO, COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, campanhaDe, TOQUES_MAX, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
 
 const VAZIO: Crm = {
   estagio: "novo", entradaCents: null, mensalCents: null, caixaCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
@@ -76,7 +76,12 @@ const CONTAGENS_VAZIAS: PaginaDoServidor["contagens"] = {
   tirando: { cidade: 0, nicho: 0 },
   visoes: Object.fromEntries(VISOES.map((v) => [v.id, 0])) as PaginaDoServidor["contagens"]["visoes"],
   totais: { contratadoCents: 0, negociacaoCents: 0 },
+  filas: { retornos: 0, primeiro: 0, responderam: 0 },
 };
+// As três filas do dia, a entrada da Lista; as visões antigas ficam em "Mais visões"
+const FILAS_DO_TOPO: [Fila, string][] = [["retornos", "Retornos de hoje"], ["primeiro", "Primeiro contato"], ["responderam", "Responderam"]];
+/** Quantos contatos por dia a prospecção pede: o contador do topo conta até aqui */
+const META_DIA = 30;
 const ITEM_MENU = "flex h-11 items-center rounded-lg px-2.5 text-left text-[13px] text-[#17150F] hover:bg-[#F4F2EE]";
 
 async function token() {
@@ -183,6 +188,7 @@ export default function AdminPage() {
   const [estagio, setEstagio] = useState<Filtros["estagio"]>("");
   const [prazo, setPrazo] = useState<"" | Prazo>("");
   const [contato, setContato] = useState<"" | "hoje">("");   // "falei hoje"
+  const [fila, setFila] = useState<"" | Fila>("retornos");   // fila do topo da Lista; "" = uma visão
   const [alerta, setAlerta] = useState<Filtros["alerta"]>(""); // id do alerta em foco
   const [menuAjustes, setMenuAjustes] = useState(false);     // engrenagem: o que é da plataforma
   const [menuNegocio, setMenuNegocio] = useState(false);     // "…" da gaveta: atalhos e tirar do ar
@@ -269,8 +275,10 @@ export default function AdminPage() {
   const filtros: Filtros = {
     busca, uf, cidade, nicho, situacao, estagio, prazo, alerta,
     fora: foraDoAr, caixa: comCaixa, contato: contato === "hoje", fixados, ordem,
+    // a fila é da Lista: o funil mostra as colunas inteiras
+    fila: tela === "lista" ? fila : "",
   };
-  const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), String(comCaixa), contato, String(fixados), alerta].join("|");
+  const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), String(comCaixa), contato, String(fixados), alerta, filtros.fila].join("|");
   const quantos = pagina.chave === chave ? pagina.n : PAGINA;
   const servidor = (tela === "lista" || tela === "funil") && estado === "pronto";
   // cada página que chega entra no cache, menos os negócios com escrita em curso
@@ -704,7 +712,8 @@ export default function AdminPage() {
   const filtrando = busca || uf || cidade || nicho || situacao || estagio || prazo || foraDoAr || comCaixa;
   const nFiltros = [uf, cidade, nicho, estagio, prazo, foraDoAr ? "x" : "", comCaixa ? "x" : ""].filter(Boolean).length;
 
-  const visaoAtiva = visaoDe({ prazo, situacao, estagio, fora: foraDoAr, contato: contato === "hoje", fixados });
+  // com uma fila escolhida, nenhuma visão está ativa (os filtros dela estão zerados, como em "Todos")
+  const visaoAtiva = filtros.fila ? undefined : visaoDe({ prazo, situacao, estagio, fora: foraDoAr, contato: contato === "hoje", fixados });
   function verVisao(v: Visao) {
     setPrazo(v.prazo);
     setSituacao(v.situacao);
@@ -713,6 +722,11 @@ export default function AdminPage() {
     setContato(v.contato ? "hoje" : "");
     setFixados(v.fixados ?? false);
     setAlerta("");
+    setFila("");
+  }
+  function verFila(id: Fila) {
+    verVisao(VISOES.find((v) => v.id === "todos")!);
+    setFila(id);
   }
   // a cidade escolhida é "Cidade/UF": trocar para outro estado a deixaria sem nenhum negócio
   function escolherUf(novo: string) {
@@ -732,6 +746,38 @@ export default function AdminPage() {
   const CONTA = "rounded-full px-2 py-0.5 text-[11px] font-semibold";
   const ORDENAVEL = "flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] hover:text-[#17150F]";
   const seta = (chaveOrdem: string) => (ordem === chaveOrdem ? " ↓" : "");
+  const abasDeVisao = VISOES.map((v) => {
+    const n = contagens.visoes[v.id];
+    const ativa = visaoAtiva?.id === v.id;
+    return (
+      <span key={v.id} className="flex items-center">
+        {v.separa && <span aria-hidden="true" className="mx-2 h-5 w-px bg-[#EDE9E1]" />}
+        <button
+          type="button"
+          aria-pressed={ativa}
+          onClick={(ev) => {
+            verVisao(v);
+            ev.currentTarget.closest("details")?.removeAttribute("open");
+          }}
+          className={`${ABA} ${
+            ativa
+              ? "border-[#17150F] font-bold text-[#17150F]"
+              : `border-transparent ${v.urgente && n ? "font-semibold text-[#8A2F2F]" : "text-[#17150F]"} hover:border-[#D8D2C6]`
+          }`}
+        >
+          {v.urgente && n > 0 && <span aria-hidden="true" className="size-1.5 rounded-full bg-[#8A2F2F]" />}
+          {v.rotulo}
+          <span
+            className={`${CONTA} ${
+              ativa ? "bg-[#17150F] text-white" : v.urgente && n ? "bg-[#FBF0EE] text-[#8A2F2F]" : "bg-[#F3EFE7] text-[#6F6A5E]"
+            }`}
+          >
+            {n}
+          </span>
+        </button>
+      </span>
+    );
+  });
 
   return (
     <>
@@ -937,38 +983,52 @@ export default function AdminPage() {
 
       {/* As visões viram abas: o que se repete todo dia vira lugar fixo */}
       <div className={`flex flex-wrap items-center gap-1 border-b border-[#E2DDD3] bg-white px-4 sm:px-5 ${ferramenta ? "hidden" : ""}`}>
-        {/* no celular as oito visões quebravam em até quatro linhas: viram uma faixa que rola */}
-        <div className="-mx-4 flex w-[calc(100%+2rem)] overflow-x-auto px-4 [scrollbar-width:none] sm:contents [&::-webkit-scrollbar]:hidden">
-        {VISOES.map((v) => {
-          const n = contagens.visoes[v.id];
-          const ativa = visaoAtiva?.id === v.id;
-          return (
-            <span key={v.id} className="flex items-center">
-              {v.separa && <span aria-hidden="true" className="mx-2 h-5 w-px bg-[#EDE9E1]" />}
+        {/* Na Lista, a entrada são as três filas do dia e o contador; as oito visões ficam em
+            "Mais visões". No Funil, as visões seguem como estavam: lá não há fila */}
+        {tela === "lista" && (
+          <>
+            <div className="-mx-4 flex w-[calc(100%+2rem)] items-center overflow-x-auto px-4 [scrollbar-width:none] sm:contents [&::-webkit-scrollbar]:hidden">
+              {FILAS_DO_TOPO.map(([id, rotulo]) => {
+                const ativa = fila === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={ativa}
+                    onClick={() => verFila(id)}
+                    className={`${ABA} ${ativa ? "border-[#17150F] font-bold text-[#17150F]" : "border-transparent text-[#17150F] hover:border-[#D8D2C6]"}`}
+                  >
+                    {rotulo}
+                    <span className={`${CONTA} ${ativa ? "bg-[#17150F] text-white" : "bg-[#F3EFE7] text-[#6F6A5E]"}`}>{contagens.filas[id]}</span>
+                  </button>
+                );
+              })}
+              {/* contatados hoje: o mesmo dado de "Falei hoje", que abre ao tocar */}
               <button
                 type="button"
-                aria-pressed={ativa}
-                onClick={() => verVisao(v)}
-                className={`${ABA} ${
-                  ativa
-                    ? "border-[#17150F] font-bold text-[#17150F]"
-                    : `border-transparent ${v.urgente && n ? "font-semibold text-[#8A2F2F]" : "text-[#17150F]"} hover:border-[#D8D2C6]`
-                }`}
+                onClick={() => verVisao(VISOES.find((v) => v.id === "falei")!)}
+                title="Contatados hoje"
+                className={`ml-2 h-8 shrink-0 rounded-full px-3 text-[12px] font-semibold whitespace-nowrap tabular-nums ${contagens.visoes.falei >= META_DIA ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#F3EFE7] text-[#4A4639]"}`}
               >
-                {v.urgente && n > 0 && <span aria-hidden="true" className="size-1.5 rounded-full bg-[#8A2F2F]" />}
-                {v.rotulo}
-                <span
-                  className={`${CONTA} ${
-                    ativa ? "bg-[#17150F] text-white" : v.urgente && n ? "bg-[#FBF0EE] text-[#8A2F2F]" : "bg-[#F3EFE7] text-[#6F6A5E]"
-                  }`}
-                >
-                  {n}
-                </span>
+                {contagens.visoes.falei}/{META_DIA} hoje
               </button>
-            </span>
-          );
-        })}
+            </div>
+            <details className="relative">
+              <summary className={`flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-lg px-3 text-[13px] hover:bg-[#F4F2EE] [&::-webkit-details-marker]:hidden ${visaoAtiva ? "font-semibold" : ""}`}>
+                Mais visões{visaoAtiva ? ` · ${visaoAtiva.rotulo}` : ""}
+                <span aria-hidden="true" className="text-[10px]">▼</span>
+              </summary>
+              <div className="absolute left-0 top-10 z-30 flex w-[min(92vw,360px)] flex-wrap gap-x-1 rounded-xl border border-[#C8C1B3] bg-white px-2 shadow-[0_18px_48px_rgba(23,21,15,0.18)]">
+                {abasDeVisao}
+              </div>
+            </details>
+          </>
+        )}
+        {tela !== "lista" && (
+        <div className="-mx-4 flex w-[calc(100%+2rem)] overflow-x-auto px-4 [scrollbar-width:none] sm:contents [&::-webkit-scrollbar]:hidden">
+        {abasDeVisao}
         </div>
+        )}
 
         <div className="grow" />
 
@@ -1179,6 +1239,7 @@ export default function AdminPage() {
                         setForaDoAr(todos.fora);
                         setContato("");
                         setFixados(false);
+                        setFila("");
                       }
                     }}
                     className={`flex h-11 items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold ${
@@ -1300,7 +1361,9 @@ export default function AdminPage() {
           <div aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[#EDE9E1] px-4 py-3 sm:px-5">
             <span className="text-sm font-semibold">{total} espaço(s)</span>
             <span className="text-[13px] text-[#6F6A5E]">
-              {visaoAtiva ? visaoAtiva.rotulo.toLowerCase() : "recorte próprio"}
+              {filtros.fila
+                ? FILAS_DO_TOPO.find(([id]) => id === filtros.fila)![1].toLowerCase()
+                : visaoAtiva ? visaoAtiva.rotulo.toLowerCase() : "recorte próprio"}
               {cidade && ` · ${cidade}`}
               {nicho && ` · ${nicho}`}
             </span>
@@ -1417,6 +1480,12 @@ export default function AdminPage() {
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${COR[(crm[e.slug]?.estagio ?? "novo") as Estagio]}`}>
                         {ROTULO[(crm[e.slug]?.estagio ?? "novo") as Estagio]}
                       </span>
+                      {/* em prospecção: em que toque da cadência ele está */}
+                      {(crm[e.slug]?.estagio ?? "novo") === "novo" && !crm[e.slug]?.respondeuEm && (
+                        <span className="ml-1 rounded-full bg-[#F3EFE7] px-2 py-0.5 text-xs tabular-nums text-[#4A4639]">
+                          toque {Math.min(crm[e.slug]?.toques ?? 0, TOQUES_MAX)}/{TOQUES_MAX}
+                        </span>
+                      )}
                       {crm[e.slug]?.publicado === false && (
                         <span className="ml-1 rounded-full bg-[#F1E7E7] px-2 py-0.5 text-xs font-semibold text-[#8A2F2F]">fora do ar</span>
                       )}

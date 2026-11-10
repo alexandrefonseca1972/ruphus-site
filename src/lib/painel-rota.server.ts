@@ -3,8 +3,8 @@ import type { Firestore } from "firebase-admin/firestore";
 import { errors } from "jose";
 import { invalido, semPermissao } from "@/lib/admin-guard";
 import type { Crm } from "@/lib/crm-tipos";
-import { resumoDoFunil } from "@/lib/funil-consulta";
-import { consultar } from "@/lib/painel-consulta";
+import { numerosDaSemana, resumoDoFunil } from "@/lib/funil-consulta";
+import { consultar, contarFilas } from "@/lib/painel-consulta";
 import type { criarIndice, Indice } from "@/lib/painel-indice.server";
 import { ConsultaPainel, type CodigoDeErro, type RespostaPainel } from "@/lib/painel-tipos";
 import { verifyFirebaseToken } from "@/lib/verify-token";
@@ -62,7 +62,8 @@ export async function responderPainel(req: Request, { db, indice, verificar = ve
 
   try {
     const inicio = performance.now();
-    const r = consultar(pronto.lista(), filtros, { crm: pronto.crm, hoje, fuso: tz });
+    const ctx = { crm: pronto.crm, hoje, fuso: tz };
+    const r = consultar(pronto.lista(), filtros, ctx);
     // na aba Funil a lista não aparece: só as contagens e o resumo
     const itens = funil ? [] : r.lista.slice(0, n);
     const crm: Record<string, Crm> = {};
@@ -76,8 +77,9 @@ export async function responderPainel(req: Request, { db, indice, verificar = ve
       crm,
       total: lista.length,
       base: pronto.lista().length,
-      contagens: { ...contagens, avisos: avisos.map(({ slugs, ...a }) => ({ ...a, total: slugs.length })) },
+      contagens: { ...contagens, avisos: avisos.map(({ slugs, ...a }) => ({ ...a, total: slugs.length })), filas: contarFilas(pronto.lista(), filtros, ctx) },
       funil: resumo,
+      semana: funil ? numerosDaSemana(r.lista, pronto.crm, Date.now()) : undefined,
       versao: pronto.versao,
       montadoEm: new Date(pronto.montadoEm).toISOString(),
     };
