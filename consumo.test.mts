@@ -9,6 +9,7 @@ assert.equal(tipoDoTemplate("agendamento_cancelado"), "cancelado");
 assert.equal(tipoDoTemplate("agendamento_lembrete_botoes_v2"), "lembrete");
 assert.equal(tipoDoTemplate("agendamento_pedido_dono_botoes"), "pedido_dono");
 assert.equal(tipoDoTemplate("outro_template"), "outro");
+assert.equal(tipoDoTemplate("ruphus_saldo_baixo"), "saldo");
 
 // agendamento: do aceite (eventId) ou do id dos botões, só do mesmo negócio
 assert.equal(agendamentoDoEnvio("loja", "ruphus-agendamento:loja:AB12cd"), "AB12cd");
@@ -110,6 +111,7 @@ assert.equal(podeEnviar({ ...base, semSaldo: "pausar-tudo", destinatario: "dono"
 assert.equal(podeEnviar({ ...base, semSaldo: "negativo", limiteNegativoCents: 2 }).envia, true, "negativo: 3 - 5 = -2 dentro do limite");
 assert.deepEqual(podeEnviar({ ...base, semSaldo: "negativo", limiteNegativoCents: 1 }), { envia: false, motivo: "limite de saldo negativo atingido" });
 assert.equal(podeEnviar({ ...base, semSaldo: "negativo", limiteNegativoCents: 0, tipo: "pedido_dono" }).envia, true);
+assert.equal(podeEnviar({ ...base, semSaldo: "pausar-tudo", destinatario: "dono", tipo: "saldo" }).envia, true, "o aviso de saldo baixo sempre sai");
 
 // previsão do saldo
 const pacotes = CONFIG_PADRAO.pacotes;

@@ -6,7 +6,7 @@ import { avisar } from "@/lib/avisos.server";
 import { CobrancaErro, gerarCobranca } from "@/lib/cobranca";
 import {
   CONFIG_PADRAO, configDoNegocio, deltaDoConsumo, deveAvisar, diasNoMes, previsaoDeSaldo, somaDias, textoDoAvisoDeSaldo, mascararDestino, MODOS_SEM_SALDO, podeEnviar, precoDe, quandoFoi, RECARGA_MINIMA_CENTS, statusDoAtendys, avanca,
-  type Canal, type ConfigMensagens, type NivelSaldo, type Destinatario, type Pacote, type StatusEnvio, type TipoEnvio, type Via,
+  type Canal, type ConfigMensagens, type NivelSaldo, type Previsao, type Destinatario, type Pacote, type StatusEnvio, type TipoEnvio, type Via,
 } from "@/lib/consumo";
 import { dateIn, formatBRL } from "@/lib/datetime";
 import { SITE_BASE } from "@/lib/dominio";
@@ -99,19 +99,20 @@ const ms = (v: unknown) => (typeof v === "number" ? v : (v as { toMillis?: () =>
 /** Grava saldo, consumo do dia e previsão na conta (mergeFields: o mapa de dias é regravado inteiro).
  *  Quando o nível piora para atenção/crítico sem aviso desde a última recarga, marca o aviso e lança
  *  "aviso" (valor 0) no extrato; devolve o texto para quem chamou avisar depois da transação. */
+type AvisoSaldo = { texto: string; saldo: number; previsao: Previsao };
 function gravarConta(tx: Transaction, slug: string, conta: Conta, saldo: number, consumido: number, agora: Date, extra: Record<string, unknown> = {}) {
   const hoje = dateIn(agora);
   const dias = consumoDias(conta.dados, hoje, consumido);
   const previsao = previsaoDe(conta.cfg, saldo, dias, hoje);
   const antes = ((conta.dados.previsao as { nivel?: NivelSaldo } | undefined)?.nivel ?? "ok") as NivelSaldo;
   const recarga = "ultimaRecargaEm" in extra ? (extra.ultimaRecargaEm as number) : ms(conta.dados.ultimaRecargaEm);
-  const aviso = deveAvisar(antes, previsao.nivel, ms(conta.dados.avisadoSaldoBaixoEm), recarga) ? textoDoAvisoDeSaldo(saldo, previsao) : null;
+  const aviso: AvisoSaldo | null = deveAvisar(antes, previsao.nivel, ms(conta.dados.avisadoSaldoBaixoEm), recarga) ? { texto: textoDoAvisoDeSaldo(saldo, previsao), saldo, previsao } : null;
   tx.set(
     contaRef(slug),
     { saldoCents: saldo, consumoDias: dias, previsao, ...(aviso && { avisadoSaldoBaixoEm: agora.getTime() }), ...extra, atualizadoEm: FieldValue.serverTimestamp() },
     { mergeFields: ["saldoCents", "consumoDias", "previsao", ...(aviso ? ["avisadoSaldoBaixoEm"] : []), ...Object.keys(extra), "atualizadoEm"] },
   );
-  if (aviso) tx.create(creditoRef(slug, `aviso:${agora.getTime()}`), { tipo: "aviso", valorCents: 0, saldoAposCents: saldo, em: agora, mes: quandoFoi(agora).mes, motivo: aviso });
+  if (aviso) tx.create(creditoRef(slug, `aviso:${agora.getTime()}`), { tipo: "aviso", valorCents: 0, saldoAposCents: saldo, em: agora, mes: quandoFoi(agora).mes, motivo: aviso.texto });
   return aviso;
 }
 
@@ -129,23 +130,22 @@ function lancar(tx: Transaction, slug: string, conta: Conta, valorCents: number,
   return { saldo, aviso };
 }
 
-/** Saldo em atenção ou crítico: ao dono pelo canal oficial quando ele escreveu nas últimas 24 h (texto na
- *  janela); fora dela não há template de saldo aprovado, então fica no painel (previsão), no push para
- *  quem gere e no e-mail. Nunca lança. */
-async function avisarSaldoBaixo(slug: string, texto: string) {
-  await avisar(adminDb, slug, { title: "Saldo de mensagens", body: texto, url: `/${slug}`, tag: `saldo-${slug}` }, { soGestores: true }).catch((e) => console.error(`[consumo] push do saldo de ${slug}`, e));
-  await emailAoDono(slug, "Saldo de mensagens", texto);
+/** Saldo em atenção ou crítico: push para quem gere, e-mail ao dono e, no canal oficial, o template
+ *  ruphus_saldo_baixo no WhatsApp pessoal do dono (fora da janela de 24 h). Template ainda não aprovado
+ *  na Meta: a recusa só vai para o log, o push e o e-mail já saíram. Nunca lança. */
+async function avisarSaldoBaixo(slug: string, a: AvisoSaldo) {
+  await avisar(adminDb, slug, { title: "Saldo de mensagens", body: a.texto, url: `/${slug}`, tag: `saldo-${slug}` }, { soGestores: true }).catch((e) => console.error(`[consumo] push do saldo de ${slug}`, e));
+  await emailAoDono(slug, "Saldo de mensagens", a.texto);
   try {
     // import na hora: canal-oficial e whatsapp importam atendys, que importa este arquivo
-    const [{ conexaoOficial }, { lerConfigWhatsApp }, { enviarTexto, OPTIN_DONO }, { soDigitosComDDI }] = await Promise.all([
+    const [{ conexaoOficial, templateSaldoBaixo }, { lerConfigWhatsApp }, { enviarTemplate, OPTIN_DONO }, { soDigitosComDDI }] = await Promise.all([
       import("@/lib/canal-oficial.server"), import("@/lib/whatsapp.server"), import("@/lib/atendys"), import("@/lib/telefone"),
     ]);
     const oficial = await conexaoOficial(adminDb, slug);
     const dono = soDigitosComDDI(String((await lerConfigWhatsApp(adminDb, slug))?.ownerPhone ?? ""));
     if (!oficial || !dono) return;
-    const recentes = await adminDb.collection(`tenants/${slug}/whatsappInbox`).where("receivedAt", ">", Date.now() - 23 * 3_600_000).orderBy("receivedAt", "desc").limit(50).get();
-    if (!recentes.docs.some((d) => soDigitosComDDI(String(d.get("phone") ?? "")) === dono)) return;
-    await enviarTexto(oficial, dono, texto, OPTIN_DONO, undefined, { resposta: true });
+    const negocio = String((await adminDb.doc(`tenants/${slug}`).get()).get("name") ?? "").trim() || slug;
+    await enviarTemplate(oficial, dono, templateSaldoBaixo({ negocio, slug, saldoCents: a.saldo, previsao: a.previsao }), OPTIN_DONO);
   } catch (e) {
     console.error(`[consumo] aviso de saldo pelo WhatsApp de ${slug}`, e);
   }
@@ -200,7 +200,8 @@ export async function registrarEnvio(slug: string, n: NovoEnvio, agora = new Dat
       const [existe, conta] = await Promise.all([tx.get(envioRef(slug, n.id)), contaDe(slug, tx)]);
       if (existe.exists) return null;
       const { cfg } = conta;
-      const precoCents = cfg.cobrar ? precoDe(cfg, n.canal, !!n.servico) : 0;
+      // o aviso de saldo é da plataforma: não custa ao negócio
+      const precoCents = cfg.cobrar && n.tipo !== "saldo" ? precoDe(cfg, n.canal, !!n.servico) : 0;
       const { mes, dia } = quandoFoi(agora);
       const delta = deltaDoConsumo({ canal: n.canal, via: n.via, tipo: n.tipo, precoCents, dia }, null, n.status);
       const custoCents = Number((delta as { custoCents?: number }).custoCents ?? 0);
@@ -278,17 +279,20 @@ type Credito = { tipo: "recarga" | "ajuste" | "boas-vindas"; valorCents: number;
 /** Lança crédito (ou débito de ajuste) com id próprio, numa transação. Abre a conta. O mesmo id outra
  *  vez não lança de novo (devolve null). Recarga libera um novo aviso de saldo (ultimaRecargaEm). */
 async function creditar(slug: string, id: string, c: Credito, confere?: (tx: Transaction) => Promise<void>): Promise<number | null> {
-  return adminDb.runTransaction(async (tx) => {
+  const r = await adminDb.runTransaction(async (tx) => {
     const [ja, conta] = await Promise.all([tx.get(creditoRef(slug, id)), contaDe(slug, tx)]);
     if (confere) await confere(tx);
     if (ja.exists) return null;
     const agora = new Date();
     const saldo = (conta.saldoCents ?? 0) + c.valorCents;
     // a previsão volta a valer com o saldo novo; a recarga libera um novo aviso
-    gravarConta(tx, slug, { ...conta, saldoCents: saldo }, saldo, 0, agora, c.tipo === "recarga" ? { ultimaRecargaEm: agora.getTime() } : {});
+    const aviso = gravarConta(tx, slug, { ...conta, saldoCents: saldo }, saldo, 0, agora, c.tipo === "recarga" ? { ultimaRecargaEm: agora.getTime() } : {});
     tx.create(creditoRef(slug, id), { ...c, saldoAposCents: saldo, em: new Date(agora.getTime() + 1), mes: quandoFoi(agora).mes });
-    return saldo;
+    return { saldo, aviso };
   });
+  // ajuste para baixo pode piorar o nível: o mesmo aviso do consumo
+  if (r?.aviso) await avisarSaldoBaixo(slug, r.aviso);
+  return r ? r.saldo : null;
 }
 
 /** Crédito de boas-vindas do negócio novo (cobrar e pré-pago). Uma vez só por negócio. Nunca lança. */

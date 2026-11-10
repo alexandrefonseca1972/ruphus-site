@@ -3,8 +3,9 @@ import { Timestamp, type Firestore } from "firebase-admin/firestore";
 import { apontarWebhook, enviarTexto, garantirTenant, revogarChavesAntigas, type ConexaoAtendys, type Template } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
-import { customerKey, formatPhone } from "@/lib/datetime";
-import { urlDoSite, type Dominio } from "@/lib/dominio";
+import { customerKey, formatBRL, formatPhone } from "@/lib/datetime";
+import { SITE_BASE, urlDoSite, type Dominio } from "@/lib/dominio";
+import type { Previsao } from "@/lib/consumo";
 import { soDigitosComDDI } from "@/lib/telefone";
 
 // Canal oficial do WhatsApp (API oficial da Meta, pelo atendys): um número da plataforma Ruphus
@@ -37,6 +38,8 @@ export const TEMPLATES = {
   novoDono: "agendamento_pedido_dono",
   novoDonoBotoes: "agendamento_pedido_dono_botoes",
   lembreteBotoes: "agendamento_lembrete_botoes",
+  /** ao dono: {{1}} negócio, {{2}} saldo, {{3}} quanto dura, {{4}} recarga indicada, {{5}} link do painel */
+  saldoBaixo: "ruphus_saldo_baixo",
 } as const;
 
 /** Templates com botões (Confirmar/Recusar ao dono; presença/remarcar/cancelar no lembrete).
@@ -98,6 +101,22 @@ export function templateNovoDono(c: { negocio: string; cliente: string; telefone
   const parametros = [destaque(c.codigo), destaque(c.negocio), parametro(c.cliente), parametro(c.telefone), parametro(c.servico), quandoFormatado(c.quando)];
   if (ref && comBotoes()) return { nome: nomeTemplate("novoDonoBotoes"), parametros, botoes: [idBotao("dc", ref.slug, ref.agendamento, ref.horario), idBotao("dr", ref.slug, ref.agendamento, ref.horario)] };
   return { nome: nomeTemplate("novoDono"), parametros };
+}
+
+/** Saldo de mensagens baixo, ao WhatsApp pessoal do dono (sem _v2: o template nasceu com as 5 variáveis). */
+export function templateSaldoBaixo(c: { negocio: string; slug: string; saldoCents: number; previsao: Previsao }): Template {
+  const dias = c.previsao.diasRestantesEstimados;
+  const p = c.previsao.pacoteIndicado;
+  return {
+    nome: TEMPLATES.saldoBaixo,
+    parametros: [
+      parametro(c.negocio),
+      parametro(formatBRL(c.saldoCents)),
+      parametro(dias === null ? "poucos dias" : dias === 0 ? "menos de 1 dia" : `${dias} ${dias === 1 ? "dia" : "dias"}`),
+      parametro(p ? `${formatBRL(p.valorCents)}${p.bonusCents ? ` (+ ${formatBRL(p.bonusCents)} de bônus)` : ""}` : "o valor que preferir"),
+      parametro(`${SITE_BASE.replace(/^https?:\/\//, "")}/${c.slug}/consumo`),
+    ],
+  };
 }
 
 async function lerCredenciais(db: Firestore): Promise<Credenciais | null> {

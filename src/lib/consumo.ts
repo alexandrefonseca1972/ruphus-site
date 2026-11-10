@@ -16,7 +16,7 @@ import { dateIn } from "@/lib/datetime";
 
 export type Canal = "whatsapp" | "sms";
 export type Via = "oficial" | "salao";
-export const TIPOS_ENVIO = ["recebido", "pedido_dono", "confirmado", "cancelado", "reagendado", "lembrete", "pix", "recibo", "resposta", "outro"] as const;
+export const TIPOS_ENVIO = ["recebido", "pedido_dono", "confirmado", "cancelado", "reagendado", "lembrete", "pix", "recibo", "resposta", "saldo", "outro"] as const;
 export type TipoEnvio = (typeof TIPOS_ENVIO)[number];
 export const STATUS_ENVIO = ["aceito", "enviado", "entregue", "lido", "falhou", "parado", "sem-saldo"] as const;
 export type StatusEnvio = (typeof STATUS_ENVIO)[number];
@@ -91,7 +91,8 @@ export function podeEnviar(p: {
 }): { envia: boolean; motivo?: string } {
   if (!p.cobrar || p.modelo !== "prepago" || p.custoCents <= 0) return { envia: true };
   if (p.saldoCents - p.custoCents >= 0) return { envia: true };
-  if (p.tipo === "pedido_dono") return { envia: true };
+  // o pedido ao dono e o aviso de saldo baixo sempre saem
+  if (p.tipo === "pedido_dono" || p.tipo === "saldo") return { envia: true };
   if (p.semSaldo === "negativo") {
     return p.saldoCents - p.custoCents >= -p.limiteNegativoCents ? { envia: true } : { envia: false, motivo: "limite de saldo negativo atingido" };
   }
@@ -206,6 +207,7 @@ export function tipoDoTemplate(nome: string): TipoEnvio {
   if (base === "agendamento_cancelado") return "cancelado";
   if (base === "agendamento_lembrete") return "lembrete";
   if (base === "agendamento_pedido_dono") return "pedido_dono";
+  if (base === "ruphus_saldo_baixo") return "saldo";
   return "outro";
 }
 
