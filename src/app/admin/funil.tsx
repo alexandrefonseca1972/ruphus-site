@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { formatBRL } from "@/lib/datetime";
 import { COR, diaCurto, mensal, MOTIVOS_PERDA, ORIGENS, prazoDe, ROTULO, type Crm, type Estagio, type MotivoPerda } from "@/lib/crm-tipos";
-import { COLUNAS, NOVOS_MAX, NOVOS_POR_VEZ, origemDe, PERIODOS, ehPeriodo, type Periodo, type ResumoDoFunil } from "@/lib/funil-consulta";
+import { COLUNAS, NOVOS_MAX, NOVOS_POR_VEZ, origemDe, PERIODOS, ehPeriodo, type NumerosDaSemana, type Periodo, type ResumoDoFunil } from "@/lib/funil-consulta";
 import type { Espaco } from "./actions";
 
 // O funil em colunas: os mesmos negócios da lista (com os mesmos filtros e busca),
@@ -12,6 +12,7 @@ import type { Espaco } from "./actions";
 
 export function Funil({
   resumo: n,
+  semana,
   crm,
   hoje,
   periodo,
@@ -25,6 +26,8 @@ export function Funil({
   verNovos,
 }: {
   resumo: ResumoDoFunil;
+  /** contatados, responderam e fecharam nos últimos 7 dias; ausente enquanto a rota não responde */
+  semana?: NumerosDaSemana;
   /** o CRM dos cartões (pode ter mais) */
   crm: Record<string, Crm>;
   hoje: string;
@@ -78,9 +81,32 @@ export function Funil({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-[family-name:var(--fonte-serifa)] text-[26px] leading-none">Funil</h2>
-        <label className="flex items-center gap-2 text-xs text-[#6F6A5E]">
+      <h2 className="font-[family-name:var(--fonte-serifa)] text-[26px] leading-none">Funil</h2>
+
+      {/* Uma linha de números: o que importa para quem prospecta sozinho. O resto em "Ver análises" */}
+      <dl className="grid grid-cols-3 gap-2 sm:gap-3">
+        {(
+          [
+            ["Contatados", semana?.contatados],
+            ["Responderam", semana?.responderam],
+            ["Fecharam", semana?.fecharam],
+          ] as const
+        ).map(([rotulo, valor]) => (
+          <div key={rotulo} className="flex min-w-0 flex-col gap-1.5 rounded-2xl border border-[#E2DDD3] bg-white px-3 py-3 sm:px-4 sm:py-3.5">
+            <dt className="truncate text-[11px] tracking-[0.06em] text-[#6F6A5E] uppercase">{rotulo}</dt>
+            <dd className="font-[family-name:var(--fonte-serifa)] text-[30px] leading-none tabular-nums">{valor ?? "—"}</dd>
+            <dd className="text-[11px] text-[#6F6A5E]">últimos 7 dias</dd>
+          </div>
+        ))}
+      </dl>
+
+      <details className="group rounded-2xl border border-[#E2DDD3] bg-white px-4 py-3">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-[13px] font-semibold [&::-webkit-details-marker]:hidden">
+          Ver análises · receita, conversão, origens, anúncios e perdas
+          <span aria-hidden="true" className="text-[#6F6A5E] group-open:rotate-180">⌄</span>
+        </summary>
+        <div className="mt-3 flex flex-col gap-4">
+        <label className="flex items-center gap-2 self-start text-xs text-[#6F6A5E]">
           Período
           <select
             value={periodo}
@@ -92,10 +118,6 @@ export function Funil({
             ))}
           </select>
         </label>
-      </div>
-
-      {/* Arrastar é de mouse: no celular a etapa muda dentro da gaveta */}
-      <p className="text-xs text-[#6F6A5E] sm:hidden">Toque no negócio para abrir e mudar a etapa.</p>
 
       <dl className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {numeros.map((x) => {
@@ -136,6 +158,86 @@ export function Funil({
           })}
         </ol>
       </section>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section aria-labelledby="origens-t" className="overflow-hidden rounded-2xl border border-[#E2DDD3] bg-white">
+          <h3 id="origens-t" className="px-4 pt-4 pb-3 font-[family-name:var(--fonte-serifa)] text-[22px] leading-none">De onde vêm os clientes</h3>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="bg-[#FBFAF8] text-[11px] tracking-[0.06em] text-[#6F6A5E] uppercase">
+                <th scope="col" className="px-4 py-2.5 text-left font-medium">Origem</th>
+                <th scope="col" className="px-4 py-2.5 text-right font-medium">Contatos</th>
+                <th scope="col" className="px-4 py-2.5 text-right font-medium">Fechados</th>
+                <th scope="col" className="px-4 py-2.5 text-right font-medium">Conversão</th>
+              </tr>
+            </thead>
+            <tbody>
+              {n.origens.map(({ o, contatos, fechados }) => (
+                <tr key={o} className="border-t border-[#E2DDD3]">
+                  <td className="px-4 py-2.5 font-semibold">{ORIGENS[o]}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">{contatos}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">{fechados}</td>
+                  <td className="px-4 py-2.5 text-right font-semibold tabular-nums">{contatos ? `${Math.round((fechados / contatos) * 100)}%` : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section aria-labelledby="campanhas-t" className="overflow-hidden rounded-2xl border border-[#E2DDD3] bg-white">
+          <h3 id="campanhas-t" className="px-4 pt-4 pb-3 font-[family-name:var(--fonte-serifa)] text-[22px] leading-none">Anúncios</h3>
+          {n.campanhas.length ? (
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr className="bg-[#FBFAF8] text-[11px] tracking-[0.06em] text-[#6F6A5E] uppercase">
+                  <th scope="col" className="px-4 py-2.5 text-left font-medium">Campanha</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Cadastros</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Fechados</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Conversão</th>
+                </tr>
+              </thead>
+              <tbody>
+                {n.campanhas.map(([nome, { cadastros, fechados }]) => (
+                  <tr key={nome} className="border-t border-[#E2DDD3]">
+                    <td className="max-w-0 truncate px-4 py-2.5 font-semibold" title={nome}>{nome}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{cadastros}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{fechados}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold tabular-nums">{`${Math.round((fechados / cadastros) * 100)}%`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="px-4 pb-4 text-xs leading-relaxed text-[#6F6A5E]">
+              Nenhum cadastro veio de anúncio ainda. Use links com <code>utm_campaign</code> nos anúncios, por exemplo
+              {" "}<code className="break-all">www.ruphus.site/?utm_source=instagram&amp;utm_campaign=setembro</code>: cada campanha aparece aqui com os negócios que criou.
+            </p>
+          )}
+        </section>
+
+        <section aria-labelledby="perdas-t" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] bg-white p-4">
+          <h3 id="perdas-t" className="font-[family-name:var(--fonte-serifa)] text-[22px] leading-none">Por que perdemos</h3>
+          {(Object.keys(MOTIVOS_PERDA) as MotivoPerda[]).map((m) => {
+            const q = n.motivos.find(([x]) => x === m)?.[1] ?? 0;
+            const max = Math.max(1, ...n.motivos.map(([, v]) => v));
+            return (
+              <div key={m} className="grid grid-cols-[10rem_minmax(0,1fr)_2rem] items-center gap-3 text-xs">
+                <span>{MOTIVOS_PERDA[m]}</span>
+                <span className="h-2.5 rounded-full bg-[#EFEBE2]">
+                  <span className="block h-2.5 rounded-full bg-[#8A2F2F]" style={{ width: `${(q / max) * 100}%` }} />
+                </span>
+                <b className="text-right font-semibold tabular-nums">{q}</b>
+              </div>
+            );
+          })}
+          <p className="text-[11px] text-[#6F6A5E]">{PERIODOS[periodo]}. Conta a partir de quando o motivo passou a ser pedido.</p>
+        </section>
+      </div>
+        </div>
+      </details>
+
+      {/* Arrastar é de mouse: no celular a etapa muda dentro da gaveta */}
+      <p className="text-xs text-[#6F6A5E] sm:hidden">Toque no negócio para abrir e mudar a etapa.</p>
 
       <div role="tablist" aria-label="Etapas" className="-mx-4 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:hidden [&::-webkit-scrollbar]:hidden">
         {[...COLUNAS, "perdido" as const].map((e) => (
@@ -237,80 +339,6 @@ export function Funil({
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section aria-labelledby="origens-t" className="overflow-hidden rounded-2xl border border-[#E2DDD3] bg-white">
-          <h3 id="origens-t" className="px-4 pt-4 pb-3 font-[family-name:var(--fonte-serifa)] text-[22px] leading-none">De onde vêm os clientes</h3>
-          <table className="w-full border-collapse text-xs">
-            <thead>
-              <tr className="bg-[#FBFAF8] text-[11px] tracking-[0.06em] text-[#6F6A5E] uppercase">
-                <th scope="col" className="px-4 py-2.5 text-left font-medium">Origem</th>
-                <th scope="col" className="px-4 py-2.5 text-right font-medium">Contatos</th>
-                <th scope="col" className="px-4 py-2.5 text-right font-medium">Fechados</th>
-                <th scope="col" className="px-4 py-2.5 text-right font-medium">Conversão</th>
-              </tr>
-            </thead>
-            <tbody>
-              {n.origens.map(({ o, contatos, fechados }) => (
-                <tr key={o} className="border-t border-[#E2DDD3]">
-                  <td className="px-4 py-2.5 font-semibold">{ORIGENS[o]}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{contatos}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{fechados}</td>
-                  <td className="px-4 py-2.5 text-right font-semibold tabular-nums">{contatos ? `${Math.round((fechados / contatos) * 100)}%` : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-
-        <section aria-labelledby="campanhas-t" className="overflow-hidden rounded-2xl border border-[#E2DDD3] bg-white">
-          <h3 id="campanhas-t" className="px-4 pt-4 pb-3 font-[family-name:var(--fonte-serifa)] text-[22px] leading-none">Anúncios</h3>
-          {n.campanhas.length ? (
-            <table className="w-full border-collapse text-xs">
-              <thead>
-                <tr className="bg-[#FBFAF8] text-[11px] tracking-[0.06em] text-[#6F6A5E] uppercase">
-                  <th scope="col" className="px-4 py-2.5 text-left font-medium">Campanha</th>
-                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Cadastros</th>
-                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Fechados</th>
-                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Conversão</th>
-                </tr>
-              </thead>
-              <tbody>
-                {n.campanhas.map(([nome, { cadastros, fechados }]) => (
-                  <tr key={nome} className="border-t border-[#E2DDD3]">
-                    <td className="max-w-0 truncate px-4 py-2.5 font-semibold" title={nome}>{nome}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{cadastros}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{fechados}</td>
-                    <td className="px-4 py-2.5 text-right font-semibold tabular-nums">{`${Math.round((fechados / cadastros) * 100)}%`}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p className="px-4 pb-4 text-xs leading-relaxed text-[#6F6A5E]">
-              Nenhum cadastro veio de anúncio ainda. Use links com <code>utm_campaign</code> nos anúncios, por exemplo
-              {" "}<code className="break-all">www.ruphus.site/?utm_source=instagram&amp;utm_campaign=setembro</code>: cada campanha aparece aqui com os negócios que criou.
-            </p>
-          )}
-        </section>
-
-        <section aria-labelledby="perdas-t" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] bg-white p-4">
-          <h3 id="perdas-t" className="font-[family-name:var(--fonte-serifa)] text-[22px] leading-none">Por que perdemos</h3>
-          {(Object.keys(MOTIVOS_PERDA) as MotivoPerda[]).map((m) => {
-            const q = n.motivos.find(([x]) => x === m)?.[1] ?? 0;
-            const max = Math.max(1, ...n.motivos.map(([, v]) => v));
-            return (
-              <div key={m} className="grid grid-cols-[10rem_minmax(0,1fr)_2rem] items-center gap-3 text-xs">
-                <span>{MOTIVOS_PERDA[m]}</span>
-                <span className="h-2.5 rounded-full bg-[#EFEBE2]">
-                  <span className="block h-2.5 rounded-full bg-[#8A2F2F]" style={{ width: `${(q / max) * 100}%` }} />
-                </span>
-                <b className="text-right font-semibold tabular-nums">{q}</b>
-              </div>
-            );
-          })}
-          <p className="text-[11px] text-[#6F6A5E]">{PERIODOS[periodo]}. Conta a partir de quando o motivo passou a ser pedido.</p>
-        </section>
-      </div>
     </div>
   );
 }

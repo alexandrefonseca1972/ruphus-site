@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { campanhaDe, ESTAGIOS, MOTIVOS_PERDA, ORIGENS, prazoDe, PRECO_PADRAO, type Crm, type Estagio, type MotivoPerda, type Origem } from "@/lib/crm-tipos";
-import { ajustarFunil, COLUNAS, inicioDoDia, NOVOS_POR_VEZ, PERIODOS, resumoDoFunil, type Periodo } from "@/lib/funil-consulta";
+import { ajustarFunil, COLUNAS, inicioDoDia, NOVOS_POR_VEZ, numerosDaSemana, PERIODOS, resumoDoFunil, type Periodo } from "@/lib/funil-consulta";
 import type { Espaco } from "@/lib/painel-tipos";
 
 // O funil saiu do useMemo de src/app/admin/funil.tsx (fase 4 do docs/plano-paginacao-admin.md).
@@ -134,6 +134,22 @@ for (let semente = 1; semente <= 300; semente++) {
   assert.deepEqual([ajustado.colunas.novo.total, ajustado.colunas.oferta.total, ajustado.colunas.oferta.somaCents, ajustado.perdidos], [1, 1, 500, 1]);
   assert.equal(r.colunas.oferta.cartoes[0].slug, "b", "o resumo do servidor não é alterado");
   assert.equal(ajustarFunil(r, local, { alterados: new Set(), local: () => undefined, novos: 6 }).colunas.oferta.cartoes[0].slug, "b", "sem alterados, igual ao servidor");
+}
+
+// a linha de números: últimos 7 dias, contados de `agora`
+{
+  const e = (slug: string): Espaco => ({ slug, nome: slug, telefone: null, nicho: "Outros", cidade: null, uf: null, nota: null, avaliacoes: null, acessos: 1, limiteStaff: 2, caixa: false });
+  const agoraSemana = Date.parse("2026-11-10T12:00:00.000Z");
+  const crm: Record<string, Crm> = {
+    a: { ultimoContatoEm: "2026-11-09T10:00:00.000Z", respondeuEm: "2026-11-09T11:00:00.000Z" } as Crm,
+    b: { ultimoContatoEm: "2026-11-03T12:00:00.000Z" } as Crm,                // exatamente 7 dias: conta
+    c: { ultimoContatoEm: "2026-11-03T11:59:59.000Z", respondeuEm: "2026-11-01T00:00:00.000Z" } as Crm, // antes: não conta
+    d: { estagio: "fechado", fechadoEm: "2026-11-08T12:00:00.000Z", ultimoContatoEm: "2026-11-08T12:00:00.000Z" } as Crm,
+    f: { estagio: "perdido", fechadoEm: "2026-11-08T12:00:00.000Z" } as Crm, // fechadoEm sem estar fechado: não conta
+  };
+  const espacos = ["a", "b", "c", "d", "f", "sem-crm"].map(e);
+  assert.deepEqual(numerosDaSemana(espacos, crm, agoraSemana), { contatados: 3, responderam: 1, fecharam: 1 });
+  assert.deepEqual(numerosDaSemana([], crm, agoraSemana), { contatados: 0, responderam: 0, fecharam: 0 });
 }
 
 // 20 mil negócios: abaixo de 50 ms

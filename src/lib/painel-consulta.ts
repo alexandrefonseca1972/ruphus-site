@@ -9,13 +9,25 @@
 // entregar lista vazia.
 import { alertas, type Alerta } from "@/lib/alertas";
 import { mensal, mensalidadeDe, prazoDe, type Crm, type Estagio, type Prazo } from "@/lib/crm-tipos";
-import type { Espaco, Filtros, Ordem, Situacao } from "@/lib/painel-tipos";
+import { FILAS, type Espaco, type Fila, type Filtros, type Ordem, type Situacao } from "@/lib/painel-tipos";
 
 export const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 /** relevância: a nota pesa, mas um 5,0 de três pessoas não passa na frente de um 4,7 de quinhentas */
 export const relevancia = (e: Espaco) => (e.nota ?? 0) * Math.log10((e.avaliacoes ?? 0) + 1);
 /** O rótulo do chip de cidade: "Cidade/UF", ou só a cidade quando não há UF. */
 export const local = (e: Espaco) => (e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ""}` : "");
+/** Celular brasileiro (DDD + 9 + 8 dígitos, com ou sem o 55): fixo raramente tem WhatsApp. */
+export const celular = (t: string | null | undefined) => /^(?:55)?[1-9]{2}9\d{8}$/.test((t ?? "").replace(/\D/g, ""));
+/** Se o negócio está na fila: "retornos" (atrasados e para hoje), "primeiro" (nunca abordado,
+ *  com celular e sem pedido para parar) ou "responderam" (em conversa, ainda sem desfecho). */
+export function naFila(fila: Fila, e: Espaco, c: Crm | undefined, prazo: Prazo | null) {
+  const estagio = c?.estagio ?? "novo";
+  if (fila === "retornos") return prazo === "atrasada" || prazo === "hoje";
+  // `toques` só existe desde 05/11 (#262), sem migração: quem foi abordado antes tem só o último contato
+  if (fila === "primeiro")
+    return estagio === "novo" && !c?.toques && !c?.ultimoContatoEm && !c?.respondeuEm && !c?.naoContatarEm && celular(c?.donoWhatsapp || e.telefone);
+  return (estagio === "negociando" || !!c?.respondeuEm) && estagio !== "fechado" && estagio !== "perdido";
+}
 export const emDestaque = (c: Crm | undefined, hoje: string) => !!c?.fixadoAte && c.fixadoAte >= hoje;
 // toLocaleDateString monta um formatador a cada chamada (~100 µs): com milhares de
 // negócios, era a maior parte do tempo da consulta. Um formatador por fuso, reaproveitado.
@@ -63,7 +75,7 @@ export const visaoDe = (f: Pick<Filtros, "prazo" | "situacao" | "estagio" | "for
 // um bit por filtro
 const B = {
   busca: 1 << 0, uf: 1 << 1, cidade: 1 << 2, nicho: 1 << 3, situacao: 1 << 4, estagio: 1 << 5,
-  prazo: 1 << 6, fora: 1 << 7, caixa: 1 << 8, contato: 1 << 9, fixados: 1 << 10, alerta: 1 << 11,
+  prazo: 1 << 6, fora: 1 << 7, caixa: 1 << 8, contato: 1 << 9, fixados: 1 << 10, alerta: 1 << 11, fila: 1 << 12,
 } as const;
 /** passa em todos os filtros, exceto (talvez) os dos bits em `livres` */
 const passaSalvo = (mascara: number, livres: number) => (mascara & ~livres) === 0;
@@ -129,30 +141,14 @@ function contador() {
   };
 }
 
-export function consultar(espacos: readonly Espaco[], f: Filtros, { crm, hoje, fuso }: Contexto): ResultadoPainel {
-  const avisos = alertas([...espacos], crm, hoje);
-  const foco = f.alerta ? avisos.find((a) => a.id === f.alerta) : undefined;
-  const emFoco = foco ? new Set(foco.slugs) : null;
+/** Os filtros que cada negócio reprova (um bit por filtro), com o que foi calculado no caminho. */
+function mascarador(f: Filtros, { crm, hoje, fuso }: Contexto, emFoco: Set<string> | null) {
   const termo = semAcento(f.busca.trim());
-  const falouHoje = (c: Crm | undefined) => diaLocal(c?.ultimoContatoEm ?? null, fuso) === hoje;
-
-  // destacados ficam no topo de qualquer ordenação: separados aqui, ordenados cada grupo
-  // e juntados no fim (o mesmo que usar o destaque como primeiro critério, sem recalculá-lo
-  // a cada comparação)
-  const destacados: Espaco[] = [];
-  const demais: Espaco[] = [];
-  const ufs = contador(), cidades = contador(), nichos = contador();
-  const estagios: Record<Estagio, number> = { novo: 0, oferta: 0, negociando: 0, fechado: 0, perdido: 0 };
-  const prazos: Record<Prazo, number> = { atrasada: 0, hoje: 0, futura: 0 };
-  const visoes: Record<VisaoId, number> = { atrasados: 0, hoje: 0, falei: 0, fixados: 0, todos: 0, pendentes: 0, negociando: 0, foradoar: 0 };
-  let caixa = 0, contratadoCents = 0, negociacaoCents = 0;
-  const tirando = { cidade: 0, nicho: 0 };
-
-  for (const e of espacos) {
+  return (e: Espaco) => {
     const c = crm[e.slug];
     const estagio = c?.estagio ?? "novo";
     const prazo = prazoDe(c, hoje);
-    const falou = falouHoje(c);
+    const falou = diaLocal(c?.ultimoContatoEm ?? null, fuso) === hoje;
     const destaque = emDestaque(c, hoje);
     let m = 0;
     if (termo && !textoDeBusca(e).includes(termo)) m |= B.busca;
@@ -167,6 +163,48 @@ export function consultar(espacos: readonly Espaco[], f: Filtros, { crm, hoje, f
     if (f.contato && !falou) m |= B.contato;
     if (f.fixados && !destaque) m |= B.fixados;
     if (emFoco && !emFoco.has(e.slug)) m |= B.alerta;
+    if (f.fila && !naFila(f.fila, e, c, prazo)) m |= B.fila;
+    return { c, estagio, prazo, falou, destaque, m };
+  };
+}
+
+/** Quantos há em cada fila com a busca, o lugar, o nicho e o Caixa ligados. As visões, o alerta
+ *  e a própria fila não contam: são outra entrada na mesma lista. `faleiHoje` é o contador do dia:
+ *  quantos receberam contato hoje, sem filtro nenhum. */
+export function contarFilas(espacos: readonly Espaco[], f: Filtros, ctx: Contexto): { filas: Record<Fila, number>; faleiHoje: number } {
+  const marcar = mascarador(f, ctx, null);
+  const livres = B.situacao | B.estagio | B.prazo | B.fora | B.contato | B.fixados | B.alerta | B.fila;
+  const filas: Record<Fila, number> = { retornos: 0, primeiro: 0, responderam: 0 };
+  let faleiHoje = 0;
+  for (const e of espacos) {
+    const x = marcar(e);
+    if (x.falou) faleiHoje += 1;
+    if (passaSalvo(x.m, livres)) for (const fila of FILAS) if (naFila(fila, e, x.c, x.prazo)) filas[fila] += 1;
+  }
+  return { filas, faleiHoje };
+}
+
+export function consultar(espacos: readonly Espaco[], f: Filtros, ctx: Contexto): ResultadoPainel {
+  const { crm, hoje } = ctx;
+  const avisos = alertas([...espacos], crm, hoje);
+  const foco = f.alerta ? avisos.find((a) => a.id === f.alerta) : undefined;
+  const emFoco = foco ? new Set(foco.slugs) : null;
+  const marcar = mascarador(f, ctx, emFoco);
+
+  // destacados ficam no topo de qualquer ordenação: separados aqui, ordenados cada grupo
+  // e juntados no fim (o mesmo que usar o destaque como primeiro critério, sem recalculá-lo
+  // a cada comparação)
+  const destacados: Espaco[] = [];
+  const demais: Espaco[] = [];
+  const ufs = contador(), cidades = contador(), nichos = contador();
+  const estagios: Record<Estagio, number> = { novo: 0, oferta: 0, negociando: 0, fechado: 0, perdido: 0 };
+  const prazos: Record<Prazo, number> = { atrasada: 0, hoje: 0, futura: 0 };
+  const visoes: Record<VisaoId, number> = { atrasados: 0, hoje: 0, falei: 0, fixados: 0, todos: 0, pendentes: 0, negociando: 0, foradoar: 0 };
+  let caixa = 0, contratadoCents = 0, negociacaoCents = 0;
+  const tirando = { cidade: 0, nicho: 0 };
+
+  for (const e of espacos) {
+    const { c, estagio, prazo, falou, destaque, m } = marcar(e);
 
     if (m === 0) (destaque ? destacados : demais).push(e);
     if (passaSalvo(m, B.uf)) ufs.somar(e.uf ?? "");
@@ -182,8 +220,9 @@ export function consultar(espacos: readonly Espaco[], f: Filtros, { crm, hoje, f
     if (passaSalvo(m, B.estagio) && estagio in estagios) estagios[estagio] += 1;
     if (passaSalvo(m, B.prazo) && prazo) prazos[prazo] += 1;
     if (passaSalvo(m, B.caixa) && e.caixa) caixa += 1;
-    // cada visão controla prazo, situação, estágio e fora do ar; o resto vem dos filtros ligados
-    if (passaSalvo(m, B.prazo | B.situacao | B.estagio | B.fora)) {
+    // cada visão controla prazo, situação, estágio e fora do ar; o resto vem dos filtros ligados.
+    // A fila é outra entrada: não muda a contagem das visões ("Falei hoje" é o contador do dia)
+    if (passaSalvo(m, B.prazo | B.situacao | B.estagio | B.fora | B.fila)) {
       for (const v of VISOES) {
         if (v.prazo && prazo !== v.prazo) continue;
         if (v.situacao && !naSituacao(e, v.situacao)) continue;

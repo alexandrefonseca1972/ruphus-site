@@ -7,7 +7,7 @@ import type { Alerta } from "@/lib/alertas";
 import { UFS, type Uf } from "@/lib/coleta";
 import { ESTAGIOS, type Crm, type Prazo } from "@/lib/crm-tipos";
 import type { ResultadoPainel } from "@/lib/painel-consulta";
-import { NOVOS_MAX, NOVOS_POR_VEZ, PERIODOS, type Periodo, type ResumoDoFunil } from "@/lib/funil-consulta";
+import { NOVOS_MAX, NOVOS_POR_VEZ, PERIODOS, type NumerosDaSemana, type Periodo, type ResumoDoFunil } from "@/lib/funil-consulta";
 
 export type Espaco = {
   slug: string;
@@ -59,6 +59,9 @@ export type Ordem = (typeof ORDENS)[number];
 export const SITUACOES = ["ativo", "pendente"] as const;
 export type Situacao = (typeof SITUACOES)[number];
 export const PRAZOS = ["atrasada", "hoje", "futura"] as const satisfies readonly Prazo[];
+/** As três filas do dia, no topo da Lista: quem cobrar, quem abordar, quem responder. */
+export const FILAS = ["retornos", "primeiro", "responderam"] as const;
+export type Fila = (typeof FILAS)[number];
 export const ALERTAS = ["viu_proposta", "sem_proxima", "parado", "sem_toque", "implantacao", "destaque"] as const satisfies readonly Alerta["id"][];
 
 /** Itens por página da lista; "mostrar mais" pede múltiplos disto. */
@@ -110,6 +113,8 @@ export const ConsultaPainel = z.strictObject({
   estagio: opcao(ESTAGIOS),
   prazo: opcao(PRAZOS),
   alerta: opcao(ALERTAS),
+  // sem padrão: ausente quando não vem na URL
+  fila: z.union([z.literal(""), z.enum(FILAS)]).optional(),
   fora: z.stringbool().default(false),
   caixa: z.stringbool().default(false),
   contato: z.stringbool().default(false), // "falei hoje"
@@ -131,10 +136,10 @@ export type ConsultaPainel = z.output<typeof ConsultaPainel>;
  *  o chip vem do valor gravado, e a sigla é conferida na fronteira (URL) e na limpeza do índice
  *  (docs/plano-paginacao-admin.md, 6.3 e 6.4), não aqui — senão um valor fora do padrão
  *  ligaria o chip sem filtrar a lista. */
-export type Filtros = Omit<ConsultaPainel, "n" | "hoje" | "tz" | "uf" | "funil" | "periodo" | "novos"> & { uf: string };
+export type Filtros = Omit<ConsultaPainel, "n" | "hoje" | "tz" | "uf" | "funil" | "periodo" | "novos" | "fila"> & { uf: string; fila?: "" | Fila };
 export const SEM_FILTROS: Filtros = {
   busca: "", uf: "", cidade: "", nicho: "", situacao: "", estagio: "", prazo: "", alerta: "",
-  fora: false, caixa: false, contato: false, fixados: false, ordem: "relevancia",
+  fila: "", fora: false, caixa: false, contato: false, fixados: false, ordem: "relevancia",
 };
 
 /** Guarda de tipo para o que vem de fora (chip, <select>, URL). */
@@ -155,9 +160,11 @@ export type RespostaPainel =
       total: number;
       /** quantos negócios há na base, sem filtro nenhum */
       base: number;
-      contagens: Omit<ResultadoPainel, "lista" | "avisos"> & { avisos: (Omit<Alerta, "slugs"> & { total: number })[] };
+      contagens: Omit<ResultadoPainel, "lista" | "avisos"> & { avisos: (Omit<Alerta, "slugs"> & { total: number })[]; filas: Record<Fila, number>; faleiHoje: number };
       /** com funil=1: os números e as colunas; o CRM dos cartões vai junto em `crm` */
       funil?: ResumoDoFunil;
+      /** com funil=1: a linha de números do funil, dos últimos 7 dias */
+      semana?: NumerosDaSemana;
       versao: number;
       montadoEm: string;
     }

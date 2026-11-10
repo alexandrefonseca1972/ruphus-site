@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { alertas } from "@/lib/alertas";
 import { ESTAGIOS, mensalidadeDe, prazoDe, PRECO_PADRAO, type Crm, type Estagio } from "@/lib/crm-tipos";
-import { consultar, diaLocal, local, semAcento, visaoDe, VISOES, type ResultadoPainel } from "@/lib/painel-consulta";
+import { celular, consultar, contarFilas, diaLocal, local, semAcento, visaoDe, VISOES, type ResultadoPainel } from "@/lib/painel-consulta";
 import { ORDENS, SEM_FILTROS, type Espaco, type Filtros } from "@/lib/painel-tipos";
 
 // A consulta do painel (src/lib/painel-consulta.ts) substitui o cálculo que vivia no
@@ -111,6 +111,62 @@ const slugs = (r: ResultadoPainel) => r.lista.map((e) => e.slug);
   // virada do dia: compromisso de ontem é atrasado, de hoje é hoje
   assert.equal(prazoDe({ proximaData: "2026-10-31" }, HOJE), "atrasada");
   console.log("fuso e virada do dia: ok");
+}
+
+// as três filas do topo: retornos (atrasados + hoje), primeiro contato, responderam
+{
+  const base = [
+    espaco("atrasado", { telefone: "5591988887777" }),
+    espaco("hoje", { telefone: "91988887777" }),
+    espaco("virgem", { telefone: "(91) 98888-7777", nota: 4.9, avaliacoes: 300 }),
+    espaco("virgem-fraco", { telefone: "5591988887777", nota: 4, avaliacoes: 3 }),
+    espaco("fixo", { telefone: "559132221111" }),
+    espaco("dono-celular", { telefone: "559132221111" }),
+    espaco("sem-telefone"),
+    espaco("parou", { telefone: "5591988887777" }),
+    espaco("tocado", { telefone: "5591988887777" }),
+    espaco("respondeu", { telefone: "5591988887777" }),
+    espaco("negociando", { telefone: "5591988887777" }),
+    espaco("fechou-respondido", { telefone: "5591988887777" }),
+    espaco("outra-cidade", { telefone: "5548988887777", cidade: "São José", uf: "SC" }),
+    // abordado antes de existir `toques` (05/11): só o último contato gravado
+    espaco("antigo", { telefone: "5591988887777", nota: 5, avaliacoes: 900 }),
+  ];
+  const crm: Record<string, Crm> = {
+    atrasado: { ...VAZIO, proximaData: "2026-10-30", toques: 1, ultimoContatoEm: "2026-10-27T12:00:00.000Z" },
+    hoje: { ...VAZIO, proximaData: HOJE, toques: 1, ultimoContatoEm: "2026-11-01T13:00:00.000Z" },
+    "dono-celular": { ...VAZIO, donoWhatsapp: "5591977776666" },
+    parou: { ...VAZIO, naoContatarEm: "2026-10-20T12:00:00.000Z" },
+    tocado: { ...VAZIO, toques: 1, proximaData: "2026-11-04" },
+    respondeu: { ...VAZIO, respondeuEm: "2026-10-31T12:00:00.000Z", toques: 1 },
+    negociando: { ...VAZIO, estagio: "negociando" },
+    "fechou-respondido": { ...VAZIO, estagio: "fechado", respondeuEm: "2026-10-01T12:00:00.000Z" },
+    antigo: { ...VAZIO, ultimoContatoEm: "2026-10-20T12:00:00.000Z" },
+  };
+  const ctx = { crm, hoje: HOJE, fuso: "America/Sao_Paulo" };
+
+  assert.deepEqual(slugs(consultar(base, f({ fila: "retornos", ordem: "compromisso" }), ctx)), ["atrasado", "hoje"]);
+  // relevância como em "Todos": nota com muitas avaliações primeiro; fixo e sem telefone ficam de fora
+  assert.deepEqual(slugs(consultar(base, f({ fila: "primeiro" }), ctx)), ["virgem", "virgem-fraco", "dono-celular", "outra-cidade"]);
+  assert.deepEqual(slugs(consultar(base, f({ fila: "responderam", ordem: "nome" }), ctx)), ["negociando", "respondeu"]);
+  // a fila se soma aos outros filtros
+  assert.deepEqual(slugs(consultar(base, f({ fila: "primeiro", uf: "SC" }), ctx)), ["outra-cidade"]);
+
+  // a contagem das filas respeita lugar e busca, e ignora visão, alerta e a própria fila
+  assert.ok(!slugs(consultar(base, f({ fila: "primeiro" }), ctx)).includes("antigo"), "contatado antes de `toques` não volta ao primeiro contato");
+  assert.deepEqual(contarFilas(base, f(), ctx), { filas: { retornos: 2, primeiro: 4, responderam: 2 }, faleiHoje: 1 });
+  assert.deepEqual(contarFilas(base, f({ fila: "retornos", prazo: "hoje", estagio: "fechado", contato: true }), ctx), { filas: { retornos: 2, primeiro: 4, responderam: 2 }, faleiHoje: 1 });
+  // o contador do dia ignora todos os filtros: com cidade ou busca ligada, não muda
+  assert.deepEqual(contarFilas(base, f({ uf: "SC" }), ctx), { filas: { retornos: 0, primeiro: 1, responderam: 0 }, faleiHoje: 1 });
+  assert.equal(contarFilas(base, f({ cidade: "São José/SC" }), ctx).faleiHoje, 1);
+  assert.equal(contarFilas(base, f({ busca: "zzz", caixa: true, fixados: true }), ctx).faleiHoje, 1);
+  // "Falei hoje" (o contador do dia) não depende da fila escolhida
+  assert.equal(consultar(base, f({ fila: "primeiro" }), ctx).visoes.falei, 1);
+  assert.equal(consultar(base, f(), ctx).visoes.falei, 1);
+
+  assert.ok(celular("5591988887777") && celular("91988887777") && celular("(91) 98888-7777"));
+  assert.ok(!celular("559132221111") && !celular(null) && !celular("") && !celular("0091988887777"));
+  console.log("filas: ok");
 }
 
 // visões são presets dos filtros

@@ -15,6 +15,10 @@ assert.deepEqual(ok({}), {
   funil: false, periodo: "mes", novos: 6,
 });
 
+// fila do topo: uma das três, ou nada
+assert.deepEqual([ok({ fila: "primeiro" }).fila, ok({ fila: "retornos" }).fila, ok({ fila: "responderam" }).fila], ["primeiro", "retornos", "responderam"]);
+recusa({ fila: "todos" }, "fila inexistente");
+
 // funil
 assert.deepEqual([ok({ funil: "1", periodo: "90", novos: "12" }).funil, ok({ periodo: "90" }).periodo, ok({ novos: "12" }).novos], [true, "90", 12]);
 recusa({ periodo: "ano" }, "período inexistente");

@@ -41,7 +41,7 @@ import {
 } from "./actions";
 import { Atrasadas, Cobrancas } from "./cobranca";
 import { emDestaque, local, VISOES, visaoDe, type Visao } from "@/lib/painel-consulta";
-import { ehOrdem, PAGINA, PAGINA_MAX, type Filtros, type Ordem } from "@/lib/painel-tipos";
+import { ehOrdem, PAGINA, PAGINA_MAX, type Fila, type Filtros, type Ordem } from "@/lib/painel-tipos";
 import { cents, emReais } from "@/lib/dinheiro";
 import { MINUTOS_MAX, sair, useAutoLogout } from "@/lib/sessao";
 import { AvisoSessao } from "@/components/aviso-sessao";
@@ -59,7 +59,7 @@ import { ColetaMaps } from "./coleta";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
 import { DemoMenu } from "./demo-menu";
-import { AUTOR_LEVANTAMENTO, COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, campanhaDe, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
+import { AUTOR_LEVANTAMENTO, COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, campanhaDe, TOQUES_MAX, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
 
 const VAZIO: Crm = {
   estagio: "novo", entradaCents: null, mensalCents: null, caixaCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
@@ -76,7 +76,13 @@ const CONTAGENS_VAZIAS: PaginaDoServidor["contagens"] = {
   tirando: { cidade: 0, nicho: 0 },
   visoes: Object.fromEntries(VISOES.map((v) => [v.id, 0])) as PaginaDoServidor["contagens"]["visoes"],
   totais: { contratadoCents: 0, negociacaoCents: 0 },
+  filas: { retornos: 0, primeiro: 0, responderam: 0 },
+  faleiHoje: 0,
 };
+// As três filas do dia, a entrada da Lista; as visões antigas ficam em "Mais visões"
+const FILAS_DO_TOPO: [Fila, string][] = [["retornos", "Retornos de hoje"], ["primeiro", "Primeiro contato"], ["responderam", "Responderam"]];
+/** Quantos contatos por dia a prospecção pede: o contador do topo conta até aqui */
+const META_DIA = 30;
 const ITEM_MENU = "flex h-11 items-center rounded-lg px-2.5 text-left text-[13px] text-[#17150F] hover:bg-[#F4F2EE]";
 
 async function token() {
@@ -183,6 +189,7 @@ export default function AdminPage() {
   const [estagio, setEstagio] = useState<Filtros["estagio"]>("");
   const [prazo, setPrazo] = useState<"" | Prazo>("");
   const [contato, setContato] = useState<"" | "hoje">("");   // "falei hoje"
+  const [fila, setFila] = useState<"" | Fila>("retornos");   // fila do topo da Lista; "" = uma visão
   const [alerta, setAlerta] = useState<Filtros["alerta"]>(""); // id do alerta em foco
   const [menuAjustes, setMenuAjustes] = useState(false);     // engrenagem: o que é da plataforma
   const [menuNegocio, setMenuNegocio] = useState(false);     // "…" da gaveta: atalhos e tirar do ar
@@ -269,8 +276,10 @@ export default function AdminPage() {
   const filtros: Filtros = {
     busca, uf, cidade, nicho, situacao, estagio, prazo, alerta,
     fora: foraDoAr, caixa: comCaixa, contato: contato === "hoje", fixados, ordem,
+    // a fila é da Lista: o funil mostra as colunas inteiras
+    fila: tela === "lista" ? fila : "",
   };
-  const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), String(comCaixa), contato, String(fixados), alerta].join("|");
+  const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), String(comCaixa), contato, String(fixados), alerta, filtros.fila].join("|");
   const quantos = pagina.chave === chave ? pagina.n : PAGINA;
   const servidor = (tela === "lista" || tela === "funil") && estado === "pronto";
   // cada página que chega entra no cache, menos os negócios com escrita em curso
@@ -311,6 +320,16 @@ export default function AdminPage() {
 
   // o último negócio aberto: resposta lenta de um anterior não pode pintar a gaveta do atual
   const abertoRef = useRef("");
+  // a volta do WhatsApp que "ir ao próximo" espera: uma por vez, e solta ao sair da página
+  const voltaPendente = useRef<(() => void) | null>(null);
+  const soltarVolta = () => {
+    const v = voltaPendente.current;
+    if (!v) return;
+    removeEventListener("focus", v);
+    document.removeEventListener("visibilitychange", v);
+    voltaPendente.current = null;
+  };
+  useEffect(() => () => soltarVolta(), []);
   async function abrir(e: Espaco) {
     abertoRef.current = e.slug;
     setAberto(e);
@@ -563,6 +582,32 @@ export default function AdminPage() {
     contatoMudou(slug, r.dados);
   }
 
+  /** "Abrir no WhatsApp e ir ao próximo": registra como o botão simples e, quando a página volta
+   *  a ter foco (de volta do WhatsApp), abre o próximo da fila na tela; sem próximo, fecha a gaveta.
+   *  O próximo é o da lista de agora: depois do envio o lead pode sair da fila. */
+  function enviarEProximo(slug: string, modelo: string, para: string) {
+    void enviouMensagem(slug, modelo, para);
+    const i = visiveis.findIndex((e) => e.slug === slug);
+    // aberto de fora da Lista (Funil, Carteira, Cobrança): não há fila, só registra o envio
+    if (i < 0) return;
+    const proximo = visiveis[i + 1];
+    // último da página carregada, mas a lista tem mais: a gaveta fica aberta
+    if (!proximo && total > visiveis.length) return;
+    soltarVolta();
+    const voltou = () => {
+      if (document.visibilityState !== "visible") return;
+      soltarVolta();
+      // gaveta fechada ou outro negócio aberto nesse meio-tempo: fica como está
+      if (abertoRef.current !== slug || !document.getElementById("gaveta-negocio")) return;
+      if (proximo) void abrir(proximo);
+      else setAberto(null);
+    };
+    voltaPendente.current = voltou;
+    // celular volta do app pelo visibilitychange; o computador, pelo foco da janela
+    addEventListener("focus", voltou);
+    document.addEventListener("visibilitychange", voltou);
+  }
+
   // o servidor devolve o doc já com o próximo toque agendado (ou o pedido de parar): a gaveta segue
   function contatoMudou(slug: string, d: { eventos: Evento[]; crm: Crm | null }) {
     if (d.crm) setCrm((c) => ({ ...c, [slug]: d.crm! }));
@@ -704,7 +749,8 @@ export default function AdminPage() {
   const filtrando = busca || uf || cidade || nicho || situacao || estagio || prazo || foraDoAr || comCaixa;
   const nFiltros = [uf, cidade, nicho, estagio, prazo, foraDoAr ? "x" : "", comCaixa ? "x" : ""].filter(Boolean).length;
 
-  const visaoAtiva = visaoDe({ prazo, situacao, estagio, fora: foraDoAr, contato: contato === "hoje", fixados });
+  // com uma fila escolhida, nenhuma visão está ativa (os filtros dela estão zerados, como em "Todos")
+  const visaoAtiva = filtros.fila ? undefined : visaoDe({ prazo, situacao, estagio, fora: foraDoAr, contato: contato === "hoje", fixados });
   function verVisao(v: Visao) {
     setPrazo(v.prazo);
     setSituacao(v.situacao);
@@ -713,6 +759,13 @@ export default function AdminPage() {
     setContato(v.contato ? "hoje" : "");
     setFixados(v.fixados ?? false);
     setAlerta("");
+    setFila("");
+  }
+  function verFila(id: Fila) {
+    verVisao(VISOES.find((v) => v.id === "todos")!);
+    setFila(id);
+    // retornos: o compromisso mais antigo (atrasado) primeiro; as outras, por relevância
+    setOrdem(id === "retornos" ? "compromisso" : "relevancia");
   }
   // a cidade escolhida é "Cidade/UF": trocar para outro estado a deixaria sem nenhum negócio
   function escolherUf(novo: string) {
@@ -732,6 +785,38 @@ export default function AdminPage() {
   const CONTA = "rounded-full px-2 py-0.5 text-[11px] font-semibold";
   const ORDENAVEL = "flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] hover:text-[#17150F]";
   const seta = (chaveOrdem: string) => (ordem === chaveOrdem ? " ↓" : "");
+  const abasDeVisao = VISOES.map((v) => {
+    const n = contagens.visoes[v.id];
+    const ativa = visaoAtiva?.id === v.id;
+    return (
+      <span key={v.id} className="flex items-center">
+        {v.separa && <span aria-hidden="true" className="mx-2 h-5 w-px bg-[#EDE9E1]" />}
+        <button
+          type="button"
+          aria-pressed={ativa}
+          onClick={(ev) => {
+            verVisao(v);
+            ev.currentTarget.closest("details")?.removeAttribute("open");
+          }}
+          className={`${ABA} ${
+            ativa
+              ? "border-[#17150F] font-bold text-[#17150F]"
+              : `border-transparent ${v.urgente && n ? "font-semibold text-[#8A2F2F]" : "text-[#17150F]"} hover:border-[#D8D2C6]`
+          }`}
+        >
+          {v.urgente && n > 0 && <span aria-hidden="true" className="size-1.5 rounded-full bg-[#8A2F2F]" />}
+          {v.rotulo}
+          <span
+            className={`${CONTA} ${
+              ativa ? "bg-[#17150F] text-white" : v.urgente && n ? "bg-[#FBF0EE] text-[#8A2F2F]" : "bg-[#F3EFE7] text-[#6F6A5E]"
+            }`}
+          >
+            {n}
+          </span>
+        </button>
+      </span>
+    );
+  });
 
   return (
     <>
@@ -937,38 +1022,53 @@ export default function AdminPage() {
 
       {/* As visões viram abas: o que se repete todo dia vira lugar fixo */}
       <div className={`flex flex-wrap items-center gap-1 border-b border-[#E2DDD3] bg-white px-4 sm:px-5 ${ferramenta ? "hidden" : ""}`}>
-        {/* no celular as oito visões quebravam em até quatro linhas: viram uma faixa que rola */}
-        <div className="-mx-4 flex w-[calc(100%+2rem)] overflow-x-auto px-4 [scrollbar-width:none] sm:contents [&::-webkit-scrollbar]:hidden">
-        {VISOES.map((v) => {
-          const n = contagens.visoes[v.id];
-          const ativa = visaoAtiva?.id === v.id;
-          return (
-            <span key={v.id} className="flex items-center">
-              {v.separa && <span aria-hidden="true" className="mx-2 h-5 w-px bg-[#EDE9E1]" />}
+        {/* Na Lista, a entrada são as três filas do dia e o contador; as oito visões ficam em
+            "Mais visões". No Funil, as visões seguem como estavam: lá não há fila */}
+        {tela === "lista" && (
+          <>
+            <div className="-mx-4 flex w-[calc(100%+2rem)] items-center overflow-x-auto px-4 [scrollbar-width:none] sm:contents [&::-webkit-scrollbar]:hidden">
+              {FILAS_DO_TOPO.map(([id, rotulo]) => {
+                const ativa = fila === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={ativa}
+                    onClick={() => verFila(id)}
+                    className={`${ABA} ${ativa ? "border-[#17150F] font-bold text-[#17150F]" : "border-transparent text-[#17150F] hover:border-[#D8D2C6]"}`}
+                  >
+                    {rotulo}
+                    <span className={`${CONTA} ${ativa ? "bg-[#17150F] text-white" : "bg-[#F3EFE7] text-[#6F6A5E]"}`}>{contagens.filas[id]}</span>
+                  </button>
+                );
+              })}
+              {/* contatados hoje: o mesmo dado de "Falei hoje", que abre ao tocar */}
               <button
                 type="button"
-                aria-pressed={ativa}
-                onClick={() => verVisao(v)}
-                className={`${ABA} ${
-                  ativa
-                    ? "border-[#17150F] font-bold text-[#17150F]"
-                    : `border-transparent ${v.urgente && n ? "font-semibold text-[#8A2F2F]" : "text-[#17150F]"} hover:border-[#D8D2C6]`
-                }`}
+                onClick={() => verVisao(VISOES.find((v) => v.id === "falei")!)}
+                title="Contatados hoje"
+                aria-label={`${contagens.faleiHoje} de ${META_DIA} contatos hoje; abrir Falei hoje`}
+                className={`ml-2 h-8 shrink-0 rounded-full px-3 text-[12px] font-semibold whitespace-nowrap tabular-nums ${contagens.faleiHoje >= META_DIA ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#F3EFE7] text-[#4A4639]"}`}
               >
-                {v.urgente && n > 0 && <span aria-hidden="true" className="size-1.5 rounded-full bg-[#8A2F2F]" />}
-                {v.rotulo}
-                <span
-                  className={`${CONTA} ${
-                    ativa ? "bg-[#17150F] text-white" : v.urgente && n ? "bg-[#FBF0EE] text-[#8A2F2F]" : "bg-[#F3EFE7] text-[#6F6A5E]"
-                  }`}
-                >
-                  {n}
-                </span>
+                {contagens.faleiHoje}/{META_DIA} hoje
               </button>
-            </span>
-          );
-        })}
+            </div>
+            <details className="relative">
+              <summary className={`flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-lg px-3 text-[13px] hover:bg-[#F4F2EE] [&::-webkit-details-marker]:hidden ${visaoAtiva ? "font-semibold" : ""}`}>
+                Mais visões{visaoAtiva ? ` · ${visaoAtiva.rotulo}` : ""}
+                <span aria-hidden="true" className="text-[10px]">▼</span>
+              </summary>
+              <div className="absolute left-0 top-10 z-30 flex w-[min(92vw,360px)] flex-wrap gap-x-1 rounded-xl border border-[#C8C1B3] bg-white px-2 shadow-[0_18px_48px_rgba(23,21,15,0.18)]">
+                {abasDeVisao}
+              </div>
+            </details>
+          </>
+        )}
+        {tela !== "lista" && (
+        <div className="-mx-4 flex w-[calc(100%+2rem)] overflow-x-auto px-4 [scrollbar-width:none] sm:contents [&::-webkit-scrollbar]:hidden">
+        {abasDeVisao}
         </div>
+        )}
 
         <div className="grow" />
 
@@ -1179,6 +1279,7 @@ export default function AdminPage() {
                         setForaDoAr(todos.fora);
                         setContato("");
                         setFixados(false);
+                        setFila("");
                       }
                     }}
                     className={`flex h-11 items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold ${
@@ -1248,6 +1349,7 @@ export default function AdminPage() {
           <div className={daRota?.funil ? undefined : "opacity-60"}>
           <Funil
             resumo={resumo}
+            semana={comFunil?.semana}
             crm={crmDoFunil}
             hoje={dataDeHoje}
             periodo={periodo}
@@ -1300,7 +1402,9 @@ export default function AdminPage() {
           <div aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[#EDE9E1] px-4 py-3 sm:px-5">
             <span className="text-sm font-semibold">{total} espaço(s)</span>
             <span className="text-[13px] text-[#6F6A5E]">
-              {visaoAtiva ? visaoAtiva.rotulo.toLowerCase() : "recorte próprio"}
+              {filtros.fila
+                ? FILAS_DO_TOPO.find(([id]) => id === filtros.fila)![1].toLowerCase()
+                : visaoAtiva ? visaoAtiva.rotulo.toLowerCase() : "recorte próprio"}
               {cidade && ` · ${cidade}`}
               {nicho && ` · ${nicho}`}
             </span>
@@ -1417,6 +1521,15 @@ export default function AdminPage() {
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${COR[(crm[e.slug]?.estagio ?? "novo") as Estagio]}`}>
                         {ROTULO[(crm[e.slug]?.estagio ?? "novo") as Estagio]}
                       </span>
+                      {/* em prospecção: em que toque da cadência ele está */}
+                      {(crm[e.slug]?.estagio ?? "novo") === "novo" && !crm[e.slug]?.respondeuEm && (
+                        <span className="ml-1 rounded-full bg-[#F3EFE7] px-2 py-0.5 text-xs tabular-nums text-[#4A4639]">
+                          {/* contatado antes de existir `toques` (05/11): não é 0/3 */}
+                          {!crm[e.slug]?.toques && crm[e.slug]?.ultimoContatoEm
+                            ? "contatado"
+                            : `toque ${Math.min(crm[e.slug]?.toques ?? 0, TOQUES_MAX)}/${TOQUES_MAX}`}
+                        </span>
+                      )}
                       {crm[e.slug]?.publicado === false && (
                         <span className="ml-1 rounded-full bg-[#F1E7E7] px-2 py-0.5 text-xs font-semibold text-[#8A2F2F]">fora do ar</span>
                       )}
@@ -1702,9 +1815,69 @@ export default function AdminPage() {
             <div role="tabpanel" id="aba-painel" aria-labelledby={`aba-${aba}`} className="flex flex-col gap-5">
             {aba === "venda" && (
               <>
-            {/* Primeiro o combinado: é ele que governa "Atrasados", "Para hoje"
-                e o alerta de negócio sem próximo passo. Era o último campo de
-                um formulário longo. */}
+            {/* Uma tela só, na ordem do trabalho: mandar a mensagem e seguir, marcar o que ele
+                fez, conferir o próximo passo e anotar. O resto fica em "Mais", recolhido */}
+            <MensagensProntas
+              key={`msg-${aberto.slug}-${crm[aberto.slug]?.toques ?? 0}-${crm[aberto.slug]?.respondeuEm ?? ""}`}
+              negocio={aberto}
+              crm={crm[aberto.slug] ?? VAZIO}
+              assinatura={assinatura}
+              onEnviar={(modelo, para) => enviouMensagem(aberto.slug, modelo, para)}
+              onEnviarEProximo={(modelo, para) => enviarEProximo(aberto.slug, modelo, para)}
+              onCopiar={(texto) => copiar(texto, "mensagem")}
+              onPronto={setPronto}
+              linkProposta={proposta?.slug === aberto.slug ? proposta.url : null}
+              onMarcar={(oque) => marcarResposta(aberto.slug, oque)}
+              onEncerrar={() => mudarNegocio(aberto.slug, { estagio: "perdido", motivoPerda: "nao_respondeu" })}
+            />
+
+            {/* O que o lead fez: para a cadência, ou tira o negócio das filas. Fechar e perder
+                perguntam antes de gravar */}
+            {(() => {
+              const c = crm[aberto.slug] ?? VAZIO;
+              const desfecho = c.estagio === "fechado" || c.estagio === "perdido";
+              const parou = !!c.naoContatarEm;
+              const ACAO = "h-11 rounded-full border bg-white px-3 text-[12.5px] font-semibold disabled:cursor-not-allowed disabled:opacity-50";
+              return (
+                <section aria-label="O que ele fez" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <button
+                    type="button"
+                    disabled={!!c.respondeuEm || parou || desfecho}
+                    onClick={() => marcarResposta(aberto.slug, "respondeu")}
+                    className={`${ACAO} border-[#2C6A53] text-[#2C6A53] hover:bg-[#EEF2F0]`}
+                  >
+                    {c.respondeuEm ? `Respondeu ${diaCurto(c.respondeuEm.slice(0, 10))}` : "Respondeu"}
+                  </button>
+                  <button
+                    type="button"
+                    title="Pediu para não receber mensagens"
+                    disabled={parou || desfecho}
+                    onClick={() => marcarResposta(aberto.slug, "parar")}
+                    className={`${ACAO} border-[#D8D2C6] text-[#8A2F2F] hover:border-[#8A2F2F]`}
+                  >
+                    Parou
+                  </button>
+                  {DESFECHOS.map((e) => {
+                    const ativa = c.estagio === e;
+                    const cor = e === "fechado" ? "border-[#2C6A53] text-[#2C6A53] hover:bg-[#EEF2F0]" : "border-[#D8D2C6] text-[#8A2F2F] hover:border-[#8A2F2F]";
+                    return (
+                      <button
+                        key={e}
+                        type="button"
+                        aria-pressed={ativa}
+                        onClick={() => (ativa ? undefined : e === "perdido" ? setPerdendo(aberto.slug) : setFechando(aberto.slug))}
+                        className={`${ACAO} ${ativa ? `border-transparent ${COR[e]}` : cor}`}
+                      >
+                        {e === "fechado" ? "Fechou" : "Perdeu"}
+                      </button>
+                    );
+                  })}
+                </section>
+              );
+            })()}
+
+            {/* O próximo passo: a cadência já preenche; é ele que governa "Retornos de hoje"
+                e o alerta de negócio sem próximo passo */}
             <section aria-label="O combinado" className="flex flex-col gap-2.5 rounded-2xl border border-[#C9DACF] bg-[#F4F8F6] p-4">
               <div className="flex items-center gap-2">
                 <h3 className="text-[11px] font-semibold tracking-[0.07em] text-[#2C6A53] uppercase">O combinado</h3>
@@ -1745,6 +1918,23 @@ export default function AdminPage() {
               </div>
             </section>
 
+            {/* as últimas notas e o campo para anotar; o resto da linha do tempo está em Histórico */}
+            <LinhaDoTempo
+              key={`notas-${aberto.slug}`}
+              eventos={historia && historia.filter((e) => e.tipo === "nota")}
+              limite={3}
+              onVerTudo={() => setAba("historico")}
+              anotar={(texto) => novaNota(aberto.slug, texto)}
+            />
+
+            {/* Consulta e preparo, não trabalho do dia: recolhido. Aberto só para cliente fechado,
+                que é quando preço, proposta e contato do dono voltam a importar */}
+            <details key={`mais-${aberto.slug}`} open={crm[aberto.slug]?.estagio === "fechado"} className="group rounded-2xl border border-[#E2DDD3] px-4 py-3">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-[13px] font-semibold [&::-webkit-details-marker]:hidden">
+                Mais · etapa, proposta, contato do dono, origem e objeções
+                <span aria-hidden="true" className="text-[#6F6A5E] group-open:rotate-180">⌄</span>
+              </summary>
+              <div className="mt-3 flex flex-col gap-5">
             {levantamento && (() => {
               // "Score do levantamento: ALTA. Abordagem sugerida: …" — o Gerador grava assim
               const score = /Score do levantamento:\s*([^.]+)\./i.exec(levantamento)?.[1]?.trim();
@@ -1832,19 +2022,6 @@ export default function AdminPage() {
                 <Destaque key={`destaque-${aberto.slug}`} crm={crm[aberto.slug] ?? VAZIO} hoje={dataDeHoje} salvar={(dados) => mudarNegocio(aberto.slug, dados)} />
               </div>
             </details>
-
-            <MensagensProntas
-              key={`msg-${aberto.slug}-${crm[aberto.slug]?.toques ?? 0}-${crm[aberto.slug]?.respondeuEm ?? ""}`}
-              negocio={aberto}
-              crm={crm[aberto.slug] ?? VAZIO}
-              assinatura={assinatura}
-              onEnviar={(modelo, para) => enviouMensagem(aberto.slug, modelo, para)}
-              onCopiar={(texto) => copiar(texto, "mensagem")}
-              onPronto={setPronto}
-              linkProposta={proposta?.slug === aberto.slug ? proposta.url : null}
-              onMarcar={(oque) => marcarResposta(aberto.slug, oque)}
-              onEncerrar={() => mudarNegocio(aberto.slug, { estagio: "perdido", motivoPerda: "nao_respondeu" })}
-            />
 
             {/* Preço só importa ao propor e ao fechar: fica a um clique */}
             <details key={`precos-${aberto.slug}`} className="rounded-2xl border border-[#E2DDD3] px-4 py-3">
@@ -1961,7 +2138,8 @@ export default function AdminPage() {
               </div>
             </details>
 
-            <LinhaDoTempo key={`resumo-${aberto.slug}`} eventos={historia} limite={3} onVerTudo={() => setAba("historico")} anotar={(texto) => novaNota(aberto.slug, texto)} />
+              </div>
+            </details>
 
               </>
             )}
@@ -2321,7 +2499,9 @@ export default function AdminPage() {
                 a uma rolagem de distância dentro de blocos diferentes. */}
             {/* bottom negativo = o padding de baixo da gaveta, como o -top das abas: com bottom-0
                 a barra parava acima da borda e o conteúdo aparecia rolando por baixo dela.
-                mt-auto: com pouco conteúdo (aba Cobrança) a barra ficava no meio da gaveta */}
+                mt-auto: com pouco conteúdo (aba Cobrança) a barra ficava no meio da gaveta.
+                Na Venda não aparece: mandar e anotar já estão no topo dela */}
+            {aba !== "venda" && (
             <div className="sticky bottom-[calc(-1.5rem-env(safe-area-inset-bottom))] -mx-6 -mb-6 mt-auto flex gap-2 border-t border-[#E2DDD3] bg-white px-6 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:-bottom-8 sm:-mx-8 sm:-mb-8 sm:px-8">
               {pronto?.link ? (
                 <a
@@ -2342,6 +2522,7 @@ export default function AdminPage() {
                 Anotar
               </button>
             </div>
+            )}
             </>
             )}
           </aside>

@@ -168,3 +168,20 @@ export function ajustarFunil(
   }
   return { ...r, colunas, perdidos };
 }
+
+/** A linha de números do funil: dos últimos 7 dias, quantos receberam mensagem, quantos
+ *  responderam e quantos fecharam. O último contato basta: quem foi contatado na semana tem o
+ *  último contato nela. */
+export type NumerosDaSemana = { contatados: number; responderam: number; fecharam: number };
+export function numerosDaSemana(espacos: readonly Espaco[], crm: Record<string, Crm>, agora: number): NumerosDaSemana {
+  const desde = new Date(agora - 7 * 86_400_000).toISOString();
+  const na = (iso: string | null | undefined) => !!iso && iso >= desde;
+  const n: NumerosDaSemana = { contatados: 0, responderam: 0, fecharam: 0 };
+  for (const x of espacos) {
+    const c = crm[x.slug];
+    if (na(c?.ultimoContatoEm)) n.contatados++;
+    if (na(c?.respondeuEm)) n.responderam++;
+    if (c?.estagio === "fechado" && na(c.fechadoEm)) n.fecharam++;
+  }
+  return n;
+}
