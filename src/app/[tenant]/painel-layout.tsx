@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, use, useEffect, useState } from "react";
 import { MonitorConexao } from "@/components/monitor-conexao";
+import { AvisoSessao } from "@/components/aviso-sessao";
 import { auth } from "@/lib/firebase";
 import { db } from "@/lib/firebase-db";
 import { Tenant } from "@/lib/tenants";
@@ -46,7 +47,8 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
   const state = loaded?.slug === slug ? loaded.value : "loading";
 
   useSerifaNoBody();
-  useAutoLogout(useMinutosInativo());   // sai sozinho depois de X minutos parado, se o admin ligou
+  // sai sozinho depois de X minutos parado, se o admin ligou; avisa um minuto antes
+  const [avisoSessao, continuarSessao] = useAutoLogout(useMinutosInativo());
 
   useEffect(() => {
     let current = true;
@@ -107,6 +109,7 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
       <div className={`painel ${serifa.variable} flex min-h-dvh flex-col bg-background`}>
         <MonitorConexao />
         <AvisoNovoAgendamento />
+        <AvisoSessao aberto={avisoSessao} onContinuar={continuarSessao} />
       <header className="sticky top-0 z-10 border-b bg-card pt-[env(safe-area-inset-top)] sm:static">
         <div className="mx-auto flex max-w-6xl items-center gap-x-4 px-4 lg:gap-x-6">
           {/* O logo e o nome levam à página inicial do negócio (a agenda), para todo mundo.
