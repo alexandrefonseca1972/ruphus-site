@@ -5,7 +5,7 @@ import { adminDb } from "@/lib/admin";
 import { avisar } from "@/lib/avisos.server";
 import { CobrancaErro, gerarCobranca } from "@/lib/cobranca";
 import {
-  CONFIG_PADRAO, configDoNegocio, deltaDoConsumo, deveAvisar, diasNoMes, previsaoDeSaldo, somaDias, textoDoAvisoDeSaldo, mascararDestino, MODOS_SEM_SALDO, podeEnviar, precoDe, quandoFoi, RECARGA_MAXIMA_CENTS, RECARGA_MINIMA_CENTS, statusDoAtendys, avanca,
+  CONFIG_PADRAO, configDoNegocio, deltaDoConsumo, deveAvisar, ehDaPlataforma, diasNoMes, previsaoDeSaldo, somaDias, textoDoAvisoDeSaldo, mascararDestino, MODOS_SEM_SALDO, podeEnviar, precoDe, quandoFoi, RECARGA_MAXIMA_CENTS, RECARGA_MINIMA_CENTS, statusDoAtendys, avanca,
   type Canal, type ConfigMensagens, type NivelSaldo, type Previsao, type Destinatario, type Pacote, type StatusEnvio, type TipoEnvio, type Via,
 } from "@/lib/consumo";
 import { dateIn, formatBRL } from "@/lib/datetime";
@@ -200,8 +200,8 @@ export async function registrarEnvio(slug: string, n: NovoEnvio, agora = new Dat
       const [existe, conta] = await Promise.all([tx.get(envioRef(slug, n.id)), contaDe(slug, tx)]);
       if (existe.exists) return null;
       const { cfg } = conta;
-      // o aviso de saldo é da plataforma: não custa ao negócio
-      const precoCents = cfg.cobrar && n.tipo !== "saldo" ? precoDe(cfg, n.canal, !!n.servico) : 0;
+      // aviso de saldo e confirmação do dono são da plataforma: não custam ao negócio
+      const precoCents = cfg.cobrar && !ehDaPlataforma(n.tipo) ? precoDe(cfg, n.canal, !!n.servico) : 0;
       const { mes, dia } = quandoFoi(agora);
       const delta = deltaDoConsumo({ canal: n.canal, via: n.via, tipo: n.tipo, precoCents, dia }, null, n.status);
       const custoCents = Number((delta as { custoCents?: number }).custoCents ?? 0);

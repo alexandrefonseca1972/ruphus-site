@@ -25,6 +25,7 @@ export const ROTULO_TIPO: Record<TipoEnvio, string> = {
   recibo: "Recibo",
   resposta: "Resposta a quem escreveu",
   saldo: "Aviso de saldo",
+  confirmar_dono: "Confirmação do seu WhatsApp",
   outro: "Outra mensagem",
 };
 
