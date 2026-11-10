@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { assinaturaValida, assinaturaV2Valida, assumirEnvio, criarInstancia, enviarSemOperador, enviarTexto, ErroAtendys, manterAgendada, garantirTenant, imagemDoQr, revogarChavesAntigas, versaoDaAssinatura } from "@/lib/atendys";
+import { assinaturaValida, assinaturaV2Valida, assumirEnvio, chaveDeEnvio, criarInstancia, enviarSemOperador, enviarTexto, ErroAtendys, manterAgendada, garantirTenant, imagemDoQr, revogarChavesAntigas, versaoDaAssinatura } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { codigosUnicos, conectarNegocio, espelharStatusDaInstancia, gravarConexao, lerConexao, lerConfigWhatsApp, lerComando, pareceComando, processarComandoAgendamento } from "@/lib/whatsapp.server";
@@ -661,6 +661,17 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   // prazo sem folga (o atendys recusaria o expiresAt e a mensagem sairia atrasada): nem envia
   assert.equal((await enviarSemOperador(loja, "5511987654321", "oi", null, new Date(Date.now() + 30_000))).destino, "nao_sai");
   assert.equal(chamadas.length, 0);
+  // lembrete: idempotency-key determinística; sem chave, sem cabeçalho
+  const k = chaveDeEnvio("lembrete", "loja", "ag1", "2026-11-10T10:00");
+  assert.match(k, /^lembrete-[0-9a-f]{40}$/);
+  assert.equal(k, chaveDeEnvio("lembrete", "loja", "ag1", "2026-11-10T10:00"), "a mesma em toda tentativa");
+  assert.notEqual(k, chaveDeEnvio("lembrete", "loja", "ag1", "2026-11-10T11:00"), "remarcou: outra chave");
+  novo({ "POST /v1/message/send-text": json({ id: "m-k", status: "queued" }) });
+  await enviarSemOperador(loja, "5511987654321", "lembrete", null, undefined, { chave: k });
+  assert.equal(chamadas[0].headers["idempotency-key"], k);
+  novo({ "POST /v1/message/send-text": json({ id: "m-k2", status: "queued" }) });
+  await enviarSemOperador(loja, "5511987654321", "oi", null);
+  assert.equal(chamadas[0].headers["idempotency-key"], undefined, "sem chave: sem cabeçalho");
 
   // todo envio aceito é vigiado; failed depois do aceite vai para a gaveta, uma vez
   const ID5 = "5cd4d428-4361-4153-bc2c-60db816d8b77";
@@ -675,6 +686,14 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   await db.doc("tenants/loja").set({ whatsapp: { lastNotifyError: null } }, { merge: true });
   await entregar({ event: "message.status", messageId: ID5, status: "failed", errorCode: "META_131026" }, "s-loja");
   assert.equal((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError ?? null, null, "reentrega não repete o aviso");
+  // negócio desconectado (sem instanceId) ainda recebe o message.status do que mandou antes
+  const ID6 = "6cd4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: ID6, status: "queued" }) });
+  await enviarSemOperador(loja, "5511987654321", "Lembrete de amanhã", null);
+  await db.doc("tenants/loja").update({ "whatsapp.instanceId": FieldValue.delete() });
+  assert.equal((await entregar({ event: "message.status", messageId: ID6, status: "failed", errorCode: "META_131026" }, "s-loja")).status, 200);
+  assert.match((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError?.message ?? "", /Lembrete de amanhã/, "desconectado: a falha chega à gaveta");
+  await db.doc("tenants/loja").update({ "whatsapp.instanceId": "loja-main", "whatsapp.lastNotifyError": FieldValue.delete() });
 
   // comando do dono: pendente gravado com a caixa de entrada; sai só depois de processado
   assert.equal(await registrarMensagemRecebida(db, "loja", { phone: "5511900000001", messageId: "CMD/1", data: { text: "oi" } }, "salao"), true);
@@ -691,6 +710,14 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.equal(await reprocessarComandos(db), 0);
   assert.ok(!(await pend.get()).exists);
   assert.match((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError?.message ?? "", /comando do dono .* descartado/);
+  // aviso de agendamento que saiu não apaga a falha de outra coisa (lembrete, comando descartado)
+  const { limparErroDeAgendamento, registrarErroNotificacao } = await import("@/lib/whatsapp.server");
+  await registrarErroNotificacao(db, "loja", { message: "O lembrete de Ana não saiu", at: 1 });
+  await limparErroDeAgendamento(db, "loja");
+  assert.equal((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError?.message, "O lembrete de Ana não saiu", "falha de lembrete fica");
+  await registrarErroNotificacao(db, "loja", { message: "Agendamento de Ana — aviso ao salão não chegou.", at: 2 });
+  await limparErroDeAgendamento(db, "loja");
+  assert.equal((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError ?? null, null, "falha de aviso de agendamento sai");
   // sem messageId: fica na caixa de entrada, sem pendente
   const pendentesAntes = (await db.collection("comandosPendentes").get()).size;
   assert.equal(await registrarMensagemRecebida(db, "loja", { phone: "5511900000001", data: { text: "CONFIRMADO" } }, "salao"), true);

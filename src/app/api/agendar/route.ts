@@ -4,7 +4,7 @@ import { adminDb } from "@/lib/admin";
 import { book } from "@/lib/booking.server";
 import { MAX_DAYS_AHEAD, dentroDaJanela, fusoDe, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
-import { codigoDoAgendamento, destinoDoAvisoAoDono, espelharStatusVivo, lerConexao, lerConfigWhatsApp, registrarErroNotificacao } from "@/lib/whatsapp.server";
+import { codigoDoAgendamento, destinoDoAvisoAoDono, espelharStatusVivo, lerConexao, lerConfigWhatsApp, limparErroDeAgendamento, registrarErroNotificacao } from "@/lib/whatsapp.server";
 import { conexaoOficial, templateCliente, templateNovoDono, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { motivoDaFalha } from "@/lib/mensagens-paradas.server";
 import { soDigitosComDDI } from "@/lib/telefone";
@@ -154,11 +154,11 @@ export async function POST(req: Request) {
         } else {
           console.warn(`[whatsapp] ${tenantId}: telefone do cliente inválido (${b.data.customerPhone}); recibo de agendamento não enviado`);
         }
-        // um aviso bem-sucedido limpa o erro anterior; falha mantém o detalhe
-        await registrarErroNotificacao(
-          adminDb,
-          tenantId,
-          falhas.length ? { message: `Agendamento de ${customerName.trim()} — ${falhas.join("; ")}.`, at: Date.now() } : null,
+        // falha grava o detalhe; aviso bem-sucedido limpa só a falha de aviso de agendamento
+        // (a de lembrete ou de comando descartado continua na gaveta)
+        await (falhas.length
+          ? registrarErroNotificacao(adminDb, tenantId, { message: `Agendamento de ${customerName.trim()} — ${falhas.join("; ")}.`, at: Date.now() })
+          : limparErroDeAgendamento(adminDb, tenantId)
         ).catch(() => {});
       })(),
     );
@@ -223,10 +223,10 @@ async function avisarPeloCanalOficialSemCaptura(
       if (!saiuDepoisDoAceite(e)) console.error("recibo de agendamento pelo canal oficial", e);
     }
   }
-  await registrarErroNotificacao(
-    adminDb,
-    tenantId,
-    falhas.length ? { message: `Agendamento de ${nome} — ${falhas.join("; ")}.`, at: Date.now() } : null,
+  // aviso bem-sucedido limpa só a falha de aviso de agendamento
+  await (falhas.length
+    ? registrarErroNotificacao(adminDb, tenantId, { message: `Agendamento de ${nome} — ${falhas.join("; ")}.`, at: Date.now() })
+    : limparErroDeAgendamento(adminDb, tenantId)
   ).catch(() => {});
 }
 

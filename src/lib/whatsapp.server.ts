@@ -245,6 +245,17 @@ export async function registrarErroNotificacao(db: Firestore, slug: string, erro
   );
 }
 
+/** Aviso de agendamento que saiu: limpa a falha só se ela também era de aviso de agendamento
+ *  ("Agendamento de …"). A de lembrete, de comando descartado ou de envio recusado fica na gaveta
+ *  até a reconexão: um aviso bom não prova que aquela foi resolvida. */
+export async function limparErroDeAgendamento(db: Firestore, slug: string) {
+  const ref = db.doc(`tenants/${slug}`);
+  await db.runTransaction(async (tx) => {
+    const atual = (await tx.get(ref)).get("whatsapp.lastNotifyError.message");
+    if (typeof atual === "string" && atual.startsWith("Agendamento de ")) tx.update(ref, { "whatsapp.lastNotifyError": FieldValue.delete() });
+  });
+}
+
 /** De qual negócio é esta instância do gateway: o webhook só traz o instanceId. */
 export async function tenantDaInstancia(db: Firestore, instanceId: string): Promise<string | null> {
   const snap = await db.collection("tenants").where("whatsapp.instanceId", "==", instanceId).limit(1).get();
