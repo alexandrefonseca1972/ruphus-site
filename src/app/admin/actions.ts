@@ -23,6 +23,7 @@ import { verificarIntegracoes } from "@/lib/verificar-integracoes.server";
 import { emailDaProposta } from "@/lib/proposta-email";
 import { emailDoConvite } from "@/lib/convite-email";
 import { saudeDe } from "@/lib/saude.server";
+import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { criarConvite, revogarConvitesDaEquipe, revogarConvitesDoNegocio } from "@/lib/convite";
 import {
   atrasadas,
@@ -611,8 +612,17 @@ export const cobrarMes = adminAction(async (_user, competencia?: string) => {
 
 export const marcarPaga = adminAction(async (user, id: string, recebidoCents: number, pagoEm: string) => {
   const paga = await baixar(adminDb, id, { recebidoCents, pagoEm, por: user.email ?? user.uid });
-  // recarga de mensagens: o valor pago e o bônus entram no saldo do negócio (uma vez)
-  if (paga.tipo === "recarga") await creditarRecarga(id);
+  // recarga de mensagens: o valor pago e o bônus entram no saldo do negócio (uma vez). A baixa já
+  // gravou: a cobrança sai da lista e o clique não volta, então a falha aqui não pode ficar em silêncio
+  if (paga.tipo === "recarga") {
+    try {
+      await creditarRecarga(id);
+    } catch (e) {
+      console.error(`[cobranca] recarga ${id} paga sem crédito`, e);
+      await alertarAdmin(adminDb, `recarga-${id}`, "Recarga paga sem crédito", `A baixa da recarga ${id} (${paga.slug}) foi registrada, mas o saldo de mensagens não entrou.\n\nErro: ${e instanceof Error ? e.message : String(e)}\n\nLance o valor pago mais o bônus como ajuste de saldo do negócio (ajustarSaldoAction), com o motivo "recarga ${id}".`).catch(() => {});
+      throw new ErroPrevisto("Baixa registrada, mas o saldo de mensagens não entrou. Lance o valor como ajuste de saldo do negócio (o alerta foi por e-mail).");
+    }
+  }
   // a entrada é o "publicar": a faixa de proposta sai e o site abre para o Google
   if (paga.tipo === "entrada" && paga.slug && (await publicarSite(adminDb, paga.slug))) {
     renovarSite(paga.slug);
