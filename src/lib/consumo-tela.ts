@@ -193,3 +193,36 @@ export const centavos = (t: string) => {
   else return null;
   return Math.round(Number(v) * 100);
 };
+
+/** "1 lida", "2 lidas". */
+export const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
+/** Quanto o saldo dura, para a tela: 3 → "3 dias", 45 → "1 mês e meio", 70 → "2 meses", acima de
+ *  90 dias → "mais de 3 meses" (com pouco consumo a média dá séculos, que não ajudam ninguém). */
+export function duracaoDoSaldo(dias: number) {
+  if (dias > 90) return "mais de 3 meses";
+  if (dias < 30) return plural(dias, "dia", "dias");
+  const meses = dias / 30;
+  if (meses >= 1.25 && meses < 1.75) return "1 mês e meio";
+  const n = Math.round(meses);
+  return plural(n, "mês", "meses");
+}
+
+/** Erro técnico do envio em palavras de quem usa (null: não mostra). */
+export function erroLegivel(erro: string | null) {
+  if (!erro) return null;
+  const e = erro.toUpperCase();
+  if (e.includes("NOT_ON_WHATSAPP") || e.includes("NO_WHATSAPP") || e.includes("131026")) return "número sem WhatsApp";
+  if (e.includes("INVALID") || e.includes("131009")) return "número inválido";
+  if (e.includes("REJECTED") || e.includes("130497") || e.includes("131047")) return "recusada pelo WhatsApp";
+  if (e.includes("NOT_OPTED_IN") || e.includes("OPT")) return "cliente não autorizou";
+  if (e.includes("PRAZO") || e.includes("EXPIRED") || e.includes("TEMPO")) return "não saiu a tempo";
+  return /\s/.test(erro) && erro.length < 60 ? erro : null;
+}
+
+/** "10/11/2026 17:38" no horário de Brasília (para o CSV, que fica guardado). */
+export const dataHora = (ms: number) =>
+  new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(ms)).replace(",", "");
+
+/** Escala do eixo: o máximo arredondado para cima num múltiplo de 3 (marcas inteiras em 0, ⅓, ⅔ e 1). */
+export const tetoDoEixo = (max: number) => Math.max(3, Math.ceil(max / 3) * 3);

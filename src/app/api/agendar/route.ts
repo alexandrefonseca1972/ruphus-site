@@ -1,6 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { avisar, quando } from "@/lib/avisos.server";
 import { adminDb } from "@/lib/admin";
+import { SemSaldo } from "@/lib/consumo.server";
 import { book } from "@/lib/booking.server";
 import { MAX_DAYS_AHEAD, dentroDaJanela, fusoDe, zonedTime } from "@/lib/datetime";
 import { BookingInput } from "@/lib/scheduling";
@@ -152,7 +153,7 @@ export async function POST(req: Request) {
           } catch (e) {
             falhas.push(`recibo ao cliente não chegou: ${motivoLegivel(e)}`);
             // SAIR depois do aceite: a vontade do cliente, não falha (o aviso já foi para o log)
-            if (!saiuDepoisDoAceite(e)) console.error("recibo de agendamento via WhatsApp", e);
+            if (!saiuDepoisDoAceite(e) && !(e instanceof SemSaldo)) console.error("recibo de agendamento via WhatsApp", e);
           }
         } else {
           console.warn(`[whatsapp] ${tenantId}: telefone do cliente inválido (…${b.data.customerPhone.slice(-4)}); recibo de agendamento não enviado`);
@@ -223,7 +224,7 @@ async function avisarPeloCanalOficialSemCaptura(
       if (ruim) falhas.push(`recibo ao cliente ${ruim}`);
     } catch (e) {
       falhas.push(`recibo ao cliente não chegou: ${motivoLegivel(e)}`);
-      if (!saiuDepoisDoAceite(e)) console.error("recibo de agendamento pelo canal oficial", e);
+      if (!saiuDepoisDoAceite(e) && !(e instanceof SemSaldo)) console.error("recibo de agendamento pelo canal oficial", e);
     }
   }
   // aviso bem-sucedido limpa só a falha de aviso de agendamento

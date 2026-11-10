@@ -48,6 +48,13 @@ export function MensagensDoNegocio({ slug, token }: { slug: string; token: () =>
     };
   }, [slug, token, vez]);
 
+  // baixa de recarga no bloco de cobranças acima: relê o saldo
+  useEffect(() => {
+    const reler = () => setVez((x) => x + 1);
+    window.addEventListener("ruphus:cobranca-baixada", reler);
+    return () => window.removeEventListener("ruphus:cobranca-baixada", reler);
+  }, []);
+
   async function ajustar() {
     const v = centavos(valor);
     if (v === null || v === 0) return setAviso("Informe um valor diferente de zero, como 10,00 ou -5,00.");
@@ -105,7 +112,7 @@ export function MensagensDoNegocio({ slug, token }: { slug: string; token: () =>
           {prev && conta.aberta && (
             <span className="text-xs text-[#6F6A5E]">
               {prev.nivel === "ok" ? "em dia" : prev.nivel === "atencao" ? "baixo" : "crítico"}
-              {prev.diasRestantesEstimados !== null && ` · ~${prev.diasRestantesEstimados} dias`}
+              {prev.diasRestantesEstimados !== null && ` · ${prev.diasRestantesEstimados > 90 ? "> 90 dias" : `~${prev.diasRestantesEstimados} dias`}`}
               {prev.mediaDiariaCents !== null && ` · ${formatBRL(prev.mediaDiariaCents)}/dia`}
             </span>
           )}

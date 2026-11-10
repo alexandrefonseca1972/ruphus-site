@@ -82,6 +82,8 @@ export function Cobrancas({ slug, idToken, aviso }: { slug: string; idToken: str
     const r = await marcarPaga(await tokenAtual(), baixando.id, centavos, baixando.data).finally(() => setOcupado(""));
     if (!r.ok) return aviso(r.error);
     setBaixando(null);
+    // a recarga paga muda o saldo de mensagens mostrado logo abaixo, na mesma aba
+    window.dispatchEvent(new Event("ruphus:cobranca-baixada"));
     const nova = await listarCobrancasDo(await tokenAtual(), slug);
     if (nova.ok) setLista(nova.dados);
     aviso("Baixa registrada.");
