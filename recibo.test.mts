@@ -18,6 +18,13 @@ const casos: [number, string][] = [
   [9999999, "noventa e nove mil, novecentos e noventa e nove reais e noventa e nove centavos"],
   [1500, "quinze reais"],
   [2101, "vinte e um reais e um centavo"],
+  [100000000, "um milhão de reais"],
+  [200000000, "dois milhões de reais"],
+  [120000000, "um milhão e duzentos mil reais"],
+  [125000000, "um milhão, duzentos e cinquenta mil reais"],
+  [100000500, "um milhão e cinco reais"],
+  [100100000, "um milhão e mil reais"],
+  [123456789, "um milhão, duzentos e trinta e quatro mil, quinhentos e sessenta e sete reais e oitenta e nove centavos"],
 ];
 for (const [c, esperado] of casos) assert.equal(valorPorExtenso(c), esperado, String(c));
 

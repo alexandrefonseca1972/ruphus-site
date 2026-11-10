@@ -101,7 +101,11 @@ export function AvisoNovoAgendamento() {
     let primeira = true;
     return onSnapshot(
       query(collection(db, "tenants", tenant.id, "appointments"), where("createdAt", ">=", desde), orderBy("createdAt")),
+      // com os metadados: dá para saber quando a leitura já veio do servidor
+      { includeMetadataChanges: true },
       (snap) => {
+        // o cache do aparelho chega antes: o que só o servidor tinha viraria "novo" e tocaria o som
+        if (snap.metadata.fromCache) return;
         if (primeira) {
           primeira = false;
           return;

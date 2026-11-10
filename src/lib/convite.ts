@@ -174,6 +174,9 @@ export async function assumirNegocio(db: Firestore, c: Aceite, uid: string, quem
     // o aceite dos Termos só fica gravado junto do acesso: convite recusado não deixa registro.
     // Vai depois de todas as leituras: a transação não aceita ler depois de escrever
     const gravarAceite = () => aceiteContrato && tx.set(db.collection("aceites").doc(), { ...aceiteContrato, slug: c.tenantId });
+    // profissional da equipe abrindo o convite do dono: o convite não muda o papel de ninguém, e
+    // "entrou" calado deixava a pessoa achando que virou dona. Recusa sem queimar o link
+    if (ja.exists && ja.get("role") === "member") return "Você já entra neste negócio como profissional da equipe. Para ter acesso de dono, peça a quem enviou o convite para tirar seu acesso da equipe antes.";
     // dois convites abertos ao mesmo tempo: o segundo não rebaixa quem o primeiro fez dono
     if (ja.exists) {
       gravarAceite();

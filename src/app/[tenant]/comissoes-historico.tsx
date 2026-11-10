@@ -4,7 +4,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { useValores } from "@/lib/valores";
 import { where } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
-import { Lancamento, mesDaComissao } from "@/lib/financeiro";
+import { ehVale, Lancamento, mesDaComissao } from "@/lib/financeiro";
 import { useCollection } from "@/lib/use-collection";
 
 const nomeCurto = (mes: string) => {
@@ -20,21 +20,24 @@ export function ComissoesHistorico({ tenantId, staffId, nome, pct, guardado, onC
   // filtrar por mês no Firestore (índice staffId + mes)
   const [itens, erro] = useCollection(tenantId, "lancamentos", Lancamento, [where("staffId", "==", staffId)], staffId);
 
-  const meses = new Map<string, { faturou: number; pago?: number; abatido: number; estornado: number }>();
+  const meses = new Map<string, { faturou: number; pago?: number; vale: number; abatido: number; estornado: number }>();
   for (const l of itens ?? []) {
     // a entrada conta no mês da comissão; sinal de atendimento não recebido não conta
     const mesDaLinha = l.tipo === "entrada" ? mesDaComissao(l) : l.mes;
     if (!mesDaLinha) continue;
-    const m = meses.get(mesDaLinha) ?? { faturou: 0, abatido: 0, estornado: 0 };
+    const m = meses.get(mesDaLinha) ?? { faturou: 0, vale: 0, abatido: 0, estornado: 0 };
     if (l.tipo === "entrada") m.faturou += l.valorCents;
     else if (l.id.startsWith("cm-")) {
       m.pago = l.valorCents;
       m.abatido = l.descontoCents ?? 0;
-    } else if (l.estornoDe) m.estornado += l.valorCents;
+    }
+    // vale: comissão adiantada, já saiu do caixa — conta como pago, como no Caixa
+    else if (ehVale(l.id)) m.vale += l.valorCents;
+    else if (l.estornoDe) m.estornado += l.valorCents;
     meses.set(mesDaLinha, m);
   }
   const linhas = [...meses].sort((a, b) => b[0].localeCompare(a[0])).slice(0, 12);
-  const totalPago = linhas.reduce((t, [, m]) => t + (m.pago ?? 0), 0);
+  const totalPago = linhas.reduce((t, [, m]) => t + (m.pago ?? 0) + m.vale, 0);
 
   return (
     <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
@@ -74,8 +77,9 @@ export function ComissoesHistorico({ tenantId, staffId, nome, pct, guardado, onC
                         {m.estornado > 0 && <span className="block text-[13px] text-muted-foreground">− {brl(m.estornado)} estornado</span>}
                       </td>
                       <td className="px-3 py-2.5 text-right">
-                        {m.pago === undefined ? <span className="text-muted-foreground">não paga</span> : brl(m.pago)}
-                        {m.abatido > 0 && <span className="block text-[13px] text-muted-foreground">− {brl(m.abatido)} de estorno</span>}
+                        {m.pago === undefined && !m.vale ? <span className="text-muted-foreground">não paga</span> : brl((m.pago ?? 0) + m.vale)}
+                        {m.vale > 0 && <span className="block text-[13px] text-muted-foreground">{brl(m.vale)} em vale{m.pago === undefined ? " · resto não pago" : ""}</span>}
+                        {m.abatido > 0 && <span className="block text-[13px] text-muted-foreground">− {brl(m.abatido)} de vale e estorno</span>}
                         {m.abatido < 0 && <span className="block text-[13px] text-muted-foreground">+ {brl(-m.abatido)} de estorno desfeito</span>}
                       </td>
                     </tr>

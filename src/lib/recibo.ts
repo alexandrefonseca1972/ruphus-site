@@ -19,7 +19,7 @@ function ate999(n: number): string {
 }
 
 /** 0 a 999.999 por extenso: "mil e duzentos", "dois mil, trezentos e dez". */
-function inteiro(n: number): string {
+function ateMilhar(n: number): string {
   const mil = Math.floor(n / 1000);
   const resto = n % 1000;
   if (!mil) return ate999(resto);
@@ -29,11 +29,25 @@ function inteiro(n: number): string {
   return `${milhar}${resto < 100 || resto % 100 === 0 ? " e " : ", "}${ate999(resto)}`;
 }
 
+/** 0 a 999.999.999 por extenso: "um milhão e duzentos mil", "dois milhões, trezentos mil e dez". */
+function inteiro(n: number): string {
+  const mi = Math.floor(n / 1_000_000);
+  const resto = n % 1_000_000;
+  if (!mi) return ateMilhar(resto);
+  const milhao = mi === 1 ? "um milhão" : `${ateMilhar(mi)} milhões`;
+  if (!resto) return milhao;
+  // "e" quando o resto é um grupo só, redondo ou menor que cem (milhão e cem, milhão e duzentos mil)
+  const grupo = resto < 1000 ? resto : resto % 1000 === 0 ? resto / 1000 : 0;
+  return `${milhao}${grupo && (grupo < 100 || grupo % 100 === 0) ? " e " : ", "}${ateMilhar(resto)}`;
+}
+
 /** R$ por extenso, como num recibo: 12345 → "cento e vinte e três reais e quarenta e cinco centavos". */
 export function valorPorExtenso(cents: number): string {
   const reais = Math.floor(cents / 100);
   const centavos = cents % 100;
-  const r = reais ? `${inteiro(reais)} ${reais === 1 ? "real" : "reais"}` : "";
+  // milhão redondo leva "de": "um milhão de reais"
+  const de = reais >= 1_000_000 && reais % 1_000_000 === 0 ? " de" : "";
+  const r = reais ? `${inteiro(reais)}${de} ${reais === 1 ? "real" : "reais"}` : "";
   const c = centavos ? `${ate999(centavos)} ${centavos === 1 ? "centavo" : "centavos"}` : "";
   return [r, c].filter(Boolean).join(" e ") || "zero real";
 }

@@ -141,6 +141,10 @@ const cm = (await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", 
 assert.deepEqual([cm.tipo, cm.categoria, cm.descricao, cm.staffId, cm.staffName], ["saida", "Comissão/salário", "Comissão Bia", "bia", "Bia"], "o nome vai para a coluna Profissional da planilha");
 assert.equal(typeof cm.pctComissao, "number", "o % do pagamento fica gravado para os ajustes de depois");
 await assert.rejects(pagar(db, "salao", { tipo: "comissao", alvoId: "bia", mes: mesBia, valorCents: 1680, forma: "pix" }, quem), /já foi paga/);
+// comissão paga: editar não troca o valor (só forma e descrição); o mesmo valor passa
+await assert.rejects(editar(db, "salao", idDoPagamento("comissao", "bia", mesBia), { tipo: "saida", valorCents: 9999, data: hoje, categoria: "Comissão/salário", forma: "pix" }, quem), /não muda/);
+await editar(db, "salao", idDoPagamento("comissao", "bia", mesBia), { tipo: "saida", valorCents: 1680, data: hoje, categoria: "Comissão/salário", forma: "pix", descricao: "Comissão Bia (pix)" }, quem);
+assert.equal((await db.doc(`tenants/salao/lancamentos/${idDoPagamento("comissao", "bia", mesBia)}`).get()).get("forma"), "pix");
 
 // estorno: saída de hoje ligada à entrada, com o profissional dela, uma vez só e até o valor recebido
 const recebido = idDaBaixa("passado"); // R$ 42,00, da Bia, cliente Ana
