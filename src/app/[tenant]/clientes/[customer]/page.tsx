@@ -68,8 +68,8 @@ export default function CustomerPage() {
   const [appointments] = useCollection(tenant.id, "appointments", Appointment, [where("customerKey", "==", key), orderBy("start", "desc")], key);
   const [plans] = useCollection(tenant.id, "plans", Plan, [where("customerKey", "==", key)], key);
   const [notas] = useCollection(tenant.id, `customers/${key}/notas`, Nota, [orderBy("quando", "desc")], key);
-  // com o Caixa: o que o cliente pagou de verdade. Só quem gere lê o Caixa (regra do banco)
-  const comCaixa = tenant.podeGerir && tenant.modulos?.financeiro === true;
+  // O que o cliente pagou de verdade. Só quem gere lê o Caixa (regra do banco)
+  const comCaixa = tenant.podeGerir;
   const [pagos, erroPagos] = useCollection(comCaixa && key ? tenant.id : "", "lancamentos", Lancamento, [where("customerKey", "==", key)], key);
   const [planning, setPlanning] = useState(false);
   const [renaming, setRenaming] = useState(false);

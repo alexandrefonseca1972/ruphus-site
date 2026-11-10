@@ -75,7 +75,7 @@ export default function CaixaPage() {
     const t = setInterval(() => setAgora(Date.now()), 60_000);
     return () => clearInterval(t);
   }, []);
-  const ligado = tenant.podeGerir && tenant.modulos?.financeiro === true;
+  const ligado = tenant.podeGerir;
 
   const hoje = todayIn();
   // aberto na virada do mês: quem olhava o mês corrente passa para o novo, senão o lançamento

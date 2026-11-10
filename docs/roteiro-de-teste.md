@@ -42,7 +42,7 @@ Versão de referência: `main` em `a85ee5e` (05/11/2026). Cada item tem um códi
 
 ### 1.1 Landing `/`
 - [ ] `LP-01` Abrir `ruphus.site` → redireciona (308) para `www.ruphus.site`; `/sobre` → `/`.
-- [ ] `LP-02` Seções carregam: hero, O que fazemos, Agenda, Menos falta, Painel, Como funciona, Alguns deles, Preço (R$ 250 + R$ 89,90/mês; domínio R$ 100; Caixa R$ 20; profissional extra R$ 15), Dúvidas (9 itens abrem/fecham), CTA final, rodapé.
+- [ ] `LP-02` Seções carregam: hero, O que fazemos, Agenda, Menos falta, Painel, Como funciona, Alguns deles, Preço (R$ 250 + R$ 89,90/mês; domínio R$ 100; Caixa incluído; profissional extra R$ 15), Dúvidas (9 itens abrem/fecham), CTA final, rodapé.
 - [ ] `LP-03` Busca "Procure o nome do seu negócio": digitar parte de um nome → até 24 resultados, contador "N sites com “termo”"; sem acento/maiúscula também acha; várias palavras → todas precisam casar.
 - [ ] `LP-04` Busca sem resultado → "Nenhum site com esse nome" + estado "Ainda não tem um site com esse nome…" e botão "Pedir o meu no WhatsApp".
 - [ ] `LP-05` Busca vazia → volta a vitrine curada.

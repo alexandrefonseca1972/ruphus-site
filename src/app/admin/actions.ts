@@ -72,7 +72,7 @@ export const ehAdminDaPlataforma = adminAction(async () => true);
 
 // Só o que a lista mostra. O documento inteiro do tenant traz endereço, foto,
 // cor e url: 271 KB para 677 negócios, quando o painel usa dez campos curtos.
-const CAMPOS_DA_LISTA = ["name", "site.phone", "site.category", "site.city", "site.uf", "site.rating", "site.reviews", "limiteStaff", "modulos.financeiro"] as const;
+const CAMPOS_DA_LISTA = ["name", "site.phone", "site.category", "site.city", "site.uf", "site.rating", "site.reviews", "limiteStaff"] as const;
 
 /** Quantas pessoas gerem cada espaço (Ruphus e cliente: a equipe do cliente não diz que ele
  *  entrou). A conta da Ruphus está em quase todos os 14 mil negócios: lê só os membros de fora
@@ -246,16 +246,6 @@ export const definirLimiteStaff = adminAction(async (_user, slug: string, profis
   await adminDb.doc(`tenants/${slug}`).set({ limiteStaff: profissionais }, { merge: true });
   await noIndice(slug);
   return profissionais;
-});
-
-/** Liga ou desliga o Caixa (financeiro) de um negócio. Desligar só esconde: os lançamentos ficam. */
-export const definirCaixa = adminAction(async (_user, slug: string, ligado: boolean) => {
-  slugValido(slug);
-  const t = adminDb.doc(`tenants/${slug}`);
-  if (!(await t.get()).exists) throw new ErroPrevisto("Negócio não encontrado.");
-  await t.update({ "modulos.financeiro": ligado === true });
-  await noIndice(slug);
-  return ligado === true;
 });
 
 /** Encerra as sessões abertas de uma conta: o token continua válido até expirar,
@@ -590,17 +580,11 @@ export const listarCobrancasDo = adminAction(async (_user, slug: string) =>
   enviaveis(await listarCobrancas(adminDb, slug)),
 );
 
-/** Negócios com o Caixa ligado: o valor do módulo entra na mensalidade deles. */
-async function comCaixa() {
-  const snap = await adminDb.collection("tenants").where("modulos.financeiro", "==", true).select().get();
-  return new Set(snap.docs.map((d) => d.id));
-}
-
 /** Uma cobrança avulsa: entrada ou mensalidade de uma competência. */
 export const cobrar = adminAction(async (_user, slug: string, tipo: "entrada" | "mensal", competencia: string | null) => {
   if (!SLUG.test(slug)) throw new Error("negócio inválido");
-  const [negocios, caixa] = await Promise.all([lerCrm(adminDb, [slug]), comCaixa()]);
-  const valorCents = tipo === "entrada" ? negocios[slug]?.entradaCents : mensalidadeDe(negocios[slug], caixa.has(slug));
+  const negocios = await lerCrm(adminDb, [slug]);
+  const valorCents = tipo === "entrada" ? negocios[slug]?.entradaCents : mensalidadeDe(negocios[slug]);
   if (!valorCents) throw new Error("cadastre o valor no bloco Negócio antes de cobrar");
   const mes = tipo === "entrada" ? null : (competencia ?? competenciaAtual());
   await gerarCobranca(adminDb, { slug, tipo, competencia: mes, valorCents });
@@ -610,11 +594,11 @@ export const cobrar = adminAction(async (_user, slug: string, tipo: "entrada" | 
 /** A mensalidade do mês para todos os negócios fechados, de uma vez. */
 export const cobrarMes = adminAction(async (_user, competencia?: string) => {
   const mes = competencia ?? competenciaAtual();
-  const [negocios, caixa] = await Promise.all([lerFechados(adminDb), comCaixa()]);
-  const alvos = Object.entries(negocios).filter(([slug, n]) => n.estagio === "fechado" && mensalidadeDe(n, caixa.has(slug)) > 0);
+  const negocios = await lerFechados(adminDb);
+  const alvos = Object.entries(negocios).filter(([, n]) => n.estagio === "fechado" && mensalidadeDe(n) > 0);
   const geradas: Cobranca[] = [];
   for (const [slug, n] of alvos) {
-    const { id } = await gerarCobranca(adminDb, { slug, tipo: "mensal", competencia: mes, valorCents: mensalidadeDe(n, caixa.has(slug)) });
+    const { id } = await gerarCobranca(adminDb, { slug, tipo: "mensal", competencia: mes, valorCents: mensalidadeDe(n) });
     const c = (await listarCobrancas(adminDb, slug)).find((x) => x.id === id);
     // a do mês que já existia e foi paga não volta para a lista de envio
     if (c?.status === "aberta") geradas.push(c);

@@ -233,7 +233,7 @@ export function consultar(espacos: readonly Espaco[], f: Filtros, ctx: Contexto)
         visoes[v.id] += 1;
       }
     }
-    if (estagio === "fechado") contratadoCents += mensalidadeDe(c, e.caixa);
+    if (estagio === "fechado") contratadoCents += mensalidadeDe(c);
     // a mesma conta do funil: oferta e negociação, com o preço padrão onde nada foi combinado
     if (estagio === "oferta" || estagio === "negociando") negociacaoCents += mensal(c);
   }

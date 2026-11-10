@@ -25,10 +25,12 @@ assert.deepEqual([r.entrou, r.saiu, r.sobrou], [8000, 9000, -1000]);
 assert.deepEqual(r.porForma, [["Pix", 5000], ["Dinheiro", 3000]], "por forma conta só entradas");
 assert.deepEqual(r.porProfissional, [["Bia", 5000]]);
 
-// módulo desligado: nada grava
+// sem o campo legado do módulo: o Caixa grava normalmente
 await db.doc("tenants/salao").set({ name: "Salão", ownerId: "dona", site: { uf: "SP" } });
 const entrada = { tipo: "entrada" as const, valorCents: 4500, data: hoje, categoria: "Produto", forma: "pix" as const };
-await assert.rejects(lancar(db, "salao", entrada, quem), /não está ativo/);
+const semModulo = await lancar(db, "salao", entrada, quem);
+assert.equal((await db.doc(`tenants/salao/lancamentos/${semModulo}`).get()).get("valorCents"), 4500);
+await excluir(db, "salao", semModulo);
 
 await db.doc("tenants/salao").update({ "modulos.financeiro": true });
 const id = await lancar(db, "salao", entrada, quem);
@@ -236,10 +238,9 @@ await db.doc("tenants/salao/staff/bia").delete();
 await db.doc("tenants/salao/lancamentos/t1").delete();
 await db.doc("tenants/salao/lancamentos/t3").delete();
 
-// desligar não apaga: o histórico volta quando religar
+// o campo legado não bloqueia mais o Caixa nem apaga o histórico
 await db.doc("tenants/salao").update({ "modulos.financeiro": false });
-await assert.rejects(excluir(db, "salao", idDaBaixa("passado")), /não está ativo/);
-await assert.rejects(definirComissao(db, "salao", "bia", 10), /não está ativo/);
+await definirComissao(db, "salao", "bia", 10);
 assert.equal((await db.doc(`tenants/salao/lancamentos/${idDaBaixa("passado")}`).get()).exists, true);
 
 await db.doc("tenants/salao").update({ "modulos.financeiro": true });

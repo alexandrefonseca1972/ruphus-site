@@ -8,7 +8,7 @@ export const Tenant = z.object({
   name: z.string(),
   ownerId: z.string(),
   limiteStaff: z.number().int().positive().optional(),
-  // módulos que o admin da plataforma liga por cliente; o nicho escolhe as categorias do Caixa
+  // Caixa é incluído para todos; modulos.financeiro fica só como dado legado.
   // .catch: um campo fora do formato não pode derrubar o painel inteiro
   modulos: z.object({ financeiro: z.boolean().optional(), conversas: z.boolean().optional() }).optional().catch(undefined),
   gerado: z.object({ nicho: z.string().optional() }).optional().catch(undefined),

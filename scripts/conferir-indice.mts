@@ -26,7 +26,7 @@ const m1 = memoria();
 console.log(`montagem: ${((Date.now() - t0) / 1000).toFixed(1)} s, RSS +${mb(m1.rss - m0.rss)}, heap +${mb(m1.heapUsed - m0.heapUsed)} (RSS ${mb(m1.rss)})`);
 
 // ---- leitura de hoje (cópia de espacosComAcessos e acessosPorEspaco, em src/app/admin/actions.ts)
-const CAMPOS = ["name", "site.phone", "site.category", "site.city", "site.uf", "site.rating", "site.reviews", "limiteStaff", "modulos.financeiro"];
+const CAMPOS = ["name", "site.phone", "site.category", "site.city", "site.uf", "site.rating", "site.reviews", "limiteStaff"];
 const admins = ((await adminDb.doc("config/admin").get()).get("uids") as string[] | undefined) ?? [];
 const filtrado = admins.length > 0 && admins.length <= 10;
 const membros = await (filtrado ? adminDb.collectionGroup("members").where("uid", "not-in", admins) : adminDb.collectionGroup("members")).select("role").get();
@@ -53,7 +53,7 @@ const antigos: Espaco[] = tenants.docs
     avaliacoes: d.get("site.reviews") ?? null,
     acessos: acessos(d.id),
     limiteStaff: limiteStaffDe(d.get("limiteStaff") as number | undefined),
-    caixa: d.get("modulos.financeiro") === true,
+    caixa: true,
   }))
   .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 

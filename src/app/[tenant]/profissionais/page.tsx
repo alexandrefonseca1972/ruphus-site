@@ -42,9 +42,9 @@ export default function StaffPage() {
   const tenant = useTenant();
   const [staff, staffError] = useCollection(tenant.id, "staff", Staff, [orderBy("name")]);
   const [services] = useCollection(tenant.id, "services", Service, [orderBy("name")]);
-  // comissão: só o gestor, com o Caixa ligado; o % mora no Caixa (caixa/config), não no
+  // comissão: só o gestor; o % mora no Caixa (caixa/config), não no
   // cadastro, que a equipe inteira lê
-  const comCaixa = tenant.podeGerir && tenant.modulos?.financeiro === true;
+  const comCaixa = tenant.podeGerir;
   const [configs, erroConfig] = useCollection(comCaixa ? tenant.id : "", "caixa", CaixaConfig);
   // sem ler a configuração, o campo some: mostrar vazio faria o dono achar que não há comissão
   const comissoes = configs && !erroConfig ? (configs.find((c) => c.id === "config")?.comissoes ?? {}) : null;

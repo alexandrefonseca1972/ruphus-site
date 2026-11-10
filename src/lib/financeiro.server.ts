@@ -6,15 +6,14 @@ import { randomBytes } from "node:crypto";
 import { BaixaInput, CaixaConfig, diaNoMes, EstornoInput, ehSinal, ehVinculado, FixaInput, ID_AVULSO, idDaBaixa, idDoEstorno, idDoPagamento, LancamentoInput, ValeInput, ehVale, mesDaComissao, mesDe, PagamentoInput } from "@/lib/financeiro";
 import type { z } from "zod";
 
-// Escritas do Caixa: só pelo servidor, e só com o módulo ligado pelo admin da plataforma
-// (tenants/{t}.modulos.financeiro). As regras deixam o gestor ler e ninguém gravar.
+// Escritas do Caixa: só pelo servidor. As regras deixam o gestor ler e ninguém gravar.
 // Quem chama já conferiu que é dono ou admin do negócio (exigeGestor).
 
 type Quem = { uid: string; email?: string };
 
 async function exigeCaixa(db: Firestore, tenantId: string) {
   const t = await db.doc(`tenants/${tenantId}`).get();
-  if (t.get("modulos.financeiro") !== true) throw new UserError("O Caixa não está ativo para este negócio.");
+  if (!t.exists) throw new UserError("Negócio não encontrado.");
   return t;
 }
 
