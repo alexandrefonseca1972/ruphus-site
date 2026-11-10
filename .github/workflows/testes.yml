@@ -51,6 +51,7 @@ jobs:
       - run: npm run test:painel
       - run: npm run test:sessao
       - run: npm run test:sms
+      - run: npm run test:consumo
       - run: npm run test:gerador
       - run: npm run test:ia
       - run: npm run test:foto-rota

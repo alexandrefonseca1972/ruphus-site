@@ -44,6 +44,7 @@
     "test:whatsapp": "tsx whatsapp.test.mts",
     "test:admin": "tsx admin.test.mts",
     "test:sms": "tsx --conditions=react-server sms.test.mts",
+    "test:consumo": "tsx consumo.test.mts",
     "test:conversas": "tsx --conditions=react-server conversas-tela.test.mts && NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-siteflow firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server conversas.test.mts'",
     "test:atendys": "NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-siteflow firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server atendys.test.mts'",
     "test:integracoes": "NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-siteflow firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server integracoes.test.mts'",
