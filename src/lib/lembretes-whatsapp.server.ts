@@ -5,7 +5,7 @@ import { adminDb } from "@/lib/admin";
 import { agoraNaParede, chaveDoHorario, dateIn, formatTime, fusoDe, instanteReal, todayIn, zonedTime } from "@/lib/datetime";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { chaveDeEnvio, enviarSemOperador, enviarTemplateSemOperador, motivoLegivel, ROTULO_STATUS, saiuDepoisDoAceite, statusDaConexao } from "@/lib/atendys";
-import { conexaoOficial, templateCliente, usaCanalOficial } from "@/lib/canal-oficial.server";
+import { conexaoOficial, contatoDoNegocio, templateCliente, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { espelharStatusVivo, lerConexao, lerConfigWhatsApp, registrarErroNotificacao, soDigitosComDDI } from "@/lib/whatsapp.server";
 
@@ -109,7 +109,7 @@ export async function enviarLembretesDoDia(): Promise<number> {
       const chave = chaveDeEnvio("lembrete", t.id, a.id, chaveDoHorario(start));
       try {
         const e = oficial
-          ? await enviarTemplateSemOperador(oficial, cliente, templateCliente("lembrete", { nome, negocio: nomeNegocio, servico: String(a.get("serviceName") ?? ""), quando: `${dia} às ${formatTime(start)}` }, { slug: t.id, agendamento: a.id, horario: chaveDoHorario(start) }), optIn, prazo, { chave })
+          ? await enviarTemplateSemOperador(oficial, cliente, templateCliente("lembrete", { nome, negocio: nomeNegocio, servico: String(a.get("serviceName") ?? ""), quando: `${dia} às ${formatTime(start)}`, contato: contatoDoNegocio(t) }, { slug: t.id, agendamento: a.id, horario: chaveDoHorario(start) }), optIn, prazo, { chave })
           : await enviarSemOperador(
               w,
               cliente,

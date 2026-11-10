@@ -4,7 +4,7 @@ import { adminDb } from "@/lib/admin";
 import { DEMO } from "@/lib/demo";
 import { atualizarParada, avisarFalhaDeEnvio, lerIndice, NAO_SAI_A_TEMPO } from "@/lib/mensagens-paradas.server";
 import { avisarQueda, codigoDoAgendamento, espelharStatusDaInstancia, executarComandoPendente, idDoComando, lerConexao, lerConfigWhatsApp, registrarMensagemRecebida, tenantDaInstancia } from "@/lib/whatsapp.server";
-import { conexaoOficial, instanciaPlataforma, lerBotao, negocioDoComando, negociosDoDono, segredoPlataforma, usaCanalOficial } from "@/lib/canal-oficial.server";
+import { conexaoOficial, instanciaPlataforma, lerBotao, negocioDoComando, negociosDoDono, responderForaDoFluxo, segredoPlataforma, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { acaoDoCliente, pedidoDesatualizado } from "@/lib/botoes-whatsapp.server";
 import { confirmarDono } from "@/lib/canal-oficial.server";
 
@@ -158,9 +158,13 @@ export async function POST(req: Request) {
     }
     const doDono = botao ? botao.slug : await negocioDoComando(adminDb, await negociosDoDono(adminDb, evento.phone), evento.text ?? "");
     if (!doDono) {
-      // resposta de cliente ao número da plataforma: fica na caixa do atendys
+      // resposta de cliente ao número da plataforma: fica na caixa do atendys e o cliente ouve, uma vez
+      // por dia, com quem falar (o negócio do último agendamento). Reentrega cai no limite de 24 h
       // ponytail: encaminhar à caixa do negócio pelo último agendamento do cliente
       console.log(`[webhook atendys] canal oficial: mensagem de quem não é dono (${evento.phone.slice(-4)})`);
+      // "Confirmado" de cliente também recebe a orientação: comando só vale para o dono
+      const texto = evento.text ?? "";
+      after(() => responderForaDoFluxo(adminDb, evento.phone!, texto, evento.instance!));
       return responder(200, { ok: true });
     }
     const data = { text: evento.text ?? "" };
