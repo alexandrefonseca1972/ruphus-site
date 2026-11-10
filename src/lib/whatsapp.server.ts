@@ -254,7 +254,7 @@ export async function registrarMensagemRecebida(
   comando?: "salao" | "plataforma",
   /** Botão do pedido ao dono: o agendamento e o horário do pedido. A transação que muda o status
    *  confere de novo (o cliente pode remarcar antes de o cron reprocessar o pendente). */
-  esperado?: { agendamento: string; horario: string },
+  esperado?: { agendamento: string; horario?: string },
 ): Promise<boolean> {
   // id vindo de fora vira caminho de documento: só letras, números, "_" e "-"
   const ref = msg.messageId
@@ -286,6 +286,9 @@ export async function registrarMensagemRecebida(
 const PENDENTES = "comandosPendentes";
 const AVISO_PARADO = "O aviso ao cliente parou na cota diária do WhatsApp: decida em Mensagens no painel.";
 const AVISO_NAO_SAI = "O aviso ao cliente não sai antes do horário do agendamento (fora do horário de envio do WhatsApp): avise o cliente por outro meio.";
+const AVISO_FALHOU = "O aviso ao cliente não foi entregue (o WhatsApp recusou): avise o cliente por outro meio.";
+/** Aceito, mas o cliente não vai receber: o que dizer ao dono. null = enviado ou agendado a tempo. */
+const avisoNaoEntregue = (destino: string) => (destino === "parada" ? AVISO_PARADO : destino === "nao_sai" ? AVISO_NAO_SAI : destino === "falhou" ? AVISO_FALHOU : null);
 /** Id do pendente do comando recebido (a mensagem da caixa de entrada do negócio). */
 export const idDoComando = (slug: string, inboxId: string) => `${slug}__${inboxId}`;
 const PARADO_MS = 5 * 60_000;
@@ -504,7 +507,7 @@ export async function processarComandoAgendamento(
    *  comando não roda de novo (repetir diria ao dono "não encontrei" logo após "confirmado"). */
   pendente?: string,
   /** Veio de botão do pedido: o horário do pedido tem de bater com o atual, senão nada muda. */
-  esperado?: { agendamento: string; horario: string },
+  esperado?: { agendamento: string; horario?: string },
 ): Promise<"ignorado" | "nao entendido" | "sem pendente" | "confirmado" | "recusado"> {
   // canal oficial: comando chega ao número da plataforma, só do WhatsApp pessoal do dono, e as
   // respostas saem por ele (o dono acabou de escrever: janela de 24 h aberta, texto livre vale)
@@ -565,7 +568,9 @@ export async function processarComandoAgendamento(
   // "confirmado obrigado": palavra longa que não começa o id de nenhum agendamento futuro é
   // conversa, não código (os códigos longos só existem para desempatar ids que começam igual)
   if (codigo && codigo.length > 4 && !recentes.some((d) => d.id.toUpperCase().startsWith(codigo!))) codigo = undefined;
-  const pendentes = futuros.filter((d) => d.get("status") === "booked" && (!codigo || d.id.toUpperCase().startsWith(codigo)));
+  // botão do pedido: só o agendamento daquele pedido. Sem isso, com ele apagado ou antigo, o código
+  // longo virava "conversa" e o único pendente que sobrou (de outro cliente) era confirmado no lugar
+  const pendentes = futuros.filter((d) => d.get("status") === "booked" && (!codigo || d.id.toUpperCase().startsWith(codigo)) && (!esperado || d.id === esperado.agendamento));
   if (pendentes.length === 0) {
     await soltarPendente();
     await responderDono(codigo ? `Não encontrei agendamento aguardando confirmação com o código ${codigo}.` : "Não encontrei agendamento aguardando confirmação.");
@@ -609,7 +614,7 @@ export async function processarComandoAgendamento(
       const atual = await tx.get(a.ref);
       if (pendente) tx.delete(db.doc(`${PENDENTES}/${pendente}`));
       if (atual.get("status") !== "booked") return "status";
-      if (esperado?.agendamento === a.id && chaveDoHorario(startDe(atual)) !== esperado.horario) return "horario";
+      if (esperado?.horario && esperado.agendamento === a.id && chaveDoHorario(startDe(atual)) !== esperado.horario) return "horario";
       tx.create(history, { appointmentId: a.id, type: status, ...extra, at: FieldValue.serverTimestamp(), by: "whatsapp", byName: "WhatsApp do salão" });
       tx.update(a.ref, { status, lastHistoryId: history.id });
       return "ok";
@@ -633,8 +638,9 @@ export async function processarComandoAgendamento(
         const base = (process.env.PUBLIC_SITE_URL ?? `https://${slug}.ruphus.site`).replace(/\/+$/, "");
         const link = `${base}/agendar/${slug}`;
         const e = await avisarCliente("cancelado", cliente, `Olá, ${nome}. Esse horário não está disponível: ${servico}. Faça um novo agendamento pelo link: ${link}`, optIn);
-        if (e.destino === "parada" || e.destino === "nao_sai") {
-          await responderDono(`Agendamento de ${nome} recusado. ${e.destino === "parada" ? AVISO_PARADO : AVISO_NAO_SAI}`).catch(() => {});
+        const ruim = avisoNaoEntregue(e.destino);
+        if (ruim) {
+          await responderDono(`Agendamento de ${nome} recusado. ${ruim}`).catch(() => {});
           return "recusado";
         }
       } catch (e) {
@@ -659,7 +665,8 @@ export async function processarComandoAgendamento(
     try {
       const e = await avisarCliente("confirmado", cliente, `Olá, ${nome}! Seu agendamento está confirmado: ${servico}. Te esperamos!`, optIn);
       // parada na cota: quem opera o salão precisa saber que o cliente ainda não foi avisado
-      if (e.destino === "parada" || e.destino === "nao_sai") await responderDono(`Agendamento de ${nome} confirmado. ${e.destino === "parada" ? AVISO_PARADO : AVISO_NAO_SAI}`).catch(() => {});
+      const ruim = avisoNaoEntregue(e.destino);
+      if (ruim) await responderDono(`Agendamento de ${nome} confirmado. ${ruim}`).catch(() => {});
     } catch (e) {
       // o agendamento já está confirmado; quem precisa saber que o cliente não
       // foi avisado é quem opera o salão (self-chat), que está esperando o eco

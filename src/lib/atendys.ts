@@ -1,7 +1,7 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import QRCode from "qrcode";
-import { atualizarParada, avisarFalhaDeEnvio, prazoDaParada, registrarParada, vigiarEnvio } from "@/lib/mensagens-paradas.server";
+import { atualizarParada, avisarFalhaDeEnvio, NAO_SAI_A_TEMPO, prazoDaParada, registrarParada, vigiarEnvio } from "@/lib/mensagens-paradas.server";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { integracao } from "@/lib/integracoes.server";
 
@@ -374,7 +374,18 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
       // Só no canal oficial (a Meta recusa logo depois do aceite) e fora das respostas: um GET a
       // mais por envio no resto não compensa
       const agora = conn.oficial && !resposta ? await statusDaMensagem(conn, e.messageId).catch(() => null) : null;
-      if (agora?.status === "failed") await avisarFalhaDeEnvio(conn.slug, e.messageId, agora.errorCode);
+      // o que a conferência achou volta para quem chama: devolver o "queued" do POST faria o
+      // chamador contar como enviada e limpar o aviso que acabou de ser gravado
+      if (agora?.status === "failed") {
+        await avisarFalhaDeEnvio(conn.slug, e.messageId, agora.errorCode);
+        return { ...e, status: "failed", ...(agora.errorCode && { errorCode: agora.errorCode }) };
+      }
+      // adiada (horário silencioso, limite) com o webhook chegando antes do índice: o retryAt segue
+      // para seguirSemOperador decidir; para depois do prazo, o mesmo aviso que o webhook daria
+      if (agora?.status === "queued" && agora.retryAt && !e.retryAt) {
+        if (prazo && Date.parse(agora.retryAt) >= prazo.getTime()) await avisarFalhaDeEnvio(conn.slug, e.messageId, NAO_SAI_A_TEMPO);
+        return { ...e, retryAt: agora.retryAt };
+      }
     }
     return e;
   };
@@ -428,7 +439,9 @@ export async function statusDaMensagem(conn: ConexaoAtendys, messageId: string) 
 /** Envio sem ninguém olhando (lembrete, aviso de agendamento, robô): parada na cota, volta à fila
  *  se o retryAt ainda serve (antes do prazo, quando há); senão fica parada para o painel decidir.
  *  Devolve o que aconteceu, para quem chama não registrar como enviada. */
-export async function seguirSemOperador(conn: ConexaoAtendys, envio: Envio, prazo?: Date): Promise<"enviada" | "agendada" | "parada" | "nao_sai"> {
+export async function seguirSemOperador(conn: ConexaoAtendys, envio: Envio, prazo?: Date): Promise<"enviada" | "agendada" | "parada" | "nao_sai" | "falhou"> {
+  // recusada logo depois do aceite (a conferência do envio achou failed)
+  if (envio.status === "failed") return "falhou";
   if (!aguardaDecisao(envio)) {
     if (!envio.retryAt) return "enviada";
     // adiada para depois do prazo (horário silencioso, limite): com expiresAt o atendys descarta;
