@@ -1,8 +1,10 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { apontarWebhook, garantirTenant, revogarChavesAntigas, type ConexaoAtendys, type Template } from "@/lib/atendys";
+import { apontarWebhook, enviarTexto, garantirTenant, revogarChavesAntigas, type ConexaoAtendys, type Template } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
+import { customerKey, formatPhone } from "@/lib/datetime";
+import { urlDoSite, type Dominio } from "@/lib/dominio";
 import { soDigitosComDDI } from "@/lib/telefone";
 
 // Canal oficial do WhatsApp (API oficial da Meta, pelo atendys): um número da plataforma Ruphus
@@ -40,6 +42,11 @@ export const TEMPLATES = {
 /** Templates com botões (Confirmar/Recusar ao dono; presença/remarcar/cancelar no lembrete).
  *  Liga com ATENDYS_TEMPLATES_BOTOES=1 depois que a Meta aprovar os dois na WABA do número. */
 const comBotoes = () => process.env.ATENDYS_TEMPLATES_BOTOES === "1";
+/** Versão _v2 dos templates (📌/📅 no texto e, nos de cliente, {{5}} = contato do estabelecimento).
+ *  Liga com ATENDYS_TEMPLATES_V2=1 depois que a Meta aprovar os _v2 na WABA. */
+const v2 = () => process.env.ATENDYS_TEMPLATES_V2 === "1";
+/** O nome que vai à Meta: o de TEMPLATES, com _v2 quando a chave está ligada. */
+const nomeTemplate = (chave: keyof typeof TEMPLATES) => (v2() ? `${TEMPLATES[chave]}_v2` : TEMPLATES[chave]);
 
 /** id do botão: volta no message.received. rph:<ação>:<negócio>:<agendamento>[:<extra>].
  *  extra: o horário de origem ("2026-11-14T15:00", hora de parede); em ch, "<origem>_<destino>".
@@ -64,17 +71,24 @@ export function parametro(valor: unknown): string {
 /** Destaque dentro da variável: o texto do template é congelado pela Meta, mas o conteúdo de {{n}}
  *  aceita a formatação do WhatsApp. Asteriscos do próprio valor saem, senão quebram o negrito. */
 export const destaque = (valor: unknown) => `*${parametro(valor).replace(/\*/g, "")}*`;
-/** Data/hora em negrito com o ícone de calendário. */
-export const quandoFormatado = (valor: unknown) => `📅 ${destaque(valor)}`;
+/** Data/hora em negrito com o ícone de calendário. Nos _v2 o 📅 já está no texto do template. */
+export const quandoFormatado = (valor: unknown) => (v2() ? destaque(valor) : `📅 ${destaque(valor)}`);
 
-/** Aviso ao cliente: { nome, negócio, serviço, quando } nos {{1}}…{{4}} do template. */
+/** Contato do estabelecimento ({{5}} dos _v2 e a resposta automática): o telefone do site (o mesmo
+ *  do botão de WhatsApp da /bio), formatado; sem telefone válido, o endereço público do site. */
+export function contatoDoNegocio(tenant: { id: string; get(campo: string): unknown }): string {
+  const numero = soDigitosComDDI(String(tenant.get("site.phone") ?? ""));
+  return numero ? formatPhone(numero) : urlDoSite(tenant.id, tenant.get("dominio") as Dominio | undefined).replace(/\/+$/, "");
+}
+
+/** Aviso ao cliente: { nome, negócio, serviço, quando } nos {{1}}…{{4}} do template; nos _v2, contato no {{5}}. */
 /** ref.horario: o horário do lembrete no id dos botões; tocar depois de o salão remarcar é recusado. */
-export function templateCliente(tipo: "recebido" | "confirmado" | "cancelado" | "lembrete", c: { nome: string; negocio: string; servico: string; quando: string }, ref?: { slug: string; agendamento: string; horario?: string }): Template {
-  const parametros = [parametro(c.nome), destaque(c.negocio), parametro(c.servico), quandoFormatado(c.quando)];
+export function templateCliente(tipo: "recebido" | "confirmado" | "cancelado" | "lembrete", c: { nome: string; negocio: string; servico: string; quando: string; contato: string }, ref?: { slug: string; agendamento: string; horario?: string }): Template {
+  const parametros = [parametro(c.nome), destaque(c.negocio), parametro(c.servico), quandoFormatado(c.quando), ...(v2() ? [parametro(c.contato)] : [])];
   if (tipo === "lembrete" && ref && comBotoes()) {
-    return { nome: TEMPLATES.lembreteBotoes, parametros, botoes: (["cp", "cr", "cx"] as const).map((a) => idBotao(a, ref.slug, ref.agendamento, ref.horario)) };
+    return { nome: nomeTemplate("lembreteBotoes"), parametros, botoes: (["cp", "cr", "cx"] as const).map((a) => idBotao(a, ref.slug, ref.agendamento, ref.horario)) };
   }
-  return { nome: TEMPLATES[tipo], parametros };
+  return { nome: nomeTemplate(tipo), parametros };
 }
 
 /** Aviso de novo agendamento ao dono: {{1}} código (CONFIRMADO/RECUSAR + código), {{2}} negócio,
@@ -82,8 +96,8 @@ export function templateCliente(tipo: "recebido" | "confirmado" | "cancelado" | 
 /** ref.horario ("2026-11-14T15:00"): vai no id dos botões; pedido de um horário que já mudou é recusado. */
 export function templateNovoDono(c: { negocio: string; cliente: string; telefone: string; servico: string; quando: string; codigo: string }, ref?: { slug: string; agendamento: string; horario?: string }): Template {
   const parametros = [destaque(c.codigo), destaque(c.negocio), parametro(c.cliente), parametro(c.telefone), parametro(c.servico), quandoFormatado(c.quando)];
-  if (ref && comBotoes()) return { nome: TEMPLATES.novoDonoBotoes, parametros, botoes: [idBotao("dc", ref.slug, ref.agendamento, ref.horario), idBotao("dr", ref.slug, ref.agendamento, ref.horario)] };
-  return { nome: TEMPLATES.novoDono, parametros };
+  if (ref && comBotoes()) return { nome: nomeTemplate("novoDonoBotoes"), parametros, botoes: [idBotao("dc", ref.slug, ref.agendamento, ref.horario), idBotao("dr", ref.slug, ref.agendamento, ref.horario)] };
+  return { nome: nomeTemplate("novoDono"), parametros };
 }
 
 async function lerCredenciais(db: Firestore): Promise<Credenciais | null> {
@@ -166,4 +180,55 @@ export async function negocioDoComando(db: Firestore, slugs: string[], texto: st
     if (ags.docs.some((a) => tokens.some((t) => a.id.toUpperCase().startsWith(t)))) return slug;
   }
   return slugs[0];
+}
+
+/** Resposta automática a quem escreveu ao número da plataforma sem ser dono de negócio do canal
+ *  oficial (o cliente respondendo a um aviso). null = não responde: botão, comando, mensagem vazia ou
+ *  só a palavra de opt-out (o SAIR é do atendys, que já registra a revogação). */
+export function respostaForaDoFluxo(msg: { texto: string; botao: boolean; comando: boolean }, ultimo: { negocio: string; contato: string } | null): string | null {
+  const palavra = msg.texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/gi, "").trim().toLowerCase();
+  if (msg.botao || msg.comando || !palavra || ["sair", "parar", "pare", "stop", "cancelar", "descadastrar"].includes(palavra)) return null;
+  const aviso = "Este número da Ruphus só envia avisos de agendamento.";
+  return ultimo ? `${aviso} Para falar com *${ultimo.negocio.replace(/\*/g, "")}*, chame ${ultimo.contato}.` : `${aviso} Fale com o estabelecimento onde você agendou.`;
+}
+
+/** Negócio e contato do agendamento mais recente deste telefone entre os negócios do canal oficial.
+ *  ponytail: uma consulta por negócio oficial (poucos; índice customerKey+start já existe); índice
+ *  telefone→negócio se crescer. */
+async function ultimoAgendamentoDoCliente(db: Firestore, telefone: string): Promise<{ negocio: string; contato: string } | null> {
+  const chave = customerKey(telefone);
+  // agendamento de antes da canonização pode ter a chave sem o 9 (12 dígitos): procura as duas
+  const chaves = [...new Set([chave, chave.replace(/^(55\d\d)9(\d{8})$/, "$1$2")])];
+  const oficiais = await db.collection("tenants").where("whatsapp.canalOficial", "==", true).get();
+  let achado: { t: FirebaseFirestore.QueryDocumentSnapshot; start: number } | null = null;
+  for (const t of oficiais.docs) {
+    if (t.id === DEMO) continue;
+    const a = (await t.ref.collection("appointments").where("customerKey", "in", chaves).orderBy("start", "desc").limit(1).get()).docs[0];
+    const start = a?.get("start")?.toMillis?.() ?? 0;
+    if (a && (!achado || start > achado.start)) achado = { t, start };
+  }
+  return achado ? { negocio: String(achado.t.get("name") ?? "").trim() || achado.t.id, contato: contatoDoNegocio(achado.t) } : null;
+}
+
+/** Responde (uma vez por telefone a cada 24 h) quem escreveu ao número da plataforma fora do fluxo.
+ *  replyToInbound: a pessoa acabou de escrever, não conta na cota dela. Nunca lança: falha só loga. */
+export async function responderForaDoFluxo(db: Firestore, telefone: string, msg: { texto: string; botao: boolean; comando: boolean }): Promise<void> {
+  try {
+    const numero = soDigitosComDDI(telefone);
+    if (!numero || !respostaForaDoFluxo(msg, null)) return;
+    const c = await lerCredenciais(db);
+    if (!c) return;
+    const ref = db.doc(`${DOC}/respostas/${numero}`);
+    const livre = await db.runTransaction(async (tx) => {
+      const em = (await tx.get(ref)).get("em");
+      if (typeof em === "number" && Date.now() - em < 86_400_000) return false;
+      tx.set(ref, { em: Date.now() });
+      return true;
+    });
+    if (!livre) return;
+    const texto = respostaForaDoFluxo(msg, await ultimoAgendamentoDoCliente(db, numero))!;
+    await enviarTexto({ atendysApiKey: c.apikey, instanceId: instanciaPlataforma(), oficial: true }, numero, texto, null, undefined, { resposta: true });
+  } catch (e) {
+    console.error(`[canal oficial] resposta automática a …${telefone.slice(-4)}`, e);
+  }
 }
