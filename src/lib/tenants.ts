@@ -1,6 +1,4 @@
-import { collection } from "firebase/firestore";
 import { z } from "zod";
-import { db } from "@/lib/firebase-db";
 import { DEMO } from "@/lib/demo";
 
 // Esquema e máscara moram num módulo sem Firebase: o servidor e os testes os usam sem inicializar o app do navegador
@@ -37,7 +35,3 @@ export type Tenant = z.infer<typeof Tenant> & { id: string };
  *  ponytail: conexão antiga (wtsfy, sem apikey) também parece conectada aqui; o servidor recusa e a
  *  tela oferece o wa.me. Expor um "atendys" no doc público se isso voltar a existir. */
 export const whatsappDoNegocio = (t: Pick<Tenant, "id" | "whatsapp">) => t.id !== DEMO && !!t.whatsapp?.instanceId && t.whatsapp.status === "connected";
-
-// Todo dado de negócio vive em tenants/{id}/<coleção>
-export const tenantCollection = (tenantId: string, name: string) =>
-  collection(db, "tenants", tenantId, name);

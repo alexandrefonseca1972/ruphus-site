@@ -1,5 +1,4 @@
 import "server-only";
-import sharp from "sharp";
 import { adminBucket, adminDb } from "@/lib/admin";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import type { Sub } from "@/lib/gerador";
@@ -51,6 +50,9 @@ export async function processarFoto(slug: string, slot: Slot, corpo: Buffer) {
   let jpeg: Buffer;
   try {
     // o tipo declarado pelo navegador não vale: o formato é o que o sharp lê do arquivo
+    // sob demanda, como em admin/actions.ts (pré-visualização da IA): quem importa este módulo só para
+    // ler ou apagar foto não carrega o binário nativo
+    const sharp = (await import("sharp")).default;
     const img = sharp(corpo, { limitInputPixels: MAX_PIXELS });
     const { format } = await img.metadata();
     if (!FORMATOS.includes(format ?? "")) throw new ErroPrevisto("Formato não aceito. Envie JPG, PNG ou WebP.");

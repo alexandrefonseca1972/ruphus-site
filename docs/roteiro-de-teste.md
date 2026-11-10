@@ -137,7 +137,7 @@ Pré: negócio de teste (ou demo) com serviços, profissionais e agenda online l
 - [ ] `API-02` `/api/vitrine`, `/api/catalogo`, `/api/catalogo?q=barbearia`, `/api/marketing` → JSON.
 - [ ] `API-03` `/api/desativados` e `/api/dominios` sem cabeçalho `x-ruphus` → 404.
 - [ ] `API-04` `/api/cron/lembretes` sem segredo → 401.
-- [ ] `API-05` `/api/webhooks/wtsfy` POST → 410; `/api/webhooks/atendys` sem assinatura → 401.
+- [ ] `API-05` `/api/webhooks/atendys` sem assinatura → 401.
 - [ ] `API-06` `/admin/qr?url=https://barbearia-force.ruphus.site` → SVG; URL de fora → 400.
 
 ---

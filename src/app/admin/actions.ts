@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
 import { conectarDominio, desconectarDominio, verificarDominio } from "@/lib/dominio.server";
-import type { Dominio } from "@/lib/dominio";
+import { type Dominio, SITE_BASE } from "@/lib/dominio";
 import { z } from "zod";
 import { adminDb } from "@/lib/admin";
 import type { Espaco } from "@/lib/painel-tipos";
@@ -146,7 +146,7 @@ export type ConviteEmLote = {
 async function convitesPara(slugs: string[]): Promise<{ convites: ConviteEmLote[]; semEmail: string[] }> {
   const alvos = limpar(slugs);
   if (!alvos.length) return { convites: [], semEmail: [] };
-  const base = process.env.SITE_URL ?? "https://www.ruphus.site";
+  const base = SITE_BASE;
   // O e-mail do dono mora no CRM, não no tenant: é ele que prende o convite a
   // uma conta. Sem ele não há link — o negócio volta em semEmail.
   const [docs, crms] = await Promise.all([
@@ -480,7 +480,7 @@ export type CobrancaEnviavel = {
 // botão da linha e o lote do mês divergem no fallback de SITE_URL.
 async function enviaveis(cobrancas: Cobranca[]): Promise<CobrancaEnviavel[]> {
   if (!cobrancas.length) return [];
-  const base = process.env.SITE_URL ?? "https://www.ruphus.site";
+  const base = SITE_BASE;
   const slugs = [...new Set(cobrancas.map((c) => c.slug))];
   const [docs, crms] = await Promise.all([
     adminDb.getAll(...slugs.map((s) => adminDb.collection("tenants").doc(s))),
@@ -511,7 +511,7 @@ const mesLongo = (competencia: string | null) =>
 export const linkDaProposta = adminAction(async (_user, slug: string, refazer?: boolean) => {
   slugValido(slug);
   const { token, valeAte, nova } = await gerarProposta(adminDb, slug, refazer === true);
-  const base = process.env.SITE_URL ?? "https://www.ruphus.site";
+  const base = SITE_BASE;
   return { url: `${base}/proposta/${slug}?t=${token}`, valeAte, nova };
 });
 
@@ -523,7 +523,7 @@ export const enviarPropostaPorEmail = adminAction(async (user, slug: string, dig
   const { cadastrado, ...dados } = await dadosDoEnvio(adminDb, slug);
   const para = destinatarioDoEnvio(digitado, cadastrado);
   const { token, valeAte } = await gerarProposta(adminDb, slug);
-  const base = process.env.SITE_URL ?? "https://www.ruphus.site";
+  const base = SITE_BASE;
   const { assunto, texto, html } = emailDaProposta({ ...dados, url: `${base}/proposta/${slug}?t=${token}`, valeAte });
   await enviarEmail({ para, assunto, texto, html });
   await registrarMensagem(adminDb, slug, "Proposta por e-mail", para, user.email ?? user.uid);

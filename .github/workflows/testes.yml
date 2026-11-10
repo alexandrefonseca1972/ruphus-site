@@ -56,6 +56,10 @@ jobs:
       - run: npm run test:lembrete
       - run: npm run test:proposta-email
       - run: npm run test:convite-email
+      - run: npm run test:recibo
+      - run: npm run test:mensagens
+      - run: npm run test:coleta
+      - run: npm run test:canal-oficial
 
       # Com emulador do Firestore (e do Auth, no booking)
       - run: npm run test:rules
@@ -69,3 +73,5 @@ jobs:
       - run: npm run test:booking
       - run: npm run test:scale
       - run: npm run test:painel-indice
+      # a tela das conversas roda sem emulador; o resto com o do Firestore
+      - run: npm run test:conversas

@@ -10,6 +10,7 @@ import { LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/
 import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
 import { criarProfissional, gastarCota, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
+import { SITE_BASE } from "@/lib/dominio";
 import { atenderComo, type Atendimento, conversaVisivel, exigeConversaVisivel, exigeMensagemVisivel, permitirEquipeNasConversas, visiveis } from "@/lib/conversas.server";
 import { agirNaMensagem, arquivarConversa, assumirEnvio, buscarNasConversas, CHAVE_IDEMPOTENCIA, deslogarInstancia, ID_INBOX, enviarTexto, ErroAtendys, listarConversas, manterAgendada, marcarConversa, mensagensDaConversa, qrDaConexao, responderConversa, statusDaConexao, statusDaMensagem, type ConexaoAtendys } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
@@ -135,7 +136,7 @@ export const convidarEquipeAction = memberAction(
     if (!prof.exists) throw new UserError("Esse profissional não existe mais.");
     // cada convite manda e-mail pela Ruphus: no máximo 20 por dia por negócio
     await gastarCota(adminDb, data.tenantId, "convites", 20);
-    const base = process.env.SITE_URL ?? "https://www.ruphus.site";
+    const base = SITE_BASE;
     const url = `${base}/convite?c=${await criarConvite(adminDb, data.tenantId, data.email, { staffId: data.staffId })}`;
     // o link já vai por e-mail para o endereço a que está preso, depois da resposta: o dono não
     // espera o Resend (10s de timeout, depois o SMTP). Falha no e-mail não perde o link: o dono
@@ -531,7 +532,7 @@ export const avisarClienteWhatsappAction = memberAction(
     if (!cliente) throw new UserError("O cliente não tem WhatsApp válido.");
     const w = await lerConexao(adminDb, data.tenantId);
     if (!w?.instanceId || w.status !== "connected") throw new UserError("O WhatsApp do negócio não está conectado.");
-    const base = process.env.SITE_URL ?? "https://www.ruphus.site";
+    const base = SITE_BASE;
     const texto = textoAvisoCliente(
       data.tipo,
       { customerName: String(ag.get("customerName") ?? ""), serviceName: String(ag.get("serviceName") ?? ""), staffName: String(ag.get("staffName") ?? ""), start },
