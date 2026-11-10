@@ -563,7 +563,7 @@ export async function processarComandoAgendamento(
   // (reprocessarComandos) tenta de novo. Conversa comum do dono segue "ignorado"
   if (!oficial) {
     const vivo = await statusDaConexao(conexao).catch((e) => {
-      if (comando || pareceComando(texto)) throw e;
+      if (comando || pareceComando(texto) || /\b[A-Z0-9]{4}\b/i.test(texto)) throw e;
       return null;
     });
     if (!vivo || vivo.status !== "connected") return "ignorado";

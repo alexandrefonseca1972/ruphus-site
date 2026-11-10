@@ -123,6 +123,7 @@ export async function POST(req: Request) {
           }
         } else {
           console.warn(`[whatsapp] ${tenantId}: sem WhatsApp pessoal do dono nem número do salão pareado; aviso de novo agendamento não enviado`);
+          falhas.push("aviso ao dono não enviado: sem WhatsApp pessoal cadastrado nem número do salão identificado");
         }
         // recibo pro cliente: o pedido foi recebido e a confirmação vem pelo salão.
         // Só com o aceite marcado no formulário; sem ele o agendamento vale e nada é enviado

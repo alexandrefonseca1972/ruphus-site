@@ -10,12 +10,13 @@ import { ajustarLimitesDoTenant, LIMITES_DESTINATARIO, listarTenantsAtendys } fr
 const aplicar = process.argv.includes("--aplicar");
 const { recipientMsgPerDay: dia, recipientMsgPerWeek: semana } = LIMITES_DESTINATARIO;
 let ajustados = 0;
+let falhas = 0;
 for (const t of await listarTenantsAtendys()) {
   const nosso = t.slug === "ruphus-plataforma" || (await adminDb.doc(`tenants/${t.slug}`).get()).exists;
   if (!nosso || (t.recipientMsgPerDay === dia && t.recipientMsgPerWeek === semana)) continue;
   console.log(`${t.slug}: ${t.recipientMsgPerDay ?? "?"}/dia, ${t.recipientMsgPerWeek ?? "?"}/semana`);
-  ajustados++;
-  if (aplicar) await ajustarLimitesDoTenant(t.id).catch((e) => console.error(`  ${t.slug} falhou: ${e instanceof Error ? e.message : e}`));
+  if (aplicar) await ajustarLimitesDoTenant(t.id).then(() => ajustados++, (e) => (falhas++, console.error(`[limites] ${t.slug} falhou:`, e instanceof Error ? e.message : e)));
+  else ajustados++;
 }
-console.log(`${aplicar ? "ajustados" : "ajustaria"}: ${ajustados} tenant(s) para ${dia}/dia e ${semana}/semana`);
-process.exit(0);
+console.log(`${aplicar ? "ajustados" : "ajustaria"}: ${ajustados} tenant(s) para ${dia}/dia e ${semana}/semana; ${falhas} falha(s)`);
+process.exit(falhas ? 1 : 0);
