@@ -1,7 +1,9 @@
 "use server";
 
-import { RECARGA_MINIMA_CENTS } from "@/lib/consumo";
-import { criarRecarga } from "@/lib/consumo.server";
+import { RECARGA_MAXIMA_CENTS, RECARGA_MINIMA_CENTS } from "@/lib/consumo";
+import { criarRecarga, lerConfigMensagens } from "@/lib/consumo.server";
+import { painelDeConsumo, resumoDoSaldo } from "@/lib/consumo-painel.server";
+import { abrirCobranca, listarCobrancas } from "@/lib/cobranca";
 import { cadastrarDonoOficial, conexaoOficial, enviarConfirmacaoDono, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { adminDb } from "@/lib/admin";
 import { createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
@@ -24,7 +26,7 @@ import { situacaoDe } from "@/lib/envio-whatsapp";
 import { atualizarParada, negocioDaMensagem, paradasDoNegocio } from "@/lib/mensagens-paradas.server";
 import { htmlDoRecibo, textoDoRecibo } from "@/lib/recibo";
 import { reciboDoBanco } from "@/lib/recibo.server";
-import { agoraNaParede, formatBRL, fusoDe } from "@/lib/datetime";
+import { agoraNaParede, formatBRL, fusoDe, todayIn } from "@/lib/datetime";
 import { celularDoDono, soDigitosComDDI } from "@/lib/telefone";
 import { type ConexaoWhatsapp, lerConfigWhatsApp, lerConexao, paraTela } from "@/lib/whatsapp.server";
 import { cancelar, Inscricao, inscrever, inscrito } from "@/lib/avisos.server";
@@ -665,13 +667,57 @@ export const responderConversaAction = conversaAction(
 /** Recarga de mensagens pré-pagas: pacote do /admin ou valor livre (mínimo R$ 10,00). Devolve a
  *  cobrança Pix (a mesma página /pagar da mensalidade); o saldo entra quando o pagamento é baixado. */
 export const criarRecargaAction = memberAction(
-  z.object({ tenantId: docIdStaff, pedido: z.union([z.object({ pacoteId: z.string().regex(/^[a-z0-9-]{1,20}$/) }).strict(), z.object({ valorCents: z.number().int().min(RECARGA_MINIMA_CENTS, "A recarga mínima é de R$ 10,00.").max(1_000_000) }).strict()]) }),
+  z.object({
+    tenantId: docIdStaff,
+    pedido: z.union([
+      z.object({ pacoteId: z.string().regex(/^[a-z0-9-]{1,20}$/) }).strict(),
+      z.object({ valorCents: z.number().int().min(RECARGA_MINIMA_CENTS, "A recarga mínima é de R$ 10,00.").max(RECARGA_MAXIMA_CENTS, "A recarga máxima é de R$ 10.000,00.") }).strict(),
+    ]),
+  }),
   async ({ tenantId, pedido }, user) => {
     await exigeGestor(tenantId, user.uid);
     if (tenantId === DEMO) throw new UserError("A demonstração não recarrega mensagens.");
-    return { ok: true as const, ...(await criarRecarga(tenantId, pedido)) };
+    // o mesmo pedido (valor, bônus e pacote) ainda em aberto volta o mesmo Pix: tocar duas vezes não gera
+    // duas cobranças. Bônus diferente (pacote × valor livre, bônus mudado no admin) é outra cobrança
+    const pacote = "pacoteId" in pedido ? (await lerConfigMensagens()).pacotes.find((p) => p.id === pedido.pacoteId && p.ativo) : null;
+    if ("pacoteId" in pedido && !pacote) throw new UserError("Esse pacote não está mais disponível.");
+    const quer = { valorCents: pacote ? pacote.valorCents : (pedido as { valorCents: number }).valorCents, bonusCents: pacote?.bonusCents ?? 0, pacoteId: pacote?.id ?? null };
+    const abertas = (await listarCobrancas(adminDb, tenantId)).filter((c) => c.tipo === "recarga" && c.status === "aberta" && c.vencimento >= todayIn());
+    const docs = abertas.length ? await adminDb.getAll(...abertas.map((c) => adminDb.doc(`cobrancas/${c.id}`))) : [];
+    const mesma = docs.find((d) => d.get("valorCents") === quer.valorCents && Number(d.get("bonusCents") ?? 0) === quer.bonusCents && (d.get("pacoteId") ?? null) === quer.pacoteId);
+    if (!mesma && abertas.length >= 5) throw new UserError("Já há 5 recargas aguardando pagamento. Pague uma delas ou espere vencerem.");
+    const r = mesma ? { id: mesma.id, token: String(mesma.get("token") ?? "") } : await criarRecarga(tenantId, pedido);
+    return { ok: true as const, ...(await pixDaRecarga(r.id, r.token)) };
   },
 );
+
+/** O Pix de uma recarga em aberto deste negócio, para pagar de novo pela tela. */
+export const pixDaRecargaAction = memberAction(z.object({ tenantId: docIdStaff, id: docId }), async ({ tenantId, id }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  const c = await adminDb.doc(`cobrancas/${id}`).get();
+  if (!c.exists || c.get("slug") !== tenantId || c.get("tipo") !== "recarga") throw new UserError("Essa recarga não existe mais.");
+  return { ok: true as const, ...(await pixDaRecarga(id, String(c.get("token") ?? ""))) };
+});
+
+async function pixDaRecarga(id: string, token: string) {
+  const c = await abrirCobranca(adminDb, id, token);
+  if (!c) throw new UserError("Não foi possível abrir o Pix desta recarga.");
+  const doc = await adminDb.doc(`cobrancas/${id}`).get();
+  return { id, url: `${SITE_BASE}/pagar/${id}?t=${token}`, brCode: c.brCode, valorCents: c.valorCents, bonusCents: Number(doc.get("bonusCents") ?? 0), vencimento: c.vencimento, status: c.status };
+}
+
+/** Tela de consumo: envios do mês, saldo, previsão, preços, pacotes e extrato. Só quem gere. */
+/** leve: sem a lista de envios do mês (a tela de recarga só precisa do saldo, do extrato e do gasto). */
+export const consumoAction = memberAction(z.object({ tenantId: docIdStaff, mes: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), leve: z.boolean().optional() }), async ({ tenantId, mes, leve }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  return { ok: true as const, dados: await painelDeConsumo(tenantId, mes, { envios: !leve }) };
+});
+
+/** Faixa de saldo baixo no topo do painel (null: sem conta pré-paga aberta). */
+export const resumoDoSaldoAction = memberAction(z.object({ tenantId: docIdStaff }), async ({ tenantId }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  return { ok: true as const, saldo: await resumoDoSaldo(tenantId) };
+});
 
 /** "Equipe pode atender conversas": só quem gere liga (padrão: só o dono). */
 export const permitirEquipeNasConversasAction = memberAction(z.object({ tenantId: docIdStaff, equipeAtende: z.boolean() }), async ({ tenantId, equipeAtende }, user) => {

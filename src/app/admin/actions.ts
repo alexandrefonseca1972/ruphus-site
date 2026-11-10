@@ -12,6 +12,7 @@ import { numeroSms } from "@/lib/comtele";
 import { enviarSms, ErroSms, smsDisponivel } from "@/lib/comtele.server";
 import { configSms, HORAS_LEMBRETE } from "@/lib/sms-agendamento.server";
 import { MODOS_SEM_SALDO } from "@/lib/consumo";
+import { contaDoNegocio, extratoDoNegocio, saldosDosNegocios } from "@/lib/consumo-painel.server";
 import { ajustarSaldo, creditarRecarga, definirMensagensDoNegocio, lerConfigMensagens, salvarConfigMensagens } from "@/lib/consumo.server";
 import { gravarIntegracao, INTEGRACOES, integracoesNaTela, type NomeIntegracao } from "@/lib/integracoes.server";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
@@ -1094,3 +1095,13 @@ export const definirMensagensDoNegocioAction = adminAction(async (_user, slug: s
   const p = z.object({ cobrar: z.boolean().nullable(), precos: PrecosDoNegocio.nullable() }).strict().parse(o);
   await definirMensagensDoNegocio(slug, p);
 });
+
+/** Gaveta do negócio, aba Cobrança: saldo, previsão, override de cobrança e preço, e o extrato. */
+export const mensagensDoNegocioAction = adminAction(async (_user, slug: string) => {
+  slugValido(slug);
+  const [conta, extrato] = await Promise.all([contaDoNegocio(slug), extratoDoNegocio(slug, 30)]);
+  return { conta, extrato };
+});
+
+/** Ajustes › Mensagens: saldo de cada negócio com conta aberta e o resumo do mês (sob demanda). */
+export const saldosDosNegociosAction = adminAction(async () => saldosDosNegocios());

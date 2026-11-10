@@ -289,6 +289,18 @@ Pré: negócio de teste (ou demo) com serviços, profissionais e agenda online l
 
 ---
 
+### 3.8 Consumo e saldo de mensagens (`/{slug}/consumo`)
+- [ ] `PN-CO-01` Menu: "Consumo" aparece para quem gere no computador; no celular e no tablet com 8 seções o caminho é "Mensagens e saldo →" em Meu negócio. Conta da equipe não vê (`/{slug}/consumo` → "Só o dono ou um administrador…").
+- [ ] `PN-CO-02` Cartões do mês: saldo (com "≈ N mensagens" e "uns X no seu ritmo"), Mensagens (com a variação contra o mês anterior), Entrega (% do WhatsApp entregue/lido) e "Precisam de atenção" (falhas + paradas; "ver" abre a aba Todas).
+- [ ] `PN-CO-03` Caminho das mensagens, custo por canal (rosca WhatsApp × SMS), "Quando leem" (mapa por dia e hora da leitura) e "Por dia" (barras + custo acumulado) batem com a aba Todas.
+- [ ] `PN-CO-04` Abas: "Por tipo" (uma linha por tipo e canal, total igual ao do mês), "Todas" (filtros, busca por nome do cliente ou final do telefone, "Mostrar mais 50") e "Extrato" (boas-vindas, recargas, consumo por dia, devoluções, ajustes, aviso de saldo).
+- [ ] `PN-CO-05` Mês anterior/seguinte: seguinte desabilitado no mês corrente; mês sem mensagens → texto "Nenhuma mensagem em …". "Baixar CSV" baixa `mensagens-AAAA-MM.csv` com acentos certos no Excel.
+- [ ] `PN-CO-06` Olho dos valores esconde saldo, custos e extrato.
+- [ ] `PN-CO-07` Recarga (`/{slug}/consumo/recarga`): pacotes do admin com bônus e "indicado para o seu mês"; "Outro valor" abaixo de R$ 10,00 → "Mínimo de R$ 10,00" em vermelho e botão desligado. "Gerar Pix" → QR, "Copiar código Pix" e "o saldo sobe para R$ X". Gerar de novo o mesmo valor devolve o mesmo Pix; o Pix fica em "Pix aguardando confirmação" com "Abrir o Pix".
+- [ ] `PN-CO-08` Baixa da recarga no admin (`ADM-COB`) → o saldo sobe valor + bônus, o extrato mostra "Recarga via Pix" e chega o e-mail de recibo.
+- [ ] `PN-CO-09` Saldo baixo (abaixo do aviso ou < 7 dias): faixa amarela no topo do painel com "Recarregar"; zerado → faixa vermelha "Os avisos aos clientes estão pausados". Some na própria tela de consumo.
+- [ ] `PN-CO-10` Sem conta aberta (negócio antigo) ou cobrança desligada: o cartão do saldo explica e não há "Recarregar".
+
 ## 4. Conta da equipe (papel "member" preso a um profissional)
 
 Pré: convite aceito (`CONV-03`) para o profissional A, numa conta sua.
@@ -375,6 +387,10 @@ Pré: convite aceito (`CONV-03`) para o profissional A, numa conta sua.
 - [ ] `GAV-COB-03` ⚠ "Marcar paga" (valor e data) → "Baixa registrada."; baixa da **entrada publica o site** (`SITE-04`); valor menor → recusado.
 - [ ] `GAV-COB-04` ⚠ "Cancelar" (sem confirmação!) → "Cobrança cancelada."; paga → "Cobrança paga não se cancela."
 
+- [ ] `GAV-MSG-01` Aba Cobrança › Mensagens pré-pagas: saldo, nível e previsão; "Cobrar as mensagens deste negócio" (Segue o geral / Cobrar / Não cobrar) grava e o painel do dono passa a dizer "Incluídas no seu plano".
+- [ ] `GAV-MSG-02` Preço próprio: vazio segue o geral; "0,10" no WhatsApp aviso → próximos envios gravam `precoCents` 10.
+- [ ] `GAV-MSG-03` Crédito manual: "10,00" + motivo → "Lançado. Saldo agora…", aparece no extrato do admin e do dono; sem motivo → "Informe o motivo do ajuste."; "-5,00" debita.
+
 ### 5.4 Funil
 - [ ] `FUN-01` Períodos; números (Receita, Em negociação, Vendas, Taxa, Tempo até fechar); "Ações atrasadas" leva à Lista.
 - [ ] `FUN-02` Colunas com "Mostrar mais 6"; Perdido com motivos.
@@ -414,6 +430,8 @@ Pré: convite aceito (`CONV-03`) para o profissional A, numa conta sua.
 - [ ] `AJU-09` Pré-pago (console do Firestore, negócio de teste): negócio criado pelo cadastro nasce com `privado/mensagens.saldoCents` 1000 e `creditos/boas-vindas`. Cada aviso cobrado baixa o saldo e soma em `creditos/consumo:AAAA-MM-DD`; `privado/mensagens.previsao` traz média, dias restantes, pacote indicado e nível.
 - [ ] `AJU-10` ⚠ Sem saldo (deixar o saldo em 0 com `ajustarSaldoAction`, motivo obrigatório): confirmação ao cliente não sai e vira envio `sem-saldo` (custo 0); lembrete e pedido ao dono saem. Nível de saldo piorou → push e e-mail ao dono (uma vez até a próxima recarga) e `creditos/aviso:*` com valor 0.
 - [ ] `AJU-11` ⚠ Recarga: `criarRecargaAction` (pacote ou valor ≥ R$ 10) devolve o link `/pagar/{id}` com "Recarga de mensagens"; na aba Cobrança do /admin, marcar paga → saldo soma valor + bônus, `creditos/recarga:{id}` e e-mail de recibo ao dono. Marcar paga de novo não credita duas vezes.
+
+- [ ] `AJU-12` "Saldo por negócio" → "Ver saldos": total do mês, cobrado, saldo em aberto e a lista com o saldo mais baixo primeiro ("Sem saldo", "Baixo · avisado dd/mm", "Cobrança desligada").
 
 ### 5.9 Demonstração
 - [ ] `DEMO-01` Links Site, Bio, Agendamento, Painel do dono.

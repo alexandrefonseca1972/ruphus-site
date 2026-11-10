@@ -5,7 +5,7 @@ import { adminDb } from "@/lib/admin";
 import { avisar } from "@/lib/avisos.server";
 import { CobrancaErro, gerarCobranca } from "@/lib/cobranca";
 import {
-  CONFIG_PADRAO, configDoNegocio, deltaDoConsumo, deveAvisar, diasNoMes, previsaoDeSaldo, somaDias, textoDoAvisoDeSaldo, mascararDestino, MODOS_SEM_SALDO, podeEnviar, precoDe, quandoFoi, RECARGA_MINIMA_CENTS, statusDoAtendys, avanca,
+  CONFIG_PADRAO, configDoNegocio, deltaDoConsumo, deveAvisar, diasNoMes, previsaoDeSaldo, somaDias, textoDoAvisoDeSaldo, mascararDestino, MODOS_SEM_SALDO, podeEnviar, precoDe, quandoFoi, RECARGA_MAXIMA_CENTS, RECARGA_MINIMA_CENTS, statusDoAtendys, avanca,
   type Canal, type ConfigMensagens, type NivelSaldo, type Previsao, type Destinatario, type Pacote, type StatusEnvio, type TipoEnvio, type Via,
 } from "@/lib/consumo";
 import { dateIn, formatBRL } from "@/lib/datetime";
@@ -327,9 +327,10 @@ export async function criarRecarga(slug: string, pedido: { pacoteId: string } | 
   } else {
     valorCents = pedido.valorCents;
     if (!Number.isInteger(valorCents) || valorCents < RECARGA_MINIMA_CENTS) throw new ErroPrevisto(`A recarga mínima é de ${formatBRL(RECARGA_MINIMA_CENTS)}.`);
+    if (valorCents > RECARGA_MAXIMA_CENTS) throw new ErroPrevisto(`A recarga máxima é de ${formatBRL(RECARGA_MAXIMA_CENTS)}.`);
   }
   const { id, token } = await gerarCobranca(adminDb, { slug, tipo: "recarga", competencia: null, valorCents, recarga: { pacoteId, bonusCents } });
-  return { id, url: `${SITE_BASE}/pagar/${id}?t=${token}` };
+  return { id, token, valorCents, bonusCents, url: `${SITE_BASE}/pagar/${id}?t=${token}` };
 }
 
 /** Depois da baixa (marcarPaga no /admin): o valor pago mais o bônus entram no saldo, uma vez. Recibo

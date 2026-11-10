@@ -1,6 +1,6 @@
 {
   "name": "siteflow",
-  "version": "0.29.1",
+  "version": "0.30.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -44,7 +44,7 @@
     "test:whatsapp": "tsx whatsapp.test.mts",
     "test:admin": "tsx admin.test.mts",
     "test:sms": "tsx --conditions=react-server sms.test.mts",
-    "test:consumo": "tsx consumo.test.mts",
+    "test:consumo": "tsx consumo.test.mts && tsx consumo-tela.test.mts",
     "test:conversas": "tsx --conditions=react-server conversas-tela.test.mts && NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-siteflow firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server conversas.test.mts'",
     "test:atendys": "NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-siteflow firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server atendys.test.mts'",
     "test:integracoes": "NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-siteflow firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server integracoes.test.mts'",
