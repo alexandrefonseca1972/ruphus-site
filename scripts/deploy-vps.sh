@@ -27,10 +27,11 @@ cp app/.env.local app-new/.env.local
 # publicação recarrega sozinha na próxima navegação, e os assets não baixam duas vezes
 echo "NEXT_DEPLOYMENT_ID=${SHA:0:12}" > app-new/.env.production
 chown -R ruphus:ruphus app-new
-# build com teto: se a memória acabar, morre o build, não o site no ar (MemoryMax do escopo);
+# build com teto: se a memória acabar, morre o build, não o site no ar (MemoryMax do escopo).
+# O limite cobre o Next e os workers de TypeScript, que juntos passavam de 1,8 GB no v0.29.1.
 # CPUWeight e nice deixam o site responder durante o build. NODE_OPTIONS só aqui: o next start
 # segue com o 1280 do drop-in memoria.conf
-systemd-run --scope --quiet -p MemoryMax=1800M -p MemorySwapMax=0 -p CPUWeight=20 nice -n 19 sudo -u ruphus env SHA="$SHA" NODE_OPTIONS=--max-old-space-size=1536 bash -c 'cd app-new && npm ci --no-audit --no-fund --loglevel=error && GIT_COMMIT_SHA="$SHA" NEXT_TELEMETRY_DISABLED=1 npm run build'
+systemd-run --scope --quiet -p MemoryMax=2800M -p MemorySwapMax=0 -p CPUWeight=20 nice -n 19 sudo -u ruphus env SHA="$SHA" NODE_OPTIONS=--max-old-space-size=1536 bash -c 'cd app-new && npm ci --no-audit --no-fund --loglevel=error && GIT_COMMIT_SHA="$SHA" NEXT_TELEMETRY_DISABLED=1 npm run build'
 rm -rf app-prev && mv app app-prev && mv app-new app
 
 # reinicia o site e o worker (o worker roda o código da app; a coleta em curso continua de onde
