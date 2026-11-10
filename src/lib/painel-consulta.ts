@@ -23,7 +23,9 @@ export const celular = (t: string | null | undefined) => /^(?:55)?[1-9]{2}9\d{8}
 export function naFila(fila: Fila, e: Espaco, c: Crm | undefined, prazo: Prazo | null) {
   const estagio = c?.estagio ?? "novo";
   if (fila === "retornos") return prazo === "atrasada" || prazo === "hoje";
-  if (fila === "primeiro") return estagio === "novo" && !c?.toques && !c?.respondeuEm && !c?.naoContatarEm && celular(c?.donoWhatsapp ?? e.telefone);
+  // `toques` só existe desde 05/11 (#262), sem migração: quem foi abordado antes tem só o último contato
+  if (fila === "primeiro")
+    return estagio === "novo" && !c?.toques && !c?.ultimoContatoEm && !c?.respondeuEm && !c?.naoContatarEm && celular(c?.donoWhatsapp || e.telefone);
   return (estagio === "negociando" || !!c?.respondeuEm) && estagio !== "fechado" && estagio !== "perdido";
 }
 export const emDestaque = (c: Crm | undefined, hoje: string) => !!c?.fixadoAte && c.fixadoAte >= hoje;
@@ -167,16 +169,19 @@ function mascarador(f: Filtros, { crm, hoje, fuso }: Contexto, emFoco: Set<strin
 }
 
 /** Quantos há em cada fila com a busca, o lugar, o nicho e o Caixa ligados. As visões, o alerta
- *  e a própria fila não contam: são outra entrada na mesma lista. */
-export function contarFilas(espacos: readonly Espaco[], f: Filtros, ctx: Contexto): Record<Fila, number> {
+ *  e a própria fila não contam: são outra entrada na mesma lista. `faleiHoje` é o contador do dia:
+ *  quantos receberam contato hoje, sem filtro nenhum. */
+export function contarFilas(espacos: readonly Espaco[], f: Filtros, ctx: Contexto): { filas: Record<Fila, number>; faleiHoje: number } {
   const marcar = mascarador(f, ctx, null);
   const livres = B.situacao | B.estagio | B.prazo | B.fora | B.contato | B.fixados | B.alerta | B.fila;
-  const n: Record<Fila, number> = { retornos: 0, primeiro: 0, responderam: 0 };
+  const filas: Record<Fila, number> = { retornos: 0, primeiro: 0, responderam: 0 };
+  let faleiHoje = 0;
   for (const e of espacos) {
     const x = marcar(e);
-    if (passaSalvo(x.m, livres)) for (const fila of FILAS) if (naFila(fila, e, x.c, x.prazo)) n[fila] += 1;
+    if (x.falou) faleiHoje += 1;
+    if (passaSalvo(x.m, livres)) for (const fila of FILAS) if (naFila(fila, e, x.c, x.prazo)) filas[fila] += 1;
   }
-  return n;
+  return { filas, faleiHoje };
 }
 
 export function consultar(espacos: readonly Espaco[], f: Filtros, ctx: Contexto): ResultadoPainel {

@@ -160,7 +160,7 @@ export type RespostaPainel =
       total: number;
       /** quantos negócios há na base, sem filtro nenhum */
       base: number;
-      contagens: Omit<ResultadoPainel, "lista" | "avisos"> & { avisos: (Omit<Alerta, "slugs"> & { total: number })[]; filas: Record<Fila, number> };
+      contagens: Omit<ResultadoPainel, "lista" | "avisos"> & { avisos: (Omit<Alerta, "slugs"> & { total: number })[]; filas: Record<Fila, number>; faleiHoje: number };
       /** com funil=1: os números e as colunas; o CRM dos cartões vai junto em `crm` */
       funil?: ResumoDoFunil;
       /** com funil=1: a linha de números do funil, dos últimos 7 dias */

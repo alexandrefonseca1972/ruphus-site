@@ -6,6 +6,7 @@ import { cents } from "@/lib/dinheiro";
 import { formatBRL, formatPhone, linkWhatsApp } from "@/lib/datetime";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { ROTULO_SAUDE } from "@/lib/saude";
+import { celular } from "@/lib/painel-consulta";
 import { DIAS_PROPOSTA, diaCurto, hojeISO, MOTIVOS_PERDA, TOQUES_MAX, ORIGENS, PRECO_PADRAO, type Crm, type Evento, type MotivoPerda, type Origem } from "@/lib/crm-tipos";
 
 // Partes da gaveta do negócio que formam o CRM: quem decide, o que dizer a ele,
@@ -396,8 +397,8 @@ export function MensagensProntas({
   const parou = bloqueado(crm);
   const link = numero && !faltaNome && !parou ? linkWhatsApp(numero, atual) : null;
   const para = crm.donoNome ?? (crm.donoWhatsapp ? "o dono" : "a recepção");
-  // fixo com DDD tem 10 dígitos: pode ter WhatsApp Business, mas costuma não ter
-  const fixo = (numero ?? "").replace(/\D/g, "").replace(/^55(?=\d{10}$)/, "").length === 10;
+  // não é celular (a mesma regra da fila Primeiro contato): pode ter WhatsApp Business, mas costuma não ter
+  const fixo = !!numero && !celular(numero);
   // em efeito, não no render: avisar o pai durante o render derruba o React
   useEffect(() => {
     onPronto?.({ modelo, texto: atual, link, para });

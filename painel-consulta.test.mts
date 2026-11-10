@@ -129,6 +129,8 @@ const slugs = (r: ResultadoPainel) => r.lista.map((e) => e.slug);
     espaco("negociando", { telefone: "5591988887777" }),
     espaco("fechou-respondido", { telefone: "5591988887777" }),
     espaco("outra-cidade", { telefone: "5548988887777", cidade: "São José", uf: "SC" }),
+    // abordado antes de existir `toques` (05/11): só o último contato gravado
+    espaco("antigo", { telefone: "5591988887777", nota: 5, avaliacoes: 900 }),
   ];
   const crm: Record<string, Crm> = {
     atrasado: { ...VAZIO, proximaData: "2026-10-30", toques: 1, ultimoContatoEm: "2026-10-27T12:00:00.000Z" },
@@ -139,6 +141,7 @@ const slugs = (r: ResultadoPainel) => r.lista.map((e) => e.slug);
     respondeu: { ...VAZIO, respondeuEm: "2026-10-31T12:00:00.000Z", toques: 1 },
     negociando: { ...VAZIO, estagio: "negociando" },
     "fechou-respondido": { ...VAZIO, estagio: "fechado", respondeuEm: "2026-10-01T12:00:00.000Z" },
+    antigo: { ...VAZIO, ultimoContatoEm: "2026-10-20T12:00:00.000Z" },
   };
   const ctx = { crm, hoje: HOJE, fuso: "America/Sao_Paulo" };
 
@@ -150,9 +153,13 @@ const slugs = (r: ResultadoPainel) => r.lista.map((e) => e.slug);
   assert.deepEqual(slugs(consultar(base, f({ fila: "primeiro", uf: "SC" }), ctx)), ["outra-cidade"]);
 
   // a contagem das filas respeita lugar e busca, e ignora visão, alerta e a própria fila
-  assert.deepEqual(contarFilas(base, f(), ctx), { retornos: 2, primeiro: 4, responderam: 2 });
-  assert.deepEqual(contarFilas(base, f({ fila: "retornos", prazo: "hoje", estagio: "fechado", contato: true }), ctx), { retornos: 2, primeiro: 4, responderam: 2 });
-  assert.deepEqual(contarFilas(base, f({ uf: "SC" }), ctx), { retornos: 0, primeiro: 1, responderam: 0 });
+  assert.ok(!slugs(consultar(base, f({ fila: "primeiro" }), ctx)).includes("antigo"), "contatado antes de `toques` não volta ao primeiro contato");
+  assert.deepEqual(contarFilas(base, f(), ctx), { filas: { retornos: 2, primeiro: 4, responderam: 2 }, faleiHoje: 1 });
+  assert.deepEqual(contarFilas(base, f({ fila: "retornos", prazo: "hoje", estagio: "fechado", contato: true }), ctx), { filas: { retornos: 2, primeiro: 4, responderam: 2 }, faleiHoje: 1 });
+  // o contador do dia ignora todos os filtros: com cidade ou busca ligada, não muda
+  assert.deepEqual(contarFilas(base, f({ uf: "SC" }), ctx), { filas: { retornos: 0, primeiro: 1, responderam: 0 }, faleiHoje: 1 });
+  assert.equal(contarFilas(base, f({ cidade: "São José/SC" }), ctx).faleiHoje, 1);
+  assert.equal(contarFilas(base, f({ busca: "zzz", caixa: true, fixados: true }), ctx).faleiHoje, 1);
   // "Falei hoje" (o contador do dia) não depende da fila escolhida
   assert.equal(consultar(base, f({ fila: "primeiro" }), ctx).visoes.falei, 1);
   assert.equal(consultar(base, f(), ctx).visoes.falei, 1);

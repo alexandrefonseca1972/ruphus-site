@@ -77,6 +77,7 @@ const CONTAGENS_VAZIAS: PaginaDoServidor["contagens"] = {
   visoes: Object.fromEntries(VISOES.map((v) => [v.id, 0])) as PaginaDoServidor["contagens"]["visoes"],
   totais: { contratadoCents: 0, negociacaoCents: 0 },
   filas: { retornos: 0, primeiro: 0, responderam: 0 },
+  faleiHoje: 0,
 };
 // As três filas do dia, a entrada da Lista; as visões antigas ficam em "Mais visões"
 const FILAS_DO_TOPO: [Fila, string][] = [["retornos", "Retornos de hoje"], ["primeiro", "Primeiro contato"], ["responderam", "Responderam"]];
@@ -319,6 +320,16 @@ export default function AdminPage() {
 
   // o último negócio aberto: resposta lenta de um anterior não pode pintar a gaveta do atual
   const abertoRef = useRef("");
+  // a volta do WhatsApp que "ir ao próximo" espera: uma por vez, e solta ao sair da página
+  const voltaPendente = useRef<(() => void) | null>(null);
+  const soltarVolta = () => {
+    const v = voltaPendente.current;
+    if (!v) return;
+    removeEventListener("focus", v);
+    document.removeEventListener("visibilitychange", v);
+    voltaPendente.current = null;
+  };
+  useEffect(() => () => soltarVolta(), []);
   async function abrir(e: Espaco) {
     abertoRef.current = e.slug;
     setAberto(e);
@@ -577,16 +588,21 @@ export default function AdminPage() {
   function enviarEProximo(slug: string, modelo: string, para: string) {
     void enviouMensagem(slug, modelo, para);
     const i = visiveis.findIndex((e) => e.slug === slug);
-    const proximo = i >= 0 ? visiveis[i + 1] : undefined;
+    // aberto de fora da Lista (Funil, Carteira, Cobrança): não há fila, só registra o envio
+    if (i < 0) return;
+    const proximo = visiveis[i + 1];
+    // último da página carregada, mas a lista tem mais: a gaveta fica aberta
+    if (!proximo && total > visiveis.length) return;
+    soltarVolta();
     const voltou = () => {
       if (document.visibilityState !== "visible") return;
-      removeEventListener("focus", voltou);
-      document.removeEventListener("visibilitychange", voltou);
+      soltarVolta();
       // gaveta fechada ou outro negócio aberto nesse meio-tempo: fica como está
       if (abertoRef.current !== slug || !document.getElementById("gaveta-negocio")) return;
       if (proximo) void abrir(proximo);
       else setAberto(null);
     };
+    voltaPendente.current = voltou;
     // celular volta do app pelo visibilitychange; o computador, pelo foco da janela
     addEventListener("focus", voltou);
     document.addEventListener("visibilitychange", voltou);
@@ -748,6 +764,8 @@ export default function AdminPage() {
   function verFila(id: Fila) {
     verVisao(VISOES.find((v) => v.id === "todos")!);
     setFila(id);
+    // retornos: o compromisso mais antigo (atrasado) primeiro; as outras, por relevância
+    setOrdem(id === "retornos" ? "compromisso" : "relevancia");
   }
   // a cidade escolhida é "Cidade/UF": trocar para outro estado a deixaria sem nenhum negócio
   function escolherUf(novo: string) {
@@ -1029,9 +1047,10 @@ export default function AdminPage() {
                 type="button"
                 onClick={() => verVisao(VISOES.find((v) => v.id === "falei")!)}
                 title="Contatados hoje"
-                className={`ml-2 h-8 shrink-0 rounded-full px-3 text-[12px] font-semibold whitespace-nowrap tabular-nums ${contagens.visoes.falei >= META_DIA ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#F3EFE7] text-[#4A4639]"}`}
+                aria-label={`${contagens.faleiHoje} de ${META_DIA} contatos hoje; abrir Falei hoje`}
+                className={`ml-2 h-8 shrink-0 rounded-full px-3 text-[12px] font-semibold whitespace-nowrap tabular-nums ${contagens.faleiHoje >= META_DIA ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#F3EFE7] text-[#4A4639]"}`}
               >
-                {contagens.visoes.falei}/{META_DIA} hoje
+                {contagens.faleiHoje}/{META_DIA} hoje
               </button>
             </div>
             <details className="relative">
@@ -1505,7 +1524,10 @@ export default function AdminPage() {
                       {/* em prospecção: em que toque da cadência ele está */}
                       {(crm[e.slug]?.estagio ?? "novo") === "novo" && !crm[e.slug]?.respondeuEm && (
                         <span className="ml-1 rounded-full bg-[#F3EFE7] px-2 py-0.5 text-xs tabular-nums text-[#4A4639]">
-                          toque {Math.min(crm[e.slug]?.toques ?? 0, TOQUES_MAX)}/{TOQUES_MAX}
+                          {/* contatado antes de existir `toques` (05/11): não é 0/3 */}
+                          {!crm[e.slug]?.toques && crm[e.slug]?.ultimoContatoEm
+                            ? "contatado"
+                            : `toque ${Math.min(crm[e.slug]?.toques ?? 0, TOQUES_MAX)}/${TOQUES_MAX}`}
                         </span>
                       )}
                       {crm[e.slug]?.publicado === false && (

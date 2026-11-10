@@ -77,7 +77,7 @@ export async function responderPainel(req: Request, { db, indice, verificar = ve
       crm,
       total: lista.length,
       base: pronto.lista().length,
-      contagens: { ...contagens, avisos: avisos.map(({ slugs, ...a }) => ({ ...a, total: slugs.length })), filas: contarFilas(pronto.lista(), filtros, ctx) },
+      contagens: { ...contagens, avisos: avisos.map(({ slugs, ...a }) => ({ ...a, total: slugs.length })), ...contarFilas(pronto.lista(), filtros, ctx) },
       funil: resumo,
       semana: funil ? numerosDaSemana(r.lista, pronto.crm, Date.now()) : undefined,
       versao: pronto.versao,
