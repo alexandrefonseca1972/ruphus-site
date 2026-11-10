@@ -35,6 +35,7 @@
     "test:convite": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server convite.test.mts'",
     "test:cobranca": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server cobranca.test.mts'",
     "test:recibo": "tsx recibo.test.mts",
+    "test:sessao": "tsx sessao.test.mts",
     "test:financeiro": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server financeiro.test.mts'",
     "test:clientes": "tsx --conditions=react-server clientes.test.mts",
     "test:crm": "tsx --conditions=react-server crm.test.mts",

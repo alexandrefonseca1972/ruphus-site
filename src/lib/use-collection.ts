@@ -6,7 +6,7 @@ import type { z } from "zod";
 import { errorMessage } from "@/lib/auth-errors";
 import { db } from "@/lib/firebase-db";
 
-/** Coleção do tenant em tempo real; documentos fora do schema são ignorados.
+/** Coleção do tenant em tempo real; documentos fora do schema são ignorados e contados (terceiro item).
  *  tenantId vazio não consulta: fica em "carregando" (null). */
 export function useCollection<S extends z.ZodType>(
   tenantId: string,
@@ -18,7 +18,7 @@ export function useCollection<S extends z.ZodType>(
   type Item = z.infer<S> & { id: string };
   const current = `${tenantId}/${name}/${key}`;
   // Resultado guardado com a chave da consulta: chave diferente = ainda carregando
-  const [result, setResult] = useState<{ for: string; items: Item[]; error?: string } | null>(null);
+  const [result, setResult] = useState<{ for: string; items: Item[]; error?: string; descartados: string[] } | null>(null);
 
   useEffect(() => {
     if (!tenantId) return; // sem tenant, sem consulta (ex.: módulo desligado)
@@ -30,19 +30,22 @@ export function useCollection<S extends z.ZodType>(
     let tentativa = 0;
     const assinar = () => (parar = onSnapshot(
       query(collection(db, "tenants", tenantId, name), ...constraints),
-      (snap) =>
-        setResult({
-          for: current,
-          items: snap.docs.flatMap((d) => {
-            const r = schema.safeParse(d.data({ serverTimestamps: "estimate" }));
-            // documento fora do formato some da lista: pelo menos fica no console para achar
-            if (!r.success) console.warn(`[${name}] ${d.id} fora do formato:`, r.error.issues[0]);
-            return r.success ? [{ ...(r.data as object), id: d.id } as Item] : [];
-          }),
-        }),
+      (snap) => {
+        // documento fora do formato some da lista: fica no console e na contagem, para a tela avisar
+        const descartados: string[] = [];
+        const items = snap.docs.flatMap((d) => {
+          const r = schema.safeParse(d.data({ serverTimestamps: "estimate" }));
+          if (!r.success) {
+            descartados.push(d.id);
+            console.warn(`[${name}] ${d.id} fora do formato:`, r.error.issues[0]);
+          }
+          return r.success ? [{ ...(r.data as object), id: d.id } as Item] : [];
+        });
+        setResult({ for: current, items, descartados });
+      },
       (err) => {
         console.error(`[${name}] escuta caiu (tentativa ${tentativa + 1})`, err);
-        setResult({ for: current, items: [], error: errorMessage(err) });
+        setResult({ for: current, items: [], error: errorMessage(err), descartados: [] });
         if (tentativa < 3) espera = setTimeout(assinar, 1500 * 2 ** tentativa++);
       },
     ));
@@ -55,5 +58,6 @@ export function useCollection<S extends z.ZodType>(
   }, [current]);
 
   const mine = result?.for === current ? result : null;
-  return [mine ? mine.items : null, mine?.error ?? ""] as const;
+  // terceiro: quantos documentos ficaram fora por não passarem no schema
+  return [mine ? mine.items : null, mine?.error ?? "", mine?.descartados ?? []] as const;
 }

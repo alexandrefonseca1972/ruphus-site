@@ -44,6 +44,7 @@ import { emDestaque, local, VISOES, visaoDe, type Visao } from "@/lib/painel-con
 import { ehOrdem, PAGINA, PAGINA_MAX, type Filtros, type Ordem } from "@/lib/painel-tipos";
 import { cents, emReais } from "@/lib/dinheiro";
 import { MINUTOS_MAX, sair, useAutoLogout } from "@/lib/sessao";
+import { AvisoSessao } from "@/components/aviso-sessao";
 import { COMMIT, VERSAO } from "@/lib/versao";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX } from "@/lib/limites";
 import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
@@ -121,7 +122,7 @@ export default function AdminPage() {
   // vem junto do painel, na mesma viagem; o próprio admin também sai sozinho
   const [minutosInativo, setMinutosInativo] = useState(0);
   const [metaPixel, setMetaPixel] = useState("");
-  useAutoLogout(minutosInativo);
+  const [avisoSessao, continuarSessao] = useAutoLogout(minutosInativo);
   const [estado, setEstado] = useState<"carregando" | "negado" | "pronto">("carregando");
   const [email, setEmail] = useState("");
   // O que o servidor já mandou (página da lista, cartões do funil), com as edições feitas aqui por
@@ -732,6 +733,7 @@ export default function AdminPage() {
 
   return (
     <>
+      <AvisoSessao aberto={avisoSessao} onContinuar={continuarSessao} />
       {/* Navegação, busca e ajustes. Filtro e ordem ficam com as visões, abaixo. */}
       <header aria-label="Painel" className="flex flex-wrap items-center gap-2 border-b border-[#E2DDD3] bg-white px-4 py-2.5 sm:px-5">
         <span className="mr-1 flex items-baseline gap-2 sm:border-r sm:border-[#EDE9E1] sm:pr-4">
