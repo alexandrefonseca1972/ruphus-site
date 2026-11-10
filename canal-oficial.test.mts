@@ -10,11 +10,13 @@ assert.equal(parametro("x".repeat(500)).length, 200);
 
 assert.deepEqual(
   templateCliente("confirmado", { nome: "Maria", negocio: "Salão Bela", servico: "Corte", quando: "amanhã às 10:00" }),
-  { nome: "agendamento_confirmado_cliente", parametros: ["Maria", "Salão Bela", "Corte", "amanhã às 10:00"] },
+  { nome: "agendamento_confirmado_cliente", parametros: ["Maria", "*Salão Bela*", "Corte", "📅 *amanhã às 10:00*"] },
 );
 assert.equal(templateCliente("lembrete", { nome: "A", negocio: "B", servico: "C", quando: "D" }).nome, TEMPLATES.lembrete);
 assert.deepEqual(
   templateNovoDono({ negocio: "Salão Bela", cliente: "Maria Souza", telefone: "11987654321", servico: "Corte", quando: "sexta", codigo: "AB12" }).parametros,
-  ["AB12", "Salão Bela", "Maria Souza", "11987654321", "Corte", "sexta"],
+  ["*AB12*", "*Salão Bela*", "Maria Souza", "11987654321", "Corte", "📅 *sexta*"],
 );
+// asterisco dentro do valor sairia do negrito: cai fora
+assert.equal(templateCliente("confirmado", { nome: "A", negocio: "Bela*Vista", servico: "C", quando: "D" }).parametros[1], "*BelaVista*");
 console.log("canal-oficial: ok");
