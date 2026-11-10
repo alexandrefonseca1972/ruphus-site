@@ -130,6 +130,12 @@ assert.equal(await assumirNegocio(db, aceite("proprio"), "socio", {}), null);
 assert.equal((await db.doc("tenants/proprio").get()).get("ownerId"), "fulana");
 assert.equal((await db.doc("tenants/proprio/members/socio").get()).get("role"), "admin");
 assert.equal((await db.doc("tenants/proprio/members/fulana").get()).get("role"), "owner");
+// profissional da equipe abrindo o convite do dono: recusa com motivo, nada muda, o link segue valendo
+await db.doc("tenants/proprio/members/prof").set({ uid: "prof", role: "member", staffId: "x" });
+const doDono = aceite("proprio");
+assert.match(String(await assumirNegocio(db, doDono, "prof", {})), /profissional da equipe/);
+assert.equal((await db.doc("tenants/proprio/members/prof").get()).get("role"), "member", "o papel não muda");
+assert.equal((await db.doc(`convitesUsados/${doDono.jti}`).get()).exists, false, "recusado não queima o link");
 
 // ————— Convite da equipe amarrado ao profissional —————
 await db.doc("tenants/salao/staff/bruna").set({ name: "Bruna", active: true });
