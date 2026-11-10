@@ -1330,6 +1330,7 @@ export default function AdminPage() {
           <div className={daRota?.funil ? undefined : "opacity-60"}>
           <Funil
             resumo={resumo}
+            semana={comFunil?.semana}
             crm={crmDoFunil}
             hoje={dataDeHoje}
             periodo={periodo}
