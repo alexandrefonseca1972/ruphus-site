@@ -29,6 +29,12 @@ export type ConexaoWhatsapp = ConexaoAtendys & {
   statusReason?: string | null;
   updatedAt: number;
   ownerPhone?: string | null;
+  /** o dono tocou "Sou eu" na confirmação do canal oficial, deste ownerPhone (canal-oficial.server) */
+  ownerPhoneVerifiedAt?: number | null;
+  /** último envio da confirmação: o reenvio espera 10 min */
+  confirmacaoEnviadaEm?: number | null;
+  /** confirmações mandadas no dia (teto de 5 por negócio) */
+  confirmacoesHoje?: { dia: string; n: number } | null;
   /** Quem pode gerenciar a conexão no painel do dono. false = só a plataforma
    *  (/admin tem prioridade); true = o dono pode conectar/alterar; ausente =
    *  ninguém configurou ainda — dono pode conectar, e a plataforma continua
@@ -67,7 +73,7 @@ export { soDigitosComDDI };
 const SEGREDOS = ["atendysApiKey", "atendysWebhookSecret", "atendysTenantId", "atendysKeyId"] as const;
 // Fora do documento do negócio, mas mostrado a quem gere (pelas ações do servidor, que checam o papel):
 // o WhatsApp PESSOAL do dono — a equipe lê tenants/{slug} inteiro pelo navegador e não deve vê-lo.
-const SO_SERVIDOR = [...SEGREDOS, "ownerPhone"] as const;
+const SO_SERVIDOR = [...SEGREDOS, "ownerPhone", "ownerPhoneVerifiedAt", "confirmacaoEnviadaEm", "confirmacoesHoje"] as const;
 type Segredo = (typeof SEGREDOS)[number];
 export type ConexaoNaTela = Omit<ConexaoWhatsapp, Segredo>;
 const privado = (db: Firestore, slug: string) => db.doc(`tenants/${slug}/privado/whatsapp`);
@@ -229,8 +235,11 @@ export function destinoDoAvisoAoDono(conn: Pick<ConexaoWhatsapp, "phone" | "owne
 /** O número pessoal do dono: recebe os avisos e confirma respondendo. Vazio desliga. */
 export async function gravarOwnerPhone(db: Firestore, slug: string, ownerPhone: string | null) {
   // no privado (a equipe lê o documento do negócio); o antigo, se houver, sai do documento
+  // número trocado: a confirmação ("Sou eu") era do anterior e sai com ele
+  const anterior = (await privado(db, slug).get()).get("ownerPhone");
+  const trocou = (typeof anterior === "string" ? soDigitosComDDI(anterior) : null) !== (ownerPhone ? soDigitosComDDI(ownerPhone) : null);
   const lote = db.batch();
-  lote.set(privado(db, slug), { ownerPhone }, { merge: true });
+  lote.set(privado(db, slug), { ownerPhone, ...(trocou && { ownerPhoneVerifiedAt: FieldValue.delete(), confirmacaoEnviadaEm: FieldValue.delete() }) }, { merge: true });
   lote.set(db.doc(`tenants/${slug}`), { whatsapp: { ownerPhone: FieldValue.delete() } }, { merge: true });
   await lote.commit();
 }
@@ -417,7 +426,10 @@ export async function espelharStatusDaInstancia(
  *  que nenhum lembrete saiu. Gerenciado pela plataforma: o texto não manda reconectar.
  *  Falha no push só vai para o log. */
 export async function avisarQueda(db: Firestore, slug: string) {
-  const plataforma = (await db.doc(`tenants/${slug}`).get()).get("whatsapp.ownerManaged") === false;
+  const t = await db.doc(`tenants/${slug}`).get();
+  // canal oficial: os avisos saem pelo número da Ruphus, a queda do número próprio não para nada
+  if (t.get("whatsapp.canalOficial") === true) return;
+  const plataforma = t.get("whatsapp.ownerManaged") === false;
   await avisar(
     db,
     slug,
@@ -425,7 +437,7 @@ export async function avisarQueda(db: Firestore, slug: string) {
       title: "Seu WhatsApp desconectou",
       body: plataforma
         ? "Lembretes e avisos de agendamento pararam. A Ruphus já foi avisada e vai reconectar."
-        : "Lembretes e avisos de agendamento pararam. Toque para reconectar.",
+        : "Lembretes e avisos de agendamento pararam. Fale com a Ruphus para reconectar.",
       url: `/${slug}/negocio#whatsapp`,
       tag: "whatsapp-desconectado",
     },

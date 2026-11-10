@@ -2,6 +2,7 @@
 // no ar. Código puro — roda no navegador (prévia da planilha) e no servidor (gravar
 // e renderizar), sem banco nem "server-only".
 import { z } from "zod";
+import { telefoneFalso } from "@/lib/telefone";
 import { normalizar, RUPHUS } from "@/lib/catalogo";
 import { FUSOS } from "@/lib/datetime";
 import { slugify, TenantInput } from "@/lib/tenant-input";
@@ -86,14 +87,6 @@ const SEM_DADO = /^(n[aã]o\s+(verificad[oa]s?|vis[ií]vel|informad[oa]|encontra
 const texto = (v: unknown) => {
   const t = v == null ? "" : String(v).replace(/\s+/g, " ").trim();
   return SEM_DADO.test(t) ? "" : t;
-};
-
-/** Telefone que o levantamento inventou: o número todo com um dígito só (99999-9999),
- *  quatro pares (98811-2233, o padrão da planilha falsa da Paraíba) ou uma escada
- *  (91234-5678). Site com ele mandaria o WhatsApp do "negócio" para um estranho. */
-export const telefoneFalso = (telefone: string) => {
-  const n = telefone.slice(-8);
-  return /^(\d)\1{7}$/.test(n) || /^(\d)\1(\d)\2(\d)\3(\d)\4$/.test(n) || "0123456789".includes(n) || "9876543210".includes(n);
 };
 
 /** UF pelo DDD do telefone: o levantamento nem sempre traz a coluna, e sem ela o site

@@ -200,7 +200,7 @@ Pré: negócio de teste (ou demo) com serviços, profissionais e agenda online l
 - [ ] `PN-CASCA-02` Slug inválido → 404; não membro → "Você não tem acesso a este negócio."
 - [ ] `PN-CASCA-03` "Divulgar link": copiar ("Copiado ✓"), "Enviar no WhatsApp", "Compartilhar" (celular), "Abrir página".
 - [ ] `PN-CASCA-04` Menu da conta: e-mail, Ajuda, Avisos de agendamento, Sair; "Meus negócios" só com 2+; "Voltar ao admin" para admin.
-- [ ] `PN-CASCA-05` Faixa "Seu WhatsApp desconectou…" com "Reconectar" (só gestor, só se já conectou e caiu, fora de Meu negócio).
+- [ ] `PN-CASCA-05` Faixa "Seu WhatsApp desconectou…" sem botão, pedindo para falar com a Ruphus (só gestor, só se o número próprio já conectou e caiu, e só fora do canal oficial).
 - [ ] `PN-CASCA-06` Sem internet → faixa do monitor com nova tentativa.
 - [ ] `PN-CASCA-07` Faixa "Receba um aviso a cada novo agendamento" (quando a de instalar não está) → "Agora não" some 30 dias.
 - [ ] `PN-CASCA-08` "Avisos de agendamento" → permitir notificações → "ligados"; agendar pelo link (`AG-16`) → notificação chega; clicar abre a agenda. Desligar → "desligados".
@@ -275,13 +275,13 @@ Pré: negócio de teste (ou demo) com serviços, profissionais e agenda online l
 - [ ] `PN-NEG-04` Seus links: Site, Bio, Agenda com "Copiar"; prévia do `og.jpg`; site em prévia → "Publicar meu site" (wa.me).
 - [ ] `PN-NEG-08` 🔒 Demo: "Receber agendamentos pelo link" → recusa. (Em teste: desligar → bio e `/agendar` levam ao WhatsApp; ligar volta.)
 - [ ] `PN-NEG-09` 🔒 Demo: recado → recusa. (Em teste: máx. 300; aparece na tela de pedido enviado.)
-- [ ] `PN-NEG-10` WhatsApp — termo: só com o checkbox → "Aceitar e continuar".
-- [ ] `PN-NEG-11` 🔒 Demo: "Conectar" → "A demonstração não conecta WhatsApp…".
-- [ ] `PN-NEG-12` ⚠ Negócio de teste com número seu: Conectar → QR → ler no celular → "conectado"; etiqueta de status muda.
-- [ ] `PN-NEG-13` ⚠ Teste de envio: "Para" com DDD + mensagem → "Enviado pelo seu WhatsApp."; vazio → botão desabilitado.
+- [ ] `PN-NEG-10` Avisos pelo WhatsApp: sem botão de Conectar/QR/Desconectar nem termo; texto do número oficial da Ruphus; "Seu WhatsApp (para receber os pedidos)" pré-preenchido com o número do dono.
+- [ ] `PN-NEG-11` Validação do Seu WhatsApp → Salvar: vazio ou incompleto → "Informe um celular com DDD, ex.: (91) 99999-0000"; DDD 20 → "DDD inválido…"; fixo (91) 3233-4455 → "Esse é um telefone fixo…"; (91) 99999-9999 → "Esse número parece inventado…"; o fixo do negócio com 9 na frente → "Esse é o telefone fixo do negócio…". 🔒 Demo: celular válido → "A demonstração não envia WhatsApp…".
+- [ ] `PN-NEG-12` ⚠ Negócio de teste com celular seu: Salvar → "Mandamos uma mensagem…" e estado "Aguardando confirmação: toque em Sou eu…" com Reenviar; chega no celular a mensagem da Ruphus com o botão Sou eu. Reenviar logo em seguida → "Já mandamos a confirmação há pouco…" (1 a cada 10 min). Sem a plataforma provisionada → "O canal oficial ainda não está pronto: fale com a Ruphus."
+- [ ] `PN-NEG-13` ⚠ Tocar Sou eu no celular cadastrado → resposta "Pronto! Os pedidos de agendamento de {negócio} chegam neste número." e, ao recarregar a tela, "Confirmado em dd/mm" (verde). Encaminhar a mensagem e tocar de outro celular → nada muda. Sem número salvo → "Sem número cadastrado: os pedidos não chegam a você".
 - [ ] `PN-NEG-14` ⚠ Lembretes: ligar, escolher horas → salva; confirmar um horário seu dentro da janela → lembrete chega (cron de 10 min; nada entre 22h e 7h30).
-- [ ] `PN-NEG-15` ⚠ Comando no WhatsApp do salão: agendar pelo link, responder "CONFIRMADO {código}" → horário Confirmado e cliente recebe confirmação; "RECUSAR {código}" → Cancelado e cliente avisado.
-- [ ] `PN-NEG-16` ⚠ Desconectar → confirmação → "não conectado"; deslogar o aparelho pelo celular → faixa "Seu WhatsApp desconectou" e push ao dono (até 1 h pela vigia).
+- [ ] `PN-NEG-15` ⚠ Pedido no seu WhatsApp (canal oficial): agendar pelo link → pedido chega no número cadastrado, mesmo antes do Sou eu; responder "CONFIRMADO {código}" (ou o botão) → horário Confirmado e cliente recebe confirmação; "RECUSAR {código}" → Cancelado e cliente avisado.
+- [ ] `PN-NEG-16` Negócio com número próprio pareado pela Ruphus (instanceId): linha "Este negócio também tem um número próprio conectado (pela Ruphus)", sem botões. Fora do canal oficial, deslogar o aparelho → faixa "Seu WhatsApp desconectou… Fale com a Ruphus para reconectar" e push ao dono (até 1 h pela vigia).
 - [ ] `PN-NEG-17` Último aviso que não saiu → faixa com data e motivo.
 - [ ] `PN-NEG-18` 🔒 Demo: Pix → recusa. (Em teste: chave inválida → "Chave inválida…"; válida → "Salvo como {tipo}…"; remover → desliga o sinal.)
 - [ ] `PN-NEG-20` 🔒 Demo: Sinal → recusa. (Em teste: sem Pix → orientação; % > 100 → erro; prazo 15 min–24 h; salvar → `/agendar` pede sinal.)
@@ -368,7 +368,7 @@ Pré: convite aceito (`CONV-03`) para o profissional A, numa conta sua.
 - [ ] `GAV-SITE-07` Domínio próprio: site não publicado → "Disponível depois que o site for publicado"; `x.ruphus.site` → "Endereço inválido…"; ⚠ ligar/verificar/desligar só com domínio de teste.
 
 **WhatsApp / SMS / Cobrança da gaveta**
-- [ ] `GAV-WA-01` 🔒 Demo: Conectar → recusa. ⚠ Em teste: Conectar → QR → conectado; "Permitir que o dono gerencie"; WhatsApp do dono (número incompleto → erro).
+- [ ] `GAV-WA-01` 🔒 Demo: Conectar → recusa. ⚠ Em teste: Conectar → QR → conectado; "Permitir que o dono gerencie"; WhatsApp do dono (número incompleto → erro; trocar o número zera o "Confirmado" do painel do dono). O pareamento por QR existe só aqui: o painel do dono não conecta mais.
 - [ ] `GAV-SMS-01` SMS: sem chave Comtele → aviso; ligar com as duas opções desmarcadas → "nenhum SMS sai". ⚠ Ligar gasta crédito via cron.
 - [ ] `GAV-COB-01` ⚠ "Cobrar entrada" / "Cobrar mês atual" (negócio de teste com valor) → "Cobrança … pronta."; repetir não duplica.
 - [ ] `GAV-COB-02` Copiar link → `PAG-01`; WhatsApp → wa.me com Pix.

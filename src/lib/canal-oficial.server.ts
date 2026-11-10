@@ -1,9 +1,9 @@
 import "server-only";
-import { Timestamp, type Firestore } from "firebase-admin/firestore";
-import { apontarWebhook, enviarTexto, garantirTenant, revogarChavesAntigas, type ConexaoAtendys, type Template } from "@/lib/atendys";
+import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore";
+import { apontarWebhook, enviarTemplate, enviarTexto, garantirTenant, OPTIN_DONO, revogarChavesAntigas, type ConexaoAtendys, type Template } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
-import { customerKey, formatBRL, formatPhone } from "@/lib/datetime";
+import { customerKey, formatBRL, formatPhone, todayIn } from "@/lib/datetime";
 import { SITE_BASE, urlDoSite, type Dominio } from "@/lib/dominio";
 import type { Previsao } from "@/lib/consumo";
 import { soDigitosComDDI } from "@/lib/telefone";
@@ -40,6 +40,8 @@ export const TEMPLATES = {
   lembreteBotoes: "agendamento_lembrete_botoes",
   /** ao dono: {{1}} negócio, {{2}} saldo, {{3}} quanto dura, {{4}} recarga indicada, {{5}} link do painel */
   saldoBaixo: "ruphus_saldo_baixo",
+  /** ao dono que cadastrou o WhatsApp no painel: {{1}} negócio, botão "Sou eu" (rph:ok:{slug}:dono) */
+  confirmarDono: "ruphus_confirmar_whatsapp_dono",
 } as const;
 
 /** Templates com botões (Confirmar/Recusar ao dono; presença/remarcar/cancelar no lembrete).
@@ -57,11 +59,11 @@ const nomeTemplate = (chave: keyof typeof TEMPLATES) => (v2() ? `${TEMPLATES[cha
  *  Quem toca não edita o id, mas ele é conferido do mesmo jeito (dono do negócio, telefone do cliente). */
 export const idBotao = (acao: AcaoBotao, slug: string, agendamento: string, extra?: string) =>
   ["rph", acao, slug, agendamento, ...(extra ? [extra] : [])].join(":");
-// cx pede a confirmação; só cxx cancela, cm mantém
-export type AcaoBotao = "dc" | "dr" | "cp" | "cr" | "cx" | "cxx" | "cm" | "ch";
+// cx pede a confirmação; só cxx cancela, cm mantém; ok: o dono confirma que o WhatsApp é dele ("dono" no lugar do agendamento)
+export type AcaoBotao = "dc" | "dr" | "cp" | "cr" | "cx" | "cxx" | "cm" | "ch" | "ok";
 export function lerBotao(id: unknown): { acao: AcaoBotao; slug: string; agendamento: string; extra?: string } | null {
   if (typeof id !== "string") return null;
-  const m = /^rph:(dc|dr|cp|cr|cxx|cx|cm|ch):([a-z0-9][a-z0-9-]{0,62}):([A-Za-z0-9]{1,40})(?::([0-9T:_-]{1,40}))?$/.exec(id);
+  const m = /^rph:(dc|dr|cp|cr|cxx|cx|cm|ch|ok):([a-z0-9][a-z0-9-]{0,62}):([A-Za-z0-9]{1,40})(?::([0-9T:_-]{1,40}))?$/.exec(id);
   return m ? { acao: m[1] as AcaoBotao, slug: m[2], agendamento: m[3], ...(m[4] ? { extra: m[4] } : {}) } : null;
 }
 
@@ -201,6 +203,92 @@ export async function negocioDoComando(db: Firestore, slugs: string[], texto: st
   return slugs[0];
 }
 
+// ─── WhatsApp do dono pelo painel: cadastro e confirmação pelo botão "Sou eu" ────────────────
+// O dono cadastra o WhatsApp pessoal; a plataforma manda o template de confirmação e o toque em
+// "Sou eu" (do mesmo número) grava ownerPhoneVerifiedAt. Sem confirmar, os pedidos continuam indo
+// para o número cadastrado (negócios que já estavam no ar não param); a tela só avisa.
+
+/** O "Sou eu" ao dono: {{1}} o negócio; o botão volta como rph:ok:{slug}:dono. */
+export const templateConfirmarDono = (negocio: string, slug: string): Template => ({
+  nome: TEMPLATES.confirmarDono,
+  parametros: [destaque(negocio)],
+  botoes: [idBotao("ok", slug, "dono")],
+});
+
+const REENVIO_MS = 10 * 60_000;
+const privadoWhatsApp = (db: Firestore, slug: string) => db.doc(`tenants/${slug}/privado/whatsapp`);
+/** teto de confirmações por negócio por dia: trocar de número não vira disparo em massa */
+const MAX_CONFIRMACOES_DIA = 5;
+export type EnvioConfirmacao = "enviado" | "confirmado" | "aguarde" | "limite" | "falhou";
+
+/** Grava o WhatsApp do dono (`numero` já validado por celularDoDono), liga o canal oficial e manda o
+ *  "Sou eu". O mesmo número já confirmado fica como está; número novo zera a confirmação e o limite. */
+export async function cadastrarDonoOficial(db: Firestore, slug: string, numero: string): Promise<EnvioConfirmacao> {
+  if (slug === DEMO) throw new ErroPrevisto("A demonstração não envia WhatsApp: teste num negócio de verdade.");
+  // número próprio gerenciado pela Ruphus, ainda fora do canal oficial: quem troca é o suporte
+  const w = (await db.doc(`tenants/${slug}`).get()).get("whatsapp") as { ownerManaged?: boolean; canalOficial?: boolean } | undefined;
+  if (w?.ownerManaged === false && w.canalOficial !== true) throw new ErroPrevisto("Gerenciado pela plataforma — fale com o suporte para trocar o número.");
+  if (!(await lerCredenciais(db))) throw new ErroPrevisto("O canal oficial ainda não está pronto: fale com a Ruphus.");
+  const p = await privadoWhatsApp(db, slug).get();
+  const mesmo = soDigitosComDDI(String(p.get("ownerPhone") ?? "")) === numero;
+  const lote = db.batch();
+  // o antigo ownerPhone no documento do negócio (a equipe lê) sai, como em gravarOwnerPhone
+  lote.set(db.doc(`tenants/${slug}`), { whatsapp: { canalOficial: true, ownerPhone: FieldValue.delete() } }, { merge: true });
+  if (!(mesmo && p.get("ownerPhoneVerifiedAt"))) {
+    // ponytail: o limite de reenvio é por número; alternar números manda de novo (a cota do atendys segura)
+    lote.set(privadoWhatsApp(db, slug), { ownerPhone: numero, ownerPhoneVerifiedAt: FieldValue.delete(), ...(!mesmo && { confirmacaoEnviadaEm: FieldValue.delete() }) }, { merge: true });
+  }
+  await lote.commit();
+  return enviarConfirmacaoDono(db, slug);
+}
+
+/** Manda o "Sou eu" ao número cadastrado: no máximo um a cada 10 min e 5 por dia por negócio. A marca
+ *  é reservada na transação (dois cliques não mandam dois) e solta se o envio falhar (o dono tenta de novo já). */
+export async function enviarConfirmacaoDono(db: Firestore, slug: string): Promise<EnvioConfirmacao> {
+  const ref = privadoWhatsApp(db, slug);
+  const r = await db.runTransaction(async (tx) => {
+    const p = await tx.get(ref);
+    const para = p.get("ownerPhone");
+    if (typeof para !== "string" || !para) throw new ErroPrevisto("Cadastre o seu WhatsApp antes.");
+    if (p.get("ownerPhoneVerifiedAt")) return "confirmado" as const;
+    const em = p.get("confirmacaoEnviadaEm");
+    if (typeof em === "number" && Date.now() - em < REENVIO_MS) return "aguarde" as const;
+    const dia = todayIn();
+    const hoje = p.get("confirmacoesHoje") as { dia?: string; n?: number } | undefined;
+    const n = hoje?.dia === dia ? (hoje.n ?? 0) : 0;
+    if (n >= MAX_CONFIRMACOES_DIA) return "limite" as const;
+    tx.set(ref, { confirmacaoEnviadaEm: Date.now(), confirmacoesHoje: { dia, n: n + 1 } }, { merge: true });
+    return { para };
+  });
+  if (typeof r === "string") return r;
+  try {
+    const conn = await conexaoOficial(db, slug);
+    if (!conn) throw new Error("negócio fora do canal oficial");
+    const nome = String((await db.doc(`tenants/${slug}`).get()).get("name") ?? "").trim() || slug;
+    const envio = await enviarTemplate(conn, r.para, templateConfirmarDono(nome, slug), OPTIN_DONO);
+    if (envio.status === "failed") throw new Error(`recusado: ${envio.errorCode ?? "sem código"}`);
+    return "enviado";
+  } catch (e) {
+    console.error(`[canal oficial] confirmação do WhatsApp do dono de ${slug}`, e);
+    await ref.update({ confirmacaoEnviadaEm: FieldValue.delete(), "confirmacoesHoje.n": FieldValue.increment(-1) }).catch(() => {});
+    return "falhou";
+  }
+}
+
+/** Toque em "Sou eu" (rph:ok:{slug}:dono): confirma o WhatsApp do dono se quem tocou é o número
+ *  cadastrado. { negocio } quando acabou de confirmar (para a resposta); o motivo, quando não. */
+export async function confirmarDono(db: Firestore, slug: string, telefone: string): Promise<{ negocio: string } | "fora do canal oficial" | "outro telefone" | "já confirmado"> {
+  if (!(await usaCanalOficial(db, slug))) return "fora do canal oficial";
+  const numero = soDigitosComDDI(telefone);
+  const ref = privadoWhatsApp(db, slug);
+  return db.runTransaction(async (tx) => {
+    const [p, t] = await Promise.all([tx.get(ref), tx.get(db.doc(`tenants/${slug}`))]);
+    if (!numero || soDigitosComDDI(String(p.get("ownerPhone") ?? "")) !== numero) return "outro telefone" as const;
+    if (p.get("ownerPhoneVerifiedAt")) return "já confirmado" as const;
+    tx.set(ref, { ownerPhoneVerifiedAt: Date.now() }, { merge: true });
+    return { negocio: String(t.get("name") ?? "").trim() || slug };
+  });
+}
 /** Resposta automática a quem escreveu ao número da plataforma sem ser dono de negócio do canal
  *  oficial (o cliente respondendo a um aviso; botão nem chega aqui). null = não responde: mensagem
  *  vazia ou só a palavra de opt-out (o SAIR é do atendys, que já registra a revogação). */

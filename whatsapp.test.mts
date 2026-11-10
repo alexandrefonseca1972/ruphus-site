@@ -90,3 +90,27 @@ console.log("preço: ok");
   assert.equal(soDigitosComDDI("123"), null);
   console.log("telefone canônico ok");
 }
+
+// WhatsApp do dono no painel: só celular brasileiro, canônico de 13 dígitos
+{
+  const { celularDoDono } = await import("@/lib/telefone");
+  const exemplo = "Informe um celular com DDD, ex.: (91) 99999-0000";
+  assert.deepEqual(celularDoDono("(91) 99236-1726"), { numero: "5591992361726" }, "11 dígitos com o 9");
+  assert.deepEqual(celularDoDono("+55 91 99236-1726"), { numero: "5591992361726" }, "13 com o 55");
+  assert.deepEqual(celularDoDono("559192361726"), { numero: "5591992361726" }, "12 dígitos antigo (sem o 9) vira canônico");
+  assert.deepEqual(celularDoDono(""), { erro: exemplo });
+  assert.deepEqual(celularDoDono("9199236"), { erro: exemplo }, "incompleto");
+  assert.deepEqual(celularDoDono("123456789012345"), { erro: exemplo }, "longo demais");
+  assert.deepEqual(celularDoDono("(20) 99236-1726"), { erro: `DDD inválido. ${exemplo}` }, "DDD 20 não existe");
+  assert.deepEqual(celularDoDono("(01) 99236-1726"), { erro: `DDD inválido. ${exemplo}` });
+  assert.match((celularDoDono("(91) 3233-4455") as { erro: string }).erro, /^Esse é um telefone fixo/, "fixo");
+  assert.match((celularDoDono("559132334455") as { erro: string }).erro, /^Esse é um telefone fixo/, "fixo com 55");
+  for (const falso of ["(91) 99999-9999", "(83) 98811-2233", "(11) 91234-5678"]) {
+    assert.match((celularDoDono(falso) as { erro: string }).erro, /parece inventado/, falso);
+  }
+  // o fixo do negócio com um 9 na frente: não é o celular de ninguém
+  assert.match((celularDoDono("(91) 93233-4455", "(91) 3233-4455") as { erro: string }).erro, /telefone fixo do negócio/);
+  assert.deepEqual(celularDoDono("(91) 99236-1726", "(91) 3233-4455"), { numero: "5591992361726" }, "outro número com negócio fixo");
+  assert.deepEqual(celularDoDono("(91) 99236-1726", "(91) 99236-1726"), { numero: "5591992361726" }, "negócio com celular: o mesmo número vale");
+  console.log("celular do dono ok");
+}

@@ -259,10 +259,11 @@ export default function ManualDoUsuario() {
               minutos antes”.
             </>,
             <>
-              <Termo>WhatsApp do negócio</Termo>: conecte o número do negócio para as confirmações e lembretes saírem
-              dele, com o nome do seu negócio. Leia e aceite o termo antes: a conexão funciona como o WhatsApp Web, e o
-              WhatsApp pode limitar o número. Os <Termo>lembretes automáticos</Termo> saem quantas horas antes você
-              escolher.
+              <Termo>Avisos pelo WhatsApp</Termo>: os avisos aos clientes e os pedidos de agendamento saem pelo número
+              oficial da Ruphus, com o nome do seu negócio. Salve <Termo>Seu WhatsApp</Termo> (um celular com DDD): é
+              nele que chegam os pedidos, e você confirma ou recusa pelos botões da mensagem. Ao salvar, mandamos uma
+              mensagem para esse número: toque em <Termo>Sou eu</Termo> para confirmar que é seu. Os{" "}
+              <Termo>lembretes automáticos</Termo> saem quantas horas antes você escolher.
             </>,
             <>
               <Termo>Pix para receber</Termo>: a sua chave (CPF, CNPJ, e-mail, celular ou aleatória), o nome como está
