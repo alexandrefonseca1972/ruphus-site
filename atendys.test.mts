@@ -53,7 +53,7 @@ assert.deepEqual([...codigosUnicos(["Ab12x9", "zz99k1"]).values()], ["AB12", "ZZ
 process.env.ATENDYS_ADMIN_KEY = "chave-admin";
 let chamadas: { metodo: string; caminho: string; corpo?: unknown; headers: Record<string, string> }[] = [];
 let rotas: Record<string, (corpo: unknown) => Response> = {};
-globalThis.fetch = (async (url: string | URL, init: RequestInit = {}) => {
+const fetchSimulado = (async (url: string | URL, init: RequestInit = {}) => {
   const caminho = new URL(String(url)).pathname;
   const metodo = init.method ?? "GET";
   const corpo = init.body ? JSON.parse(String(init.body)) : undefined;
@@ -61,6 +61,7 @@ globalThis.fetch = (async (url: string | URL, init: RequestInit = {}) => {
   const rota = rotas[`${metodo} ${caminho}`];
   return rota ? rota(corpo) : new Response("rota não simulada", { status: 500 });
 }) as typeof fetch;
+globalThis.fetch = fetchSimulado;
 const json = (d: unknown, status = 200) => () => Response.json(d, { status });
 const novo = (r: typeof rotas) => ((chamadas = []), (rotas = r));
 
@@ -1259,28 +1260,54 @@ assert.equal(curta.status, 401);
   const daqui2 = new Date(Date.now() + 2 * 86_400_000);
   const ag = (id: string, extra: Record<string, unknown> = {}) =>
     db.doc(`tenants/marca/appointments/${id}`).set({ status: "confirmed", start: daqui2, customerName: "Ana Souza", customerPhone: "(91) 98877-6389", serviceName: "Corte", staffId: "P1", lastHistoryId: "h1", whatsappConsent: { aceito: true, versao: "v", em: new Date() }, ...extra });
-  const marca = async (id: string) => (await db.doc(`tenants/marca/appointments/${id}`).get()).get("avisoFalhou") as { tipo: string; em: number; motivo?: string } | undefined;
+  const marca = async (id: string) => (await db.doc(`tenants/marca/appointments/${id}`).get()).get("avisoFalhou") as { tipo: string; em: number; motivo?: string; envioId?: string; optOut?: boolean } | undefined;
   const aceite = (id: string) => optInDoAgendamento({ tenantId: "marca", agendamentoId: id, versao: "v", em: new Date() });
   const uuid = (n: number) => `c${String(n).padStart(7, "0")}-4361-4153-bc2c-60db816d8b77`;
   const sai = (id: string, status = "queued") => novo({ "POST /v1/message/send-text": json({ id, status }), "POST /v1/message/send-template": json({ id, status }) });
+  const quando = (ms: number) => new Date(ms).toISOString();
 
-  // falha no webhook depois do aceite: marca com o tipo e o motivo legível
+  // falha no webhook depois do aceite: marca com o tipo, o motivo legível e o envio
   await ag("M1");
   sai(uuid(1));
   await enviarSemOperador(conn, "5591988776389", "Confirmado", aceite("M1"), undefined, { tipo: "confirmado" });
   assert.equal(await marca("M1"), undefined, "aceito não marca");
   await entregar({ event: "message.status", messageId: uuid(1), status: "failed", errorCode: "META_131026" });
   const m1 = await marca("M1");
-  assert.deepEqual([m1?.tipo, m1?.motivo, typeof m1?.em], ["confirmado", "número sem WhatsApp", "number"]);
-  // um aviso de outro tipo que sai não apaga; um do mesmo tipo, sim
+  assert.deepEqual([m1?.tipo, m1?.motivo, m1?.envioId, typeof m1?.em], ["confirmado", "número sem WhatsApp", uuid(1), "number"]);
+  // um aviso anterior na conversa (recibo) que sai não cobre a confirmação; o lembrete, sim
   sai(uuid(2));
-  await enviarSemOperador(conn, "5591988776389", "Lembrete", aceite("M1"), undefined, { tipo: "lembrete" });
+  await enviarSemOperador(conn, "5591988776389", "Recebemos", aceite("M1"), undefined, { tipo: "recebido" });
   await entregar({ event: "message.status", messageId: uuid(2), status: "delivered" });
-  assert.equal((await marca("M1"))?.tipo, "confirmado", "lembrete entregue não apaga a falha da confirmação");
+  assert.equal((await marca("M1"))?.tipo, "confirmado", "recibo entregue não apaga a falha da confirmação");
   sai(uuid(3));
-  await enviarSemOperador(conn, "5591988776389", "Confirmado de novo", aceite("M1"), undefined, { tipo: "confirmado" });
+  await enviarSemOperador(conn, "5591988776389", "Lembrete", aceite("M1"), undefined, { tipo: "lembrete" });
   await entregar({ event: "message.status", messageId: uuid(3), status: "sent" });
-  assert.equal(await marca("M1"), undefined, "confirmação que saiu apaga a marca");
+  assert.equal(await marca("M1"), undefined, "lembrete que saiu cobre a confirmação");
+
+  // fora de ordem: a falha (t2) chega antes de um envio que saiu antes dela (t1): a marca fica; um
+  // que saiu depois dela (t3) limpa. No mesmo envio, o sent atrasado (t1) depois do failed (t2) não muda nada
+  await ag("M6");
+  const t0 = Date.now();
+  for (const n of [11, 12, 13]) {
+    sai(uuid(n));
+    await enviarSemOperador(conn, "5591988776389", "Confirmado", aceite("M6"), undefined, { tipo: "confirmado" });
+  }
+  await entregar({ event: "message.status", messageId: uuid(11), status: "failed", errorCode: "META_131026", at: quando(t0 + 2000) });
+  await entregar({ event: "message.status", messageId: uuid(11), status: "sent", at: quando(t0 + 1000) });
+  assert.equal((await marca("M6"))?.envioId, uuid(11), "sent atrasado do mesmo envio não limpa");
+  await entregar({ event: "message.status", messageId: uuid(12), status: "sent", at: quando(t0 + 1000) });
+  assert.equal((await marca("M6"))?.envioId, uuid(11), "envio que saiu antes da falha não limpa");
+  await entregar({ event: "message.status", messageId: uuid(13), status: "sent", at: quando(t0 + 3000) });
+  assert.equal(await marca("M6"), undefined, "envio que saiu depois da falha limpa");
+  // falha mais velha que a marca não a troca
+  await ag("M7");
+  for (const n of [14, 15]) {
+    sai(uuid(n));
+    await enviarSemOperador(conn, "5591988776389", "Confirmado", aceite("M7"), undefined, { tipo: "confirmado" });
+  }
+  await entregar({ event: "message.status", messageId: uuid(14), status: "failed", errorCode: "META_131026", at: quando(t0 + 5000) });
+  await entregar({ event: "message.status", messageId: uuid(15), status: "failed", errorCode: "META_131047", at: quando(t0 + 4000) });
+  assert.equal((await marca("M7"))?.envioId, uuid(14), "a marca mais nova fica");
 
   // mensagem ao dono (o pedido com botões aponta o agendamento) que falha: o agendamento fica como está
   await ag("M2");
@@ -1290,60 +1317,107 @@ assert.equal(curta.status, 401);
   await entregar({ event: "message.status", messageId: uuid(4), status: "failed", errorCode: "META_131026" });
   assert.equal(await marca("M2"), undefined, "falha ao dono não marca o agendamento");
 
-  // já registrada como falha no aceite e recusada pelo atendys (sem envio no consumo): marca também
+  // já registrada como falha no aceite: marca
   sai(uuid(5), "failed");
   await enviarSemOperador(conn, "5591988776389", "Recebemos", aceite("M2"), undefined, { tipo: "recebido" });
   assert.equal((await marca("M2"))?.tipo, "recebido");
+  // recusa do atendys sem envio no consumo: só a do destinatário marca, e a mesma não é regravada
   await ag("M3");
+  for (const [code, status] of [["RATE_LIMITED", 429], ["INSTANCE_DISCONNECTED", 409], ["IDEMPOTENCY_CONFLICT", 409], [null, 503]] as const) {
+    novo({ "POST /v1/message/send-text": json({ error: { code, message: "x" } }, status) });
+    await assert.rejects(enviarSemOperador(conn, "5591988776389", "Lembrete", aceite("M3"), undefined, { tipo: "lembrete" }));
+    assert.equal(await marca("M3"), undefined, `${code ?? status}: passageiro, não marca`);
+  }
   novo({ "POST /v1/message/send-text": json({ error: { code: "INVALID_NUMBER" } }, 400) });
   await assert.rejects(enviarSemOperador(conn, "5591988776389", "Lembrete", aceite("M3"), undefined, { tipo: "lembrete" }));
-  assert.deepEqual([(await marca("M3"))?.tipo, (await marca("M3"))?.motivo], ["lembrete", "Número de WhatsApp inválido. Confira o DDD e os dígitos."]);
+  const m3 = await marca("M3");
+  assert.deepEqual([m3?.tipo, m3?.motivo], ["lembrete", "Número de WhatsApp inválido. Confira o DDD e os dígitos."]);
+  await assert.rejects(enviarSemOperador(conn, "5591988776389", "Lembrete", aceite("M3"), undefined, { tipo: "lembrete" }));
+  assert.equal((await marca("M3"))?.em, m3?.em, "o cron repete a mesma falha: a marca não é regravada");
+  // SAIR depois do aceite: marca com optOut (a agenda não oferece o wa.me)
+  await ag("M8");
+  novo({
+    "POST /v1/message/send-text": json({ error: { code: "NOT_OPTED_IN" } }, 403),
+    "POST /v1/optin": json({ error: { code: "VALIDATION_ERROR", message: "A autorização precisa ser posterior à revogação" } }, 409),
+  });
+  await assert.rejects(enviarSemOperador(conn, "5591988776389", "Confirmado", aceite("M8"), undefined, { tipo: "confirmado" }));
+  const m8 = await marca("M8");
+  assert.deepEqual([m8?.tipo, m8?.optOut, m8?.motivo], ["confirmado", true, "o cliente pediu para não receber mensagens"]);
   // agendamento que não existe não é criado pela marca
   sai(uuid(6), "failed");
   await enviarSemOperador(conn, "5591988776389", "x", aceite("NAOEXISTE"), undefined, { tipo: "confirmado" });
   assert.equal((await db.doc("tenants/marca/appointments/NAOEXISTE").get()).exists, false);
 
-  // sem saldo: o aviso não sai e o agendamento ganha a marca; o painel devolve sem_saldo (a tela cai no wa.me)
+  // painel: na hora só as checagens; o envio fica para depois da resposta (after na ação)
+  let tarefas: (() => Promise<void>)[] = [];
+  const depois = (t: () => Promise<void>) => void tarefas.push(t);
+  const rodarDepois = async () => {
+    for (const t of tarefas) await t();
+    tarefas = [];
+  };
+  // sem saldo: volta na hora, nada é agendado nem chega ao atendys, e o horário ganha a marca
   await ag("M4");
   await ajustarSaldo("marca", 1, "abre a conta com pouco", "teste");
   sai(uuid(7));
-  assert.deepEqual(await avisarClientePeloPainel(db, "marca", "M4", "confirmado", null), { situacao: "sem_saldo" });
-  assert.equal(chamadas.length, 0, "nem chega ao atendys");
+  assert.deepEqual(await avisarClientePeloPainel(db, "marca", "M4", "confirmado", null, depois), { situacao: "sem_saldo" });
+  assert.deepEqual([tarefas.length, chamadas.length], [0, 0], "nem agenda nem chega ao atendys");
   assert.deepEqual([(await marca("M4"))?.tipo, (await marca("M4"))?.motivo], ["confirmado", "sem saldo de mensagens"]);
   await ajustarSaldo("marca", 100, "recarga de teste", "teste");
 
-  // painel com saldo: template pelo canal oficial, com prazo e chave do registro no histórico; a
-  // confirmação que sai limpa a marca
+  // com saldo: "enviando" sem esperar o atendys; depois, template com prazo e a chave do histórico
   sai(uuid(8));
-  assert.deepEqual(await avisarClientePeloPainel(db, "marca", "M4", "confirmado", null), { situacao: "enviada" });
+  assert.deepEqual(await avisarClientePeloPainel(db, "marca", "M4", "confirmado", null, depois), { situacao: "enviando" });
+  assert.equal(chamadas.length, 0, "a resposta não espera o envio");
+  await rodarDepois();
   const tpl = chamadas.find((c) => c.caminho === "/v1/message/send-template")!;
   assert.equal((tpl.corpo as { name: string }).name.startsWith("agendamento_confirmado_cliente"), true);
   assert.ok((tpl.corpo as { expiresAt?: string }).expiresAt, "prazo no horário do agendamento");
   const chave = tpl.headers["idempotency-key"];
   assert.ok(chave?.startsWith("painel-confirmado-"));
   sai(uuid(8));
-  await avisarClientePeloPainel(db, "marca", "M4", "confirmado", null);
+  await avisarClientePeloPainel(db, "marca", "M4", "confirmado", null, depois);
+  await rodarDepois();
   assert.equal(chamadas.find((c) => c.caminho === "/v1/message/send-template")!.headers["idempotency-key"], chave, "o mesmo aviso repetido leva a mesma chave");
   await entregar({ event: "message.status", messageId: uuid(8), status: "delivered" });
-  assert.equal(await marca("M4"), undefined);
-  // recusado logo depois do aceite: falhou, com o motivo
+  assert.equal(await marca("M4"), undefined, "a confirmação entregue limpa a falha de saldo");
+  // recusado logo depois do aceite: a marca chega pelo consumo
   sai(uuid(9), "failed");
-  const r9 = await avisarClientePeloPainel(db, "marca", "M4", "confirmado", null);
-  assert.equal(r9.situacao, "falhou");
-  assert.ok(r9.motivo);
+  assert.equal((await avisarClientePeloPainel(db, "marca", "M4", "confirmado", null, depois)).situacao, "enviando");
+  await rodarDepois();
+  assert.equal((await marca("M4"))?.envioId, uuid(9));
+  // atendys fora do ar no envio: incerto (pode ter saído), não marca
+  await ag("M9");
+  novo({});
+  globalThis.fetch = (async () => {
+    throw new TypeError("rede");
+  }) as typeof fetch;
+  assert.equal((await avisarClientePeloPainel(db, "marca", "M9", "confirmado", null, depois)).situacao, "enviando");
+  await rodarDepois();
+  globalThis.fetch = fetchSimulado;
+  assert.equal(await marca("M9"), undefined, "sem resposta do atendys: só log");
   // quem pode mexer, o status certo, o aceite e o canal
-  await assert.rejects(avisarClientePeloPainel(db, "marca", "M4", "confirmado", "P2"), /outro profissional/);
-  assert.equal((await avisarClientePeloPainel(db, "marca", "M4", "confirmado", "P1")).situacao, "falhou", "o próprio profissional avisa");
-  await assert.rejects(avisarClientePeloPainel(db, "marca", "M4", "cancelado", null), /mudou/);
+  await assert.rejects(avisarClientePeloPainel(db, "marca", "M4", "confirmado", "P2", depois), /outro profissional/);
+  assert.equal((await avisarClientePeloPainel(db, "marca", "M4", "confirmado", "P1", depois)).situacao, "enviando", "o próprio profissional avisa");
+  tarefas = [];
+  await assert.rejects(avisarClientePeloPainel(db, "marca", "M4", "cancelado", null, depois), /mudou/);
   await ag("M5", { whatsappConsent: null });
-  assert.deepEqual(await avisarClientePeloPainel(db, "marca", "M5", "confirmado", null), { situacao: "sem_aceite" });
+  assert.deepEqual(await avisarClientePeloPainel(db, "marca", "M5", "confirmado", null, depois), { situacao: "sem_aceite" });
   await db.doc("tenants/fora").set({ name: "Fora" });
   await db.doc("tenants/fora/appointments/F1").set({ status: "cancelled", start: daqui2, customerName: "Ana", customerPhone: "(91) 98877-6389", serviceName: "Corte", staffId: "P1", whatsappConsent: { aceito: true, versao: "v", em: new Date() } });
-  assert.deepEqual(await avisarClientePeloPainel(db, "fora", "F1", "cancelado", null), { situacao: "sem_canal" });
+  assert.deepEqual(await avisarClientePeloPainel(db, "fora", "F1", "cancelado", null, depois), { situacao: "sem_canal" });
+  assert.equal(tarefas.length, 0);
   // push da falha: aviso ao cliente de agendamento leva à agenda; o resto, à gaveta do WhatsApp
   const { pushDaFalha } = await import("@/lib/mensagens-paradas.server");
   assert.deepEqual(pushDaFalha("marca", true, "x", "META_131026"), { body: "Um aviso ao cliente não foi entregue (o número do cliente não recebe mensagens no WhatsApp). Envie pelo WhatsApp na agenda, no horário dele.", url: "/marca" });
   assert.deepEqual(pushDaFalha("marca", false, "Um aviso pelo WhatsApp não foi entregue", "META_131026"), { body: "Um aviso pelo WhatsApp não foi entregue", url: "/marca/negocio#whatsapp" });
+}
+
+// ── canal oficial desligado pelo /admin: o cadastro do dono no painel não religa ──
+{
+  await db.doc("tenants/pausado").set({ name: "Pausado", whatsapp: { canalOficial: false, desligadoPelaRuphus: true } });
+  await assert.rejects(cadastrarDonoOficial(db, "pausado", "5511977776666"), /pausado pela Ruphus/);
+  assert.equal((await db.doc("tenants/pausado").get()).get("whatsapp.canalOficial"), false, "continua desligado");
+  assert.equal((await lerConfigWhatsApp(db, "pausado"))?.desligadoPelaRuphus, true, "a tela do dono vê a pausa");
 }
 
 console.log("atendys ok");

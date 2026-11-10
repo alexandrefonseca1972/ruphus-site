@@ -78,6 +78,9 @@ async function lerCatalogo(db: Firestore, tenantId: string) {
     agendaOnline: !agendaDesligada(tenant),
     // quantos serviços e quanto tempo somado o cliente marca de uma vez
     limites: limitesDe(tenant.get("agenda")),
+    // o negócio está no canal oficial (a página confere à parte se o dono confirmou o WhatsApp);
+    // do mesmo snapshot, sem outra leitura
+    canalOficial: tenant.get("whatsapp.canalOficial") === true,
     // sinal por Pix para reservar: a página avisa antes de o cliente confirmar
     sinal: ((): Pick<ConfigSinal, "tipo" | "valor" | "prazoMin"> | null => {
       const c = ConfigSinal.safeParse(tenant.get("sinal")).data;

@@ -4,7 +4,7 @@ import { atualizarParada, avisarFalhaDeEnvio, NAO_SAI_A_TEMPO, prazoDaParada, re
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { agendamentoDoEnvio, statusDoAtendys, tipoDoTemplate, type TipoEnvio } from "@/lib/consumo";
 import { atualizarEnvio, marcarAviso, registrarEnvio, SemSaldo, verificarEnvio } from "@/lib/consumo.server";
-import { efeitoNoAviso } from "@/lib/aviso-cliente";
+import { efeitoNoAviso, MOTIVO_OPT_OUT } from "@/lib/aviso-cliente";
 import { integracao } from "@/lib/integracoes.server";
 
 // Cliente da plataforma de notificações WhatsApp (atendys). Só roda no servidor:
@@ -429,11 +429,14 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
   try {
     return await tentar();
   } catch (e) {
-    // recusa do atendys (número inválido, SAIR, credencial) não vira envio no consumo: a marca do
-    // aviso no agendamento sai daqui. Sem resposta (prazo, rede) não marca: pode ter saído
-    if (conn.slug && consumo?.destinatario === "cliente" && consumo.agendamentoId && e instanceof ErroAtendys && e.codigo !== "IDEMPOTENCY_CONFLICT") {
+    // recusa do atendys não vira envio no consumo: a marca do aviso no agendamento sai daqui, só
+    // quando o problema é do destinatário e repetir não resolve (número inválido, sem WhatsApp, sem
+    // consentimento, SAIR). Limite, falha do lado de lá, instância e sem resposta (prazo, rede) não
+    // marcam: são passageiros ou a mensagem pode ter saído
+    if (conn.slug && consumo?.destinatario === "cliente" && consumo.agendamentoId && e instanceof ErroAtendys && e.codigo && RECUSA_DO_DESTINO.has(e.codigo)) {
       const efeito = efeitoNoAviso({ ...consumo, status: "falhou" });
-      if (efeito?.acao === "marca") await marcarAviso(conn.slug, consumo.agendamentoId, { ...efeito, motivo: e.message });
+      const optOut = e.codigo === "OPT_OUT";
+      if (efeito?.acao === "marca") await marcarAviso(conn.slug, consumo.agendamentoId, { ...efeito, motivo: optOut ? MOTIVO_OPT_OUT : e.message, ...(optOut && { optOut }) }, { em: Date.now() });
     }
     throw e;
   }
@@ -459,6 +462,9 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
     }
   }
 }
+
+/** Recusas do atendys que são do destinatário e não passam repetindo: marcam o aviso no agendamento. */
+const RECUSA_DO_DESTINO = new Set(["INVALID_NUMBER", "NUMBER_NOT_ON_WHATSAPP", "NOT_OPTED_IN", "OPT_OUT"]);
 
 /** O cliente pediu SAIR depois do aceite: não é falha a repetir, é a vontade dele. */
 export const saiuDepoisDoAceite = (e: unknown) => e instanceof ErroAtendys && e.codigo === "OPT_OUT";

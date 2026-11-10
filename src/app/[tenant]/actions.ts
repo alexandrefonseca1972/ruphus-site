@@ -4,7 +4,7 @@ import { RECARGA_MAXIMA_CENTS, RECARGA_MINIMA_CENTS } from "@/lib/consumo";
 import { criarRecarga, lerConfigMensagens } from "@/lib/consumo.server";
 import { painelDeConsumo, resumoDoSaldo } from "@/lib/consumo-painel.server";
 import { abrirCobranca, listarCobrancas } from "@/lib/cobranca";
-import { cadastrarDonoOficial, conexaoOficial, enviarConfirmacaoDono, usaCanalOficial } from "@/lib/canal-oficial.server";
+import { cadastrarDonoOficial, conexaoOficial, enviarConfirmacaoDono, exigeNaoPausado, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { adminDb } from "@/lib/admin";
 import { createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
@@ -316,6 +316,7 @@ export const definirWhatsAppDonoAction = memberAction(
 /** Manda de novo o "Sou eu" (no máximo um a cada 10 min, conferido em enviarConfirmacaoDono). */
 export const reenviarConfirmacaoDonoAction = memberAction(SoTenant, async ({ tenantId }, user) => {
   await exigeGestor(tenantId, user.uid);
+  await exigeNaoPausado(adminDb, tenantId);
   if (!(await usaCanalOficial(adminDb, tenantId))) throw new UserError("Salve o seu WhatsApp antes.");
   const envio = await enviarConfirmacaoDono(adminDb, tenantId);
   return { envio, cfg: (await lerConfigWhatsApp(adminDb, tenantId)) ?? {} };
@@ -331,6 +332,7 @@ export const configurarLembretesWhatsAppAction = memberAction(
   }),
   async ({ tenantId, enabled, hours }, user) => {
     await exigeGestor(tenantId, user.uid);
+    await exigeNaoPausado(adminDb, tenantId);
     // os lembretes saem pelo canal oficial (número da Ruphus)
     if (!(await usaCanalOficial(adminDb, tenantId))) throw new UserError("Salve o seu WhatsApp antes de ligar os lembretes.");
     await adminDb.doc(`tenants/${tenantId}`).set({ whatsapp: { remindersEnabled: enabled, remindersBeforeHours: hours } }, { merge: true });
@@ -444,7 +446,8 @@ export const avisarClienteAction = memberAction(
   z.object({ tenantId: docIdStaff, appointmentId: docId, tipo: z.enum(["confirmado", "cancelado"]) }),
   async (data, user) => {
     const preso = await profissionalDaConta(adminDb, data.tenantId, user.uid);
-    return { ok: true as const, ...(await avisarClientePeloPainel(adminDb, data.tenantId, data.appointmentId, data.tipo, preso)) };
+    // o envio segue depois da resposta (after): a tela não espera o atendys (até 35 s) nem trava as outras ações
+    return { ok: true as const, ...(await avisarClientePeloPainel(adminDb, data.tenantId, data.appointmentId, data.tipo, preso, (tarefa) => after(tarefa))) };
   },
 );
 

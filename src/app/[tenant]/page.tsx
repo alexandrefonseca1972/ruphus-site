@@ -55,7 +55,7 @@ const Appointment = z.object({
   // aceite do WhatsApp no agendamento online: com ele (e o canal oficial), Confirmar/Cancelar avisam pela API
   whatsappConsent: z.object({ aceito: z.boolean() }).optional().catch(undefined),
   // o aviso automático ao cliente não chegou (o servidor grava, consumo.server): a linha oferece o wa.me
-  avisoFalhou: z.object({ tipo: z.enum(TIPOS_AVISO), em: z.number(), motivo: z.string().optional() }).optional().catch(undefined),
+  avisoFalhou: z.object({ tipo: z.enum(TIPOS_AVISO), em: z.number(), motivo: z.string().optional(), optOut: z.boolean().optional() }).optional().catch(undefined),
 });
 export type Appointment = z.infer<typeof Appointment> & { id: string };
 
@@ -374,14 +374,17 @@ export default function AgendaPage() {
                       {a.customerPhone}
                     </a>
                   </p>
-                  {avisoDe(a) && a.avisoFalhou?.motivo && (
+                  {avisoDe(a) && a.avisoFalhou?.optOut ? (
+                    <p className="text-sm text-red-800 dark:text-red-300">O aviso automático pelo WhatsApp não saiu: o cliente pediu para não receber mensagens.</p>
+                  ) : avisoDe(a) && a.avisoFalhou?.motivo ? (
                     <p className="text-sm text-red-800 dark:text-red-300">O aviso automático pelo WhatsApp não chegou ao cliente: {a.avisoFalhou.motivo.replace(/\.$/, "")}.</p>
-                  )}
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {avisoDe(a) && meu(a) && (
+                  {/* o cliente pediu SAIR: o motivo aparece, o wa.me não */}
+                  {avisoDe(a)?.waMe && meu(a) && (
                     <a
-                      href={whatsappLink(a.customerPhone, mensagem(a, avisoDe(a)!))}
+                      href={whatsappLink(a.customerPhone, mensagem(a, avisoDe(a)!.texto))}
                       target="_blank"
                       rel="noreferrer"
                       onClick={() => resolverAviso(a)}

@@ -8,7 +8,7 @@ import {
   CONFIG_PADRAO, configDoNegocio, deltaDoConsumo, deveAvisar, ehDaPlataforma, diasNoMes, previsaoDeSaldo, somaDias, textoDoAvisoDeSaldo, mascararDestino, MODOS_SEM_SALDO, podeEnviar, precoDe, quandoFoi, RECARGA_MAXIMA_CENTS, RECARGA_MINIMA_CENTS, statusDoAtendys, avanca,
   type Canal, type ConfigMensagens, type NivelSaldo, type Previsao, type Destinatario, type Pacote, type StatusEnvio, type TipoEnvio, type Via,
 } from "@/lib/consumo";
-import { efeitoNoAviso } from "@/lib/aviso-cliente";
+import { efeitoNoAviso, saidaCobre, SAIU, type AvisoFalhou } from "@/lib/aviso-cliente";
 import { dateIn, formatBRL } from "@/lib/datetime";
 import { SITE_BASE } from "@/lib/dominio";
 import { enviarEmail } from "@/lib/email.server";
@@ -194,16 +194,32 @@ export type NovoEnvio = DadosEnvio & {
 };
 
 /** Aviso ao cliente que não chegou: a agenda mostra "Aviso não chegou" com o wa.me no horário
- *  (avisoFalhou). Um do mesmo tipo que sai depois apaga a marca; de outro tipo, não. Agendamento
- *  que não existe (apagado, id de outro lugar) fica como está. Nunca lança. */
-export async function marcarAviso(slug: string, agendamentoId: string, efeito: NonNullable<ReturnType<typeof efeitoNoAviso>>): Promise<void> {
+ *  (avisoFalhou). Decide na transação, relendo o envio (o status atual, não o de quem chamou: duas
+ *  transações de status do mesmo envio podem chegar fora de ordem) e comparando o momento com o da
+ *  marca: só marca se a marca existente não for mais nova; só limpa com um envio mais novo que a
+ *  marca e que a cubra (saidaCobre). A mesma marca não é regravada (o cron do lembrete repete).
+ *  Agendamento que não existe fica como está. ref.envioId: sem ele (recusa antes de virar envio),
+ *  não há o que reler. Nunca lança. */
+export async function marcarAviso(slug: string, agendamentoId: string, efeito: NonNullable<ReturnType<typeof efeitoNoAviso>>, ref: { envioId?: string; em: number }): Promise<void> {
   try {
-    const ref = adminDb.doc(`tenants/${slug}/appointments/${agendamentoId}`);
+    const agRef = adminDb.doc(`tenants/${slug}/appointments/${agendamentoId}`);
     await adminDb.runTransaction(async (tx) => {
-      const a = await tx.get(ref);
+      const [a, e] = await Promise.all([tx.get(agRef), ref.envioId ? tx.get(envioRef(slug, ref.envioId)) : null]);
       if (!a.exists) return;
-      if (efeito.acao === "marca") tx.update(ref, { avisoFalhou: { tipo: efeito.tipo, em: Date.now(), motivo: efeito.motivo.slice(0, 160) } });
-      else if (a.get("avisoFalhou.tipo") === efeito.tipo) tx.update(ref, { avisoFalhou: FieldValue.delete() });
+      if (e) {
+        const atual = e.get("status") as StatusEnvio;
+        const vale = efeito.acao === "marca" ? atual === "falhou" || atual === "sem-saldo" : SAIU.includes(atual);
+        if (!vale) return;
+      }
+      const marca = a.get("avisoFalhou") as AvisoFalhou | undefined;
+      if (efeito.acao === "limpa") {
+        if (marca && ref.em > Number(marca.em ?? 0) && saidaCobre(efeito.tipo, marca.tipo)) tx.update(agRef, { avisoFalhou: FieldValue.delete() });
+        return;
+      }
+      if (marca && Number(marca.em ?? 0) > ref.em) return;
+      const motivo = efeito.motivo.slice(0, 160);
+      if (marca && marca.tipo === efeito.tipo && marca.motivo === motivo && (marca.envioId ?? null) === (ref.envioId ?? null)) return;
+      tx.update(agRef, { avisoFalhou: { tipo: efeito.tipo, em: ref.em, motivo, ...(ref.envioId && { envioId: ref.envioId }), ...(efeito.optOut && { optOut: true }) } });
     });
   } catch (e) {
     console.error(`[consumo] marca do aviso no agendamento ${agendamentoId} de ${slug}`, e);
@@ -255,7 +271,7 @@ export async function registrarEnvio(slug: string, n: NovoEnvio, agora = new Dat
   // fora da transação do consumo: a marca no agendamento não pode desfazer o registro (e repetir
   // a marca de um envio repetido só confirma o mesmo fato)
   const efeito = efeitoNoAviso(n);
-  if (efeito && n.agendamentoId) await marcarAviso(slug, n.agendamentoId, efeito);
+  if (efeito && n.agendamentoId) await marcarAviso(slug, n.agendamentoId, efeito, { envioId: n.id, em: agora.getTime() });
 }
 
 /** Status novo (webhook message.status, conferência logo depois do aceite): atualiza o envio, acerta o
@@ -273,7 +289,9 @@ export async function atualizarEnvio(slug: string, id: string, statusAtendys: st
       if (!d.exists) return null;
       const de = d.get("status") as StatusEnvio;
       if (!avanca(de, para) || Number(d.get("statusEm") ?? 0) > at) return null;
-      mudou = { canal: d.get("canal"), destinatario: d.get("destinatario"), tipo: d.get("tipo"), agendamentoId: d.get("agendamentoId"), status: para, erro: erro ?? d.get("erro") };
+      // limpar só na primeira passagem para "saiu" (enviado/entregue/lido): entregue e lido depois
+      // de enviado não fazem outra leitura no agendamento
+      if (para === "falhou" || !SAIU.includes(de)) mudou = { canal: d.get("canal"), destinatario: d.get("destinatario"), tipo: d.get("tipo"), agendamentoId: d.get("agendamentoId"), status: para, erro: erro ?? d.get("erro") };
       const prepago = d.get("prepago") === true;
       const conta = prepago ? await contaDe(slug, tx) : null;
       const e = { canal: d.get("canal") as Canal, via: d.get("via") as Via, tipo: d.get("tipo") as TipoEnvio, precoCents: Number(d.get("precoCents") ?? 0), dia: "" };
@@ -301,7 +319,7 @@ export async function atualizarEnvio(slug: string, id: string, statusAtendys: st
   }
   const m = mudou as Parameters<typeof efeitoNoAviso>[0] | null;
   const efeito = m && efeitoNoAviso(m);
-  if (efeito && m?.agendamentoId) await marcarAviso(slug, m.agendamentoId, efeito);
+  if (efeito && m?.agendamentoId) await marcarAviso(slug, m.agendamentoId, efeito, { envioId: id, em: at });
 }
 
 type Credito = { tipo: "recarga" | "ajuste" | "boas-vindas"; valorCents: number; ref?: Record<string, string>; motivo?: string; por?: string };

@@ -27,27 +27,43 @@ assert.match(textoAvisoCliente("lembrete", a, "Salão X", ""), /^Olá, Ana! Lemb
   // quando a agenda mostra o wa.me, e com qual texto
   const agora = Date.parse("2026-11-10T12:00:00Z");
   const depois = agora + 3_600_000;
-  const f = (tipo: "recebido" | "confirmado" | "cancelado" | "reagendado" | "lembrete") => ({ tipo, em: agora });
+  const f = (tipo: "recebido" | "confirmado" | "cancelado" | "reagendado" | "lembrete", extra = {}) => ({ tipo, em: agora, ...extra });
+  const texto = (r: ReturnType<typeof avisoPendente>) => r && (r.waMe ? r.texto : `${r.texto} (sem wa.me)`);
   assert.equal(avisoPendente({ status: "confirmed", start: depois }, agora), null, "sem marca");
-  assert.equal(avisoPendente({ avisoFalhou: f("confirmado"), status: "confirmed", start: depois }, agora), "confirmado");
+  assert.equal(texto(avisoPendente({ avisoFalhou: f("confirmado"), status: "confirmed", start: depois }, agora)), "confirmado");
   assert.equal(avisoPendente({ avisoFalhou: f("confirmado"), status: "confirmed", start: agora - 1 }, agora), null, "o horário já passou");
   assert.equal(avisoPendente({ avisoFalhou: f("confirmado"), status: "cancelled", start: depois }, agora), null, "cancelado depois: a confirmação não serve");
-  assert.equal(avisoPendente({ avisoFalhou: f("cancelado"), status: "cancelled", start: agora - 1 }, agora), "cancelado", "cancelamento vale mesmo depois do horário");
+  assert.equal(texto(avisoPendente({ avisoFalhou: f("cancelado"), status: "cancelled", start: agora - 1 }, agora)), "cancelado", "cancelamento vale depois do horário");
   assert.equal(avisoPendente({ avisoFalhou: f("cancelado"), status: "booked", start: depois }, agora), null);
-  assert.equal(avisoPendente({ avisoFalhou: f("recebido"), status: "booked", start: depois }, agora), "recebido");
-  assert.equal(avisoPendente({ avisoFalhou: f("recebido"), status: "confirmed", start: depois }, agora), "confirmado", "recibo de horário já confirmado vira a confirmação");
-  assert.equal(avisoPendente({ avisoFalhou: f("reagendado"), status: "confirmed", start: depois }, agora), "remarcado");
-  assert.equal(avisoPendente({ avisoFalhou: f("lembrete"), status: "confirmed", start: depois }, agora), "lembrete");
+  assert.equal(texto(avisoPendente({ avisoFalhou: f("recebido"), status: "booked", start: depois }, agora)), "recebido");
+  assert.equal(texto(avisoPendente({ avisoFalhou: f("recebido"), status: "confirmed", start: depois }, agora)), "confirmado", "recibo de horário já confirmado vira a confirmação");
+  assert.equal(texto(avisoPendente({ avisoFalhou: f("reagendado"), status: "confirmed", start: depois }, agora)), "remarcado");
+  assert.equal(texto(avisoPendente({ avisoFalhou: f("lembrete"), status: "confirmed", start: depois }, agora)), "lembrete");
+  // SAIR: a marca aparece, o wa.me não
+  assert.equal(texto(avisoPendente({ avisoFalhou: f("confirmado", { optOut: true }), status: "confirmed", start: depois }, agora)), "confirmado (sem wa.me)");
+  // a marca vence 3 dias depois da falha ou do horário (o que vier depois)
+  const dia = 86_400_000;
+  assert.ok(avisoPendente({ avisoFalhou: f("cancelado"), status: "cancelled", start: agora - dia }, agora + 3 * dia - 1));
+  assert.equal(avisoPendente({ avisoFalhou: f("cancelado"), status: "cancelled", start: agora - dia }, agora + 3 * dia + 1), null, "cancelamento de 3 dias atrás sai da agenda");
+  assert.ok(avisoPendente({ avisoFalhou: f("cancelado"), status: "cancelled", start: agora + dia }, agora + 3 * dia + 1), "conta do horário quando ele é depois da falha");
+  // um aviso que saiu cobre a marca de outro tipo? recebido < confirmado/reagendado < lembrete; cancelado à parte
+  const { saidaCobre } = await import("@/lib/aviso-cliente");
+  assert.equal(saidaCobre("confirmado", "recebido"), true, "a confirmação cobre o recibo");
+  assert.equal(saidaCobre("lembrete", "confirmado"), true);
+  assert.equal(saidaCobre("reagendado", "confirmado"), true, "remarcação e confirmação estão no mesmo passo");
+  assert.equal(saidaCobre("recebido", "confirmado"), false, "o recibo não cobre a confirmação");
+  assert.equal(saidaCobre("confirmado", "lembrete"), false);
+  assert.equal(saidaCobre("cancelado", "lembrete"), true, "cancelamento entregue cobre tudo");
+  assert.equal(saidaCobre("lembrete", "cancelado"), false, "a marca de cancelamento só sai com cancelamento");
+  assert.equal(saidaCobre("cancelado", "cancelado"), true);
   // pela API só no canal oficial e com o aceite
   assert.equal(avisaPelaApi(true, { aceito: true }), true);
   assert.equal(avisaPelaApi(true, undefined), false);
   assert.equal(avisaPelaApi(undefined, { aceito: true }), false);
-  // a faixa depois do aviso pela API: wa.me só quando não saiu (parada tem o "Enviar agora" próprio)
-  assert.deepEqual(faixaDoAviso({ situacao: "enviada" }, "Ana: horário confirmado"), { texto: "Ana: horário confirmado. Cliente avisado pelo WhatsApp.", waMe: false });
-  assert.equal(faixaDoAviso({ situacao: "agendada" }, "x").waMe, false);
-  assert.equal(faixaDoAviso({ situacao: "parada" }, "x").waMe, false);
+  // a faixa: enviando não promete "avisado" nem oferece wa.me; o resto oferece, com o motivo
+  assert.deepEqual(faixaDoAviso({ situacao: "enviando" }, "Ana: horário confirmado"), { texto: "Ana: horário confirmado. Avisando o cliente pelo WhatsApp…", waMe: false });
   assert.deepEqual(faixaDoAviso({ situacao: "sem_saldo" }, "Ana: horário cancelado"), { texto: "Ana: horário cancelado. O aviso automático não saiu (sem saldo de mensagens): avise pelo WhatsApp.", waMe: true });
-  assert.match(faixaDoAviso({ situacao: "falhou", motivo: "Este número não tem WhatsApp." }, "x").texto, /\(Este número não tem WhatsApp\): avise/);
+  assert.match(faixaDoAviso({ situacao: "falhou", motivo: "Canal não provisionado." }, "x").texto, /\(Canal não provisionado\): avise/);
   assert.equal(faixaDoAviso(null, "x").waMe, true, "sem resposta do servidor: wa.me");
   for (const s of ["sem_aceite", "sem_canal"] as const) assert.equal(faixaDoAviso({ situacao: s }, "x").waMe, true);
 }

@@ -237,6 +237,9 @@ await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenant
 await assertFails(setDoc(doc(alice, "tenants/acme"), { name: "Acme Salão", ownerId: "alice", limiteStaff: 5 }));
 await assertFails(setDoc(doc(alice, "tenants/acme"), { name: "Acme Salão", ownerId: "alice", limiteStaff: 50 }));
 await assertFails(updateDoc(doc(alice, "tenants/acme"), { "site.phone": '55"><img src=x onerror=alert(1)>' }));
+// a pausa do WhatsApp pela Ruphus (só o /admin, pelo servidor): nem o dono a tira nem a põe pelo navegador
+await assertFails(updateDoc(doc(alice, "tenants/acme"), { "whatsapp.desligadoPelaRuphus": deleteField() }));
+await assertFails(updateDoc(doc(alice, "tenants/acme"), { "whatsapp.desligadoPelaRuphus": false, "whatsapp.canalOficial": true }));
 await assertFails(updateDoc(doc(alice, "tenants/acme"), { "whatsapp.canalOficial": true }));
 
 // Profissional novo só pelo servidor (é lá que o limite do plano é contado)

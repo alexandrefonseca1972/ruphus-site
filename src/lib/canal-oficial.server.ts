@@ -160,9 +160,10 @@ export async function usaCanalOficial(db: Firestore, slug: string): Promise<bool
 }
 
 /** O pedido de agendamento chega ao dono pela API? Canal oficial e WhatsApp do dono confirmado
- *  ("Sou eu"). A página pública só recebe o sim/não: o telefone do dono nunca sai do servidor. */
-export async function donoRecebePelaApi(db: Firestore, slug: string): Promise<boolean> {
-  if (!(await usaCanalOficial(db, slug))) return false;
+ *  ("Sou eu"). A página pública só recebe o sim/não: o telefone do dono nunca sai do servidor.
+ *  canalOficial: a marca já lida por quem chama (o catálogo); fora do canal, nenhuma leitura. */
+export async function donoRecebePelaApi(db: Firestore, slug: string, canalOficial: boolean): Promise<boolean> {
+  if (!canalOficial || slug === DEMO) return false;
   const p = await db.doc(`tenants/${slug}/privado/whatsapp`).get();
   return !!soDigitosComDDI(String(p.get("ownerPhone") ?? "")) && !!p.get("ownerPhoneVerifiedAt");
 }
@@ -228,10 +229,18 @@ const privadoWhatsApp = (db: Firestore, slug: string) => db.doc(`tenants/${slug}
 const MAX_CONFIRMACOES_DIA = 5;
 export type EnvioConfirmacao = "enviado" | "confirmado" | "aguarde" | "limite" | "falhou";
 
+export const PAUSADO_PELA_RUPHUS = "O WhatsApp deste negócio está pausado pela Ruphus. Fale com o suporte.";
+
+/** O /admin desligou o canal (whatsapp.desligadoPelaRuphus): o cadastro do dono não o religa. */
+export async function exigeNaoPausado(db: Firestore, slug: string) {
+  if ((await db.doc(`tenants/${slug}`).get()).get("whatsapp.desligadoPelaRuphus") === true) throw new ErroPrevisto(PAUSADO_PELA_RUPHUS);
+}
+
 /** Grava o WhatsApp do dono (`numero` já validado por celularDoDono), liga o canal oficial e manda o
  *  "Sou eu". O mesmo número já confirmado fica como está; número novo zera a confirmação e o limite. */
 export async function cadastrarDonoOficial(db: Firestore, slug: string, numero: string): Promise<EnvioConfirmacao> {
   if (slug === DEMO) throw new ErroPrevisto("A demonstração não envia WhatsApp: teste num negócio de verdade.");
+  await exigeNaoPausado(db, slug);
   if (!(await lerCredenciais(db))) throw new ErroPrevisto("O canal oficial ainda não está pronto: fale com a Ruphus.");
   const p = await privadoWhatsApp(db, slug).get();
   const mesmo = soDigitosComDDI(String(p.get("ownerPhone") ?? "")) === numero;

@@ -13,6 +13,8 @@ import { configurarLembretesWhatsAppAction, definirWhatsAppDonoAction, lerWhatsA
 
 type Config = {
   canalOficial?: boolean;
+  // a Ruphus pausou o WhatsApp pelo /admin: salvar o número não religa
+  desligadoPelaRuphus?: boolean;
   ownerPhone?: string | null;
   ownerPhoneVerifiedAt?: number | null;
   remindersEnabled?: boolean;
@@ -138,6 +140,12 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
         no seu WhatsApp pessoal e confirma ou recusa pelos botões da mensagem.
       </p>
 
+      {cfg.desligadoPelaRuphus && (
+        <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          <span className="font-semibold">WhatsApp pausado pela Ruphus.</span> Nenhum aviso sai pelo WhatsApp (pedidos, confirmações, lembretes). Fale com o suporte para voltar.
+        </p>
+      )}
+
       {cfg.lastNotifyError?.message && (
         <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm [overflow-wrap:anywhere] text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
           <span className="font-semibold">Último aviso que não saiu</span>
@@ -164,7 +172,7 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
             placeholder="(91) 99999-0000"
             className="h-12 min-w-0 grow rounded-lg border border-input bg-card px-3 text-[15px] tabular-nums sm:h-11 sm:text-sm"
           />
-          <Button type="submit" disabled={busy} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">
+          <Button type="submit" disabled={busy || cfg.desligadoPelaRuphus} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">
             {busy ? "Salvando…" : "Salvar"}
           </Button>
         </div>
@@ -174,7 +182,7 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
         <p role="status" className="text-sm text-amber-800 dark:text-amber-200">Sem número cadastrado: os pedidos não chegam a você.</p>
       ) : dataConfirmacao ? (
         <p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">Confirmado em {dataConfirmacao}.</p>
-      ) : !cfg.canalOficial ? (
+      ) : cfg.desligadoPelaRuphus ? null : !cfg.canalOficial ? (
         <p role="status" className="text-sm text-amber-800 dark:text-amber-200">Salve para receber pelo número da Ruphus.</p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">

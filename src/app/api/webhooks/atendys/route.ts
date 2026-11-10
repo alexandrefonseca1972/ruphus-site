@@ -179,10 +179,17 @@ export async function POST(req: Request) {
   }
 
   // instância que não é a da plataforma: resto do número próprio por QR, que não existe mais.
-  // Ack sem processar, para o atendys não repetir cinco vezes cada evento
-  console.warn(`[webhook atendys] instância desconhecida ${JSON.stringify(evento.instance).slice(0, 80)} (${eventoHeader}): ack sem processar`);
+  // Ack sem processar, para o atendys não repetir cinco vezes cada evento. Log uma vez por instância
+  // por processo (debug): cada status de uma instância antiga não vira uma linha de aviso
+  const inst = JSON.stringify(evento.instance).slice(0, 80);
+  if (!instanciasVistas.has(inst) && instanciasVistas.size < 100) {
+    instanciasVistas.add(inst);
+    console.debug(`[webhook atendys] instância desconhecida ${inst} (${eventoHeader}): ack sem processar`);
+  }
   return responder(200, { ok: true });
 }
+
+const instanciasVistas = new Set<string>();
 
 export async function GET() {
   return responder(405, { error: "Método não permitido." });

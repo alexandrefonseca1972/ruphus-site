@@ -8,9 +8,8 @@ import { soDigitosComDDI } from "@/lib/telefone";
 import { optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { chaveDeEnvio, enviarSemOperador, enviarTemplateSemOperador, motivoLegivel, OPTIN_DONO, saiuDepoisDoAceite, type ConexaoAtendys, type OptIn } from "@/lib/atendys";
 import type { ResultadoAviso } from "@/lib/aviso-cliente";
-import { SemSaldo } from "@/lib/consumo.server";
+import { marcarAviso, registrarEnvio, SemSaldo, verificarEnvio } from "@/lib/consumo.server";
 import { ErroPrevisto } from "@/lib/erro-previsto";
-import { motivoDaFalha } from "@/lib/mensagens-paradas.server";
 import { conexaoOficial, contatoDoNegocio, templateCliente } from "@/lib/canal-oficial.server";
 
 // Configuração do WhatsApp do negócio. Os avisos saem só pelo canal oficial (número da plataforma
@@ -24,6 +23,8 @@ import { conexaoOficial, contatoDoNegocio, templateCliente } from "@/lib/canal-o
 export type ConexaoWhatsapp = {
   /** o negócio usa o canal oficial (cadastrarDonoOficial liga) */
   canalOficial?: boolean;
+  /** a Ruphus desligou o canal pelo /admin: o cadastro do dono não religa (só o /admin grava) */
+  desligadoPelaRuphus?: boolean;
   ownerPhone?: string | null;
   /** o dono tocou "Sou eu" na confirmação do canal oficial, deste ownerPhone (canal-oficial.server) */
   ownerPhoneVerifiedAt?: number | null;
@@ -46,7 +47,7 @@ export { soDigitosComDDI };
 
 // O WhatsApp pessoal do dono mora em tenants/{slug}/privado/whatsapp: a equipe lê o documento do
 // negócio inteiro pelo navegador e não deve vê-lo. Nenhuma regra abre o privado; só o servidor lê.
-const DO_NEGOCIO = ["canalOficial", "remindersEnabled", "remindersBeforeHours", "lastNotifyError"] as const;
+const DO_NEGOCIO = ["canalOficial", "desligadoPelaRuphus", "remindersEnabled", "remindersBeforeHours", "lastNotifyError"] as const;
 const DO_PRIVADO = ["ownerPhone", "ownerPhoneVerifiedAt", "confirmacaoEnviadaEm", "confirmacoesHoje"] as const;
 const privado = (db: Firestore, slug: string) => db.doc(`tenants/${slug}/privado/whatsapp`);
 
@@ -329,7 +330,7 @@ export async function processarComandoAgendamento(
       if (pendente) tx.delete(db.doc(`${PENDENTES}/${pendente}`));
       if (atual.get("status") !== "booked") return "status";
       if (esperado?.horario && esperado.agendamento === a.id && chaveDoHorario(startDe(atual)) !== esperado.horario) return "horario";
-      tx.create(history, { appointmentId: a.id, type: status, ...extra, at: FieldValue.serverTimestamp(), by: "whatsapp", byName: "WhatsApp do salão" });
+      tx.create(history, { appointmentId: a.id, type: status, ...extra, at: FieldValue.serverTimestamp(), by: "whatsapp", byName: "WhatsApp" });
       tx.update(a.ref, { status, lastHistoryId: history.id });
       return "ok";
     });
@@ -409,12 +410,21 @@ function enviarAvisoCliente(oficial: ConexaoAtendys, tenant: FirebaseFirestore.D
 }
 
 /** Confirmar/Cancelar pelo painel: o status já foi gravado pelo navegador; isto avisa o cliente pelo
- *  canal oficial e diz o que aconteceu, para a tela oferecer o wa.me quando não saiu. Só com o aceite
- *  do cliente e no canal oficial. preso: o profissional da conta da equipe (só mexe nos horários dele).
- *  A chave de envio é a do registro no histórico: repetir (resposta perdida, segundo toque) não manda
- *  outra mensagem. No pré-pago custa ao negócio (quem confirma pelo painel escolheu avisar); sem saldo,
- *  volta sem_saldo e a tela oferece o wa.me. */
-export async function avisarClientePeloPainel(db: Firestore, slug: string, id: string, tipo: "confirmado" | "cancelado", preso: string | null): Promise<ResultadoAviso> {
+ *  canal oficial. Na hora, só as checagens rápidas (quem pode, status gravado, aceite, canal, saldo),
+ *  que devolvem o motivo para a tela oferecer o wa.me; o envio segue depois da resposta (`depois`,
+ *  o after() da ação: o atendys pode levar 35 s) e a falha aparece no horário pela marca avisoFalhou.
+ *  preso: o profissional da conta da equipe (só mexe nos horários dele). A chave de envio é a do
+ *  registro no histórico: repetir (resposta perdida, segundo toque) não manda outra mensagem. No
+ *  pré-pago custa ao negócio (quem confirma pelo painel escolheu avisar); sem saldo, volta sem_saldo,
+ *  a marca fica no horário e a tela oferece o wa.me. */
+export async function avisarClientePeloPainel(
+  db: Firestore,
+  slug: string,
+  id: string,
+  tipo: "confirmado" | "cancelado",
+  preso: string | null,
+  depois: (tarefa: () => Promise<void>) => void,
+): Promise<ResultadoAviso> {
   const a = await db.doc(`tenants/${slug}/appointments/${id}`).get();
   if (!a.exists) throw new ErroPrevisto("Esse horário não existe mais.");
   if (preso && a.get("staffId") !== preso) throw new ErroPrevisto("Esse horário é de outro profissional: só quem gere o negócio mexe nele.");
@@ -430,15 +440,27 @@ export async function avisarClientePeloPainel(db: Firestore, slug: string, id: s
     return { situacao: "falhou", motivo: motivoLegivel(e) };
   }
   if (!oficial) return { situacao: "sem_canal" };
-  const tenant = await db.doc(`tenants/${slug}`).get();
-  try {
-    const e = await enviarAvisoCliente(oficial, tenant, a, tipo, cliente, optIn, chaveDeEnvio(`painel-${tipo}`, slug, id, String(a.get("lastHistoryId") ?? "")));
-    if (e.destino === "enviada" || e.destino === "agendada" || e.destino === "parada") return { situacao: e.destino };
-    return { situacao: "falhou", motivo: e.destino === "nao_sai" ? "não sai antes do horário do agendamento" : motivoDaFalha(e.errorCode) };
-  } catch (e) {
-    if (e instanceof SemSaldo) return { situacao: "sem_saldo" };
-    if (saiuDepoisDoAceite(e)) return { situacao: "falhou", motivo: "o cliente pediu para não receber mensagens (SAIR)" };
-    if (!(e instanceof ErroPrevisto)) console.error(`[whatsapp] aviso ao cliente pelo painel em ${slug}`, e);
-    return { situacao: "falhou", motivo: motivoLegivel(e) };
+  const chave = chaveDeEnvio(`painel-${tipo}`, slug, id, String(a.get("lastHistoryId") ?? ""));
+  const saldo = await verificarEnvio(slug, { canal: "whatsapp", destinatario: "cliente", tipo });
+  if (!saldo.envia) {
+    // o mesmo registro do envio bloqueado (consumo "sem-saldo"): ele marca o horário
+    await registrarEnvio(slug, { canal: "whatsapp", via: "oficial", tipo, destinatario: "cliente", fone: cliente, agendamentoId: id, id: `sem-saldo-${chave}`, status: "sem-saldo", erro: saldo.motivo });
+    return { situacao: "sem_saldo" };
   }
+  const tenant = await db.doc(`tenants/${slug}`).get();
+  const conn = oficial;
+  depois(async () => {
+    try {
+      const e = await enviarAvisoCliente(conn, tenant, a, tipo, cliente, optIn, chave);
+      // aceito mas não sai antes do horário (sem envio que falhe depois): a marca vem daqui. A recusa
+      // pela Meta já marcou pelo consumo; a parada na cota tem o próprio fluxo (Mensagens paradas)
+      if (e.destino === "nao_sai") await marcarAviso(slug, id, { acao: "marca", tipo, motivo: "não sai antes do horário do agendamento" }, { em: Date.now() });
+    } catch (e) {
+      // recusa do destinatário e sem saldo já marcaram o horário (atendys/consumo). Sem resposta ou
+      // erro passageiro: a mensagem pode ter saído, então só log (o wa.me mandaria em dobro)
+      if (e instanceof SemSaldo || saiuDepoisDoAceite(e)) return;
+      console.error(`[whatsapp] aviso ao cliente pelo painel em ${slug} (${tipo}, ${id})`, e);
+    }
+  });
+  return { situacao: "enviando" };
 }

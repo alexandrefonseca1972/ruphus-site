@@ -946,13 +946,14 @@ async function naGaveta(slug: string): Promise<WhatsAppNaGaveta> {
 }
 
 /** Liga ou desliga o canal oficial do negócio. Desligado, nenhum WhatsApp sai dele (aviso, recibo,
- *  lembrete); o WhatsApp do dono e a confirmação ficam gravados para quando voltar. */
+ *  lembrete); o WhatsApp do dono e a confirmação ficam gravados para quando voltar. Desligar marca
+ *  desligadoPelaRuphus: salvar o WhatsApp no painel do dono não religa; só ligar aqui tira a marca. */
 export const definirCanalOficial = adminAction(async (_user, slug: string, ligado: unknown): Promise<WhatsAppNaGaveta> => {
   slugValido(slug);
   if (slug === DEMO && ligado === true) throw new ErroPrevisto("A demonstração não envia WhatsApp: ela é aberta a qualquer pessoa.");
   const t = adminDb.doc(`tenants/${slug}`);
   if (!(await t.get()).exists) throw new ErroPrevisto("Negócio não encontrado.");
-  await t.set({ whatsapp: { canalOficial: ligado === true } }, { merge: true });
+  await t.set({ whatsapp: { canalOficial: ligado === true, desligadoPelaRuphus: ligado === true ? FieldValue.delete() : true } }, { merge: true });
   return naGaveta(slug);
 });
 
