@@ -141,3 +141,28 @@ console.log("domínio próprio ok");
   }
   console.log("listas no domínio do cliente ok");
 }
+
+{
+  // 503 da lista de domínios não zera o mapa: vale o anterior (proxy.ts, mapaDominios)
+  const fetchReal = globalThis.fetch;
+  const agoraReal = Date.now;
+  let respostaDominios: () => Response = () => Response.json({ hosts: { "www.x.com.br": "x" }, porSlug: { x: "www.x.com.br" } });
+  globalThis.fetch = (async (url: string | URL | Request) => {
+    const u = String(url instanceof Request ? url.url : url);
+    if (u.includes("/api/dominios")) return respostaDominios();
+    return Response.json([]);
+  }) as typeof fetch;
+  try {
+    const pedir = () => proxy(new NextRequest("https://www.x.com.br/", { headers: { host: "www.x.com.br" } }));
+    const primeira = await pedir();
+    assert.match(primeira.headers.get("x-middleware-rewrite") ?? "", /\/s\/x/, "com o mapa, o domínio vai para o site");
+    respostaDominios = () => new Response("indisponivel", { status: 503 });
+    Date.now = () => agoraReal() + 61_000; // passa o minuto de cache: a próxima consulta vai à rota
+    const depois = await pedir();
+    assert.match(depois.headers.get("x-middleware-rewrite") ?? "", /\/s\/x/, "503 mantém o mapa anterior");
+  } finally {
+    globalThis.fetch = fetchReal;
+    Date.now = agoraReal;
+  }
+  console.log("503 mantém o mapa anterior ok");
+}

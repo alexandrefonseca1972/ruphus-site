@@ -1,6 +1,7 @@
 import { adminDb } from "@/lib/admin";
 import { foraDoAr } from "@/lib/booking.server";
 import { lerSite } from "@/lib/gerador.server";
+import { SLUG_SITE } from "@/lib/site-arquivo";
 import { doStorage } from "@/lib/site-arquivo.server";
 import { renderEditorial } from "@/lib/site-editorial";
 import { ehClaro, renderClaro } from "@/lib/site-claro";
@@ -19,11 +20,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const slug = (await params).slug;
-  // tirado do ar (cobrança): o proxy barra o subdomínio, e isto barra www.ruphus.site/s/{slug}
-  if (/^[a-z0-9-]{1,63}$/.test(slug) && (await foraDoAr(adminDb, slug))) {
-    return new Response("Página não encontrada", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
-  }
-  const publicado = await doStorage(slug, ["index.html"]);
+  if (!SLUG_SITE.test(slug)) return new Response("Página não encontrada", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
+  // tirado do ar (cobrança) e o index.html publicado, juntos: o proxy barra o subdomínio, e isto
+  // barra www.ruphus.site/s/{slug}. A ordem continua Storage → gerador (a fábrica publicada por cima vence)
+  const [fora, publicado] = await Promise.all([foraDoAr(adminDb, slug), doStorage(slug, ["index.html"])]);
+  if (fora) return new Response("Página não encontrada", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
   if (publicado) return publicado;
   const dados = await lerSite(adminDb, slug);
   if (!dados) return new Response("Página não encontrada", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });

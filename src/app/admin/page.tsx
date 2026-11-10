@@ -395,6 +395,8 @@ export default function AdminPage() {
     setEspacos((e) => (e[slug] ? { ...e, [slug]: { ...e[slug], acessos: e[slug].acessos - menos } } : e));
     setAberto((x) => (x && x.slug === slug ? { ...x, acessos: x.acessos - menos } : x));
     const lida = await listarAcessos(await token(), slug);
+    // a gaveta pode ter mudado de negócio enquanto a lista vinha
+    if (abertoRef.current !== slug) return;
     setAcessos(lida.ok ? lida.dados : (a) => a?.filter((x) => x.uid !== uid) ?? null);
   }
 
@@ -465,7 +467,7 @@ export default function AdminPage() {
     // mudança de estágio vira evento: a linha do tempo aberta acompanha
     if (dados.estagio && dados.estagio !== atual?.estagio && aberto?.slug === slug) {
       const n = await linhaDoTempoDo(await token(), slug);
-      if (n.ok) setEventos(n.dados);
+      if (n.ok && abertoRef.current === slug) setEventos(n.dados);
     }
     return true;
   }

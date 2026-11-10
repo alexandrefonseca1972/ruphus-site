@@ -124,6 +124,8 @@ async function gravarResultado(id: string, worker: string, final: ReturnType<typ
   for (let i = 0; i < docs.length; i += 400) {
     const lote = adminDb.batch();
     docs.slice(i, i + 400).forEach((d, k) => lote.set(leads.doc(String(placeId(d.link_maps) ?? `sem-id-${i + k}`).replace(/[:/]/g, "_")), d));
+    // a cada lote: o admin pode ter cancelado ou passado o pedido a outro worker no meio da gravação
+    await seAindaMeu(ref, worker);
     await lote.commit();
   }
   const motivos: Record<string, number> = {};

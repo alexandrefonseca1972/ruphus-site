@@ -1,7 +1,9 @@
 import { ImageResponse } from "next/og";
 import sharp from "sharp";
 import { adminDb } from "@/lib/admin";
+import { foraDoAr } from "@/lib/booking.server";
 import { lerSite } from "@/lib/gerador.server";
+import { SLUG_SITE } from "@/lib/site-arquivo";
 import { doStorage } from "@/lib/site-arquivo.server";
 import { capaEditorial } from "@/lib/site-editorial";
 import { capaClaro, ehClaro } from "@/lib/site-claro";
@@ -17,12 +19,28 @@ import { capaClaro, ehClaro } from "@/lib/site-claro";
 // Quem pede é o WhatsApp/Google ao ler o link e a gaveta do admin: pouca coisa.
 export const dynamic = "force-dynamic";
 
+// A mesma fonte com o mesmo texto não é baixada de novo. Com teto: o texto muda por site, e o
+// mapa não pode crescer sem fim (cada TTF recortado tem poucos KB).
+// ponytail: limpa tudo ao bater o teto; LRU se o acerto ficar baixo
+const fontes = new Map<string, Promise<ArrayBuffer>>();
+const TETO_FONTES = 200;
+
 /** A fonte em TTF, só com as letras do texto (o ImageResponse não lê woff2). */
-async function fonte(familia: string, texto: string) {
-  const css = await (await fetch(`https://fonts.googleapis.com/css2?family=${familia.replace(/ /g, "+")}&text=${encodeURIComponent(texto)}`)).text();
-  const url = /src: url\((.+?)\) format\('(?:opentype|truetype)'\)/.exec(css)?.[1];
-  if (!url) throw new Error(`Fonte ${familia} não veio em TTF`);
-  return (await fetch(url)).arrayBuffer();
+function fonte(familia: string, texto: string) {
+  const chave = `${familia}|${texto}`;
+  const guardada = fontes.get(chave);
+  if (guardada) return guardada;
+  const baixando = (async () => {
+    const css = await (await fetch(`https://fonts.googleapis.com/css2?family=${familia.replace(/ /g, "+")}&text=${encodeURIComponent(texto)}`, { signal: AbortSignal.timeout(5000) })).text();
+    const url = /src: url\((.+?)\) format\('(?:opentype|truetype)'\)/.exec(css)?.[1];
+    if (!url) throw new Error(`Fonte ${familia} não veio em TTF`);
+    return (await fetch(url, { signal: AbortSignal.timeout(5000) })).arrayBuffer();
+  })();
+  if (fontes.size >= TETO_FONTES) fontes.clear();
+  fontes.set(chave, baixando);
+  // falha não fica guardada: a próxima prévia tenta de novo
+  baixando.catch(() => fontes.delete(chave));
+  return baixando;
 }
 
 // De onde a foto é buscada. Não do pedido: rota em cache (revalidate) não pode ler
@@ -34,9 +52,12 @@ const BASE =
 
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const slug = (await params).slug;
+  if (!SLUG_SITE.test(slug)) return new Response("Imagem não encontrada", { status: 404 });
   // site do gerador: a imagem sai do modelo. O og.jpg guardado no Storage é o da fábrica,
-  // que ficou lá depois da conversão e mostrava a foto velha no WhatsApp (645 sites)
-  const d = await lerSite(adminDb, slug);
+  // que ficou lá depois da conversão e mostrava a foto velha no WhatsApp (645 sites).
+  // Fora do ar (cobrança): sem prévia, como o site
+  const [fora, d] = await Promise.all([foraDoAr(adminDb, slug), lerSite(adminDb, slug)]);
+  if (fora) return new Response("Imagem não encontrada", { status: 404 });
   if (!d) return (await doStorage(slug, ["og.jpg"])) ?? new Response("Imagem não encontrada", { status: 404 });
   const capa = ehClaro(d.sub) ? capaClaro(d) : capaEditorial(d);
 

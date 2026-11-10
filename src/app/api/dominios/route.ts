@@ -11,8 +11,13 @@ export async function GET(request: NextRequest) {
   const segredo = process.env.DESATIVADOS_TOKEN;
   if (!segredo && process.env.NODE_ENV === "production") return new NextResponse("nao encontrado", { status: 404 });
   if (segredo && !segredoIgual(request.headers.get("x-ruphus"), segredo)) return new NextResponse("nao encontrado", { status: 404 });
-  const mapa = await mapaDominios(adminDb).catch(() => ({ hosts: {}, porSlug: {} }));
-  return NextResponse.json(mapa, {
-    headers: { "cache-control": segredo ? "private, max-age=30" : "public, max-age=30, stale-while-revalidate=300" },
-  });
+  try {
+    return NextResponse.json(await mapaDominios(adminDb), {
+      headers: { "cache-control": segredo ? "private, max-age=30" : "public, max-age=30, stale-while-revalidate=300" },
+    });
+  } catch (e) {
+    // 503, não mapa vazio: o proxy só troca o mapa com 200 e segue com o anterior
+    console.error("[dominios] mapa", e);
+    return new NextResponse("indisponivel", { status: 503, headers: { "cache-control": "no-store" } });
+  }
 }

@@ -57,6 +57,13 @@ export async function criarNegocioAction(idToken: string, input: unknown, utm: u
   try {
     if (aceitouContrato !== true) throw new UserError(CONTRATO_RECUSADO);
     const user = await quem(idToken);
+    // e-mail confirmado: sem isto, qualquer um cria conta com o e-mail alheio e um negócio que
+    // dispara convites e recibos em nome da Ruphus
+    if (!user.email) {
+      throw new UserError(user.emailPendente
+        ? `Confirme o e-mail ${user.emailPendente} pelo link que enviamos e toque em Criar de novo.`
+        : "Entre com uma conta de e-mail confirmado para cadastrar o negócio.");
+    }
     const slug = await criarNegocio(adminDb, user, input, utm, await dadosDoAceite(user, "cadastro"));
     confirmarAceite(user, slug);
     return { ok: true as const, slug };

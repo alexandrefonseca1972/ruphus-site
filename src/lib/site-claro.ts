@@ -7,7 +7,7 @@ import {
   paraTelefone,
 } from "@/lib/gerador";
 import { BOTAO_AGENDAR, BOTAO_TOPO, ESTILO_AGENDAR, itemMenu } from "@/lib/botao-agendar";
-import { destaqueNoTopo } from "@/lib/contraste";
+import { destaqueNoTopo, luminancia } from "@/lib/contraste";
 export { destaqueNoTopo };
 import { PET } from "@/lib/nichos/pet";
 import { AULAS } from "@/lib/nichos/aulas";
@@ -88,7 +88,6 @@ export function galeriaClaro(slug: string, sub: Sub) {
 }
 
 // texto branco ou escuro por cima de uma cor: o claro escreve nos botões (--accent) e nos selos (--gold)
-const luminancia = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).reduce((soma, v, k) => soma + [0.2126, 0.7152, 0.0722][k] * (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4), 0);
 export const tintaSobre = (hex: string) => (luminancia(hex) > 0.4 ? "#1B1208" : "#FFFFFF");
 
 /** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. Com `personal`, as

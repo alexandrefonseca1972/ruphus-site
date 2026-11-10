@@ -1,9 +1,10 @@
 import "server-only";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
+import { SITE_BASE } from "@/lib/dominio";
 
 // O www serve /s/{slug}/… e /bio/{slug}; o mesmo endereço que a rota do og.jpg usa
-const BASE = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://www.ruphus.site";
+const BASE = SITE_BASE;
 
 /** Depois de gravar algo que muda o site de um negócio: a bio (o site e a imagem do link são
  *  montados a cada visita, sem cache para derrubar).

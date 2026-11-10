@@ -49,6 +49,6 @@ export const cacheDe = (nome: string) =>
     ? `public, max-age=${nome.endsWith(".html") ? 0 : 300}, s-maxage=60, stale-while-revalidate=86400`
     // foto própria do admin tem nome fixo e é trocada no lugar: o navegador confere sempre (o
     // ETag responde 304) e a CDN guarda um minuto, como o HTML
-    : /\/fotos\/[a-z0-9]+\.jpg$/.test(nome)
+    : /\/fotos\/[a-z0-9-]+\.jpg$/.test(nome)
       ? "public, max-age=0, must-revalidate, s-maxage=60"
       : "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800";

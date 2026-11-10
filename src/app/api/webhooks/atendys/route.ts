@@ -189,7 +189,7 @@ export async function POST(req: Request) {
       data,
       timestamp: evento.at,
     }, data ? "salao" : undefined);
-    console.log(`[atendys] mensagem de ${evento.phone ?? "?"} para ${slug}${nova ? "" : " (repetida)"}`);
+    console.log(`[atendys] mensagem de …${evento.phone?.slice(-4) ?? "?"} para ${slug}${nova ? "" : " (repetida)"}`);
     // O comando roda fora da resposta: o atendys espera 200 rápido e o envio da
     // confirmação pode levar mais que isso. Só mensagem NOVA dispara comando —
     // entrega repetida do mesmo messageId vira no-op.

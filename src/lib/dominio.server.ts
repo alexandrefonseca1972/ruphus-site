@@ -31,16 +31,23 @@ async function conferir(nome: string, ehRaiz = false): Promise<{ pronto: boolean
 export async function conectarDominio(db: Firestore, slug: string, entrada: string): Promise<Dominio> {
   const host = normalizarHost(entrada);
   if (!host) throw new ErroPrevisto("Endereço inválido. Use algo como www.salaodaana.com.br.");
+  const raiz = raizDe(host);
   const t = db.doc(`tenants/${slug}`);
-  const [tenant, outro] = await Promise.all([
+  // o host e a raiz não podem ser nem o host nem a raiz de outro negócio: o mapa do proxy junta
+  // os dois em hosts{}, e um sobrescreveria o outro. limit(2): o próprio negócio pode aparecer
+  const tenants = db.collection("tenants");
+  const com = (campo: string, valor: string) => tenants.where(campo, "==", valor).limit(2).get();
+  const [tenant, ...achados] = await Promise.all([
     t.get(),
-    db.collection("tenants").where("dominio.host", "==", host).limit(1).get(),
+    com("dominio.host", host),
+    com("dominio.raiz", host),
+    ...(raiz ? [com("dominio.host", raiz), com("dominio.raiz", raiz)] : []),
   ]);
   if (!tenant.exists) throw new ErroPrevisto("Negócio não encontrado.");
   if (!tenant.get("gerado.publicadoEm")) throw new ErroPrevisto("O domínio próprio é do site publicado: dê baixa na entrada antes.");
-  if (!outro.empty && outro.docs[0].id !== slug) throw new ErroPrevisto(`${host} já está ligado a outro negócio (${outro.docs[0].id}).`);
+  const outro = achados.flatMap((q) => q.docs).find((d) => d.id !== slug);
+  if (outro) throw new ErroPrevisto(`${host} já está ligado a outro negócio (${outro.id}).`);
   ipDaVps();
-  const raiz = raizDe(host);
   const dominio: Dominio = { host, raiz, status: "pendente", desde: Date.now() };
   await t.update({ dominio });
   return dominio;
@@ -81,4 +88,25 @@ export async function mapaDominios(db: Firestore): Promise<MapaDominios> {
     if (dom.raiz) mapa.hosts[dom.raiz] = d.id;
   }
   return mapa;
+}
+
+/** Uma vez por dia (cron de lembretes, 4h): domínio ativo cujo DNS saiu da VPS volta a pendente,
+ *  e o proxy para de mandar o subdomínio para ele. Só decide com resposta do DNS (ou "não existe",
+ *  domínio expirado): timeout e SERVFAIL ficam para o dia seguinte, sem rebaixar.
+ *  Devolve quantos voltaram a pendente. */
+export async function reverificarDominios(db: Firestore) {
+  if (!process.env.DOMINIO_IP) return 0;
+  const snap = await db.collection("tenants").where("dominio.status", "==", "ativo").select("dominio").get();
+  let rebaixados = 0;
+  for (const d of snap.docs) {
+    const host = (d.get("dominio") as Dominio).host;
+    // decide pela primeira resposta do DNS: timeout e SERVFAIL ficam para o dia seguinte
+    const ips = await resolve4(host).catch((e: { code?: string }) => (e?.code === "ENOTFOUND" || e?.code === "ENODATA" ? [] : null));
+    if (ips === null) continue;
+    if (ips.length && ips.every((i) => i === process.env.DOMINIO_IP)) continue;
+    await d.ref.update({ "dominio.status": "pendente" });
+    rebaixados++;
+    console.warn(`[dominio] ${host} (${d.id}) não aponta mais para a VPS: voltou a pendente`);
+  }
+  return rebaixados;
 }

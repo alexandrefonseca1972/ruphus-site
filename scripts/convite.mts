@@ -6,8 +6,9 @@ import assert from "node:assert/strict";
 import { applicationDefault, cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { criarConvite, lerConvite } from "@/lib/convite";
+import { SITE_BASE } from "@/lib/dominio";
 
-const BASE = process.env.SITE_URL ?? "https://www.ruphus.site";
+const BASE = SITE_BASE;
 
 function db() {
   const app = initializeApp({

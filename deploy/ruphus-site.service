@@ -11,6 +11,10 @@ ExecStart=/opt/ruphus-site/app/node_modules/.bin/next start -H localhost -p 3001
 Environment=NODE_ENV=production
 Environment=NEXT_TELEMETRY_DISABLED=1
 Environment=TZ=America/Sao_Paulo
+# memória (antes só no drop-in /etc/systemd/system/ruphus-site.service.d/memoria.conf da VPS):
+# heap de 1280 MB e o jemalloc, que devolve memória ao sistema (apt install libjemalloc2)
+Environment=NODE_OPTIONS=--max-old-space-size=1280
+Environment=LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
 # o worker da coleta é o serviço ruphus-coleta: sem botão de ligar pelo admin
 Environment=COLETA_SERVICO=1
 Restart=always

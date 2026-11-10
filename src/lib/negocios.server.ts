@@ -5,7 +5,7 @@ import { z } from "zod";
 import { UserError } from "@/lib/booking.server";
 import { DadosFabrica, DadosNegocio, leadDoDono, NegocioInput, type Sub, SUBS, UtmInput } from "@/lib/gerador";
 import { personalDe, registrosDoSite } from "@/lib/gerador.server";
-import { FUSOS } from "@/lib/datetime";
+import { FUSOS, todayIn } from "@/lib/datetime";
 import { limiteStaffDe } from "@/lib/limites";
 import { Role } from "@/lib/tenant-input";
 
@@ -201,7 +201,8 @@ export async function salvarNegocio(db: Firestore, slug: string, input: unknown,
     novo: false, ownerId: String(t.get("ownerId")), origem, escolha: mudouRamo ? undefined : t.get("gerado.escolha"), personal: personalDe(t.get("gerado.personal")),
   });
   const { rating: _nota, reviews: _avaliacoes, ...site } = negocio.dados.site as Record<string, unknown>;
-  await ref.set({ ...negocio.dados, site: { ...(google ? negocio.dados.site : site), fuso: d.fuso || null } }, { merge: true });
+  // editadoEm: a planilha e a coleta (gerarNoBanco) não regravam o que foi editado aqui
+  await ref.set({ ...negocio.dados, gerado: { ...(negocio.dados.gerado as Record<string, unknown>), editadoEm: FieldValue.serverTimestamp() }, site: { ...(google ? negocio.dados.site : site), fuso: d.fuso || null } }, { merge: true });
   if (mudouRamo && t.get("gerado.escolha")) await ref.update({ "gerado.escolha": FieldValue.delete() });
 }
 
@@ -240,4 +241,17 @@ export async function negociosDe(db: Firestore, uid: string) {
   return membros
     .map((d, i) => ({ id: d.ref.parent.parent!.id, name: (docs[i].get("name") as string | undefined) ?? d.ref.parent.parent!.id, role: Role.catch("member").parse(d.get("role")) }))
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+/** Cota diária dos e-mails que um negócio dispara pela Ruphus (convite da equipe, recibo): sem
+ *  ela, uma conta manda milhares de e-mails em nome de noreply@/contato@ruphus.site e queima o
+ *  domínio. Conta por dia de São Paulo, numa transação, em tenants/{id}/limites (as regras não
+ *  deixam o app ler nem gravar ali). Estoura com UserError, que a tela mostra. */
+export async function gastarCota(db: Firestore, tenantId: string, tipo: "convites" | "recibos", teto: number) {
+  const ref = db.doc(`tenants/${tenantId}/limites/${tipo}-${todayIn()}`);
+  await db.runTransaction(async (tx) => {
+    const usados = ((await tx.get(ref)).get("usados") as number | undefined) ?? 0;
+    if (usados >= teto) throw new UserError(`Limite de ${teto} envios por dia atingido. Tente amanhã ou fale com a Ruphus.`);
+    tx.set(ref, { usados: usados + 1, atualizadoEm: FieldValue.serverTimestamp() }, { merge: true });
+  });
 }

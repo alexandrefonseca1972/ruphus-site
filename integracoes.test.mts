@@ -46,6 +46,14 @@ assert.equal((await integracoesNaTela()).find((i) => i.nome === "COMTELE_API_KEY
   delete process.env.GMAIL_USER;
   assert.equal(await alertarAdmin(db, "outro", "Falhou", "x", { enviar, agora: 0 }), false, "sem e-mail nenhum, não quebra");
   assert.equal(await alertarAdmin(db, "quebra", "Falhou", "x", { enviar: async () => { throw new Error("smtp fora"); }, agora: 0 }), false, "e-mail fora não quebra");
+  const { vigiarCron } = await import("@/lib/alerta-admin.server");
+  const { Timestamp } = await import("firebase-admin/firestore");
+  process.env.GMAIL_USER = "conta@ruphus.site";
+  assert.equal(await vigiarCron(db, { enviar, agora: 0 }), false, "sem marca, não avisa");
+  await db.doc("config/cron").set({ ultimaExecucao: Timestamp.fromMillis(1_000_000_000_000) });
+  assert.equal(await vigiarCron(db, { enviar, agora: 1_000_000_000_000 + 10 * 60_000 }), false, "10 min: em dia");
+  assert.equal(await vigiarCron(db, { enviar, agora: 1_000_000_000_000 + 40 * 60_000 }), true, "40 min: avisa");
+  delete process.env.GMAIL_USER;
 }
 
 // verificação ao vivo de Ajustes: fetch simulado, nada enviado; o detalhe nunca leva a chave

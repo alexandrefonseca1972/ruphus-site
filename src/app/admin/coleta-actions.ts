@@ -250,9 +250,11 @@ export const previaDaColeta = adminAction(async (user, id: string) => {
   if (estado !== "pronta" && estado !== "gerando") throw new ErroPrevisto("A coleta ainda não terminou (ou já foi gerada).");
   const leads = await novosDa(ref);
   const linhas: LinhaDaPrevia[] = [];
+  // a UF é lida uma vez para todos os lotes (a prévia não grava, então a leitura não envelhece)
+  const doEstado = new Map();
   for (let i = 0; i < leads.length; i += TETO_LOTE) {
     const lote = leads.slice(i, i + TETO_LOTE);
-    const geradas = await gerarNoBanco(adminDb, lote.map(({ id: _, ...l }) => l), false, process.env.OWNER_UID || user.uid);
+    const geradas = await gerarNoBanco(adminDb, lote.map(({ id: _, ...l }) => l), false, process.env.OWNER_UID || user.uid, doEstado);
     // gerarNoBanco devolve na ordem da entrada
     linhas.push(...geradas.map((g, k) => ({ ...g, leadId: lote[k].id })));
   }

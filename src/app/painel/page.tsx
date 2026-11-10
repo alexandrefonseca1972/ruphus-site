@@ -293,6 +293,9 @@ function NegocioForm({
     if (!aceito) return setErro(CONTRATO_RECUSADO);
     setErro("");
     setBusy(true);
+    // quem confirmou o e-mail em outra aba: o token só sabe depois de recarregar a conta e renovar
+    const conta = auth.currentUser;
+    if (conta && !conta.emailVerified) await conta.reload().then(() => conta.getIdToken(true)).catch(() => {});
     // No servidor: é lá que o limite de negócios por conta é conferido
     // o anúncio que trouxe a pessoa vai junto: é o que o funil do /admin agrupa por campanha
     const r = await criarNegocioAction(await idToken(), { name, slug: final, ...campos }, lerUtm(), aceito).catch(() => ({

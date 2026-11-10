@@ -157,7 +157,8 @@ export async function proxy(request: NextRequest) {
     url.host = destino;
     url.port = "";
     url.protocol = "https:";
-    return NextResponse.redirect(url, 308);
+    // 307: o domínio próprio pode ser desligado, e um 308 ficaria guardado no navegador para sempre
+    return NextResponse.redirect(url, 307);
   };
   if (slug) {
     // site com domínio próprio ativo: o subdomínio leva para lá, links antigos e QR inclusive.

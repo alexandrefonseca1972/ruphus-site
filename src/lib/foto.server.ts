@@ -1,5 +1,4 @@
 import "server-only";
-import sharp from "sharp";
 import { adminBucket, adminDb } from "@/lib/admin";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import type { Sub } from "@/lib/gerador";
@@ -33,8 +32,10 @@ export async function tenantGerado(slug: string) {
   return { tenant, sub };
 }
 
-const objeto = (slug: string, slot: Slot) => {
-  const nome = objetoDoSite(slug, ["fotos", `${slot}.jpg`]);
+// rascunho: a foto enviada e ainda não publicada (fotos/rascunho-{posição}.jpg). O site no ar só
+// lê o nome fixo, que o definirVisual preenche ao publicar
+const objeto = (slug: string, slot: Slot, rascunho = false) => {
+  const nome = objetoDoSite(slug, ["fotos", `${rascunho ? "rascunho-" : ""}${slot}.jpg`]);
   if (!nome) throw new ErroPrevisto("Negócio inválido.");
   return adminBucket().file(nome);
 };
@@ -51,6 +52,9 @@ export async function processarFoto(slug: string, slot: Slot, corpo: Buffer) {
   let jpeg: Buffer;
   try {
     // o tipo declarado pelo navegador não vale: o formato é o que o sharp lê do arquivo
+    // sob demanda, como em admin/actions.ts (pré-visualização da IA): quem importa este módulo só para
+    // ler ou apagar foto não carrega o binário nativo
+    const sharp = (await import("sharp")).default;
     const img = sharp(corpo, { limitInputPixels: MAX_PIXELS });
     const { format } = await img.metadata();
     if (!FORMATOS.includes(format ?? "")) throw new ErroPrevisto("Formato não aceito. Envie JPG, PNG ou WebP.");
@@ -63,26 +67,47 @@ export async function processarFoto(slug: string, slot: Slot, corpo: Buffer) {
     if (err instanceof ErroPrevisto) throw err;
     throw new ErroPrevisto("Não consegui ler a imagem. Envie JPG, PNG ou WebP de até 40 megapixels.");
   }
-  await objeto(slug, slot).save(jpeg, { contentType: "image/jpeg", resumable: false });
+  await objeto(slug, slot, true).save(jpeg, { contentType: "image/jpeg", resumable: false });
   return { ref: `fotos/${slot}.jpg` as const, bytes: jpeg.length };
 }
 
-/** A foto própria gravada, ou null se a posição não tem arquivo. */
+/** A foto própria da posição: a enviada e não publicada, senão a publicada; null se não há arquivo. */
 export async function lerFoto(slug: string, slot: Slot): Promise<Buffer | null> {
-  const f = objeto(slug, slot);
-  if (!(await f.exists())[0]) return null;
-  return (await f.download())[0];
+  for (const f of [objeto(slug, slot, true), objeto(slug, slot)]) {
+    if ((await f.exists())[0]) return (await f.download())[0];
+  }
+  return null;
 }
 
-/** As posições do rascunho que apontam para um arquivo que não está no Storage. */
+const existe = async (slug: string, slot: Slot) => (await objeto(slug, slot, true).exists())[0] || (await objeto(slug, slot).exists())[0];
+
+/** As posições do rascunho que apontam para um arquivo que não está no Storage (nem enviado, nem publicado). */
 export async function fotosFaltando(slug: string, fotos: Partial<Record<Slot, string>> | undefined) {
   const slots = SLOTS.filter((s) => fotos?.[s]);
-  const existem = await Promise.all(slots.map((s) => objeto(slug, s).exists().then(([e]) => e)));
+  const existem = await Promise.all(slots.map((s) => existe(slug, s)));
   return slots.filter((_, i) => !existem[i]);
 }
 
+/** As posições com foto enviada e ainda não publicada: a prévia mostra essas. */
+export async function slotsEmRascunho(slug: string) {
+  const tem = await Promise.all(SLOTS.map((s) => objeto(slug, s, true).exists().then(([e]) => e)));
+  return SLOTS.filter((_, i) => tem[i]);
+}
+
+/** Ao publicar: a foto enviada vira a do site, no nome fixo. Antes de gravar o tenant, para o
+ *  carimbo novo (personal.versao) já achar o arquivo novo. */
+export async function publicarFotos(slug: string, emUso: Partial<Record<Slot, string>> | undefined) {
+  await Promise.all(SLOTS.filter((s) => emUso?.[s]).map(async (s) => {
+    const rascunho = objeto(slug, s, true);
+    if (!(await rascunho.exists())[0]) return;
+    await rascunho.copy(objeto(slug, s));
+    await rascunho.delete({ ignoreNotFound: true });
+  }));
+}
+
+/** Apaga a foto da posição: a publicada e a enviada. */
 export async function apagarFoto(slug: string, slot: Slot) {
-  await objeto(slug, slot).delete({ ignoreNotFound: true });
+  await Promise.all([objeto(slug, slot, true), objeto(slug, slot)].map((f) => f.delete({ ignoreNotFound: true })));
 }
 
 /** Ao publicar: apaga do Storage as posições que o visual publicado não usa mais. Até lá o

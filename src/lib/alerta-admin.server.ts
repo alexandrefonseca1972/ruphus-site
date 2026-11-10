@@ -1,5 +1,5 @@
 import "server-only";
-import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, type Firestore, type Timestamp } from "firebase-admin/firestore";
 import { enviarEmail, type EmailSaida } from "@/lib/email.server";
 import { integracao } from "@/lib/integracoes.server";
 
@@ -39,4 +39,14 @@ export async function alertarAdmin(db: Firestore, chave: string, assunto: string
     console.error(`[alerta] não avisei o admin: ${assunto}`, e);
     return false;
   }
+}
+
+/** O cron da VPS (deploy/crontab.txt) chama /api/cron/lembretes a cada 10 min, e a rota marca
+ *  config/cron. Marca com mais de 30 min quer dizer que o cron parou (crontab apagado, CRON_SECRET
+ *  trocado) e os lembretes pararam calados. Sem marca (antes do primeiro cron), não avisa. */
+export async function vigiarCron(db: Firestore, { enviar = enviarEmail, agora = Date.now() }: Opcoes = {}) {
+  const ultima = (await db.doc("config/cron").get()).get("ultimaExecucao") as Timestamp | undefined;
+  if (!ultima || agora - ultima.toMillis() < 30 * 60_000) return false;
+  const quando = ultima.toDate().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  return alertarAdmin(db, "cron-parado", "O cron dos lembretes parou", `A última execução de /api/cron/lembretes foi em ${quando}.\n\nNa VPS: crontab -u ruphus -l e journalctl -t ruphus-cron -n 20.`, { enviar, agora });
 }

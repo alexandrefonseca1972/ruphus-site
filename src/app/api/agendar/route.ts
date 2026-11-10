@@ -153,7 +153,7 @@ export async function POST(req: Request) {
             if (!saiuDepoisDoAceite(e)) console.error("recibo de agendamento via WhatsApp", e);
           }
         } else {
-          console.warn(`[whatsapp] ${tenantId}: telefone do cliente inválido (${b.data.customerPhone}); recibo de agendamento não enviado`);
+          console.warn(`[whatsapp] ${tenantId}: telefone do cliente inválido (…${b.data.customerPhone.slice(-4)}); recibo de agendamento não enviado`);
         }
         // falha grava o detalhe; aviso bem-sucedido limpa só a falha de aviso de agendamento
         // (a de lembrete ou de comando descartado continua na gaveta)

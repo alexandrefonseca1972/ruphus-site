@@ -162,7 +162,7 @@ export async function abrirCobranca(db: Firestore, id: string, token: string): P
   const guardado = String(snap.get("token") ?? "");
   const a = Buffer.from(guardado);
   const b = Buffer.from(token);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  if (!guardado || a.length !== b.length || !timingSafeEqual(a, b)) return null;
 
   const c = cobranca(id, snap);
   const tenant = await db.collection("tenants").doc(c.slug).get();

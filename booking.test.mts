@@ -500,6 +500,13 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.equal((await cotaDe(db, alvo.uid)).usados, 1, "admin do convite conta");
 }
 
+{
+  const { gastarCota } = await import("@/lib/negocios.server");
+  for (let i = 0; i < 3; i++) await gastarCota(db, "cota-teste", "convites", 3);
+  await assert.rejects(gastarCota(db, "cota-teste", "convites", 3), /Limite de 3/, "a 4ª no dia estoura");
+  await gastarCota(db, "cota-teste", "recibos", 3); // outro tipo, outra conta
+}
+
 // CRM: perda pede motivo; estágio e mensagem viram eventos; a linha do tempo junta tudo
 {
   const slug = "primeiro-limite";

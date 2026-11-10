@@ -68,6 +68,10 @@ async function peloGmail({ para, assunto, texto, html, de }: EmailSaida, usuario
     port: 465,
     secure: true,
     auth: { user: usuario, pass: senha },
+    // como o Resend (10 s): sem isto o padrão do nodemailer espera 2 min para conectar e 10 min no socket
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
   });
   // Com HTML, o texto puro segue junto: é ele que aparece onde o HTML não é exibido
   await transporte.sendMail({ from: `"${de ? nomeDe(de) : "Ruphus"}" <${remetente}>`, replyTo: remetente, to: para, subject: assunto, text: texto, html });

@@ -38,3 +38,6 @@ export function resolverDominio(host: string, mapa: MapaDominios): { slug: strin
   const principal = mapa.porSlug[slug];
   return principal && principal !== h ? { redirecionar: principal } : { slug };
 }
+
+/** O www da Ruphus, sem barra no fim: links de convite, cobrança e recibo. SITE_URL no servidor. */
+export const SITE_BASE = (process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://www.ruphus.site").replace(/\/+$/, "");
