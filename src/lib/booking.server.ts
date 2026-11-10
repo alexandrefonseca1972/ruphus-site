@@ -730,12 +730,16 @@ export async function rescheduleSlots(db: Firestore, q: Omit<RescheduleInput, "t
   return db.runTransaction(async (tx) => (await rescheduleContext(tx, db, q))?.slots ?? [], { readOnly: true });
 }
 
-export async function reschedule(db: Firestore, input: RescheduleInput, actor: Actor) {
+/** opcoes.manterStatus: remarcação pelo cliente (WhatsApp) não desfaz a confirmação do dono.
+ *  opcoes.esperado: o horário que o cliente viu; se mudou até a transação, não remarca. */
+export async function reschedule(db: Firestore, input: RescheduleInput, actor: Actor, opcoes: { manterStatus?: boolean; esperado?: Date } = {}) {
   const preso = await profissionalDaConta(db, input.tenantId, actor.uid);
   return contended(() => db.runTransaction(async (tx) => {
     const ctx = await rescheduleContext(tx, db, input);
     if (!ctx) return { ok: false as const, error: "Agendamento, serviço ou profissional indisponível." };
     if (preso && ctx.appt.get("staffId") !== preso) return { ok: false as const, error: DE_OUTRO };
+    // o salão remarcou entre a lista do cliente e esta transação: a escolha era sobre o horário antigo
+    if (opcoes.esperado && (ctx.appt.get("start") as Timestamp | undefined)?.toMillis() !== opcoes.esperado.getTime()) return { ok: false as const, error: "Esse horário mudou. Confira o horário atual." };
     if (!ctx.slots.includes(input.time)) return { ok: false as const, error: "Esse horário não está livre. Escolha outro." };
     // recebido no Caixa: o recebimento ficaria no dia antigo e o atendimento voltaria a "receber"
     if ((await tx.get(ctx.t.collection("lancamentos").doc(`ag-${ctx.ref.id}`))).exists) return { ok: false as const, error: "Este atendimento já foi recebido no Caixa. Apague o recebimento antes de remarcar." };
@@ -760,9 +764,10 @@ export async function reschedule(db: Firestore, input: RescheduleInput, actor: A
       durationMin: ctx.durationMin,
       priceCents: ctx.svc.reduce((sum, s) => sum + s.priceCents, 0),
       precoAberto: ctx.svc.some((s) => (s.tipoPreco ?? "fixo") !== "fixo"),
-      status: "booked", // precisa de nova confirmação
+      status: opcoes.manterStatus ? ctx.appt.get("status") : "booked", // remarcado pelo salão: precisa de nova confirmação
       rescheduledAt: FieldValue.serverTimestamp(),
       whatsappReminderSentAt: FieldValue.delete(), // o lembrete do horário antigo não vale para o novo
+      presencaConfirmadaEm: FieldValue.delete(), // nem a presença que o cliente confirmou para ele
       // quem remarca é o salão: o sinal ainda por pagar fica dispensado, senão o prazo antigo cancelaria o horário novo
       ...(ctx.appt.get("sinal.status") === "pendente" && { "sinal.status": "dispensado" }),
     });

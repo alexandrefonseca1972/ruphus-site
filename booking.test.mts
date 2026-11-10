@@ -192,6 +192,9 @@ assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id,
 moved = (await corte.ref.get()).data()!;
 assert.equal(moved.start.toMillis(), zonedTime(D1, "11:30").getTime());
 assert.ok((await availableSlots(db, { ...base, serviceIds: ["corte"] })).includes("09:00"), "horário antigo liberado");
+// cliente escolheu na lista do horário antigo (D 09:15); o salão já o mudou para D1 11:30: não remarca
+const mudou = await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "09:00" }, actor, { manterStatus: true, esperado: zonedTime(D, "09:15") });
+assert.deepEqual([mudou.ok, (await corte.ref.get()).get("start").toMillis()], [false, zonedTime(D1, "11:30").getTime()], "start mudou entre a leitura e a transação");
 assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: "nao-existe", date: D1, time: "09:00" }, actor)).ok, false);
 assert.equal((await t.collection("history").where("appointmentId", "==", corte.id).get()).size, 5, "criado + 4 remarcações");
 await corte.ref.update({ status: "no_show" });
@@ -317,8 +320,9 @@ assert.equal((await endPlan(db, { tenantId: "salao", planId: plan.planId }, acto
 // Limites contra reservas em massa (telefone e dispositivo)
 // Longe da janela do plano (hoje+14 a hoje+35): com hoje+20, o 3º dia deste bloco
 // caía em segundas[1] às 10:00 sempre que o teste rodava num domingo, e a recusa
-// vinha do horário ocupado na linha 176, não do limite.
-const limDate = addDays(todayIn(), 60);
+// vinha do horário ocupado na linha 176, não do limite. Também longe do plano da Yara
+// (segunda às 10:00 entre hoje+60 e hoje+66): com hoje+60, o mesmo choque num sábado.
+const limDate = addDays(todayIn(), 75);
 const spam = { tenantId: "salao", staffId: "bia", serviceIds: ["corte"], customerName: "Robô", customerPhone: "11 98888-1111" };
 const horarios = ["09:00", "09:30", "10:00", "10:30", "11:00"];
 const feitas = [];

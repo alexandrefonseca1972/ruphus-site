@@ -43,7 +43,7 @@ import { Atrasadas, Cobrancas } from "./cobranca";
 import { emDestaque, local, VISOES, visaoDe, type Visao } from "@/lib/painel-consulta";
 import { ehOrdem, PAGINA, PAGINA_MAX, type Filtros, type Ordem } from "@/lib/painel-tipos";
 import { cents, emReais } from "@/lib/dinheiro";
-import { loginComMotivo, MINUTOS_MAX, sair, useAutoLogout } from "@/lib/sessao";
+import { MINUTOS_MAX, sair, useAutoLogout } from "@/lib/sessao";
 import { COMMIT, VERSAO } from "@/lib/versao";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX } from "@/lib/limites";
 import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
@@ -226,7 +226,7 @@ export default function AdminPage() {
   useEffect(
     () =>
       onAuthStateChanged(auth, async (user) => {
-        if (!user) return router.replace(loginComMotivo(`/login?next=${encodeURIComponent("/admin")}`));
+        if (!user) return router.replace("/login?next=%2Fadmin");
         setEmail(user.email ?? "");
         const idToken = await user.getIdToken();
         setIdToken(idToken);

@@ -386,6 +386,9 @@ assert.equal(await lerConexao(db, DEMO), null);
 
 // ── webhook: o que o atendys entrega (queue-workers.service.ts: corpo = JSON.stringify(payload),
 // HMAC hex em x-atendys-signature, evento em x-atendys-event) ──
+// o servidor do Next põe o AsyncLocalStorage no globalThis antes de carregar as rotas (o after() dos
+// testes da rodada 2 depende dele)
+(globalThis as { AsyncLocalStorage?: unknown }).AsyncLocalStorage ??= (await import("node:async_hooks")).AsyncLocalStorage;
 const { POST } = await import("@/app/api/webhooks/atendys/route");
 const entregar = (payload: Record<string, unknown>, segredo = "s-antigo") => {
   const body = JSON.stringify(payload);
@@ -482,7 +485,7 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
 // ── cota do dia: awaiting_manual não é envio; handoff e resume; quem envia sem operador decide ──
 {
   const ID = "1bd4d428-4361-4153-bc2c-60db816d8b77";
-  const parada = { id: ID, status: "awaiting_manual", retryAt: "2026-11-08T03:00:00.000Z", manualHandoffRequired: true, manualHandoffUrl: "https://wa.me/5511987654321?text=oi" };
+  const parada = { id: ID, status: "awaiting_manual", retryAt: new Date(Date.now() + 3 * 3_600_000).toISOString(), manualHandoffRequired: true, manualHandoffUrl: "https://wa.me/5511987654321?text=oi" };
   novo({ "POST /v1/message/send-text": json(parada, 202), [`POST /v1/message/${ID}/resume`]: json({ id: ID, status: "queued", retryAt: parada.retryAt }), [`POST /v1/message/${ID}/manual-handoff`]: json({ id: ID, status: "manual_started", manualHandoffUrl: parada.manualHandoffUrl, manualHandoffAt: "x" }) });
   const e = await enviarTexto(conn, "5511987654321", "oi", null);
   assert.deepEqual(e, { messageId: ID, status: "awaiting_manual", retryAt: parada.retryAt, manualHandoffRequired: true, manualHandoffUrl: parada.manualHandoffUrl });
@@ -499,10 +502,10 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
 
   // sem operador: retryAt antes do prazo volta à fila; depois do prazo fica parada
   chamadas = [];
-  assert.equal((await enviarSemOperador(conn, "5511987654321", "oi", null, new Date("2026-11-08T12:00:00Z"))).destino, "agendada");
+  assert.equal((await enviarSemOperador(conn, "5511987654321", "oi", null, new Date(Date.now() + 5 * 3_600_000))).destino, "agendada");
   assert.ok(chamadas.some((c) => c.caminho.endsWith("/resume")));
   chamadas = [];
-  assert.equal((await enviarSemOperador(conn, "5511987654321", "oi", null, new Date("2026-11-08T01:00:00Z"))).destino, "parada");
+  assert.equal((await enviarSemOperador(conn, "5511987654321", "oi", null, new Date(Date.now() + 2 * 3_600_000))).destino, "parada");
   assert.ok(!chamadas.some((c) => c.caminho.endsWith("/resume")), "lembrete que sairia depois do horário não volta à fila");
   chamadas = [];
   assert.equal((await enviarSemOperador(conn, "5511987654321", "oi", null)).destino, "parada", "sem prazo não reagenda para amanhã");
@@ -526,10 +529,11 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   const [p] = await paradasDoNegocio("loja");
   assert.deepEqual([p.messageId, p.para, p.resumo, p.retryAt], [ID, "••••4321", "Olá, Ana! Lembrete do seu horário", "2026-11-08T03:00:00.000Z"]);
   assert.ok(!JSON.stringify(p).includes("wa.me"), "o link com número e texto não é guardado");
-  // envio comum não registra
+  // envio comum não vai para o painel, mas é vigiado (a falha depois do aceite acha o negócio)
   novo({ "POST /v1/message/send-text": json({ id: "m-comum", status: "queued" }) });
   await enviarTexto(casa, "5511987654321", "oi", null);
-  assert.equal(await negocioDaMensagem("m-comum"), null);
+  assert.equal(await negocioDaMensagem("m-comum"), "loja");
+  assert.equal((await paradasDoNegocio("loja")).length, 1);
   // status assinado com o segredo do negócio: grava; assinatura errada: 401 e nada muda
   assert.equal((await entregar({ event: "message.status", messageId: ID, phone: "x", status: "manual_started" }, "errado")).status, 200, "recusada responde como desconhecida");
   assert.equal((await paradasDoNegocio("loja")).length, 1);
@@ -550,11 +554,12 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
 
   // sem operador e com prazo útil: volta à fila e sai da lista; com prazo vencido, some da lista
   const ID2 = "2bd4d428-4361-4153-bc2c-60db816d8b77", ID3 = "3bd4d428-4361-4153-bc2c-60db816d8b77";
-  novo({ "POST /v1/message/send-text": json({ id: ID2, status: "awaiting_manual", retryAt: "2026-11-08T03:00:00.000Z" }, 202), [`POST /v1/message/${ID2}/resume`]: json({ id: ID2, status: "queued" }) });
-  assert.equal((await enviarSemOperador(casa, "5511987654321", "lembrete", null, new Date("2026-11-08T12:00:00Z"))).destino, "agendada");
+  novo({ "POST /v1/message/send-text": json({ id: ID2, status: "awaiting_manual", retryAt: new Date(Date.now() + 3 * 3_600_000).toISOString() }, 202), [`POST /v1/message/${ID2}/resume`]: json({ id: ID2, status: "queued" }) });
+  assert.equal((await enviarSemOperador(casa, "5511987654321", "lembrete", null, new Date(Date.now() + 5 * 3_600_000))).destino, "agendada");
   assert.equal((await db.doc(`tenants/loja/mensagens/${ID2}`).get()).get("status"), "queued");
   novo({ "POST /v1/message/send-text": json({ id: ID3, status: "awaiting_manual", retryAt: "2099-01-01T00:00:00.000Z" }, 202) });
-  assert.equal((await enviarSemOperador(casa, "5511987654321", "lembrete", null, new Date("2020-01-01T00:00:00Z"))).destino, "parada");
+  assert.equal((await enviarSemOperador(casa, "5511987654321", "lembrete", null, new Date("2020-01-01T00:00:00Z"))).destino, "nao_sai");
+  assert.equal(chamadas.length, 0, "prazo vencido: nem envia");
   assert.equal((await paradasDoNegocio("loja")).length, 0, "lembrete de horário que já passou não fica pedindo decisão");
 
   // validade do atendys (24 h da criação): vencida sai da lista, com o campo expira ou, nas antigas, pela criação
@@ -601,6 +606,367 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.equal(await comando("confirmado sem1a"), "confirmado");
   assert.ok(!enviadas.some((m) => m.para === "5511977770000"), "cliente sem aceite não recebe");
   assert.ok(enviadas.some((m) => m.para === "5511900000099" && /não autorizou/.test(m.texto)), "o dono é avisado");
+  // botão do dono vira CONFIRMADO com o código longo (12): acha o agendamento sem ambiguidade
+  const { codigoDoAgendamento } = await import("@/lib/whatsapp.server");
+  await marcar("Btn1zzzzzzzzzzzzzzzz");
+  await marcar("Btn1yyyyyyyyyyyyyyyy");
+  assert.equal(await comando(`CONFIRMADO ${codigoDoAgendamento("Btn1zzzzzzzzzzzzzzzz", 12)}`), "confirmado");
+  assert.equal((await db.doc("tenants/salao/appointments/Btn1zzzzzzzzzzzzzzzz").get()).get("status"), "confirmed");
+  assert.equal((await db.doc("tenants/salao/appointments/Btn1yyyyyyyyyyyyyyyy").get()).get("status"), "booked", "o de mesmo início não muda");
+  // comando pendente sai na mesma transação da confirmação: repetir depois não diz "não encontrei"
+  await marcar("Pen1zz");
+  await db.doc("comandosPendentes/salao__P1").set({ slug: "salao", text: "confirmado pen1", pegoEm: 0, tentativas: 1 });
+  assert.equal(await processarComandoAgendamento(db, "salao", { phone: "5511900000099", data: { text: "confirmado pen1" } }, "salao", "salao__P1"), "confirmado");
+  assert.ok(!(await db.doc("comandosPendentes/salao__P1").get()).exists);
+}
+
+// ── P1: prazo (expiresAt), falha depois do aceite visível, comando do dono reprocessável ──
+{
+  const { negocioDaMensagem } = await import("@/lib/mensagens-paradas.server");
+  const { executarComandoPendente, idDoComando, registrarMensagemRecebida, reprocessarComandos } = await import("@/lib/whatsapp.server");
+  const loja = (await lerConexao(db, "loja"))!;
+  const prazo = new Date(Date.now() + 3 * 3_600_000);
+  const ID4 = "4cd4d428-4361-4153-bc2c-60db816d8b77";
+  // prazo útil vai como expiresAt; adiado (horário silencioso) para depois do prazo: não é "agendada"
+  novo({ "POST /v1/message/send-text": json({ id: ID4, status: "queued", retryAt: new Date(prazo.getTime() + 3_600_000).toISOString() }, 202) });
+  assert.equal((await enviarSemOperador(loja, "5511987654321", "lembrete", null, prazo)).destino, "nao_sai", "sairia depois do horário");
+  assert.equal((chamadas[0].corpo as { expiresAt?: string }).expiresAt, prazo.toISOString());
+  assert.equal(await negocioDaMensagem(ID4), "loja", "vigiada: o status failed (vencida) acha o negócio");
+  novo({ "POST /v1/message/send-text": json({ id: "m-x", status: "queued" }) });
+  // prazo sem folga (o atendys recusaria o expiresAt e a mensagem sairia atrasada): nem envia
+  assert.equal((await enviarSemOperador(loja, "5511987654321", "oi", null, new Date(Date.now() + 30_000))).destino, "nao_sai");
+  assert.equal(chamadas.length, 0);
+
+  // todo envio aceito é vigiado; failed depois do aceite vai para a gaveta, uma vez
+  const ID5 = "5cd4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: ID5, status: "queued" }) });
+  assert.equal((await enviarSemOperador(loja, "5511987654321", "Seu horário está confirmado", null)).destino, "enviada");
+  assert.equal(await negocioDaMensagem(ID5), "loja");
+  await db.doc("tenants/loja").set({ whatsapp: { lastNotifyError: null } }, { merge: true });
+  assert.equal((await entregar({ event: "message.status", messageId: ID5, status: "failed", errorCode: "META_131026" }, "s-loja")).status, 200);
+  const erro = (await lerConfigWhatsApp(db, "loja"))?.lastNotifyError;
+  assert.match(erro?.message ?? "", /não foi entregue: o número do cliente não recebe/);
+  assert.match(erro?.message ?? "", /Seu horário está confirmado/);
+  await db.doc("tenants/loja").set({ whatsapp: { lastNotifyError: null } }, { merge: true });
+  await entregar({ event: "message.status", messageId: ID5, status: "failed", errorCode: "META_131026" }, "s-loja");
+  assert.equal((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError ?? null, null, "reentrega não repete o aviso");
+
+  // comando do dono: pendente gravado com a caixa de entrada; sai só depois de processado
+  assert.equal(await registrarMensagemRecebida(db, "loja", { phone: "5511900000001", messageId: "CMD/1", data: { text: "oi" } }, "salao"), true);
+  const pend = db.doc(`comandosPendentes/${idDoComando("loja", "CMD_1")}`);
+  assert.ok((await pend.get()).exists);
+  assert.equal(await registrarMensagemRecebida(db, "loja", { phone: "5511900000001", messageId: "CMD/1", data: { text: "oi" } }, "salao"), false, "reentrega cai no dedupe");
+  assert.equal(await reprocessarComandos(db), 0, "recém-chegado é de quem recebeu (after), não do cron");
+  await pend.update({ pegoEm: Date.now() - 6 * 60_000 }); // o processo caiu antes de terminar
+  assert.equal(await reprocessarComandos(db), 1);
+  assert.ok(!(await pend.get()).exists, "processado sai");
+  assert.equal(await executarComandoPendente(db, idDoComando("loja", "CMD_1")), null, "sem pendente: nada");
+  // falhou 3 vezes: desiste e avisa na gaveta
+  await pend.set({ slug: "loja", phone: "5511900000001", text: "CONFIRMADO AB12", via: "salao", pegoEm: 0, tentativas: 3 });
+  assert.equal(await reprocessarComandos(db), 0);
+  assert.ok(!(await pend.get()).exists);
+  assert.match((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError?.message ?? "", /comando do dono .* descartado/);
+}
+
+// ── botões: o cliente confirma presença, remarca por lista e cancela; o dono confirma por botão ──
+{
+  const { idBotao, lerBotao, templateCliente: tc, templateNovoDono: tnd, TEMPLATES } = await import("@/lib/canal-oficial.server");
+  const { acaoDoCliente, chaveDoHorario, pedidoDesatualizado } = await import("@/lib/botoes-whatsapp.server");
+  const { enviarTemplate } = await import("@/lib/atendys");
+  const { zonedTime, addDays, todayIn } = await import("@/lib/datetime");
+  assert.deepEqual(lerBotao(idBotao("ch", "ofc", "A1b2", "2026-11-14T15:00")), { acao: "ch", slug: "ofc", agendamento: "A1b2", extra: "2026-11-14T15:00" });
+  assert.equal(lerBotao("rph:zz:ofc:A1"), null);
+  assert.equal(lerBotao("rph:cp:../x:A1"), null, "id fora do formato não vira caminho");
+  // templates com botões só com a chave ligada (depois da aprovação na Meta)
+  const c = { nome: "A", negocio: "B", servico: "C", quando: "D" };
+  assert.equal(tc("lembrete", c, { slug: "ofc", agendamento: "A1" }).nome, TEMPLATES.lembrete);
+  process.env.ATENDYS_TEMPLATES_BOTOES = "1";
+  const lem = tc("lembrete", c, { slug: "ofc", agendamento: "A1" });
+  assert.deepEqual([lem.nome, lem.botoes], [TEMPLATES.lembreteBotoes, ["rph:cp:ofc:A1", "rph:cr:ofc:A1", "rph:cx:ofc:A1"]]);
+  assert.deepEqual(tnd({ negocio: "B", cliente: "M", telefone: "1", servico: "C", quando: "D", codigo: "X" }, { slug: "ofc", agendamento: "A1" }).botoes, ["rph:dc:ofc:A1", "rph:dr:ofc:A1"]);
+  novo({ "POST /v1/message/send-template": json({ id: "t1", status: "queued" }) });
+  await enviarTemplate({ atendysApiKey: "k", instanceId: "i" }, "5511988881111", lem, null);
+  const comps = (chamadas[0].corpo as { components: { type: string; sub_type?: string; index?: string; parameters: { payload?: string }[] }[] }).components;
+  assert.deepEqual(comps.filter((x) => x.type === "button").map((x) => [x.sub_type, x.index, x.parameters[0].payload]), [["quick_reply", "0", "rph:cp:ofc:A1"], ["quick_reply", "1", "rph:cr:ofc:A1"], ["quick_reply", "2", "rph:cx:ofc:A1"]]);
+
+  // negócio no canal oficial, com agenda e um agendamento de amanhã às 10:00
+  await db.doc("config/atendys-plataforma").set({ tenantId: "tp", apikey: "kp", webhookSecret: "sp" });
+  const t = db.doc("tenants/ofc");
+  await t.set({ name: "Ofc", whatsapp: { canalOficial: true } });
+  await db.doc("tenants/ofc/privado/whatsapp").set({ ownerPhone: "5591992361726" });
+  await t.collection("services").doc("corte").set({ name: "Corte", durationMin: 30, priceCents: 5000, active: true });
+  const todos = Object.fromEntries(["0", "1", "2", "3", "4", "5", "6"].map((d) => [d, { start: "08:00", end: "20:00" }]));
+  await t.collection("staff").doc("ana").set({ name: "Ana", serviceIds: ["corte"], hours: todos, active: true });
+  const amanha = addDays(todayIn(), 1);
+  const ag = (id: string, extra: Record<string, unknown> = {}) => t.collection("appointments").doc(id).set({
+    status: "booked", start: zonedTime(amanha, "10:00"), end: zonedTime(amanha, "10:30"), customerName: "Maria Souza", customerPhone: "(11) 98888-1111",
+    serviceIds: ["corte"], staffId: "ana", serviceName: "Corte", durationMin: 30, priceCents: 5000, whatsappConsent: { aceito: true, versao: "2026-11-08", em: new Date() }, ...extra,
+  });
+  await ag("Ag1aaaaaaaaaaaaaaaaa");
+  const enviadas: { caminho: string; corpo: Record<string, unknown> }[] = [];
+  const guarda = (caminho: string) => (corpo: unknown) => (enviadas.push({ caminho, corpo: corpo as Record<string, unknown> }), Response.json({ id: `m${enviadas.length}`, status: "queued" }));
+  novo({ "POST /v1/message/send-text": guarda("texto"), "POST /v1/message/send-interactive": guarda("lista"), "POST /v1/message/send-template": guarda("template") });
+  const b = (acao: string, extra?: string) => lerBotao(idBotao(acao as "cp", "ofc", "Ag1aaaaaaaaaaaaaaaaa", extra))!;
+
+  assert.equal(await acaoDoCliente(db, b("cp"), "5511977770000"), "agendamento de outro telefone");
+  assert.equal(enviadas.length, 0);
+  assert.equal(await acaoDoCliente(db, b("cp"), "5511988881111"), "presença confirmada");
+  assert.ok((await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").get()).get("presencaConfirmadaEm"));
+  // ainda não confirmado pelo estabelecimento: não diz "confirmado"
+  assert.match(String(enviadas.at(-1)!.corpo.text), /Avisamos o estabelecimento que você vai: Corte, amanhã às 10:00. Ele ainda vai confirmar/);
+  assert.equal(enviadas.at(-1)!.corpo.replyToInbound, true, "resposta: fora da cota por destinatário e do dedupe");
+  // mesmo horário (lista antiga, toque repetido) não remarca nem desfaz nada
+  assert.equal(await acaoDoCliente(db, b("ch", `${amanha}T10:00`), "5511988881111"), "mesmo horário");
+  assert.equal(await acaoDoCliente(db, b("ch", "2020-01-01T10:00"), "5511988881111"), "horário inválido");
+  assert.equal(await acaoDoCliente(db, b("ch", `${addDays(todayIn(), 200)}T10:00`), "5511988881111"), "horário inválido", "fora da janela da agenda");
+
+  // remarcar: lista com até 10 horários livres; tocar num deles remarca e o dono recebe o pedido com botões
+  assert.equal(await acaoDoCliente(db, b("cr"), "5511988881111"), "horários enviados");
+  const lista = enviadas.at(-1)!;
+  assert.equal(lista.caminho, "lista");
+  const itens = lista.corpo.list as { id: string; title: string }[];
+  assert.ok(itens.length > 0 && itens.length <= 10);
+  // ch leva "<origem>_<destino>": o horário de agora e o escolhido
+  assert.ok(itens.every((i) => lerBotao(i.id)!.extra!.startsWith(`${amanha}T10:00_`)), "origem no id");
+  assert.ok(!itens.some((i) => lerBotao(i.id)!.extra!.split("_")[1] === `${amanha}T10:00`), "o horário atual não entra na lista");
+  assert.equal(lista.corpo.replyToInbound, true);
+  const escolhido = lerBotao(itens.at(-1)!.id)!;
+  assert.equal(escolhido.acao, "ch");
+  assert.equal(await acaoDoCliente(db, escolhido, "5511988881111"), "remarcado");
+  const destinoEscolhido = escolhido.extra!.split("_")[1];
+  const [d, h] = destinoEscolhido.split("T");
+  const depois = await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").get();
+  assert.equal(depois.get("start").toDate().getTime(), zonedTime(d, h).getTime());
+  assert.equal(depois.get("status"), "booked", "remarcado volta a aguardar o dono");
+  assert.equal(depois.get("presencaConfirmadaEm"), undefined, "a presença confirmada era do horário antigo: a remarcação apaga");
+  const pedido = enviadas.find((e) => e.caminho === "template")!;
+  assert.equal(pedido.corpo.name, TEMPLATES.novoDonoBotoes);
+  assert.equal(pedido.corpo.number, "5591992361726");
+  // o pedido leva o horário novo no id: o botão do pedido antigo fica desatualizado
+  const doPedido = (pedido.corpo.components as { type: string; parameters: { payload?: string }[] }[]).filter((x) => x.type === "button").map((x) => lerBotao(x.parameters[0].payload)!);
+  assert.equal(doPedido[0].extra, destinoEscolhido);
+  assert.equal(await pedidoDesatualizado(db, doPedido[0]), false);
+  assert.equal(await pedidoDesatualizado(db, lerBotao(idBotao("dc", "ofc", "Ag1aaaaaaaaaaaaaaaaa", `${amanha}T10:00`))!), true);
+  // confirmado pelo dono: remarcar pelo cliente mantém confirmado e não pede de novo
+  await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").update({ status: "confirmed" });
+  enviadas.length = 0;
+  await acaoDoCliente(db, b("cr"), "5511988881111");
+  const outro = lerBotao((enviadas.at(-1)!.corpo.list as { id: string }[])[0].id)!;
+  assert.equal(await acaoDoCliente(db, outro, "5511988881111"), "remarcado");
+  const conf = await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").get();
+  assert.deepEqual([conf.get("status"), chaveDoHorario(conf.get("start").toDate())], ["confirmed", outro.extra!.split("_")[1]]);
+  assert.ok(!enviadas.some((e) => e.caminho === "template"), "confirmado não gera pedido novo ao dono");
+
+  // cancelar em dois toques: cx só pergunta; cxx libera o horário; de novo, já não está ativo
+  assert.equal(await acaoDoCliente(db, b("cx"), "5511988881111"), "confirmação pedida");
+  assert.equal((await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").get()).get("status"), "confirmed", "o primeiro toque não cancela");
+  assert.equal(await acaoDoCliente(db, b("cxx"), "5511988881111"), "cancelado");
+  assert.equal((await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").get()).get("status"), "cancelled");
+  assert.equal(await acaoDoCliente(db, b("cxx"), "5511988881111"), "inativo");
+  // sinal pago: quem decide é o negócio
+  await ag("Ag2aaaaaaaaaaaaaaaaa", { sinal: { status: "pago", cents: 1000 } });
+  assert.equal(await acaoDoCliente(db, lerBotao(idBotao("cx", "ofc", "Ag2aaaaaaaaaaaaaaaaa"))!, "5511988881111"), "precisa do negócio");
+  assert.equal((await t.collection("appointments").doc("Ag2aaaaaaaaaaaaaaaaa").get()).get("status"), "booked");
+  delete process.env.ATENDYS_TEMPLATES_BOTOES;
+}
+
+// ── rodada 2: horário silencioso, prazo no fuso do negócio, botões antigos, falha visível ──
+{
+  const { instanteReal, zonedTime, addDays, todayIn } = await import("@/lib/datetime");
+  const { atualizarParada, avisarFalhaDeEnvio, lerIndice, vigiarEnvio } = await import("@/lib/mensagens-paradas.server");
+  const { idBotao, lerBotao, templateCliente: tc } = await import("@/lib/canal-oficial.server");
+  const { acaoDoCliente } = await import("@/lib/botoes-whatsapp.server");
+  const { codigoDoAgendamento, executarComandoPendente, idDoComando, registrarMensagemRecebida } = await import("@/lib/whatsapp.server");
+  const loja = (await lerConexao(db, "loja"))!;
+  const erro = async () => (await lerConfigWhatsApp(db, "loja"))?.lastNotifyError?.message ?? null;
+  const limpar = () => db.doc("tenants/loja").set({ whatsapp: { lastNotifyError: null, falhaAvisadaEm: FieldValue.delete() } }, { merge: true });
+  const H = 3_600_000;
+
+  // #2: start é hora de parede; o prazo é o instante real no fuso do negócio
+  const parede = zonedTime("2026-11-20", "10:00");
+  assert.equal(instanteReal(parede, { uf: "SP" }).toISOString(), "2026-11-20T13:00:00.000Z");
+  assert.equal(instanteReal(parede, { uf: "AM" }).toISOString(), "2026-11-20T14:00:00.000Z", "Manaus: 1 h depois de SP");
+  assert.equal(instanteReal(parede, { uf: "AC" }).toISOString(), "2026-11-20T15:00:00.000Z", "Acre: 2 h depois");
+  assert.equal(instanteReal(parede, { fuso: "America/Noronha" }).toISOString(), "2026-11-20T12:00:00.000Z", "Noronha: 1 h antes");
+
+  // #1: envio vigiado guarda o prazo; queued com retryAt depois dele é falha já, não na hora do atendimento
+  const prazo = new Date(Date.now() + 3 * H);
+  const Q1 = "a1d4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: Q1, status: "queued" }) });
+  assert.equal((await enviarSemOperador(loja, "5511987654321", "Lembrete às 21h", null, prazo)).destino, "enviada");
+  assert.equal((await lerIndice(Q1))?.prazo, prazo.getTime());
+  await limpar();
+  await entregar({ event: "message.status", messageId: Q1, status: "queued", retryAt: new Date(prazo.getTime() - H).toISOString() }, "s-loja");
+  assert.equal(await erro(), null, "ainda sai antes do horário");
+  await entregar({ event: "message.status", messageId: Q1, status: "queued", retryAt: new Date(prazo.getTime() + 11 * H).toISOString() }, "s-loja");
+  assert.match((await erro()) ?? "", /não sai antes do horário/);
+  assert.match((await erro()) ?? "", /Lembrete às 21h/);
+  // #10: a marca e o erro visível juntos; a reentrega não repete
+  assert.equal((await db.doc(`mensagensWhatsapp/${Q1}`).get()).get("falhou"), true);
+  await limpar();
+  await entregar({ event: "message.status", messageId: Q1, status: "failed", errorCode: "MESSAGE_EXPIRED" }, "s-loja");
+  assert.equal(await erro(), null, "já avisada");
+
+  // #8: a falha chegou antes do índice (o webhook não achou o negócio): a conferência depois do envio avisa
+  // (só no canal oficial e fora das respostas: o resto não paga o GET a mais)
+  const F1 = "b1d4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: F1, status: "queued" }), [`GET /v1/message/${F1}/status`]: json({ id: F1, status: "failed", errorCode: "META_131026" }) });
+  await limpar();
+  await enviarSemOperador(loja, "5511987654321", "Confirmado amanhã", null);
+  await enviarSemOperador({ ...loja, oficial: true }, "5511987654321", "Confirmado amanhã", null, undefined, { resposta: true });
+  assert.ok(!chamadas.some((c) => c.caminho.endsWith("/status")), "número do salão e resposta: sem GET de status");
+  assert.equal(await erro(), null);
+  // QA3 R1: a falha achada na conferência volta a quem chama (antes vinha "enviada" e /api/agendar limpava o aviso)
+  assert.equal((await enviarSemOperador({ ...loja, oficial: true }, "5511987654321", "Confirmado amanhã", null)).destino, "falhou");
+  assert.match((await erro()) ?? "", /não recebe mensagens/);
+  // QA3 R3: adiada para depois do prazo, com o webhook perdido antes do índice: a conferência acha
+  const R3 = "b3d4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: R3, status: "queued" }), [`GET /v1/message/${R3}/status`]: json({ id: R3, status: "queued", retryAt: new Date(prazo.getTime() + 11 * H).toISOString() }) });
+  await limpar();
+  assert.equal((await enviarSemOperador({ ...loja, oficial: true }, "5511987654321", "Lembrete adiado", null, prazo)).destino, "nao_sai");
+  assert.match((await erro()) ?? "", /não sai antes do horário/);
+  const R3b = "b4d4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: R3b, status: "queued" }), [`GET /v1/message/${R3b}/status`]: json({ id: R3b, status: "queued", retryAt: new Date(prazo.getTime() - H).toISOString() }) });
+  await limpar();
+  assert.equal((await enviarSemOperador({ ...loja, oficial: true }, "5511987654321", "Lembrete adiado a tempo", null, prazo)).destino, "agendada");
+  assert.equal(await erro(), null, "adiada para antes do horário: ainda sai");
+  await limpar();
+  await entregar({ event: "message.status", messageId: F1, status: "failed", errorCode: "META_131026" }, "s-loja");
+  assert.equal(await erro(), null, "o webhook atrasado não repete o aviso");
+
+  // #9: parada na cota só é vigiada quando volta à fila; esquecida e vencida no atendys, o painel
+  // já mostrou "parou na cota" e não vem um segundo aviso
+  const P1 = "c1d4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: P1, status: "awaiting_manual", retryAt: null }, 202) });
+  assert.equal((await enviarSemOperador(loja, "5511987654321", "Pedido parado", null, prazo)).destino, "parada");
+  const ix = await lerIndice(P1);
+  assert.deepEqual([ix?.vigiada, ix?.parada, ix?.prazo], [false, true, prazo.getTime()]);
+  await limpar();
+  await entregar({ event: "message.status", messageId: P1, status: "failed", errorCode: "MESSAGE_EXPIRED", at: "2098-01-01T00:00:00Z" }, "s-loja");
+  assert.equal(await erro(), null, "parada esquecida que vence: sem aviso");
+  await db.doc(`tenants/loja/mensagens/${P1}`).update({ status: "awaiting_manual", at: 0 });
+  // Manter agendada: volta à fila e passa a ser vigiada
+  await atualizarParada("loja", P1, "queued", null);
+  assert.equal((await lerIndice(P1))?.vigiada, true);
+  await entregar({ event: "message.status", messageId: P1, status: "manual_started" }, "s-loja");
+  assert.equal((await db.doc(`tenants/loja/mensagens/${P1}`).get()).get("status"), "manual_started", "parada segue atualizando o painel");
+  await entregar({ event: "message.status", messageId: P1, status: "failed", errorCode: "MESSAGE_EXPIRED", at: "2099-01-01T00:00:00Z" }, "s-loja");
+  assert.equal((await db.doc(`tenants/loja/mensagens/${P1}`).get()).get("status"), "failed");
+  assert.match((await erro()) ?? "", /Pedido parado/);
+
+  // #14: um push por negócio a cada 10 min; a gaveta mostra sempre a última falha
+  const [G1, G2, G3] = ["d1", "d2", "d3"].map((p) => `${p}d4d428-4361-4153-bc2c-60db816d8b77`);
+  for (const [g, texto] of [[G1, "primeira"], [G2, "segunda"], [G3, "terceira"]]) await vigiarEnvio("loja", g, texto);
+  await limpar();
+  assert.equal(await avisarFalhaDeEnvio("loja", G1, "META_131026"), "push");
+  assert.equal(await avisarFalhaDeEnvio("loja", G2, "META_131026"), "agrupada", "dentro da janela: sem push");
+  assert.match((await erro()) ?? "", /segunda/);
+  assert.equal(await avisarFalhaDeEnvio("loja", G2, "META_131026"), null, "a mesma mensagem não avisa de novo");
+  assert.equal(await avisarFalhaDeEnvio("casa", G3, "META_131026"), null, "índice de outro negócio");
+  await db.doc("tenants/loja").update({ "whatsapp.falhaAvisadaEm": Date.now() - 11 * 60_000 });
+  assert.equal(await avisarFalhaDeEnvio("loja", G3, "META_131026"), "push", "janela vencida: push de novo");
+
+  // canal oficial num negócio de Manaus
+  const t = db.doc("tenants/ofc");
+  await t.set({ site: { uf: "AM" } }, { merge: true });
+  const amanha = addDays(todayIn(), 1);
+  const novoAg = (id: string) => t.collection("appointments").doc(id).set({
+    status: "booked", start: zonedTime(amanha, "10:00"), end: zonedTime(amanha, "10:30"), customerName: "Rita Lima", customerPhone: "(11) 98888-3333",
+    serviceIds: ["corte"], staffId: "ana", serviceName: "Corte", durationMin: 30, priceCents: 5000, whatsappConsent: { aceito: true, versao: "2026-11-08", em: new Date() },
+  });
+  const enviadas: { caminho: string; corpo: Record<string, unknown> }[] = [];
+  const guarda = (caminho: string) => (corpo: unknown) => (enviadas.push({ caminho, corpo: corpo as Record<string, unknown> }), Response.json({ id: `m${enviadas.length}`, status: "queued" }));
+  const rotasOfc = { "POST /v1/message/send-text": guarda("texto"), "POST /v1/message/send-interactive": guarda("botoes"), "POST /v1/message/send-template": guarda("template") };
+  novo(rotasOfc);
+  const DONO = "5591992361726", CLI = "5511988883333";
+
+  // #4: o pendente do botão leva o horário do pedido; o cliente remarcou antes do cron: nada muda
+  const A3 = "Ag3aaaaaaaaaaaaaaaaa";
+  await novoAg(A3);
+  const texto = `CONFIRMADO ${codigoDoAgendamento(A3, 12)}`;
+  await registrarMensagemRecebida(db, "ofc", { phone: DONO, messageId: "BTN/1", data: { text: texto } }, "plataforma", { agendamento: A3, horario: `${amanha}T09:00` });
+  assert.deepEqual((await db.doc(`comandosPendentes/${idDoComando("ofc", "BTN_1")}`).get()).get("esperado"), { agendamento: A3, horario: `${amanha}T09:00` });
+  assert.equal(await executarComandoPendente(db, idDoComando("ofc", "BTN_1")), "sem pendente");
+  assert.equal((await t.collection("appointments").doc(A3).get()).get("status"), "booked");
+  assert.ok(!(await db.doc(`comandosPendentes/${idDoComando("ofc", "BTN_1")}`).get()).exists);
+  assert.match(String(enviadas.at(-1)!.corpo.text), /mudou de horário/);
+  // QA3 R2: o agendamento do botão já não existe: o único pendente que sobrou (A3) não é confirmado no lugar
+  const SUMIU = "Ag9zzzzzzzzzzzzzzzzz";
+  await registrarMensagemRecebida(db, "ofc", { phone: DONO, messageId: "BTN/1b", data: { text: `CONFIRMADO ${codigoDoAgendamento(SUMIU, 12)}` } }, "plataforma", { agendamento: SUMIU, horario: `${amanha}T10:00` });
+  assert.equal(await executarComandoPendente(db, idDoComando("ofc", "BTN_1b")), "sem pendente");
+  assert.equal((await t.collection("appointments").doc(A3).get()).get("status"), "booked", "outro agendamento não é tocado");
+  assert.match(String(enviadas.at(-1)!.corpo.text), /Não encontrei agendamento/);
+  // pedido antigo, sem horário no id do botão: o agendamento do pedido vale do mesmo jeito
+  await registrarMensagemRecebida(db, "ofc", { phone: DONO, messageId: "BTN/1c", data: { text: `CONFIRMADO ${codigoDoAgendamento(SUMIU, 12)}` } }, "plataforma", { agendamento: SUMIU });
+  assert.equal(await executarComandoPendente(db, idDoComando("ofc", "BTN_1c")), "sem pendente");
+  assert.equal((await t.collection("appointments").doc(A3).get()).get("status"), "booked");
+  // #5: resposta ao dono pelo canal oficial: replyToInbound (fora da cota, do dedupe e do silêncio)
+  assert.equal(enviadas.at(-1)!.corpo.replyToInbound, true);
+  // horário certo: confirma; #2: o aviso ao cliente vence no horário de Manaus, não no de SP
+  await registrarMensagemRecebida(db, "ofc", { phone: DONO, messageId: "BTN/2", data: { text: texto } }, "plataforma", { agendamento: A3, horario: `${amanha}T10:00` });
+  assert.equal(await executarComandoPendente(db, idDoComando("ofc", "BTN_2")), "confirmado");
+  const aviso = enviadas.find((e) => e.caminho === "template" && e.corpo.number === CLI)!;
+  assert.equal(aviso.corpo.expiresAt, zonedTime(amanha, "10:00", "America/Manaus").toISOString());
+  enviadas.length = 0;
+  assert.equal(await processarComandoAgendamento(db, "ofc", { phone: DONO, data: { text: "confimado" } }, "plataforma"), "nao entendido");
+  assert.equal(enviadas.at(-1)!.corpo.replyToInbound, true);
+
+  // #7: a resposta que falha (409 do dedupe) não prende o pendente
+  novo({ "POST /v1/message/send-text": json({ error: { code: "IDEMPOTENCY_CONFLICT" } }, 409) });
+  await registrarMensagemRecebida(db, "ofc", { phone: DONO, messageId: "BTN/3", data: { text: "confimado" } }, "plataforma");
+  await assert.rejects(executarComandoPendente(db, idDoComando("ofc", "BTN_3")));
+  assert.ok(!(await db.doc(`comandosPendentes/${idDoComando("ofc", "BTN_3")}`).get()).exists, "sem pendente preso, sem falso 'descartado'");
+
+  // #3: botão de um lembrete anterior à remarcação não age sobre o horário novo
+  novo(rotasOfc);
+  const A4 = "Ag4aaaaaaaaaaaaaaaaa";
+  await novoAg(A4);
+  const b4 = (acao: string, extra?: string) => lerBotao(idBotao(acao as "cp", "ofc", A4, extra))!;
+  assert.equal(await acaoDoCliente(db, b4("cp", `${amanha}T09:00`), CLI), "horário mudou");
+  assert.match(String(enviadas.at(-1)!.corpo.text), /Esse lembrete é de um horário que mudou; o atual é amanhã às 10:00\./);
+  assert.ok(!(await t.collection("appointments").doc(A4).get()).get("presencaConfirmadaEm"));
+  assert.equal(await acaoDoCliente(db, b4("cx", `${amanha}T09:00`), CLI), "horário mudou");
+  assert.equal(await acaoDoCliente(db, b4("cxx", `${amanha}T09:00`), CLI), "horário mudou");
+  assert.equal(await acaoDoCliente(db, b4("ch", `${amanha}T09:00_${amanha}T15:00`), CLI), "horário mudou", "lista antiga: não remarca de novo");
+  assert.equal((await t.collection("appointments").doc(A4).get()).get("status"), "booked");
+  assert.equal(await acaoDoCliente(db, b4("cp", `${amanha}T10:00`), CLI), "presença confirmada");
+  assert.equal(await acaoDoCliente(db, b4("cp"), CLI), "presença confirmada", "id sem horário (antes desta mudança) vale como antes");
+  process.env.ATENDYS_TEMPLATES_BOTOES = "1";
+  assert.deepEqual(tc("lembrete", { nome: "A", negocio: "B", servico: "C", quando: "D" }, { slug: "ofc", agendamento: "A1", horario: "2026-11-14T15:00" }).botoes, ["rph:cp:ofc:A1:2026-11-14T15:00", "rph:cr:ofc:A1:2026-11-14T15:00", "rph:cx:ofc:A1:2026-11-14T15:00"]);
+  delete process.env.ATENDYS_TEMPLATES_BOTOES;
+
+  // #15: cancelar em dois toques
+  assert.equal(await acaoDoCliente(db, b4("cx", `${amanha}T10:00`), CLI), "confirmação pedida");
+  const pergunta = enviadas.at(-1)!;
+  assert.equal(pergunta.caminho, "botoes");
+  assert.equal(pergunta.corpo.replyToInbound, true);
+  const [sim, manter] = pergunta.corpo.buttons as { id: string; title: string }[];
+  assert.deepEqual([lerBotao(sim.id), lerBotao(manter.id)], [{ acao: "cxx", slug: "ofc", agendamento: A4, extra: `${amanha}T10:00` }, { acao: "cm", slug: "ofc", agendamento: A4, extra: `${amanha}T10:00` }]);
+  assert.ok([sim, manter].every((x) => x.title.length <= 20), "título de botão: até 20 caracteres na Meta");
+  assert.equal((await t.collection("appointments").doc(A4).get()).get("status"), "booked", "o primeiro toque não cancela");
+  assert.equal(await acaoDoCliente(db, lerBotao(manter.id)!, CLI), "mantido");
+  assert.match(String(enviadas.at(-1)!.corpo.text), /^Mantido/);
+  assert.equal((await t.collection("appointments").doc(A4).get()).get("status"), "booked");
+  assert.equal(await acaoDoCliente(db, lerBotao(sim.id)!, CLI), "cancelado");
+  assert.equal((await t.collection("appointments").doc(A4).get()).get("status"), "cancelled");
+
+  // #6: /api/agendar: pedido ao dono parado na cota vira falha visível (after() com um contexto mínimo)
+  const { workAsyncStorage } = await import("next/dist/server/app-render/work-async-storage.external.js");
+  const { workUnitAsyncStorage } = await import("next/dist/server/app-render/work-unit-async-storage.external.js");
+  const comAfter = async <T,>(fn: () => Promise<T>) => {
+    const tarefas: unknown[] = [];
+    const contexto = { afterContext: { after: (tarefa: unknown) => void tarefas.push(typeof tarefa === "function" ? tarefa() : tarefa) } };
+    const r = await workAsyncStorage.run(contexto as never, () => workUnitAsyncStorage.run({} as never, fn));
+    await Promise.all(tarefas);
+    return r;
+  };
+  const { POST: agendar } = await import("@/app/api/agendar/route");
+  novo({ "POST /v1/message/send-template": json({ id: "e1d4d428-4361-4153-bc2c-60db816d8b77", status: "awaiting_manual", retryAt: null }, 202) });
+  await db.doc("tenants/ofc").set({ whatsapp: { lastNotifyError: null } }, { merge: true });
+  const pedido = new Request("http://x/api/agendar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tenantId: "ofc", serviceIds: ["corte"], staffId: "ana", date: addDays(todayIn(), 2), time: "11:00", customerName: "Joana Lima", customerPhone: "(11) 98888-2222" }) });
+  const resposta = await comAfter(() => agendar(pedido));
+  assert.equal(((await resposta.json()) as { ok: boolean }).ok, true);
+  assert.match((await lerConfigWhatsApp(db, "ofc"))?.lastNotifyError?.message ?? "", /aviso ao salão parou na cota/);
 }
 
 console.log("atendys ok");

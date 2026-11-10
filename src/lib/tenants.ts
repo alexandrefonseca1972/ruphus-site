@@ -23,7 +23,8 @@ export const Tenant = z.object({
   sinal: z.object({ ativo: z.boolean(), tipo: z.enum(["percentual", "fixo"]), valor: z.number(), prazoMin: z.number() }).optional().catch(undefined),
   // estado da conexão do WhatsApp (sem credenciais: essas moram em privado/whatsapp)
   whatsapp: z
-    .object({ status: z.string().optional(), instanceId: z.string().optional(), ownerManaged: z.boolean().optional(), conectadoEm: z.number().optional() })
+    // canalOficial: os avisos saem pelo número da plataforma; as mensagens paradas aparecem na agenda mesmo sem WhatsApp próprio
+    .object({ status: z.string().optional(), instanceId: z.string().optional(), ownerManaged: z.boolean().optional(), conectadoEm: z.number().optional(), canalOficial: z.boolean().optional() })
     .optional()
     .catch(undefined),
 });
