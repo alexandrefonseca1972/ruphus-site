@@ -176,7 +176,7 @@ service cloud.firestore {
         // o app só muda os campos do formulário (e a ordem); usos e o resto são do servidor
         allow update: if gere(t)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'durationMin', 'priceCents', 'tipoPreco', 'active', 'ordem'])
-          && textoAte(request.resource.data.name, 80)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || textoAte(request.resource.data.name, 80))
           && (!demoProtegida(t)
             || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['priceCents', 'durationMin', 'active', 'tipoPreco', 'ordem']));
       }
@@ -187,9 +187,11 @@ service cloud.firestore {
       match /staff/{s} {
         allow read: if isMember(t);
         // o app grava o documento inteiro (setDoc sem merge): createdAt, do servidor, some na edição
+        // a regravação inteira (setDoc sem merge) lista todas as chaves; a edição parcial (updateDoc) só as alteradas
         allow update: if gere(t)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'serviceIds', 'hours', 'active', 'createdAt'])
-          && textoAte(request.resource.data.name, 80)
+          && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'serviceIds', 'hours', 'active', 'createdAt'])
+            || request.resource.data.keys().hasOnly(['name', 'serviceIds', 'hours', 'active', 'createdAt']))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || textoAte(request.resource.data.name, 80))
           && (!("serviceIds" in request.resource.data) || (request.resource.data.serviceIds is list && request.resource.data.serviceIds.size() <= 200))
           && (!("hours" in request.resource.data) || request.resource.data.hours is map)
           && (!demoProtegida(t)

@@ -95,17 +95,18 @@ export async function mapaDominios(db: Firestore): Promise<MapaDominios> {
  *  domínio expirado): timeout e SERVFAIL ficam para o dia seguinte, sem rebaixar.
  *  Devolve quantos voltaram a pendente. */
 export async function reverificarDominios(db: Firestore) {
+  if (!process.env.DOMINIO_IP) return 0;
   const snap = await db.collection("tenants").where("dominio.status", "==", "ativo").select("dominio").get();
   let rebaixados = 0;
   for (const d of snap.docs) {
     const host = (d.get("dominio") as Dominio).host;
-    const decidivel = await resolve4(host).then(() => true, (e: { code?: string }) => e?.code === "ENOTFOUND" || e?.code === "ENODATA");
-    if (!decidivel) continue;
-    const r = await verificarDominio(db, d.id).catch((e) => (console.error(`[dominio] reverificar ${d.id}`, e), null));
-    if (r?.dominio.status === "pendente") {
-      rebaixados++;
-      console.warn(`[dominio] ${host} (${d.id}) não aponta mais para a VPS: voltou a pendente`);
-    }
+    // decide pela primeira resposta do DNS: timeout e SERVFAIL ficam para o dia seguinte
+    const ips = await resolve4(host).catch((e: { code?: string }) => (e?.code === "ENOTFOUND" || e?.code === "ENODATA" ? [] : null));
+    if (ips === null) continue;
+    if (ips.length && ips.every((i) => i === process.env.DOMINIO_IP)) continue;
+    await d.ref.update({ "dominio.status": "pendente" });
+    rebaixados++;
+    console.warn(`[dominio] ${host} (${d.id}) não aponta mais para a VPS: voltou a pendente`);
   }
   return rebaixados;
 }

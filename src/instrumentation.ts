@@ -16,14 +16,18 @@ export async function register() {
 // por rota (alertarAdmin). O caminho vai sem a query, que pode levar token (convite, cobrança).
 export const onRequestError: Instrumentation.onRequestError = async (err, request, context) => {
   if (!producao()) return;
-  const [{ adminDb }, { alertarAdmin }] = await Promise.all([import("@/lib/admin"), import("@/lib/alerta-admin.server")]);
-  const mensagem = err instanceof Error ? err.message : String(err);
-  const digest = typeof err === "object" && err !== null && "digest" in err ? ` · digest ${String(err.digest)}` : "";
-  const caminho = request.path.split("?")[0];
-  await alertarAdmin(
-    adminDb,
-    `erro-${context.routePath.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 100)}`,
-    `Erro em ${context.routePath}`,
-    `${request.method} ${caminho} (${context.routeType})${digest}\n\n${mensagem.slice(0, 1000)}\n\nDetalhes: journalctl -u ruphus-site -n 100`,
-  );
+  try {
+    const [{ adminDb }, { alertarAdmin }] = await Promise.all([import("@/lib/admin"), import("@/lib/alerta-admin.server")]);
+    const mensagem = err instanceof Error ? err.message : String(err);
+    const digest = typeof err === "object" && err !== null && "digest" in err ? ` · digest ${String(err.digest)}` : "";
+    const caminho = request.path.split("?")[0];
+    await alertarAdmin(
+      adminDb,
+      `erro-${context.routePath.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 100)}`,
+      `Erro em ${context.routePath}`,
+      `${request.method} ${caminho} (${context.routeType})${digest}\n\n${mensagem.slice(0, 1000)}\n\nDetalhes: journalctl -u ruphus-site -n 100`,
+    );
+  } catch (e) {
+    console.error("[onRequestError]", e);
+  }
 };
