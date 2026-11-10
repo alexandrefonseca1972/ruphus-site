@@ -1,5 +1,5 @@
 import "server-only";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import QRCode from "qrcode";
 import { atualizarParada, avisarFalhaDeEnvio, NAO_SAI_A_TEMPO, prazoDaParada, registrarParada, vigiarEnvio } from "@/lib/mensagens-paradas.server";
 import { ErroPrevisto } from "@/lib/erro-previsto";
@@ -255,6 +255,7 @@ export async function garantirTenant(
       name: nomeNegocio,
       slug,
       webhookUrl: WEBHOOK_URL(),
+      ...LIMITES_DESTINATARIO,
     });
     tenantId = criado.tenant.id;
     apikey = criado.apikey;
@@ -290,6 +291,21 @@ export async function revogarChavesAntigas(tenantId: string, nova: string, grava
 /** Aponta os webhooks do tenant para o ruphus.site (o tenant da plataforma nasceu sem URL). */
 export function apontarWebhook(tenantId: string) {
   return chamarAdmin("PATCH", `/admin/tenants/${encodeURIComponent(tenantId)}`, { webhookUrl: WEBHOOK_URL() });
+}
+
+/** Limite por destinatário no atendys (o padrão dele é 3 por dia e 10 por semana). O dono recebe um
+ *  aviso por agendamento no WhatsApp pessoal, e o cliente recibo, confirmação e lembrete no mesmo dia:
+ *  com 3 por dia, o 4º agendamento do dia parava na cota. Máximo do atendys: 100 por dia, 500 por semana. */
+export const LIMITES_DESTINATARIO = { recipientMsgPerDay: 30, recipientMsgPerWeek: 150 } as const;
+
+/** Tenants que já existiam: o mesmo limite por PATCH (scripts/limites-whatsapp.mts). */
+export function ajustarLimitesDoTenant(tenantId: string) {
+  return chamarAdmin("PATCH", `/admin/tenants/${encodeURIComponent(tenantId)}`, LIMITES_DESTINATARIO);
+}
+
+/** Todos os tenants ativos do atendys, com os limites atuais (só leitura). */
+export function listarTenantsAtendys() {
+  return chamarAdmin<Array<{ id: string; slug: string; recipientMsgPerDay?: number; recipientMsgPerWeek?: number }>>("GET", "/admin/tenants");
 }
 
 /** Cria a instância do número (uma por negócio). O nome vem da resposta do atendys; o 409 diz
@@ -351,11 +367,17 @@ export const OPTIN_DONO: OptIn = { origem: "ruphus-aviso-dono", evidencia: "Núm
  * gravado), registramos e repetimos o envio uma vez. Sem optIn, a recusa sobe como está.
  */
 /** opcoes.resposta: a pessoa acabou de escrever ou tocar num botão (janela de 24 h): no atendys não
- *  conta na cota por destinatário nem no dedupe de 10 min (replyToInbound). */
-export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean } = {}): Promise<Envio> {
+ *  conta na cota por destinatário nem no dedupe de 10 min (replyToInbound).
+ *  opcoes.chave: idempotency-key (chaveDeEnvio); repetir o envio com ela devolve a mensagem já aceita. */
+export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean; chave?: string } = {}): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
-  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", { number: digits, text: message, ...validade(prazo), ...(opcoes.resposta && { replyToInbound: true }) }, message, prazo, opcoes.resposta);
+  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", { number: digits, text: message, ...validade(prazo), ...(opcoes.resposta && { replyToInbound: true }) }, message, prazo, opcoes.resposta, opcoes.chave);
 }
+
+/** Idempotency-key determinística para send-text/send-template: o mesmo envio repetido (timeout, cron
+ *  que tenta de novo) devolve a mensagem já aceita em vez de mandar outra. As partes identificam o envio
+ *  (negócio, agendamento, horário); o hash cabe nos 80 caracteres do atendys. */
+export const chaveDeEnvio = (tipo: string, ...partes: string[]) => `${tipo}-${createHash("sha256").update(partes.join("/")).digest("hex").slice(0, 40)}`;
 
 /** Até quando o aviso serve (o horário do agendamento): o atendys descarta o que não saiu até lá
  *  (horário silencioso, cota) em vez de entregar "lembrete: hoje às 21:30" no dia seguinte.
@@ -368,7 +390,7 @@ function validade(prazo?: Date) {
  *  fora da janela de 24 h. parametros vão, em ordem, para {{1}}, {{2}}… do corpo. */
 export type Template = { nome: string; idioma?: string; parametros: string[]; /** payload de cada botão de resposta rápida, na ordem do template */ botoes?: string[] };
 
-export async function enviarTemplate(conn: ConexaoAtendys, phone: string, t: Template, optIn: OptIn, prazo?: Date): Promise<Envio> {
+export async function enviarTemplate(conn: ConexaoAtendys, phone: string, t: Template, optIn: OptIn, prazo?: Date, opcoes: { chave?: string } = {}): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
   const corpo = {
     number: digits,
@@ -384,7 +406,7 @@ export async function enviarTemplate(conn: ConexaoAtendys, phone: string, t: Tem
     ...validade(prazo),
   };
   // texto da parada (painel "Mensagens"): o template com os parâmetros, já que não há texto livre
-  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-template", corpo, `[${t.nome}] ${t.parametros.join(" · ")}`, prazo);
+  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-template", corpo, `[${t.nome}] ${t.parametros.join(" · ")}`, prazo, false, opcoes.chave);
 }
 
 /** Botões (até 3) ou lista (até 10) pela API oficial, só dentro da janela de 24 h (a pessoa
@@ -406,14 +428,15 @@ const semFolga = (prazo?: Date) => !!prazo && prazo.getTime() <= Date.now() + 60
 const NAO_ENVIADA = { messageId: "", status: "not_sent", destino: "nao_sai" as const };
 
 /** enviarTemplate + seguirSemOperador: para quem envia sem ninguém olhando a tela. */
-export async function enviarTemplateSemOperador(conn: ConexaoAtendys, phone: string, t: Template, optIn: OptIn, prazo?: Date) {
+export async function enviarTemplateSemOperador(conn: ConexaoAtendys, phone: string, t: Template, optIn: OptIn, prazo?: Date, opcoes: { chave?: string } = {}) {
   if (semFolga(prazo)) return NAO_ENVIADA;
-  const envio = await enviarTemplate(conn, phone, t, optIn, prazo);
+  const envio = await enviarTemplate(conn, phone, t, optIn, prazo, opcoes);
   return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };
 }
 
-async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn, caminho: string, corpo: unknown, message: string, prazo?: Date, resposta = false): Promise<Envio> {
-  const auth = { ...authTenant(conn), instance: conn.instanceId };
+async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn, caminho: string, corpo: unknown, message: string, prazo?: Date, resposta = false, chave?: string): Promise<Envio> {
+  // a mesma chave nas duas tentativas (antes e depois do opt-in): a recusa NOT_OPTED_IN não grava nada no atendys
+  const auth = { ...authTenant(conn), instance: conn.instanceId, ...(chave && { "idempotency-key": chave }) };
   const enviar = async (): Promise<Envio> => {
     const r = await chamar<{ id: string; status: string } & Omit<Envio, "messageId" | "status">>(auth, "POST", caminho, corpo);
     // os campos da cota só quando vêm: o envio comum continua { messageId, status }
@@ -535,7 +558,7 @@ export async function seguirSemOperador(conn: ConexaoAtendys, envio: Envio, praz
 }
 
 /** enviarTexto + seguirSemOperador: para quem envia sem ninguém olhando a tela. */
-export async function enviarSemOperador(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean } = {}) {
+export async function enviarSemOperador(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean; chave?: string } = {}) {
   if (semFolga(prazo)) return NAO_ENVIADA;
   const envio = await enviarTexto(conn, phone, message, optIn, prazo, opcoes);
   return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };

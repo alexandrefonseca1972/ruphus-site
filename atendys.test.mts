@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { assinaturaValida, assinaturaV2Valida, assumirEnvio, criarInstancia, enviarSemOperador, enviarTexto, ErroAtendys, manterAgendada, garantirTenant, imagemDoQr, revogarChavesAntigas, versaoDaAssinatura } from "@/lib/atendys";
+import { assinaturaValida, assinaturaV2Valida, assumirEnvio, chaveDeEnvio, criarInstancia, enviarSemOperador, enviarTexto, ErroAtendys, manterAgendada, garantirTenant, imagemDoQr, revogarChavesAntigas, versaoDaAssinatura } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { codigosUnicos, conectarNegocio, espelharStatusDaInstancia, gravarConexao, lerConexao, lerConfigWhatsApp, lerComando, pareceComando, processarComandoAgendamento } from "@/lib/whatsapp.server";
@@ -76,6 +76,11 @@ novo({
 });
 assert.deepEqual(await garantirTenant("casa", "Casa"), { tenantId: "t1", apikey: "k1", keyId: "", webhookSecret: "s1" });
 assert.equal(chamadas[0].headers["x-admin-key"], "chave-admin");
+assert.deepEqual(
+  { dia: (chamadas[1].corpo as { recipientMsgPerDay?: number }).recipientMsgPerDay, semana: (chamadas[1].corpo as { recipientMsgPerWeek?: number }).recipientMsgPerWeek },
+  { dia: 30, semana: 150 },
+  "tenant novo nasce com o limite por destinatário da Ruphus, não com o padrão 3/10",
+);
 
 // tenant que já existe, com segredo gravado do lado de cá: não rotaciona
 novo({ "GET /admin/tenants": json([{ id: "t1", slug: "casa" }]), "GET /admin/tenants/t1/keys": json([{ id: "c0", label: "default", createdAt: "x", revokedAt: null }]) });
@@ -358,8 +363,20 @@ assert.equal((await db.doc("tenants/salao/appointments/bCdegr").get()).get("stat
   await marcar("Yy22bb");
   assert.equal(await comando("confirmado yy22", "5511966665555"), "confirmado", "WhatsApp pessoal do dono gravado sem o 9");
   assert.equal(await comando("confirmado", "5511955554444"), "ignorado", "terceiro continua sem poder confirmar");
+  enviadas.length = 0;
+  assert.equal(await comando("confimado", "5511966665555"), "nao entendido");
+  assert.equal(enviadas.at(-1)?.para, "5511966665555", "a resposta volta ao WhatsApp pessoal de quem mandou, não ao self-chat");
+  assert.equal((chamadas.at(-1)!.corpo as { replyToInbound?: boolean }).replyToInbound, true, "resposta ao pessoal vai como replyToInbound");
   await gravarOwnerPhone(db, "salao", null);
   await gravarConexao(db, "salao", { ...c! });
+}
+
+// atendys fora do ar com comando do dono: lança (o pendente fica para o cron); conversa comum, não
+{
+  novo({ ...salao, "GET /v1/instance/salao-main/status": () => new Response("fora", { status: 503 }) });
+  await assert.rejects(comando("confirmado"), "comando não some quando o atendys não responde");
+  assert.equal(await comando("bom dia"), "ignorado", "conversa comum segue ignorada");
+  novo(salao);
 }
 
 // ── WhatsApp pessoal do dono: fora do documento do negócio (a equipe o lê pelo navegador) ──
@@ -374,6 +391,14 @@ assert.equal((await db.doc("tenants/salao/appointments/bCdegr").get()).get("stat
   assert.equal(paraTela(c)?.ownerPhone, "5511933334444", "e a tela de quem gere, pela ação do servidor");
   await gravarConexao(db, "salao", { ...c!, status: "connected" });
   assert.equal((await db.doc("tenants/salao").get()).get("whatsapp.ownerPhone"), undefined, "regravar a conexão não o devolve ao documento");
+}
+
+// ── aviso de novo agendamento: o pessoal do dono primeiro; o self-chat só avisa ──
+{
+  const { destinoDoAvisoAoDono } = await import("@/lib/whatsapp.server");
+  assert.deepEqual(destinoDoAvisoAoDono({ phone: "5511900000099", ownerPhone: "5511933334444" }), { para: "5511933334444", podeResponder: true }, "o pessoal do dono vem primeiro");
+  assert.deepEqual(destinoDoAvisoAoDono({ phone: "5511900000099", ownerPhone: null }), { para: "5511900000099", podeResponder: false }, "self-chat: só aviso, sem pedir resposta");
+  assert.equal(destinoDoAvisoAoDono({ phone: null, ownerPhone: null }), null);
 }
 
 // ── demonstração: não conecta e nada sai dela, mesmo com conexão esquecida no documento ──
@@ -636,6 +661,17 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   // prazo sem folga (o atendys recusaria o expiresAt e a mensagem sairia atrasada): nem envia
   assert.equal((await enviarSemOperador(loja, "5511987654321", "oi", null, new Date(Date.now() + 30_000))).destino, "nao_sai");
   assert.equal(chamadas.length, 0);
+  // lembrete: idempotency-key determinística; sem chave, sem cabeçalho
+  const k = chaveDeEnvio("lembrete", "loja", "ag1", "2026-11-10T10:00");
+  assert.match(k, /^lembrete-[0-9a-f]{40}$/);
+  assert.equal(k, chaveDeEnvio("lembrete", "loja", "ag1", "2026-11-10T10:00"), "a mesma em toda tentativa");
+  assert.notEqual(k, chaveDeEnvio("lembrete", "loja", "ag1", "2026-11-10T11:00"), "remarcou: outra chave");
+  novo({ "POST /v1/message/send-text": json({ id: "m-k", status: "queued" }) });
+  await enviarSemOperador(loja, "5511987654321", "lembrete", null, undefined, { chave: k });
+  assert.equal(chamadas[0].headers["idempotency-key"], k);
+  novo({ "POST /v1/message/send-text": json({ id: "m-k2", status: "queued" }) });
+  await enviarSemOperador(loja, "5511987654321", "oi", null);
+  assert.equal(chamadas[0].headers["idempotency-key"], undefined, "sem chave: sem cabeçalho");
 
   // todo envio aceito é vigiado; failed depois do aceite vai para a gaveta, uma vez
   const ID5 = "5cd4d428-4361-4153-bc2c-60db816d8b77";
@@ -650,6 +686,14 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   await db.doc("tenants/loja").set({ whatsapp: { lastNotifyError: null } }, { merge: true });
   await entregar({ event: "message.status", messageId: ID5, status: "failed", errorCode: "META_131026" }, "s-loja");
   assert.equal((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError ?? null, null, "reentrega não repete o aviso");
+  // negócio desconectado (sem instanceId) ainda recebe o message.status do que mandou antes
+  const ID6 = "6cd4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: ID6, status: "queued" }) });
+  await enviarSemOperador(loja, "5511987654321", "Lembrete de amanhã", null);
+  await db.doc("tenants/loja").update({ "whatsapp.instanceId": FieldValue.delete() });
+  assert.equal((await entregar({ event: "message.status", messageId: ID6, status: "failed", errorCode: "META_131026" }, "s-loja")).status, 200);
+  assert.match((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError?.message ?? "", /Lembrete de amanhã/, "desconectado: a falha chega à gaveta");
+  await db.doc("tenants/loja").update({ "whatsapp.instanceId": "loja-main", "whatsapp.lastNotifyError": FieldValue.delete() });
 
   // comando do dono: pendente gravado com a caixa de entrada; sai só depois de processado
   assert.equal(await registrarMensagemRecebida(db, "loja", { phone: "5511900000001", messageId: "CMD/1", data: { text: "oi" } }, "salao"), true);
@@ -666,6 +710,18 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.equal(await reprocessarComandos(db), 0);
   assert.ok(!(await pend.get()).exists);
   assert.match((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError?.message ?? "", /comando do dono .* descartado/);
+  // aviso de agendamento que saiu não apaga a falha de outra coisa (lembrete, comando descartado)
+  const { limparErroDeAgendamento, registrarErroNotificacao } = await import("@/lib/whatsapp.server");
+  await registrarErroNotificacao(db, "loja", { message: "O lembrete de Ana não saiu", at: 1 });
+  await limparErroDeAgendamento(db, "loja");
+  assert.equal((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError?.message, "O lembrete de Ana não saiu", "falha de lembrete fica");
+  await registrarErroNotificacao(db, "loja", { message: "Agendamento de Ana — aviso ao salão não chegou.", at: 2 });
+  await limparErroDeAgendamento(db, "loja");
+  assert.equal((await lerConfigWhatsApp(db, "loja"))?.lastNotifyError ?? null, null, "falha de aviso de agendamento sai");
+  // sem messageId: fica na caixa de entrada, sem pendente
+  const pendentesAntes = (await db.collection("comandosPendentes").get()).size;
+  assert.equal(await registrarMensagemRecebida(db, "loja", { phone: "5511900000001", data: { text: "CONFIRMADO" } }, "salao"), true);
+  assert.equal((await db.collection("comandosPendentes").get()).size, pendentesAntes);
 }
 
 // ── botões: o cliente confirma presença, remarca por lista e cancela; o dono confirma por botão ──

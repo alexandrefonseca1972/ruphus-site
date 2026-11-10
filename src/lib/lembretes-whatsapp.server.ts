@@ -4,7 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
 import { agoraNaParede, chaveDoHorario, dateIn, formatTime, fusoDe, instanteReal, todayIn, zonedTime } from "@/lib/datetime";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
-import { enviarSemOperador, enviarTemplateSemOperador, motivoLegivel, ROTULO_STATUS, saiuDepoisDoAceite, statusDaConexao } from "@/lib/atendys";
+import { chaveDeEnvio, enviarSemOperador, enviarTemplateSemOperador, motivoLegivel, ROTULO_STATUS, saiuDepoisDoAceite, statusDaConexao } from "@/lib/atendys";
 import { conexaoOficial, templateCliente, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { espelharStatusVivo, lerConexao, lerConfigWhatsApp, registrarErroNotificacao, soDigitosComDDI } from "@/lib/whatsapp.server";
@@ -104,15 +104,19 @@ export async function enviarLembretesDoDia(): Promise<number> {
         return true;
       });
       if (!reservado) continue;
+      // um lembrete por agendamento e horário: a tentativa do ciclo seguinte (timeout, reserva devolvida)
+      // repete a chave e o atendys devolve o já aceito em vez de mandar outro. Remarcou: outra chave
+      const chave = chaveDeEnvio("lembrete", t.id, a.id, chaveDoHorario(start));
       try {
         const e = oficial
-          ? await enviarTemplateSemOperador(oficial, cliente, templateCliente("lembrete", { nome, negocio: nomeNegocio, servico: String(a.get("serviceName") ?? ""), quando: `${dia} às ${formatTime(start)}` }, { slug: t.id, agendamento: a.id, horario: chaveDoHorario(start) }), optIn, prazo)
+          ? await enviarTemplateSemOperador(oficial, cliente, templateCliente("lembrete", { nome, negocio: nomeNegocio, servico: String(a.get("serviceName") ?? ""), quando: `${dia} às ${formatTime(start)}` }, { slug: t.id, agendamento: a.id, horario: chaveDoHorario(start) }), optIn, prazo, { chave })
           : await enviarSemOperador(
               w,
               cliente,
               comAvisoSair(`Olá, ${nome}! Lembrete do seu horário ${dia} às ${formatTime(start)}: ${a.get("serviceName")} no ${nomeNegocio}. Qualquer imprevisto, responda aqui pelo WhatsApp.`),
               optIn,
               prazo, // lembrete que sairia depois do horário não serve: fica parado
+              { chave },
             );
         // parado na cota: não é falha (aguarda decisão do dono); a reserva fica, para não reenviar a cada ciclo
         // parado (decisão do dono) ou que não sai antes do horário: não conta como enviado. Aceito e
