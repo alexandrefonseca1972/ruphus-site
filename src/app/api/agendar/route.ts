@@ -6,6 +6,7 @@ import { MAX_DAYS_AHEAD, dentroDaJanela, fusoDe, zonedTime } from "@/lib/datetim
 import { BookingInput } from "@/lib/scheduling";
 import { codigoDoAgendamento, espelharStatusVivo, lerConexao, lerConfigWhatsApp, registrarErroNotificacao } from "@/lib/whatsapp.server";
 import { conexaoOficial, templateCliente, templateNovoDono, usaCanalOficial } from "@/lib/canal-oficial.server";
+import { motivoDaFalha } from "@/lib/mensagens-paradas.server";
 import { soDigitosComDDI } from "@/lib/telefone";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { enviarSemOperador, enviarTemplateSemOperador, motivoLegivel, OPTIN_DONO, ROTULO_STATUS, saiuDepoisDoAceite, statusDaConexao, type ConexaoAtendys } from "@/lib/atendys";
@@ -224,8 +225,9 @@ async function avisarPeloCanalOficialSemCaptura(
 
 /** Aceito, mas não vai sair (parado na cota ou adiado para depois do horário): falha visível
  *  na gaveta, como na confirmação. null = enviado ou agendado a tempo. */
-function naoSaiu(e: { destino: string }) {
+function naoSaiu(e: { destino: string; errorCode?: string }) {
   if (e.destino === "parada") return "parou na cota diária do WhatsApp: decida em Mensagens no painel";
   if (e.destino === "nao_sai") return "não sai antes do horário do agendamento (fora do horário de envio do WhatsApp)";
+  if (e.destino === "falhou") return `não foi entregue: ${motivoDaFalha(e.errorCode)}`; // o mesmo motivo que avisarFalhaDeEnvio gravou
   return null;
 }

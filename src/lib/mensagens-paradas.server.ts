@@ -67,7 +67,7 @@ export async function vigiarEnvio(slug: string, id: string, texto: string, prazo
 export const NAO_SAI_A_TEMPO = "NAO_SAI_A_TEMPO";
 
 // por que um aviso aceito não chegou: frase para quem gere, nunca o texto técnico da Meta
-function motivoDaFalha(codigo?: string | null) {
+export function motivoDaFalha(codigo?: string | null) {
   if (codigo === NAO_SAI_A_TEMPO) return "não sai antes do horário (fora do horário de envio ou limite do dia)";
   if (codigo === "MESSAGE_EXPIRED") return "não saiu até o horário (fora do horário de envio ou limite do dia)";
   if (codigo === "META_131026") return "o número do cliente não recebe mensagens no WhatsApp";

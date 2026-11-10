@@ -148,8 +148,9 @@ export async function POST(req: Request) {
       return responder(200, { ok: true });
     }
     const data = { text: evento.text ?? "" };
-    // botão com horário: o pendente leva o horário do pedido, conferido de novo na transação
-    const esperado = botao?.extra ? { agendamento: botao.agendamento, horario: botao.extra } : undefined;
+    // botão: o pendente leva o agendamento do pedido (só ele pode ser decidido) e, quando o id traz,
+    // o horário, conferido de novo na transação. Pedido antigo vem sem horário
+    const esperado = botao ? { agendamento: botao.agendamento, ...(botao.extra && { horario: botao.extra }) } : undefined;
     const nova = await registrarMensagemRecebida(adminDb, doDono, { phone: evento.phone, messageId: evento.messageId, data, timestamp: evento.at }, "plataforma", esperado);
     if (nova && evento.messageId) {
       after(() =>

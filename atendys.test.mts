@@ -816,8 +816,20 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   await enviarSemOperador({ ...loja, oficial: true }, "5511987654321", "Confirmado amanhã", null, undefined, { resposta: true });
   assert.ok(!chamadas.some((c) => c.caminho.endsWith("/status")), "número do salão e resposta: sem GET de status");
   assert.equal(await erro(), null);
-  await enviarSemOperador({ ...loja, oficial: true }, "5511987654321", "Confirmado amanhã", null);
+  // QA3 R1: a falha achada na conferência volta a quem chama (antes vinha "enviada" e /api/agendar limpava o aviso)
+  assert.equal((await enviarSemOperador({ ...loja, oficial: true }, "5511987654321", "Confirmado amanhã", null)).destino, "falhou");
   assert.match((await erro()) ?? "", /não recebe mensagens/);
+  // QA3 R3: adiada para depois do prazo, com o webhook perdido antes do índice: a conferência acha
+  const R3 = "b3d4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: R3, status: "queued" }), [`GET /v1/message/${R3}/status`]: json({ id: R3, status: "queued", retryAt: new Date(prazo.getTime() + 11 * H).toISOString() }) });
+  await limpar();
+  assert.equal((await enviarSemOperador({ ...loja, oficial: true }, "5511987654321", "Lembrete adiado", null, prazo)).destino, "nao_sai");
+  assert.match((await erro()) ?? "", /não sai antes do horário/);
+  const R3b = "b4d4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: R3b, status: "queued" }), [`GET /v1/message/${R3b}/status`]: json({ id: R3b, status: "queued", retryAt: new Date(prazo.getTime() - H).toISOString() }) });
+  await limpar();
+  assert.equal((await enviarSemOperador({ ...loja, oficial: true }, "5511987654321", "Lembrete adiado a tempo", null, prazo)).destino, "agendada");
+  assert.equal(await erro(), null, "adiada para antes do horário: ainda sai");
   await limpar();
   await entregar({ event: "message.status", messageId: F1, status: "failed", errorCode: "META_131026" }, "s-loja");
   assert.equal(await erro(), null, "o webhook atrasado não repete o aviso");
@@ -878,6 +890,16 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   assert.equal((await t.collection("appointments").doc(A3).get()).get("status"), "booked");
   assert.ok(!(await db.doc(`comandosPendentes/${idDoComando("ofc", "BTN_1")}`).get()).exists);
   assert.match(String(enviadas.at(-1)!.corpo.text), /mudou de horário/);
+  // QA3 R2: o agendamento do botão já não existe: o único pendente que sobrou (A3) não é confirmado no lugar
+  const SUMIU = "Ag9zzzzzzzzzzzzzzzzz";
+  await registrarMensagemRecebida(db, "ofc", { phone: DONO, messageId: "BTN/1b", data: { text: `CONFIRMADO ${codigoDoAgendamento(SUMIU, 12)}` } }, "plataforma", { agendamento: SUMIU, horario: `${amanha}T10:00` });
+  assert.equal(await executarComandoPendente(db, idDoComando("ofc", "BTN_1b")), "sem pendente");
+  assert.equal((await t.collection("appointments").doc(A3).get()).get("status"), "booked", "outro agendamento não é tocado");
+  assert.match(String(enviadas.at(-1)!.corpo.text), /Não encontrei agendamento/);
+  // pedido antigo, sem horário no id do botão: o agendamento do pedido vale do mesmo jeito
+  await registrarMensagemRecebida(db, "ofc", { phone: DONO, messageId: "BTN/1c", data: { text: `CONFIRMADO ${codigoDoAgendamento(SUMIU, 12)}` } }, "plataforma", { agendamento: SUMIU });
+  assert.equal(await executarComandoPendente(db, idDoComando("ofc", "BTN_1c")), "sem pendente");
+  assert.equal((await t.collection("appointments").doc(A3).get()).get("status"), "booked");
   // #5: resposta ao dono pelo canal oficial: replyToInbound (fora da cota, do dedupe e do silêncio)
   assert.equal(enviadas.at(-1)!.corpo.replyToInbound, true);
   // horário certo: confirma; #2: o aviso ao cliente vence no horário de Manaus, não no de SP
