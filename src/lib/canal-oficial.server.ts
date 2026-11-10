@@ -1,5 +1,5 @@
 import "server-only";
-import type { Firestore } from "firebase-admin/firestore";
+import { Timestamp, type Firestore } from "firebase-admin/firestore";
 import { apontarWebhook, enviarTexto, garantirTenant, revogarChavesAntigas, type ConexaoAtendys, type Template } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
@@ -183,11 +183,11 @@ export async function negocioDoComando(db: Firestore, slugs: string[], texto: st
 }
 
 /** Resposta automática a quem escreveu ao número da plataforma sem ser dono de negócio do canal
- *  oficial (o cliente respondendo a um aviso). null = não responde: botão, comando, mensagem vazia ou
- *  só a palavra de opt-out (o SAIR é do atendys, que já registra a revogação). */
-export function respostaForaDoFluxo(msg: { texto: string; botao: boolean; comando: boolean }, ultimo: { negocio: string; contato: string } | null): string | null {
-  const palavra = msg.texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/gi, "").trim().toLowerCase();
-  if (msg.botao || msg.comando || !palavra || ["sair", "parar", "pare", "stop", "cancelar", "descadastrar"].includes(palavra)) return null;
+ *  oficial (o cliente respondendo a um aviso; botão nem chega aqui). null = não responde: mensagem
+ *  vazia ou só a palavra de opt-out (o SAIR é do atendys, que já registra a revogação). */
+export function respostaForaDoFluxo(texto: string, ultimo: { negocio: string; contato: string } | null): string | null {
+  const palavra = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/gi, "").trim().toLowerCase();
+  if (!palavra || ["sair", "parar", "pare", "stop", "cancelar", "descadastrar"].includes(palavra)) return null;
   const aviso = "Este número da Ruphus só envia avisos de agendamento.";
   return ultimo ? `${aviso} Para falar com *${ultimo.negocio.replace(/\*/g, "")}*, chame ${ultimo.contato}.` : `${aviso} Fale com o estabelecimento onde você agendou.`;
 }
@@ -197,8 +197,9 @@ export function respostaForaDoFluxo(msg: { texto: string; botao: boolean; comand
  *  telefone→negócio se crescer. */
 async function ultimoAgendamentoDoCliente(db: Firestore, telefone: string): Promise<{ negocio: string; contato: string } | null> {
   const chave = customerKey(telefone);
-  // agendamento de antes da canonização pode ter a chave sem o 9 (12 dígitos): procura as duas
-  const chaves = [...new Set([chave, chave.replace(/^(55\d\d)9(\d{8})$/, "$1$2")])];
+  // agendamento de antes da canonização pode ter a chave sem o 9 (12 dígitos): procura as duas.
+  // Só celular (assinante começando em 6-9): fixo "9 3222-4444" não vira o fixo 3222-4444 de outro
+  const chaves = [...new Set([chave, chave.replace(/^(55\d\d)9([6-9]\d{7})$/, "$1$2")])];
   const oficiais = await db.collection("tenants").where("whatsapp.canalOficial", "==", true).get();
   let achado: { t: FirebaseFirestore.QueryDocumentSnapshot; start: number } | null = null;
   for (const t of oficiais.docs) {
@@ -211,23 +212,26 @@ async function ultimoAgendamentoDoCliente(db: Firestore, telefone: string): Prom
 }
 
 /** Responde (uma vez por telefone a cada 24 h) quem escreveu ao número da plataforma fora do fluxo.
- *  replyToInbound: a pessoa acabou de escrever, não conta na cota dela. Nunca lança: falha só loga. */
-export async function responderForaDoFluxo(db: Firestore, telefone: string, msg: { texto: string; botao: boolean; comando: boolean }): Promise<void> {
+ *  replyToInbound pela instância que recebeu (a pessoa acabou de escrever nela; não conta na cota).
+ *  Nunca lança: falha só loga. A marca guarda o telefone: o campo expira é o TTL do Firestore
+ *  (LGPD), ligado uma vez com gcloud firestore fields ttls update expira --collection-group=respostas. */
+export async function responderForaDoFluxo(db: Firestore, telefone: string, texto: string, instancia: string): Promise<void> {
   try {
     const numero = soDigitosComDDI(telefone);
-    if (!numero || !respostaForaDoFluxo(msg, null)) return;
+    if (!numero || !respostaForaDoFluxo(texto, null)) return;
     const c = await lerCredenciais(db);
     if (!c) return;
     const ref = db.doc(`${DOC}/respostas/${numero}`);
+    // antes da marca: consulta que falha não deixa o cliente 24 h sem resposta
+    const ultimo = await ultimoAgendamentoDoCliente(db, numero);
     const livre = await db.runTransaction(async (tx) => {
       const em = (await tx.get(ref)).get("em");
       if (typeof em === "number" && Date.now() - em < 86_400_000) return false;
-      tx.set(ref, { em: Date.now() });
+      tx.set(ref, { em: Date.now(), expira: Timestamp.fromMillis(Date.now() + 86_400_000) });
       return true;
     });
     if (!livre) return;
-    const texto = respostaForaDoFluxo(msg, await ultimoAgendamentoDoCliente(db, numero))!;
-    await enviarTexto({ atendysApiKey: c.apikey, instanceId: instanciaPlataforma(), oficial: true }, numero, texto, null, undefined, { resposta: true });
+    await enviarTexto({ atendysApiKey: c.apikey, instanceId: instancia, oficial: true }, numero, respostaForaDoFluxo(texto, ultimo)!, null, undefined, { resposta: true });
   } catch (e) {
     console.error(`[canal oficial] resposta automática a …${telefone.slice(-4)}`, e);
   }

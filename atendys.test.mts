@@ -1035,19 +1035,30 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   await t.collection("appointments").doc("ANT1").set({ status: "confirmed", start: zonedTime(addDays(todayIn(), -3), "10:00"), customerKey: "551188887777", customerPhone: "1188887777" });
   const enviadas: Record<string, unknown>[] = [];
   novo({ "POST /v1/message/send-text": (corpo) => (enviadas.push(corpo as Record<string, unknown>), Response.json({ id: "r1", status: "queued" })) });
-  const msg = { texto: "Oi, posso remarcar?", botao: false, comando: false };
-  await responderForaDoFluxo(db, "5511988887777", msg);
+  const msg = "Oi, posso remarcar?";
+  await responderForaDoFluxo(db, "5511988887777", msg, "inst-evento");
   assert.deepEqual(enviadas.map((e) => [e.number, e.text, e.replyToInbound]), [["5511988887777", "Este número da Ruphus só envia avisos de agendamento. Para falar com *Ofc*, chame (91) 3222-4444.", true]]);
+  assert.equal(chamadas.at(-1)!.headers.instance, "inst-evento", "responde pela instância que recebeu");
+  const marca = await db.doc("config/atendys-plataforma/respostas/5511988887777").get();
+  assert.ok(marca.get("expira").toMillis() > Date.now() + 23 * 3_600_000, "expira: TTL de 24 h");
   // uma vez a cada 24 h por telefone
-  await responderForaDoFluxo(db, "11988887777", msg);
+  await responderForaDoFluxo(db, "11988887777", msg, "inst-evento");
   assert.equal(enviadas.length, 1);
   // sem agendamento: texto genérico; SAIR fica com o atendys
-  await responderForaDoFluxo(db, "5511977776666", { ...msg, texto: "SAIR" });
-  await responderForaDoFluxo(db, "5511977776666", msg);
+  await responderForaDoFluxo(db, "5511977776666", "SAIR", "inst-evento");
+  await responderForaDoFluxo(db, "5511977776666", msg, "inst-evento");
   assert.equal(enviadas.at(-1)!.text, "Este número da Ruphus só envia avisos de agendamento. Fale com o estabelecimento onde você agendou.");
-  // falha do atendys só loga
+  // o fixo 3222-4444 de outro negócio não é o celular 93222-4444 (só celular perde o 9)
+  await db.doc("tenants/fixo").set({ name: "Fixo", whatsapp: { canalOficial: true } });
+  await db.collection("tenants/fixo/appointments").doc("F1").set({ status: "confirmed", start: zonedTime(addDays(todayIn(), -1), "10:00"), customerKey: "551132224444", customerPhone: "1132224444" });
+  await responderForaDoFluxo(db, "5511932224444", msg, "inst-evento");
+  assert.equal(enviadas.at(-1)!.text, "Este número da Ruphus só envia avisos de agendamento. Fale com o estabelecimento onde você agendou.");
+  // falha do atendys só loga; a marca fica (não insiste no mesmo dia)
+  const antes = enviadas.length;
   novo({});
-  await responderForaDoFluxo(db, "5511966665555", msg);
+  await responderForaDoFluxo(db, "5511966665555", msg, "inst-evento");
+  assert.equal(enviadas.length, antes);
+  assert.ok((await db.doc("config/atendys-plataforma/respostas/5511966665555").get()).exists);
 }
 
 console.log("atendys ok");

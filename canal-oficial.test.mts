@@ -50,15 +50,14 @@ delete process.env.ATENDYS_TEMPLATES_V2;
 assert.equal(templateCliente("confirmado", cliente).parametros.length, 4, "sem a chave, os templates antigos (4 parâmetros)");
 
 // resposta automática a quem escreve ao número da plataforma fora do fluxo
-const msg = (texto: string, extra: Partial<{ botao: boolean; comando: boolean }> = {}) => ({ texto, botao: false, comando: false, ...extra });
 assert.equal(
-  respostaForaDoFluxo(msg("Oi, posso remarcar?"), { negocio: "Salão *Bela*", contato: "(91) 99999-0000" }),
+  respostaForaDoFluxo("Oi, posso remarcar?", { negocio: "Salão *Bela*", contato: "(91) 99999-0000" }),
   "Este número da Ruphus só envia avisos de agendamento. Para falar com *Salão Bela*, chame (91) 99999-0000.",
 );
-assert.equal(respostaForaDoFluxo(msg("oi"), null), "Este número da Ruphus só envia avisos de agendamento. Fale com o estabelecimento onde você agendou.");
-for (const sair of ["SAIR", " sair! ", "Parar", "STOP", "cancelar"]) assert.equal(respostaForaDoFluxo(msg(sair), null), null, sair);
-assert.equal(respostaForaDoFluxo(msg("quero sair da lista amanhã"), null)?.startsWith("Este número"), true, "frase com sair ainda responde");
-assert.equal(respostaForaDoFluxo(msg("CONFIRMADO AB12", { comando: true }), null), null);
-assert.equal(respostaForaDoFluxo(msg("Confirmar presença", { botao: true }), null), null);
-assert.equal(respostaForaDoFluxo(msg("   "), null), null);
+assert.equal(respostaForaDoFluxo("oi", null), "Este número da Ruphus só envia avisos de agendamento. Fale com o estabelecimento onde você agendou.");
+for (const sair of ["SAIR", " sair! ", "Parar", "STOP", "cancelar"]) assert.equal(respostaForaDoFluxo(sair, null), null, sair);
+assert.equal(respostaForaDoFluxo("quero sair da lista amanhã", null)?.startsWith("Este número"), true, "frase com sair ainda responde");
+// cliente não é dono: "Confirmado" dele também recebe a orientação
+assert.equal(respostaForaDoFluxo("Confirmado", null)?.startsWith("Este número"), true);
+assert.equal(respostaForaDoFluxo("   ", null), null);
 console.log("canal-oficial: ok");
