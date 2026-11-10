@@ -36,7 +36,7 @@ const SITUACAO: Record<CobrancaEnviavel["status"], { rotulo: string; cor: string
   cancelada: { rotulo: "cancelada", cor: "bg-[#F1EFE4] text-[#8B8578]" },
 };
 
-const oque = (c: CobrancaEnviavel) => (c.tipo === "entrada" ? "Taxa de ativação" : (c.competencia ?? ""));
+const oque = (c: CobrancaEnviavel) => (c.tipo === "entrada" ? "Taxa de ativação" : c.tipo === "recarga" ? "Recarga de mensagens" : (c.competencia ?? ""));
 
 async function copiar(texto: string) {
   try {

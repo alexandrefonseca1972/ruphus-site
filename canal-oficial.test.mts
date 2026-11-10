@@ -1,6 +1,6 @@
 // Rode: npx tsx --conditions=react-server canal-oficial.test.mts  (só funções puras do canal oficial)
 import assert from "node:assert/strict";
-import { contatoDoNegocio, idBotao, lerBotao, parametro, respostaForaDoFluxo, templateCliente, templateConfirmarDono, templateNovoDono, TEMPLATES } from "@/lib/canal-oficial.server";
+import { contatoDoNegocio, idBotao, lerBotao, parametro, respostaForaDoFluxo, templateCliente, templateConfirmarDono, templateNovoDono, templateSaldoBaixo, TEMPLATES } from "@/lib/canal-oficial.server";
 
 // a Meta recusa parâmetro com quebra de linha, tab ou mais de 4 espaços seguidos; vazio também
 assert.equal(parametro("Corte\n e\t\tescova     longa"), "Corte e escova longa");
@@ -66,4 +66,25 @@ assert.equal(respostaForaDoFluxo("quero sair da lista amanhã", null)?.startsWit
 // cliente não é dono: "Confirmado" dele também recebe a orientação
 assert.equal(respostaForaDoFluxo("Confirmado", null)?.startsWith("Este número"), true);
 assert.equal(respostaForaDoFluxo("   ", null), null);
+// saldo de mensagens baixo (ruphus_saldo_baixo): 5 variáveis, cada uma passada por parametro()
+{
+  const { CONFIG_PADRAO, previsaoDeSaldo } = await import("@/lib/consumo");
+  const cheio = Array.from({ length: 10 }, (_, i) => ({ dia: `2026-11-${String(11 + i).padStart(2, "0")}`, cents: 700 }));
+  const previsao = previsaoDeSaldo({ saldoCents: 420, consumoPorDia: cheio, hoje: "2026-11-20", diasNoMes: 30, pacotes: CONFIG_PADRAO.pacotes, avisoSaldoCents: 500 });
+  const t = templateSaldoBaixo({ negocio: "Salão\n  Bela", slug: "salao-bela", saldoCents: 420, previsao });
+  assert.equal(t.nome, "ruphus_saldo_baixo");
+  assert.equal(t.nome, TEMPLATES.saldoBaixo);
+  assert.equal(t.parametros.length, 5);
+  for (const v of t.parametros) assert.equal(v, parametro(v), "cada valor já passou por parametro()");
+  assert.equal(t.parametros[0], "Salão Bela", "quebra de linha sai");
+  assert.equal(t.parametros[1], "R$ 4,20", "{{2}} em reais, com espaço comum (sem o NBSP do Intl)");
+  assert.match(t.parametros[1], /^R\$ \d{1,3}(\.\d{3})*,\d{2}$/);
+  assert.equal(t.parametros[2], "menos de 1 dia", "saldo de menos de um dia");
+  assert.equal(t.parametros[3], "R$ 50,00 (+ R$ 5,00 de bônus)", "o pacote indicado");
+  assert.equal(t.parametros[4], "www.ruphus.site/salao-bela/consumo");
+  const semMedia = previsaoDeSaldo({ saldoCents: 123456, consumoPorDia: [], hoje: "2026-11-20", diasNoMes: 30, pacotes: [], avisoSaldoCents: 500 });
+  assert.deepEqual(templateSaldoBaixo({ negocio: "", slug: "x", saldoCents: 123456, previsao: semMedia }).parametros, ["-", "R$ 1.234,56", "poucos dias", "o valor que preferir", "www.ruphus.site/x/consumo"]);
+  const tres = { ...previsao, diasRestantesEstimados: 3, pacoteIndicado: CONFIG_PADRAO.pacotes[0] };
+  assert.deepEqual(templateSaldoBaixo({ negocio: "B", slug: "b", saldoCents: 420, previsao: tres }).parametros.slice(2, 4), ["3 dias", "R$ 20,00"]);
+}
 console.log("canal-oficial: ok");

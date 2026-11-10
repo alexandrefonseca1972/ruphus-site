@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { confirmar } from "@/components/confirmar";
 import { numeroSms } from "@/lib/comtele";
+import type { ConfigMensagens } from "@/lib/consumo";
 import { formatPhone } from "@/lib/datetime";
+import { cents, emReais } from "@/lib/dinheiro";
 import { idToken as tokenAtual } from "@/lib/firebase";
 import type { IntegracaoNaTela } from "@/lib/integracoes.server";
 import type { Situacao } from "@/lib/verificar-integracoes.server";
-import { lerIntegracoes, salvarIntegracao, testarEmail, testarSms, verificarAjustes } from "./actions";
+import { lerIntegracoes, lerConfigMensagensAction, salvarConfigMensagensAction, salvarIntegracao, testarEmail, testarSms, verificarAjustes } from "./actions";
 
 const BOTAO = "inline-flex h-11 items-center justify-center rounded-[10px] px-4 text-sm font-semibold transition-colors";
 const BOTAO_ESCURO = `${BOTAO} bg-[#17150F] text-white hover:bg-[#2C2920] disabled:opacity-50`;
@@ -99,7 +101,135 @@ export function Ajustes({ idToken }: { idToken: string }) {
           )}
         </section>
       ))}
+      <PrecosMensagem idToken={idToken} />
     </div>
+  );
+}
+
+const CAMPOS_VALOR: { chave: "whatsappUtilityCents" | "whatsappServiceCents" | "smsCents" | "avisoSaldoCents" | "boasVindasCents" | "limiteNegativoCents"; rotulo: string; ajuda: string }[] = [
+  { chave: "whatsappUtilityCents", rotulo: "WhatsApp: aviso (utilidade)", ajuda: "Pedido, confirmação, lembrete, Pix: tudo que a plataforma manda por conta própria." },
+  { chave: "whatsappServiceCents", rotulo: "WhatsApp: resposta (janela de 24 h)", ajuda: "Resposta a quem acabou de escrever ou tocar num botão. 0 = grátis." },
+  { chave: "smsCents", rotulo: "SMS", ajuda: "Confirmação e lembrete por SMS (Comtele)." },
+  { chave: "avisoSaldoCents", rotulo: "Avisar o dono quando o saldo ficar abaixo de", ajuda: "Push e e-mail, uma vez por recarga." },
+  { chave: "boasVindasCents", rotulo: "Crédito de boas-vindas", ajuda: "Entra no saldo do negócio novo (pré-pago)." },
+  { chave: "limiteNegativoCents", rotulo: "Limite do saldo negativo", ajuda: "Só no modo \"deixar negativo\": até quanto abaixo de zero." },
+];
+const SEM_SALDO: Record<ConfigMensagens["semSaldo"], string> = {
+  "pausar-clientes": "Pausar mensagens a clientes (lembrete, resposta e aviso ao dono seguem)",
+  "pausar-tudo": "Pausar tudo (só o pedido ao dono sai)",
+  negativo: "Deixar o saldo ficar negativo até o limite",
+};
+type Tela = Omit<ConfigMensagens, (typeof CAMPOS_VALOR)[number]["chave"] | "pacotes"> & Record<(typeof CAMPOS_VALOR)[number]["chave"], string> & { pacotes: { id: string; valor: string; bonus: string; ativo: boolean }[] };
+
+/** Mensagens pré-pagas: preço por mensagem cobrado do negócio, saldo e pacotes de recarga. Cada envio
+ *  grava o preço do momento (o consumo de antes não muda). */
+function PrecosMensagem({ idToken }: { idToken: string }) {
+  const [tela, setTela] = useState<Tela | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
+  const paraTela = (c: ConfigMensagens): Tela => ({
+    ...c,
+    ...(Object.fromEntries(CAMPOS_VALOR.map(({ chave }) => [chave, emReais(c[chave])])) as Record<(typeof CAMPOS_VALOR)[number]["chave"], string>),
+    pacotes: c.pacotes.map((p) => ({ id: p.id, valor: emReais(p.valorCents), bonus: emReais(p.bonusCents), ativo: p.ativo })),
+  });
+
+  useEffect(() => {
+    if (!idToken) return;
+    let atual = true;
+    tokenAtual().then((tk) => lerConfigMensagensAction(tk)).then(
+      (r) => atual && (r.ok ? setTela(paraTela(r.dados)) : setAviso({ ok: false, texto: r.error })),
+      () => atual && setAviso({ ok: false, texto: "Não foi possível carregar a configuração das mensagens." }),
+    );
+    return () => {
+      atual = false;
+    };
+  }, [idToken]);
+
+  const config: ConfigMensagens | null = tela && {
+    ...tela,
+    ...(Object.fromEntries(CAMPOS_VALOR.map(({ chave }) => [chave, cents(tela[chave])])) as Record<(typeof CAMPOS_VALOR)[number]["chave"], number>),
+    pacotes: tela.pacotes.map((p) => ({ id: p.id, valorCents: cents(p.valor), bonusCents: cents(p.bonus), ativo: p.ativo })),
+  };
+  const ok = (c: number) => Number.isInteger(c) && c >= 0;
+  const invalido = !config || !CAMPOS_VALOR.every(({ chave }) => ok(config[chave])) || !config.pacotes.every((p) => ok(p.valorCents) && p.valorCents >= 100 && ok(p.bonusCents));
+  const muda = (parte: Partial<Tela>) => (setTela({ ...tela!, ...parte }), setAviso(null));
+  const CAMPO = "h-11 w-28 rounded-[10px] border border-[#D8D2C6] px-3 text-base tabular-nums";
+
+  return (
+    <section aria-label="Mensagens pré-pagas" className="flex flex-col gap-4 rounded-2xl border border-[#E2DDD3] bg-white p-4">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-sm font-semibold">Preço por mensagem (cobrado do negócio)</h3>
+        <p className="text-xs text-[#6F6A5E]">
+          Vale para os envios a partir de agora: cada mensagem grava o preço do momento. WhatsApp cobra o que saiu (falhou devolve ao saldo; parado na cota não cobra); SMS cobra no envio. No pré-pago o valor sai do saldo do negócio na hora.
+        </p>
+      </div>
+      {!tela && !aviso && <p className="text-sm text-[#6F6A5E]">Carregando…</p>}
+      {tela && (
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (invalido) return;
+            setBusy(true);
+            setAviso(null);
+            const r = await salvarConfigMensagensAction(await tokenAtual(), config).catch(() => null);
+            setBusy(false);
+            if (!r?.ok) return setAviso({ ok: false, texto: r?.error ?? "Não foi possível salvar agora." });
+            setTela(paraTela(r.dados));
+            setAviso({ ok: true, texto: "Salvo. Vale para as próximas mensagens." });
+          }}
+        >
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={tela.cobrar} onChange={(e) => muda({ cobrar: e.target.checked })} className="size-4" />
+            Cobrar as mensagens dos negócios
+          </label>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="mensagens-modelo" className="text-xs font-medium text-[#17150F]">Modelo</label>
+            <select id="mensagens-modelo" value={tela.modelo} onChange={(e) => muda({ modelo: e.target.value as Tela["modelo"] })} className="h-11 rounded-[10px] border border-[#D8D2C6] bg-white px-2 text-sm">
+              <option value="prepago">Pré-pago (saldo e recarga por Pix)</option>
+              <option value="pospago">Pós-pago (só registra o consumo)</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="mensagens-sem-saldo" className="text-xs font-medium text-[#17150F]">Quando o saldo acaba</label>
+            <select id="mensagens-sem-saldo" value={tela.semSaldo} onChange={(e) => muda({ semSaldo: e.target.value as Tela["semSaldo"] })} className="h-11 rounded-[10px] border border-[#D8D2C6] bg-white px-2 text-sm">
+              {Object.entries(SEM_SALDO).map(([v, rotulo]) => <option key={v} value={v}>{rotulo}</option>)}
+            </select>
+          </div>
+          {CAMPOS_VALOR.map(({ chave, rotulo, ajuda }) => (
+            <div key={chave} className="flex flex-col gap-1">
+              <label htmlFor={`preco-${chave}`} className="text-xs font-medium text-[#17150F]">{rotulo}</label>
+              <p className="text-xs text-[#6F6A5E]">{ajuda}</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-[#6F6A5E]">R$</span>
+                <input id={`preco-${chave}`} inputMode="decimal" value={tela[chave]} onChange={(e) => muda({ [chave]: e.target.value })} className={CAMPO} />
+              </div>
+            </div>
+          ))}
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-xs font-medium text-[#17150F]">Pacotes de recarga (valor + bônus)</legend>
+            {tela.pacotes.map((p, i) => {
+              const troca = (parte: Partial<Tela["pacotes"][number]>) => muda({ pacotes: tela.pacotes.map((x, j) => (j === i ? { ...x, ...parte } : x)) });
+              return (
+                <div key={p.id} className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-[#6F6A5E]">R$</span>
+                  <input aria-label={`Valor do pacote ${p.id}`} inputMode="decimal" value={p.valor} onChange={(e) => troca({ valor: e.target.value })} className={CAMPO} />
+                  <span className="text-sm text-[#6F6A5E]">+ bônus R$</span>
+                  <input aria-label={`Bônus do pacote ${p.id}`} inputMode="decimal" value={p.bonus} onChange={(e) => troca({ bonus: e.target.value })} className={CAMPO} />
+                  <label className="flex items-center gap-1.5 text-xs">
+                    <input type="checkbox" checked={p.ativo} onChange={(e) => troca({ ativo: e.target.checked })} className="size-4" /> ativo
+                  </label>
+                </div>
+              );
+            })}
+          </fieldset>
+          <button type="submit" disabled={busy || invalido} className={`${BOTAO_ESCURO} self-start`}>
+            {busy ? "Salvando…" : "Salvar"}
+          </button>
+        </form>
+      )}
+      {aviso && <p role="status" className={`text-xs ${aviso.ok ? "text-[#2C6A53]" : "text-[#8A2F2F]"}`}>{aviso.texto}</p>}
+    </section>
   );
 }
 

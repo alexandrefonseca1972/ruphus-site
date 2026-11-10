@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/admin";
 import { agoraNaParede, chaveDoHorario, dateIn, formatTime, fusoDe, instanteReal, todayIn, zonedTime } from "@/lib/datetime";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
+import { SemSaldo } from "@/lib/consumo.server";
 import { chaveDeEnvio, enviarSemOperador, enviarTemplateSemOperador, motivoLegivel, ROTULO_STATUS, saiuDepoisDoAceite, statusDaConexao } from "@/lib/atendys";
 import { conexaoOficial, contatoDoNegocio, templateCliente, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { alertarAdmin } from "@/lib/alerta-admin.server";
@@ -116,7 +117,7 @@ export async function enviarLembretesDoDia(): Promise<number> {
               comAvisoSair(`Olá, ${nome}! Lembrete do seu horário ${dia} às ${formatTime(start)}: ${a.get("serviceName")} no ${nomeNegocio}. Qualquer imprevisto, responda aqui pelo WhatsApp.`),
               optIn,
               prazo, // lembrete que sairia depois do horário não serve: fica parado
-              { chave },
+              { chave, tipo: "lembrete" },
             );
         // parado na cota: não é falha (aguarda decisão do dono); a reserva fica, para não reenviar a cada ciclo
         // parado (decisão do dono) ou que não sai antes do horário: não conta como enviado. Aceito e
@@ -128,6 +129,9 @@ export async function enviarLembretesDoDia(): Promise<number> {
         // o cliente saiu (SAIR) depois do aceite deste agendamento: a reserva fica (sem nova
         // tentativa a cada ciclo) e não é falha a alertar
         if (saiuDepoisDoAceite(e)) continue;
+        // sem saldo (pré-pago): a reserva fica, sem nova tentativa a cada ciclo; o envio "sem-saldo"
+        // aparece no consumo do painel
+        if (e instanceof SemSaldo) continue;
         // devolve a reserva: o próximo ciclo tenta de novo
         await a.ref.update({ whatsappReminderSentAt: FieldValue.delete() }).catch(() => {});
         console.error(`[whatsapp] lembrete ${t.id}/${a.id}`, e);

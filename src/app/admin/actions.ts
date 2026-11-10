@@ -11,6 +11,8 @@ import { espacoDe, indiceDoPainel } from "@/lib/painel-indice.server";
 import { numeroSms } from "@/lib/comtele";
 import { enviarSms, ErroSms, smsDisponivel } from "@/lib/comtele.server";
 import { configSms, HORAS_LEMBRETE } from "@/lib/sms-agendamento.server";
+import { MODOS_SEM_SALDO } from "@/lib/consumo";
+import { ajustarSaldo, creditarRecarga, definirMensagensDoNegocio, lerConfigMensagens, salvarConfigMensagens } from "@/lib/consumo.server";
 import { gravarIntegracao, INTEGRACOES, integracoesNaTela, type NomeIntegracao } from "@/lib/integracoes.server";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNegocio as salvarSite } from "@/lib/negocios.server";
@@ -21,6 +23,7 @@ import { verificarIntegracoes } from "@/lib/verificar-integracoes.server";
 import { emailDaProposta } from "@/lib/proposta-email";
 import { emailDoConvite } from "@/lib/convite-email";
 import { saudeDe } from "@/lib/saude.server";
+import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { criarConvite, revogarConvitesDaEquipe, revogarConvitesDoNegocio } from "@/lib/convite";
 import {
   atrasadas,
@@ -455,7 +458,7 @@ export type CobrancaEnviavel = {
   slug: string;
   nome: string;
   telefone: string | null;
-  tipo: "entrada" | "mensal";
+  tipo: "entrada" | "mensal" | "recarga";
   competencia: string | null;
   valorCents: number;
   vencimento: string;
@@ -485,7 +488,7 @@ async function enviaveis(cobrancas: Cobranca[]): Promise<CobrancaEnviavel[]> {
     const { nome, telefone } = nomes.get(c.slug) ?? { nome: c.slug, telefone: null };
     const primeiro = dono.get(c.slug)?.nome?.split(" ")[0];
     const url = `${base}/pagar/${c.id}?t=${c.token}`;
-    const oque = c.tipo === "entrada" ? "a taxa de ativação" : `a mensalidade de ${mesLongo(c.competencia)}`;
+    const oque = c.tipo === "entrada" ? "a taxa de ativação" : c.tipo === "recarga" ? "da recarga de mensagens" : `a mensalidade de ${mesLongo(c.competencia)}`;
     const texto = `Olá${primeiro ? `, ${primeiro}` : ""}! Aqui é da Ruphus. Segue o Pix ${oque} do ${nome}: ${formatBRL(c.valorCents)}, com vencimento em ${diaCurto(c.vencimento)}.\n\nO QR e o copia e cola estão aqui: ${url}\n\nDepois de pagar, me manda o comprovante por aqui que eu confirmo.`;
     return { ...c, nome, telefone, url, whatsapp: linkWhatsApp(telefone, texto) };
   });
@@ -609,6 +612,17 @@ export const cobrarMes = adminAction(async (_user, competencia?: string) => {
 
 export const marcarPaga = adminAction(async (user, id: string, recebidoCents: number, pagoEm: string) => {
   const paga = await baixar(adminDb, id, { recebidoCents, pagoEm, por: user.email ?? user.uid });
+  // recarga de mensagens: o valor pago e o bônus entram no saldo do negócio (uma vez). A baixa já
+  // gravou: a cobrança sai da lista e o clique não volta, então a falha aqui não pode ficar em silêncio
+  if (paga.tipo === "recarga") {
+    try {
+      await creditarRecarga(id);
+    } catch (e) {
+      console.error(`[cobranca] recarga ${id} paga sem crédito`, e);
+      await alertarAdmin(adminDb, `recarga-${id}`, "Recarga paga sem crédito", `A baixa da recarga ${id} (${paga.slug}) foi registrada, mas o saldo de mensagens não entrou.\n\nErro: ${e instanceof Error ? e.message : String(e)}\n\nLance o valor pago mais o bônus como ajuste de saldo do negócio (ajustarSaldoAction), com o motivo "recarga ${id}".`).catch(() => {});
+      throw new ErroPrevisto("Baixa registrada, mas o saldo de mensagens não entrou. Lance o valor como ajuste de saldo do negócio (o alerta foi por e-mail).");
+    }
+  }
   // a entrada é o "publicar": a faixa de proposta sai e o site abre para o Google
   if (paga.tipo === "entrada" && paga.slug && (await publicarSite(adminDb, paga.slug))) {
     renovarSite(paga.slug);
@@ -1040,4 +1054,43 @@ export const testarSms = adminAction(async (_user, telefone: unknown) => {
   });
   if (id === null) throw new ErroPrevisto("Cadastre a chave da Comtele antes de testar.");
   return id;
+});
+
+// ─── Mensagens pré-pagas: preço, saldo e pacotes (config/mensagens; consumo.server) ──────────
+
+export const lerConfigMensagensAction = adminAction(async () => lerConfigMensagens());
+
+const Centavos = z.number().int("centavos inteiros").min(0).max(10_000_000);
+const PrecosDoNegocio = z.object({ whatsappUtilityCents: Centavos, whatsappServiceCents: Centavos, smsCents: Centavos }).partial().strict();
+export const salvarConfigMensagensAction = adminAction(async (user, config: unknown) => {
+  const c = z.object({
+    cobrar: z.boolean(),
+    modelo: z.enum(["prepago", "pospago"]),
+    whatsappUtilityCents: Centavos,
+    whatsappServiceCents: Centavos,
+    smsCents: Centavos,
+    avisoSaldoCents: Centavos,
+    boasVindasCents: Centavos,
+    semSaldo: z.enum(MODOS_SEM_SALDO),
+    limiteNegativoCents: Centavos,
+    pacotes: z.array(z.object({ id: z.string().regex(/^[a-z0-9-]{1,20}$/, "id do pacote"), valorCents: Centavos.min(100), bonusCents: Centavos, ativo: z.boolean() }).strict()).max(10)
+      .refine((l) => new Set(l.map((p) => p.id)).size === l.length, "ids de pacote repetidos"),
+  }).strict().parse(config);
+  await salvarConfigMensagens(c, user.email ?? user.uid);
+  return c;
+});
+
+/** Ajuste de saldo de um negócio (+ crédito, − débito), com motivo no extrato. */
+export const ajustarSaldoAction = adminAction(async (user, slug: string, valorCents: unknown, motivo: unknown) => {
+  slugValido(slug);
+  const v = z.number().int().refine((n) => n !== 0, "valor diferente de zero").parse(valorCents);
+  const m = z.string().trim().min(3, "Informe o motivo do ajuste.").max(200).parse(motivo);
+  return { saldoCents: await ajustarSaldo(slug, v, m, user.email ?? user.uid) };
+});
+
+/** Override do negócio: cobrar (null volta ao geral) e preços próprios (null ou {} volta ao geral). */
+export const definirMensagensDoNegocioAction = adminAction(async (_user, slug: string, o: unknown) => {
+  slugValido(slug);
+  const p = z.object({ cobrar: z.boolean().nullable(), precos: PrecosDoNegocio.nullable() }).strict().parse(o);
+  await definirMensagensDoNegocio(slug, p);
 });

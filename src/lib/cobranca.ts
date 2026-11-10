@@ -3,7 +3,8 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { ErroPrevisto } from "@/lib/erro-previsto";
-import { brCode, competenciaAtual, PixInvalido, txidDe, vencimentoDe } from "@/lib/pix";
+import { dateIn } from "@/lib/datetime";
+import { brCode, competenciaAtual, PixInvalido, txidDe, txidLivre, vencimentoDe } from "@/lib/pix";
 
 /** Configuração do Pix fora do formato: a página mostra a cobrança sem QR (e o log avisa),
  *  em vez de cair inteira ou entregar um código que o banco recusa. */
@@ -25,7 +26,8 @@ export class CobrancaErro extends ErroPrevisto {}
 const RAIZ = "cobrancas";
 const PIX = "config/pix";
 
-export type Tipo = "entrada" | "mensal";
+/** recarga: crédito de mensagens pré-pagas (consumo.server); o saldo entra na baixa. */
+export type Tipo = "entrada" | "mensal" | "recarga";
 export type Status = "aberta" | "paga" | "cancelada";
 
 export type Cobranca = {
@@ -95,7 +97,7 @@ function cobranca(id: string, d: { get: (campo: string) => unknown }): Cobranca 
   return {
     id,
     slug: String(d.get("slug") ?? ""),
-    tipo: d.get("tipo") === "entrada" ? "entrada" : "mensal",
+    tipo: d.get("tipo") === "entrada" || d.get("tipo") === "recarga" ? (d.get("tipo") as Tipo) : "mensal",
     competencia: (d.get("competencia") as string | null) ?? null,
     valorCents: (d.get("valorCents") as number | null) ?? 0,
     vencimento: String(d.get("vencimento") ?? ""),
@@ -114,8 +116,21 @@ function cobranca(id: string, d: { get: (campo: string) => unknown }): Cobranca 
  * com sufixo — é assim que se corrige um valor errado. */
 export async function gerarCobranca(
   db: Firestore,
-  a: { slug: string; tipo: Tipo; competencia: string | null; valorCents: number; vencimento?: string },
+  a: { slug: string; tipo: Tipo; competencia: string | null; valorCents: number; vencimento?: string; recarga?: { pacoteId: string | null; bonusCents: number } },
 ) {
+  // recarga: uma cobrança nova a cada pedido (não é do mês), vence em 3 dias e o txid é livre
+  if (a.tipo === "recarga") {
+    const id = `${a.slug}-recarga-${Date.now().toString(36)}${randomBytes(2).toString("hex")}`;
+    const token = randomBytes(16).toString("hex");
+    await db.collection(RAIZ).doc(id).create({
+      slug: a.slug, tipo: "recarga", competencia: null, valorCents: a.valorCents,
+      pacoteId: a.recarga?.pacoteId ?? null, bonusCents: a.recarga?.bonusCents ?? 0,
+      vencimento: a.vencimento ?? dateIn(new Date(Date.now() + 3 * 86_400_000)),
+      status: "aberta", token, txid: txidLivre(`${a.slug.slice(0, 8)}C`), pagoEm: null, recebidoCents: null, baixaPor: null,
+      criadaEm: FieldValue.serverTimestamp(), atualizadoEm: FieldValue.serverTimestamp(),
+    });
+    return { id, token, nova: true };
+  }
   const base = idDe(a.slug, a.tipo, a.competencia);
   const vencimento = a.vencimento ?? vencimentoDe(a.competencia ?? competenciaAtual());
   for (let n = 1; n <= 9; n++) {
@@ -136,7 +151,7 @@ export async function gerarCobranca(
       vencimento,
       status: "aberta",
       token,
-      txid: txidDe(a.slug, a.tipo, a.competencia, n),
+      txid: txidDe(a.slug, a.tipo as "entrada" | "mensal", a.competencia, n),
       pagoEm: null,
       recebidoCents: null,
       baixaPor: null,
@@ -198,7 +213,7 @@ export async function baixar(db: Firestore, id: string, b: { recebidoCents: numb
     return atual;
   });
   // quem chamou decide o que a baixa desencadeia: a entrada publica o site
-  return { slug: String(atual.get("slug") ?? ""), tipo: (atual.get("tipo") === "entrada" ? "entrada" : "mensal") as Tipo };
+  return { slug: String(atual.get("slug") ?? ""), tipo: cobranca(id, atual).tipo };
 }
 
 export async function cancelar(db: Firestore, id: string, por: string) {
@@ -219,6 +234,7 @@ export async function atrasadas(db: Firestore, hoje: string) {
   const snap = await db.collection(RAIZ).where("status", "==", "aberta").get();
   return snap.docs
     .map((d) => cobranca(d.id, d))
-    .filter((c) => c.vencimento < hoje)
+    // recarga não paga não é dívida: o negócio só não recebeu o crédito
+    .filter((c) => c.vencimento < hoje && c.tipo !== "recarga")
     .sort((a, b) => a.vencimento.localeCompare(b.vencimento));
 }

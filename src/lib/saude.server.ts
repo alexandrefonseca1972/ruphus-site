@@ -54,7 +54,8 @@ export async function saudeDe(db: Firestore, slug: string, hoje: string, agora =
   }
   // cancelado não é uso: o último que conta é o último que não foi cancelado
   const ultimoMs = ms(ultimos.docs.find((d) => d.get("status") !== "cancelled")?.get("start"));
-  const vencimentos = cobrancas.docs.map((d) => String(d.get("vencimento"))).sort();
+  // recarga de mensagens em aberto não é dívida: o negócio só não recebeu o crédito
+  const vencimentos = cobrancas.docs.filter((d) => d.get("tipo") !== "recarga").map((d) => String(d.get("vencimento"))).sort();
   const proxima = vencimentos[0] ?? null;
   const dias = proxima ? Math.round((Date.parse(`${proxima}T12:00:00Z`) - Date.parse(`${hoje}T12:00:00Z`)) / DIA) : null;
   const cobranca: SituacaoCobranca = dias === null ? "sem" : dias < 0 ? "atrasada" : dias <= DIAS_PARA_VENCER ? "vence" : "em_dia";

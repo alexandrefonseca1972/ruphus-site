@@ -1,5 +1,7 @@
 "use server";
 
+import { RECARGA_MINIMA_CENTS } from "@/lib/consumo";
+import { criarRecarga } from "@/lib/consumo.server";
 import { cadastrarDonoOficial, conexaoOficial, enviarConfirmacaoDono, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { adminDb } from "@/lib/admin";
 import { createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
@@ -475,7 +477,7 @@ export const enviarPixWhatsappAction = memberAction(
     // inteira não leva o aviso junto para o app do banco
     const texto = textoPix({ valorCents: data.valorCents, nome: recebedor.nome, codigo });
     const corte = texto.lastIndexOf("\n\n");
-    const envio = await enviarTexto(w, cliente, `${comAvisoSair(texto.slice(0, corte))}\n\n${texto.slice(corte + 2)}`, optIn);
+    const envio = await enviarTexto(w, cliente, `${comAvisoSair(texto.slice(0, corte))}\n\n${texto.slice(corte + 2)}`, optIn, undefined, { tipo: "pix" });
     return { ok: true as const, situacao: situacaoDe(envio) };
   },
 );
@@ -515,7 +517,7 @@ export const avisarClienteWhatsappAction = memberAction(
     );
     const optIn = optInDoDoc(data.tenantId, ag);
     if (!optIn) throw new UserError("O cliente não autorizou WhatsApp neste agendamento. Avise por outro meio.");
-    const envio = await enviarTexto(w, cliente, comAvisoSair(texto), optIn);
+    const envio = await enviarTexto(w, cliente, comAvisoSair(texto), optIn, undefined, { tipo: data.tipo === "remarcado" ? "reagendado" : data.tipo });
     return { ok: true as const, situacao: situacaoDe(envio) };
   },
 );
@@ -657,6 +659,17 @@ export const responderConversaAction = conversaAction(
   async ({ conversa, texto, chave, citada }, a) => {
     await exigeConversaVisivel(a, conversa);
     return { ok: true as const, envio: await responderConversa(a.conn, conversa, texto, chave, citada) };
+  },
+);
+
+/** Recarga de mensagens pré-pagas: pacote do /admin ou valor livre (mínimo R$ 10,00). Devolve a
+ *  cobrança Pix (a mesma página /pagar da mensalidade); o saldo entra quando o pagamento é baixado. */
+export const criarRecargaAction = memberAction(
+  z.object({ tenantId: docIdStaff, pedido: z.union([z.object({ pacoteId: z.string().regex(/^[a-z0-9-]{1,20}$/) }).strict(), z.object({ valorCents: z.number().int().min(RECARGA_MINIMA_CENTS, "A recarga mínima é de R$ 10,00.").max(1_000_000) }).strict()]) }),
+  async ({ tenantId, pedido }, user) => {
+    await exigeGestor(tenantId, user.uid);
+    if (tenantId === DEMO) throw new UserError("A demonstração não recarrega mensagens.");
+    return { ok: true as const, ...(await criarRecarga(tenantId, pedido)) };
   },
 );
 

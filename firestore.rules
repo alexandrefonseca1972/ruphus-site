@@ -56,6 +56,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Mensagens pré-pagas (preço, saldo, pacotes): só o admin da plataforma lê; grava pelo servidor.
+    // A tela do dono recebe o preço pelo servidor, não lê config.
+    match /config/mensagens {
+      allow read: if ehAdminPlataforma();
+      allow write: if false;
+    }
+
     // "Meus tenants": collectionGroup("members") where uid == me
     match /{path=**}/members/{uid} {
       allow read: if request.auth != null && naoRevogado() && resource.data.uid == request.auth.uid;
@@ -159,6 +166,21 @@ service cloud.firestore {
       // contas fixas e comissões (%) do Caixa: mesma porta dos lançamentos
       match /caixa/{c} {
         allow read: if ehAdminPlataforma() || hasRole(t, ['owner', 'admin']);
+        allow write: if false;
+      }
+      // consumo de mensagens (cada envio e o agregado do mês): custo é dinheiro, só quem gere.
+      // Grava só o servidor (consumo.server), no envio e no webhook de status
+      match /envios/{e} {
+        allow read: if gere(t);
+        allow write: if false;
+      }
+      match /consumo/{m} {
+        allow read: if gere(t);
+        allow write: if false;
+      }
+      // extrato do saldo de mensagens (recarga, consumo do dia, estorno, ajuste, boas-vindas)
+      match /creditos/{c} {
+        allow read: if gere(t);
         allow write: if false;
       }
 

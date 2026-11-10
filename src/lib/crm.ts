@@ -391,7 +391,7 @@ export async function linhaDoTempo(db: Firestore, slug: string): Promise<Evento[
       return quando ? [{ id: `agenda-${d.id}`, tipo: "agendamento" as const, titulo: "Primeiro agendamento", detalhe: [d.get("serviceName"), dia].filter(Boolean).join(" · "), autor: "pelo site", quando }] : [];
     }),
     ...cobrancas.docs.flatMap((d) => {
-      const oque = d.get("tipo") === "entrada" ? "Taxa de ativação" : `Mensalidade ${String(d.get("competencia") ?? "")}`.trim();
+      const oque = d.get("tipo") === "entrada" ? "Taxa de ativação" : d.get("tipo") === "recarga" ? "Recarga de mensagens" : `Mensalidade ${String(d.get("competencia") ?? "")}`.trim();
       const valor = brl(Number(d.get("valorCents") ?? 0));
       const out: Evento[] = [];
       const criada = iso(d.get("criadaEm"));
