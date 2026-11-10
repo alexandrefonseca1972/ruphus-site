@@ -3,7 +3,8 @@ import { formatBRL, formatLongDate, formatTime } from "@/lib/datetime";
 // Textos que vão ao cliente e à equipe. Um lugar só: o servidor monta a mensagem que sai pelo
 // WhatsApp do negócio e o painel monta a mesma para o wa.me, sem as duas cópias divergirem.
 
-export type AvisoCliente = "confirmado" | "cancelado" | "remarcado";
+// recebido e lembrete: o wa.me de reserva quando o template automático não chegou (aviso-cliente.ts)
+export type AvisoCliente = "confirmado" | "cancelado" | "remarcado" | "recebido" | "lembrete";
 
 type Horario = { customerName: string; serviceName: string; staffName: string; start: Date };
 
@@ -14,6 +15,8 @@ export function textoAvisoCliente(tipo: AvisoCliente, a: Horario, negocio: strin
   const oi = `Olá, ${primeiroNome(a.customerName)}!`;
   if (tipo === "confirmado") return `${oi} Seu horário na ${negocio} está confirmado: ${a.serviceName} com ${a.staffName}, ${quando}. Até lá!`;
   if (tipo === "cancelado") return `${oi} Seu horário na ${negocio} de ${quando} (${a.serviceName} com ${a.staffName}) foi cancelado. Para marcar outro horário: ${urlAgendar}`;
+  if (tipo === "recebido") return `${oi} Recebemos seu pedido de horário na ${negocio}: ${a.serviceName} com ${a.staffName}, ${quando}. Vamos confirmar com você por aqui.`;
+  if (tipo === "lembrete") return `${oi} Lembrete do seu horário na ${negocio}: ${a.serviceName} com ${a.staffName}, ${quando}. Até lá!`;
   return `${oi} Seu horário na ${negocio} foi remarcado para ${quando} (${a.serviceName} com ${a.staffName}). Se não puder, é só responder esta mensagem.`;
 }
 

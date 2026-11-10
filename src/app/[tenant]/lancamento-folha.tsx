@@ -4,13 +4,11 @@ import { Dialog } from "@base-ui/react/dialog";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatBRL, fusoDe, maskBRL, todayIn } from "@/lib/datetime";
+import { formatBRL, maskBRL, todayIn } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
 import { categorias, ehSinal, ehVale, ehVinculado, FORMAS, ROTULO_FORMA, type Lancamento } from "@/lib/financeiro";
 import { cn } from "@/lib/utils";
-import { baixarAgendamentoAction, editarLancamentoAction, enviarPixWhatsappAction, estornarAction, excluirLancamentoAction, lancarAction, pagarAction } from "./actions";
-import { whatsappDoNegocio } from "@/lib/tenants";
-import { CotaWhatsapp, quandoSai } from "@/components/cota-whatsapp";
+import { baixarAgendamentoAction, editarLancamentoAction, estornarAction, excluirLancamentoAction, lancarAction, pagarAction } from "./actions";
 import { ConfirmDialog } from "./confirm-dialog";
 import { PixQr } from "@/components/pix-qr";
 import { txidLivre } from "@/lib/pix";
@@ -21,7 +19,7 @@ import { useTenant } from "./painel-layout";
 export type Folha =
   | { modo: "novo"; tipo: "entrada" | "saida"; data: string }
   | { modo: "editar"; lancamento: Lancamento }
-  | { modo: "baixa"; atendimento: { id: string; customerName: string; serviceName: string; priceCents: number; sinalCents: number } }
+  | { modo: "baixa"; atendimento: { id: string; customerName: string; customerPhone?: string; serviceName: string; priceCents: number; sinalCents: number } }
   | { modo: "pagar"; titulo: string; detalhe: string; valorCents: number; pagamento: { tipo: "fixa" | "comissao"; alvoId: string; mes: string; descontoCents?: number } };
 
 export const Chip = ({ ativo, onClick, children }: { ativo: boolean; onClick: () => void; children: React.ReactNode }) => (
@@ -199,21 +197,7 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
 
           {podePix && pix && (
             mostrarPix && centavos ? (
-              <PixQr
-                key={centavos} // valor novo: o "Enviado" do valor antigo não vale
-                recebedor={pix}
-                valorCents={centavos}
-                txid={txid}
-                // atendimento com WhatsApp do negócio conectado: o código vai direto ao cliente
-                enviar={folha.modo === "baixa" && whatsappDoNegocio(tenant) ? () => idToken().then((t) => enviarPixWhatsappAction(t, { tenantId: slug, appointmentId: folha.atendimento.id, valorCents: centavos, txid })).then((r) => {
-                  if (!r.ok || r.situacao.estado === "enviada") return r.ok ? { ok: true as const } : r;
-                  const s = r.situacao;
-                  // na fila ou parado na cota do dia: não é "enviado"
-                  return s.estado === "agendada"
-                    ? { ok: true as const, pendente: { texto: `Na fila do WhatsApp do negócio: sai ${quandoSai(s.retryAt, fusoDe(tenant.site))}.` } }
-                    : { ok: true as const, pendente: { texto: "O Pix ainda não saiu.", acao: <CotaWhatsapp tenantId={slug} messageId={s.messageId} retryAt={s.retryAt} fuso={fusoDe(tenant.site)} /> } };
-                }) : undefined}
-              />
+              <PixQr key={centavos} recebedor={pix} valorCents={centavos} txid={txid} telefone={folha.modo === "baixa" ? folha.atendimento.customerPhone : null} />
             ) : (
               <Button type="button" variant="outline" className="h-11" disabled={!centavos} onClick={() => setMostrarPix(true)}>
                 Mostrar QR do Pix

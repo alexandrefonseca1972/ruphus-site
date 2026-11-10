@@ -1,6 +1,6 @@
 // Rode: npm run test:rules
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
-import { collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from "firebase/firestore";
+import { collection, collectionGroup, deleteDoc, deleteField, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from "firebase/firestore";
 import { getBytes, ref, uploadBytes } from "firebase/storage";
 import { readFileSync } from "node:fs";
 
@@ -160,6 +160,15 @@ await env.withSecurityRulesDisabled(async (ctx) => {
 await assertFails(changeStatus(bob, "bob", "cancelled", { apptId: "pago" }));
 await assertFails(changeStatus(bob, "bob", "no_show", { apptId: "pago" }));
 await assertSucceeds(changeStatus(bob, "bob", "confirmed", { apptId: "pago" }));
+// aviso ao cliente que não chegou (avisoFalhou, gravado pelo servidor): a equipe lê, muda o status com
+// ele no documento, e não o apaga nem o escreve pelo navegador (a marca sai pela ação do servidor)
+await env.withSecurityRulesDisabled((ctx) =>
+  setDoc(doc(ctx.firestore(), "tenants/acme/appointments/aviso"), { status: "booked", staffId: "ana", start: new Date(), customerName: "V", avisoFalhou: { tipo: "recebido", em: 1, motivo: "sem saldo de mensagens" } }),
+);
+if ((await assertSucceeds(getDoc(doc(dani, "tenants/acme/appointments/aviso")))).get("avisoFalhou.tipo") !== "recebido") throw new Error("a equipe lê avisoFalhou");
+await assertSucceeds(changeStatus(dani, "dani", "confirmed", { apptId: "aviso" }));
+await assertFails(changeStatus(bob, "bob", "cancelled", { apptId: "aviso", apptExtra: { avisoFalhou: deleteField() } }));
+await assertFails(updateDoc(doc(bob, "tenants/acme/appointments/aviso"), { avisoFalhou: { tipo: "confirmado", em: 2 } }));
 await assertFails(deleteDoc(doc(alice, "tenants/acme/history/old")));
 await assertFails(deleteDoc(doc(alice, "tenants/acme/appointments/a1")));
 await assertFails(setDoc(doc(alice, "tenants/acme/appointments/novo"), { status: "booked" })); // só o servidor cria
@@ -228,7 +237,10 @@ await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenant
 await assertFails(setDoc(doc(alice, "tenants/acme"), { name: "Acme Salão", ownerId: "alice", limiteStaff: 5 }));
 await assertFails(setDoc(doc(alice, "tenants/acme"), { name: "Acme Salão", ownerId: "alice", limiteStaff: 50 }));
 await assertFails(updateDoc(doc(alice, "tenants/acme"), { "site.phone": '55"><img src=x onerror=alert(1)>' }));
-await assertFails(updateDoc(doc(alice, "tenants/acme"), { "whatsapp.instanceId": "outro" }));
+// a pausa do WhatsApp pela Ruphus (só o /admin, pelo servidor): nem o dono a tira nem a põe pelo navegador
+await assertFails(updateDoc(doc(alice, "tenants/acme"), { "whatsapp.desligadoPelaRuphus": deleteField() }));
+await assertFails(updateDoc(doc(alice, "tenants/acme"), { "whatsapp.desligadoPelaRuphus": false, "whatsapp.canalOficial": true }));
+await assertFails(updateDoc(doc(alice, "tenants/acme"), { "whatsapp.canalOficial": true }));
 
 // Profissional novo só pelo servidor (é lá que o limite do plano é contado)
 await assertFails(setDoc(doc(alice, "tenants/acme/staff/novo"), { name: "Bia", active: true }));
@@ -305,11 +317,11 @@ await assertSucceeds(getDoc(doc(carla, "tenants/acme/members/carla")), "le o pro
 await assertFails(getDoc(doc(carla, "tenants/acme/members/alice")), "a lista da equipe e de quem gere");
 await assertSucceeds(getDoc(doc(alice, "tenants/acme/members/carla")));
 
-// a credencial do gateway de WhatsApp fica num doc que só o servidor lê: nem o dono, nem a equipe
-await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/privado/whatsapp"), { atendysApiKey: "k", atendysWebhookSecret: "s" }));
-await assertFails(getDoc(doc(alice, "tenants/acme/privado/whatsapp")), "o dono não lê a credencial do gateway");
-await assertFails(getDoc(doc(carla, "tenants/acme/privado/whatsapp")), "a equipe não lê a credencial do gateway");
-await assertFails(setDoc(doc(alice, "tenants/acme/privado/whatsapp"), { atendysApiKey: "outra" }), "nem grava");
+// o WhatsApp pessoal do dono fica num doc que só o servidor lê: nem o dono (lê pelas ações), nem a equipe
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/privado/whatsapp"), { ownerPhone: "5511988887777", ownerPhoneVerifiedAt: 1 }));
+await assertFails(getDoc(doc(alice, "tenants/acme/privado/whatsapp")), "o dono não lê o privado direto");
+await assertFails(getDoc(doc(carla, "tenants/acme/privado/whatsapp")), "a equipe não lê o WhatsApp do dono");
+await assertFails(setDoc(doc(alice, "tenants/acme/privado/whatsapp"), { ownerPhone: "5511900000000", ownerPhoneVerifiedAt: 2 }), "nem grava (a confirmação seria forjada)");
 
 await env.cleanup();
 console.log("rules ok");

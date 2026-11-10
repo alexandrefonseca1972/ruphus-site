@@ -9,13 +9,12 @@ import { configurarLembretesWhatsAppAction, definirWhatsAppDonoAction, lerWhatsA
 
 // Avisos pelo WhatsApp no painel do dono. Os avisos aos clientes e os pedidos de agendamento saem
 // pelo número oficial da Ruphus (canal oficial): o dono só cadastra o WhatsApp pessoal, que recebe
-// os pedidos, e confirma que é dele tocando "Sou eu" na mensagem que a Ruphus manda. Parear um
-// número próprio (QR) ficou só no /admin.
+// os pedidos, e confirma que é dele tocando "Sou eu" na mensagem que a Ruphus manda.
 
 type Config = {
-  instanceId?: string;
-  ownerManaged?: boolean;
   canalOficial?: boolean;
+  // a Ruphus pausou o WhatsApp pelo /admin: salvar o número não religa
+  desligadoPelaRuphus?: boolean;
   ownerPhone?: string | null;
   ownerPhoneVerifiedAt?: number | null;
   remindersEnabled?: boolean;
@@ -131,8 +130,6 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     );
   }
 
-  // número próprio gerenciado pela Ruphus, fora do canal oficial: quem troca é o suporte
-  const gerenciado = cfg.ownerManaged === false && !cfg.canalOficial;
   const dataConfirmacao = cfg.ownerPhoneVerifiedAt ? new Date(cfg.ownerPhoneVerifiedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : null;
 
   return (
@@ -143,6 +140,12 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
         no seu WhatsApp pessoal e confirma ou recusa pelos botões da mensagem.
       </p>
 
+      {cfg.desligadoPelaRuphus && (
+        <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          <span className="font-semibold">WhatsApp pausado pela Ruphus.</span> Nenhum aviso sai pelo WhatsApp (pedidos, confirmações, lembretes). Fale com o suporte para voltar.
+        </p>
+      )}
+
       {cfg.lastNotifyError?.message && (
         <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm [overflow-wrap:anywhere] text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
           <span className="font-semibold">Último aviso que não saiu</span>
@@ -150,43 +153,36 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
         </p>
       )}
 
-      {gerenciado ? (
-        <p className="text-sm text-muted-foreground">
-          O WhatsApp do seu negócio é <strong>gerenciado pela Ruphus</strong>. Para trocar o número que recebe os pedidos,
-          fale com o suporte.
-        </p>
-      ) : (
-        <form
-          className="grid gap-1.5"
-          onSubmit={(ev) => {
-            ev.preventDefault();
-            salvar();
-          }}
-        >
-          <label htmlFor="zap-dono" className="text-sm font-medium">Seu WhatsApp (para receber os pedidos)</label>
-          <div className="flex gap-2">
-            <input
-              id="zap-dono"
-              inputMode="numeric"
-              autoComplete="tel"
-              value={mascaraTelefoneBR(fone)}
-              maxLength={19}
-              onChange={(e) => setFone(e.target.value.replace(/\D/g, ""))}
-              placeholder="(91) 99999-0000"
-              className="h-12 min-w-0 grow rounded-lg border border-input bg-card px-3 text-[15px] tabular-nums sm:h-11 sm:text-sm"
-            />
-            <Button type="submit" disabled={busy} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">
-              {busy ? "Salvando…" : "Salvar"}
-            </Button>
-          </div>
-        </form>
-      )}
+      <form
+        className="grid gap-1.5"
+        onSubmit={(ev) => {
+          ev.preventDefault();
+          salvar();
+        }}
+      >
+        <label htmlFor="zap-dono" className="text-sm font-medium">Seu WhatsApp (para receber os pedidos)</label>
+        <div className="flex gap-2">
+          <input
+            id="zap-dono"
+            inputMode="numeric"
+            autoComplete="tel"
+            value={mascaraTelefoneBR(fone)}
+            maxLength={19}
+            onChange={(e) => setFone(e.target.value.replace(/\D/g, ""))}
+            placeholder="(91) 99999-0000"
+            className="h-12 min-w-0 grow rounded-lg border border-input bg-card px-3 text-[15px] tabular-nums sm:h-11 sm:text-sm"
+          />
+          <Button type="submit" disabled={busy || cfg.desligadoPelaRuphus} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">
+            {busy ? "Salvando…" : "Salvar"}
+          </Button>
+        </div>
+      </form>
 
       {!cfg.ownerPhone ? (
         <p role="status" className="text-sm text-amber-800 dark:text-amber-200">Sem número cadastrado: os pedidos não chegam a você.</p>
       ) : dataConfirmacao ? (
         <p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">Confirmado em {dataConfirmacao}.</p>
-      ) : !cfg.canalOficial ? (
+      ) : cfg.desligadoPelaRuphus ? null : !cfg.canalOficial ? (
         <p role="status" className="text-sm text-amber-800 dark:text-amber-200">Salve para receber pelo número da Ruphus.</p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
@@ -205,55 +201,49 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
         </p>
       )}
 
-      {cfg.instanceId && (
-        <p className="text-[12.5px] text-muted-foreground">Este negócio também tem um número próprio conectado (pela Ruphus).</p>
-      )}
-
-      {cfg.ownerManaged !== false && (
-        // lembretes automáticos: o dono escolhe quantas horas antes; o job manda uma vez por agendamento
-        <div className="grid gap-2 rounded-lg border p-3">
-          <label className="flex min-h-11 items-center gap-2.5 text-sm font-medium">
-            <input
-              type="checkbox"
-              className="size-5 accent-primary"
-              checked={lembretes}
+      {/* lembretes automáticos: o dono escolhe quantas horas antes; o job manda uma vez por agendamento */}
+      <div className="grid gap-2 rounded-lg border p-3">
+        <label className="flex min-h-11 items-center gap-2.5 text-sm font-medium">
+          <input
+            type="checkbox"
+            className="size-5 accent-primary"
+            checked={lembretes}
+            onChange={(e) => {
+              const v = e.target.checked;
+              setLembretes(v);
+              salvarLembretes(v, horasLembretes);
+            }}
+          />
+          Lembrar os clientes antes do horário
+        </label>
+        {lembretes && (
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            Enviar
+            <select
+              aria-label="Quantas horas antes enviar o lembrete"
+              value={horasLembretes}
               onChange={(e) => {
-                const v = e.target.checked;
-                setLembretes(v);
-                salvarLembretes(v, horasLembretes);
+                const h = Number(e.target.value);
+                setHorasLembretes(h);
+                salvarLembretes(lembretes, h);
               }}
-            />
-            Lembrar os clientes antes do horário
-          </label>
-          {lembretes && (
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              Enviar
-              <select
-                aria-label="Quantas horas antes enviar o lembrete"
-                value={horasLembretes}
-                onChange={(e) => {
-                  const h = Number(e.target.value);
-                  setHorasLembretes(h);
-                  salvarLembretes(lembretes, h);
-                }}
-                className="h-11 rounded-lg border border-input bg-card px-2 tabular-nums sm:h-11"
-              >
-                {[1, 2, 3, 4, 6, 8, 12, 24].map((h) => (
-                  <option key={h} value={h}>
-                    {h} {h === 1 ? "hora" : "horas"}
-                  </option>
-                ))}
-              </select>
-              antes do horário de cada cliente
-            </div>
-          )}
-          <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-            Cada cliente com horário <strong>confirmado</strong> recebe um lembrete pelo WhatsApp uma vez, na hora
-            marcada aqui em cima. Não envia entre 22h e 7h30 — quem vencer nesse intervalo recebe às 7h30. Cliente que
-            ainda não foi confirmado não recebe.
-          </p>
-        </div>
-      )}
+              className="h-11 rounded-lg border border-input bg-card px-2 tabular-nums sm:h-11"
+            >
+              {[1, 2, 3, 4, 6, 8, 12, 24].map((h) => (
+                <option key={h} value={h}>
+                  {h} {h === 1 ? "hora" : "horas"}
+                </option>
+              ))}
+            </select>
+            antes do horário de cada cliente
+          </div>
+        )}
+        <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+          Cada cliente com horário <strong>confirmado</strong> recebe um lembrete pelo WhatsApp uma vez, na hora
+          marcada aqui em cima. Não envia entre 22h e 7h30 — quem vencer nesse intervalo recebe às 7h30. Cliente que
+          ainda não foi confirmado não recebe.
+        </p>
+      </div>
     </section>
   );
 }

@@ -200,7 +200,7 @@ service cloud.firestore {
           && (!demoProtegida(t)
             || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['priceCents', 'durationMin', 'active', 'tipoPreco', 'ordem']));
       }
-      // tenants/{t}/privado/* (credenciais do gateway de WhatsApp) e o resto sem match: só o servidor
+      // tenants/{t}/privado/* (WhatsApp pessoal do dono) e o resto sem match: só o servidor
       // Profissional novo é criado pelo servidor: é lá que o limite do plano é
       // contado, e regra não sabe contar documentos. Excluir também é pelo servidor:
       // leva junto o acesso de quem entrava como esse profissional. Editar segue aqui.

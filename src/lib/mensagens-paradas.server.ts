@@ -75,6 +75,15 @@ export function motivoDaFalha(codigo?: string | null) {
   return "o WhatsApp recusou a entrega";
 }
 
+/** Texto e destino do push de falha. Aviso ao cliente de um agendamento vai à agenda, onde o horário
+ *  tem o "Enviar pelo WhatsApp"; o resto, à gaveta do WhatsApp em Meu negócio, onde o último aviso
+ *  que não saiu aparece. */
+export function pushDaFalha(slug: string, naAgenda: boolean, texto: string, codigo?: string | null) {
+  return naAgenda
+    ? { body: `Um aviso ao cliente não foi entregue (${motivoDaFalha(codigo)}). Envie pelo WhatsApp na agenda, no horário dele.`.slice(0, 180), url: `/${slug}` }
+    : { body: texto.slice(0, 180), url: `/${slug}/negocio#whatsapp` };
+}
+
 /** Um push de falha por negócio a cada 10 min: uma tempestade de falhas vira um aviso só. */
 const JANELA_PUSH_MS = 10 * 60_000;
 
@@ -86,7 +95,8 @@ export async function avisarFalhaDeEnvio(slug: string, id: string, codigo?: stri
   try {
     const tenant = adminDb.doc(`tenants/${slug}`);
     const r = await adminDb.runTransaction(async (tx) => {
-      const [d, t] = await Promise.all([tx.get(indice(id)), tx.get(tenant)]);
+      // o envio no consumo diz se era ao cliente e de qual agendamento (a agenda mostra o wa.me nele)
+      const [d, t, e] = await Promise.all([tx.get(indice(id)), tx.get(tenant), tx.get(adminDb.doc(`tenants/${slug}/envios/${id}`))]);
       if (!d.exists || d.get("vigiada") !== true || d.get("falhou") || d.get("tenantId") !== slug) return null;
       const resumo = String(d.get("resumo") ?? "");
       const texto = `Um aviso pelo WhatsApp não foi entregue: ${motivoDaFalha(codigo)}.${resumo ? ` Mensagem: ${resumo}` : ""}`;
@@ -94,14 +104,14 @@ export async function avisarFalhaDeEnvio(slug: string, id: string, codigo?: stri
       const push = !(agora - Number(t.get("whatsapp.falhaAvisadaEm") ?? 0) < JANELA_PUSH_MS);
       tx.update(indice(id), { falhou: true });
       tx.set(tenant, { whatsapp: { lastNotifyError: { message: texto, at: agora }, ...(push && { falhaAvisadaEm: agora }) } }, { merge: true });
-      return { texto, push };
+      const naAgenda = e.get("destinatario") === "cliente" && typeof e.get("agendamentoId") === "string";
+      return { texto, push, naAgenda };
     });
     if (!r) return null;
     console.warn(`[mensagens] envio ${id} de ${slug} falhou (${codigo ?? "sem código"})${r.push ? "" : ": push agrupado"}`);
     if (r.push) {
       // tag fixa por negócio: o aviso novo substitui o anterior no celular em vez de empilhar
-      // url: a gaveta do WhatsApp em Meu negócio, onde o último aviso que não saiu aparece
-      await avisar(adminDb, slug, { title: "Aviso do WhatsApp não entregue", body: r.texto.slice(0, 180), url: `/${slug}/negocio#whatsapp`, tag: `falha-whatsapp-${slug}` }, { soGestores: true })
+      await avisar(adminDb, slug, { title: "Aviso do WhatsApp não entregue", ...pushDaFalha(slug, r.naAgenda, r.texto, codigo), tag: `falha-whatsapp-${slug}` }, { soGestores: true })
         .catch((e) => console.error(`[mensagens] push da falha de ${id}`, e));
     }
     return r.push ? "push" : "agrupada";

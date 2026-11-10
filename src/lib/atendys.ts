@@ -1,23 +1,26 @@
 import "server-only";
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import QRCode from "qrcode";
 import { atualizarParada, avisarFalhaDeEnvio, NAO_SAI_A_TEMPO, prazoDaParada, registrarParada, vigiarEnvio } from "@/lib/mensagens-paradas.server";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { agendamentoDoEnvio, statusDoAtendys, tipoDoTemplate, type TipoEnvio } from "@/lib/consumo";
-import { atualizarEnvio, registrarEnvio, SemSaldo, verificarEnvio } from "@/lib/consumo.server";
+import { atualizarEnvio, marcarAviso, registrarEnvio, SemSaldo, verificarEnvio } from "@/lib/consumo.server";
+import { efeitoNoAviso, MOTIVO_OPT_OUT } from "@/lib/aviso-cliente";
 import { integracao } from "@/lib/integracoes.server";
 
 // Cliente da plataforma de notificações WhatsApp (atendys). Só roda no servidor:
 // as chaves moram em variáveis de ambiente e nenhum segredo vai ao navegador.
 //
-// Dois níveis de autenticação:
-// - admin (X-Admin-Key, cadastrada no /admin ou no .env): provisionamento — criar o tenant
-//   do negócio, a instância do número, logout/reinício administrativo.
-// - tenant (header apikey, gravada no doc do negócio): status, QR, envio (com o header
-//   instance = nome da instância), opt-in (origem + evidência obrigatórias).
+// O WhatsApp sai só pelo canal oficial: o tenant da plataforma Ruphus no atendys (API da Meta),
+// com as credenciais em config/atendys-plataforma (canal-oficial.server).
 //
-// Contrato: https://<vps>:3002/docs (Swagger). Webhooks assinados por tenant
-// com HMAC-SHA256 em x-atendys-signature (segredo gravado no doc do negócio).
+// Dois níveis de autenticação:
+// - admin (X-Admin-Key, cadastrada no /admin ou no .env): provisionamento do tenant da
+//   plataforma (chaves, segredo dos webhooks, limites).
+// - tenant (header apikey): envio (com o header instance = nome da instância), status das
+//   mensagens, opt-in (origem + evidência obrigatórias).
+//
+// Contrato: https://<vps>:3002/docs (Swagger). Webhooks assinados com HMAC-SHA256 (v2 em
+// x-atendys-signature-v2) com o segredo do tenant da plataforma.
 
 const BASE = () => (process.env.ATENDYS_BASE_URL ?? "http://127.0.0.1:3002").replace(/\/+$/, "");
 const SITE = () => (process.env.PUBLIC_SITE_URL ?? "https://ruphus.site").replace(/\/+$/, "");
@@ -29,14 +32,6 @@ const TIMEOUT_MS = 35_000;
 /** O que vai para quem gere (lastNotifyError, painel): a frase prevista, nunca o texto técnico
  *  de um erro inesperado (ex.: "Unexpected token '<'" de um proxy que devolveu HTML). */
 export const motivoLegivel = (e: unknown) => (e instanceof ErroPrevisto ? e.message : "erro inesperado no serviço de WhatsApp");
-export const ROTULO_STATUS: Record<string, string> = { connected: "conectado", disconnected: "desconectado", qr: "aguardando o QR" };
-
-/** Vocabularão do atendys: pending_qr vira "qr" no painel (QR aguardando leitura). */
-export type StatusConexao = "connected" | "disconnected" | "qr";
-
-/** imagem: pronta para o src de um <img> (data URL). */
-export type SituacaoQr = { status: "qr"; imagem: string } | { status: "connecting" } | { status: "connected"; phone: string };
-
 /** Resposta do envio. status "queued" com retryAt: aceita, sai mais tarde (limite curto).
  *  "awaiting_manual": a cota estourou e a mensagem fica parada até alguém escolher entre
  *  enviar à mão (manual-handoff) ou manter agendada (resume). Nenhum dos dois é "enviada". */
@@ -52,7 +47,7 @@ export type Envio = {
 export const aguardaDecisao = (e: Pick<Envio, "status">) => e.status === "awaiting_manual";
 
 // quem envia/recebe: precisa da apikey do tenant e do nome da instância
-// slug: o negócio (lerConexao preenche); com ele, mensagem parada na cota fica registrada para o painel
+// slug: o negócio (conexaoOficial preenche); com ele, mensagem parada na cota fica registrada para o painel
 // oficial: conexão da plataforma (conexaoOficial preenche); sem import de canal-oficial (circular)
 export type ConexaoAtendys = { atendysApiKey: string; instanceId: string; slug?: string; oficial?: boolean };
 
@@ -78,39 +73,13 @@ const MENSAGEM: Record<string, string> = {
   NOT_OPTED_IN: "Este número ainda não autorizou receber mensagens do negócio.",
   INVALID_NUMBER: "Número de WhatsApp inválido. Confira o DDD e os dígitos.",
   NUMBER_NOT_ON_WHATSAPP: "Este número não tem WhatsApp.",
-  INSTANCE_DISCONNECTED: "O WhatsApp do negócio está desconectado. Reconecte pelo painel.",
-  INSTANCE_NOT_FOUND: "A conexão do WhatsApp não foi encontrada. Reconecte pelo painel.",
-  INVALID_API_KEY: "A credencial do WhatsApp foi recusada. Reconecte pelo painel.",
-  UNAUTHORIZED: "A credencial do WhatsApp foi recusada. Reconecte pelo painel.",
+  INSTANCE_DISCONNECTED: "O número de WhatsApp da Ruphus está desconectado no momento. Tente de novo mais tarde ou fale com a Ruphus.",
+  INSTANCE_NOT_FOUND: "O número de WhatsApp da Ruphus não foi encontrado no serviço de envio. Fale com a Ruphus.",
+  INVALID_API_KEY: "O serviço de WhatsApp recusou a credencial da Ruphus. Fale com a Ruphus.",
+  UNAUTHORIZED: "O serviço de WhatsApp recusou a credencial da Ruphus. Fale com a Ruphus.",
   IDEMPOTENCY_CONFLICT: "Essa mesma mensagem já foi enviada há poucos minutos.",
-  MESSAGE_NOT_FOUND: "Essa mensagem não foi encontrada no WhatsApp do negócio.",
-  // Central de conversas (/v1/inbox)
-  NOT_FOUND: "Essa conversa ou mensagem não foi encontrada. Atualize a lista.",
-  INSUFFICIENT_SCOPE: "A central de conversas ainda não está liberada para este negócio. Fale com o suporte.",
-  REPLY_WINDOW_CLOSED: "O cliente não escreve há mais de 24 horas: o WhatsApp não deixa responder com mensagem livre agora.",
-  RECIPIENT_OPTED_OUT: "Este cliente pediu para não receber mensagens do negócio.",
-  INSTANCE_PAUSED: "O WhatsApp do negócio está em pausa. As respostas voltam quando a pausa acabar.",
-  SENDER_CHANGED: "O número do WhatsApp do negócio mudou desde esta conversa. Atualize a conversa.",
-  CONVERSATION_NOT_ADDRESSABLE: "Não dá para responder este contato: o WhatsApp não informou o número dele.",
-  INBOX_RATE_LIMITED: "Muitas ações em pouco tempo. Espere alguns segundos e tente de novo.",
-  MESSAGE_TYPE_NOT_ALLOWED: "Envio de foto e arquivo ainda não está liberado para este negócio.",
-  MEDIA_UNAVAILABLE: "Este arquivo não está mais disponível no WhatsApp.",
-  TOO_MANY_STREAMS: "Muitas telas de conversa abertas ao mesmo tempo. Feche alguma e tente de novo.",
+  MESSAGE_NOT_FOUND: "Essa mensagem não foi encontrada no serviço de WhatsApp.",
 };
-
-/** Recusas da Central que são regra do contrato (avisam, não alarmam). Credencial recusada fica fora. */
-const RECUSAS_DA_CENTRAL = new Set([
-  "REPLY_WINDOW_CLOSED",
-  "RECIPIENT_OPTED_OUT",
-  "INSTANCE_PAUSED",
-  "INSTANCE_DISCONNECTED",
-  "SENDER_CHANGED",
-  "CONVERSATION_NOT_ADDRESSABLE",
-  "NOT_FOUND",
-  "INBOX_RATE_LIMITED",
-  "MEDIA_UNAVAILABLE",
-  "MESSAGE_TYPE_NOT_ALLOWED",
-]);
 
 /** A recusa do atendys como ErroAtendys: código do contrato, frase para o dono e o Retry-After. */
 async function erroDaResposta(res: Response, method: string, caminho: string): Promise<ErroAtendys> {
@@ -130,9 +99,7 @@ async function erroDaResposta(res: Response, method: string, caminho: string): P
   }
   // sem consentimento (o envio registra o opt-in e repete) e opt-in em conflito (aceite já
   // registrado, ou anterior a um SAIR) são o fluxo de consentimento funcionando, não falha
-  // na Central, as recusas do contrato (janela fechada, opt-out, pausa…) são regra, não falha
-  const esperado =
-    codigo === "NOT_OPTED_IN" || (res.status === 409 && caminho === "/v1/optin") || (caminho.startsWith("/v1/inbox/") && codigo !== null && RECUSAS_DA_CENTRAL.has(codigo));
+  const esperado = codigo === "NOT_OPTED_IN" || (res.status === 409 && caminho === "/v1/optin");
   (esperado ? console.warn : console.error)(`[atendys] ${method} ${caminho} → ${res.status}${requestId ? ` (requestId ${requestId})` : ""} ${detalhe.slice(0, 300)}`);
   // limite (por minuto, por dia, por destinatário), categoria desligada e validação: o atendys
   // já explica em português, e "espere um pouco" enganava quando o limite era o do dia
@@ -144,16 +111,15 @@ async function erroDaResposta(res: Response, method: string, caminho: string): P
   return new ErroAtendys(frase + suporte, res.status, codigo, res.status === 429 ? Number(res.headers.get("retry-after")) || null : null, requestId);
 }
 
-/** O pedido cru, já com a recusa como ErroAtendys: quem quer o corpo em bytes (mídia) usa direto. */
-/** O atendys não respondeu (rede ou prazo): a rota de mídia devolve 502/504, não "sem acesso". */
+/** O atendys não respondeu (rede ou prazo). */
 export class AtendysForaDoAr extends ErroPrevisto {
   constructor(message: string, readonly demorou: boolean) {
     super(message);
   }
 }
 
-/** soCabecalho: o prazo vale até a resposta começar, não para ler o corpo (mídia em fluxo). */
-async function pedir(auth: Record<string, string>, method: string, caminho: string, corpo?: unknown, soCabecalho = false): Promise<Response> {
+/** O pedido cru, já com a recusa como ErroAtendys. */
+async function pedir(auth: Record<string, string>, method: string, caminho: string, corpo?: unknown): Promise<Response> {
   const headers: Record<string, string> = { ...auth };
   if (corpo !== undefined) headers["content-type"] = "application/json";
   const prazo = new AbortController();
@@ -174,8 +140,8 @@ async function pedir(auth: Record<string, string>, method: string, caminho: stri
     }
     throw new AtendysForaDoAr("O serviço de WhatsApp não respondeu. Tente de novo em instantes.", false);
   }
-  // sem soCabecalho o prazo segue valendo para ler o corpo (JSON pequeno), como antes
-  if (soCabecalho || !res.ok) clearTimeout(timer);
+  // o prazo segue valendo para ler o corpo (JSON pequeno)
+  if (!res.ok) clearTimeout(timer);
   if (!res.ok) throw await erroDaResposta(res, method, caminho);
   return res;
 }
@@ -195,8 +161,8 @@ async function chamarAdmin<T>(method: string, caminho: string, corpo?: unknown):
 }
 
 const authTenant = (conn: ConexaoAtendys) => {
-  if (!conn.atendysApiKey) throw new ErroPrevisto("Conexão do WhatsApp sem credencial. Reconecte pelo painel.");
-  if (!conn.instanceId) throw new ErroPrevisto("Conexão do WhatsApp inválida. Reconecte pelo painel.");
+  if (!conn.atendysApiKey) throw new ErroPrevisto("Conexão do WhatsApp sem credencial. Fale com a Ruphus.");
+  if (!conn.instanceId) throw new ErroPrevisto("Conexão do WhatsApp inválida. Fale com a Ruphus.");
   return { apikey: conn.atendysApiKey };
 };
 
@@ -310,47 +276,12 @@ export function listarTenantsAtendys() {
   return chamarAdmin<Array<{ id: string; slug: string; recipientMsgPerDay?: number; recipientMsgPerWeek?: number }>>("GET", "/admin/tenants");
 }
 
-/** Cria a instância do número (uma por negócio). O nome vem da resposta do atendys; o 409 diz
- *  que exatamente "{slug}-main" já existe (ele monta {slug do tenant}-{nome}, e o slug do tenant
- *  é o nosso) — listar e pegar "a mais nova" podia prender o negócio a outra instância dele. */
-export async function criarInstancia(tenantId: string, slug: string): Promise<{ name: string }> {
-  try {
-    const r = await chamarAdmin<{ instance?: { name?: string } }>("POST", `/admin/tenants/${tenantId}/instances`, { name: "main" });
-    if (r?.instance?.name) return { name: r.instance.name };
-  } catch (e) {
-    if (!(e instanceof ErroAtendys && e.status === 409)) throw e;
-  }
-  return { name: `${slug}-main` };
-}
-
 /** A chave de administração funciona? Lista os tenants (só leitura) e devolve quantos são. */
 export async function verificarChaveAdmin(): Promise<number> {
   return (await chamarAdmin<unknown[]>("GET", "/admin/tenants")).length;
 }
 
-/** Despareia o número (administrativo — o painel do dono desconecta via plataforma). */
-export function deslogarInstancia(instanceId: string) {
-  return chamarAdmin("POST", `/admin/instances/${encodeURIComponent(instanceId)}/logout`, {});
-}
-
 // ─── Operações do tenant ────────────────────────────────────────────────────
-
-export async function statusDaConexao(conn: ConexaoAtendys): Promise<{ status: StatusConexao; phone: string | null }> {
-  const r = await chamar<{ name: string; status: string; phone?: string | null }>(
-    authTenant(conn), "GET", `/v1/instance/${encodeURIComponent(conn.instanceId)}/status`,
-  );
-  const status = r.status === "connected" ? "connected" : r.status === "pending_qr" ? "qr" : "disconnected";
-  return { status, phone: r.phone ?? null };
-}
-
-export async function qrDaConexao(conn: ConexaoAtendys): Promise<SituacaoQr> {
-  const r = await chamar<{ base64: string }>(
-    authTenant(conn), "GET", `/v1/instance/${encodeURIComponent(conn.instanceId)}/qr`,
-  );
-  if (r.base64) return { status: "qr", imagem: await imagemDoQr(r.base64) };
-  // sem QR novo: a instância pode estar conectando ou já conectada — o status vem do polling
-  return { status: "connecting" };
-}
 
 // o atendys exige origem E evidência (texto livre) em todo consentimento (OptInDto);
 // sem evidência o opt-in volta 400 e o envio nunca sai.
@@ -359,7 +290,7 @@ export async function qrDaConexao(conn: ConexaoAtendys): Promise<SituacaoQr> {
  *  registra: o gateway recusa (NOT_OPTED_IN) e a mensagem não sai. Consentimento nunca é
  *  presumido: quem fala com cliente passa o opt-in gravado no agendamento (consentimento-whatsapp.ts). */
 export type OptIn = { origem: string; evidencia: string; eventId?: string; occurredAt?: string } | null;
-/** Aviso para o número do próprio negócio (self-chat) ou o WhatsApp pessoal do dono. */
+/** Aviso para o WhatsApp pessoal do dono. */
 export const OPTIN_DONO: OptIn = { origem: "ruphus-aviso-dono", evidencia: "Número do próprio negócio ou do dono, cadastrado por ele no painel da Ruphus" };
 
 /**
@@ -443,7 +374,7 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
   const auth = { ...authTenant(conn), instance: conn.instanceId, ...(chave && { "idempotency-key": chave }) };
   // consumo do negócio (tenants/{slug}/envios): o que é, para quem e por qual número
   const consumo = conn.slug ? {
-    canal: "whatsapp" as const, via: conn.oficial ? "oficial" as const : "salao" as const, tipo: rotulo.tipo ?? (resposta ? "resposta" : "outro"), template: rotulo.template,
+    canal: "whatsapp" as const, via: "oficial" as const, tipo: rotulo.tipo ?? (resposta ? "resposta" : "outro"), template: rotulo.template,
     fone: digits, destinatario: optIn === OPTIN_DONO ? "dono" as const : "cliente" as const, agendamentoId: agendamentoDoEnvio(conn.slug, optIn?.eventId, rotulo.botoes), servico: resposta,
   } : null;
   // pré-pago sem saldo: não sai; fica registrada como "sem-saldo" (custo 0) para o painel
@@ -496,24 +427,44 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
     return e;
   };
   try {
-    return await registrar(await enviar());
+    return await tentar();
   } catch (e) {
-    if (optIn && e instanceof ErroAtendys && e.codigo === "NOT_OPTED_IN") {
-      await registrarOptIn(conn, digits, optIn).catch((r) => {
-        // o mesmo aceite (eventId) já está lá: não é erro, segue para o envio
-        if (r instanceof ErroAtendys && r.status === 409 && /já foi registrado/i.test(r.message)) return;
-        // o cliente respondeu SAIR depois deste aceite: respeita, sem nova tentativa e sem enviar
-        if (r instanceof ErroAtendys && r.status === 409 && /posterior à revogação/i.test(r.message)) {
-          console.warn(`[atendys] ${optIn.eventId ?? digits}: o cliente saiu (SAIR) depois deste aceite; mensagem não enviada`);
-          throw new ErroAtendys("O cliente pediu para não receber mais mensagens (SAIR) depois deste aceite.", 409, "OPT_OUT");
-        }
-        throw r;
-      });
-      return registrar(await enviar());
+    // recusa do atendys não vira envio no consumo: a marca do aviso no agendamento sai daqui, só
+    // quando o problema é do destinatário e repetir não resolve (número inválido, sem WhatsApp, sem
+    // consentimento, SAIR). Limite, falha do lado de lá, instância e sem resposta (prazo, rede) não
+    // marcam: são passageiros ou a mensagem pode ter saído
+    if (conn.slug && consumo?.destinatario === "cliente" && consumo.agendamentoId && e instanceof ErroAtendys && e.codigo && RECUSA_DO_DESTINO.has(e.codigo)) {
+      const efeito = efeitoNoAviso({ ...consumo, status: "falhou" });
+      const optOut = e.codigo === "OPT_OUT";
+      if (efeito?.acao === "marca") await marcarAviso(conn.slug, consumo.agendamentoId, { ...efeito, motivo: optOut ? MOTIVO_OPT_OUT : e.message, ...(optOut && { optOut }) }, { em: Date.now() });
     }
     throw e;
   }
+
+  async function tentar(): Promise<Envio> {
+    try {
+      return await registrar(await enviar());
+    } catch (e) {
+      if (optIn && e instanceof ErroAtendys && e.codigo === "NOT_OPTED_IN") {
+        await registrarOptIn(conn, digits, optIn).catch((r) => {
+          // o mesmo aceite (eventId) já está lá: não é erro, segue para o envio
+          if (r instanceof ErroAtendys && r.status === 409 && /já foi registrado/i.test(r.message)) return;
+          // o cliente respondeu SAIR depois deste aceite: respeita, sem nova tentativa e sem enviar
+          if (r instanceof ErroAtendys && r.status === 409 && /posterior à revogação/i.test(r.message)) {
+            console.warn(`[atendys] ${optIn.eventId ?? digits}: o cliente saiu (SAIR) depois deste aceite; mensagem não enviada`);
+            throw new ErroAtendys("O cliente pediu para não receber mais mensagens (SAIR) depois deste aceite.", 409, "OPT_OUT");
+          }
+          throw r;
+        });
+        return registrar(await enviar());
+      }
+      throw e;
+    }
+  }
 }
+
+/** Recusas do atendys que são do destinatário e não passam repetindo: marcam o aviso no agendamento. */
+const RECUSA_DO_DESTINO = new Set(["INVALID_NUMBER", "NUMBER_NOT_ON_WHATSAPP", "NOT_OPTED_IN", "OPT_OUT"]);
 
 /** O cliente pediu SAIR depois do aceite: não é falha a repetir, é a vontade dele. */
 export const saiuDepoisDoAceite = (e: unknown) => e instanceof ErroAtendys && e.codigo === "OPT_OUT";
@@ -622,140 +573,4 @@ export type CabecalhosWebhook = { v1: string | null; v2: string | null; timestam
  *  para o log da recusa dizer que veio. */
 export function versaoDaAssinatura(segredo: string, bruto: string, h: CabecalhosWebhook, agora = Date.now()): "v2" | null {
   return h.v2 !== null && h.timestamp !== null && assinaturaV2Valida(segredo, bruto, h.timestamp, h.v2, agora) ? "v2" : null;
-}
-
-/** O QR como o atendys devolve (repassado da Evolution) vira um src de imagem. Vem em três formas:
- *  já com "data:image/png;base64," (o comum — prefixar de novo quebrava a imagem), só o base64
- *  do PNG, ou o texto do pareamento ("2@…", quando a Evolution não manda imagem), que vira QR aqui. */
-export async function imagemDoQr(valor: string) {
-  if (valor.startsWith("data:")) return valor;
-  if (/^[A-Za-z0-9+/]+={0,2}$/.test(valor) && valor.startsWith("iVBOR")) return `data:image/png;base64,${valor}`;
-  return QRCode.toDataURL(valor, { margin: 1, width: 264 });
-}
-
-// ─── Central de conversas (/v1/inbox) ───────────────────────────────────────
-// Contrato: atendys docs/api-inbox-v1.md; tipos espelhados de packages/shared (PublicInbox*).
-// A chave do negócio precisa do escopo "inbox" (sem ele: INSUFFICIENT_SCOPE). Ids de conversa,
-// de mensagem e cursores são opacos: só repassados, nunca montados aqui.
-
-export type StatusMensagemInbox = "queued" | "awaiting_manual" | "sent" | "delivered" | "read" | "failed" | "cancelled";
-export type TipoMidiaInbox = "image" | "video" | "audio" | "document";
-export type PaginaInbox<T> = { items: T[]; nextCursor: string | null };
-export type MotivoSemResposta = "REPLY_WINDOW_CLOSED" | "RECIPIENT_OPTED_OUT" | "INSTANCE_PAUSED" | "CONVERSATION_NOT_ADDRESSABLE";
-
-export type ConversaInbox = {
-  id: string;
-  contactName: string | null;
-  /** Dígitos E.164; null = contato sem número conhecido (não dá para responder). */
-  contactPhone: string | null;
-  lastMessage: { text: string | null; direction: "in" | "out"; at: string; mediaKind: TipoMidiaInbox | null } | null;
-  lastActivityAt: string;
-  unreadCount: number;
-  manuallyUnread: boolean;
-  archived: boolean;
-  canReply: boolean;
-  replyBlockedReason: MotivoSemResposta | null;
-  replyWindowEndsAt: string | null;
-};
-
-export type MensagemInbox = {
-  id: string;
-  direction: "in" | "out";
-  type: "text" | "media";
-  text: string | null;
-  attachment?: { kind: TipoMidiaInbox; mimeType: string; fileName?: string; available: "unknown" | "available" | "expired" | "unavailable"; url?: string };
-  at: string;
-  status?: StatusMensagemInbox;
-  origin?: "human" | "ai" | "api";
-  deleted?: boolean;
-  edited?: boolean;
-  reactions?: { emoji: string; direction: "in" | "out" }[];
-  quotedMessageId?: string | null;
-};
-
-export type ResultadoBusca = { id: string; conversationId: string; direction: "in" | "out"; text: string | null; at: string };
-
-export type RespostaInbox = {
-  id: string;
-  status: StatusMensagemInbox;
-  duplicate?: boolean;
-  retryAt?: string | null;
-  manualHandoffRequired?: boolean;
-  manualHandoffUrl?: string;
-};
-
-export type MidiaParaEnviar = { media: string; caption?: string; mimetype?: string; fileName?: string; voice?: boolean; quotedMessageId?: string };
-export type AcaoMensagem = { tipo: "reacao"; emoji: string } | { tipo: "editar"; texto: string } | { tipo: "apagar" };
-
-/** Idempotency-Key do contrato: 8–80 de [A-Za-z0-9._:-]. Quem compõe a resposta gera uma por
- *  envio (o duplo clique repete a mesma e o atendys devolve o resultado original). */
-export const CHAVE_IDEMPOTENCIA = /^[A-Za-z0-9._:-]{8,80}$/;
-
-/** Ids de conversa e de mensagem do contrato: token selado em base64url, uuid ou cuid. Sem
- *  ponto: "." e ".." passavam pelo encodeURIComponent e o fetch reescrevia o caminho. */
-export const ID_INBOX = /^[A-Za-z0-9_-]{1,512}$/;
-const id = (v: string) => {
-  if (!ID_INBOX.test(v)) throw new ErroPrevisto("Conversa inválida. Atualize a lista.");
-  return v;
-};
-const consulta = (q: Record<string, string | number | undefined>) => {
-  const p = new URLSearchParams();
-  for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== "") p.set(k, String(v));
-  const t = p.toString();
-  return t ? `?${t}` : "";
-};
-const comChave = (conn: ConexaoAtendys, chave: string) => {
-  if (!CHAVE_IDEMPOTENCIA.test(chave)) throw new ErroPrevisto("Chave de envio inválida. Atualize a tela e tente de novo.");
-  return { ...authTenant(conn), "idempotency-key": chave };
-};
-
-export async function listarConversas(conn: ConexaoAtendys, q: { filtro?: "active" | "unread" | "archived"; cursor?: string; limite?: number } = {}) {
-  return chamar<PaginaInbox<ConversaInbox>>(authTenant(conn), "GET", `/v1/inbox/conversations${consulta({ filter: q.filtro, cursor: q.cursor, limit: q.limite })}`);
-}
-
-/** Uma conversa pelo id (mesmo formato de um item da lista). 404 NOT_FOUND: de outro negócio,
- *  adulterado ou sem mensagens. Atendys com GET /v1/inbox/conversations/:id (deploy após 2026-11-09). */
-export async function conversaPorId(conn: ConexaoAtendys, conversa: string) {
-  return chamar<ConversaInbox>(authTenant(conn), "GET", `/v1/inbox/conversations/${id(conversa)}`);
-}
-
-export async function buscarNasConversas(conn: ConexaoAtendys, termo: string, cursor?: string) {
-  return chamar<PaginaInbox<ResultadoBusca>>(authTenant(conn), "GET", `/v1/inbox/search${consulta({ q: termo, cursor })}`);
-}
-
-export async function mensagensDaConversa(conn: ConexaoAtendys, conversa: string, q: { cursor?: string; limite?: number } = {}) {
-  return chamar<PaginaInbox<MensagemInbox>>(authTenant(conn), "GET", `/v1/inbox/conversations/${id(conversa)}/messages${consulta({ cursor: q.cursor, limit: q.limite })}`);
-}
-
-export async function marcarConversa(conn: ConexaoAtendys, conversa: string, lida: boolean) {
-  return chamar<void>(authTenant(conn), "POST", `/v1/inbox/conversations/${id(conversa)}/${lida ? "read" : "unread"}`, {});
-}
-
-export async function arquivarConversa(conn: ConexaoAtendys, conversa: string, arquivada: boolean) {
-  return chamar<void>(authTenant(conn), "POST", `/v1/inbox/conversations/${id(conversa)}/archive`, { archived: arquivada });
-}
-
-export async function responderConversa(conn: ConexaoAtendys, conversa: string, texto: string, chave: string, citada?: string) {
-  return chamar<RespostaInbox>(comChave(conn, chave), "POST", `/v1/inbox/conversations/${id(conversa)}/reply`, {
-    text: texto,
-    ...(citada && { quotedMessageId: citada }),
-  });
-}
-
-export async function responderComMidia(conn: ConexaoAtendys, conversa: string, midia: MidiaParaEnviar, chave: string) {
-  return chamar<RespostaInbox>(comChave(conn, chave), "POST", `/v1/inbox/conversations/${id(conversa)}/reply-media`, midia);
-}
-
-/** Reação ("" tira), edição ou exclusão para todos de uma mensagem já enviada. */
-export async function agirNaMensagem(conn: ConexaoAtendys, mensagem: string, acao: AcaoMensagem, chave: string) {
-  const auth = comChave(conn, chave);
-  const caminho = `/v1/inbox/messages/${id(mensagem)}`;
-  if (acao.tipo === "reacao") return chamar<{ status: string }>(auth, "POST", `${caminho}/reaction`, { reaction: acao.emoji });
-  if (acao.tipo === "editar") return chamar<{ status: string }>(auth, "PATCH", caminho, { text: acao.texto });
-  return chamar<{ status: string }>(auth, "DELETE", caminho);
-}
-
-/** A mídia recebida, em bytes, para o servidor repassar ao navegador de quem atende. */
-export async function midiaDaMensagem(conn: ConexaoAtendys, mensagem: string) {
-  return pedir(authTenant(conn), "GET", `/v1/inbox/media/${id(mensagem)}`, undefined, true);
 }

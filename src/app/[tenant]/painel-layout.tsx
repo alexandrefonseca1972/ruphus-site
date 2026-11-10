@@ -113,8 +113,6 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
     { href: `/${slug}/servicos`, label: "Serviços", curto: "Serviços", icone: ICONES.servicos },
     { href: `/${slug}/profissionais`, label: "Profissionais", curto: "Equipe", icone: ICONES.equipe },
     { href: `/${slug}/clientes`, label: "Clientes", curto: "Clientes", icone: ICONES.clientes },
-    // Central de conversas: liberada por negócio (piloto) e, para a equipe, só com o dono deixando
-    ...(state.modulos?.conversas && (state.podeGerir || state.conversas?.equipeAtende) ? [{ href: `/${slug}/conversas`, label: "Conversas", curto: "Chat", icone: ICONES.conversas }] : []),
     // Caixa incluído no plano; dinheiro só para quem gere
     ...(state.podeGerir ? [{ href: `/${slug}/caixa`, label: "Caixa", curto: "Caixa", icone: ICONES.caixa }] : []),
     // mensagens enviadas e saldo: custo é dinheiro, só para quem gere
@@ -170,20 +168,6 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
       </header>
       <main className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)] gap-7 px-4 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pt-10 sm:pb-16">
         <AppInstalado />
-        {/* conexão caiu: já esteve conectada (conectadoEm), a instância segue gravada (não foi o
-            dono que desconectou) e agora está desconectada. Lembretes e avisos param calados: a faixa
-            avisa. O dono não pareia mais pelo painel (só o /admin); no canal oficial os avisos saem
-            pelo número da Ruphus e a queda do número próprio não para nada */}
-        {state.podeGerir && state.whatsapp?.instanceId && state.whatsapp.conectadoEm && state.whatsapp.status === "disconnected" && !state.whatsapp.canalOficial && (
-          <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
-            <p>
-              <strong className="font-semibold">Seu WhatsApp desconectou.</strong>{" "}
-              {state.whatsapp.ownerManaged === false
-                ? "Lembretes e avisos de agendamento estão parados. A Ruphus já foi avisada e vai reconectar."
-                : "Lembretes e avisos de agendamento estão parados. Fale com a Ruphus para reconectar."}
-            </p>
-          </div>
-        )}
         {state.podeGerir && <FaixaDeSaldo slug={slug} />}
         {children}
       </main>
@@ -224,7 +208,6 @@ const ICONES = {
   equipe: icone(<><circle cx="12" cy="7.5" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></>),
   clientes: icone(<><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6" /></>),
   negocio: icone(<><path d="M4 10.5 12 4l8 6.5V20H4z" /><path d="M9.5 20v-5h5v5" /></>),
-  conversas: icone(<path d="M4 5.5h16v10H9l-5 4z" />),
   caixa: icone(<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h3" /></>),
   consumo: icone(<><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>),
 };

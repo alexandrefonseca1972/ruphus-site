@@ -159,10 +159,18 @@ export async function usaCanalOficial(db: Firestore, slug: string): Promise<bool
   return (await db.doc(`tenants/${slug}`).get()).get("whatsapp.canalOficial") === true;
 }
 
+/** O pedido de agendamento chega ao dono pela API? Canal oficial e WhatsApp do dono confirmado
+ *  ("Sou eu"). A página pública só recebe o sim/não: o telefone do dono nunca sai do servidor.
+ *  canalOficial: a marca já lida por quem chama (o catálogo); fora do canal, nenhuma leitura. */
+export async function donoRecebePelaApi(db: Firestore, slug: string, canalOficial: boolean): Promise<boolean> {
+  if (!canalOficial || slug === DEMO) return false;
+  const p = await db.doc(`tenants/${slug}/privado/whatsapp`).get();
+  return !!soDigitosComDDI(String(p.get("ownerPhone") ?? "")) && !!p.get("ownerPhoneVerifiedAt");
+}
+
 /** Conexão da plataforma para um negócio do canal oficial (slug = o negócio, para as mensagens
  *  paradas na cota aparecerem no painel dele). null = negócio fora do canal oficial. Negócio
- *  marcado sem a plataforma provisionada LANÇA: quem chama registra a falha e não volta para o
- *  número do salão (seria o canal errado). */
+ *  marcado sem a plataforma provisionada LANÇA: quem chama registra a falha. */
 export async function conexaoOficial(db: Firestore, slug: string): Promise<ConexaoAtendys | null> {
   if (!(await usaCanalOficial(db, slug))) return null;
   const c = await lerCredenciais(db);
@@ -221,18 +229,23 @@ const privadoWhatsApp = (db: Firestore, slug: string) => db.doc(`tenants/${slug}
 const MAX_CONFIRMACOES_DIA = 5;
 export type EnvioConfirmacao = "enviado" | "confirmado" | "aguarde" | "limite" | "falhou";
 
+export const PAUSADO_PELA_RUPHUS = "O WhatsApp deste negócio está pausado pela Ruphus. Fale com o suporte.";
+
+/** O /admin desligou o canal (whatsapp.desligadoPelaRuphus): o cadastro do dono não o religa. */
+export async function exigeNaoPausado(db: Firestore, slug: string) {
+  if ((await db.doc(`tenants/${slug}`).get()).get("whatsapp.desligadoPelaRuphus") === true) throw new ErroPrevisto(PAUSADO_PELA_RUPHUS);
+}
+
 /** Grava o WhatsApp do dono (`numero` já validado por celularDoDono), liga o canal oficial e manda o
  *  "Sou eu". O mesmo número já confirmado fica como está; número novo zera a confirmação e o limite. */
 export async function cadastrarDonoOficial(db: Firestore, slug: string, numero: string): Promise<EnvioConfirmacao> {
   if (slug === DEMO) throw new ErroPrevisto("A demonstração não envia WhatsApp: teste num negócio de verdade.");
-  // número próprio gerenciado pela Ruphus, ainda fora do canal oficial: quem troca é o suporte
-  const w = (await db.doc(`tenants/${slug}`).get()).get("whatsapp") as { ownerManaged?: boolean; canalOficial?: boolean } | undefined;
-  if (w?.ownerManaged === false && w.canalOficial !== true) throw new ErroPrevisto("Gerenciado pela plataforma — fale com o suporte para trocar o número.");
+  await exigeNaoPausado(db, slug);
   if (!(await lerCredenciais(db))) throw new ErroPrevisto("O canal oficial ainda não está pronto: fale com a Ruphus.");
   const p = await privadoWhatsApp(db, slug).get();
   const mesmo = soDigitosComDDI(String(p.get("ownerPhone") ?? "")) === numero;
   const lote = db.batch();
-  // o antigo ownerPhone no documento do negócio (a equipe lê) sai, como em gravarOwnerPhone
+  // o antigo ownerPhone no documento do negócio (a equipe lê) sai
   lote.set(db.doc(`tenants/${slug}`), { whatsapp: { canalOficial: true, ownerPhone: FieldValue.delete() } }, { merge: true });
   if (!(mesmo && p.get("ownerPhoneVerifiedAt"))) {
     // ponytail: o limite de reenvio é por número; alternar números manda de novo (a cota do atendys segura)

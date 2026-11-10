@@ -91,7 +91,7 @@ export async function criarNegocio(db: Firestore, user: { uid: string; email?: s
 /** O que a aba "Meu negócio" mostra para editar. `fabrica`: site feito pela fábrica,
  *  estático — os dados mudam a bio e o agendamento, mas não a página. */
 export async function lerNegocio(db: Firestore, slug: string) {
-  const t = await db.doc(`tenants/${slug}`).get();
+  const [t, zap] = await Promise.all([db.doc(`tenants/${slug}`).get(), db.doc(`tenants/${slug}/privado/whatsapp`).get()]);
   if (!t.exists) throw new UserError("Negócio não encontrado.");
   const s = (campo: string) => String(t.get(campo) ?? "");
   return {
@@ -116,11 +116,8 @@ export async function lerNegocio(db: Firestore, slug: string) {
     fabrica: !t.get("gerado") && !!t.get("site.url"),
     /** entrada paga: sem faixa de proposta e no Google */
     publicado: !!t.get("gerado.publicadoEm"),
-    /** WhatsApp que o dono conectou (gateway atendys); null = nunca conectou */
-    whatsapp: ((): { status: string; phone: string | null } | null => {
-      const w = t.get("whatsapp") as { instanceId?: string; status?: string; phone?: string | null } | undefined;
-      return w?.instanceId ? { status: String(w.status ?? "created"), phone: w.phone ?? null } : null;
-    })(),
+    /** WhatsApp pelo canal oficial: ligado e se o dono confirmou o número dele ("Sou eu") */
+    whatsapp: { canalOficial: t.get("whatsapp.canalOficial") === true, donoConfirmado: !!zap.get("ownerPhoneVerifiedAt") },
   };
 }
 

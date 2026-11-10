@@ -56,6 +56,9 @@ type Props = {
   staff: { id: string; name: string; serviceIds: string[]; workDays: number[] }[];
   /** vindo da bio (?servico=&data=&hora=): serviço marcado e, se ainda livre, o horário */
   inicial?: { servico: string; data?: string; hora?: string } | null;
+  /** o pedido chega ao WhatsApp do dono pela API (canal oficial, número confirmado); sem isso o
+   *  "Confirmar pelo WhatsApp" do cliente deixa de ser opcional */
+  donoAvisado?: boolean;
 };
 
 type Dia = { date: string; horarios: { hora: string; staffId: string }[]; fechado?: boolean };
@@ -276,7 +279,7 @@ const Seta = ({ d = "M9 6l6 6-6 6", size = 16 }: { d?: string; size?: number }) 
   </svg>
 );
 
-export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, sinal, fuso, services, staff, inicial, limites = limitesDe(null) }: Props) {
+export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, sinal, fuso, services, staff, inicial, limites = limitesDe(null), donoAvisado = true }: Props) {
   // Nada vem marcado: quem agenda diz o que quer, e só então os horários aparecem.
   // Os serviços chegam do servidor na ordem do que mais se agenda.
   // A exceção é quem tocou num serviço ou num horário da bio: chega com ele escolhido.
@@ -686,7 +689,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
             </ol>
             {/* o recado é do dono (texto puro, quebras de linha mantidas) */}
             {recadoDono && <p className="text-[15px] leading-relaxed whitespace-pre-line break-words">{recadoDono}</p>}
-            {avisoUrl && (
+            {avisoUrl && (donoAvisado ? (
               <div className="flex flex-col gap-2">
                 <a
                   href={avisoUrl}
@@ -699,7 +702,22 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 </a>
                 <p className="text-center text-xs text-[#5C5747]">Opcional: o pedido já chegou para {name}.</p>
               </div>
-            )}
+            ) : (
+              // o negócio não recebe o pedido pelo WhatsApp automático: só o vê na agenda online.
+              // A mensagem do cliente é o aviso imediato, então vira a ação principal
+              <div className="flex flex-col gap-2">
+                <a
+                  href={avisoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex min-h-[50px] items-center justify-center gap-2.5 rounded-[10px] bg-[#17150F] px-4 py-2 text-center text-[15px] font-semibold text-[#FAF9F5]"
+                >
+                  <Zap className="shrink-0" />
+                  Avise {name} pelo WhatsApp para confirmar
+                </a>
+                <p className="text-center text-xs text-[#5C5747]">Sem esta mensagem, {name} só vê o pedido quando abrir a agenda online.</p>
+              </div>
+            ))}
           </div>
         </div>
 

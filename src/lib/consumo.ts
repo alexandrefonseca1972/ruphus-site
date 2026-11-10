@@ -11,10 +11,11 @@ import { dateIn } from "@/lib/datetime";
 // - Pré-pago: o custo sai do saldo do negócio no mesmo momento (consumo.server); falhou estorna.
 //   Bloqueado por falta de saldo vira envio "sem-saldo" (custo 0) e nada sai.
 // - Preço de WhatsApp: resposta dentro da janela de 24 h (o cliente ou o dono acabou de escrever) é
-//   "service"; o resto (template, aviso, lembrete) é "utility". Vale para o canal oficial e para o
-//   número do salão: é o preço que a Ruphus cobra do negócio, não o da Meta.
+//   "service"; o resto (template, aviso, lembrete) é "utility". É o preço que a Ruphus cobra do
+//   negócio pelo canal oficial, não o da Meta.
 
 export type Canal = "whatsapp" | "sms";
+// "salao": só no histórico, do número próprio por QR que saiu; nada novo grava
 export type Via = "oficial" | "salao";
 export const TIPOS_ENVIO = ["recebido", "pedido_dono", "confirmado", "cancelado", "reagendado", "lembrete", "pix", "recibo", "resposta", "saldo", "confirmar_dono", "outro"] as const;
 export type TipoEnvio = (typeof TIPOS_ENVIO)[number];
