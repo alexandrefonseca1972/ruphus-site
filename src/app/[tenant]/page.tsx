@@ -380,6 +380,7 @@ export default function AgendaPage() {
                       </span>
                     )}
                     {a.sinal?.status === "pago" && <span className="rounded-full border px-2.5 py-0.5 text-xs">Sinal pago · {brl(a.sinal.cents)}</span>}
+                    {a.sinal?.status === "vencido" && ATIVO(a) && <span className="rounded-full border px-2.5 py-0.5 text-xs">Sinal não pago · {brl(a.sinal.cents)}</span>}
                     {recebidos.has(idDaBaixa(a.id)) && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">Recebido</span>}
                   </p>
                   <p className="text-sm text-muted-foreground">
@@ -391,7 +392,7 @@ export default function AgendaPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {/* o salão conferiu no banco: confirma o horário e lança o sinal no Caixa */}
-                  {a.sinal?.status === "pendente" && ATIVO(a) && tenant.podeGerir && (
+                  {(a.sinal?.status === "pendente" || a.sinal?.status === "vencido" || a.sinal?.status === "erro") && ATIVO(a) && tenant.podeGerir && (
                     <Button className="h-10 px-4" disabled={pending === a.id} onClick={() => setConfirming({ id: a.id, kind: "sinal" })}>
                       {pending === a.id ? "Confirmando…" : "Sinal recebido"}
                     </Button>
