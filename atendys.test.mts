@@ -738,6 +738,7 @@ assert.equal((await lerConfigWhatsApp(db, "vigia"))?.status, "connected");
   const depois = await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").get();
   assert.equal(depois.get("start").toDate().getTime(), zonedTime(d, h).getTime());
   assert.equal(depois.get("status"), "booked", "remarcado volta a aguardar o dono");
+  assert.equal(depois.get("presencaConfirmadaEm"), undefined, "a presença confirmada era do horário antigo: a remarcação apaga");
   const pedido = enviadas.find((e) => e.caminho === "template")!;
   assert.equal(pedido.corpo.name, TEMPLATES.novoDonoBotoes);
   assert.equal(pedido.corpo.number, "5591992361726");
