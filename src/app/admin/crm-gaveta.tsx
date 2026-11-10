@@ -362,12 +362,15 @@ export function MensagensProntas({
   linkProposta,
   onMarcar,
   onEncerrar,
+  onEnviarEProximo,
 }: {
   negocio: Negocio;
   crm: Crm;
   assinatura: string;
   onEnviar: (modelo: Modelo, para: string) => void;
-  /** O lead respondeu, pediu para parar, ou voltou atrás */
+  /** O botão principal: registra o envio como onEnviar e, ao voltar do WhatsApp, abre o próximo da fila */
+  onEnviarEProximo?: (modelo: Modelo, para: string) => void;
+  /** O lead pediu para parar e voltou atrás ("Desfazer"); Respondeu e Parou ficam no topo da gaveta */
   onMarcar: (oque: "respondeu" | "parar" | "liberar") => void;
   /** Fim da cadência: perdido por não responder */
   onEncerrar: () => void;
@@ -455,12 +458,18 @@ export function MensagensProntas({
         id="msg-texto"
         value={atual}
         onChange={(e) => setTexto({ para: modelo, valor: e.target.value })}
-        rows={7}
+        rows={4}
         className="w-full resize-y rounded-xl border border-[#E2DDD3] bg-[#FBFAF8] p-3 text-[12.5px] leading-relaxed text-[#17150F] outline-none focus:border-[#17150F]"
       />
+      {/* Mandar e seguir para o próximo é o trabalho do dia: o botão grande. Abrir sem sair do lead fica ao lado */}
+      {link && onEnviarEProximo && (
+        <a href={link} target="_blank" rel="noreferrer" onClick={() => onEnviarEProximo(modelo, para)} className={BOTAO_VERDE}>
+          <Zap /> Abrir no WhatsApp e ir ao próximo
+        </a>
+      )}
       <div className="flex gap-2">
         {link ? (
-          <a href={link} target="_blank" rel="noreferrer" onClick={() => onEnviar(modelo, crm.donoNome ?? (crm.donoWhatsapp ? "o dono" : "a recepção"))} className={`${BOTAO_VERDE} grow`}>
+          <a href={link} target="_blank" rel="noreferrer" onClick={() => onEnviar(modelo, para)} className={`${onEnviarEProximo ? BOTAO_CLARO : BOTAO_VERDE} grow`}>
             <Zap /> Abrir no WhatsApp
           </a>
         ) : (
@@ -472,24 +481,6 @@ export function MensagensProntas({
           Copiar
         </button>
       </div>
-      {/* O que o lead fez: é o que para a cadência, ou tira o negócio de todas as filas */}
-      {!parou && crm.estagio !== "fechado" && crm.estagio !== "perdido" && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-[#EFEBE3] pt-3 text-xs text-[#6F6A5E]">
-          {crm.respondeuEm ? (
-            <span className="grow">Respondeu em {diaDe(crm.respondeuEm)}.</span>
-          ) : (
-            <>
-              <span className="grow">O lead respondeu?</span>
-              <button type="button" onClick={() => onMarcar("respondeu")} className="h-9 rounded-[8px] border border-[#2C6A53] bg-white px-2.5 font-semibold text-[#2C6A53] hover:bg-[#EEF2F0]">
-                Respondeu
-              </button>
-            </>
-          )}
-          <button type="button" onClick={() => onMarcar("parar")} className="h-9 rounded-[8px] border border-[#D8D2C6] bg-white px-2.5 text-[#8A2F2F] hover:border-[#8A2F2F]">
-            Pediu para parar
-          </button>
-        </div>
-      )}
     </section>
   );
 }

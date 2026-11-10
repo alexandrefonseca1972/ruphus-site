@@ -571,6 +571,27 @@ export default function AdminPage() {
     contatoMudou(slug, r.dados);
   }
 
+  /** "Abrir no WhatsApp e ir ao próximo": registra como o botão simples e, quando a página volta
+   *  a ter foco (de volta do WhatsApp), abre o próximo da fila na tela; sem próximo, fecha a gaveta.
+   *  O próximo é o da lista de agora: depois do envio o lead pode sair da fila. */
+  function enviarEProximo(slug: string, modelo: string, para: string) {
+    void enviouMensagem(slug, modelo, para);
+    const i = visiveis.findIndex((e) => e.slug === slug);
+    const proximo = i >= 0 ? visiveis[i + 1] : undefined;
+    const voltou = () => {
+      if (document.visibilityState !== "visible") return;
+      removeEventListener("focus", voltou);
+      document.removeEventListener("visibilitychange", voltou);
+      // gaveta fechada ou outro negócio aberto nesse meio-tempo: fica como está
+      if (abertoRef.current !== slug || !document.getElementById("gaveta-negocio")) return;
+      if (proximo) void abrir(proximo);
+      else setAberto(null);
+    };
+    // celular volta do app pelo visibilitychange; o computador, pelo foco da janela
+    addEventListener("focus", voltou);
+    document.addEventListener("visibilitychange", voltou);
+  }
+
   // o servidor devolve o doc já com o próximo toque agendado (ou o pedido de parar): a gaveta segue
   function contatoMudou(slug: string, d: { eventos: Evento[]; crm: Crm | null }) {
     if (d.crm) setCrm((c) => ({ ...c, [slug]: d.crm! }));
@@ -1771,9 +1792,69 @@ export default function AdminPage() {
             <div role="tabpanel" id="aba-painel" aria-labelledby={`aba-${aba}`} className="flex flex-col gap-5">
             {aba === "venda" && (
               <>
-            {/* Primeiro o combinado: é ele que governa "Atrasados", "Para hoje"
-                e o alerta de negócio sem próximo passo. Era o último campo de
-                um formulário longo. */}
+            {/* Uma tela só, na ordem do trabalho: mandar a mensagem e seguir, marcar o que ele
+                fez, conferir o próximo passo e anotar. O resto fica em "Mais", recolhido */}
+            <MensagensProntas
+              key={`msg-${aberto.slug}-${crm[aberto.slug]?.toques ?? 0}-${crm[aberto.slug]?.respondeuEm ?? ""}`}
+              negocio={aberto}
+              crm={crm[aberto.slug] ?? VAZIO}
+              assinatura={assinatura}
+              onEnviar={(modelo, para) => enviouMensagem(aberto.slug, modelo, para)}
+              onEnviarEProximo={(modelo, para) => enviarEProximo(aberto.slug, modelo, para)}
+              onCopiar={(texto) => copiar(texto, "mensagem")}
+              onPronto={setPronto}
+              linkProposta={proposta?.slug === aberto.slug ? proposta.url : null}
+              onMarcar={(oque) => marcarResposta(aberto.slug, oque)}
+              onEncerrar={() => mudarNegocio(aberto.slug, { estagio: "perdido", motivoPerda: "nao_respondeu" })}
+            />
+
+            {/* O que o lead fez: para a cadência, ou tira o negócio das filas. Fechar e perder
+                perguntam antes de gravar */}
+            {(() => {
+              const c = crm[aberto.slug] ?? VAZIO;
+              const desfecho = c.estagio === "fechado" || c.estagio === "perdido";
+              const parou = !!c.naoContatarEm;
+              const ACAO = "h-11 rounded-full border bg-white px-3 text-[12.5px] font-semibold disabled:cursor-not-allowed disabled:opacity-50";
+              return (
+                <section aria-label="O que ele fez" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <button
+                    type="button"
+                    disabled={!!c.respondeuEm || parou || desfecho}
+                    onClick={() => marcarResposta(aberto.slug, "respondeu")}
+                    className={`${ACAO} border-[#2C6A53] text-[#2C6A53] hover:bg-[#EEF2F0]`}
+                  >
+                    {c.respondeuEm ? `Respondeu ${diaCurto(c.respondeuEm.slice(0, 10))}` : "Respondeu"}
+                  </button>
+                  <button
+                    type="button"
+                    title="Pediu para não receber mensagens"
+                    disabled={parou || desfecho}
+                    onClick={() => marcarResposta(aberto.slug, "parar")}
+                    className={`${ACAO} border-[#D8D2C6] text-[#8A2F2F] hover:border-[#8A2F2F]`}
+                  >
+                    Parou
+                  </button>
+                  {DESFECHOS.map((e) => {
+                    const ativa = c.estagio === e;
+                    const cor = e === "fechado" ? "border-[#2C6A53] text-[#2C6A53] hover:bg-[#EEF2F0]" : "border-[#D8D2C6] text-[#8A2F2F] hover:border-[#8A2F2F]";
+                    return (
+                      <button
+                        key={e}
+                        type="button"
+                        aria-pressed={ativa}
+                        onClick={() => (ativa ? undefined : e === "perdido" ? setPerdendo(aberto.slug) : setFechando(aberto.slug))}
+                        className={`${ACAO} ${ativa ? `border-transparent ${COR[e]}` : cor}`}
+                      >
+                        {e === "fechado" ? "Fechou" : "Perdeu"}
+                      </button>
+                    );
+                  })}
+                </section>
+              );
+            })()}
+
+            {/* O próximo passo: a cadência já preenche; é ele que governa "Retornos de hoje"
+                e o alerta de negócio sem próximo passo */}
             <section aria-label="O combinado" className="flex flex-col gap-2.5 rounded-2xl border border-[#C9DACF] bg-[#F4F8F6] p-4">
               <div className="flex items-center gap-2">
                 <h3 className="text-[11px] font-semibold tracking-[0.07em] text-[#2C6A53] uppercase">O combinado</h3>
@@ -1814,6 +1895,23 @@ export default function AdminPage() {
               </div>
             </section>
 
+            {/* as últimas notas e o campo para anotar; o resto da linha do tempo está em Histórico */}
+            <LinhaDoTempo
+              key={`notas-${aberto.slug}`}
+              eventos={historia && historia.filter((e) => e.tipo === "nota")}
+              limite={3}
+              onVerTudo={() => setAba("historico")}
+              anotar={(texto) => novaNota(aberto.slug, texto)}
+            />
+
+            {/* Consulta e preparo, não trabalho do dia: recolhido. Aberto só para cliente fechado,
+                que é quando preço, proposta e contato do dono voltam a importar */}
+            <details key={`mais-${aberto.slug}`} open={crm[aberto.slug]?.estagio === "fechado"} className="group rounded-2xl border border-[#E2DDD3] px-4 py-3">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-[13px] font-semibold [&::-webkit-details-marker]:hidden">
+                Mais · etapa, proposta, contato do dono, origem e objeções
+                <span aria-hidden="true" className="text-[#6F6A5E] group-open:rotate-180">⌄</span>
+              </summary>
+              <div className="mt-3 flex flex-col gap-5">
             {levantamento && (() => {
               // "Score do levantamento: ALTA. Abordagem sugerida: …" — o Gerador grava assim
               const score = /Score do levantamento:\s*([^.]+)\./i.exec(levantamento)?.[1]?.trim();
@@ -1901,19 +1999,6 @@ export default function AdminPage() {
                 <Destaque key={`destaque-${aberto.slug}`} crm={crm[aberto.slug] ?? VAZIO} hoje={dataDeHoje} salvar={(dados) => mudarNegocio(aberto.slug, dados)} />
               </div>
             </details>
-
-            <MensagensProntas
-              key={`msg-${aberto.slug}-${crm[aberto.slug]?.toques ?? 0}-${crm[aberto.slug]?.respondeuEm ?? ""}`}
-              negocio={aberto}
-              crm={crm[aberto.slug] ?? VAZIO}
-              assinatura={assinatura}
-              onEnviar={(modelo, para) => enviouMensagem(aberto.slug, modelo, para)}
-              onCopiar={(texto) => copiar(texto, "mensagem")}
-              onPronto={setPronto}
-              linkProposta={proposta?.slug === aberto.slug ? proposta.url : null}
-              onMarcar={(oque) => marcarResposta(aberto.slug, oque)}
-              onEncerrar={() => mudarNegocio(aberto.slug, { estagio: "perdido", motivoPerda: "nao_respondeu" })}
-            />
 
             {/* Preço só importa ao propor e ao fechar: fica a um clique */}
             <details key={`precos-${aberto.slug}`} className="rounded-2xl border border-[#E2DDD3] px-4 py-3">
@@ -2030,7 +2115,8 @@ export default function AdminPage() {
               </div>
             </details>
 
-            <LinhaDoTempo key={`resumo-${aberto.slug}`} eventos={historia} limite={3} onVerTudo={() => setAba("historico")} anotar={(texto) => novaNota(aberto.slug, texto)} />
+              </div>
+            </details>
 
               </>
             )}
@@ -2390,7 +2476,9 @@ export default function AdminPage() {
                 a uma rolagem de distância dentro de blocos diferentes. */}
             {/* bottom negativo = o padding de baixo da gaveta, como o -top das abas: com bottom-0
                 a barra parava acima da borda e o conteúdo aparecia rolando por baixo dela.
-                mt-auto: com pouco conteúdo (aba Cobrança) a barra ficava no meio da gaveta */}
+                mt-auto: com pouco conteúdo (aba Cobrança) a barra ficava no meio da gaveta.
+                Na Venda não aparece: mandar e anotar já estão no topo dela */}
+            {aba !== "venda" && (
             <div className="sticky bottom-[calc(-1.5rem-env(safe-area-inset-bottom))] -mx-6 -mb-6 mt-auto flex gap-2 border-t border-[#E2DDD3] bg-white px-6 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:-bottom-8 sm:-mx-8 sm:-mb-8 sm:px-8">
               {pronto?.link ? (
                 <a
@@ -2411,6 +2499,7 @@ export default function AdminPage() {
                 Anotar
               </button>
             </div>
+            )}
             </>
             )}
           </aside>
