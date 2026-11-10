@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { confirmar } from "@/components/confirmar";
 import { numeroSms } from "@/lib/comtele";
+import { PRECOS_PADRAO, type Precos } from "@/lib/consumo";
 import { formatPhone } from "@/lib/datetime";
+import { cents, emReais } from "@/lib/dinheiro";
 import { idToken as tokenAtual } from "@/lib/firebase";
 import type { IntegracaoNaTela } from "@/lib/integracoes.server";
 import type { Situacao } from "@/lib/verificar-integracoes.server";
-import { lerIntegracoes, salvarIntegracao, testarEmail, testarSms, verificarAjustes } from "./actions";
+import { lerIntegracoes, lerPrecosMensagem, salvarIntegracao, salvarPrecosMensagem, testarEmail, testarSms, verificarAjustes } from "./actions";
 
 const BOTAO = "inline-flex h-11 items-center justify-center rounded-[10px] px-4 text-sm font-semibold transition-colors";
 const BOTAO_ESCURO = `${BOTAO} bg-[#17150F] text-white hover:bg-[#2C2920] disabled:opacity-50`;
@@ -99,7 +101,87 @@ export function Ajustes({ idToken }: { idToken: string }) {
           )}
         </section>
       ))}
+      <PrecosMensagem idToken={idToken} />
     </div>
+  );
+}
+
+const CAMPOS_PRECO: { chave: keyof Precos; rotulo: string; ajuda: string }[] = [
+  { chave: "whatsappUtilityCents", rotulo: "WhatsApp: aviso (utilidade)", ajuda: "Pedido, confirmação, lembrete, Pix: tudo que a plataforma manda por conta própria." },
+  { chave: "whatsappServiceCents", rotulo: "WhatsApp: resposta (janela de 24 h)", ajuda: "Resposta a quem acabou de escrever ou tocar num botão. 0 = grátis." },
+  { chave: "smsCents", rotulo: "SMS", ajuda: "Confirmação e lembrete por SMS (Comtele)." },
+];
+
+/** Preço por mensagem cobrado do negócio. Vale para os envios a partir de agora: cada envio grava o
+ *  preço do momento (o consumo de antes não muda). */
+function PrecosMensagem({ idToken }: { idToken: string }) {
+  const [valores, setValores] = useState<Record<keyof Precos, string> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
+  const emTexto = (p: Precos) => ({ whatsappUtilityCents: emReais(p.whatsappUtilityCents), whatsappServiceCents: emReais(p.whatsappServiceCents), smsCents: emReais(p.smsCents) });
+
+  useEffect(() => {
+    if (!idToken) return;
+    let atual = true;
+    tokenAtual().then((tk) => lerPrecosMensagem(tk)).then(
+      (r) => atual && (r.ok ? setValores(emTexto(r.dados)) : setAviso({ ok: false, texto: r.error })),
+      () => atual && setAviso({ ok: false, texto: "Não foi possível carregar os preços." }),
+    );
+    return () => {
+      atual = false;
+    };
+  }, [idToken]);
+
+  const convertidos = valores && (Object.fromEntries(CAMPOS_PRECO.map(({ chave }) => [chave, cents(valores[chave])])) as Precos);
+  const invalido = !convertidos || Object.values(convertidos).some((c) => !Number.isInteger(c) || c < 0);
+
+  return (
+    <section aria-label="Preço por mensagem" className="flex flex-col gap-4 rounded-2xl border border-[#E2DDD3] bg-white p-4">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-sm font-semibold">Preço por mensagem (cobrado do negócio)</h3>
+        <p className="text-xs text-[#6F6A5E]">
+          Vale para os envios a partir de agora: cada mensagem grava o preço do momento. WhatsApp cobra o que saiu (falhou ou parado na cota não cobra); SMS cobra no envio. Sem preço salvo: aviso R$ {emReais(PRECOS_PADRAO.whatsappUtilityCents)}, resposta R$ {emReais(PRECOS_PADRAO.whatsappServiceCents)}, SMS R$ {emReais(PRECOS_PADRAO.smsCents)}.
+        </p>
+      </div>
+      {!valores && !aviso && <p className="text-sm text-[#6F6A5E]">Carregando…</p>}
+      {valores && (
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (invalido) return;
+            setBusy(true);
+            setAviso(null);
+            const r = await salvarPrecosMensagem(await tokenAtual(), convertidos).catch(() => null);
+            setBusy(false);
+            if (!r?.ok) return setAviso({ ok: false, texto: r?.error ?? "Não foi possível salvar agora." });
+            setValores(emTexto(r.dados));
+            setAviso({ ok: true, texto: "Preços salvos. Valem para as próximas mensagens." });
+          }}
+        >
+          {CAMPOS_PRECO.map(({ chave, rotulo, ajuda }) => (
+            <div key={chave} className="flex flex-col gap-1">
+              <label htmlFor={`preco-${chave}`} className="text-xs font-medium text-[#17150F]">{rotulo}</label>
+              <p className="text-xs text-[#6F6A5E]">{ajuda}</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-[#6F6A5E]">R$</span>
+                <input
+                  id={`preco-${chave}`}
+                  inputMode="decimal"
+                  value={valores[chave]}
+                  onChange={(e) => (setValores({ ...valores, [chave]: e.target.value }), setAviso(null))}
+                  className="h-11 w-28 rounded-[10px] border border-[#D8D2C6] px-3 text-base tabular-nums"
+                />
+              </div>
+            </div>
+          ))}
+          <button type="submit" disabled={busy || invalido} className={`${BOTAO_ESCURO} self-start`}>
+            {busy ? "Salvando…" : "Salvar preços"}
+          </button>
+        </form>
+      )}
+      {aviso && <p role="status" className={`text-xs ${aviso.ok ? "text-[#2C6A53]" : "text-[#8A2F2F]"}`}>{aviso.texto}</p>}
+    </section>
   );
 }
 

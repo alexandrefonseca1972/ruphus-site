@@ -11,6 +11,7 @@ import { espacoDe, indiceDoPainel } from "@/lib/painel-indice.server";
 import { numeroSms } from "@/lib/comtele";
 import { enviarSms, ErroSms, smsDisponivel } from "@/lib/comtele.server";
 import { configSms, HORAS_LEMBRETE } from "@/lib/sms-agendamento.server";
+import { lerPrecos, salvarPrecos } from "@/lib/consumo.server";
 import { gravarIntegracao, INTEGRACOES, integracoesNaTela, type NomeIntegracao } from "@/lib/integracoes.server";
 import { adminAction, ErroPrevisto } from "@/lib/admin-guard";
 import { cotaDe, definirLimite, Google, lerSiteDoNegocio, previaDoSite, salvarNegocio as salvarSite } from "@/lib/negocios.server";
@@ -1040,4 +1041,15 @@ export const testarSms = adminAction(async (_user, telefone: unknown) => {
   });
   if (id === null) throw new ErroPrevisto("Cadastre a chave da Comtele antes de testar.");
   return id;
+});
+
+// ─── Preço por mensagem (cobrado do negócio): snapshot em cada envio (consumo.server) ──────────
+
+export const lerPrecosMensagem = adminAction(async () => lerPrecos());
+
+const Centavos = z.number().int("centavos inteiros").min(0).max(10_000);
+export const salvarPrecosMensagem = adminAction(async (user, precos: unknown) => {
+  const p = z.object({ whatsappUtilityCents: Centavos, whatsappServiceCents: Centavos, smsCents: Centavos }).strict().parse(precos);
+  await salvarPrecos(p, user.email ?? user.uid);
+  return p;
 });
