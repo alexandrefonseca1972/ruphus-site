@@ -1,13 +1,16 @@
 import "server-only";
 import { FieldValue, type Firestore, Timestamp } from "firebase-admin/firestore";
 import { UserError } from "@/lib/booking.server";
-import { todayIn } from "@/lib/datetime";
+import { instanteReal, todayIn } from "@/lib/datetime";
 import { idDaBaixa, mesDe } from "@/lib/financeiro";
 
 type Quem = { uid: string; email?: string };
 
 /** Id do lançamento do sinal no Caixa: um por agendamento, sem repetir. */
 export const idDoSinal = (appointmentId: string) => `sn-${appointmentId}`;
+
+/** Rodadas do cron que podem falhar no mesmo agendamento antes de ele sair da consulta. */
+const TENTATIVAS_SINAL = 3;
 
 /** "Sinal recebido": o salão conferiu no banco. O horário fica confirmado e, com o Caixa
  *  ligado, o sinal entra como recebido (com o profissional, para a comissão). */
@@ -17,7 +20,8 @@ export async function confirmarSinal(db: Firestore, tenantId: string, appointmen
   await db.runTransaction(async (tx) => {
     const [a, tenant, baixa] = await Promise.all([tx.get(agendamento), tx.get(t), tx.get(t.collection("lancamentos").doc(idDaBaixa(appointmentId)))]);
     if (!a.exists) throw new UserError("Agendamento não encontrado.");
-    if (a.get("sinal.status") !== "pendente") throw new UserError("Este agendamento não tem sinal a confirmar.");
+    // vencido com o horário ainda marcado (o cliente chegou) e erro do cron: o salão ainda registra
+    if (!["pendente", "vencido", "erro"].includes(a.get("sinal.status"))) throw new UserError("Este agendamento não tem sinal a confirmar.");
     if (!["booked", "confirmed"].includes(a.get("status"))) throw new UserError("Este horário já foi cancelado. Combine a devolução do sinal com o cliente.");
     const cents = Number(a.get("sinal.cents"));
     if (!Number.isInteger(cents) || cents <= 0) throw new UserError("O valor do sinal deste agendamento está inválido. Fale com o suporte.");
@@ -62,11 +66,17 @@ export async function expirarSinais(db: Firestore, agora = new Date()) {
     if (d.ref.parent.parent?.parent.id !== "tenants") continue;
     // um agendamento com problema não segura os outros: registra e segue
     const ok = await db.runTransaction(async (tx) => {
-      const a = await tx.get(d.ref);
+      const [a, negocio] = await tx.getAll(d.ref, d.ref.parent.parent!);
       if (a.get("sinal.status") !== "pendente") return false;
       // confirmado na mão, cancelado ou faltou: o sinal deixa de ser esperado e sai da consulta
       if (a.get("status") !== "booked") {
         tx.update(d.ref, { "sinal.status": a.get("status") === "confirmed" ? "dispensado" : "vencido" });
+        return false;
+      }
+      // o horário já começou (reserva em cima da hora: o prazo foi até o início): o cliente pode
+      // estar chegando. Não cancela; o sinal fica "não pago" e o salão decide no balcão
+      if (instanteReal((a.get("start") as Timestamp).toDate(), negocio.get("site")) <= agora) {
+        tx.update(d.ref, { "sinal.status": "vencido" });
         return false;
       }
       const historico = d.ref.parent.parent!.collection("history").doc();
@@ -75,8 +85,12 @@ export async function expirarSinais(db: Firestore, agora = new Date()) {
       return true;
     }).catch(async (e) => {
       console.error("[sinal] expirar", d.ref.path, e);
-      // tira da consulta: um documento que sempre falha não pode ocupar a rodada inteira
-      await d.ref.update({ "sinal.status": "erro" }).catch(() => undefined);
+      // erro passageiro tenta de novo na próxima rodada; só depois de TENTATIVAS_SINAL falhas
+      // sai da consulta (um documento que sempre falha não pode ocupar todas as rodadas)
+      const tentativas = (Number(d.get("sinal.tentativas")) || 0) + 1;
+      await d.ref
+        .update(tentativas >= TENTATIVAS_SINAL ? { "sinal.status": "erro", "sinal.tentativas": tentativas } : { "sinal.tentativas": tentativas }, { lastUpdateTime: d.updateTime! })
+        .catch(() => undefined);
       return false;
     });
     if (ok) liberados++;

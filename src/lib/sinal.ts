@@ -19,7 +19,8 @@ export const prazoDoSinal = (agora: Date, prazoMin: number, inicio: Date) => new
 /** O que fica no agendamento (appointments/{id}.sinal); só o servidor grava. */
 // ate: instante real; hora: o mesmo prazo no relógio do negócio, para a agenda mostrar
 // dispensado: o salão confirmou ou remarcou sem o sinal
-export type SinalDoAgendamento = { cents: number; status: "pendente" | "pago" | "vencido" | "dispensado" | "erro"; ate: Date; hora: string; txid: string; pix: { chave: string; nome: string; cidade: string } };
+// tentativas: rodadas do cron que falharam neste agendamento (só o cron grava)
+export type SinalDoAgendamento = { cents: number; status: "pendente" | "pago" | "vencido" | "dispensado" | "erro"; ate: Date; hora: string; txid: string; pix: { chave: string; nome: string; cidade: string }; tentativas?: number };
 
 /** "30% do valor" / "R$ 20,00": como a página de agendamento anuncia. */
 export const textoDoSinal = (cfg: Pick<ConfigSinal, "tipo" | "valor">) =>

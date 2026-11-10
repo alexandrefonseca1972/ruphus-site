@@ -10,6 +10,7 @@ import type { DadosCliente } from "@/lib/cliente-dados";
 import { prazoDoSinal, type SinalDoAgendamento, valorDoSinal } from "@/lib/sinal";
 import { ConfigSinal } from "@/lib/sinal-config";
 import { recebedorDe, txidLivre } from "@/lib/pix";
+import { canonicalBrMobile } from "@/lib/telefone";
 import { foraDoLimite, limitesDe, Service, Staff, type AgendaQuery, type BookingInput, type PlanInput, type RescheduleInput, type SlotQuery } from "@/lib/scheduling";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
@@ -125,7 +126,7 @@ export async function renameCustomer(
   await exigeDono(db, tenantId, user.uid, "renomear clientes");
   const t = db.collection("tenants").doc(tenantId);
   const cliente = t.collection("customers").doc(customerId);
-  if (!(await cliente.get()).exists) throw new UserError("Cliente nao encontrado.");
+  if (!(await cliente.get()).exists) throw new UserError("Cliente não encontrado.");
 
   const futuros = await t
     .collection("appointments")
@@ -188,6 +189,21 @@ export async function deleteCustomer(
   return { ok: true as const };
 }
 
+/** Excluir profissional com horário marcado ou plano ativo deixaria o cliente chegar ao salão
+ *  sem estar na agenda de ninguém: como no cliente, encerrar/cancelar primeiro. */
+export async function exigeProfissionalSemCompromisso(db: Firestore, tenantId: string, staffId: string) {
+  const t = db.collection("tenants").doc(tenantId);
+  const agora = agoraNaParede(fusoDe((await t.get()).get("site")));
+  const [futuros, planos] = await Promise.all([
+    t.collection("appointments").where("staffId", "==", staffId).where("start", ">", agora).get(),
+    t.collection("plans").where("staffId", "==", staffId).where("status", "==", "active").limit(1).get(),
+  ]);
+  if (!planos.empty) throw new UserError("Encerre os planos recorrentes deste profissional antes de excluir.");
+  if (futuros.docs.some((d) => ["booked", "confirmed"].includes(d.get("status")))) {
+    throw new UserError("Este profissional tem horário marcado. Remarque ou cancele antes de excluir.");
+  }
+}
+
 /** Papel de dono ou admin do negócio: as ações que reescrevem a base do cliente
  *  não são de recepção. O admin da plataforma passa, como nas regras. */
 async function exigeDono(db: Firestore, tenantId: string, uid: string, oque: string) {
@@ -229,7 +245,9 @@ export async function requireMember(verify: VerifyToken, db: Firestore, idToken:
 }
 
 // excludeId: ao remarcar, o próprio agendamento não conta como ocupado
-async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery, excludeId?: string) {
+// exigirAtivo: o link público (e o cliente pelo WhatsApp) só vê o que está no link; o painel
+// remarca mesmo com o serviço oculto ou o profissional fora do link
+async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery, excludeId?: string, exigirAtivo = true) {
   const t = db.collection("tenants").doc(q.tenantId);
   const [tenantSnap, staffSnap, ...svcSnaps] = await tx.getAll(
     t,
@@ -240,9 +258,9 @@ async function slotContext(tx: Transaction, db: Firestore, q: SlotQuery, exclude
   const services = svcSnaps.map((s) => Service.safeParse(s.data()));
   if (
     !staff.success ||
-    !staff.data.active ||
+    (exigirAtivo && !staff.data.active) ||
     !q.serviceIds.every((id) => staff.data.serviceIds.includes(id)) ||
-    services.some((s) => !s.success || !s.data.active)
+    services.some((s) => !s.success || (exigirAtivo && !s.data.active))
   ) {
     return null;
   }
@@ -363,12 +381,14 @@ export function redeDoIp(ip: string) {
 }
 const deviceId = (ip: string) => createHash("sha256").update(`siteflow:${redeDoIp(ip)}`).digest("hex").slice(0, 16);
 
-/** Conta e valida limites do dia. Devolve a mensagem quando estourou. */
+/** Conta e valida limites do dia. Devolve a mensagem quando estourou.
+ *  agora: hora de parede do negócio (agoraNaParede), a mesma convenção do "start" gravado. */
 async function limitError(
   tx: Transaction,
   t: FirebaseFirestore.DocumentReference,
   input: BookingInput,
   ip: string | undefined,
+  agora: Date,
 ) {
   const key = customerKey(input.customerPhone);
   const day = todayIn();
@@ -389,7 +409,7 @@ async function limitError(
   if (process.env.AGENDAMENTO_SEM_LIMITE === "1" && process.env.NODE_ENV !== "production") return { bump: contar };
   const [phoneDoc, phoneGlobalDoc, deviceDoc, deviceGlobalDoc] = await tx.getAll(phoneRef, phoneGlobal, ...(deviceRef && deviceGlobal ? [deviceRef, deviceGlobal] : []));
   const future = await tx.get(
-    t.collection("appointments").where("customerKey", "==", key).where("start", ">", new Date()),
+    t.collection("appointments").where("customerKey", "==", key).where("start", ">", agora),
   );
   const active = future.docs.filter((d) => ["booked", "confirmed"].includes(d.get("status"))).length;
 
@@ -519,7 +539,7 @@ async function reservaDoPedido(
   if (!marca.exists) return null;
   const ja = await ler(t.collection("appointments").doc(String(marca.get("appointmentId"))));
   // cancelada: o pedido vale para uma reserva nova
-  if (ja.get("status") === "cancelled" || ja.get("customerKey") !== customerKey(input.customerPhone)) return null;
+  if (ja.get("status") === "cancelled" || (ja.get("customerKey") !== customerKey(input.customerPhone) && canonicalBrMobile(String(ja.get("customerKey"))) !== customerKey(input.customerPhone))) return null;
   return ja.exists ? reservaDe(ja.id, ja.data()!) : null;
 }
 
@@ -564,7 +584,7 @@ export async function book(db: Firestore, input: BookingInput, ip?: string, aoCr
     // o limite do negócio vale só para quem agenda pelo link: o painel marca o que precisar
     const excede = foraDoLimite(livre.ctx.svc, livre.ctx.limites);
     if (excede) return { ok: false as const, error: excede };
-    const limit = await limitError(tx, livre.ctx.t, input, ip);
+    const limit = await limitError(tx, livre.ctx.t, input, ip, agoraNaParede(livre.ctx.cfg.fuso));
     if (limit.error) return { ok: false as const, error: limit.error, field: true as const };
     const customer = await tx.get(t.collection("customers").doc(customerKey(input.customerPhone)));
     const { id, dados } = writeAppointment(tx, livre.ctx, { ...input, staffId: livre.staffId }, { by: "cliente", byName: input.customerName }, {
@@ -698,12 +718,12 @@ export async function endPlan(db: Firestore, input: { tenantId: string; planId: 
   const preso = await profissionalDaConta(db, input.tenantId, actor.uid);
   return contended(() => db.runTransaction(async (tx) => {
     const t = db.collection("tenants").doc(input.tenantId);
-    const plan = await tx.get(t.collection("plans").doc(input.planId));
+    const [plan, negocio] = await tx.getAll(t.collection("plans").doc(input.planId), t);
     if (!plan.exists || plan.get("status") !== "active") return { ok: false as const, error: "Plano não encontrado ou já encerrado." };
     // "Qualquer um" espalha semanas por outros profissionais: encerrar cancelaria horários deles
     if (preso && (plan.get("staffId") !== preso || plan.get("qualquer"))) return { ok: false as const, error: "Esse plano é de outro profissional: só quem gere o negócio encerra." };
     const future = await tx.get(
-      t.collection("appointments").where("planId", "==", input.planId).where("start", ">", new Date()),
+      t.collection("appointments").where("planId", "==", input.planId).where("start", ">", agoraNaParede(fusoDe(negocio.get("site")))),
     );
     const toCancel = future.docs.filter((d) => ["booked", "confirmed"].includes(d.get("status")));
     const by = { by: actor.uid, byName: actor.email ?? actor.uid };
@@ -717,25 +737,27 @@ export async function endPlan(db: Firestore, input: { tenantId: string; planId: 
   }, TX));
 }
 
-async function rescheduleContext(tx: Transaction, db: Firestore, q: Omit<RescheduleInput, "time">) {
+async function rescheduleContext(tx: Transaction, db: Firestore, q: Omit<RescheduleInput, "time">, exigirAtivo = true) {
   const ref = db.doc(`tenants/${q.tenantId}/appointments/${q.appointmentId}`);
   const appt = await tx.get(ref);
   if (!appt.exists || !["booked", "confirmed"].includes(appt.get("status"))) return null;
   const query = { tenantId: q.tenantId, serviceIds: appt.get("serviceIds") as string[], staffId: appt.get("staffId") as string, date: q.date };
-  const ctx = await slotContext(tx, db, query, q.appointmentId);
+  const ctx = await slotContext(tx, db, query, q.appointmentId, exigirAtivo);
   return ctx && { ...ctx, ref, appt };
 }
 
-export async function rescheduleSlots(db: Firestore, q: Omit<RescheduleInput, "time">) {
-  return db.runTransaction(async (tx) => (await rescheduleContext(tx, db, q))?.slots ?? [], { readOnly: true });
+/** exigirAtivo: false no painel (remarca com serviço oculto ou profissional fora do link). */
+export async function rescheduleSlots(db: Firestore, q: Omit<RescheduleInput, "time">, exigirAtivo = true) {
+  return db.runTransaction(async (tx) => (await rescheduleContext(tx, db, q, exigirAtivo))?.slots ?? [], { readOnly: true });
 }
 
 /** opcoes.manterStatus: remarcação pelo cliente (WhatsApp) não desfaz a confirmação do dono.
- *  opcoes.esperado: o horário que o cliente viu; se mudou até a transação, não remarca. */
-export async function reschedule(db: Firestore, input: RescheduleInput, actor: Actor, opcoes: { manterStatus?: boolean; esperado?: Date } = {}) {
+ *  opcoes.esperado: o horário que o cliente viu; se mudou até a transação, não remarca.
+ *  opcoes.exigirAtivo: false no painel (remarca com serviço oculto ou profissional fora do link). */
+export async function reschedule(db: Firestore, input: RescheduleInput, actor: Actor, opcoes: { manterStatus?: boolean; esperado?: Date; exigirAtivo?: boolean } = {}) {
   const preso = await profissionalDaConta(db, input.tenantId, actor.uid);
   return contended(() => db.runTransaction(async (tx) => {
-    const ctx = await rescheduleContext(tx, db, input);
+    const ctx = await rescheduleContext(tx, db, input, opcoes.exigirAtivo ?? true);
     if (!ctx) return { ok: false as const, error: "Agendamento, serviço ou profissional indisponível." };
     if (preso && ctx.appt.get("staffId") !== preso) return { ok: false as const, error: DE_OUTRO };
     // o salão remarcou entre a lista do cliente e esta transação: a escolha era sobre o horário antigo

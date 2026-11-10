@@ -66,11 +66,14 @@ export function brCode({ chave, nome, cidade, valorCents, txid }: Recebedor & { 
 }
 
 /** Identificador que aparece no extrato: é por ele que se acha o pagamento. */
-export function txidDe(slug: string, tipo: "entrada" | "mensal", competencia: string | null) {
+export function txidDe(slug: string, tipo: "entrada" | "mensal", competencia: string | null, reemissao = 1) {
   const marca = tipo === "entrada" ? "E" : "M";
   const quando = competencia ? competencia.slice(2).replace("-", "") : "";
-  const negocio = slug.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return `${negocio}${marca}${quando}`.slice(0, 25);
+  // reemitida (a anterior foi cancelada): outro txid, para o extrato não confundir as duas
+  const fim = `${marca}${quando}${reemissao > 1 ? `R${reemissao}` : ""}`;
+  // quem cede espaço é o slug: marca, mês e reemissão sempre cabem nos 25
+  const negocio = slug.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 25 - fim.length);
+  return `${negocio}${fim}`;
 }
 
 /** O mês da cobrança no fuso do projeto: toISOString viraria o mês às 21h do dia 31. */
@@ -78,9 +81,10 @@ export const competenciaAtual = (agora = new Date()) => dateIn(agora, TIMEZONE).
 
 export const vencimentoDe = (competencia: string) => `${competencia}-${String(DIA_VENCIMENTO).padStart(2, "0")}`;
 
-/** Identificador livre para a cobrança do salão (no balcão ou sinal): o que o extrato mostra. */
+/** Identificador livre para a cobrança do salão (no balcão ou sinal): o que o extrato mostra.
+ *  3 caracteres aleatórios no fim: duas cobranças no mesmo milissegundo não repetem o txid. */
 export const txidLivre = (prefixo: string) =>
-  `${prefixo.toUpperCase().replace(/[^A-Z0-9]/g, "")}${Date.now().toString(36).toUpperCase()}`.slice(-25);
+  `${prefixo.toUpperCase().replace(/[^A-Z0-9]/g, "")}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase().padEnd(3, "0")}`.slice(-25);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

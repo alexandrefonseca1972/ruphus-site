@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { phoneError, TIPOS_PRECO } from "@/lib/datetime";
+import { telefoneBrValido } from "@/lib/telefone";
 import { erroNome } from "@/lib/nome";
 import { DadosCliente } from "@/lib/cliente-dados";
 
@@ -99,7 +100,8 @@ export const BookingInput = SlotQuery.extend({
     .string()
     .trim()
     .regex(/^[\d\s()+-]{8,20}$/, "Informe um telefone válido")
-    .refine((p) => /^\d{10,13}$/.test(p.replace(/\D/g, "")), "Informe o telefone com DDD")
+    // DDD + número, com ou sem o 55: 12-13 dígitos sem o 55 não são telefone do Brasil
+    .refine(telefoneBrValido, "Informe o telefone com DDD")
     // a mesma regra da tela: "0000000000" passava e furava o limite por telefone
     .refine((p) => !phoneError(p), "Confira o número de WhatsApp"),
   // escolheu "qualquer profissional": se o oferecido ocupou, vale outro livre na mesma hora

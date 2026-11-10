@@ -59,20 +59,21 @@ await assert.rejects(confirmarSinal(db, "sinal-salao", r1.id!, { uid: "owner" })
 const r2 = await book(db, { ...base, time: "10:00", customerPhone: "11 93333-3333" });
 assert.ok(r2.ok && r2.sinal);
 assert.equal(await expirarSinais(db, new Date()), 0, "dentro do prazo, fica");
-const depois = new Date(Date.now() + 31 * 60_000);
-assert.equal(await expirarSinais(db, depois), 1);
+// recalculado a cada uso: reservas feitas depois têm prazo depois
+const depois = () => new Date(Date.now() + 31 * 60_000);
+assert.equal(await expirarSinais(db, depois()), 1);
 const vencido = await t.collection("appointments").doc(r2.id!).get();
 assert.equal(vencido.get("status"), "cancelled");
 assert.equal(vencido.get("sinal.status"), "vencido");
 assert.equal((await t.collection("history").doc(vencido.get("lastHistoryId")).get()).get("reason"), "sinal_nao_pago");
 assert.equal((await book(db, { ...base, time: "10:00", customerPhone: "11 94444-4444" })).ok, true, "horário liberado");
-assert.equal(await expirarSinais(db, depois), 1, "a reserva nova (também com sinal) vence igual");
+assert.equal(await expirarSinais(db, depois()), 1, "a reserva nova (também com sinal) vence igual");
 
 // confirmado na mão sem o sinal: no prazo vencido, o sinal é dispensado (não cancela, sai da consulta)
 const r3 = await book(db, { ...base, time: "11:00", customerPhone: "11 96666-6666" });
 assert.ok(r3.ok);
 await t.collection("appointments").doc(r3.id!).update({ status: "confirmed" });
-assert.equal(await expirarSinais(db, depois), 0);
+assert.equal(await expirarSinais(db, depois()), 0);
 const dispensado = await t.collection("appointments").doc(r3.id!).get();
 assert.equal(dispensado.get("status"), "confirmed");
 assert.equal(dispensado.get("sinal.status"), "dispensado");
@@ -128,8 +129,35 @@ const r7 = await book(db, { ...base, date: addDays(date, 1), time: "10:30", cust
 assert.ok(r7.ok);
 await t.collection("appointments").doc(r7.id!).update({ status: "cancelled" });
 await assert.rejects(confirmarSinal(db, "sinal-salao", r7.id!, { uid: "owner" }), /devolução/);
-await expirarSinais(db, depois);
+await expirarSinais(db, depois());
 assert.equal((await t.collection("appointments").doc(r7.id!).get()).get("sinal.status"), "vencido");
+
+// M2: reserva em cima da hora (prazo = início): depois do início o cron não cancela
+const r8 = await book(db, { ...base, date: addDays(date, 2), time: "09:00", customerPhone: "11 91616-1616" });
+assert.ok(r8.ok && r8.sinal);
+const a8 = t.collection("appointments").doc(r8.id!);
+const inicio8 = new Date(Date.now() - 60_000);
+await a8.update({ start: inicio8, "sinal.ate": inicio8 });
+await expirarSinais(db, new Date());
+assert.equal((await a8.get()).get("status"), "booked", "não cancela quem está chegando");
+assert.equal((await a8.get()).get("sinal.status"), "vencido");
+await confirmarSinal(db, "sinal-salao", r8.id!, { uid: "owner" });
+assert.equal((await a8.get()).get("sinal.status"), "pago", "o salão registra o sinal pago no balcão");
+
+// M3: erro passageiro no cron tenta de novo; só desiste depois de 3 falhas, e o salão ainda confirma
+const r9 = await book(db, { ...base, date: addDays(date, 2), time: "09:30", customerPhone: "11 91717-1717" });
+assert.ok(r9.ok && r9.sinal);
+const a9 = t.collection("appointments").doc(r9.id!);
+const transacao = db.runTransaction.bind(db);
+db.runTransaction = (async () => { throw new Error("passageiro"); }) as typeof db.runTransaction;
+await expirarSinais(db, depois());
+assert.deepEqual([(await a9.get()).get("sinal.status"), (await a9.get()).get("sinal.tentativas")], ["pendente", 1], "uma falha não desiste");
+await expirarSinais(db, depois());
+await expirarSinais(db, depois());
+db.runTransaction = transacao;
+assert.equal((await a9.get()).get("sinal.status"), "erro", "três falhas: sai da consulta");
+await confirmarSinal(db, "sinal-salao", r9.id!, { uid: "owner" });
+assert.equal((await a9.get()).get("sinal.status"), "pago", "erro ainda aceita o Sinal recebido");
 
 console.log("sinal ok");
 process.exit(0);
