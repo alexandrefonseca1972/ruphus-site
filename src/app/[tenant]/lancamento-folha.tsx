@@ -60,8 +60,9 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
   const tipo = folha.modo === "novo" ? folha.tipo : folha.modo === "baixa" ? "entrada" : folha.modo === "pagar" ? "saida" : folha.lancamento.tipo;
   const valorInicial = base?.valorCents ?? (folha.modo === "baixa" ? folha.atendimento.priceCents : folha.modo === "pagar" ? folha.valorCents : 0);
   const [valor, setValor] = useState(valorInicial ? formatBRL(valorInicial) : "");
-  // comissão: o servidor só aceita o valor que a conta dá; para mudar, muda o % ou os recebimentos
-  const comissao = folha.modo === "pagar" && folha.pagamento.tipo === "comissao";
+  // comissão: o servidor só aceita o valor que a conta dá; para mudar, muda o % ou os recebimentos.
+  // Já paga, o valor fica travado também: corrige só forma e descrição
+  const comissao = (folha.modo === "pagar" && folha.pagamento.tipo === "comissao") || (folha.modo === "editar" && folha.lancamento.id.startsWith("cm-"));
   const [categoria, setCategoria] = useState(base?.categoria ?? (folha.modo === "baixa" ? "Atendimento" : ""));
   const [forma, setForma] = useState<(typeof FORMAS)[number]>(() => base?.forma ?? ultimaForma(tipo));
   // entrada/saída avulsa: o id nasce aqui, e repetir o envio (a resposta caiu) não duplica
