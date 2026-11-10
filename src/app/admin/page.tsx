@@ -940,10 +940,16 @@ export default function AdminPage() {
                   className="flex flex-col gap-1.5 border-t border-[#EDE9E1] pt-3.5"
                   onSubmit={async (ev) => {
                     ev.preventDefault();
-                    const r = await definirMinutosInativo(await token(), new FormData(ev.currentTarget).get("minutos"));
-                    setAviso(r.ok ? (r.dados ? `Sai sozinho depois de ${r.dados} minutos parado.` : "Logout automático desligado.") : r.error);
-                    // o valor não chega mais por listener: quem salvou passa a contar pelo novo
-                    if (r.ok) setMinutosInativo(r.dados);
+                    // o FormData sai antes do await: depois dele o React já zerou ev.currentTarget
+                    const minutos = new FormData(ev.currentTarget).get("minutos");
+                    try {
+                      const r = await definirMinutosInativo(await token(), minutos);
+                      setAviso(r.ok ? (r.dados ? `Sai sozinho depois de ${r.dados} minutos parado.` : "Logout automático desligado.") : r.error);
+                      // o valor não chega mais por listener: quem salvou passa a contar pelo novo
+                      if (r.ok) setMinutosInativo(r.dados);
+                    } catch {
+                      setAviso("Não foi possível salvar os minutos. Tente de novo.");
+                    }
                   }}
                 >
                   <span className="text-xs font-semibold text-[#4A4639]">Sair sozinho depois de parado</span>
@@ -969,9 +975,15 @@ export default function AdminPage() {
                   className="flex flex-col gap-1.5 border-t border-[#EDE9E1] pt-3.5"
                   onSubmit={async (ev) => {
                     ev.preventDefault();
-                    const r = await definirPixel(await token(), new FormData(ev.currentTarget).get("pixel"));
-                    setAviso(r.ok ? (r.dados ? "Pixel da Meta salvo: a landing e o cadastro já medem." : "Pixel da Meta desligado.") : r.error);
-                    if (r.ok) setMetaPixel(r.dados);
+                    // o FormData sai antes do await: depois dele o React já zerou ev.currentTarget
+                    const pixel = new FormData(ev.currentTarget).get("pixel");
+                    try {
+                      const r = await definirPixel(await token(), pixel);
+                      setAviso(r.ok ? (r.dados ? "Pixel da Meta salvo: a landing e o cadastro já medem." : "Pixel da Meta desligado.") : r.error);
+                      if (r.ok) setMetaPixel(r.dados);
+                    } catch {
+                      setAviso("Não foi possível salvar o Pixel. Tente de novo.");
+                    }
                   }}
                 >
                   <span className="flex items-center gap-2 text-xs font-semibold text-[#4A4639]">
@@ -2236,7 +2248,7 @@ export default function AdminPage() {
                     onEnviar={(para) => enviarConviteEmail(aberto.slug, para)}
                   />
                 </div>
-              ) : (
+              ) : aberto.acessos > 1 ? null : (
                 // Barrar aqui, e não na mensagem de erro depois do clique: o que
                 // falta é um dado de uma aba ao lado, e o vendedor resolve em 10s
                 <span className="text-[13px] leading-relaxed text-[#B8791F]">
@@ -2368,7 +2380,7 @@ export default function AdminPage() {
                     {a.limite !== null && (
                       <div className="flex items-center justify-between gap-3 border-t border-[#EFEBE3] pt-3 text-xs">
                         <span className="text-[#6F6A5E]">
-                          Negócios nesta conta: <b className="font-semibold text-[#17150F]">{a.usados}</b> de {a.limite}
+                          Negócios nesta conta: <b className="font-semibold text-[#17150F]">{a.usados}</b>{a.usados > a.limite ? ` (cota ${a.limite})` : ` de ${a.limite}`}
                         </span>
                         <span className="flex items-center gap-1.5">
                           <button

@@ -46,7 +46,7 @@ import { soDigitosComDDI } from "@/lib/telefone";
 import { MODELOS, modeloDoId, NOMES_FONTE, Personal, renderEditorial, visualEditorial } from "@/lib/site-editorial";
 import { ehClaro, galeriaClaro, modeloClaroDoId, modelosClaro, renderClaro, visualClaro } from "@/lib/site-claro";
 import { iaDisponivel, type Mensagem, sugerirVisual } from "@/lib/ia.server";
-import { apagarFotosFora, fotosFaltando, lerFoto, publicarFotos, type Slot, slotsEmRascunho, tenantGerado } from "@/lib/foto.server";
+import { apagarFotosFora, apagarRascunho, fotosFaltando, lerFoto, publicarFotos, SLOTS, type Slot, slotsEmRascunho, tenantGerado } from "@/lib/foto.server";
 import { SLUG_SITE } from "@/lib/site-arquivo";
 import { type DadosSite, type Escolha, type Sub, SUBS } from "@/lib/gerador";
 import { FieldValue } from "firebase-admin/firestore";
@@ -778,6 +778,12 @@ export const previewVisual = adminAction(async (_user, slug: string, rascunho: u
   // A prévia pede com um carimbo para ver a que acabou de subir (em src, href e url() do CSS do topo)
   const emRascunho = new Set<string>(await slotsEmRascunho(slug));
   return comBase(html.replace(/(["(])fotos\/(hero|ga1|ga2|ga3)\.jpg(\?v=\d+)?(["\)])/g, (_m, antes: string, slot: string, _v, depois: string) => `${antes}/s/${slug}/fotos/${emRascunho.has(slot) ? "rascunho-" : ""}${slot}.jpg?v=${Date.now()}${depois}`), slug);
+});
+
+/** "Do modelo" na gaveta: apaga o rascunho da posição já no Storage, sem esperar "Publicar visual". */
+export const descartarFotoRascunho = adminAction(async (_user, slug: string, slot: Slot) => {
+  if (!SLOTS.includes(slot)) throw new ErroPrevisto("Posição de foto inválida.");
+  await apagarRascunho(slug, slot);
 });
 
 /** Publica a personalização: grava gerado.personal (ou apaga, se ficou vazia) e a cor e a

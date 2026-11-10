@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { LINKS_DEMO } from "@/lib/demo";
+import { TIMEZONE } from "@/lib/datetime";
 import { acessoDaDemo, restaurarADemo } from "./actions";
 
 type Acesso = { email: string; senha: string; restauradoEm: string | null };
@@ -48,7 +49,7 @@ export function DemoMenu({ token, aDireita = false }: { token: () => Promise<str
     setAviso({ ok: true, texto: `Restaurada: ${r.dados.agendamentos} agendamentos de exemplo e senha nova.` });
   }
 
-  const quando = acesso?.restauradoEm && new Date(acesso.restauradoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const quando = acesso?.restauradoEm && new Date(acesso.restauradoEm).toLocaleString("pt-BR", { timeZone: TIMEZONE, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   const COPIAR = "shrink-0 rounded-md border border-[#D8D2C6] px-2 py-1 text-[11px] hover:border-[#17150F]";
   return (
     <div ref={caixa} className="relative">
