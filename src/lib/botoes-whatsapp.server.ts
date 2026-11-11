@@ -3,7 +3,7 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { enviarInterativo, enviarTemplateSemOperador, enviarTexto, OPTIN_DONO } from "@/lib/atendys";
 import { avisar, quando } from "@/lib/avisos.server";
 import { reschedule, rescheduleSlots } from "@/lib/booking.server";
-import { conexaoOficial, idBotao, templateNovoDono, type lerBotao } from "@/lib/canal-oficial.server";
+import { conexaoOficial, contatoDoNegocio, destaque, idBotao, templateNovoDono, type lerBotao } from "@/lib/canal-oficial.server";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { addDays, agoraNaParede, chaveDoHorario, dateIn, dentroDaJanela, formatTime, fusoDe, WEEKDAYS, zonedTime } from "@/lib/datetime";
 import { soDigitosComDDI } from "@/lib/telefone";
@@ -75,7 +75,12 @@ export async function acaoDoCliente(db: Firestore, b: Botao, telefone: string): 
   // a resposta ao cliente nunca impede o aviso ao negócio nem desfaz o que já mudou
   const responder = (texto: string) => enviarTexto(oficial, numero, texto, optIn, undefined, { resposta: true })
     .then(() => undefined, (e) => console.error(`[botões] resposta ao cliente em ${b.slug}`, e));
-  const tz = fusoDe((await db.doc(`tenants/${b.slug}`).get()).get("site"));
+  const tenant = await db.doc(`tenants/${b.slug}`).get();
+  const tz = fusoDe(tenant.get("site"));
+  const nomeNegocio = String(tenant.get("name") ?? "").trim() || b.slug;
+  const negocio = destaque(nomeNegocio);
+  const contato = contatoDoNegocio(tenant);
+  const faleCom = `fale com ${negocio}: ${contato}`;
   const agora = agoraNaParede(tz);
   const hoje = dateIn(agora);
   const nome = String(a.get("customerName") ?? "").trim().split(/\s+/)[0] || "cliente";
@@ -108,7 +113,7 @@ export async function acaoDoCliente(db: Firestore, b: Botao, telefone: string): 
   if (b.acao !== "cp" && (sinal === "pago" || sinal === "pendente" || recebido)) {
     const quer = b.acao === "cx" || b.acao === "cxx" ? "cancelar" : "remarcar";
     await gestores("Cliente quer mexer no horário", `${nome} pediu para ${quer} ${servico}, ${quandoVai}. Há sinal ou pagamento: fale com o cliente.`);
-    await responder(`Para ${quer} este horário, fale direto com o estabelecimento (há sinal ou pagamento envolvido).`);
+    await responder(`Para ${quer} este horário, ${faleCom} (há sinal ou pagamento envolvido).`);
     return "precisa do negócio";
   }
 
@@ -129,7 +134,7 @@ export async function acaoDoCliente(db: Firestore, b: Botao, telefone: string): 
     // ainda sem a confirmação do estabelecimento: não diz "confirmado"
     await responder(status === "confirmed"
       ? `Obrigado, ${nome}! Presença confirmada: ${servico}, ${quandoVai}.`
-      : `Obrigado, ${nome}! Avisamos o estabelecimento que você vai: ${servico}, ${quandoVai}. Ele ainda vai confirmar o horário.`);
+      : `Obrigado, ${nome}! Avisamos ${negocio} que você vai: ${servico}, ${quandoVai}. Ele ainda vai confirmar o horário.`);
     return "presença confirmada";
   }
 
@@ -164,7 +169,7 @@ export async function acaoDoCliente(db: Firestore, b: Botao, telefone: string): 
   if (b.acao === "cr") {
     const horarios = await proximosHorarios(db, b.slug, b.agendamento, start, agora);
     if (!horarios.length) {
-      await responder(`Não há horário livre nos próximos ${DIAS_PARA_REMARCAR} dias para ${servico}. Veja outras datas em ${link} ou fale com o estabelecimento.`);
+      await responder(`Não há horário livre nos próximos ${DIAS_PARA_REMARCAR} dias para ${servico}. Veja outras datas em ${link} ou ${faleCom}.`);
       return "sem horário";
     }
     await enviarInterativo(oficial, numero, {
@@ -197,9 +202,8 @@ export async function acaoDoCliente(db: Firestore, b: Botao, telefone: string): 
     const dono = (await lerConfigWhatsApp(db, b.slug))?.ownerPhone;
     const donoNumero = dono ? soDigitosComDDI(dono) : null;
     if (donoNumero) {
-      const negocio = String((await db.doc(`tenants/${b.slug}`).get()).get("name") ?? "").trim() || b.slug;
       await enviarTemplateSemOperador(oficial, donoNumero, templateNovoDono(
-        { negocio, cliente: String(a.get("customerName") ?? nome), telefone: String(a.get("customerPhone") ?? ""), servico, quando: `${novo} (remarcado)`, codigo: codigoDoAgendamento(b.agendamento, 12) },
+        { negocio: nomeNegocio, cliente: String(a.get("customerName") ?? nome), telefone: String(a.get("customerPhone") ?? ""), servico, quando: `${novo} (remarcado)`, codigo: codigoDoAgendamento(b.agendamento, 12) },
         { slug: b.slug, agendamento: b.agendamento, horario: destino },
         // prazo: o horário novo no fuso do negócio (instante real)
       ), OPTIN_DONO, zonedTime(m[1], m[2], tz)).catch((e) => console.error("[botões] pedido da remarcação ao dono", e));
@@ -207,6 +211,6 @@ export async function acaoDoCliente(db: Firestore, b: Botao, telefone: string): 
   }
   await responder(status === "confirmed"
     ? `Remarcado, ${nome}: ${servico}, ${novo}. Até lá!`
-    : `Remarcado, ${nome}: ${servico}, ${novo}. O estabelecimento vai confirmar e avisamos por aqui.`);
+    : `Remarcado, ${nome}: ${servico}, ${novo}. ${negocio} vai confirmar e avisamos por aqui.`);
   return "remarcado";
 }

@@ -5,6 +5,7 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Respostas dos botões do lembrete: ao pedir contato com o estabelecimento para remarcar ou cancelar com sinal/pagamento, a mensagem informa o nome do salão e o telefone público do site (ou o endereço do site, se não houver telefone). As respostas que aguardam confirmação também nomeiam o salão.
 - Novo agendamento com o painel aberto: além do cartão e do som, a aba mostra “(N) Novo(s) agendamento(s) · nome do negócio”, como um webmail. O contador continua depois do cartão e sai ao voltar à aba ou abrir a agenda.
 - Site de quem não tem o módulo Agendamento: o botão “Agendar online” some nos modelos claro e editorial. Desligar só o Caixa não muda o agendamento online.
 - Pix do sinal vencido: a orientação passa a usar o nome do salão para combinar o pagamento, em vez do nome do recebedor da chave, que podia ser “RUPHUS”.

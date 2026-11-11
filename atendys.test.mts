@@ -677,7 +677,7 @@ assert.equal(curta.status, 401);
   // negócio no canal oficial, com agenda e um agendamento de amanhã às 10:00
   await db.doc("config/atendys-plataforma").set({ tenantId: "tp", apikey: "kp", webhookSecret: "sp" });
   const t = db.doc("tenants/ofc");
-  await t.set({ name: "Ofc", whatsapp: { canalOficial: true } });
+  await t.set({ name: "Ofc", site: { phone: "5591992361726" }, whatsapp: { canalOficial: true } });
   await db.doc("tenants/ofc/privado/whatsapp").set({ ownerPhone: "5591992361726" });
   await t.collection("services").doc("corte").set({ name: "Corte", durationMin: 30, priceCents: 5000, active: true });
   const todos = Object.fromEntries(["0", "1", "2", "3", "4", "5", "6"].map((d) => [d, { start: "08:00", end: "20:00" }]));
@@ -698,7 +698,7 @@ assert.equal(curta.status, 401);
   assert.equal(await acaoDoCliente(db, b("cp"), "5511988881111"), "presença confirmada");
   assert.ok((await t.collection("appointments").doc("Ag1aaaaaaaaaaaaaaaaa").get()).get("presencaConfirmadaEm"));
   // ainda não confirmado pelo estabelecimento: não diz "confirmado"
-  assert.match(String(enviadas.at(-1)!.corpo.text), /Avisamos o estabelecimento que você vai: Corte, amanhã às 10:00. Ele ainda vai confirmar/);
+  assert.match(String(enviadas.at(-1)!.corpo.text), /Avisamos \*Ofc\* que você vai: Corte, amanhã às 10:00. Ele ainda vai confirmar/);
   assert.equal(enviadas.at(-1)!.corpo.replyToInbound, true, "resposta: fora da cota por destinatário e do dedupe");
   // mesmo horário (lista antiga, toque repetido) não remarca nem desfaz nada
   assert.equal(await acaoDoCliente(db, b("ch", `${amanha}T10:00`), "5511988881111"), "mesmo horário");
@@ -751,7 +751,10 @@ assert.equal(curta.status, 401);
   // sinal pago: quem decide é o negócio
   await ag("Ag2aaaaaaaaaaaaaaaaa", { sinal: { status: "pago", cents: 1000 } });
   assert.equal(await acaoDoCliente(db, lerBotao(idBotao("cx", "ofc", "Ag2aaaaaaaaaaaaaaaaa"))!, "5511988881111"), "precisa do negócio");
+  assert.match(String(enviadas.at(-1)!.corpo.text), /Para cancelar este horário, fale com \*Ofc\*: \(91\) 99236-1726 \(há sinal ou pagamento envolvido\)\./);
   assert.equal((await t.collection("appointments").doc("Ag2aaaaaaaaaaaaaaaaa").get()).get("status"), "booked");
+  assert.equal(await acaoDoCliente(db, lerBotao(idBotao("cr", "ofc", "Ag2aaaaaaaaaaaaaaaaa"))!, "5511988881111"), "precisa do negócio");
+  assert.match(String(enviadas.at(-1)!.corpo.text), /Para remarcar este horário, fale com \*Ofc\*: \(91\) 99236-1726 \(há sinal ou pagamento envolvido\)\./);
   delete process.env.ATENDYS_TEMPLATES_BOTOES;
 }
 
