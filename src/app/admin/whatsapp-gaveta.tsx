@@ -23,7 +23,8 @@ const AVISO_ENVIO: Record<Envio, { ok: boolean; texto: string }> = {
 };
 
 const SEM_REDE = "Sem conexão. Tente de novo.";
-const data = (ms: number) => new Date(ms).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+// no horário de Brasília, como o resto do admin: o navegador de quem atende pode estar em outro fuso
+const data = (ms: number) => new Date(ms).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
 
 export function WhatsAppDoNegocio({ slug, token }: { slug: string; token: () => Promise<string> }) {
   // undefined = carregando; null = a leitura falhou
