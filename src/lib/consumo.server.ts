@@ -224,10 +224,11 @@ export async function marcarAviso(slug: string, agendamentoId: string, efeito: N
     });
     // SMS de reserva (negócio no modo "SMS só quando o WhatsApp não puder"): a confirmação ou o
     // lembrete pelo WhatsApp falhou de vez. Quem pediu SAIR não é procurado por outro canal. Import na
-    // hora: sms-agendamento importa este arquivo
+    // hora: sms-agendamento importa este arquivo. Sem esperar: quem marca pode ser o webhook do atendys,
+    // que precisa do 200 rápido (smsDeReserva nunca lança; o servidor é contínuo, a promessa termina)
     if (marcou && efeito.acao === "marca" && !efeito.optOut && (efeito.tipo === "confirmado" || efeito.tipo === "lembrete")) {
-      const { smsDeReserva } = await import("@/lib/sms-agendamento.server");
-      await smsDeReserva(adminDb, slug, agendamentoId, efeito.tipo);
+      const tipo = efeito.tipo;
+      void import("@/lib/sms-agendamento.server").then(({ smsDeReserva }) => smsDeReserva(adminDb, slug, agendamentoId, tipo)).catch((e) => console.error(`[consumo] sms de reserva ${slug}/${agendamentoId}`, e));
     }
   } catch (e) {
     console.error(`[consumo] marca do aviso no agendamento ${agendamentoId} de ${slug}`, e);
