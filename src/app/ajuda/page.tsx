@@ -404,7 +404,8 @@ export default function ManualDoUsuario() {
             </>,
             <>
               <Termo>Avisos de agendamento</Termo>: ligue para receber um aviso no aparelho a cada novo agendamento. Cada
-              pessoa liga no próprio aparelho, pelo convite do painel ou pelo menu da sua conta.
+              pessoa liga no próprio aparelho, pelo convite do painel ou pelo menu da sua conta. Com o painel aberto, a aba
+              também mostra a quantidade de novos agendamentos no título, até você voltar a ela ou abrir a agenda.
             </>,
           ]}
         />

@@ -393,3 +393,23 @@ await assert.rejects(gerarNoBanco(db, [{ linha: 1, lead: { nome: "x" } }], true,
 await assert.rejects(gerarNoBanco(db, Array(301).fill(lote[0]), false, "a"), /300/);
 
 console.log("gerador-banco: ok");
+
+
+// A rota do site lê o módulo Agendamento do tenant e esconde o botão quando ele está desligado.
+{
+  await db.doc("tenants/site-sem-agenda").set({
+    name: "Site sem agenda",
+    ownerId: "dono",
+    gerado: { sub: "barbearia", origem: "cadastro" },
+    site: { phone: "5592999990000" },
+    modulos: { agendamento: false, caixa: false },
+  });
+  assert.equal((await lerSite(db, "site-sem-agenda"))?.agendamento, false);
+  const { GET } = await import("@/app/s/[slug]/index.html/route");
+  const html = async () => (await GET(new Request("http://x/"), { params: Promise.resolve({ slug: "site-sem-agenda" }) })).text();
+  assert.ok(!(await html()).includes('data-agendar="1"'));
+  await db.doc("tenants/site-sem-agenda").update({ "modulos.agendamento": FieldValue.delete() });
+  assert.equal((await lerSite(db, "site-sem-agenda"))?.agendamento, true);
+  assert.ok((await html()).includes('data-agendar="1"'));
+  console.log("rota do site sem agendamento: ok");
+}

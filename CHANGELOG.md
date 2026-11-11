@@ -5,6 +5,10 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Novo agendamento com o painel aberto: além do cartão e do som, a aba mostra “(N) Novo(s) agendamento(s) · nome do negócio”, como um webmail. O contador continua depois do cartão e sai ao voltar à aba ou abrir a agenda.
+- Site de quem não tem o módulo Agendamento: o botão “Agendar online” some nos modelos claro e editorial. Desligar só o Caixa não muda o agendamento online.
+- Pix do sinal vencido: a orientação passa a usar o nome do salão para combinar o pagamento, em vez do nome do recebedor da chave, que podia ser “RUPHUS”.
+- Convite da equipe: a confirmação de e-mail volta ao convite, que também permite reenviar a verificação, conferir de novo e trocar de conta. Antes, quem seguia para o início sem ter concluído o aceite encontrava o cadastro de um negócio novo, mesmo tendo chegado pelo link de um funcionário.
 - Versão 0.34.1: republicação, sem mudança de funcionalidade.
 - E-mails no padrão da Ruphus: os avisos do sistema ao admin (erro em página ou rota, cron parado, SMS que não saiu, lembrete do WhatsApp que falhou, comando do WhatsApp descartado, recarga paga sem crédito) e os e-mails ao dono (saldo de mensagens baixo, recarga confirmada, aceite dos Termos) saem com a identidade do site: marca, faixa escura com o título, dados em tabela, o que fazer em passos, o erro técnico separado e um botão (abrir o admin, a página, a agenda ou a recarga). O texto puro segue junto.
 - Prévia do link dos sites (og.jpg): com o Google Fonts ou a foto lentos, a imagem sai com a fonte padrão ou sem a foto, em vez de dar erro (o erro de 11/11 às 3h virava e-mail de alerta).

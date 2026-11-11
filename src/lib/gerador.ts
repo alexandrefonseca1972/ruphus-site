@@ -479,6 +479,8 @@ export type DadosSite = {
   instagram: string;
   horario: string;
   servicos: string[];
+  /** Módulo Agendamento do plano; desligar só o Caixa não muda este botão. Ausente = ligado. */
+  agendamento?: boolean;
   /** "setembro de 2026": quando os dados do Google foram lidos */
   consultado: string;
   /** prospecção: a Ruphus fez sem o dono pedir, e o site traz a faixa de proposta;

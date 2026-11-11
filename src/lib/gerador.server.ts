@@ -321,6 +321,7 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
       .map((d) => String(d.get("name")))
       .slice(0, 8),
     consultado: `${MESES[quando.getMonth()]} de ${quando.getFullYear()}`,
+    agendamento: tenant.get("modulos.agendamento") !== false,
     origem: gerado.origem === "cadastro" ? "cadastro" : "prospeccao",
     publicado: !!gerado.publicadoEm,
     dominio: (tenant.get("dominio") as DadosSite["dominio"]) ?? null,

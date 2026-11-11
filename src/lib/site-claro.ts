@@ -251,7 +251,7 @@ ${d.publicado ? "" : faixaProposta(d)}
       <span class="eyebrow">${esc(sub)}</span>
       <h1>${esc(titulo)} <em>${esc(destaque)}</em></h1>
       <p class="lead">${esc(chamada)}</p>
-${BOTAO_AGENDAR}
+${d.agendamento === false ? "" : BOTAO_AGENDAR}
       <div class="hero-ctas">
         <a href="#servicos" class="btn btn-outline" style="border-color:rgba(255,255,255,.5);color:#fff;">Ver serviços</a>
       </div>

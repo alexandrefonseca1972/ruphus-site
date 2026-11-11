@@ -122,3 +122,21 @@ assert.equal(typeof recebedorDe({ chave: "52998224725", nome: "Ana", cidade: " "
 // o nome guardado pode ser longo; o QR corta em 25
 assert.ok(montar({ ...ok, nome: "N".repeat(60) }).includes("5925" + "N".repeat(25)));
 console.log("validação do pix ok");
+
+
+// Pix vencido no agendamento: quem orienta o cliente é o salão, não o recebedor da chave.
+{
+  const { createElement } = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { PixQr } = await import("@/components/pix-qr");
+  const html = renderToStaticMarkup(createElement(PixQr, {
+    recebedor: { chave: "52998224725", nome: "RUPHUS", cidade: "Manaus" },
+    valorCents: 1000,
+    txid: "SINAL",
+    ate: "2020-01-01T00:00:00.000Z",
+    ajuda: "Fale com Barbearia Force para combinar o pagamento.",
+  }));
+  assert.ok(html.includes("O prazo para pagar este Pix acabou. Fale com Barbearia Force para combinar o pagamento."));
+  assert.ok(!html.includes("Fale com RUPHUS"));
+  console.log("pix vencido orienta o salão: ok");
+}

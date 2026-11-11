@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { db } from "@/lib/firebase-db";
 import { formatTime, TIMEZONE } from "@/lib/datetime";
+import { tituloDeNovoAgendamento } from "@/lib/titulo-aba";
 import { useTenant } from "./painel-layout";
 
 // Som e aviso na tela quando um cliente marca pelo link com o painel aberto. Com o painel
@@ -80,6 +81,7 @@ export function AvisoNovoAgendamento() {
     somRef.current = somLigado;
   }, [somLigado]);
   const [novos, setNovos] = useState<Novo[]>([]);
+  const [naoLidos, setNaoLidos] = useState(0);
   const [bloqueado, setBloqueado] = useState(false);
   // quem é da equipe ouve só os horários dele, como mexe só neles
   const soDe = !tenant.podeGerir && tenant.staffId ? tenant.staffId : null;
@@ -118,6 +120,7 @@ export function AvisoNovoAgendamento() {
           .map(({ id, d }): Novo => ({ id, nome: String(d.customerName ?? "Cliente"), servico: String(d.serviceName ?? ""), quando: (d.start as Timestamp).toDate() }));
         if (!chegaram.length) return;
         setNovos((atual) => [...chegaram, ...atual].slice(0, 3));
+        setNaoLidos((atual) => atual + chegaram.length);
         if (somRef.current) {
           tocar();
           setBloqueado(!destravado());
@@ -127,6 +130,24 @@ export function AvisoNovoAgendamento() {
       (e) => console.warn("[aviso de agendamento] escuta caiu", e),
     );
   }, [tenant.id, soDe]);
+
+  // Como no webmail: a contagem fica na aba mesmo depois do cartão; voltar a ela confirma a leitura.
+  useEffect(() => {
+    const aoVoltar = () => {
+      if (document.visibilityState === "visible") setNaoLidos(0);
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => document.removeEventListener("visibilitychange", aoVoltar);
+  }, []);
+
+  useEffect(() => {
+    if (!naoLidos) return;
+    const anterior = document.title;
+    document.title = tituloDeNovoAgendamento(naoLidos, tenant.name);
+    return () => {
+      document.title = anterior;
+    };
+  }, [naoLidos, tenant.name]);
 
   // cada aviso some sozinho em 15 s
   useEffect(() => {
@@ -152,7 +173,7 @@ export function AvisoNovoAgendamento() {
               {n.quando.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short", timeZone: TIMEZONE })} às {formatTime(n.quando)}
             </p>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-              <Link href={`/${tenant.id}`} onClick={() => fechar(n.id)} className="font-medium underline underline-offset-4">
+              <Link href={`/${tenant.id}`} onClick={() => { setNaoLidos(0); fechar(n.id); }} className="font-medium underline underline-offset-4">
                 Ver na agenda
               </Link>
               {bloqueado && somLigado && (

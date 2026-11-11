@@ -24,6 +24,7 @@ import { handleSubmit } from "@/lib/utils";
 import { guardarUtm } from "@/lib/anuncios";
 import { DIAS_CONVITE } from "@/lib/limites";
 import { erroNome, mascaraNome } from "@/lib/nome";
+import { destinoInterno, urlDeVerificacao } from "@/lib/retorno";
 
 // Máscaras: o que o campo aceita enquanto a pessoa digita. O schema confere de novo no envio.
 /** E-mail: sem espaço e em minúsculas, como o Firebase compara. */
@@ -83,14 +84,8 @@ function Login() {
   // Quem administra a plataforma trabalha no /admin; quem é dono de um negócio,
   // no /painel. O convite, quando existe, vence os dois.
   async function paraOnde() {
-    // só caminho deste site: "//evil.com", "/\\evil.com" e "/<TAB>/evil.com" começam com "/"
-    // e levam para fora, então quem decide é o próprio parser de URL
-    if (proximo) {
-      try {
-        const u = new URL(proximo, location.origin);
-        if (u.origin === location.origin && proximo.startsWith("/")) return u.pathname + u.search + u.hash;
-      } catch {}
-    }
+    const interno = destinoInterno(proximo, location.origin);
+    if (interno) return interno;
     const user = auth.currentUser;
     if (!user) return "/painel";
     const r = await ehAdminDaPlataforma(await user.getIdToken()).catch(() => ({ ok: false as const }));
@@ -228,7 +223,8 @@ function Login() {
         // o nome só entra no token depois de renovar, e é dele que o servidor lê
         .then(() => user.getIdToken(true))
         .catch(() => {});
-      await sendEmailVerification(user).catch(() => {});
+      const retorno = urlDeVerificacao(location.origin, proximo);
+      await sendEmailVerification(user, retorno ? { url: retorno } : undefined).catch(() => {});
     });
   }
 

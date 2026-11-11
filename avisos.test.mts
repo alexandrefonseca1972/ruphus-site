@@ -17,3 +17,13 @@ assert.equal(Inscricao.safeParse({ ...boa, endpoint: "https://fcm.googleapis.com
 assert.equal(Inscricao.safeParse({ ...boa, endpoint: "https://web.push.apple.com/abc" }).success, true);
 assert.equal(Inscricao.safeParse({ ...boa, keys: { p256dh: boa.keys.p256dh } }).success, false);
 console.log("inscrição ok");
+
+
+// A aba usa o mesmo padrão de contador do webmail, no singular e no plural.
+{
+  const { tituloDeNovoAgendamento } = await import("@/lib/titulo-aba");
+  assert.equal(tituloDeNovoAgendamento(1, "Barbearia Force"), "(1) Novo agendamento · Barbearia Force");
+  assert.equal(tituloDeNovoAgendamento(3, "Barbearia Force"), "(3) Novos agendamentos · Barbearia Force");
+  assert.equal(tituloDeNovoAgendamento(0, "Barbearia Force"), "");
+  console.log("título da aba: ok");
+}

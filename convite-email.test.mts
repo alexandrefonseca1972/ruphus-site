@@ -80,3 +80,19 @@ console.log("convite-email html: ok");
   assert.equal(e.texto, "Saldo <baixo>\n\nlinha 1\nlinha 2\n\nSaldo: R$ 3,45\n\nNegócio: a&b\n\nO que fazer\n1. um\n2. dois\n\nErro\nerro <x>\n\nAbrir: https://www.ruphus.site/x?a=1&b=2\n\nRuphus\n\nPorque sim.");
   console.log("layout de e-mail: ok");
 }
+
+
+// A confirmação do e-mail devolve ao convite, sem aceitar retorno para fora do site.
+{
+  const { destinoInterno, urlDeVerificacao } = await import("@/lib/retorno");
+  const origem = "https://www.ruphus.site";
+  assert.equal(destinoInterno("/convite?c=abc#entrar", origem), "/convite?c=abc#entrar");
+  assert.equal(destinoInterno(`${origem}/convite?c=abc`, origem), "/convite?c=abc");
+  assert.equal(destinoInterno("//evil.com/convite", origem), "");
+  assert.equal(destinoInterno("/\\evil.com/convite", origem), "");
+  assert.equal(destinoInterno("https://evil.com/convite", origem), "");
+  assert.equal(destinoInterno(null, origem), "");
+  assert.equal(urlDeVerificacao(origem, "/convite?c=abc"), `${origem}/convite?c=abc`);
+  assert.equal(urlDeVerificacao(origem, "https://evil.com/convite"), undefined);
+  console.log("retorno da verificação: ok");
+}

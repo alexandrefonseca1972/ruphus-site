@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { errorMessage } from "@/lib/auth-errors";
 import { auth } from "@/lib/firebase";
+import { destinoInterno } from "@/lib/retorno";
 
 // Destino dos links dos e-mails do Firebase Auth (URL de ação personalizada nos
 // modelos do console). Link no mesmo domínio do remetente: um link para
@@ -40,6 +41,7 @@ function Acao() {
 
   const [erro, setErro] = useState(valido ? "" : "Este link está incompleto. Peça um novo.");
   const [feito, setFeito] = useState("");
+  const [retorno, setRetorno] = useState("/login");
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
 
@@ -52,6 +54,7 @@ function Acao() {
 
   async function rodar(acao: () => Promise<string>) {
     setErro("");
+    setRetorno(destinoInterno(params.get("continueUrl"), location.origin) || "/login");
     setBusy(true);
     try {
       setFeito(await acao());
@@ -82,7 +85,7 @@ function Acao() {
           )}
 
           {feito ? (
-            <Link href="/login" className={buttonVariants()}>Entrar na Ruphus</Link>
+            <Link href={retorno} className={buttonVariants()}>{retorno.startsWith("/convite") ? "Voltar ao convite" : "Entrar na Ruphus"}</Link>
           ) : modo === "resetPassword" ? (
             email && (
               <form

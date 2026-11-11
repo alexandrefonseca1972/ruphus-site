@@ -544,3 +544,15 @@ for (const sub of ["petshop", "vet", "odonto", "salao", "barbearia", "estetica",
   assert.ok(cel.includes("wa.me/5592993721156") && cel.includes("data-wa="), `${sub} celular: WhatsApp e formulário`);
 }
 console.log("telefone fixo vira ligação: ok");
+
+
+// O módulo Agendamento controla o botão principal nos dois modelos de site.
+{
+  const editorial = renderBeleza({ ...base, sub: "barbearia", agendamento: false });
+  const claro = renderClaro({ ...base, sub: "petshop", agendamento: false });
+  assert.ok(!editorial.includes('data-agendar="1"'), "editorial sem Agendamento não mostra o botão");
+  assert.ok(!claro.includes('data-agendar="1"'), "claro sem Agendamento não mostra o botão");
+  assert.ok(renderBeleza({ ...base, sub: "barbearia", agendamento: true }).includes('data-agendar="1"'));
+  assert.ok(renderClaro({ ...base, sub: "petshop", agendamento: true }).includes('data-agendar="1"'));
+  console.log("botão do site conforme o plano: ok");
+}

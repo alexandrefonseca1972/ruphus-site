@@ -25,7 +25,7 @@ export function PixQr({
   txid: string;
   mensagem?: string;
   ate?: string;
-  /** o que fazer se o Pix não montar: o dono confere a chave; o cliente fala com o salão */
+  /** o que fazer se o Pix não montar ou vencer: o dono confere a chave; o cliente fala com o salão */
   ajuda?: string;
   /** WhatsApp do cliente (agenda, Caixa): o "Enviar por WhatsApp" já abre a conversa com ele */
   telefone?: string | null;
@@ -79,7 +79,7 @@ export function PixQr({
   if (falta === null) {
     return (
       <p role="alert" className="rounded-xl border border-[#E7C9BF] bg-[#FBF1EE] p-3.5 text-sm text-[#B4472F]">
-        O prazo para pagar este Pix acabou. Fale com {recebedor.nome} antes de pagar.
+        O prazo para pagar este Pix acabou. {ajuda}
       </p>
     );
   }

@@ -438,7 +438,7 @@ ${d.publicado ? "" : faixaProposta(d)}
   <div class="hero-inner">
     <span class="tag">${esc(tag)}</span>
     <h1 class="rv${d.nome.length > 40 ? " nml" : d.nome.length > 24 ? " nl" : ""}">${esc(linha1)}${linha2 ? `<span class="row2">${esc(linha2)}</span>` : ""}</h1>
-${BOTAO_AGENDAR}
+${d.agendamento === false ? "" : BOTAO_AGENDAR}
     <p class="sub rv">${esc(texto)}</p>
     ${temNota ? `<a class="badge-google rv" href="${google}" target="_blank" rel="noopener">${GOOGLE}<span class="st">★★★★★</span> ${nota} · ${d.avaliacoes} avaliações</a>` : ""}
     <div class="hero-ctas rv">
