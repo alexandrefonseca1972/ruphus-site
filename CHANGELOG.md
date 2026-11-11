@@ -5,6 +5,7 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Mensagens pré-pagas: mensagem cancelada no atendys antes de sair (por exemplo, presa no horário de silêncio e cancelada) volta ao saldo do negócio e aparece como não enviada. Antes o aviso de cancelamento era ignorado e a mensagem seguia cobrada.
 - SMS por negócio configurável no /admin (gaveta, SMS para os clientes): "Sempre, junto com o WhatsApp" (como era) ou "Só quando o WhatsApp não puder avisar". No modo reserva o SMS de confirmação e de lembrete só sai para cliente sem aceite de WhatsApp, negócio fora do canal oficial (ou pausado pela Ruphus), ou quando o aviso pelo WhatsApp falha de vez — aí na hora da falha. Evita pagar o mesmo aviso duas vezes.
 - Agenda no celular: o "…" fica no canto do horário (sozinho numa linha deixava um vão no cartão) e a linha de botões some quando não há botão. Remarcar: data por extenso embaixo do campo, "Ver dia seguinte" quando não há horário livre, botão só com horário e alvos de toque maiores.
 - WhatsApp (QA de 10/11 em produção): a frase do último aviso que não saiu não termina mais com dois pontos ("painel.."); horários de confirmação do dono e da última falha aparecem no horário de Brasília, também para quem usa o painel em outro fuso.

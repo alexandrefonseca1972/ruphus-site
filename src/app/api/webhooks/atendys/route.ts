@@ -36,7 +36,7 @@ type Evento = {
 };
 
 // os estados do atendys que o painel acompanha; qualquer outro texto não é gravado
-const STATUS_MENSAGEM = new Set(["queued", "awaiting_manual", "manual_started", "sent", "delivered", "read", "failed"]);
+const STATUS_MENSAGEM = new Set(["queued", "awaiting_manual", "manual_started", "sent", "delivered", "read", "failed", "cancelled"]);
 
 function responder(status: number, corpo: unknown) {
   return NextResponse.json(corpo, { status });
@@ -80,9 +80,9 @@ export async function POST(req: Request) {
     // ouviu "cliente avisado". Falha agora, não quando vencer na hora do atendimento
     const retry = Date.parse(evento.retryAt ?? "");
     const naoSai = evento.status === "queued" && indice.vigiada && indice.prazo !== null && retry >= indice.prazo;
-    // envio comum (não parado na cota) interessa quando falha e, para o consumo, quando sai, é
-    // entregue ou lido: o resto (queued) é ack sem leituras
-    if (indice.vigiada && !indice.parada && !["failed", "sent", "delivered", "read"].includes(String(evento.status)) && !naoSai) return responder(200, { ok: true });
+    // envio comum (não parado na cota) interessa quando falha ou é cancelado (não saiu: estorna) e,
+    // para o consumo, quando sai, é entregue ou lido: o resto (queued) é ack sem leituras
+    if (indice.vigiada && !indice.parada && !["failed", "cancelled", "sent", "delivered", "read"].includes(String(evento.status)) && !naoSai) return responder(200, { ok: true });
     // assinatura conferida antes de gravar qualquer coisa. Recusada, responde 200 como a desconhecida
     // (um 401 só aqui diria a quem não assina que esse id é de uma mensagem parada). Todo envio
     // sai pelo tenant da plataforma: é ele quem assina (mesmo que o negócio tenha saído do canal
