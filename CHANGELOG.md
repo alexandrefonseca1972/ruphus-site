@@ -5,6 +5,7 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Versão 0.34.1: republicação, sem mudança de funcionalidade.
 - E-mails no padrão da Ruphus: os avisos do sistema ao admin (erro em página ou rota, cron parado, SMS que não saiu, lembrete do WhatsApp que falhou, comando do WhatsApp descartado, recarga paga sem crédito) e os e-mails ao dono (saldo de mensagens baixo, recarga confirmada, aceite dos Termos) saem com a identidade do site: marca, faixa escura com o título, dados em tabela, o que fazer em passos, o erro técnico separado e um botão (abrir o admin, a página, a agenda ou a recarga). O texto puro segue junto.
 - Prévia do link dos sites (og.jpg): com o Google Fonts ou a foto lentos, a imagem sai com a fonte padrão ou sem a foto, em vez de dar erro (o erro de 11/11 às 3h virava e-mail de alerta).
 - Plano do negócio no /admin (gaveta, aba Cobrança, "O que o plano inclui"): Caixa e agendamento vêm ligados para todos, e o suporte desliga por negócio. Caixa desligado: some do painel, Recebido/Recibo saem da agenda e o servidor recusa lançamentos novos (o histórico fica). Agendamento desligado (cliente que quer só o site): o agendamento online fecha (site e bio levam à lista de preços e ao WhatsApp, e o dono não consegue religar), o painel fica só com Serviços e Meu negócio (sem Agenda, Equipe, Clientes, Caixa, Consumo, avisos de agendamento, WhatsApp, Pix e sinal) e nenhum lembrete sai. Nada é apagado: religar devolve tudo. O filtro "Caixa ligado" da lista passa a contar só quem tem o Caixa no plano.
