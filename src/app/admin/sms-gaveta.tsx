@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { definirSms, smsDoNegocio } from "./actions";
 
-type Config = { ligado: boolean; confirmacao: boolean; lembrete: boolean; horasAntes: number };
+type Config = { ligado: boolean; confirmacao: boolean; lembrete: boolean; horasAntes: number; modo: "sempre" | "reserva" };
 
 /** SMS de confirmação e lembrete para os clientes do negócio, pela conta da Ruphus na Comtele.
  *  Desligado por padrão: cada SMS gasta crédito. */
@@ -47,6 +47,22 @@ export function SmsDoNegocio({ slug, token }: { slug: string; token: () => Promi
       </label>
       {estado?.ligado && (
         <div className="flex flex-col gap-1 border-l-2 border-[#EDE9E1] pl-3">
+          <fieldset className="flex flex-col gap-0.5 pb-1">
+            <legend className="text-xs font-medium text-[#17150F]">Quando mandar SMS</legend>
+            <label className={opcao}>
+              <input type="radio" name={`sms-modo-${slug}`} className={caixa} disabled={busy} checked={estado.modo === "sempre"} onChange={() => mudar({ modo: "sempre" })} />
+              Sempre, junto com o WhatsApp
+            </label>
+            <label className={opcao}>
+              <input type="radio" name={`sms-modo-${slug}`} className={caixa} disabled={busy} checked={estado.modo === "reserva"} onChange={() => mudar({ modo: "reserva" })} />
+              Só quando o WhatsApp não puder avisar
+            </label>
+            {estado.modo === "reserva" && (
+              <p className="pl-6.5 text-xs text-[#6F6A5E]">
+                O SMS sai para quem não aceitou WhatsApp, quando o negócio está fora do canal oficial ou quando o aviso pelo WhatsApp falha de vez (número sem WhatsApp, sem saldo). Economiza o SMS repetido.
+              </p>
+            )}
+          </fieldset>
           <label className={opcao}>
             <input type="checkbox" className={caixa} disabled={busy} checked={estado.confirmacao} onChange={(e) => mudar({ confirmacao: e.target.checked })} />
             Confirmação, quando a casa confirma o horário

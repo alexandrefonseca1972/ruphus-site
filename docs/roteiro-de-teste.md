@@ -385,6 +385,7 @@ Pré: convite aceito (`CONV-03`) para o profissional A, numa conta sua.
 **WhatsApp / SMS / Cobrança da gaveta**
 - [ ] `GAV-WA-01` WhatsApp (canal oficial): mostra ligado/desligado, o WhatsApp do dono, "Confirmado (Sou eu)" e os lembretes; a última falha de aviso aparece em vermelho. 🔒 Demo: "Ligar canal oficial" → recusa. ⚠ Em teste: "Desligar canal oficial" pede confirmação; "Trocar o WhatsApp do dono" com fixo ou número incompleto → erro; número novo → liga o canal oficial, manda o "Sou eu" e zera o "Confirmado"; "Reenviar Sou eu" antes de 10 min → "espere para reenviar".
 - [ ] `GAV-SMS-01` SMS: sem chave Comtele → aviso; ligar com as duas opções desmarcadas → "nenhum SMS sai". ⚠ Ligar gasta crédito via cron.
+- [ ] `GAV-SMS-02` "Quando mandar SMS": "Sempre, junto com o WhatsApp" (padrão) ou "Só quando o WhatsApp não puder avisar". ⚠ No modo reserva, em negócio com canal oficial: cliente com aceite de WhatsApp não recebe SMS de confirmação nem de lembrete; cliente sem aceite recebe; aviso pelo WhatsApp que falha de vez (número sem WhatsApp, sem saldo) solta o SMS na hora; cliente que pediu SAIR não recebe SMS de reserva.
 - [ ] `GAV-COB-01` ⚠ "Cobrar entrada" / "Cobrar mês atual" (negócio de teste com valor) → "Cobrança … pronta."; repetir não duplica.
 - [ ] `GAV-COB-02` Copiar link → `PAG-01`; WhatsApp → wa.me com Pix.
 - [ ] `GAV-COB-03` ⚠ "Marcar paga" (valor e data) → "Baixa registrada."; baixa da **entrada publica o site** (`SITE-04`); valor menor → recusado.

@@ -6,6 +6,7 @@ import { quando } from "@/lib/avisos.server";
 import { numeroSms } from "@/lib/comtele";
 import { enviarSms, smsDisponivel } from "@/lib/comtele.server";
 import { registrarEnvio, verificarEnvio } from "@/lib/consumo.server";
+import { optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { agoraNaParede, dateIn, formatPhone, formatTime, fusoDe, todayIn } from "@/lib/datetime";
 
 // SMS para o cliente final, pela conta da Ruphus na Comtele: quando a casa confirma o horário e X h
@@ -15,17 +16,31 @@ import { agoraNaParede, dateIn, formatPhone, formatTime, fusoDe, todayIn } from 
 // Falha nunca chega ao cliente nem a quem confirmou: vira e-mail para o admin (alertarAdmin).
 
 /** O que o /admin escolheu para o negócio (tenants/{slug}.sms). Sem escolha: confirmação e lembrete
- *  ligados, lembrete 2 h antes. */
+ *  ligados, lembrete 2 h antes, SMS sempre.
+ *  modo "reserva": o SMS só sai quando o WhatsApp oficial não vai avisar (negócio fora do canal, cliente
+ *  sem aceite) ou quando o aviso pelo WhatsApp falhou de vez — aí sai na hora da falha. */
 export const HORAS_LEMBRETE = [1, 2, 3, 4, 6, 8, 12, 24] as const;
+export const MODOS_SMS = ["sempre", "reserva"] as const;
+export type ModoSms = (typeof MODOS_SMS)[number];
 export function configSms(sms: unknown) {
-  const s = (sms ?? {}) as { ligado?: unknown; confirmacao?: unknown; lembrete?: unknown; horasAntes?: unknown };
+  const s = (sms ?? {}) as { ligado?: unknown; confirmacao?: unknown; lembrete?: unknown; horasAntes?: unknown; modo?: unknown };
   const horas = Number(s.horasAntes);
   return {
     ligado: s.ligado === true,
     confirmacao: s.confirmacao !== false,
     lembrete: s.lembrete !== false,
     horasAntes: (HORAS_LEMBRETE as readonly number[]).includes(horas) ? horas : 2,
+    modo: (s.modo === "reserva" ? "reserva" : "sempre") as ModoSms,
   };
+}
+
+/** No modo reserva: o WhatsApp oficial vai cuidar deste aviso? (canal ligado e não pausado, cliente
+ *  com aceite, lembretes do WhatsApp ligados para o lembrete, e nenhuma falha já marcada deste tipo) */
+export function whatsappCobre(t: { get(c: string): unknown }, a: { id: string; get(c: string): unknown }, slug: string, tipo: "confirmado" | "lembrete") {
+  if (t.get("whatsapp.canalOficial") !== true || t.get("whatsapp.desligadoPelaRuphus") === true) return false;
+  if (!optInDoDoc(slug, a)) return false;
+  if (tipo === "lembrete" && t.get("whatsapp.remindersEnabled") !== true) return false;
+  return (a.get("avisoFalhou") as { tipo?: string } | undefined)?.tipo !== tipo;
 }
 const SILENCIO = { inicioMin: 22 * 60, fimMin: 7 * 60 + 30 }; // 22:00 → 07:30, como o lembrete do WhatsApp
 
@@ -108,6 +123,7 @@ async function confirmacao(db: Firestore, slug: string, appointmentId: string, {
   const ref = db.doc(`tenants/${slug}/appointments/${appointmentId}`);
   const a = await ref.get();
   if (!a.exists || a.get("status") !== "confirmed" || a.get("smsConfirmacaoEm")) return "nada a avisar";
+  if (cfg.modo === "reserva" && whatsappCobre(t, a, slug, "confirmado")) return "pelo WhatsApp";
   const start = inicioDe(a.get("start"));
   const tz = fusoDe(t.get("site"));
   if (agoraNaParede(tz, agora) >= start) return "horário passou";
@@ -121,6 +137,45 @@ async function confirmacao(db: Firestore, slug: string, appointmentId: string, {
     telefone: telefoneDoNegocio(t),
   });
   return (await enviarReservado(ref, "smsConfirmacaoEm", numero, texto, enviar, alertar)) ? "enviado" : "falhou";
+}
+
+async function lembreteDeUm(db: Firestore, t: FirebaseFirestore.DocumentSnapshot, a: FirebaseFirestore.DocumentSnapshot, hoje: string, enviar: Enviar, alertar: Alertar) {
+  const numero = numeroSms(String(a.get("customerPhone") ?? ""));
+  if (!numero) return "sem celular";
+  if (!(await reservar(db, a.ref, "smsLembreteEm"))) return "já avisado";
+  const start = inicioDe(a.get("start"));
+  const texto = textoLembrete({
+    nome: String(a.get("customerName") ?? "").trim().split(/\s+/)[0] ?? "",
+    negocio: String(t.get("name") ?? ""),
+    quando: quando(dateIn(start), formatTime(start), hoje),
+    servico: String(a.get("serviceName") ?? ""),
+    telefone: telefoneDoNegocio(t),
+  });
+  return (await enviarReservado(a.ref, "smsLembreteEm", numero, texto, enviar, alertar)) ? "enviado" : "falhou";
+}
+
+/** Modo reserva: o aviso pelo WhatsApp (confirmação ou lembrete) falhou de vez — o SMS sai agora.
+ *  Fora do modo reserva o SMS já seguiu o caminho dele. Nunca lança. */
+export async function smsDeReserva(db: Firestore, slug: string, appointmentId: string, tipo: "confirmado" | "lembrete", opcoes: { enviar?: Enviar; agora?: Date; alertar?: Alertar } = {}) {
+  const alertar = opcoes.alertar ?? alertaPadrao(db);
+  const enviar = opcoes.enviar ?? (enviarSms as Enviar);
+  const agora = opcoes.agora ?? new Date();
+  try {
+    if (enviar === enviarSms && !(await smsDisponivel())) return "sem chave";
+    const t = await db.doc(`tenants/${slug}`).get();
+    const cfg = configSms(t.get("sms"));
+    if (!cfg.ligado || cfg.modo !== "reserva") return "desligado";
+    if (tipo === "confirmado") return cfg.confirmacao ? await confirmacao(db, slug, appointmentId, { enviar, agora, alertar }) : "desligado";
+    if (!cfg.lembrete) return "desligado";
+    const a = await db.doc(`tenants/${slug}/appointments/${appointmentId}`).get();
+    if (!a.exists || a.get("status") !== "confirmed" || a.get("smsLembreteEm")) return "nada a avisar";
+    const tz = fusoDe(t.get("site"));
+    if (agoraNaParede(tz, agora) >= inicioDe(a.get("start"))) return "horário passou";
+    return await lembreteDeUm(db, t, a, todayIn(tz), enviar, alertar);
+  } catch (e) {
+    console.error(`[sms] reserva de ${tipo} ${slug}/${appointmentId}`, mensagem(e));
+    return "falhou";
+  }
 }
 
 /** Lembrete por SMS X h antes (o que o negócio escolheu), para os horários confirmados. Roda no cron
@@ -157,17 +212,9 @@ async function lembretes(db: Firestore, { enviar, agora, alertar }: { enviar: En
       .get();
     for (const a of proximos.docs) {
       if (a.get("status") !== "confirmed" || a.get("smsLembreteEm")) continue;
-      const numero = numeroSms(String(a.get("customerPhone") ?? ""));
-      if (!numero || !(await reservar(db, a.ref, "smsLembreteEm"))) continue;
-      const start = inicioDe(a.get("start"));
-      const texto = textoLembrete({
-        nome: String(a.get("customerName") ?? "").trim().split(/\s+/)[0] ?? "",
-        negocio: String(t.get("name") ?? ""),
-        quando: quando(dateIn(start), formatTime(start), hoje),
-        servico: String(a.get("serviceName") ?? ""),
-        telefone: telefoneDoNegocio(t),
-      });
-      if (await enviarReservado(a.ref, "smsLembreteEm", numero, texto, enviar, alertar)) enviados++;
+      // modo reserva: o lembrete do WhatsApp cobre; se ele falhar, o SMS sai pela falha (smsDeReserva)
+      if (cfg.modo === "reserva" && whatsappCobre(t, a, t.id, "lembrete")) continue;
+      if ((await lembreteDeUm(db, t, a, hoje, enviar, alertar)) === "enviado") enviados++;
     }
   });
   return enviados;

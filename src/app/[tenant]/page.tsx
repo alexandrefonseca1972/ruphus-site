@@ -332,7 +332,29 @@ export default function AgendaPage() {
             </p>
           ) : (
         <ul>
-          {shown.map((a) => (
+          {shown.map((a) => {
+            const showWaMe = !!avisoDe(a)?.waMe && meu(a);
+            const showSinal = (a.sinal?.status === "pendente" || a.sinal?.status === "vencido" || a.sinal?.status === "erro") && ATIVO(a) && tenant.podeGerir;
+            // Confirmar só antes do horário: depois dele já não há o que combinar com o cliente
+            const showConfirmar = a.status === "booked" && a.start.toMillis() > now && meu(a);
+            // recebido no Caixa: remarcar deixaria o recebimento no dia antigo
+            const showRemarcar = ATIVO(a) && meu(a) && !recebidos.has(idDaBaixa(a.id));
+            const menu = (
+            <RowMenu
+              label={`Mais ações: ${a.customerName} às ${formatTime(a.start.toDate())}`}
+              actions={[
+                ...(caixa && recebidosDaSemana && ATIVO(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) && restanteDe(a) > 0
+                  ? [{ label: "Recebido", onClick: () => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, customerPhone: a.customerPhone, serviceName: a.serviceName, priceCents: restanteDe(a), sinalCents: a.sinal?.status === "pago" ? a.sinal.cents : 0 } }) }]
+                  : []),
+                ...(caixa && recebidos.has(idDaBaixa(a.id)) ? [{ label: "Recibo", onClick: () => abrirRecibo(idDaBaixa(a.id)) }] : []),
+                // recebido no Caixa não vira falta: a entrada contaria um atendimento que não houve
+                ...(ATIVO(a) && meu(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Faltou", onClick: () => setConfirming({ id: a.id, kind: "no_show" as const }) }] : []),
+                ...(ATIVO(a) && meu(a) && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Cancelar horário", danger: true, onClick: () => setConfirming({ id: a.id, kind: "cancel" as const }) }] : []),
+                { label: showHistory === a.id ? "Esconder histórico" : "Histórico", onClick: () => setShowHistory(showHistory === a.id ? null : a.id) },
+              ]}
+            />
+            );
+            return (
             <Fragment key={a.id}>
             {agoraAntesDe === a.id && (
               <li aria-hidden="true" className="flex h-9 items-center gap-3 border-t px-4 text-xs font-semibold tracking-wider text-red-800 uppercase sm:px-6 dark:text-red-300">
@@ -345,6 +367,8 @@ export default function AgendaPage() {
                 <div className="flex items-baseline gap-2 tabular-nums sm:grid sm:gap-0.5">
                   <span className={cn("text-xl font-semibold", a.status === "cancelled" && "text-muted-foreground line-through")}>{formatTime(a.start.toDate())}</span>
                   <span className="text-[13px] text-muted-foreground">até {formatTime(a.end.toDate())}</span>
+                  {/* no celular o "…" fica no canto do horário: sozinho numa linha, deixava um vão no cartão */}
+                  <div className="-my-2 ml-auto self-center sm:hidden">{menu}</div>
                 </div>
                 <div className="grid min-w-0 gap-1.5">
                   <p className="flex flex-wrap items-center gap-2">
@@ -380,9 +404,10 @@ export default function AgendaPage() {
                     <p className="text-sm text-red-800 dark:text-red-300">O aviso automático pelo WhatsApp não chegou ao cliente: {a.avisoFalhou.motivo.replace(/\.$/, "")}.</p>
                   ) : null}
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                {/* sem botão nenhum (horário passado, cancelado), a linha some no celular em vez de sobrar vazia */}
+                <div className={cn("flex-wrap items-center gap-2", showWaMe || showSinal || showConfirmar || showRemarcar ? "flex" : "hidden sm:flex")}>
                   {/* o cliente pediu SAIR: o motivo aparece, o wa.me não */}
-                  {avisoDe(a)?.waMe && meu(a) && (
+                  {showWaMe && (
                     <a
                       href={whatsappLink(a.customerPhone, mensagem(a, avisoDe(a)!.texto))}
                       target="_blank"
@@ -394,36 +419,22 @@ export default function AgendaPage() {
                     </a>
                   )}
                   {/* o salão conferiu no banco: confirma o horário e lança o sinal no Caixa */}
-                  {(a.sinal?.status === "pendente" || a.sinal?.status === "vencido" || a.sinal?.status === "erro") && ATIVO(a) && tenant.podeGerir && (
+                  {showSinal && (
                     <Button className="h-10 px-4" disabled={pending === a.id} onClick={() => setConfirming({ id: a.id, kind: "sinal" })}>
                       {pending === a.id ? "Confirmando…" : "Sinal recebido"}
                     </Button>
                   )}
-                  {/* Confirmar só antes do horário: depois dele já não há o que combinar com o cliente */}
-                  {a.status === "booked" && a.start.toMillis() > now && meu(a) && (
+                  {showConfirmar && (
                     <Button className="h-10 px-4" disabled={pending === a.id} onClick={() => notifyAndChange(a, "confirmed")}>
                       {pending === a.id ? "Confirmando…" : "Confirmar pelo WhatsApp"}
                     </Button>
                   )}
-                  {/* recebido no Caixa: remarcar deixaria o recebimento no dia antigo */}
-                  {ATIVO(a) && meu(a) && !recebidos.has(idDaBaixa(a.id)) && (
+                  {showRemarcar && (
                     <Button variant="outline" className="h-10 px-4" aria-expanded={rescheduling === a.id} onClick={() => setRescheduling(rescheduling === a.id ? null : a.id)}>
                       Remarcar
                     </Button>
                   )}
-                  <RowMenu
-                    label={`Mais ações: ${a.customerName} às ${formatTime(a.start.toDate())}`}
-                    actions={[
-                      ...(caixa && recebidosDaSemana && ATIVO(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) && restanteDe(a) > 0
-                        ? [{ label: "Recebido", onClick: () => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, customerPhone: a.customerPhone, serviceName: a.serviceName, priceCents: restanteDe(a), sinalCents: a.sinal?.status === "pago" ? a.sinal.cents : 0 } }) }]
-                        : []),
-                      ...(caixa && recebidos.has(idDaBaixa(a.id)) ? [{ label: "Recibo", onClick: () => abrirRecibo(idDaBaixa(a.id)) }] : []),
-                      // recebido no Caixa não vira falta: a entrada contaria um atendimento que não houve
-                      ...(ATIVO(a) && meu(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Faltou", onClick: () => setConfirming({ id: a.id, kind: "no_show" as const }) }] : []),
-                      ...(ATIVO(a) && meu(a) && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Cancelar horário", danger: true, onClick: () => setConfirming({ id: a.id, kind: "cancel" as const }) }] : []),
-                      { label: showHistory === a.id ? "Esconder histórico" : "Histórico", onClick: () => setShowHistory(showHistory === a.id ? null : a.id) },
-                    ]}
-                  />
+                  <div className="hidden sm:block">{menu}</div>
                 </div>
               </div>
               {confirming?.id === a.id && confirming.kind === "cancel" && (
@@ -480,7 +491,8 @@ export default function AgendaPage() {
               )}
             </li>
             </Fragment>
-          ))}
+            );
+          })}
         </ul>
           )}
         </section>
