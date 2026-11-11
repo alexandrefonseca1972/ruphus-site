@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { agendamentoLigado } from "@/lib/modulos";
 import { urlDoSite } from "@/lib/dominio";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -25,6 +26,8 @@ import { PixNegocio, SinalNegocio } from "../pix-negocio";
 
 export default function MeuNegocio() {
   const tenant = useTenant();
+  // plano só site (/admin): sem agendamento, WhatsApp, Pix nem sinal — fica o site, a bio e os dados
+  const agendamento = agendamentoLigado(tenant.modulos);
   const slug = tenant.id;
   const [nome, setNome] = useState("");
   const [campos, setCampos] = useState<Valores>(VAZIO);
@@ -194,11 +197,11 @@ export default function MeuNegocio() {
 
       {/* a página é longa no celular: atalhos para cada parte, cada uma com o seu Salvar */}
       <nav aria-label="Partes desta página" className="-mx-4 -mt-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden">
-        {[["#dados", "Dados"], ["#links", "Links"], ["#recado", "Agendamento"], ["#whatsapp", "WhatsApp"], ["#pix", "Pix"], ["#sinal", "Sinal"]].map(([href, rotulo]) => (
+        {(agendamento ? [["#dados", "Dados"], ["#links", "Links"], ["#recado", "Agendamento"], ["#whatsapp", "WhatsApp"], ["#pix", "Pix"], ["#sinal", "Sinal"]] : [["#dados", "Dados"], ["#links", "Links"]]).map(([href, rotulo]) => (
           <a key={href} href={href} className="flex h-10 shrink-0 items-center rounded-full border bg-card px-3.5 text-sm font-medium hover:bg-muted">{rotulo}</a>
         ))}
         {/* no celular o Consumo não cabe na barra de baixo: o caminho fica aqui */}
-        <Link href={`/${slug}/consumo`} className="flex h-10 shrink-0 items-center rounded-full border bg-card px-3.5 text-sm font-medium hover:bg-muted">Mensagens e saldo →</Link>
+        {agendamento && <Link href={`/${slug}/consumo`} className="flex h-10 shrink-0 items-center rounded-full border bg-card px-3.5 text-sm font-medium hover:bg-muted">Mensagens e saldo →</Link>}
       </nav>
 
       {/* Uma coluna com todos os formulários e, ao lado, só os links (fixos ao rolar). Antes o
@@ -267,7 +270,7 @@ export default function MeuNegocio() {
             <img src={`/s/${slug}/og.jpg?v=${versao}`} alt={`Prévia do link do site de ${nome}`} width={1200} height={630} className="aspect-[1200/630] w-full rounded-lg border object-cover" />
           )}
           <ul className="grid gap-2 text-sm">
-            {[["Site", site], ["Bio para o Instagram", `${site}/bio`], ["Agenda online", `${site}/agendar`]].map(([rotulo, url]) => (
+            {[["Site", site], ["Bio para o Instagram", `${site}/bio`], ...(agendamento ? [["Agenda online", `${site}/agendar`]] : [])].map(([rotulo, url]) => (
               <li key={rotulo} className="grid">
                 <span className="text-xs text-muted-foreground">{rotulo}</span>
                 <div className="flex items-center gap-2">
@@ -279,9 +282,10 @@ export default function MeuNegocio() {
             ))}
           </ul>
           <InstalarPainel />
-          <AvisosPainel />
+          {agendamento && <AvisosPainel />}
         </aside>
 
+        {agendamento && (
         <form
           id="recado"
           noValidate
@@ -380,10 +384,15 @@ export default function MeuNegocio() {
             <Button type="submit" disabled={busyRecado || !mudouRecado} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">{busyRecado ? "Salvando…" : "Salvar"}</Button>
           </div>
         </form>
+        )}
 
-        <WhatsAppNegocio slug={slug} />
-        <PixNegocio cidadeSugerida={salvo?.campos.cidade ?? ""} />
-        <SinalNegocio />
+        {agendamento && (
+          <>
+            <WhatsAppNegocio slug={slug} />
+            <PixNegocio cidadeSugerida={salvo?.campos.cidade ?? ""} />
+            <SinalNegocio />
+          </>
+        )}
       </div>
 
       {mudou && (

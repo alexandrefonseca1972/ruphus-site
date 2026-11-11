@@ -1,5 +1,6 @@
 "use client";
 
+import { caixaLigado } from "@/lib/modulos";
 import Link from "next/link";
 import { OCULTO, useValores } from "@/lib/valores";
 import { doc, getDoc, orderBy, Timestamp, where } from "firebase/firestore";
@@ -111,7 +112,8 @@ export default function AgendaPage() {
   );
   const items = daSemana?.filter((a) => dateIn(a.start.toDate()) === date) ?? null;
   // O que já foi recebido na semana (só quem gere lê dinheiro)
-  const caixa = tenant.podeGerir;
+  // Caixa no plano (/admin pode desligar): sem ele, sem Recebido/Recibo na agenda
+  const caixa = tenant.podeGerir && caixaLigado(tenant.modulos);
   // quem é da equipe vê a agenda toda, mas só mexe nos próprios horários (o servidor e as regras conferem)
   const meu = (a: { staffId: string }) => tenant.podeGerir || !tenant.staffId || a.staffId === tenant.staffId;
   const [recebidosDaSemana] = useCollection(

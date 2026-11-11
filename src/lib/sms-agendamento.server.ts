@@ -198,7 +198,8 @@ async function lembretes(db: Firestore, { enviar, agora, alertar }: { enviar: En
   // 5 negócios de cada vez: em fila, ~100 negócios estouravam os 120 s do curl do cron
   await emParalelo(tenants.docs, 5, async (t) => {
     const cfg = configSms(t.get("sms"));
-    if (!cfg.lembrete) return;
+    // plano só site (/admin): sem lembretes de agendamento
+    if (!cfg.lembrete || t.get("modulos.agendamento") === false) return;
     const tz = fusoDe(t.get("site"));
     const [h, m] = formatTime(agora, tz).split(":").map(Number);
     if (h * 60 + m >= SILENCIO.inicioMin || h * 60 + m < SILENCIO.fimMin) return;

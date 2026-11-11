@@ -1,4 +1,5 @@
 import "server-only";
+import { caixaLigado, type Modulos } from "@/lib/modulos";
 import { FieldValue, type Firestore, Timestamp } from "firebase-admin/firestore";
 import { UserError } from "@/lib/booking.server";
 import { dateIn, formatBRL, todayIn } from "@/lib/datetime";
@@ -14,6 +15,8 @@ type Quem = { uid: string; email?: string };
 async function exigeCaixa(db: Firestore, tenantId: string) {
   const t = await db.doc(`tenants/${tenantId}`).get();
   if (!t.exists) throw new UserError("Negócio não encontrado.");
+  // desligado pelo /admin (ou plano só site): os lançamentos antigos ficam, novos não entram
+  if (!caixaLigado(t.get("modulos") as Modulos)) throw new UserError("O Caixa está desligado para este negócio. Para usar, fale com a Ruphus.");
   return t;
 }
 

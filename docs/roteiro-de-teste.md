@@ -391,6 +391,8 @@ Pré: convite aceito (`CONV-03`) para o profissional A, numa conta sua.
 - [ ] `GAV-COB-03` ⚠ "Marcar paga" (valor e data) → "Baixa registrada."; baixa da **entrada publica o site** (`SITE-04`); valor menor → recusado.
 - [ ] `GAV-COB-04` ⚠ "Cancelar" (sem confirmação!) → "Cobrança cancelada."; paga → "Cobrança paga não se cancela."
 
+- [ ] `GAV-PLANO-01` Aba Cobrança › "O que o plano inclui": Agendamento e Caixa marcados por padrão. Desmarcar Caixa → no painel do dono some a aba Caixa e o Recebido/Recibo da agenda; `/{slug}/caixa` leva ao Meu negócio. Marcar de novo → volta com o histórico.
+- [ ] `GAV-PLANO-02` Desmarcar Agendamento → confirmação "Deixar este negócio só com o site?" → o Caixa fica desligado junto; o painel do dono mostra só Serviços e Meu negócio (o logo leva ao Meu negócio; `/{slug}`, `/{slug}/clientes` e `/{slug}/consumo` levam ao Meu negócio); Meu negócio sem Agendamento, WhatsApp, Pix, Sinal e o link "Agenda online"; `/agendar/{slug}` vira "Serviços e preços" com o WhatsApp; ligar o agendamento online pelo dono é recusado. Religar → tudo volta.
 - [ ] `GAV-MSG-01` Aba Cobrança › Mensagens pré-pagas: saldo, nível e previsão; "Cobrar as mensagens deste negócio" (Segue o geral / Cobrar / Não cobrar) grava e o painel do dono passa a dizer "Incluídas no seu plano".
 - [ ] `GAV-MSG-02` Preço próprio: vazio segue o geral; "0,10" no WhatsApp aviso → próximos envios gravam `precoCents` 10.
 - [ ] `GAV-MSG-03` Crédito manual: "10,00" + motivo → "Lançado. Saldo agora…", aparece no extrato do admin e do dono; sem motivo → "Informe o motivo do ajuste."; "-5,00" debita.

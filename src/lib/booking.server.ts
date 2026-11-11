@@ -23,7 +23,8 @@ export async function foraDoAr(db: Firestore, tenantId: string) {
 }
 const FORA_DO_AR = "Este negócio não está recebendo agendamentos online agora.";
 /** O dono desligou a agenda pelo link em Meu negócio (ausente = ligada). */
-export const agendaDesligada = (tenant: { get(campo: string): unknown }) => tenant.get("agenda.online") === false;
+// fechada pelo dono (Meu negócio) ou pelo /admin (plano só site)
+export const agendaDesligada = (tenant: { get(campo: string): unknown }) => tenant.get("agenda.online") === false || tenant.get("modulos.agendamento") === false;
 const AGENDA_DESLIGADA = "Este negócio não marca horário pelo link. Fale com ele pelo WhatsApp.";
 
 export async function loadCatalog(db: Firestore, tenantId: string) {

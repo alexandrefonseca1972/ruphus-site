@@ -1,5 +1,6 @@
 "use client";
 
+import { caixaLigado } from "@/lib/modulos";
 import { errorMessage } from "@/lib/auth-errors";
 import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, serverTimestamp, Timestamp, updateDoc, where } from "firebase/firestore";
 import Link from "next/link";
@@ -69,7 +70,7 @@ export default function CustomerPage() {
   const [plans] = useCollection(tenant.id, "plans", Plan, [where("customerKey", "==", key)], key);
   const [notas] = useCollection(tenant.id, `customers/${key}/notas`, Nota, [orderBy("quando", "desc")], key);
   // O que o cliente pagou de verdade. Só quem gere lê o Caixa (regra do banco)
-  const comCaixa = tenant.podeGerir;
+  const comCaixa = tenant.podeGerir && caixaLigado(tenant.modulos);
   const [pagos, erroPagos] = useCollection(comCaixa && key ? tenant.id : "", "lancamentos", Lancamento, [where("customerKey", "==", key)], key);
   const [planning, setPlanning] = useState(false);
   const [renaming, setRenaming] = useState(false);

@@ -217,6 +217,9 @@ export const cancelarAvisosAction = memberAction(z.object({ tenantId: docIdStaff
 
 export const salvarRecadoAction = memberAction(z.object({ tenantId: docIdStaff, recado: Recado, online: z.boolean(), limites: LimitesAgenda }), async (data, user) => {
   await exigeGestor(data.tenantId, user.uid, { publico: true });
+  if (data.online && (await adminDb.doc(`tenants/${data.tenantId}`).get()).get("modulos.agendamento") === false) {
+    throw new UserError("O agendamento online não faz parte do plano deste negócio. Para ligar, fale com a Ruphus.");
+  }
   await adminDb.doc(`tenants/${data.tenantId}`).update({
     "agenda.recado": data.recado,
     "agenda.online": data.online,
