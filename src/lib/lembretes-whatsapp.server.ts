@@ -131,5 +131,11 @@ export async function enviarLembretesDoDia(): Promise<number> {
 /** Lembrete que não saiu: na gaveta do negócio e no e-mail do admin. Nunca lança. */
 async function falhou(slug: string, mensagem: string) {
   await registrarErroNotificacao(adminDb, slug, { message: mensagem, at: Date.now() }).catch(() => {});
-  await alertarAdmin(adminDb, `whatsapp-lembrete-${slug}`, `Lembrete do WhatsApp falhou em ${slug}`, `${mensagem}\n\nNegócio: ${slug}`);
+  await alertarAdmin(adminDb, `whatsapp-lembrete-${slug}`, `Lembrete do WhatsApp falhou em ${slug}`, {
+    resumo: mensagem,
+    blocos: [
+      { dados: [["Negócio", slug]] },
+      { p: "O lembrete tenta de novo no próximo ciclo (a cada 10 minutos). Se a falha continuar, confira o canal oficial na gaveta do WhatsApp do negócio no /admin." },
+    ],
+  });
 }

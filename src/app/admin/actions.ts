@@ -617,7 +617,14 @@ export const marcarPaga = adminAction(async (user, id: string, recebidoCents: nu
       await creditarRecarga(id);
     } catch (e) {
       console.error(`[cobranca] recarga ${id} paga sem crédito`, e);
-      await alertarAdmin(adminDb, `recarga-${id}`, "Recarga paga sem crédito", `A baixa da recarga ${id} (${paga.slug}) foi registrada, mas o saldo de mensagens não entrou.\n\nErro: ${e instanceof Error ? e.message : String(e)}\n\nLance o valor pago mais o bônus como ajuste de saldo do negócio (ajustarSaldoAction), com o motivo "recarga ${id}".`).catch(() => {});
+      await alertarAdmin(adminDb, `recarga-${id}`, "Recarga paga sem crédito", {
+        resumo: "A baixa da recarga foi registrada, mas o saldo de mensagens do negócio não entrou. O cliente pagou e ainda não recebeu o crédito.",
+        blocos: [
+          { dados: [["Negócio", paga.slug], ["Cobrança", id]] },
+          { passos: ["Abra o negócio no /admin, aba Cobrança, bloco Mensagens pré-pagas.", `Em "Crédito ou débito manual", lance o valor pago mais o bônus, com o motivo "recarga ${id}".`], titulo: "O que fazer" },
+          { tecnico: e instanceof Error ? e.message : String(e), titulo: "Erro" },
+        ],
+      }).catch(() => {});
       throw new ErroPrevisto("Baixa registrada, mas o saldo de mensagens não entrou. Lance o valor como ajuste de saldo do negócio (o alerta foi por e-mail).");
     }
   }

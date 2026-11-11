@@ -21,12 +21,18 @@ export const onRequestError: Instrumentation.onRequestError = async (err, reques
     const mensagem = err instanceof Error ? err.message : String(err);
     const digest = typeof err === "object" && err !== null && "digest" in err ? ` · digest ${String(err.digest)}` : "";
     const caminho = request.path.split("?")[0];
-    await alertarAdmin(
-      adminDb,
-      `erro-${context.routePath.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 100)}`,
-      `Erro em ${context.routePath}`,
-      `${request.method} ${caminho} (${context.routeType})${digest}\n\n${mensagem.slice(0, 1000)}\n\nDetalhes: journalctl -u ruphus-site -n 100`,
-    );
+    const tipo = { render: "página", route: "rota", action: "ação do painel", proxy: "proxy" }[context.routeType] ?? context.routeType;
+    // página ou rota pública (GET): o link abre o que quebrou; ação e POST não têm o que abrir
+    const abrir = request.method === "GET" && !caminho.startsWith("/api/") ? { texto: "Abrir a página", url: `https://www.ruphus.site${caminho}` } : undefined;
+    await alertarAdmin(adminDb, `erro-${context.routePath.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 100)}`, `Erro em ${context.routePath}`, {
+      resumo: `Uma ${tipo} do site respondeu com erro. Se for passageiro (serviço de fora lento, rede), some sozinho; se repetir, investigue.`,
+      blocos: [
+        { dados: [["Pedido", `${request.method} ${caminho}`], ["Tipo", tipo]] },
+        { tecnico: `${mensagem.slice(0, 1000)}${digest}`, titulo: "Erro" },
+        { tecnico: "journalctl -u ruphus-site -n 100", titulo: "Detalhes na VPS" },
+      ],
+      ...(abrir && { acao: abrir }),
+    });
   } catch (e) {
     console.error("[onRequestError]", e);
   }
