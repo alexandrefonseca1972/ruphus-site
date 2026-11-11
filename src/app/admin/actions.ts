@@ -47,6 +47,7 @@ import { acessoDemo, contas, restaurarDemo } from "@/lib/demo.server";
 import { cadastrarDonoOficial, enviarConfirmacaoDono, usaCanalOficial, type EnvioConfirmacao } from "@/lib/canal-oficial.server";
 import { lerConfigWhatsApp } from "@/lib/whatsapp.server";
 import { celularDoDono } from "@/lib/telefone";
+import { validarContatoDoNegocio } from "@/lib/telefones-meta.server";
 import { MODELOS, modeloDoId, NOMES_FONTE, Personal, renderEditorial, visualEditorial } from "@/lib/site-editorial";
 import { ehClaro, galeriaClaro, modeloClaroDoId, modelosClaro, renderClaro, visualClaro } from "@/lib/site-claro";
 import { iaDisponivel, type Mensagem, sugerirVisual } from "@/lib/ia.server";
@@ -930,6 +931,7 @@ export const whatsappDoNegocio = adminAction(async (_user, slug: string): Promis
 });
 
 export type WhatsAppNaGaveta = {
+  erroContato: string | null;
   canalOficial: boolean;
   ownerPhone: string | null;
   ownerPhoneVerifiedAt: number | null;
@@ -940,8 +942,10 @@ export type WhatsAppNaGaveta = {
 };
 
 async function naGaveta(slug: string): Promise<WhatsAppNaGaveta> {
-  const w = await lerConfigWhatsApp(adminDb, slug);
+  const [w, t] = await Promise.all([lerConfigWhatsApp(adminDb, slug), adminDb.doc(`tenants/${slug}`).get()]);
+  const contato = await validarContatoDoNegocio(adminDb, String(t.get("site.phone") ?? ""));
   return {
+    erroContato: "erro" in contato ? contato.erro : null,
     canalOficial: w?.canalOficial === true,
     ownerPhone: w?.ownerPhone ?? null,
     ownerPhoneVerifiedAt: w?.ownerPhoneVerifiedAt ?? null,
@@ -959,7 +963,12 @@ export const definirCanalOficial = adminAction(async (_user, slug: string, ligad
   slugValido(slug);
   if (slug === DEMO && ligado === true) throw new ErroPrevisto("A demonstração não envia WhatsApp: ela é aberta a qualquer pessoa.");
   const t = adminDb.doc(`tenants/${slug}`);
-  if (!(await t.get()).exists) throw new ErroPrevisto("Negócio não encontrado.");
+  const doc = await t.get();
+  if (!doc.exists) throw new ErroPrevisto("Negócio não encontrado.");
+  if (ligado === true) {
+    const contato = await validarContatoDoNegocio(adminDb, String(doc.get("site.phone") ?? ""));
+    if ("erro" in contato) throw new ErroPrevisto(`Não foi possível ligar as mensagens: ${contato.erro}`);
+  }
   await t.set({ whatsapp: { canalOficial: ligado === true, desligadoPelaRuphus: ligado === true ? FieldValue.delete() : true } }, { merge: true });
   return naGaveta(slug);
 });

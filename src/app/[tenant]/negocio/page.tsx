@@ -40,6 +40,7 @@ export default function MeuNegocio() {
   const [tentou, setTentou] = useState(false);
   const [busy, setBusy] = useState(false);
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [erroContato, setErroContato] = useState<string | null>(null);
   // muda a cada salvamento: a prévia da imagem é pedida de novo, sem cache do navegador
   const [versao, setVersao] = useState(0);
   // o recado da confirmação do agendamento: salva à parte, não mexe no site
@@ -62,7 +63,8 @@ export default function MeuNegocio() {
       const r = await idToken().then((t) => lerNegocioAction(t, { tenantId: slug })).catch(() => null);
       if (!atual) return;
       if (!r?.ok) return setEstado("erro");
-      const { name, fabrica, publicado, recado, agendaOnline, limites, ...resto } = r.dados;
+      const { name, fabrica, publicado, recado, agendaOnline, limites, erroContato: erroLido, ...resto } = r.dados;
+      setErroContato(erroLido);
       setLimites(limites);
       setLimitesSalvos(limites);
       setRecado(recado);
@@ -194,6 +196,12 @@ export default function MeuNegocio() {
     // com a barra de salvar fixa no celular, o fim da página não fica escondido atrás dela
     <div className={mudou ? "grid gap-8 max-sm:pb-20" : "grid gap-8"}>
       <PageTitle title="Meu negócio" sub="Os dados que aparecem no seu site, na bio e no agendamento." />
+
+      {agendamento && erroContato && (
+        <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          <strong className="font-semibold">As mensagens automáticas estão bloqueadas.</strong> {erroContato} Corrija o WhatsApp do negócio abaixo para liberar os envios e as respostas.
+        </p>
+      )}
 
       {/* a página é longa no celular: atalhos para cada parte, cada uma com o seu Salvar */}
       <nav aria-label="Partes desta página" className="-mx-4 -mt-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden">
@@ -388,7 +396,7 @@ export default function MeuNegocio() {
 
         {agendamento && (
           <>
-            <WhatsAppNegocio slug={slug} />
+            <WhatsAppNegocio slug={slug} telefoneNegocio={campos.telefone} />
             <PixNegocio cidadeSugerida={salvo?.campos.cidade ?? ""} />
             <SinalNegocio />
           </>

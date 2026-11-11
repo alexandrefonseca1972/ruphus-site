@@ -26,6 +26,24 @@ export function telefoneBrValido(phone: string): boolean {
   return soDigitosComDDI(phone) !== null;
 }
 
+export const NUMERO_META_ATUAL = "5591992361726";
+export const ERRO_TELEFONE_DA_META = "Esse número pertence à Ruphus e é usado como remetente na Meta. Cadastre o telefone do próprio negócio.";
+
+/** Compara as formas com e sem o 9º dígito: o remetente da Meta não pode virar contato de negócio. */
+export function telefoneDaMeta(valor: string, reservados: readonly string[]): boolean {
+  const numero = soDigitosComDDI(valor);
+  return !!numero && reservados.some((v) => soDigitosComDDI(v) === numero);
+}
+
+/** Contato público do negócio: aceita celular ou fixo, mas não número inventado nem remetente da Meta. */
+export function erroContatoNegocio(valor: string, reservados: readonly string[]): string | null {
+  const numero = soDigitosComDDI(valor);
+  if (!numero) return "Informe um telefone de contato com DDD.";
+  if (telefoneFalso(numero)) return "Esse número parece inventado. Confira o telefone do negócio.";
+  if (telefoneDaMeta(numero, reservados)) return ERRO_TELEFONE_DA_META;
+  return null;
+}
+
 /** Máscara de digitação: (11) 98877-7777 ou +55 (11) 98877-7777.
  *  O estado continua sendo só dígitos; a máscara é só apresentação. */
 export function mascaraTelefoneBR(valor: string): string {

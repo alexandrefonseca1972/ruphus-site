@@ -7,6 +7,7 @@ import { useState } from "react";
 import { normalizar } from "@/lib/catalogo";
 import { DadosNegocio, GRUPOS, SUBS, UFS, ufDoTelefone } from "@/lib/gerador";
 import { cn } from "@/lib/utils";
+import { erroContatoNegocio, NUMERO_META_ATUAL } from "@/lib/telefone";
 
 // Os campos do negócio que o cadastro e a aba "Meu negócio" pedem. As mensagens vêm do
 // mesmo schema que o servidor aplica: o que a tela avisa é o que o salvamento recusa.
@@ -23,6 +24,8 @@ export function errosDe(v: Valores, fabrica = false): Partial<Record<Campo, stri
     const r = DadosNegocio.shape[c].safeParse(v[c]);
     if (!r.success) e[c] = r.error.issues[0].message;
   }
+  const erroTelefone = erroContatoNegocio(v.telefone, [NUMERO_META_ATUAL]);
+  if (erroTelefone) e.telefone = erroTelefone;
   return e;
 }
 

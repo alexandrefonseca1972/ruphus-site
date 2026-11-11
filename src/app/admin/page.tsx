@@ -1455,7 +1455,7 @@ export default function AdminPage() {
             <button type="button" onClick={() => setOrdem("nota")} className={`${ORDENAVEL} w-[130px] shrink-0`}>
               Google{seta("nota")}
             </button>
-            <span className="w-[140px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.06em]">Funil</span>
+            <span className="w-[190px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.06em]">Funil</span>
             <button type="button" onClick={() => setOrdem("compromisso")} className={`${ORDENAVEL} min-w-0 grow`}>
               Próxima ação{seta("compromisso")}
             </button>
@@ -1517,13 +1517,13 @@ export default function AdminPage() {
                         ? `★ ${e.nota.toFixed(1).replace(".", ",")}${e.avaliacoes ? ` · ${e.avaliacoes.toLocaleString("pt-BR")}` : ""}`
                         : "sem nota"}
                     </span>
-                    <span className="xl:w-[140px] xl:shrink-0">
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${COR[(crm[e.slug]?.estagio ?? "novo") as Estagio]}`}>
+                    <span className="flex flex-wrap items-center gap-1 xl:w-[190px] xl:shrink-0">
+                      <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${COR[(crm[e.slug]?.estagio ?? "novo") as Estagio]}`}>
                         {ROTULO[(crm[e.slug]?.estagio ?? "novo") as Estagio]}
                       </span>
                       {/* em prospecção: em que toque da cadência ele está */}
                       {(crm[e.slug]?.estagio ?? "novo") === "novo" && !crm[e.slug]?.respondeuEm && (
-                        <span className="ml-1 rounded-full bg-[#F3EFE7] px-2 py-0.5 text-xs tabular-nums text-[#4A4639]">
+                        <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[#F3EFE7] px-2 py-0.5 text-xs tabular-nums text-[#4A4639]">
                           {/* contatado antes de existir `toques` (05/11): não é 0/3 */}
                           {!crm[e.slug]?.toques && crm[e.slug]?.ultimoContatoEm
                             ? "contatado"
@@ -1531,9 +1531,9 @@ export default function AdminPage() {
                         </span>
                       )}
                       {crm[e.slug]?.publicado === false && (
-                        <span className="ml-1 rounded-full bg-[#F1E7E7] px-2 py-0.5 text-xs font-semibold text-[#8A2F2F]">fora do ar</span>
+                        <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[#F1E7E7] px-2 py-0.5 text-xs font-semibold text-[#8A2F2F]">fora do ar</span>
                       )}
-                      {e.caixa && <span className="ml-1 rounded-full bg-[#E7EFE3] px-2 py-0.5 text-xs font-semibold text-[#2F5A2A]">caixa</span>}
+                      {e.caixa && <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[#E7EFE3] px-2 py-0.5 text-xs font-semibold text-[#2F5A2A]">caixa</span>}
                     </span>
                     <span className="min-w-0 xl:grow">
                       {p && p !== "futura" ? (

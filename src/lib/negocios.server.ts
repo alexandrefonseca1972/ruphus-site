@@ -8,6 +8,15 @@ import { personalDe, registrosDoSite } from "@/lib/gerador.server";
 import { FUSOS, todayIn } from "@/lib/datetime";
 import { limiteStaffDe } from "@/lib/limites";
 import { Role } from "@/lib/tenant-input";
+import { validarContatoDoNegocio } from "@/lib/telefones-meta.server";
+import { DEMO } from "@/lib/demo";
+
+async function exigeContatoValido(db: Firestore, telefone: string, slug = "") {
+  // a demonstração usa um contato fictício e nunca envia mensagens
+  if (slug === DEMO || telefone === "5596999990000") return;
+  const r = await validarContatoDoNegocio(db, telefone);
+  if ("erro" in r) throw new UserError(r.erro);
+}
 
 /** Negócios que cada conta pode ter, até o admin da plataforma liberar mais. */
 export const LIMITE_PADRAO = 1;
@@ -47,6 +56,7 @@ export async function criarNegocio(db: Firestore, user: { uid: string; email?: s
   const lida = UtmInput.safeParse(utmBruta);
   const utm = lida.success ? Object.fromEntries(Object.entries(lida.data).filter(([, v]) => v)) : {};
   const { slug, ...dados } = parsed.data;
+  await exigeContatoValido(db, dados.telefone);
   const admin = await ehAdminDaPlataforma(db, user.uid);
 
   await db.runTransaction(async (tx) => {
@@ -94,8 +104,10 @@ export async function lerNegocio(db: Firestore, slug: string) {
   const [t, zap] = await Promise.all([db.doc(`tenants/${slug}`).get(), db.doc(`tenants/${slug}/privado/whatsapp`).get()]);
   if (!t.exists) throw new UserError("Negócio não encontrado.");
   const s = (campo: string) => String(t.get(campo) ?? "");
+  const contato = await validarContatoDoNegocio(db, s("site.phone"));
   return {
     name: s("name"),
+    erroContato: "erro" in contato ? contato.erro : null,
     sub: (t.get("gerado.sub") as Sub | undefined) ?? "",
     telefone: s("site.phone"),
     cidade: s("site.city"),
@@ -149,6 +161,7 @@ export async function previaDoSite(db: Firestore, slug: string, input: unknown, 
   const parsed = (fabrica ? DadosFabrica : DadosNegocio).safeParse(input);
   if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
   const d = parsed.data as DadosNegocio;
+  await exigeContatoValido(db, d.telefone, slug);
   const n = (v: number | null) => (v == null ? "" : String(v).replace(".", ","));
   const pares: [string, string, string, boolean][] = [
     ["Nome", atual.name, d.name, true],
@@ -183,6 +196,7 @@ export async function salvarNegocio(db: Firestore, slug: string, input: unknown,
     const parsed = DadosFabrica.safeParse(input);
     if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
     const d = parsed.data;
+    await exigeContatoValido(db, d.telefone, slug);
     await ref.set({
       name: d.name,
       site: { phone: d.telefone, city: d.cidade, uf: d.uf, fuso: d.fuso || null, address: d.endereco || null, instagram: d.instagram || null, bairro: d.bairro || null, horario: d.horario || null },
@@ -192,6 +206,7 @@ export async function salvarNegocio(db: Firestore, slug: string, input: unknown,
   const parsed = DadosNegocio.safeParse(input);
   if (!parsed.success) throw new UserError(parsed.error.issues[0].message);
   const d = parsed.data;
+  await exigeContatoValido(db, d.telefone, slug);
   const origem = t.get("gerado.origem") === "cadastro" || !t.get("gerado") ? "cadastro" : "prospeccao";
   // o modelo (kit e cor) é de um ramo: noutro ramo os índices apontam para fotos e
   // paletas que não existem. Trocou o ramo, volta ao visual padrão do ramo novo.

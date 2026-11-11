@@ -271,6 +271,11 @@ export function ajustarLimitesDoTenant(tenantId: string) {
   return chamarAdmin("PATCH", `/admin/tenants/${encodeURIComponent(tenantId)}`, LIMITES_DESTINATARIO);
 }
 
+/** Número e estado da instância da Meta usada pela plataforma. */
+export function statusDaInstancia(conn: ConexaoAtendys) {
+  return chamar<{ name: string; status: string; phone?: string; connectedAt?: string }>(authTenant(conn), "GET", `/v1/instance/${encodeURIComponent(conn.instanceId)}/status`);
+}
+
 /** Todos os tenants ativos do atendys, com os limites atuais (só leitura). */
 export function listarTenantsAtendys() {
   return chamarAdmin<Array<{ id: string; slug: string; recipientMsgPerDay?: number; recipientMsgPerWeek?: number }>>("GET", "/admin/tenants");

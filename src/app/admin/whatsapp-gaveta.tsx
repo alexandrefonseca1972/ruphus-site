@@ -84,10 +84,15 @@ export function WhatsAppDoNegocio({ slug, token }: { slug: string; token: () => 
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-[15px] font-semibold">WhatsApp (canal oficial)</h3>
         <div className="grow" />
-        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${cfg.canalOficial ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#F3EFE7] text-[#4A4639]"}`}>
-          {cfg.canalOficial ? "ligado" : "desligado"}
+        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${cfg.erroContato ? "bg-[#F1E7E7] text-[#8A2F2F]" : cfg.canalOficial ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#F3EFE7] text-[#4A4639]"}`}>
+          {cfg.erroContato ? "mensagens bloqueadas" : cfg.canalOficial ? "ligado" : "desligado"}
         </span>
       </div>
+      {cfg.erroContato && (
+        <p role="alert" className="rounded-[10px] bg-[#F1E7E7] px-3 py-2 text-[12px] leading-relaxed text-[#8A2F2F]">
+          {cfg.erroContato} O contato público precisa ser válido para enviar e receber mensagens.
+        </p>
+      )}
       <p className="text-[13px] leading-relaxed text-[#4A4639]">
         Os avisos saem pelo número da Ruphus: o dono recebe os pedidos no WhatsApp pessoal e confirma pelos botões; o
         cliente recebe recibo, confirmação e lembrete.

@@ -264,9 +264,9 @@ assert.equal((await pagina("../etc")).status, 404);
 {
   await db.doc("tenants/fabrica-x").set({ name: "Fábrica X", ownerId: "p", site: { url: "https://fabrica-x.ruphus.site", phone: "5591000000001", rating: 4.8 } });
   assert.equal((await lerNegocio(db, "fabrica-x")).fabrica, true);
-  await salvarNegocio(db, "fabrica-x", { name: "Fábrica X", sub: "petshop", telefone: "91988887777", cidade: "Belém", uf: "PA" });
+  await salvarNegocio(db, "fabrica-x", { name: "Fábrica X", sub: "petshop", telefone: "91986123456", cidade: "Belém", uf: "PA" });
   const f = (await db.doc("tenants/fabrica-x").get()).data()!;
-  assert.deepEqual([f.site.phone, f.site.rating, f.gerado], ["5591988887777", 4.8, undefined]);
+  assert.deepEqual([f.site.phone, f.site.rating, f.gerado], ["5591986123456", 4.8, undefined]);
 }
 // a prospecção que o dono edita não perde a nota do Google
 {
@@ -329,7 +329,7 @@ assert.equal((await pagina("../etc")).status, 404);
   assert.equal((await lerSiteDoNegocio(db, "fabrica-x")).tipo, "fabrica");
   assert.equal((await lerSiteDoNegocio(db, "navalha")).tipo, "prospeccao");
   // na fábrica, a prévia não oferece o que não muda a página
-  const pf = await previaDoSite(db, "fabrica-x", { name: "Fábrica X", sub: "vet", telefone: "91988887777", cidade: "Belém", uf: "PA", bairro: "Nazaré" }, google);
+  const pf = await previaDoSite(db, "fabrica-x", { name: "Fábrica X", sub: "vet", telefone: "91986123456", cidade: "Belém", uf: "PA", bairro: "Nazaré" }, google);
   assert.deepEqual(pf.mudancas, []);
 }
 
@@ -412,4 +412,24 @@ console.log("gerador-banco: ok");
   assert.equal((await lerSite(db, "site-sem-agenda"))?.agendamento, true);
   assert.ok((await html()).includes('data-agendar="1"'));
   console.log("rota do site sem agendamento: ok");
+}
+
+// Números da Meta: rejeitados no cadastro, na edição e na geração; futuros entram na mesma lista
+{
+  const { NUMERO_META_ATUAL } = await import("@/lib/telefone");
+  const { numerosReservadosMeta, registrarNumeroDaMeta, validarContatoDoNegocio } = await import("@/lib/telefones-meta.server");
+  const futuro = "5591987654322";
+  assert.equal(await registrarNumeroDaMeta(db, futuro), futuro);
+  assert.ok((await numerosReservadosMeta(db)).includes(futuro));
+  assert.deepEqual(await validarContatoDoNegocio(db, futuro), { erro: "Esse número pertence à Ruphus e é usado como remetente na Meta. Cadastre o telefone do próprio negócio." });
+  assert.deepEqual(await validarContatoDoNegocio(db, ""), { erro: "Informe um telefone de contato com DDD." });
+  const cadastro = { name: "Não Vale", sub: "barbearia", telefone: NUMERO_META_ATUAL, cidade: "Belém", uf: "PA", slug: "nao-vale-meta" };
+  await assert.rejects(criarNegocio(db, { uid: "dono-meta", email: "meta@example.com" }, cadastro), /pertence à Ruphus/);
+  assert.equal((await db.doc("tenants/nao-vale-meta").get()).exists, false, "nada foi gravado");
+  await assert.rejects(salvarNegocio(db, "navalha", { ...cadastro, slug: undefined }), /pertence à Ruphus/);
+  await assert.rejects(previaDoSite(db, "navalha", { ...cadastro, slug: undefined }, { nota: null, avaliacoes: null }), /pertence à Ruphus/);
+  const [linha] = await gerarNoBanco(db, planilha(["Não Vale", "(91) 99236-1726", "Barbearia", "Belém", "PA", "", "", "", "", "", ""]), true, "a");
+  assert.equal(linha.acao, "pular");
+  assert.match(linha.motivo ?? "", /remetente da Meta/);
+  console.log("validação dos números da Meta no gerador: ok");
 }

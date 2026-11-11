@@ -114,3 +114,19 @@ console.log("preço: ok");
   assert.deepEqual(celularDoDono("(91) 99236-1726", "(91) 99236-1726"), { numero: "5591992361726" }, "negócio com celular: o mesmo número vale");
   console.log("celular do dono ok");
 }
+
+// Contato público do negócio: o remetente atual ou futuro da Meta nunca pode ser reutilizado
+{
+  const { erroContatoNegocio, ERRO_TELEFONE_DA_META, NUMERO_META_ATUAL, telefoneDaMeta } = await import("@/lib/telefone");
+  const reservados = [NUMERO_META_ATUAL, "5591987654322"];
+  assert.equal(telefoneDaMeta("5591992361726", reservados), true);
+  assert.equal(telefoneDaMeta("559192361726", reservados), true, "a forma antiga sem o 9 também é recusada");
+  assert.equal(telefoneDaMeta("5591987654322", reservados), true, "número futuro");
+  assert.equal(telefoneDaMeta("5591986123456", reservados), false);
+  assert.equal(erroContatoNegocio("559192361726", reservados), ERRO_TELEFONE_DA_META);
+  assert.equal(erroContatoNegocio("", reservados), "Informe um telefone de contato com DDD.");
+  assert.match(erroContatoNegocio("5591988887777", reservados) ?? "", /parece inventado/);
+  assert.equal(erroContatoNegocio("5591986123456", reservados), null, "celular válido");
+  assert.equal(erroContatoNegocio("559132334455", reservados), null, "telefone fixo também pode ser contato");
+  console.log("contato do negócio e números da Meta: ok");
+}

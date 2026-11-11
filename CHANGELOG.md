@@ -5,6 +5,10 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Portal do dono: o WhatsApp do negócio pode ser usado para receber os pedidos sem digitar o número de novo, no botão “Usar o WhatsApp do negócio para receber pedidos”. A confirmação “Sou eu” continua obrigatória.
+- Telefone do negócio: o número remetente da Meta não pode ser cadastrado como contato público nem como WhatsApp pessoal do dono, inclusive na forma antiga sem o 9º dígito. A lista fica em `config/atendys-plataforma.numerosReservados`; o provisionamento registra os números futuros e o comando `canal-oficial -- reservar` permite incluir outros.
+- Mensagens por negócio: sem um telefone de contato válido, o canal oficial não envia nem responde por WhatsApp e os SMS também ficam bloqueados. O portal do dono e o admin mostram o motivo e o campo que precisa ser corrigido. A geração de sites e a ativação do canal também recusam números da Meta.
+- CRM, coluna Funil da lista: os selos de estágio, toque e Caixa não partem mais o texto no meio; o grupo pode quebrar de linha mantendo cada selo inteiro e alinhado.
 - Respostas dos botões do lembrete: ao pedir contato com o estabelecimento para remarcar ou cancelar com sinal/pagamento, a mensagem informa o nome do salão e o telefone público do site (ou o endereço do site, se não houver telefone). As respostas que aguardam confirmação também nomeiam o salão.
 - Novo agendamento com o painel aberto: além do cartão e do som, a aba mostra “(N) Novo(s) agendamento(s) · nome do negócio”, como um webmail. O contador continua depois do cartão e sai ao voltar à aba ou abrir a agenda.
 - Site de quem não tem o módulo Agendamento: o botão “Agendar online” some nos modelos claro e editorial. Desligar só o Caixa não muda o agendamento online.

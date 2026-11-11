@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { idToken } from "@/lib/firebase";
-import { celularDoDono, mascaraTelefoneBR } from "@/lib/telefone";
+import { celularDoDono, mascaraTelefoneBR, soDigitosComDDI } from "@/lib/telefone";
 import { TIMEZONE } from "@/lib/datetime";
 import { useTenantSeHouver } from "./painel-layout";
 import { configurarLembretesWhatsAppAction, definirWhatsAppDonoAction, lerWhatsAppDoNegocioAction, reenviarConfirmacaoDonoAction } from "./actions";
@@ -42,7 +42,7 @@ const AVISO_ENVIO: Record<Envio, { ok: boolean; texto: string }> = {
   falhou: { ok: false, texto: "Número salvo, mas a mensagem de confirmação não saiu agora. Toque em Reenviar daqui a pouco." },
 };
 
-export function WhatsAppNegocio({ slug }: { slug: string }) {
+export function WhatsAppNegocio({ slug, telefoneNegocio }: { slug: string; telefoneNegocio: string }) {
   // undefined = carregando; null = a leitura falhou
   const [cfg, setCfg] = useState<Config | null | undefined>(undefined);
   const [tentativa, setTentativa] = useState(0);
@@ -101,6 +101,13 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     void rodar((t) => definirWhatsAppDonoAction(t, { tenantId: slug, telefone: fone }));
   }
 
+  function usarDoNegocio() {
+    const v = celularDoDono(telefoneNegocio);
+    if ("erro" in v) return setAviso({ ok: false, texto: v.erro });
+    setFone(v.numero.replace(/^55(?=\d{11}$)/, ""));
+    void rodar((t) => definirWhatsAppDonoAction(t, { tenantId: slug, telefone: v.numero }));
+  }
+
   function salvarLembretes(enabled: boolean, hours: number) {
     setAviso(null);
     filaLembretes.current = filaLembretes.current.then(async () => {
@@ -132,6 +139,8 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
   }
 
   const dataConfirmacao = cfg.ownerPhoneVerifiedAt ? new Date(cfg.ownerPhoneVerifiedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: TIMEZONE }) : null;
+  const numeroNegocio = soDigitosComDDI(telefoneNegocio);
+  const mesmoNumero = !!numeroNegocio && numeroNegocio === soDigitosComDDI(cfg.ownerPhone ?? "");
 
   return (
     <section id="whatsapp" className="grid scroll-mt-20 gap-3 rounded-2xl border bg-card p-5 sm:p-7 lg:col-start-1" aria-label="Avisos pelo WhatsApp">
@@ -178,6 +187,15 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
           </Button>
         </div>
       </form>
+
+      {numeroNegocio && (
+        <div className="grid gap-1.5 rounded-lg border border-dashed p-3">
+          <Button type="button" variant="outline" disabled={busy || cfg.desligadoPelaRuphus || mesmoNumero} onClick={usarDoNegocio} className="h-11 px-4 text-sm">
+            {mesmoNumero ? "O WhatsApp do negócio recebe os pedidos" : "Usar o WhatsApp do negócio para receber pedidos"}
+          </Button>
+          <p className="text-xs leading-relaxed text-muted-foreground">Aproveita o contato já cadastrado em Meu negócio. A confirmação “Sou eu” continua necessária.</p>
+        </div>
+      )}
 
       {!cfg.ownerPhone ? (
         <p role="status" className="text-sm text-amber-800 dark:text-amber-200">Sem número cadastrado: os pedidos não chegam a você.</p>

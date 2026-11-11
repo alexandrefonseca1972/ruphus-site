@@ -885,7 +885,7 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
     throw new Error("Comtele fora");
   };
   const dia = addDays(todayIn(), 2);
-  await db.doc("tenants/sms-casa").set({ name: "Casa SMS", site: { uf: "SP", phone: "11933334444" }, sms: { ligado: true } });
+  await db.doc("tenants/sms-casa").set({ name: "Casa SMS", site: { uf: "SP", phone: "11986123456" }, sms: { ligado: true } });
   await db.doc("tenants/sms-off").set({ name: "Casa sem SMS", site: { uf: "SP" } });
   const horario = (slug: string, id: string, extra: Record<string, unknown> = {}) =>
     db.doc(`tenants/${slug}/appointments/${id}`).set({ status: "confirmed", start: zonedTime(dia, "15:00"), serviceName: "Corte", customerName: "Marina Souza", customerPhone: "5511912345678", ...extra });
@@ -901,7 +901,7 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.equal(await avisarConfirmacaoPorSms(db, "sms-casa", "a1", { enviar }), "nada a avisar", "uma vez só");
   assert.equal(enviados.length, 1);
   assert.equal(enviados[0].numero, "11912345678");
-  assert.match(enviados[0].texto, /^Casa SMS: seu horario .* às 15:00 \(Corte\) esta confirmado\. Imprevisto\? Ligue \(11\) 93333-4444\.$/);
+  assert.match(enviados[0].texto, /^Casa SMS: seu horario .* às 15:00 \(Corte\) esta confirmado\. Imprevisto\? Ligue \(11\) 98612-3456\.$/);
   assert.equal((await db.doc("tenants/sms-casa/appointments/a1").get()).get("smsConfirmacaoId"), "id-1");
 
   // envio que falha devolve a reserva
@@ -934,7 +934,7 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "22:15") }), 0, "silêncio das 22h às 7h30");
 
   // configuração por negócio: confirmação e lembrete separados, e quantas horas antes
-  await db.doc("tenants/sms-cfg").set({ name: "Casa Config", site: { uf: "SP" }, sms: { ligado: true, confirmacao: false, lembrete: true, horasAntes: 4 } });
+  await db.doc("tenants/sms-cfg").set({ name: "Casa Config", site: { uf: "SP", phone: "11986123456" }, sms: { ligado: true, confirmacao: false, lembrete: true, horasAntes: 4 } });
   await horario("sms-cfg", "c1");
   assert.equal(await avisarConfirmacaoPorSms(db, "sms-cfg", "c1", { enviar }), "desligado", "confirmação desmarcada");
   assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "10:30") }), 0, "4h30 antes: ainda não");
@@ -950,7 +950,7 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   // modo reserva: o SMS só sai quando o WhatsApp oficial não vai avisar, ou quando ele falha de vez
   const { smsDeReserva } = await import("@/lib/sms-agendamento.server");
   const aceite = { whatsappConsent: { aceito: true, versao: "2026-11-08", em: new Date() } };
-  await db.doc("tenants/sms-reserva").set({ name: "Casa Reserva", site: { uf: "SP" }, sms: { ligado: true, modo: "reserva" }, whatsapp: { canalOficial: true, remindersEnabled: true } });
+  await db.doc("tenants/sms-reserva").set({ name: "Casa Reserva", site: { uf: "SP", phone: "11986123456" }, sms: { ligado: true, modo: "reserva" }, whatsapp: { canalOficial: true, remindersEnabled: true } });
   await horario("sms-reserva", "zap", aceite);
   await horario("sms-reserva", "semzap");
   enviados.length = 0;
@@ -971,6 +971,14 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   await db.doc("tenants/sms-reserva").set({ whatsapp: { desligadoPelaRuphus: true } }, { merge: true });
   await horario("sms-reserva", "pausado", aceite);
   assert.equal(await avisarConfirmacaoPorSms(db, "sms-reserva", "pausado", { enviar }), "enviado");
+  // sem contato válido ou com o remetente da Meta no negócio: nenhum SMS sai
+  const antesBloqueio = enviados.length;
+  for (const [slug, phone] of [["sms-sem-contato", ""], ["sms-meta", "5591992361726"]] as const) {
+    await db.doc(`tenants/${slug}`).set({ name: slug, site: { uf: "SP", phone }, sms: { ligado: true } });
+    await horario(slug, "a1");
+    assert.equal(await avisarConfirmacaoPorSms(db, slug, "a1", { enviar }), "sem contato do negócio");
+  }
+  assert.equal(enviados.length, antesBloqueio, "nenhum envio com contato inválido ou da Meta");
   console.log("sms no agendamento: ok");
 }
 

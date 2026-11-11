@@ -8,6 +8,8 @@ import { AUTOR_LEVANTAMENTO } from "@/lib/crm-tipos";
 import { candidatos, type DadosSite, type Escolha, fixo, Lead, type Nicho, nichoDe, outraForma, type Sub, sortearVisual } from "@/lib/gerador";
 import type { Utm } from "@/lib/crm-tipos";
 import { dateIn } from "@/lib/datetime";
+import { telefoneDaMeta } from "@/lib/telefone";
+import { numerosReservadosMeta } from "@/lib/telefones-meta.server";
 import { combinacoesEditorial, escolhaEditorial, Personal, visualEditorial } from "@/lib/site-editorial";
 import { combinacoesClaro, ehClaro, escolhaClaro, visualClaro } from "@/lib/site-claro";
 
@@ -128,6 +130,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   if (!lida.success) throw new ErroPrevisto(`Planilha inválida ou com mais de ${TETO_LOTE} linhas.`);
 
   const tenants = db.collection("tenants");
+  const reservados = await numerosReservadosMeta(db);
 
   // O telefone identifica o negócio. Já com site gerado: é o mesmo lead, atualiza
   // (mesmo que o nome tenha mudado na planilha). Com site da fábrica ou conta
@@ -190,6 +193,10 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
     const ja = porTelefone.get(lead.telefone);
     const semZap = fixo(lead.telefone) ? "telefone fixo: o botão de WhatsApp do site não vai funcionar" : null;
     const base = { aba, linha, nome: lead.nome, conflito: null, motivo: null, aviso: semZap, lead };
+    if (telefoneDaMeta(lead.telefone, reservados)) {
+      saida.push({ ...base, slug: ja?.slug ?? lista[0] ?? "", acao: "pular", motivo: "telefone reservado para o remetente da Meta: cadastre o contato do próprio negócio" });
+      continue;
+    }
     if (ja && !ja.gerado) {
       saida.push({ ...base, slug: ja.slug, acao: "pular", motivo: `já tem site: ${ja.slug}.ruphus.site` });
       continue;

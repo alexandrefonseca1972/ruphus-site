@@ -1,12 +1,13 @@
 import "server-only";
 import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore";
-import { apontarWebhook, enviarTemplate, enviarTexto, garantirTenant, OPTIN_DONO, revogarChavesAntigas, type ConexaoAtendys, type Template } from "@/lib/atendys";
+import { apontarWebhook, enviarTemplate, enviarTexto, garantirTenant, OPTIN_DONO, revogarChavesAntigas, statusDaInstancia, type ConexaoAtendys, type Template } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { customerKey, formatBRL, formatPhone, todayIn } from "@/lib/datetime";
 import { SITE_BASE, urlDoSite, type Dominio } from "@/lib/dominio";
 import type { Previsao } from "@/lib/consumo";
-import { soDigitosComDDI } from "@/lib/telefone";
+import { ERRO_TELEFONE_DA_META, soDigitosComDDI } from "@/lib/telefone";
+import { contatoDoNegocioValido, registrarNumeroDaMeta, telefoneReservadoPelaMeta, validarContatoDoNegocio } from "@/lib/telefones-meta.server";
 
 // Canal oficial do WhatsApp (API oficial da Meta, pelo atendys): um número da plataforma Ruphus
 // fala com os clientes e com o dono dos negócios marcados com whatsapp.canalOficial = true.
@@ -145,6 +146,9 @@ export async function provisionarPlataforma(db: Firestore, forcar = false): Prom
   };
   await db.doc(DOC).set(novas, { merge: true });
   await apontarWebhook(c.tenantId);
+  const instancia = await statusDaInstancia({ atendysApiKey: novas.apikey, instanceId: instanciaPlataforma() });
+  if (!instancia.phone) throw new ErroPrevisto("O serviço de WhatsApp não informou o número da Meta. Provisione novamente antes de cadastrar negócios.");
+  await registrarNumeroDaMeta(db, instancia.phone);
   if (c.keyId) {
     const gravada = async () => (await db.doc(DOC).get()).get("keyId") as string | undefined;
     await revogarChavesAntigas(c.tenantId, c.keyId, gravada).catch((e) => console.error("[canal oficial] revogar chaves antigas", e));
@@ -152,18 +156,21 @@ export async function provisionarPlataforma(db: Firestore, forcar = false): Prom
   return { tenantId: c.tenantId, novaChave: !!c.keyId };
 }
 
-/** O negócio usa o canal oficial? (só a marca: barato, sem credencial) */
+/** O negócio usa o canal oficial? Contato público válido e nenhum remetente da Meta nos cadastros. */
 export async function usaCanalOficial(db: Firestore, slug: string): Promise<boolean> {
   // a demonstração é aberta e os clientes dela têm números de verdade: nunca envia
   if (slug === DEMO) return false;
-  return (await db.doc(`tenants/${slug}`).get()).get("whatsapp.canalOficial") === true;
+  const [t, privado] = await Promise.all([db.doc(`tenants/${slug}`).get(), db.doc(`tenants/${slug}/privado/whatsapp`).get()]);
+  if (t.get("whatsapp.canalOficial") !== true || !(await contatoDoNegocioValido(db, t.get("site.phone")))) return false;
+  const dono = String(privado.get("ownerPhone") ?? "");
+  return !dono || !(await telefoneReservadoPelaMeta(db, dono));
 }
 
 /** O pedido de agendamento chega ao dono pela API? Canal oficial e WhatsApp do dono confirmado
  *  ("Sou eu"). A página pública só recebe o sim/não: o telefone do dono nunca sai do servidor.
- *  canalOficial: a marca já lida por quem chama (o catálogo); fora do canal, nenhuma leitura. */
+ *  canalOficial: a marca já lida por quem chama (o catálogo); o contato é conferido em usaCanalOficial. */
 export async function donoRecebePelaApi(db: Firestore, slug: string, canalOficial: boolean): Promise<boolean> {
-  if (!canalOficial || slug === DEMO) return false;
+  if (!canalOficial || !(await usaCanalOficial(db, slug))) return false;
   const p = await db.doc(`tenants/${slug}/privado/whatsapp`).get();
   return !!soDigitosComDDI(String(p.get("ownerPhone") ?? "")) && !!p.get("ownerPhoneVerifiedAt");
 }
@@ -191,7 +198,7 @@ export async function negociosDoDono(db: Firestore, telefone: string): Promise<s
   const oficiais = await db.collection("tenants").where("whatsapp.canalOficial", "==", true).get();
   const achados: string[] = [];
   for (const t of oficiais.docs) {
-    if (t.id === DEMO) continue;
+    if (!(await usaCanalOficial(db, t.id))) continue;
     const dono = (await db.doc(`tenants/${t.id}/privado/whatsapp`).get()).get("ownerPhone");
     if (typeof dono === "string" && soDigitosComDDI(dono) === numero) achados.push(t.id);
   }
@@ -241,6 +248,10 @@ export async function exigeNaoPausado(db: Firestore, slug: string) {
 export async function cadastrarDonoOficial(db: Firestore, slug: string, numero: string): Promise<EnvioConfirmacao> {
   if (slug === DEMO) throw new ErroPrevisto("A demonstração não envia WhatsApp: teste num negócio de verdade.");
   await exigeNaoPausado(db, slug);
+  const t = await db.doc(`tenants/${slug}`).get();
+  const contato = await validarContatoDoNegocio(db, String(t.get("site.phone") ?? ""));
+  if ("erro" in contato) throw new ErroPrevisto(`Antes, cadastre o contato do negócio em Meu negócio: ${contato.erro}`);
+  if (await telefoneReservadoPelaMeta(db, numero)) throw new ErroPrevisto(ERRO_TELEFONE_DA_META);
   if (!(await lerCredenciais(db))) throw new ErroPrevisto("O canal oficial ainda não está pronto: fale com a Ruphus.");
   const p = await privadoWhatsApp(db, slug).get();
   const mesmo = soDigitosComDDI(String(p.get("ownerPhone") ?? "")) === numero;
@@ -323,7 +334,7 @@ async function ultimoAgendamentoDoCliente(db: Firestore, telefone: string): Prom
   const oficiais = await db.collection("tenants").where("whatsapp.canalOficial", "==", true).get();
   let achado: { t: FirebaseFirestore.QueryDocumentSnapshot; start: number } | null = null;
   for (const t of oficiais.docs) {
-    if (t.id === DEMO) continue;
+    if (!(await usaCanalOficial(db, t.id))) continue;
     const a = (await t.ref.collection("appointments").where("customerKey", "in", chaves).orderBy("start", "desc").limit(1).get()).docs[0];
     const start = a?.get("start")?.toMillis?.() ?? 0;
     if (a && (!achado || start > achado.start)) achado = { t, start };

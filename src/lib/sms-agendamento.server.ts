@@ -8,6 +8,7 @@ import { enviarSms, smsDisponivel } from "@/lib/comtele.server";
 import { registrarEnvio, verificarEnvio } from "@/lib/consumo.server";
 import { optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { agoraNaParede, dateIn, formatPhone, formatTime, fusoDe, todayIn } from "@/lib/datetime";
+import { contatoDoNegocioValido } from "@/lib/telefones-meta.server";
 
 // SMS para o cliente final, pela conta da Ruphus na Comtele: quando a casa confirma o horário e X h
 // antes dele. Só nos negócios com `sms.ligado` (a chave fica na gaveta do /admin): cada SMS gasta
@@ -123,6 +124,7 @@ async function confirmacao(db: Firestore, slug: string, appointmentId: string, {
   const ref = db.doc(`tenants/${slug}/appointments/${appointmentId}`);
   const a = await ref.get();
   if (!a.exists || a.get("status") !== "confirmed" || a.get("smsConfirmacaoEm")) return "nada a avisar";
+  if (!(await contatoDoNegocioValido(db, t.get("site.phone")))) return "sem contato do negócio";
   if (cfg.modo === "reserva" && whatsappCobre(t, a, slug, "confirmado")) return "pelo WhatsApp";
   const start = inicioDe(a.get("start"));
   const tz = fusoDe(t.get("site"));
@@ -140,6 +142,7 @@ async function confirmacao(db: Firestore, slug: string, appointmentId: string, {
 }
 
 async function lembreteDeUm(db: Firestore, t: FirebaseFirestore.DocumentSnapshot, a: FirebaseFirestore.DocumentSnapshot, hoje: string, enviar: Enviar, alertar: Alertar) {
+  if (!(await contatoDoNegocioValido(db, t.get("site.phone")))) return "sem contato do negócio";
   const numero = numeroSms(String(a.get("customerPhone") ?? ""));
   if (!numero) return "sem celular";
   if (!(await reservar(db, a.ref, "smsLembreteEm"))) return "já avisado";
