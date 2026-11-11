@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { idToken } from "@/lib/firebase";
 import { celularDoDono, mascaraTelefoneBR } from "@/lib/telefone";
+import { TIMEZONE } from "@/lib/datetime";
 import { useTenantSeHouver } from "./painel-layout";
 import { configurarLembretesWhatsAppAction, definirWhatsAppDonoAction, lerWhatsAppDoNegocioAction, reenviarConfirmacaoDonoAction } from "./actions";
 
@@ -130,7 +131,7 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
     );
   }
 
-  const dataConfirmacao = cfg.ownerPhoneVerifiedAt ? new Date(cfg.ownerPhoneVerifiedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : null;
+  const dataConfirmacao = cfg.ownerPhoneVerifiedAt ? new Date(cfg.ownerPhoneVerifiedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: TIMEZONE }) : null;
 
   return (
     <section id="whatsapp" className="grid scroll-mt-20 gap-3 rounded-2xl border bg-card p-5 sm:p-7 lg:col-start-1" aria-label="Avisos pelo WhatsApp">
@@ -149,7 +150,7 @@ export function WhatsAppNegocio({ slug }: { slug: string }) {
       {cfg.lastNotifyError?.message && (
         <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm [overflow-wrap:anywhere] text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
           <span className="font-semibold">Último aviso que não saiu</span>
-          {cfg.lastNotifyError.at ? ` (${new Date(cfg.lastNotifyError.at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })})` : ""}: {cfg.lastNotifyError.message}
+          {cfg.lastNotifyError.at ? ` (${new Date(cfg.lastNotifyError.at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: TIMEZONE })})` : ""}: {cfg.lastNotifyError.message}
         </p>
       )}
 

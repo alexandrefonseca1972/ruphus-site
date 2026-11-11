@@ -127,7 +127,7 @@ async function avisarPeloCanalOficialSemCaptura(
   }
   // aviso bem-sucedido limpa só a falha de aviso de agendamento
   await (falhas.length
-    ? registrarErroNotificacao(adminDb, tenantId, { message: `Agendamento de ${nome} — ${falhas.join("; ")}.`, at: Date.now() })
+    ? registrarErroNotificacao(adminDb, tenantId, { message: `Agendamento de ${nome} — ${falhas.map((f) => f.replace(/\.+$/, "")).join("; ")}.`, at: Date.now() })
     : limparErroDeAgendamento(adminDb, tenantId)
   ).catch(() => {});
 }
