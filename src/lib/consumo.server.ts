@@ -203,24 +203,32 @@ export type NovoEnvio = DadosEnvio & {
 export async function marcarAviso(slug: string, agendamentoId: string, efeito: NonNullable<ReturnType<typeof efeitoNoAviso>>, ref: { envioId?: string; em: number }): Promise<void> {
   try {
     const agRef = adminDb.doc(`tenants/${slug}/appointments/${agendamentoId}`);
-    await adminDb.runTransaction(async (tx) => {
+    const marcou = await adminDb.runTransaction(async (tx) => {
       const [a, e] = await Promise.all([tx.get(agRef), ref.envioId ? tx.get(envioRef(slug, ref.envioId)) : null]);
-      if (!a.exists) return;
+      if (!a.exists) return false;
       if (e) {
         const atual = e.get("status") as StatusEnvio;
         const vale = efeito.acao === "marca" ? atual === "falhou" || atual === "sem-saldo" : SAIU.includes(atual);
-        if (!vale) return;
+        if (!vale) return false;
       }
       const marca = a.get("avisoFalhou") as AvisoFalhou | undefined;
       if (efeito.acao === "limpa") {
         if (marca && ref.em > Number(marca.em ?? 0) && saidaCobre(efeito.tipo, marca.tipo)) tx.update(agRef, { avisoFalhou: FieldValue.delete() });
-        return;
+        return false;
       }
-      if (marca && Number(marca.em ?? 0) > ref.em) return;
+      if (marca && Number(marca.em ?? 0) > ref.em) return false;
       const motivo = efeito.motivo.slice(0, 160);
-      if (marca && marca.tipo === efeito.tipo && marca.motivo === motivo && (marca.envioId ?? null) === (ref.envioId ?? null)) return;
+      if (marca && marca.tipo === efeito.tipo && marca.motivo === motivo && (marca.envioId ?? null) === (ref.envioId ?? null)) return false;
       tx.update(agRef, { avisoFalhou: { tipo: efeito.tipo, em: ref.em, motivo, ...(ref.envioId && { envioId: ref.envioId }), ...(efeito.optOut && { optOut: true }) } });
+      return true;
     });
+    // SMS de reserva (negócio no modo "SMS só quando o WhatsApp não puder"): a confirmação ou o
+    // lembrete pelo WhatsApp falhou de vez. Quem pediu SAIR não é procurado por outro canal. Import na
+    // hora: sms-agendamento importa este arquivo
+    if (marcou && efeito.acao === "marca" && !efeito.optOut && (efeito.tipo === "confirmado" || efeito.tipo === "lembrete")) {
+      const { smsDeReserva } = await import("@/lib/sms-agendamento.server");
+      await smsDeReserva(adminDb, slug, agendamentoId, efeito.tipo);
+    }
   } catch (e) {
     console.error(`[consumo] marca do aviso no agendamento ${agendamentoId} de ${slug}`, e);
   }

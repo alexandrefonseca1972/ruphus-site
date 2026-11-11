@@ -10,7 +10,7 @@ import type { Espaco } from "@/lib/painel-tipos";
 import { espacoDe, indiceDoPainel } from "@/lib/painel-indice.server";
 import { numeroSms } from "@/lib/comtele";
 import { enviarSms, ErroSms, smsDisponivel } from "@/lib/comtele.server";
-import { configSms, HORAS_LEMBRETE } from "@/lib/sms-agendamento.server";
+import { configSms, HORAS_LEMBRETE, MODOS_SMS } from "@/lib/sms-agendamento.server";
 import { MODOS_SEM_SALDO } from "@/lib/consumo";
 import { contaDoNegocio, extratoDoNegocio, saldosDosNegocios } from "@/lib/consumo-painel.server";
 import { ajustarSaldo, creditarRecarga, definirMensagensDoNegocio, lerConfigMensagens, salvarConfigMensagens } from "@/lib/consumo.server";
@@ -991,6 +991,7 @@ const ConfigSms = z.object({
   confirmacao: z.boolean(),
   lembrete: z.boolean(),
   horasAntes: z.number().refine((h) => (HORAS_LEMBRETE as readonly number[]).includes(h), "Escolha quantas horas antes."),
+  modo: z.enum(MODOS_SMS).default("sempre"),
 });
 
 /** O SMS do negócio: ligado, quais mensagens e quantas horas antes vai o lembrete. Cada SMS gasta

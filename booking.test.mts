@@ -927,8 +927,34 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   await horario("sms-cfg", "c2", { start: zonedTime(dia, "16:00") });
   assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "15:00") }), 0, "lembrete desmarcado");
   const { configSms } = await import("@/lib/sms-agendamento.server");
-  assert.deepEqual(configSms({ ligado: true }), { ligado: true, confirmacao: true, lembrete: true, horasAntes: 2 }, "sem escolha: tudo ligado, 2 h");
+  assert.deepEqual(configSms({ ligado: true }), { ligado: true, confirmacao: true, lembrete: true, horasAntes: 2, modo: "sempre" }, "sem escolha: tudo ligado, 2 h, sempre");
   assert.equal(configSms({ horasAntes: 5 }).horasAntes, 2, "valor fora da lista volta ao padrão");
+  assert.equal(configSms({ modo: "estranho" }).modo, "sempre");
+
+  // modo reserva: o SMS só sai quando o WhatsApp oficial não vai avisar, ou quando ele falha de vez
+  const { smsDeReserva } = await import("@/lib/sms-agendamento.server");
+  const aceite = { whatsappConsent: { aceito: true, versao: "2026-11-08", em: new Date() } };
+  await db.doc("tenants/sms-reserva").set({ name: "Casa Reserva", site: { uf: "SP" }, sms: { ligado: true, modo: "reserva" }, whatsapp: { canalOficial: true, remindersEnabled: true } });
+  await horario("sms-reserva", "zap", aceite);
+  await horario("sms-reserva", "semzap");
+  enviados.length = 0;
+  assert.equal(await avisarConfirmacaoPorSms(db, "sms-reserva", "zap", { enviar }), "pelo WhatsApp", "cliente com aceite: o WhatsApp avisa");
+  assert.equal(await avisarConfirmacaoPorSms(db, "sms-reserva", "semzap", { enviar }), "enviado", "sem aceite: vai SMS");
+  // lembrete: o de "zap" fica com o WhatsApp; o de "semzap" sai por SMS (os da sms-casa já saíram)
+  const antes = enviados.length;
+  assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "13:30") }), 1, "só o cliente sem aceite");
+  assert.equal(enviados.length, antes + 1);
+  // a falha definitiva do WhatsApp (avisoFalhou) solta o SMS na hora
+  await db.doc("tenants/sms-reserva/appointments/zap").update({ avisoFalhou: { tipo: "confirmado", em: Date.now(), motivo: "número sem WhatsApp" } });
+  assert.equal(await smsDeReserva(db, "sms-reserva", "zap", "confirmado", { enviar }), "enviado", "WhatsApp falhou: SMS de reserva");
+  assert.equal(await smsDeReserva(db, "sms-reserva", "zap", "confirmado", { enviar }), "nada a avisar", "uma vez só");
+  await db.doc("tenants/sms-reserva/appointments/zap").update({ avisoFalhou: { tipo: "lembrete", em: Date.now(), motivo: "número sem WhatsApp" } });
+  assert.equal(await smsDeReserva(db, "sms-reserva", "zap", "lembrete", { enviar, agora: zonedTime(dia, "10:00") }), "enviado", "lembrete do WhatsApp falhou: SMS na hora");
+  assert.equal(await smsDeReserva(db, "sms-casa", "a1", "confirmado", { enviar }), "desligado", "no modo sempre o SMS já seguiu o caminho dele");
+  // canal oficial pausado pela Ruphus: o WhatsApp não cobre, o SMS sai
+  await db.doc("tenants/sms-reserva").set({ whatsapp: { desligadoPelaRuphus: true } }, { merge: true });
+  await horario("sms-reserva", "pausado", aceite);
+  assert.equal(await avisarConfirmacaoPorSms(db, "sms-reserva", "pausado", { enviar }), "enviado");
   console.log("sms no agendamento: ok");
 }
 
