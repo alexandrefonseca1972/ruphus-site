@@ -51,6 +51,7 @@ import { FichaDoNegocio } from "./ficha-gaveta";
 import { SiteDoNegocio } from "./site-gaveta";
 import { SmsDoNegocio } from "./sms-gaveta";
 import { MensagensDoNegocio } from "./mensagens-gaveta";
+import { PlanoDoNegocio } from "./plano-gaveta";
 import { Ajustes } from "./ajustes";
 import { WhatsAppDoNegocio } from "./whatsapp-gaveta";
 import { EnviarPorEmail } from "./enviar-email";
@@ -2457,6 +2458,7 @@ export default function AdminPage() {
             )}
             {aba === "cobranca" && (
               <>
+            <PlanoDoNegocio key={`plano-${aberto.slug}`} slug={aberto.slug} token={token} />
             <Cobrancas slug={aberto.slug} idToken={idToken} aviso={setAviso} />
             <MensagensDoNegocio key={`msg-${aberto.slug}`} slug={aberto.slug} token={token} />
 

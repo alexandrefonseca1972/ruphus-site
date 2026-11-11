@@ -73,7 +73,7 @@ export const ehAdminDaPlataforma = adminAction(async () => true);
 
 // Só o que a lista mostra. O documento inteiro do tenant traz endereço, foto,
 // cor e url: 271 KB para 677 negócios, quando o painel usa dez campos curtos.
-const CAMPOS_DA_LISTA = ["name", "site.phone", "site.category", "site.city", "site.uf", "site.rating", "site.reviews", "limiteStaff"] as const;
+const CAMPOS_DA_LISTA = ["name", "site.phone", "site.category", "site.city", "site.uf", "site.rating", "site.reviews", "limiteStaff", "modulos.caixa", "modulos.agendamento"] as const;
 
 /** Quantas pessoas gerem cada espaço (Ruphus e cliente: a equipe do cliente não diz que ele
  *  entrou). A conta da Ruphus está em quase todos os 14 mil negócios: lê só os membros de fora
@@ -1098,3 +1098,33 @@ export const mensagensDoNegocioAction = adminAction(async (_user, slug: string) 
 
 /** Ajustes › Mensagens: saldo de cada negócio com conta aberta e o resumo do mês (sob demanda). */
 export const saldosDosNegociosAction = adminAction(async () => saldosDosNegocios());
+
+// ─── Plano do negócio: Caixa e agendamento (src/lib/modulos.ts) ──────────────
+
+/** O que o plano do negócio inclui: tudo ligado, salvo o que o /admin desligou. */
+export const modulosDoNegocioAction = adminAction(async (_user, slug: string) => {
+  slugValido(slug);
+  const t = await adminDb.doc(`tenants/${slug}`).get();
+  if (!t.exists) throw new ErroPrevisto("Negócio não encontrado.");
+  return { caixa: t.get("modulos.caixa") !== false, agendamento: t.get("modulos.agendamento") !== false };
+});
+
+/** Liga ou desliga o Caixa e o agendamento (cliente que quer só o site). Ligado apaga o campo:
+ *  o padrão é ligado, e só false desliga. Os dados (lançamentos, agenda) ficam guardados. */
+export const definirModulosAction = adminAction(async (user, slug: string, mudanca: unknown) => {
+  slugValido(slug);
+  const m = z.object({ caixa: z.boolean().optional(), agendamento: z.boolean().optional() }).strict().parse(mudanca);
+  const ref = adminDb.doc(`tenants/${slug}`);
+  if (!(await ref.get()).exists) throw new ErroPrevisto("Negócio não encontrado.");
+  const campo = (v: boolean) => (v ? FieldValue.delete() : false);
+  await ref.update({
+    ...(m.caixa !== undefined && { "modulos.caixa": campo(m.caixa) }),
+    ...(m.agendamento !== undefined && { "modulos.agendamento": campo(m.agendamento) }),
+  });
+  // a página de agendar e a bio mostram "Agendar" ou a lista de preços conforme o plano
+  revalidatePath(`/agendar/${slug}`);
+  revalidatePath(`/bio/${slug}`);
+  console.log(`[admin] plano de ${slug}: ${JSON.stringify(m)} por ${user.email ?? user.uid}`);
+  const t = await ref.get();
+  return { caixa: t.get("modulos.caixa") !== false, agendamento: t.get("modulos.agendamento") !== false };
+});

@@ -1,5 +1,6 @@
 "use client";
 
+import { caixaLigado } from "@/lib/modulos";
 import { collection, doc, orderBy, setDoc, updateDoc } from "firebase/firestore";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,7 @@ export default function StaffPage() {
   const [services] = useCollection(tenant.id, "services", Service, [orderBy("name")]);
   // comissão: só o gestor; o % mora no Caixa (caixa/config), não no
   // cadastro, que a equipe inteira lê
-  const comCaixa = tenant.podeGerir;
+  const comCaixa = tenant.podeGerir && caixaLigado(tenant.modulos);
   const [configs, erroConfig] = useCollection(comCaixa ? tenant.id : "", "caixa", CaixaConfig);
   // sem ler a configuração, o campo some: mostrar vazio faria o dono achar que não há comissão
   const comissoes = configs && !erroConfig ? (configs.find((c) => c.id === "config")?.comissoes ?? {}) : null;

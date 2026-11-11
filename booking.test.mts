@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { FieldValue, getFirestore, Timestamp } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
 import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, LIMITS, loadCatalog, redeDoIp, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
@@ -764,6 +764,16 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.equal((await loadCatalog(db, "salao"))?.agendaOnline, true, "religada, agenda de novo");
 }
 
+// Plano só site (/admin desligou o agendamento): mesma recusa, mesmo com a agenda online ligada pelo dono
+{
+  await db.doc("tenants/salao").update({ "modulos.agendamento": false });
+  assert.equal((await loadCatalog(db, "salao"))?.agendaOnline, false);
+  const r = await book(db, { ...base, ...outro(), serviceIds: ["corte"], date: addDays(todayIn(), 9), time: "11:00" });
+  assert.equal(r.ok, false, "só site: recusa");
+  await db.doc("tenants/salao").update({ "modulos.agendamento": FieldValue.delete() });
+  assert.equal((await loadCatalog(db, "salao"))?.agendaOnline, true, "religado pelo /admin, agenda de novo");
+}
+
 // "Qualquer profissional": o oferecido foi tomado, vale quem está livre na mesma hora
 {
   const dia = addDays(todayIn(), 10);
@@ -914,6 +924,12 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "13:30") }), 2, "a1 e a2 (o fixo e o pendente não)");
   assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "14:00") }), 0, "uma vez só");
   assert.ok(enviados.every((e) => e.texto.startsWith("Lembrete, Marina: seu horario")), enviados[0]?.texto);
+  // plano só site (/admin): nenhum lembrete, nem dos horários que já estavam marcados
+  await horario("sms-casa", "so-site", { start: zonedTime(dia, "15:30") });
+  await db.doc("tenants/sms-casa").update({ "modulos.agendamento": false });
+  assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "14:00") }), 0, "só site: sem lembrete");
+  await db.doc("tenants/sms-casa").update({ "modulos.agendamento": FieldValue.delete() });
+  await db.doc("tenants/sms-casa/appointments/so-site").delete();
   await horario("sms-casa", "noite", { start: zonedTime(dia, "23:30") });
   assert.equal(await enviarLembretesPorSms(db, { enviar, agora: zonedTime(dia, "22:15") }), 0, "silêncio das 22h às 7h30");
 

@@ -22,6 +22,7 @@ import { ShareLink } from "./share-link";
 import { AppInstalado } from "./app-instalado";
 import { AvisoNovoAgendamento } from "./aviso-novo-agendamento";
 import { cn } from "@/lib/utils";
+import { agendamentoLigado, telaDoPlano } from "@/lib/modulos";
 
 // podeGerir: dono ou admin do negócio, ou admin da plataforma. Só esconde botões —
 // quem decide de verdade é o servidor/as regras. adminPlataforma: entrou sem ser da equipe.
@@ -120,21 +121,24 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
     // os dados do negócio (site, bio, WhatsApp) só para quem gere
     ...(state.podeGerir ? [{ href: `/${slug}/negocio`, label: "Meu negócio", curto: "Negócio", icone: ICONES.negocio }] : []),
   ];
+  // plano do negócio (/admin): sem agendamento fica só Serviços e Meu negócio; sem Caixa, sem a aba
+  const doPlano = (href: string) => telaDoPlano(state.modulos, href.split("/")[2] ?? "");
+  const noPlano = links.filter((l) => doPlano(l.href));
   // barra de baixo do celular: até sete cabem em 360px; o Consumo é o que sai quando passa (fica no
   // topo do computador, na faixa de saldo e no Meu negócio)
-  const deBaixo = links.length > 7 ? links.filter((l) => !("soNoTopo" in l)) : links;
+  const deBaixo = noPlano.length > 7 ? noPlano.filter((l) => !("soNoTopo" in l)) : noPlano;
   const isActive = (href: string) => pathname === href || (href !== `/${slug}` && pathname.startsWith(`${href}/`));
   return (
     <TenantContext value={{ ...state, atualizar: (parcial) => setLoaded({ slug, value: { ...state, ...parcial } }) }}>
       <div className={`painel ${serifa.variable} flex min-h-dvh flex-col bg-background`}>
         <MonitorConexao />
-        <AvisoNovoAgendamento />
+        {agendamentoLigado(state.modulos) && <AvisoNovoAgendamento />}
         <AvisoSessao aberto={avisoSessao} onContinuar={continuarSessao} />
       <header className="sticky top-0 z-10 border-b bg-card pt-[env(safe-area-inset-top)] sm:static">
         <div className="mx-auto flex max-w-6xl items-center gap-x-4 px-4 lg:gap-x-6">
           {/* O logo e o nome levam à página inicial do negócio (a agenda), para todo mundo.
               Trocar de negócio e voltar ao admin ficam no menu da conta. */}
-          <Link href={`/${slug}`} className="flex h-14 min-w-0 flex-1 items-center gap-2.5 sm:h-16 sm:flex-none">
+          <Link href={agendamentoLigado(state.modulos) ? `/${slug}` : `/${slug}/negocio`} className="flex h-14 min-w-0 flex-1 items-center gap-2.5 sm:h-16 sm:flex-none">
             <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary font-serifa text-xl text-primary-foreground">
               {state.name.charAt(0)}
             </span>
@@ -142,7 +146,7 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
           </Link>
           {/* abas no topo só a partir do tablet; no celular elas vão para a barra de baixo */}
           <nav aria-label="Seções" className="hidden text-sm sm:flex">
-            {links.map((l) => (
+            {noPlano.map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
@@ -150,7 +154,7 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
                 className={cn(
                   "flex h-16 items-center px-2 whitespace-nowrap text-muted-foreground hover:text-foreground lg:px-3.5",
                   // oito abas não cabem no tablet: o Consumo só aparece a partir do computador
-                  links.length > 7 && "soNoTopo" in l && "max-lg:hidden",
+                  noPlano.length > 7 && "soNoTopo" in l && "max-lg:hidden",
                   isActive(l.href) && "font-semibold text-foreground shadow-[inset_0_-2px_0_var(--foreground)]",
                 )}
               >
@@ -167,9 +171,11 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)] gap-7 px-4 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pt-10 sm:pb-16">
-        <AppInstalado />
-        {state.podeGerir && <FaixaDeSaldo slug={slug} />}
-        {children}
+        {/* o convite fala de avisos de agendamento: fora do plano só site */}
+        {agendamentoLigado(state.modulos) && <AppInstalado />}
+        {state.podeGerir && agendamentoLigado(state.modulos) && <FaixaDeSaldo slug={slug} />}
+        {/* tela fora do plano (link antigo, favorito): leva ao Meu negócio em vez de mostrar uma tela vazia */}
+        {doPlano(pathname) ? children : <ForaDoPlano slug={slug} />}
       </main>
       {/* Celular: as seções no alcance do polegar, sempre à vista. */}
       <nav
@@ -245,4 +251,12 @@ function FaixaDeSaldo({ slug }: { slug: string }) {
       </Link>
     </div>
   );
+}
+
+function ForaDoPlano({ slug }: { slug: string }) {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace(`/${slug}/negocio`);
+  }, [router, slug]);
+  return <p role="status" className="text-sm text-muted-foreground">Esta parte não faz parte do plano deste negócio. Abrindo Meu negócio…</p>;
 }

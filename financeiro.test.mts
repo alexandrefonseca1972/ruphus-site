@@ -1,7 +1,7 @@
 // Rode: npm run test:financeiro  (Caixa do negócio no emulador do Firestore)
 import assert from "node:assert/strict";
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { addDays, todayIn, zonedTime } from "@/lib/datetime";
 import { categorias, comissoesDoMes, csvDoMes, diaNoMes, pctDoTexto, idDaBaixa, idDoEstorno, idDoPagamento, fixaNoMes, LancamentoInput, mesDaComissao, resumoDoMes } from "@/lib/financeiro";
 import { adicionarFixa, editarFixa, baixarAgendamento, darVale, definirComissao, editar, estornar, excluir, lancar, pagar, removerFixa } from "@/lib/financeiro.server";
@@ -242,6 +242,14 @@ await db.doc("tenants/salao/lancamentos/t3").delete();
 await db.doc("tenants/salao").update({ "modulos.financeiro": false });
 await definirComissao(db, "salao", "bia", 10);
 assert.equal((await db.doc(`tenants/salao/lancamentos/${idDaBaixa("passado")}`).get()).exists, true);
+
+// Caixa desligado pelo /admin (ou plano só site): lançamento novo recusado, o histórico fica
+for (const desligado of [{ "modulos.caixa": false }, { "modulos.agendamento": false }]) {
+  await db.doc("tenants/salao").update(desligado);
+  await assert.rejects(lancar(db, "salao", entrada, quem), /O Caixa está desligado para este negócio/);
+  assert.equal((await db.doc(`tenants/salao/lancamentos/${idDaBaixa("passado")}`).get()).exists, true, "nada apagado");
+  await db.doc("tenants/salao").update({ "modulos.caixa": FieldValue.delete(), "modulos.agendamento": FieldValue.delete() });
+}
 
 await db.doc("tenants/salao").update({ "modulos.financeiro": true });
 // avulso com id da tela: o reenvio (resposta perdida) devolve o mesmo e não duplica

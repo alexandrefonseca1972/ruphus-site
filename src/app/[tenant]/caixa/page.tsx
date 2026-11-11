@@ -1,5 +1,6 @@
 "use client";
 
+import { caixaLigado } from "@/lib/modulos";
 import { orderBy, Timestamp, where } from "firebase/firestore";
 import { useValores } from "@/lib/valores";
 import Link from "next/link";
@@ -77,7 +78,7 @@ export default function CaixaPage() {
     const t = setInterval(() => setAgora(Date.now()), 60_000);
     return () => clearInterval(t);
   }, []);
-  const ligado = tenant.podeGerir;
+  const ligado = tenant.podeGerir && caixaLigado(tenant.modulos);
 
   const hoje = todayIn();
   // aberto na virada do mês: quem olhava o mês corrente passa para o novo, senão o lançamento

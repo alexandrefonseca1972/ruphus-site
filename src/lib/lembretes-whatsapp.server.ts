@@ -63,6 +63,8 @@ export async function enviarLembretesDoDia(): Promise<number> {
     if (!oficial) return;
     const w = await lerConfigWhatsApp(adminDb, t.id);
     if (!w || w.remindersEnabled !== true) return;
+    // plano só site (/admin): sem avisos de agendamento, nem dos horários que já estavam marcados
+    if (t.get("modulos.agendamento") === false) return;
     const antesMs = Math.min(24, Math.max(1, Number(w.remindersBeforeHours) || 2)) * 60 * 60_000;
     const nomeNegocio = String(t.get("name") ?? "seu salão");
     // janela: o dia do horário, com folga para lembretes cuja hora de envio cai

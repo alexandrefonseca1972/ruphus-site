@@ -48,7 +48,7 @@ export function espacoDe(slug: string, get: (campo: string) => unknown, acessos:
     avaliacoes: conferido("site.reviews", (v) => numeroEntre(v, 0, 1e9, true)),
     acessos,
     limiteStaff: limiteStaffDe(conferido("limiteStaff", (v) => numeroEntre(v, 0, LIMITE_STAFF_MAX, true))),
-    caixa: true,
+    caixa: get("modulos.caixa") !== false && get("modulos.agendamento") !== false,
   };
   return { espaco, corrigido };
 }

@@ -7,9 +7,9 @@ export const Tenant = z.object({
   name: z.string(),
   ownerId: z.string(),
   limiteStaff: z.number().int().positive().optional(),
-  // Caixa é incluído para todos; modulos.financeiro fica só como dado legado.
-  // .catch: um campo fora do formato não pode derrubar o painel inteiro
-  modulos: z.object({ financeiro: z.boolean().optional() }).optional().catch(undefined),
+  // Caixa e agendamento ligados para todos; o /admin desliga por negócio (src/lib/modulos.ts).
+  // modulos.financeiro fica só como dado legado. .catch: um campo fora do formato não derruba o painel
+  modulos: z.object({ caixa: z.boolean().optional(), agendamento: z.boolean().optional() }).optional().catch(undefined),
   gerado: z.object({ nicho: z.string().optional() }).optional().catch(undefined),
   // domínio próprio do cliente (www.salao.com.br): ativo, é o endereço do site
   dominio: z.object({ host: z.string(), status: z.enum(["pendente", "ativo"]) }).optional().catch(undefined),
