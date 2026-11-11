@@ -63,33 +63,42 @@ export function Reschedule(props: {
   }
 
   const id = `reschedule-${appointment.id}`;
+  const maxDate = addDays(todayIn(), 180);
+
+  function pickDate(value: string) {
+    setDate(value);
+    setTime("");
+    setError("");
+  }
 
   return (
     <div className="grid gap-3 rounded-lg bg-muted/50 p-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="grid gap-1">
-          <Label htmlFor={id}>Nova data</Label>
-          <Input
-            id={id}
-            type="date"
-            value={date}
-            min={todayIn()}
-            max={addDays(todayIn(), 180)}
-            className="h-11 bg-card sm:h-8"
-            onChange={(e) => {
-              setDate(e.target.value);
-              setTime("");
-              setError("");
-            }}
-          />
-        </div>
-        {date && <p className="pb-2 text-sm text-muted-foreground first-letter:uppercase">{formatLongDate(zonedTime(date, "12:00"))}</p>}
+      {/* Data por extenso embaixo do campo: ao lado, no celular, ficava espremida e desalinhada */}
+      <div className="grid gap-1">
+        <Label htmlFor={id}>Nova data</Label>
+        <Input
+          id={id}
+          type="date"
+          value={date}
+          min={todayIn()}
+          max={maxDate}
+          className="h-11 w-full bg-card sm:h-8 sm:w-56"
+          onChange={(e) => pickDate(e.target.value)}
+        />
+        {date && <p className="text-sm text-muted-foreground first-letter:uppercase">{formatLongDate(zonedTime(date, "12:00"))}</p>}
       </div>
 
       {!date ? null : slots === null ? (
         <p className="text-sm text-muted-foreground">Buscando horários…</p>
       ) : slots.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum horário livre com {appointment.staffName} nesta data.</p>
+        <div className="grid gap-2">
+          <p className="text-sm text-muted-foreground">Nenhum horário livre com {appointment.staffName} nesta data.</p>
+          {addDays(date, 1) <= maxDate && (
+            <Button variant="outline" className="h-11 w-full bg-card sm:h-8 sm:w-auto sm:justify-self-start" onClick={() => pickDate(addDays(date, 1))}>
+              Ver dia seguinte
+            </Button>
+          )}
+        </div>
       ) : (
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Horários livres">
           {slots.map((s) => (
@@ -111,10 +120,13 @@ export function Reschedule(props: {
 
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="flex gap-2">
-        <Button size="sm" disabled={!time || busy} onClick={save}>
-          {busy ? "Remarcando…" : time ? `Remarcar para ${time}` : "Escolha um horário"}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onClose}>Fechar</Button>
+        {/* Sem horário livre não há o que remarcar: o botão desabilitado só confundia */}
+        {slots && slots.length > 0 && (
+          <Button className="h-11 flex-1 px-4 sm:h-8 sm:flex-none" disabled={!time || busy} onClick={save}>
+            {busy ? "Remarcando…" : time ? `Remarcar para ${time}` : "Escolha um horário"}
+          </Button>
+        )}
+        <Button variant="ghost" className="h-11 px-4 sm:h-8" onClick={onClose}>Fechar</Button>
       </div>
     </div>
   );
