@@ -1,3 +1,4 @@
+import { montarEmail } from "@/lib/email-layout";
 // Termos de Contratação da Ruphus. O texto sai de docs/contrato-prestacao-servico.md
 // para public/termos/{versão}/ (npm run termos). Uma versão publicada não muda: mudou
 // o texto, suba CONTRATO_VERSAO e a versão no topo do contrato. O aceite guarda a
@@ -22,14 +23,18 @@ export const RESUMO_CONTRATO = [
 export function emailDoAceite(a: { slug: string; versao: string; quando: Date; site: string }) {
   const url = `${a.site.replace(/\/+$/, "")}/termos/${a.versao}`;
   const quando = a.quando.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "long", timeStyle: "short" });
-  return {
+  return montarEmail({
     assunto: `Você aceitou os Termos de Contratação da Ruphus (versão ${a.versao})`,
-    texto: [
-      "Olá!",
-      `Este e-mail confirma que você aceitou os Termos de Contratação da Ruphus, versão ${a.versao}, em ${quando} (horário de Brasília), para o negócio ${a.slug}.ruphus.site.`,
-      `O texto que você aceitou fica guardado neste endereço e não muda:\n${url}`,
-      `Você pode desistir em até 7 dias corridos, com devolução de tudo o que pagou. Basta responder pelo WhatsApp da Ruphus.`,
-      "Ruphus",
-    ].join("\n\n"),
-  };
+    faixa: "Comprovante de aceite",
+    titulo: "Termos de Contratação aceitos",
+    subtitulo: `Este e-mail confirma o seu aceite para ${a.slug}.ruphus.site.`,
+    previa: `Versão ${a.versao}, aceita em ${quando}.`,
+    blocos: [
+      { dados: [["Negócio", `${a.slug}.ruphus.site`], ["Versão", a.versao], ["Aceito em", `${quando} (horário de Brasília)`]] },
+      { p: "O texto que você aceitou fica guardado no endereço abaixo e não muda." },
+      { p: "Você pode desistir em até 7 dias corridos, com devolução de tudo o que pagou. Basta responder pelo WhatsApp da Ruphus." },
+    ],
+    acao: { texto: "Ler os Termos aceitos", url },
+    motivo: "Você recebeu este e-mail porque aceitou os Termos de Contratação da Ruphus.",
+  });
 }

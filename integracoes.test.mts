@@ -28,12 +28,18 @@ assert.equal((await integracoesNaTela()).find((i) => i.nome === "COMTELE_API_KEY
 // alerta ao admin: vai para ALERTA_EMAIL (ou o Gmail), no máximo um por assunto a cada 6 h
 {
   const db = getFirestore();
-  const saidos: { para: string; texto: string }[] = [];
-  const enviar = async (e: { para: string; texto: string }) => void saidos.push(e);
+  const saidos: { para: string; assunto: string; texto: string; html?: string }[] = [];
+  const enviar = async (e: { para: string; assunto: string; texto: string; html?: string }) => void saidos.push(e);
   const h = 3_600_000;
   process.env.GMAIL_USER = "conta@ruphus.site";
   assert.equal(await alertarAdmin(db, "teste", "Falhou", "detalhe", { enviar, agora: 0 }), true);
   assert.equal(saidos[0].para, "conta@ruphus.site", "sem ALERTA_EMAIL, vai para o Gmail");
+  // no layout da Ruphus: assunto com [Ruphus], HTML com a marca e o botão do admin, e o texto puro junto
+  assert.equal(saidos[0].assunto, "[Ruphus] Falhou");
+  assert.match(saidos[0].html ?? "", /RUPHUS/);
+  assert.match(saidos[0].html ?? "", /Aviso do sistema/);
+  assert.match(saidos[0].html ?? "", /\/admin" style/);
+  assert.match(saidos[0].texto, /^Falhou\n\ndetalhe/);
   assert.equal(await alertarAdmin(db, "teste", "Falhou", "detalhe", { enviar, agora: 1 * h }), false, "dentro das 6 h, segura");
   assert.equal(await alertarAdmin(db, "teste", "Falhou", "detalhe", { enviar, agora: 2 * h }), false);
   // pelo ambiente: o tsx carrega integracoes.server duas vezes (teste e alerta), cada uma com seu
@@ -53,6 +59,7 @@ assert.equal((await integracoesNaTela()).find((i) => i.nome === "COMTELE_API_KEY
   await db.doc("config/cron").set({ ultimaExecucao: Timestamp.fromMillis(1_000_000_000_000) });
   assert.equal(await vigiarCron(db, { enviar, agora: 1_000_000_000_000 + 10 * 60_000 }), false, "10 min: em dia");
   assert.equal(await vigiarCron(db, { enviar, agora: 1_000_000_000_000 + 40 * 60_000 }), true, "40 min: avisa");
+  assert.match(saidos.at(-1)!.texto, /crontab -u ruphus -l/, "o que fazer na VPS vai junto");
   delete process.env.GMAIL_USER;
 }
 

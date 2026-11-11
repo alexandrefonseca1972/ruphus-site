@@ -11,6 +11,7 @@ import {
 import { efeitoNoAviso, saidaCobre, SAIU, type AvisoFalhou } from "@/lib/aviso-cliente";
 import { dateIn, formatBRL } from "@/lib/datetime";
 import { SITE_BASE } from "@/lib/dominio";
+import { montarEmail, type Email } from "@/lib/email-layout";
 import { enviarEmail } from "@/lib/email.server";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 
@@ -136,7 +137,16 @@ function lancar(tx: Transaction, slug: string, conta: Conta, valorCents: number,
  *  na Meta: a recusa só vai para o log, o push e o e-mail já saíram. Nunca lança. */
 async function avisarSaldoBaixo(slug: string, a: AvisoSaldo) {
   await avisar(adminDb, slug, { title: "Saldo de mensagens", body: a.texto, url: `/${slug}`, tag: `saldo-${slug}` }, { soGestores: true }).catch((e) => console.error(`[consumo] push do saldo de ${slug}`, e));
-  await emailAoDono(slug, "Saldo de mensagens", a.texto);
+  await emailAoDono(slug, (nome) => ({
+    assunto: `Saldo de mensagens baixo · ${nome}`,
+    faixa: "Mensagens pré-pagas",
+    titulo: a.saldo <= 0 ? "Seu saldo de mensagens acabou" : "Seu saldo de mensagens está baixo",
+    subtitulo: nome,
+    previa: a.texto,
+    blocos: [{ destaque: formatBRL(a.saldo), rotulo: "Saldo agora", nota: a.texto }],
+    acao: { texto: "Recarregar por Pix", url: `${SITE_BASE}/${slug}/consumo/recarga` },
+    motivo: `Você recebe este e-mail por ser o dono do ${nome} na Ruphus. Avisamos uma vez a cada recarga.`,
+  }));
   try {
     // import na hora: canal-oficial e whatsapp importam atendys, que importa este arquivo
     const [{ conexaoOficial, templateSaldoBaixo }, { lerConfigWhatsApp }, { enviarTemplate, OPTIN_DONO }, { soDigitosComDDI }] = await Promise.all([
@@ -152,13 +162,15 @@ async function avisarSaldoBaixo(slug: string, a: AvisoSaldo) {
   }
 }
 
-async function emailAoDono(slug: string, assunto: string, texto: string) {
+/** E-mail ao dono no layout da Ruphus (o conteúdo recebe o nome do negócio). Nunca lança. */
+async function emailAoDono(slug: string, conteudo: (nome: string) => Email) {
   try {
     const t = await adminDb.doc(`tenants/${slug}`).get();
     const dono = t.get("ownerId");
     const email = typeof dono === "string" && dono ? (await adminDb.doc(`tenants/${slug}/members/${dono}`).get()).get("email") : null;
     if (typeof email !== "string" || !email) return;
-    await enviarEmail({ para: email, assunto: `${assunto} · ${String(t.get("name") ?? slug)}`, texto });
+    const e = montarEmail(conteudo(String(t.get("name") ?? "").trim() || slug));
+    await enviarEmail({ para: email, assunto: e.assunto, texto: e.texto, html: e.html });
   } catch (e) {
     console.error(`[consumo] e-mail ao dono de ${slug}`, e);
   }
@@ -402,11 +414,20 @@ export async function creditarRecarga(cobrancaId: string): Promise<number | null
     if ((await tx.get(c.ref)).get("status") !== "paga") throw new CobrancaErro("Recarga ainda não paga.");
   });
   if (saldo !== null) {
-    await emailAoDono(
-      slug,
-      "Recarga de mensagens confirmada",
-      `Recebemos o Pix de ${formatBRL(valor)}${bonus ? ` (mais ${formatBRL(bonus)} de bônus)` : ""}. Saldo de mensagens: ${formatBRL(saldo)}.\n\nObrigado!\nRuphus`,
-    );
+    await emailAoDono(slug, (nome) => ({
+      assunto: `Recarga de mensagens confirmada · ${nome}`,
+      faixa: "Mensagens pré-pagas",
+      titulo: "Recarga confirmada",
+      subtitulo: `Recebemos o seu Pix. O crédito já está no saldo do ${nome}.`,
+      previa: `Saldo de mensagens: ${formatBRL(saldo)}.`,
+      blocos: [
+        { destaque: formatBRL(saldo), rotulo: "Saldo de mensagens agora" },
+        { dados: [["Pix recebido", formatBRL(valor)], ...(bonus ? [["Bônus", formatBRL(bonus)] as [string, string]] : []), ["Crédito", formatBRL(valor + bonus)]] },
+        { p: "O crédito não vence. Obrigado!" },
+      ],
+      acao: { texto: "Ver saldo e extrato", url: `${SITE_BASE}/${slug}/consumo/recarga` },
+      motivo: `Recibo da recarga de mensagens do ${nome} na Ruphus.`,
+    }));
   }
   return saldo;
 }

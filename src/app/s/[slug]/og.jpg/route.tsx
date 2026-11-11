@@ -63,30 +63,35 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
 
   const foto = `${BASE}/s${capa.foto}`;
 
-  const [titulo, texto] = await Promise.all([fonte(capa.fonte, d.nome), fonte("Inter", `${capa.linha}ruphus.site`)]);
-  const png = await new ImageResponse(
-    (
-      <div style={{ width: "100%", height: "100%", display: "flex", position: "relative", background: "#140e10" }}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- dentro do ImageResponse não existe next/image */}
-        <img src={foto} alt="" width={1200} height={630} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 30%" }} />
-        <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", display: "flex", background: "linear-gradient(180deg, rgba(20,14,16,.5) 0%, rgba(20,14,16,.62) 45%, rgba(20,14,16,.94) 100%)" }} />
-        <div style={{ position: "absolute", top: 40, right: 44, display: "flex", fontFamily: "Texto", fontSize: 22, color: "rgba(255,255,255,.9)" }}>ruphus.site</div>
-        <div style={{ position: "absolute", left: 72, right: 72, bottom: 64, display: "flex", flexDirection: "column" }}>
-          <div style={{ width: 56, height: 4, background: capa.cor, marginBottom: 30 }} />
-          <div style={{ fontFamily: "Titulo", fontSize: d.nome.length > 32 ? 54 : 68, lineHeight: 1.05, color: "#fff" }}>{d.nome}</div>
-          {capa.linha && <div style={{ fontFamily: "Texto", fontSize: 28, color: "rgba(255,255,255,.78)", marginTop: 18 }}>{capa.linha}</div>}
+  // Google Fonts lento ou fora (TimeoutError às 3h de 11/11, que virou erro 500 e alerta): a prévia sai
+  // com a fonte padrão do ImageResponse, em vez de não sair
+  const [titulo, texto] = await Promise.all([fonte(capa.fonte, d.nome).catch(() => null), fonte("Inter", `${capa.linha}ruphus.site`).catch(() => null)]);
+  const fonts = [
+    ...(titulo ? [{ name: "Titulo", data: titulo, weight: 400 as const, style: "normal" as const }] : []),
+    ...(texto ? [{ name: "Texto", data: texto, weight: 400 as const, style: "normal" as const }] : []),
+  ];
+  const montar = (comFoto: boolean) =>
+    new ImageResponse(
+      (
+        <div style={{ width: "100%", height: "100%", display: "flex", position: "relative", background: "#140e10" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- dentro do ImageResponse não existe next/image */}
+          {comFoto && <img src={foto} alt="" width={1200} height={630} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 30%" }} />}
+          <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", display: "flex", background: "linear-gradient(180deg, rgba(20,14,16,.5) 0%, rgba(20,14,16,.62) 45%, rgba(20,14,16,.94) 100%)" }} />
+          <div style={{ position: "absolute", top: 40, right: 44, display: "flex", fontFamily: "Texto", fontSize: 22, color: "rgba(255,255,255,.9)" }}>ruphus.site</div>
+          <div style={{ position: "absolute", left: 72, right: 72, bottom: 64, display: "flex", flexDirection: "column" }}>
+            <div style={{ width: 56, height: 4, background: capa.cor, marginBottom: 30 }} />
+            <div style={{ fontFamily: "Titulo", fontSize: d.nome.length > 32 ? 54 : 68, lineHeight: 1.05, color: "#fff" }}>{d.nome}</div>
+            {capa.linha && <div style={{ fontFamily: "Texto", fontSize: 28, color: "rgba(255,255,255,.78)", marginTop: 18 }}>{capa.linha}</div>}
+          </div>
         </div>
-      </div>
-    ),
-    {
-      width: 1200,
-      height: 630,
-      fonts: [
-        { name: "Titulo", data: titulo, weight: 400, style: "normal" },
-        { name: "Texto", data: texto, weight: 400, style: "normal" },
-      ],
-    },
-  ).arrayBuffer();
+      ),
+      { width: 1200, height: 630, ...(fonts.length && { fonts }) },
+    ).arrayBuffer();
+  // a foto não veio (Storage lento): a prévia sai com o fundo, o nome e a cor do site
+  const png = await montar(true).catch((e) => {
+    console.warn(`[og] ${slug}: sem a foto do topo (${e instanceof Error ? e.message : e})`);
+    return montar(false);
+  });
   // JPEG: o PNG de uma foto passa de 1 MB, e o WhatsApp não mostra prévia de imagem pesada
   const jpg = await sharp(Buffer.from(png)).jpeg({ quality: 80, mozjpeg: true }).toBuffer();
   // sem Cache-Control, a Cloudflare guarda .jpg sozinha por horas e a troca de modelo não chegava

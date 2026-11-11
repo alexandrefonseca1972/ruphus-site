@@ -1,4 +1,5 @@
 import "server-only";
+import { SITE_BASE } from "@/lib/dominio";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { quando } from "@/lib/avisos.server";
@@ -178,7 +179,14 @@ export async function reprocessarComandos(db: Firestore): Promise<number> {
     if (tentativa > MAX_TENTATIVAS) {
       const msg = `Um comando do dono pelo WhatsApp (${String(d.get("text") ?? "").slice(0, 60)}) falhou ${MAX_TENTATIVAS} vezes e foi descartado. Confira o agendamento no painel.`;
       await registrarErroNotificacao(db, slug, { message: msg, at: agora }).catch(() => {});
-      await alertarAdmin(db, `whatsapp-comando-${slug}`, `Comando do WhatsApp descartado em ${slug}`, `${msg}\n\nNegócio: ${slug}`);
+      await alertarAdmin(db, `whatsapp-comando-${slug}`, `Comando do WhatsApp descartado em ${slug}`, {
+        resumo: "O dono respondeu pelo WhatsApp (confirmar ou recusar um horário), mas o comando falhou em todas as tentativas e foi descartado.",
+        blocos: [
+          { dados: [["Negócio", slug], ["Comando", String(d.get("text") ?? "").slice(0, 60)], ["Tentativas", String(MAX_TENTATIVAS)]] },
+          { passos: ["Abra a agenda do negócio e confira se o horário ficou como o dono pediu.", "Se não, confirme ou cancele pelo painel e avise o dono."], titulo: "O que fazer" },
+        ],
+        acao: { texto: "Abrir a agenda do negócio", url: `${SITE_BASE}/${slug}` },
+      });
       continue;
     }
     const r = await executarComandoPendente(db, d.id).catch((e) => (console.error(`[whatsapp] comando pendente ${d.id}`, e), null));
