@@ -1150,6 +1150,14 @@ assert.equal(curta.status, 401);
   // reentrega do failed: não estorna de novo
   await entregar({ event: "message.status", messageId: G2, status: "failed", errorCode: "META_131026" }, "sp");
   assert.equal(await saldo(), 93);
+  // cancelada no atendys (fila do horário de silêncio, cancelada pelo admin): não saiu, estorna
+  const G2c = "a2c4d428-4361-4153-bc2c-60db816d8b77";
+  novo({ "POST /v1/message/send-text": json({ id: G2c, status: "queued" }) });
+  await enviarSemOperador(conn, "5591988776389", "Seu horário está confirmado", optIn, undefined, { tipo: "confirmado" });
+  assert.equal(await saldo(), 86);
+  assert.equal((await entregar({ event: "message.status", messageId: G2c, status: "cancelled", errorCode: "MESSAGE_CANCELLED" }, "sp")).status, 200);
+  assert.deepEqual([(await envio(G2c)).status, (await envio(G2c)).custoCents], ["falhou", 0]);
+  assert.equal(await saldo(), 93, "cancelada estorna");
   // assinatura errada não mexe em nada
   const G3 = "a3d4d428-4361-4153-bc2c-60db816d8b77";
   novo({ "POST /v1/message/send-text": json({ id: G3, status: "queued" }) });
