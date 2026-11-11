@@ -1,13 +1,13 @@
 import "server-only";
 import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore";
-import { apontarWebhook, enviarTemplate, enviarTexto, garantirTenant, OPTIN_DONO, revogarChavesAntigas, statusDaInstancia, type ConexaoAtendys, type Template } from "@/lib/atendys";
+import { apontarWebhook, enviarTemplate, enviarTexto, garantirTenant, listarInstanciasAtendys, OPTIN_DONO, revogarChavesAntigas, statusDaInstancia, type ConexaoAtendys, type Template } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { customerKey, formatBRL, formatPhone, todayIn } from "@/lib/datetime";
 import { SITE_BASE, urlDoSite, type Dominio } from "@/lib/dominio";
 import type { Previsao } from "@/lib/consumo";
-import { ERRO_TELEFONE_DA_META, soDigitosComDDI } from "@/lib/telefone";
-import { contatoDoNegocioValido, registrarNumeroDaMeta, telefoneReservadoPelaMeta, validarContatoDoNegocio } from "@/lib/telefones-meta.server";
+import { ERRO_TELEFONE_DA_META, soDigitosComDDI, telefoneDaMeta } from "@/lib/telefone";
+import { contatoDoNegocioValido, numerosReservadosMeta, registrarNumeroDaMeta, telefoneReservadoPelaMeta, validarContatoDoNegocio } from "@/lib/telefones-meta.server";
 
 // Canal oficial do WhatsApp (API oficial da Meta, pelo atendys): um número da plataforma Ruphus
 // fala com os clientes e com o dono dos negócios marcados com whatsapp.canalOficial = true.
@@ -25,8 +25,10 @@ import { contatoDoNegocioValido, registrarNumeroDaMeta, telefoneReservadoPelaMet
 
 const DOC = "config/atendys-plataforma";
 const SLUG_PLATAFORMA = "ruphus-plataforma";
-/** Instância "cloud" do tenant da plataforma (troca para a do número verificado sem deploy). */
-export const instanciaPlataforma = () => process.env.ATENDYS_PLATAFORMA_INSTANCIA ?? "ruphus-plataforma-cloud-teste";
+/** Instância "cloud" escolhida no admin; o .env é o padrão até a primeira escolha. */
+export async function instanciaPlataforma(db: Firestore): Promise<string> {
+  return String((await db.doc(DOC).get()).get("instanceId") || process.env.ATENDYS_PLATAFORMA_INSTANCIA || "ruphus-plataforma-cloud-teste");
+}
 
 type Credenciais = { tenantId: string; apikey: string; keyId?: string; webhookSecret: string };
 
@@ -146,7 +148,7 @@ export async function provisionarPlataforma(db: Firestore, forcar = false): Prom
   };
   await db.doc(DOC).set(novas, { merge: true });
   await apontarWebhook(c.tenantId);
-  const instancia = await statusDaInstancia({ atendysApiKey: novas.apikey, instanceId: instanciaPlataforma() });
+  const instancia = await statusDaInstancia({ atendysApiKey: novas.apikey, instanceId: await instanciaPlataforma(db) });
   if (!instancia.phone) throw new ErroPrevisto("O serviço de WhatsApp não informou o número da Meta. Provisione novamente antes de cadastrar negócios.");
   await registrarNumeroDaMeta(db, instancia.phone);
   if (c.keyId) {
@@ -182,7 +184,30 @@ export async function conexaoOficial(db: Firestore, slug: string): Promise<Conex
   if (!(await usaCanalOficial(db, slug))) return null;
   const c = await lerCredenciais(db);
   if (!c) throw new ErroPrevisto("O canal oficial do WhatsApp não está provisionado (npm run canal-oficial -- provisionar).");
-  return { atendysApiKey: c.apikey, instanceId: instanciaPlataforma(), slug, oficial: true };
+  return { atendysApiKey: c.apikey, instanceId: await instanciaPlataforma(db), slug, oficial: true };
+}
+
+export type Remetente = { instanceId: string; phone: string; status: string };
+
+/** Opções conectadas e reservadas para o admin escolher o remetente dos próximos envios. */
+export async function remetentesDaPlataforma(db: Firestore): Promise<{ atual: string; opcoes: Remetente[] }> {
+  const [atual, reservados, c] = await Promise.all([instanciaPlataforma(db), numerosReservadosMeta(db), lerCredenciais(db)]);
+  const instancias = c ? await listarInstanciasAtendys(c.tenantId) : [];
+  const opcoes = instancias.flatMap((i) =>
+    i.status === "connected" && i.provider === "cloud" && i.phone && telefoneDaMeta(i.phone, reservados)
+      ? [{ instanceId: i.name, phone: i.phone, status: i.status }]
+      : [],
+  );
+  return { atual, opcoes };
+}
+
+/** Persiste a instância escolhida; a validação impede números desconectados ou fora da lista da Meta. */
+export async function definirRemetente(db: Firestore, instanceId: string): Promise<Remetente> {
+  const { opcoes } = await remetentesDaPlataforma(db);
+  const escolhida = opcoes.find((i) => i.instanceId === instanceId);
+  if (!escolhida) throw new ErroPrevisto("Escolha uma instância conectada e reservada para a plataforma.");
+  await db.doc(DOC).set({ instanceId: escolhida.instanceId, phone: escolhida.phone }, { merge: true });
+  return escolhida;
 }
 
 /** Segredo dos webhooks do tenant da plataforma. */

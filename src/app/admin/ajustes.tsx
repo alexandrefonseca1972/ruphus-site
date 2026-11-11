@@ -8,6 +8,7 @@ import { formatPhone } from "@/lib/datetime";
 import { cents, emReais } from "@/lib/dinheiro";
 import { idToken as tokenAtual } from "@/lib/firebase";
 import { SaldosDosNegocios } from "./mensagens-gaveta";
+import { RemetenteWhatsApp } from "./remetente-whatsapp";
 import type { IntegracaoNaTela } from "@/lib/integracoes.server";
 import type { Situacao } from "@/lib/verificar-integracoes.server";
 import { lerIntegracoes, lerConfigMensagensAction, salvarConfigMensagensAction, salvarIntegracao, testarEmail, testarSms, verificarAjustes } from "./actions";
@@ -102,6 +103,7 @@ export function Ajustes({ idToken }: { idToken: string }) {
           )}
         </section>
       ))}
+      <RemetenteWhatsApp />
       <PrecosMensagem idToken={idToken} />
       <SaldosDosNegocios />
     </div>

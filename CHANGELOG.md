@@ -5,6 +5,7 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Ajustes do admin: o remetente oficial do WhatsApp pode ser trocado entre instâncias conectadas e reservadas, sem deploy. A escolha fica em `config/atendys-plataforma.instanceId`, vale para os próximos envios e preserva o histórico. A lista vem do atendys e rejeita instâncias desconectadas ou fora da lista da Meta.
 - Portal do dono: o WhatsApp do negócio pode ser usado para receber os pedidos sem digitar o número de novo, no botão “Usar o WhatsApp do negócio para receber pedidos”. A confirmação “Sou eu” continua obrigatória.
 - Telefone do negócio: o número remetente da Meta não pode ser cadastrado como contato público nem como WhatsApp pessoal do dono, inclusive na forma antiga sem o 9º dígito. A lista fica em `config/atendys-plataforma.numerosReservados`; o provisionamento registra os números futuros e o comando `canal-oficial -- reservar` permite incluir outros.
 - Mensagens por negócio: sem um telefone de contato válido, o canal oficial não envia nem responde por WhatsApp e os SMS também ficam bloqueados. O portal do dono e o admin mostram o motivo e o campo que precisa ser corrigido. A geração de sites e a ativação do canal também recusam números da Meta.

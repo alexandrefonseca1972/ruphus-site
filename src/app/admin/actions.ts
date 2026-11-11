@@ -44,7 +44,7 @@ import { competenciaAtual } from "@/lib/pix";
 import { lerSite, personalDe, publicarSite } from "@/lib/gerador.server";
 import { DEMO, PAGINAS_DEMO } from "@/lib/demo";
 import { acessoDemo, contas, restaurarDemo } from "@/lib/demo.server";
-import { cadastrarDonoOficial, enviarConfirmacaoDono, usaCanalOficial, type EnvioConfirmacao } from "@/lib/canal-oficial.server";
+import { cadastrarDonoOficial, definirRemetente, enviarConfirmacaoDono, remetentesDaPlataforma, usaCanalOficial, type EnvioConfirmacao } from "@/lib/canal-oficial.server";
 import { lerConfigWhatsApp } from "@/lib/whatsapp.server";
 import { celularDoDono } from "@/lib/telefone";
 import { validarContatoDoNegocio } from "@/lib/telefones-meta.server";
@@ -1041,6 +1041,9 @@ export const salvarIntegracao = adminAction(async (_user, nome: unknown, valor: 
 /** SMS de teste com a chave em uso: confere chave e crédito na Comtele sem esperar um agendamento. */
 /** Situação ao vivo de cada grupo de Ajustes: nada é enviado nem cobrado. */
 export const verificarAjustes = adminAction(async () => verificarIntegracoes());
+
+export const remetenteAtual = adminAction(async () => remetentesDaPlataforma(adminDb));
+export const definirRemetenteAction = adminAction(async (_user, instanceId: unknown) => definirRemetente(adminDb, String(instanceId ?? "")));
 
 /** Manda um e-mail de teste pelo caminho de sempre (Resend, e o Gmail se o Resend falhar). */
 export const testarEmail = adminAction(async (_user, para: unknown, canalBruto?: unknown) => {

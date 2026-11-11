@@ -105,7 +105,7 @@ export async function POST(req: Request) {
   }
 
   // canal oficial: o número da plataforma atende vários negócios; o do dono diz qual
-  if (evento.instance === instanciaPlataforma()) {
+  if (evento.instance === (await instanciaPlataforma(adminDb))) {
     const segredo = await segredoPlataforma(adminDb);
     if (!segredo) return recusar("Plataforma sem segredo de webhook.");
     const versao = versaoDaAssinatura(segredo, bruto, cab);

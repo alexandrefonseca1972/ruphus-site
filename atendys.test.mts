@@ -302,6 +302,25 @@ const ligarOficial = async (slug: string, ownerPhone?: string) => {
   assert.equal(await usaCanalOficial(db, "meta-dono"), false, "WhatsApp pessoal da Meta");
 }
 
+// o admin escolhe o remetente entre instâncias conectadas e reservadas
+{
+  const { remetentesDaPlataforma, definirRemetente, instanciaPlataforma } = await import("@/lib/canal-oficial.server");
+  const { registrarNumeroDaMeta } = await import("@/lib/telefones-meta.server");
+  await registrarNumeroDaMeta(db, "5591991121306");
+  novo({ "GET /admin/instances": json([
+    { name: "ruphus-plataforma-cloud-1726", status: "connected", provider: "cloud", phone: "5591992361726" },
+    { name: "ruphus-plataforma-cloud", status: "connected", provider: "cloud", phone: "5591991121306" },
+    { name: "desligada", status: "disconnected", provider: "cloud", phone: "5591991121306" },
+    { name: "teste", status: "connected", provider: "cloud", phone: "15551814914" },
+  ]) });
+  assert.deepEqual((await remetentesDaPlataforma(db)).opcoes.map((i) => i.instanceId), ["ruphus-plataforma-cloud-1726", "ruphus-plataforma-cloud"]);
+  assert.deepEqual(await definirRemetente(db, "ruphus-plataforma-cloud"), { instanceId: "ruphus-plataforma-cloud", phone: "5591991121306", status: "connected" });
+  assert.equal(await instanciaPlataforma(db), "ruphus-plataforma-cloud");
+  assert.equal((await ligarOficial("remetente")).instanceId, "ruphus-plataforma-cloud");
+  await assert.rejects(definirRemetente(db, "desligada"), /conectada e reservada/);
+  await db.doc("config/atendys-plataforma").update({ instanceId: FieldValue.delete(), phone: FieldValue.delete() });
+}
+
 // ── comando do dono pelo canal oficial: remetente, palavra educada, códigos empatados ──
 await db.doc("tenants/salao").set({ name: "Salão" });
 await ligarOficial("salao", "5511900000099");
@@ -415,7 +434,7 @@ assert.equal(await conexaoOficial(db, DEMO), null);
 // testes da rodada 2 depende dele)
 (globalThis as { AsyncLocalStorage?: unknown }).AsyncLocalStorage ??= (await import("node:async_hooks")).AsyncLocalStorage;
 const { POST } = await import("@/app/api/webhooks/atendys/route");
-const INST = instanciaPlataforma();
+const INST = await instanciaPlataforma(db);
 const entregar = (payload: Record<string, unknown>, segredo = "sp") => {
   const body = JSON.stringify(payload);
   const t = Math.floor(Date.now() / 1000);
@@ -1015,7 +1034,10 @@ assert.equal(curta.status, 401);
   assert.equal(await enviarConfirmacaoDono(db, "dono-novo"), "enviado");
 
   // webhook: "Sou eu" de outro telefone é ignorado
-  const souEu = (phone: string, messageId: string) => comAfter(() => entregar({ event: "message.received", instance: instanciaPlataforma(), type: "text", messageId, phone, text: "Sou eu", reply: { id: "rph:ok:dono-novo:dono", title: "Sou eu" }, at: new Date().toISOString() }, "sp"));
+  const souEu = async (phone: string, messageId: string) => {
+    const instance = await instanciaPlataforma(db);
+    return comAfter(() => entregar({ event: "message.received", instance, type: "text", messageId, phone, text: "Sou eu", reply: { id: "rph:ok:dono-novo:dono", title: "Sou eu" }, at: new Date().toISOString() }, "sp"));
+  };
   const antesDoToque = saidas.length;
   assert.equal((await souEu("5511977770000", "wamid-ok-1")).status, 200);
   assert.equal((await privDono.get()).get("ownerPhoneVerifiedAt"), undefined, "outro telefone não confirma");

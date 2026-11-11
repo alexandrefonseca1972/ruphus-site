@@ -276,6 +276,13 @@ export function statusDaInstancia(conn: ConexaoAtendys) {
   return chamar<{ name: string; status: string; phone?: string; connectedAt?: string }>(authTenant(conn), "GET", `/v1/instance/${encodeURIComponent(conn.instanceId)}/status`);
 }
 
+export type InstanciaAtendys = { name: string; phone?: string; status: string; provider?: string; waWabaId?: string };
+
+/** Instâncias de um tenant, usadas para escolher o remetente da plataforma. */
+export function listarInstanciasAtendys(tenantId: string) {
+  return chamarAdmin<InstanciaAtendys[]>("GET", `/admin/instances?tenantId=${encodeURIComponent(tenantId)}`);
+}
+
 /** Todos os tenants ativos do atendys, com os limites atuais (só leitura). */
 export function listarTenantsAtendys() {
   return chamarAdmin<Array<{ id: string; slug: string; recipientMsgPerDay?: number; recipientMsgPerWeek?: number }>>("GET", "/admin/tenants");
