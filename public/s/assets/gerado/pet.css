@@ -83,7 +83,7 @@
   .btn-outline:hover{border-color:var(--accent);}
   .btn-block{width:100%;}
   .hamburger{
-    display:none;width:42px;height:42px;border-radius:10px;border:1.5px solid var(--border);
+    display:none;width:44px;height:44px;border-radius:10px;border:1.5px solid var(--border);
     background:var(--surface);align-items:center;justify-content:center;cursor:pointer;flex:none;
   }
   .hamburger span, .hamburger span::before, .hamburger span::after{

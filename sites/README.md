@@ -1,6 +1,6 @@
 # Sites personalizados
 
-Páginas individuais publicadas no Storage pelo fluxo existente. Seguem a composição editorial existente em `src/lib/site-editorial.ts` e o CSS compartilhado `public/s/assets/gerado/beleza.css`: abertura com fotografia de fundo, nome em destaque, faixa de serviços e seções do modelo. O modelo compartilhado e a agenda do aplicativo não foram alterados.
+Páginas individuais publicadas no Storage pelo fluxo existente. Seguem a composição editorial existente em `src/lib/site-editorial.ts` e o CSS compartilhado `public/s/assets/gerado/beleza.css`: abertura com fotografia de fundo, nome em destaque, faixa de serviços e seções do modelo. Menus e formulários usam `public/s/assets/site-ui.js` e `site-ui.css`, com navegação por teclado, validação por campo e recuperação quando o navegador bloqueia a nova aba. Não há WebGL; as imagens declaram suas dimensões reais. As agendas externas e o conteúdo comercial de cada negócio são preservados.
 
 - `mais-depil`: depilação a laser e avaliação.
 - `belissima-flor-depil`: depilação e estética, conforme apresentação pública em https://www.belissimaflordepil.com.br/ (consultada em 22/10/2026). A agenda ainda tem somente limpeza de pele e avaliação estética; depilação direciona ao WhatsApp, sem criar preços ou serviços no banco.

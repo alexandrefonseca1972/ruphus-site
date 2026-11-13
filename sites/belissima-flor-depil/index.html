@@ -55,6 +55,8 @@ section{scroll-margin-top:130px}
  header .btn-wpp{font-size:.7rem}
 }
 </style>
+<link rel="stylesheet" href="../assets/site-ui.css">
+<script src="../assets/site-ui.js" defer></script>
 </head>
 <body id="top">
 <aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">Esta página é uma proposta da <a href="https://www.ruphus.site/" style="color:#f2b56b">Ruphus</a>, não o site oficial. <a href="https://wa.me/5511948680554?text=Quero%20remover%20a%20p%C3%A1gina%20de%20proposta%20belissima-flor-depil" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ruphus.site/privacidade" style="color:#a2918d">Privacidade</a></aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){function ajustar(){var b=document.querySelector("aside[data-ysis=proposta]");document.getElementById("hd").style.top=b.getBoundingClientRect().height+"px";}ajustar();window.addEventListener("resize",ajustar);});</script>
@@ -69,8 +71,7 @@ section{scroll-margin-top:130px}
 
 <main>
 <section class="hero">
-  <div class="bgimg"><img src="hero-v3.webp" alt="Imagem ilustrativa de atendimento de depilação com cera" fetchpriority="high"></div>
-  <canvas id="fx3d"></canvas>
+  <div class="bgimg"><img src="hero-v3.webp" alt="Imagem ilustrativa de atendimento de depilação com cera" width="1024" height="1536" fetchpriority="high" decoding="async"></div>
   <div class="hero-inner">
     <span class="tag">Depilação e estética · Taguatinga, Brasília/DF</span>
     <h1 class="">Belíssima Flor<span class="row2">Depil</span></h1>
@@ -101,7 +102,7 @@ section{scroll-margin-top:130px}
 
 <section class="galeria" id="trabalhos">
   <div class="sec-head "><span class="label">Galeria</span><h2>Depilação e cuidados</h2></div>
-  <div class="gal-grid"><div class="tilt  fit-cover"><img src="../assets/beleza/depilacao-1/ga1.jpg" alt="Imagem ilustrativa de materiais para depilação com cera" loading="lazy"><span class="cap">Imagem ilustrativa</span></div><div class="tilt  fit-cover"><img src="../assets/beleza/depilacao-1/ga2.jpg" alt="Imagem ilustrativa de atendimento de depilação com cera" loading="lazy"><span class="cap">Imagem ilustrativa</span></div><div class="tilt  fit-cover"><img src="../assets/beleza/depilacao-1/ga3.jpg" alt="Imagem ilustrativa de refis de cera para depilação" loading="lazy"><span class="cap">Imagem ilustrativa</span></div></div>
+  <div class="gal-grid"><div class="tilt  fit-cover"><img src="../assets/beleza/depilacao-1/ga1.jpg" alt="Imagem ilustrativa de materiais para depilação com cera" width="1024" height="1536" loading="lazy" decoding="async"><span class="cap">Imagem ilustrativa</span></div><div class="tilt  fit-cover"><img src="../assets/beleza/depilacao-1/ga2.jpg" alt="Imagem ilustrativa de atendimento de depilação com cera" width="1024" height="1536" loading="lazy" decoding="async"><span class="cap">Imagem ilustrativa</span></div><div class="tilt  fit-cover"><img src="../assets/beleza/depilacao-1/ga3.jpg" alt="Imagem ilustrativa de refis de cera para depilação" width="1024" height="1536" loading="lazy" decoding="async"><span class="cap">Imagem ilustrativa</span></div></div>
 </section>
 
 <section class="servicos" id="servicos">
@@ -126,7 +127,7 @@ section{scroll-margin-top:130px}
         <div class="step"><b>3</b><span>Receba a confirmação do horário pela equipe.</span></div>
       </div>
     </div>
-    <form class="waform " id="waform" data-wa="5561998908167">
+    <form class="waform " id="waform" data-wa="5561998908167" data-brand="Belíssima Flor Depil" data-intro="Olá! Quero solicitar um horário e aguardar a confirmação da equipe.">
       <label for="wf-nome">Seu nome</label>
       <input id="wf-nome" name="nome" type="text" placeholder="Como podemos te chamar?" autocomplete="name" required>
       <label for="wf-svc">Serviço</label>
@@ -188,19 +189,7 @@ section{scroll-margin-top:130px}
 <script>
 var hd=document.getElementById('hd');
 addEventListener('scroll',function(){hd.classList.toggle('scrolled',scrollY>40);},{passive:true});
-// dia de preferência a partir de hoje (no fuso de quem abre): o navegador recusa data passada
-document.getElementById('wf-dia').min=new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
-document.getElementById('waform').addEventListener('submit',function(ev){
-  ev.preventDefault();
-  var f=ev.target, linhas=['Olá! Quero solicitar um horário e aguardar a confirmação da equipe.','Nome: '+f.nome.value];
-  if(f.servico.value)linhas.push('Serviço: '+f.servico.value);
-  if(f.dia.value){var d=f.dia.value.split('-');linhas.push('Dia de preferência: '+d[2]+'/'+d[1]+'/'+d[0]);}
-  if(f.periodo.value)linhas.push('Período: '+f.periodo.value);
-  if(f.msg.value)linhas.push('Obs.: '+f.msg.value);
-  window.open('https://wa.me/'+f.getAttribute('data-wa')+'?text='+encodeURIComponent(linhas.join('\n')),'_blank','noopener');
-});
 </script>
 <script src="../assets/fx.js" defer></script>
-<script>window.addEventListener('load',function(){if(window.init3D)init3D('fx3d','#F2707F',{shapes:12,opacity:.45});});</script>
 </body>
 </html>

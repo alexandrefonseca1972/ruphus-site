@@ -27,6 +27,8 @@
 <meta name="twitter:image" content="https://bronze-da-gg-brasilia.ruphus.site/og.jpg">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23161114%22%2F%3E%3Ctext%20x%3D%2232%22%20y%3D%2245%22%20font-family%3D%22Arial%20Narrow%2CArial%2Csans-serif%22%20font-size%3D%2236%22%20font-weight%3D%22700%22%20fill%3D%22%23E58F9C%22%20text-anchor%3D%22middle%22%3EB%3C%2Ftext%3E%3C%2Fsvg%3E">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BeautySalon","name":"Bronze da GG Brasília","url":"https://bronze-da-gg-brasilia.ruphus.site/","image":"https://bronze-da-gg-brasilia.ruphus.site/fotos/bronze-capa-v2.jpg","description":"Bronze da GG Brasília — Estética em Brasília com nota 5,0 e 24 avaliações no Google. Agende pelo WhatsApp.","telephone":"+5561999662016","address":{"@type":"PostalAddress","streetAddress":"Asa Sul CLS 108 BL B Lj 7","addressLocality":"Brasília","addressRegion":"DF","addressCountry":"BR"},"aggregateRating":{"@type":"AggregateRating","ratingValue":"5","reviewCount":"24","bestRating":"5"}}</script>
+<link rel="stylesheet" href="../assets/site-ui.css">
+<script src="../assets/site-ui.js" defer></script>
 </head>
 <body id="top">
 <aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">Esta página é uma proposta da <a href="https://www.ruphus.site/" style="color:#f2b56b">Ruphus</a>, não o site oficial. <a href="https://wa.me/5511948680554?text=Quero%20remover%20a%20p%C3%A1gina%20de%20proposta%20bronze-da-gg-brasilia" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ruphus.site/privacidade" style="color:#a2918d">Privacidade</a></aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){var b=document.querySelector("aside[data-ysis=proposta]");if(!b)return;var h=b.getBoundingClientRect().height;document.querySelectorAll("header,nav,.site-header,.nav,.topo").forEach(function(el){var s=getComputedStyle(el);if(s.position==="fixed"||s.position==="sticky")el.style.top=h+"px"});});</script>
@@ -40,8 +42,7 @@
 </header>
 
 <section class="hero">
-  <div class="bgimg"><img src="fotos/bronze-capa-v2.jpg" alt="Pele bronzeada com brilho dourado em close"></div>
-  <canvas id="fx3d"></canvas>
+  <div class="bgimg"><img src="fotos/bronze-capa-v2.jpg" alt="Pele bronzeada com brilho dourado em close" width="900" height="1603" fetchpriority="high" decoding="async"></div>
   <div class="hero-inner">
     <span class="tag">Estética · Brasília/DF</span>
     <h1 class="rv">Bronze da<span class="row2">GG Brasília</span></h1>
@@ -67,7 +68,7 @@
 
 <section class="galeria" id="trabalhos">
   <div class="sec-head rv"><span class="label">Galeria</span><h2>O espaço e o trabalho</h2></div>
-  <div class="gal-grid"><div class="tilt rv fit-cover"><img src="fotos/bronze-1.jpg" alt="Cliente em cabine de bronzeamento" loading="lazy"><span class="cap">Imagem ilustrativa</span></div><div class="tilt rv fit-cover"><img src="fotos/bronze-cabine-2.jpg" alt="Cliente em cabine de bronzeamento com luz azul e roxa" loading="lazy"><span class="cap">Imagem ilustrativa</span></div><div class="tilt rv fit-cover"><img src="fotos/bronze-3.jpg" alt="Pernas com bronzeado natural" loading="lazy"><span class="cap">Imagem ilustrativa</span></div></div>
+  <div class="gal-grid"><div class="tilt rv fit-cover"><img src="fotos/bronze-1.jpg" alt="Cliente em cabine de bronzeamento" width="683" height="1024" loading="lazy" decoding="async"><span class="cap">Imagem ilustrativa</span></div><div class="tilt rv fit-cover"><img src="fotos/bronze-cabine-2.jpg" alt="Cliente em cabine de bronzeamento com luz azul e roxa" width="900" height="1350" loading="lazy" decoding="async"><span class="cap">Imagem ilustrativa</span></div><div class="tilt rv fit-cover"><img src="fotos/bronze-3.jpg" alt="Pernas com bronzeado natural" width="1000" height="667" loading="lazy" decoding="async"><span class="cap">Imagem ilustrativa</span></div></div>
 </section>
 
 <section class="servicos" id="servicos">
@@ -151,19 +152,7 @@ var hd=document.getElementById('hd');
 addEventListener('scroll',function(){hd.classList.toggle('scrolled',scrollY>40);},{passive:true});
 var io=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target);}});},{threshold:.12});
 document.querySelectorAll('.rv').forEach(function(el){io.observe(el);});
-// dia de preferência a partir de hoje (no fuso de quem abre): o navegador recusa data passada
-document.getElementById('wf-dia').min=new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
-document.getElementById('waform').addEventListener('submit',function(ev){
-  ev.preventDefault();
-  var f=ev.target, linhas=['Olá! Quero agendar um horário.','Nome: '+f.nome.value];
-  if(f.servico.value)linhas.push('Serviço: '+f.servico.value);
-  if(f.dia.value){var d=f.dia.value.split('-');linhas.push('Dia de preferência: '+d[2]+'/'+d[1]+'/'+d[0]);}
-  if(f.periodo.value)linhas.push('Período: '+f.periodo.value);
-  if(f.msg.value)linhas.push('Obs.: '+f.msg.value);
-  window.open('https://wa.me/'+f.getAttribute('data-wa')+'?text='+encodeURIComponent(linhas.join('\n')),'_blank');
-});
 </script>
 <script src="../assets/fx.js" defer></script>
-<script>window.addEventListener('load',function(){if(window.init3D)init3D('fx3d','#E58F9C',{shapes:12,opacity:.45});});</script>
 </body>
 </html>
