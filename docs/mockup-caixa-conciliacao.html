@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f5f0">
+  <title>Conciliação — RuphusBel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: light;
+      --fundo: #f7f5f0;
+      --cartao: #ffffff;
+      --texto: #17150f;
+      --suave: #6b6555;
+      --muted: #efebe2;
+      --borda: #e4dfd3;
+      --campo: #d5d0c1;
+      --marca: #f1e51c;
+      --positivo: #236342;
+      --positivo-fundo: #eff8f1;
+      --negativo: #a43b32;
+      --atencao: #795a16;
+      --atencao-fundo: #fff7df;
+      --serifa: "Instrument Serif", Georgia, serif;
+      --sans: "Geist", Arial, sans-serif;
+      --mono: "Geist Mono", monospace;
+      --sombra: 0 12px 28px rgba(23, 21, 15, .06);
+    }
+    :root[data-tema="escuro"] {
+      color-scheme: dark;
+      --fundo: #15130f;
+      --cartao: #1d1a15;
+      --texto: #f3f0e8;
+      --suave: #a89f8c;
+      --muted: #2a261f;
+      --borda: #363027;
+      --campo: #494034;
+      --positivo: #bfe3c9;
+      --positivo-fundo: #203428;
+      --negativo: #f0a18c;
+      --atencao: #ead79f;
+      --atencao-fundo: #3b321d;
+      --sombra: 0 12px 28px rgba(0, 0, 0, .2);
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html { background: var(--fundo); font-family: var(--sans); }
+    body { margin: 0; background: var(--fundo); color: var(--texto); font-size: 14px; line-height: 1.45; }
+    button, input, select { font: inherit; }
+    button { color: inherit; cursor: pointer; touch-action: manipulation; }
+    button, a, input, select { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--texto); outline-offset: 3px; }
+    button:disabled { cursor: not-allowed; opacity: .48; }
+    svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: 0 0 auto; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    .topo { border-bottom: 1px solid var(--borda); background: var(--cartao); padding-top: env(safe-area-inset-top); }
+    .topo-interno { width: min(1220px, 100%); min-height: 60px; margin: auto; padding: 0 16px; display: flex; align-items: center; gap: 22px; }
+    .marca { display: flex; align-items: center; gap: 9px; font-weight: 650; }
+    .marca-simbolo { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 8px; background: var(--texto); color: var(--cartao); font: 400 19px var(--serifa); }
+    .navegacao { align-self: stretch; display: flex; gap: 2px; }
+    .navegacao span { position: relative; display: flex; align-items: center; padding: 0 10px; color: var(--suave); font-size: 13px; }
+    .navegacao .ativo { color: var(--texto); font-weight: 600; }
+    .navegacao .ativo::after { content: ""; position: absolute; right: 10px; bottom: 0; left: 10px; height: 2px; background: var(--texto); }
+    .conta { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .maquete { padding: 3px 7px; border: 1px solid var(--borda); border-radius: 999px; color: var(--suave); font: 500 9px var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+    .icone-botao { width: 44px; height: 44px; display: inline-grid; place-items: center; border: 0; border-radius: 9px; background: transparent; }
+    .icone-botao:hover { background: var(--muted); }
+    .avatar { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--muted); font-size: 11px; font-weight: 600; }
+    main { width: min(1220px, 100%); margin: auto; padding: 22px 16px 60px; display: grid; gap: 18px; }
+    .titulo-linha { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+    h1 { margin: 0; font: 400 40px/1 var(--serifa); letter-spacing: -.02em; }
+    .subtitulo { margin: 5px 0 0; color: var(--suave); font-size: 13px; }
+    .botao { min-height: 44px; padding: 9px 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--borda); border-radius: 9px; background: var(--cartao); color: var(--texto); font-size: 13px; font-weight: 600; transition: transform .14s, box-shadow .14s, background-color .14s, border-color .14s; }
+    .botao:hover { background: var(--muted); border-color: var(--campo); }
+    .botao:active { transform: scale(.98); }
+    .botao-primario { border-color: var(--texto); background: var(--texto); color: var(--cartao); }
+    .botao-primario:hover { background: var(--texto); opacity: .88; }
+    .botao-pequeno { min-height: 36px; padding: 6px 10px; font-size: 11px; }
+    .botao-perigo { color: var(--negativo); }
+    .etapas { display: flex; align-items: center; gap: 8px; color: var(--suave); font: 500 10px var(--mono); }
+    .etapa { display: inline-flex; align-items: center; gap: 6px; }
+    .etapa i { width: 20px; height: 20px; display: grid; place-items: center; border: 1px solid var(--borda); border-radius: 50%; font-style: normal; }
+    .etapa.ativa { color: var(--texto); font-weight: 600; }
+    .etapa.ativa i { border-color: var(--texto); background: var(--texto); color: var(--cartao); }
+    .etapa-linha { width: 26px; height: 1px; background: var(--borda); }
+    .resumo-faixa { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 13px; border: 1px solid var(--borda); border-radius: 11px; background: var(--cartao); }
+    .resumo-faixa > div { display: grid; gap: 2px; }
+    .resumo-faixa strong { font: 400 20px var(--serifa); }
+    .resumo-faixa span { color: var(--suave); font-size: 11px; }
+    .resumo-faixa .botao { min-height: 36px; padding: 5px 9px; font-size: 11px; }
+    .conteudo { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(280px, .75fr); align-items: start; gap: 18px; }
+    .fila { overflow: hidden; border: 1px solid var(--borda); border-radius: 13px; background: var(--cartao); box-shadow: var(--sombra); }
+    .fila-topo { padding: 12px 14px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--borda); }
+    .fila-topo h2 { margin: 0; font-size: 14px; }
+    .fila-topo p { margin: 2px 0 0; color: var(--suave); font-size: 11px; }
+    .fila-acoes { display: flex; gap: 6px; }
+    .fila-acoes .botao { min-height: 36px; padding: 5px 9px; font-size: 11px; }
+    .fila-item { position: relative; min-height: 72px; padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; border-bottom: 1px solid var(--borda); }
+    .fila-item:last-child { border-bottom: 0; }
+    .fila-item.proximo { background: color-mix(in srgb, var(--atencao-fundo) 48%, var(--cartao)); box-shadow: inset 3px 0 0 var(--texto); }
+    .fila-item strong { display: block; font-size: 12px; }
+    .fila-item small { display: block; margin-top: 2px; color: var(--suave); font-size: 10px; }
+    .fila-item .valor { font: 500 12px var(--mono); white-space: nowrap; }
+    .selo { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 2px 5px; border-radius: 4px; background: var(--texto); color: var(--cartao); font: 500 8px var(--mono); text-transform: uppercase; }
+    .fila-vazio { padding: 32px 18px; display: grid; justify-items: start; gap: 8px; }
+    .fila-vazio svg { width: 28px; height: 28px; color: var(--positivo); }
+    .fila-vazio strong { font: 400 27px var(--serifa); }
+    .fila-vazio p { margin: 0; color: var(--suave); font-size: 12px; }
+    .lado { display: grid; gap: 12px; }
+    .lado-secao { padding: 14px; border: 1px solid var(--borda); border-radius: 12px; background: var(--cartao); }
+    .lado-secao h2 { margin: 0 0 10px; font-size: 12px; }
+    .lado-secao dl { margin: 0; }
+    .lado-linha { padding: 7px 0; display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--borda); }
+    .lado-linha:first-child { border-top: 0; }
+    .lado-linha dt { color: var(--suave); font-size: 11px; }
+    .lado-linha dd { margin: 0; font: 500 12px var(--mono); }
+    .lado-linha.destaque dd { font: 400 24px var(--serifa); }
+    .progresso { margin: 10px 0 4px; }
+    .progresso-info { display: flex; justify-content: space-between; gap: 8px; color: var(--suave); font-size: 10px; }
+    .progresso-trilha { height: 5px; margin-top: 6px; overflow: hidden; border-radius: 99px; background: var(--muted); }
+    .progresso-trilha i { display: block; height: 100%; border-radius: inherit; background: var(--texto); transition: width .25s; }
+    .lado-secao .botao { width: 100%; margin-top: 9px; }
+    .lado-secao .botao + .botao { margin-top: 6px; }
+    .atividade { overflow: hidden; border: 1px solid var(--borda); border-radius: 13px; background: var(--cartao); }
+    .atividade-topo { padding: 11px 13px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 9px; border-bottom: 1px solid var(--borda); }
+    .atividade-topo h2 { margin: 0; font-size: 14px; }
+    .atividade-topo p { margin: 2px 0 0; color: var(--suave); font-size: 11px; }
+    .filtros { display: flex; flex-wrap: wrap; gap: 6px; }
+    input, select { min-height: 40px; border: 1px solid var(--borda); border-radius: 8px; background: var(--cartao); color: var(--texto); }
+    input { padding: 8px 10px; }
+    select { padding: 8px 28px 8px 9px; }
+    .busca { width: 210px; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { position: sticky; z-index: 5; top: 0; background: var(--fundo); }
+    th { padding: 8px 12px; color: var(--suave); font-size: 10px; font-weight: 500; text-align: left; }
+    th:last-child, td:last-child { text-align: right; }
+    td { padding: 10px 12px; border-top: 1px solid var(--borda); font-size: 11px; }
+    td strong { display: block; font-size: 12px; }
+    td small { display: block; margin-top: 2px; color: var(--suave); font-size: 10px; }
+    td.valor { font: 600 11px var(--mono); white-space: nowrap; }
+    .positivo { color: var(--positivo); }
+    .negativo { color: var(--negativo); }
+    .atividade-vazia { padding: 26px 16px; color: var(--suave); text-align: center; }
+    .navegacao-mobile { display: none; }
+    .acao-mobile { display: none; }
+    .folha { position: fixed; z-index: 60; top: 0; right: 0; bottom: 0; width: min(440px, 100%); overflow-y: auto; overscroll-behavior: contain; border-left: 1px solid var(--borda); background: var(--cartao); box-shadow: -20px 0 60px rgba(23, 21, 15, .15); animation: folha-lateral .2s ease-out; }
+    .fundo-folha { position: fixed; z-index: 55; inset: 0; background: rgba(21, 19, 15, .35); backdrop-filter: blur(2px); }
+    .folha-topo { position: sticky; z-index: 2; top: 0; padding: 18px 18px 13px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--borda); background: var(--cartao); }
+    .folha-topo h2 { margin: 0; font: 400 28px/1.1 var(--serifa); }
+    .folha-topo p { margin: 4px 0 0; color: var(--suave); font-size: 12px; }
+    .folha-corpo { padding: 16px 18px; }
+    .formulario { display: grid; gap: 13px; }
+    .campo { display: grid; gap: 5px; }
+    .campo label { font-size: 12px; font-weight: 600; }
+    .campo input, .campo select { width: 100%; min-height: 44px; padding: 9px 10px; }
+    .campos-duplos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .form-acoes { display: flex; gap: 8px; margin-top: 4px; }
+    .form-acoes .botao { flex: 1; }
+    .aviso { margin: 0; padding: 10px 11px; border: 1px solid #e6d49b; border-radius: 8px; background: var(--atencao-fundo); color: var(--atencao); font-size: 12px; }
+    .aviso[hidden] { display: none; }
+    .toast { position: fixed; z-index: 100; right: 16px; bottom: 16px; max-width: min(460px, calc(100% - 32px)); padding: 10px 12px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--borda); border-radius: 10px; background: var(--texto); color: var(--cartao); box-shadow: var(--sombra); font-size: 12px; }
+    .toast:not([hidden]) { animation: toast-entrar .18s ease-out; }
+    .toast button { min-height: 36px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid currentColor; border-radius: 6px; background: transparent; color: inherit; font-weight: 600; }
+    @keyframes folha-lateral { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes toast-entrar { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @media (hover: hover) and (pointer: fine) {
+      .botao:hover { transform: translateY(-1px); }
+      .fila-item:hover, tbody tr:hover { background: color-mix(in srgb, var(--muted) 35%, var(--cartao)); }
+    }
+    @media (max-width: 1000px) {
+      .conteudo { grid-template-columns: minmax(0, 1.35fr) minmax(250px, .75fr); }
+      .fila-item { grid-template-columns: minmax(0, 1fr) auto; }
+      .fila-item .botao { grid-column: 1 / -1; justify-self: end; }
+    }
+    @media (max-width: 760px) {
+      .topo-interno { min-height: 56px; gap: 10px; }
+      .navegacao { display: none; }
+      .conta { gap: 4px; }
+      .avatar { display: none; }
+      .maquete { font-size: 8px; }
+      main { padding: 18px 12px calc(142px + env(safe-area-inset-bottom)); gap: 14px; }
+      h1 { font-size: 35px; }
+      .titulo-linha .botao-primario { flex: 1; }
+      .etapas { gap: 5px; font-size: 9px; }
+      .etapa-linha { width: 16px; }
+      .resumo-faixa { align-items: flex-start; }
+      .resumo-faixa .botao { min-height: 44px; }
+      .conteudo { grid-template-columns: 1fr; gap: 14px; }
+      .lado { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .lado-secao { padding: 12px; }
+      .lado-secao:first-child { grid-column: 1 / -1; }
+      .fila-item { padding: 11px 12px; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+      .fila-item .botao { min-height: 44px; }
+      .fila-item .valor { font-size: 11px; }
+      .fila-acoes .botao { min-height: 44px; }
+      .atividade-topo .filtros { width: 100%; }
+      .busca { flex: 1 1 100%; }
+      .filtros select { flex: 1; }
+      table, tbody, tr, td { display: block; }
+      thead { display: none; }
+      td { padding: 9px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+      td strong { font-size: 12px; }
+      td small { grid-column: 1; }
+      td.valor { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+      .navegacao-mobile { position: fixed; z-index: 30; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--borda); background: var(--cartao); padding-bottom: env(safe-area-inset-bottom); }
+      .navegacao-mobile span { min-height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--suave); font-size: 10px; }
+      .navegacao-mobile span.ativo { color: var(--texto); font-weight: 600; }
+      .navegacao-mobile svg { width: 19px; height: 19px; }
+      .acao-mobile { position: fixed; z-index: 35; right: 0; bottom: calc(58px + env(safe-area-inset-bottom)); left: 0; display: block; padding: 9px 12px; border-top: 1px solid var(--borda); background: var(--cartao); }
+      .acao-mobile .botao { width: 100%; min-height: 48px; }
+      .toast { right: 12px; bottom: calc(128px + env(safe-area-inset-bottom)); left: 12px; max-width: none; justify-content: space-between; }
+      .folha { top: auto; width: 100%; max-height: 92dvh; border-top: 1px solid var(--borda); border-left: 0; border-radius: 18px 18px 0 0; animation: folha-mobile .2s ease-out; }
+      .folha-topo { padding-top: 22px; }
+      .folha-topo::before { content: ""; position: absolute; top: 8px; left: 50%; width: 36px; height: 4px; border-radius: 999px; background: var(--borda); transform: translateX(-50%); }
+      .folha-corpo { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+      .form-acoes { position: sticky; bottom: 0; margin: 4px -18px -18px; padding: 12px 18px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--borda); background: var(--cartao); }
+      .form-acoes .botao { min-height: 48px; }
+      @keyframes folha-mobile { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+      .campos-duplos { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topo">
+    <div class="topo-interno">
+      <div class="marca"><span class="marca-simbolo" aria-hidden="true">R</span><span>RuphusBel</span></div>
+      <nav class="navegacao" aria-label="Seções do painel"><span>Agenda</span><span>Serviços</span><span>Equipe</span><span>Clientes</span><span class="ativo" aria-current="page">Caixa</span><span>Meu negócio</span></nav>
+      <div class="conta"><span class="maquete">Maquete</span><button class="icone-botao" id="tema" type="button" aria-label="Ativar tema escuro"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2Z"/></svg></button><span class="avatar" aria-label="Conta de Alexandre">AF</span></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="titulo-linha" aria-labelledby="titulo">
+      <div><h1 id="titulo">Conciliação</h1><p class="subtitulo">Feche o dia antes de analisar o mês.</p></div>
+      <button class="botao botao-primario" id="novo-lancamento" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Novo lançamento</button>
+    </section>
+
+    <div class="etapas" aria-label="Etapas da conciliação">
+      <span class="etapa ativa"><i>1</i>Receber</span><span class="etapa-linha"></span>
+      <span class="etapa"><i>2</i>Pagar</span><span class="etapa-linha"></span>
+      <span class="etapa"><i>3</i>Conferir</span>
+    </div>
+
+    <section class="resumo-faixa" aria-label="Situação do dia">
+      <div><strong id="texto-restante">8 ações restantes</strong><span id="valor-restante">R$ 2.260,00 pendentes</span></div>
+      <button class="botao" id="modo-foco" type="button" aria-pressed="false"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>Modo foco</button>
+    </section>
+
+    <div class="conteudo">
+      <section class="fila" aria-labelledby="fila-titulo">
+        <div class="fila-topo"><div><h2 id="fila-titulo">Fila de ação</h2><p id="fila-subtitulo">Uma coisa de cada vez. Comece pela mais próxima.</p></div><div class="fila-acoes"><button class="botao" id="acao-principal" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg><span id="acao-principal-texto">Receber próximo</span></button></div></div>
+        <div id="fila"></div>
+      </section>
+
+      <aside class="lado" aria-label="Contexto do mês">
+        <section class="lado-secao">
+          <h2>Mês em números</h2>
+          <dl>
+            <div class="lado-linha destaque"><dt>Sobrou</dt><dd id="sobrou">R$ 4.820,00</dd></div>
+            <div class="lado-linha"><dt>Entrou</dt><dd id="entrou">R$ 8.400,00</dd></div>
+            <div class="lado-linha"><dt>Saiu</dt><dd id="saiu">R$ 3.580,00</dd></div>
+          </dl>
+          <div class="progresso"><div class="progresso-info"><span id="progresso-texto">85% dos atendimentos recebidos</span><strong id="progresso-valor">85%</strong></div><div class="progresso-trilha"><i id="progresso-barra" style="width:85%"></i></div></div>
+        </section>
+        <section class="lado-secao">
+          <h2>Próximas obrigações</h2>
+          <div class="lado-linha"><span>Comissões da equipe</span><strong id="total-comissoes">R$ 420,00</strong></div>
+          <div class="lado-linha"><span>Contas do mês</span><strong id="total-contas">R$ 1.200,00</strong></div>
+          <button class="botao" id="ir-comissoes" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg>Ver comissões</button>
+          <button class="botao" id="exportar" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Exportar mês</button>
+        </section>
+      </aside>
+    </div>
+
+    <section class="atividade" aria-labelledby="atividade-titulo">
+      <div class="atividade-topo"><div><h2 id="atividade-titulo">Atividade recente</h2><p>Para conferir sem abrir uma planilha.</p></div><div class="filtros"><input class="busca" id="busca" type="search" placeholder="Buscar registro" aria-label="Buscar na atividade"><select id="filtro-tipo" aria-label="Filtrar por tipo"><option value="tudo">Tudo</option><option value="entrada">Entradas</option><option value="saida">Saídas</option></select></div></div>
+      <div id="tabela-atividade"></div>
+    </section>
+  </main>
+
+  <div class="acao-mobile" id="acao-mobile"><button class="botao botao-primario" id="acao-mobile-botao" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg><span id="acao-mobile-texto">Receber próximo</span></button></div>
+
+  <nav class="navegacao-mobile" aria-label="Seções do painel">
+    <span><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Agenda</span>
+    <span><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg>Clientes</span>
+    <span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 4h12M6 9h12M6 14h8"/><circle cx="17.5" cy="17.5" r="3"/></svg>Serviços</span>
+    <span class="ativo" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg>Caixa</span>
+    <span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Mais</span>
+  </nav>
+
+  <div class="fundo-folha" id="fundo-folha" hidden></div>
+  <aside class="folha" id="folha" aria-labelledby="folha-titulo" hidden>
+    <div class="folha-topo"><div><h2 id="folha-titulo">Novo lançamento</h2><p id="folha-subtitulo">Registre sem perder o contexto do mês.</p></div><button class="icone-botao" id="fechar-folha" type="button" aria-label="Fechar"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+    <div class="folha-corpo">
+      <form class="formulario" id="form-lancamento">
+        <div class="campos-duplos"><div class="campo"><label for="form-tipo">Tipo</label><select id="form-tipo"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div><div class="campo"><label for="form-valor">Valor</label><input id="form-valor" inputmode="numeric" placeholder="R$ 0,00" required></div></div>
+        <div class="campo"><label for="form-categoria">Categoria</label><select id="form-categoria"><option>Atendimento</option><option>Produto</option><option>Aluguel</option><option>Contas</option><option>Comissão/salário</option><option>Estorno</option></select></div>
+        <div class="campo"><label for="form-forma">Forma de pagamento</label><select id="form-forma"><option value="pix">Pix</option><option value="dinheiro">Dinheiro</option><option value="cartao">Cartão</option></select></div>
+        <div class="campo"><label for="form-descricao">Descrição</label><input id="form-descricao" maxlength="70" placeholder="Ex.: venda de shampoo"></div>
+        <p class="aviso" id="form-erro" role="alert" hidden></p>
+        <div class="form-acoes"><button class="botao" id="cancelar-form" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>Cancelar</button><button class="botao botao-primario" type="submit"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>Salvar lançamento</button></div>
+      </form>
+    </div>
+  </aside>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><span id="toast-texto"></span><button id="fechar-toast" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>Fechar</button></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const dinheiro = (cents) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    const numeros = (v) => Number(String(v).replace(/\D/g, "")) || 0;
+    const mascara = (v) => {
+      const n = numeros(v);
+      return n ? dinheiro(n) : "";
+    };
+    const financeiro = { entrou: 840000, saiu: 358000, comissoes: 42000, contas: 120000 };
+    const fila = [
+      { id: "a1", tipo: "agenda", cliente: "Marina Oliveira", detalhe: "Corte e escova · Ana Souza · hoje, 14:00", valor: 12000 },
+      { id: "f1", tipo: "conta", cliente: "Aluguel da sala", detalhe: "Conta fixa · venceu dia 10", valor: 90000 },
+      { id: "a2", tipo: "agenda", cliente: "Rafael Costa", detalhe: "Corte · Bruno Lima · ontem, 16:30", valor: 7000 },
+      { id: "ana", tipo: "comissao", cliente: "Comissão de Ana Souza", detalhe: "50% de R$ 520,00 faturados", valor: 26000 },
+      { id: "a3", tipo: "agenda", cliente: "Joana Ribeiro", detalhe: "Corte e escova · Ana Souza · 10 nov, 11:00", valor: 12000 },
+      { id: "f2", tipo: "conta", cliente: "Internet fibra", detalhe: "Conta fixa · vence dia 15", valor: 30000 },
+      { id: "a4", tipo: "agenda", cliente: "Beatriz Ramos", detalhe: "Coloração · Ana Souza · 10 nov, 09:30", valor: 33000 },
+      { id: "carla", tipo: "comissao", cliente: "Comissão de Carla Mendes", detalhe: "40% de R$ 400,00 faturados", valor: 16000 }
+    ];
+    const atividade = [
+      { id: "t1", data: "12/11", cliente: "Venda de shampoo", categoria: "Produto", forma: "pix", tipo: "entrada", valor: 4500 },
+      { id: "t2", data: "12/11", cliente: "Corte e escova · Ana Souza", categoria: "Atendimento", forma: "pix", tipo: "entrada", valor: 12000 },
+      { id: "t3", data: "11/11", cliente: "Aluguel da sala", categoria: "Aluguel", forma: "pix", tipo: "saida", valor: 90000 },
+      { id: "t4", data: "11/11", cliente: "Manicure · Carla Mendes", categoria: "Atendimento", forma: "dinheiro", tipo: "entrada", valor: 5500 },
+      { id: "t5", data: "10/11", cliente: "Conta de luz", categoria: "Contas", forma: "pix", tipo: "saida", valor: 18000 },
+      { id: "t6", data: "10/11", cliente: "Design de sobrancelhas · Elisa Rocha", categoria: "Atendimento", forma: "cartao", tipo: "entrada", valor: 6500 }
+    ];
+    let foco = false;
+    let temporizador;
+    const icones = {
+      receber: '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>',
+      pagar: '<svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg>',
+      conferir: '<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>'
+    };
+
+    function mostrarToast(texto) {
+      clearTimeout(temporizador);
+      $("toast-texto").textContent = texto;
+      $("toast").hidden = false;
+      temporizador = setTimeout(() => { $("toast").hidden = true; }, 5000);
+    }
+
+    function proximo() {
+      return fila[0] ?? null;
+    }
+
+    function renderizarTotais() {
+      const pendente = fila.reduce((total, item) => total + item.valor, 0);
+      $("texto-restante").textContent = fila.length ? `${fila.length} ${fila.length === 1 ? "ação restante" : "ações restantes"}` : "Dia conciliado";
+      $("valor-restante").textContent = `${dinheiro(pendente)} pendentes`;
+      $("sobrou").textContent = dinheiro(financeiro.entrou - financeiro.saiu);
+      $("entrou").textContent = dinheiro(financeiro.entrou);
+      $("saiu").textContent = dinheiro(financeiro.saiu);
+      $("total-comissoes").textContent = dinheiro(financeiro.comissoes);
+      $("total-contas").textContent = dinheiro(financeiro.contas);
+      const percentual = Math.round((1 - pendente / 226000) * 100);
+      $("progresso-texto").textContent = `${percentual}% do dia concluído`;
+      $("progresso-valor").textContent = `${percentual}%`;
+      $("progresso-barra").style.width = `${percentual}%`;
+      const a = proximo();
+      const texto = a ? `${a.tipo === "agenda" ? "Receber" : "Pagar"} ${dinheiro(a.valor)}` : "Dia concluído";
+      $("acao-principal-texto").textContent = texto;
+      $("acao-mobile-texto").textContent = texto;
+      $("acao-principal").disabled = !a;
+      $("acao-mobile-botao").disabled = !a;
+      $("acao-mobile").hidden = !a;
+      $("modo-foco").setAttribute("aria-pressed", String(foco));
+      $("modo-foco").innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>${foco ? "Mostrar fila completa" : "Modo foco"}`;
+    }
+
+    function renderizarFila() {
+      const itens = foco && fila.length ? [fila[0]] : fila;
+      $("fila").innerHTML = itens.length ? itens.map((item, index) => `<article class="fila-item${index === 0 ? " proximo" : ""}" data-id="${item.id}"><div><strong>${item.cliente}${index === 0 ? '<span class="selo">Próximo</span>' : ""}</strong><small>${item.detalhe}</small></div><span class="valor">${dinheiro(item.valor)}</span><button class="botao botao-pequeno" type="button" data-acao="${item.id}">${icones.receber}${item.tipo === "agenda" ? "Receber" : "Pagar"}</button></article>`).join("") : '<div class="fila-vazio"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><strong>Dia conciliado.</strong><p>Tudo recebido e pago por aqui. Agora você pode conferir a atividade do mês.</p></div>';
+      $("fila").querySelectorAll("[data-acao]").forEach((botao) => botao.addEventListener("click", () => concluir(botao.dataset.acao)));
+    }
+
+    function renderizarAtividade() {
+      const busca = $("busca").value.trim().toLowerCase();
+      const tipo = $("filtro-tipo").value;
+      const itens = atividade.filter((t) => (tipo === "tudo" || t.tipo === tipo) && (!busca || `${t.cliente} ${t.categoria}`.toLowerCase().includes(busca)));
+      $("tabela-atividade").innerHTML = itens.length ? `<table><thead><tr><th scope="col">Registro</th><th scope="col">Data</th><th scope="col">Forma</th><th scope="col">Valor</th></tr></thead><tbody>${itens.map((t) => `<tr><td><strong>${t.cliente}</strong><small>${t.categoria}</small></td><td>${t.data}</td><td>${t.forma === "pix" ? "Pix" : t.forma === "dinheiro" ? "Dinheiro" : "Cartão"}</td><td class="valor ${t.tipo === "entrada" ? "positivo" : "negativo"}">${t.tipo === "entrada" ? "+" : "−"} ${dinheiro(t.valor)}</td></tr>`).join("")}</tbody></table>` : '<p class="atividade-vazia">Nenhum registro encontrado. Ajuste a busca ou o filtro.</p>';
+    }
+
+    function concluir(id) {
+      const item = fila.find((x) => x.id === id);
+      if (!item) return;
+      fila.splice(fila.indexOf(item), 1);
+      if (item.tipo === "agenda") financeiro.entrou += item.valor;
+      else financeiro.saiu += item.valor;
+      if (item.tipo === "comissao") financeiro.comissoes -= item.valor;
+      if (item.tipo === "conta") financeiro.contas -= item.valor;
+      atividade.unshift({ id: `a${Date.now()}`, data: "12/11", cliente: item.cliente, categoria: item.tipo === "agenda" ? "Atendimento" : item.tipo === "conta" ? "Contas" : "Comissão/salário", forma: "pix", tipo: item.tipo === "agenda" ? "entrada" : "saida", valor: item.valor });
+      renderizar();
+      mostrarToast(`${item.cliente}: ${item.tipo === "agenda" ? "recebimento" : "pagamento"} concluído.`);
+    }
+
+    function abrirFormulario() {
+      $("form-erro").hidden = true;
+      $("fundo-folha").hidden = false;
+      $("folha").hidden = false;
+      if (matchMedia("(pointer: fine)").matches) $("form-valor").focus();
+    }
+
+    function fecharFormulario() {
+      $("fundo-folha").hidden = true;
+      $("folha").hidden = true;
+    }
+
+    function renderizar() {
+      renderizarTotais();
+      renderizarFila();
+      renderizarAtividade();
+    }
+
+    $("modo-foco").addEventListener("click", () => { foco = !foco; renderizarFila(); renderizarTotais(); });
+    $("acao-principal").addEventListener("click", () => { const a = proximo(); if (a) concluir(a.id); });
+    $("acao-mobile-botao").addEventListener("click", () => { const a = proximo(); if (a) concluir(a.id); });
+    $("ir-comissoes").addEventListener("click", () => { const a = fila.find((x) => x.tipo === "comissao"); if (a) concluir(a.id); else mostrarToast("Todas as comissões estão pagas."); });
+    $("novo-lancamento").addEventListener("click", abrirFormulario);
+    $("fechar-folha").addEventListener("click", fecharFormulario);
+    $("cancelar-form").addEventListener("click", fecharFormulario);
+    $("fundo-folha").addEventListener("click", fecharFormulario);
+    $("form-valor").addEventListener("input", (event) => { event.target.value = mascara(event.target.value); });
+    $("form-lancamento").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const valor = numeros($("form-valor").value);
+      if (!valor) {
+        $("form-erro").textContent = "Informe o valor do lançamento.";
+        $("form-erro").hidden = false;
+        $("form-valor").focus();
+        return;
+      }
+      const tipo = $("form-tipo").value;
+      atividade.unshift({ id: `n${Date.now()}`, data: "12/11", cliente: $("form-descricao").value.trim() || $("form-categoria").value, categoria: $("form-categoria").value, forma: $("form-forma").value, tipo, valor });
+      if (tipo === "entrada") financeiro.entrou += valor;
+      else financeiro.saiu += valor;
+      fecharFormulario();
+      event.target.reset();
+      renderizar();
+      mostrarToast(`${tipo === "entrada" ? "Entrada" : "Saída"} de ${dinheiro(valor)} lançada.`);
+    });
+    for (const id of ["busca", "filtro-tipo"]) $(id).addEventListener("input", renderizarAtividade);
+    $("exportar").addEventListener("click", () => {
+      const linhas = ["Data;Tipo;Categoria;Cliente;Forma;Valor", ...atividade.map((t) => `${t.data};${t.tipo};${t.categoria};${t.cliente};${t.forma};${(t.valor / 100).toFixed(2).replace(".", ",")}`)].join("\r\n");
+      const url = URL.createObjectURL(new Blob(["\uFEFF" + linhas], { type: "text/csv;charset=utf-8" }));
+      const a = Object.assign(document.createElement("a"), { href: url, download: "caixa-novembro-2026.csv" });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      mostrarToast("Planilha do mês exportada.");
+    });
+    $("fechar-toast").addEventListener("click", () => { $("toast").hidden = true; });
+    $("tema").addEventListener("click", () => {
+      const escuro = document.documentElement.dataset.tema !== "escuro";
+      document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
+      $("tema").setAttribute("aria-label", escuro ? "Ativar tema claro" : "Ativar tema escuro");
+      document.querySelector('meta[name="theme-color"]').content = escuro ? "#15130f" : "#f7f5f0";
+    });
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape") fecharFormulario(); });
+    renderizar();
+  </script>
+</body>
+</html>

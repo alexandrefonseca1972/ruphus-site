@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionEnd": [
+      { "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/handoff-salvar.sh" }] }
+    ],
+    "PreCompact": [
+      { "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/handoff-salvar.sh" }] }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "clear|compact|resume",
+        "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/handoff-carregar.sh" }]
+      }
+    ]
+  }
+}

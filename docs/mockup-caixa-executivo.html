@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f5f0">
+  <title>Caixa executivo — RuphusBel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: light;
+      --fundo: #f7f5f0;
+      --cartao: #ffffff;
+      --texto: #17150f;
+      --suave: #6b6555;
+      --muted: #efebe2;
+      --borda: #e4dfd3;
+      --campo: #d5d0c1;
+      --marca: #f1e51c;
+      --positivo: #236342;
+      --positivo-fundo: #eff8f1;
+      --negativo: #a43b32;
+      --negativo-fundo: #fff1ed;
+      --atencao: #795a16;
+      --atencao-fundo: #fff7df;
+      --sombra: 0 12px 28px rgba(23, 21, 15, .06);
+      --serifa: "Instrument Serif", Georgia, serif;
+      --sans: "Geist", Arial, sans-serif;
+      --mono: "Geist Mono", monospace;
+    }
+    :root[data-tema="escuro"] {
+      color-scheme: dark;
+      --fundo: #15130f;
+      --cartao: #1d1a15;
+      --texto: #f3f0e8;
+      --suave: #a89f8c;
+      --muted: #2a261f;
+      --borda: #363027;
+      --campo: #494034;
+      --positivo: #bfe3c9;
+      --positivo-fundo: #203428;
+      --negativo: #f0a18c;
+      --negativo-fundo: #3b231f;
+      --atencao: #ead79f;
+      --atencao-fundo: #3b321d;
+      --sombra: 0 12px 28px rgba(0, 0, 0, .2);
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html { background: var(--fundo); font-family: var(--sans); }
+    body { margin: 0; background: var(--fundo); color: var(--texto); font-size: 14px; line-height: 1.45; }
+    button, input, select { font: inherit; }
+    button { color: inherit; cursor: pointer; touch-action: manipulation; }
+    button, a, input, select { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--texto); outline-offset: 3px; }
+    button:disabled { cursor: not-allowed; opacity: .48; }
+    svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: 0 0 auto; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    .topo { position: sticky; z-index: 30; top: 0; border-bottom: 1px solid var(--borda); background: var(--cartao); padding-top: env(safe-area-inset-top); }
+    .topo-interno { width: min(1200px, 100%); min-height: 60px; margin: auto; padding: 0 16px; display: flex; align-items: center; gap: 22px; }
+    .marca { display: flex; align-items: center; gap: 9px; font-weight: 650; }
+    .marca-simbolo { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 8px; background: var(--texto); color: var(--cartao); font: 400 19px var(--serifa); }
+    .navegacao { align-self: stretch; display: flex; gap: 2px; }
+    .navegacao span { position: relative; display: flex; align-items: center; padding: 0 10px; color: var(--suave); font-size: 13px; }
+    .navegacao .ativo { color: var(--texto); font-weight: 600; }
+    .navegacao .ativo::after { content: ""; position: absolute; right: 10px; bottom: 0; left: 10px; height: 2px; background: var(--texto); }
+    .conta { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .maquete { padding: 3px 7px; border: 1px solid var(--borda); border-radius: 999px; color: var(--suave); font: 500 9px var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+    .icone-botao { width: 44px; height: 44px; display: inline-grid; place-items: center; border: 0; border-radius: 9px; background: transparent; }
+    .icone-botao:hover { background: var(--muted); }
+    .avatar { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--muted); font-size: 11px; font-weight: 600; }
+    main { width: min(1200px, 100%); margin: auto; padding: 20px 16px 56px; display: grid; gap: 16px; }
+    .titulo-linha { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+    h1 { margin: 0; font: 400 38px/1 var(--serifa); letter-spacing: -.02em; }
+    .subtitulo { margin: 5px 0 0; color: var(--suave); font-size: 13px; }
+    .botao { min-height: 44px; padding: 9px 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--borda); border-radius: 9px; background: var(--cartao); color: var(--texto); font-size: 13px; font-weight: 600; transition: transform .14s, box-shadow .14s, background-color .14s, border-color .14s; }
+    .botao:hover { background: var(--muted); border-color: var(--campo); }
+    .botao:active { transform: scale(.98); }
+    .botao-primario { border-color: var(--texto); background: var(--texto); color: var(--cartao); }
+    .botao-primario:hover { background: var(--texto); opacity: .88; }
+    .botao-perigo { color: var(--negativo); }
+    .botao-pequeno { min-height: 36px; padding: 6px 10px; font-size: 11px; }
+    .resumo { overflow: hidden; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--borda); border-radius: 12px; background: var(--cartao); }
+    .metrica { min-width: 0; padding: 12px 15px; border-left: 1px solid var(--borda); }
+    .metrica:first-child { border-left: 0; }
+    .metrica dt { display: flex; align-items: center; gap: 5px; color: var(--suave); font-size: 11px; }
+    .metrica dd { margin: 2px 0 0; font: 400 24px/1.1 var(--serifa); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .metrica.principal dd { color: var(--positivo); }
+    .metrica.principal.negativo dd { color: var(--negativo); }
+    .pendencias-totais { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--borda); background: color-mix(in srgb, var(--muted) 35%, var(--cartao)); }
+    .pendencia-total { padding: 8px 12px; display: flex; align-items: center; gap: 7px; border-left: 1px solid var(--borda); color: var(--suave); font-size: 11px; }
+    .pendencia-total:first-child { border-left: 0; }
+    .pendencia-total strong { color: var(--texto); font-weight: 600; }
+    .trabalho { position: sticky; z-index: 20; top: 60px; padding: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border: 1px solid var(--borda); border-radius: 12px; background: color-mix(in srgb, var(--cartao) 96%, transparent); box-shadow: 0 5px 16px rgba(23, 21, 15, .04); backdrop-filter: blur(12px); }
+    .mes { display: flex; align-items: center; gap: 4px; }
+    .mes strong { min-width: 160px; text-align: center; font: 400 19px var(--serifa); }
+    .trabalho .icone-botao { width: 40px; height: 40px; border: 1px solid var(--borda); }
+    .separador { width: 1px; height: 26px; background: var(--borda); }
+    .trabalho .botao-primario { margin-left: auto; }
+    .abas { display: flex; gap: 4px; padding: 4px; overflow-x: auto; border-radius: 11px; background: var(--muted); }
+    .aba { min-height: 42px; padding: 8px 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 8px; background: transparent; color: var(--suave); font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .aba[aria-pressed="true"] { background: var(--cartao); color: var(--texto); box-shadow: 0 1px 4px rgba(23, 21, 15, .08); }
+    .painel { overflow: hidden; border: 1px solid var(--borda); border-radius: 13px; background: var(--cartao); box-shadow: var(--sombra); }
+    .painel:not([hidden]) { animation: revelar .18s ease-out; }
+    .painel-topo { min-height: 54px; padding: 11px 14px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--borda); }
+    .painel-topo h2 { margin: 0; font-size: 14px; }
+    .painel-topo p { margin: 2px 0 0; color: var(--suave); font-size: 11px; }
+    .duas-colunas { display: grid; grid-template-columns: 1fr 1fr; }
+    .duas-colunas > section:first-child { border-right: 1px solid var(--borda); }
+    .secao-titulo { padding: 11px 13px; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: color-mix(in srgb, var(--muted) 30%, var(--cartao)); }
+    .secao-titulo h3 { margin: 0; display: flex; align-items: center; gap: 7px; font-size: 12px; }
+    .secao-titulo span { color: var(--suave); font: 500 10px var(--mono); }
+    .linha { min-height: 66px; padding: 10px 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 9px; border-top: 1px solid var(--borda); }
+    .linha-principal { min-width: 0; flex: 1 1 190px; display: flex; align-items: center; gap: 9px; }
+    .linha-avatar { width: 31px; height: 31px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 9px; background: var(--muted); color: var(--suave); font: 500 11px var(--mono); }
+    .linha-texto { min-width: 0; }
+    .linha-texto strong { display: block; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .linha-texto small { display: block; margin-top: 2px; color: var(--suave); font-size: 10px; }
+    .linha-valor { margin-left: auto; font: 500 11px var(--mono); white-space: nowrap; }
+    .linha .botao { flex: 0 0 auto; }
+    .vazio { padding: 26px 16px; color: var(--suave); text-align: center; }
+    .filtros { padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 7px; border-bottom: 1px solid var(--borda); }
+    input, select { min-height: 40px; border: 1px solid var(--borda); border-radius: 8px; background: var(--cartao); color: var(--texto); }
+    input { padding: 8px 10px; }
+    select { padding: 8px 28px 8px 9px; }
+    .busca { flex: 1 1 180px; }
+    .dia { padding: 7px 12px; display: flex; justify-content: space-between; gap: 8px; background: var(--fundo); color: var(--suave); font-size: 10px; }
+    .dia strong { color: var(--texto); font-weight: 500; }
+    .transacao { min-height: 58px; padding: 9px 13px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 9px; border-top: 1px solid var(--borda); }
+    .transacao strong { display: block; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .transacao small { display: block; margin-top: 2px; color: var(--suave); font-size: 10px; }
+    .transacao .valor { font: 600 11px var(--mono); white-space: nowrap; }
+    .valor-positivo { color: var(--positivo); }
+    .valor-negativo { color: var(--negativo); }
+    .comissao-total { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--borda); }
+    .comissao-total div { padding: 10px 12px; border-left: 1px solid var(--borda); }
+    .comissao-total div:first-child { border-left: 0; }
+    .comissao-total span { display: block; color: var(--suave); font-size: 10px; }
+    .comissao-total strong { display: block; margin-top: 2px; font: 400 20px var(--serifa); }
+    .percentual { padding: 2px 6px; border-radius: 5px; background: var(--muted); color: var(--suave); font: 500 9px var(--mono); }
+    .pago { color: var(--positivo); font-size: 11px; font-weight: 600; }
+    .resumo-grid { padding: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+    .resumo-grid h3 { margin: 0 0 10px; font-size: 12px; }
+    .barra-item { display: grid; gap: 4px; margin-bottom: 9px; }
+    .barra-item span { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; }
+    .barra-item i { height: 5px; display: block; border-radius: 99px; background: var(--texto); }
+    .barra-fundo { overflow: hidden; border-radius: 99px; background: var(--muted); }
+    .rodape { padding: 9px 13px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; border-top: 1px solid var(--borda); color: var(--suave); font-size: 10px; }
+    .navegacao-mobile { display: none; }
+    dialog { width: min(450px, calc(100% - 28px)); max-height: calc(100dvh - 28px); margin: auto; padding: 0; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--borda); border-radius: 15px; background: var(--cartao); color: var(--texto); box-shadow: 0 24px 70px rgba(0, 0, 0, .25); }
+    dialog::backdrop { background: rgba(21, 19, 15, .55); backdrop-filter: blur(3px); }
+    dialog[open] { animation: dialog-entrar .18s ease-out; }
+    .modal-topo { padding: 16px 18px 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--borda); }
+    .modal-topo h2 { margin: 0; font: 400 26px/1.1 var(--serifa); }
+    .modal-topo p { margin: 4px 0 0; color: var(--suave); font-size: 12px; }
+    .modal-corpo { padding: 15px 18px 18px; }
+    .formulario { display: grid; gap: 12px; }
+    .campo { display: grid; gap: 5px; }
+    .campo label { font-size: 12px; font-weight: 600; }
+    .campo input, .campo select { width: 100%; min-height: 44px; padding: 9px 10px; }
+    .campos-duplos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .modal-acoes { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+    .aviso { margin: 0; padding: 10px 11px; border: 1px solid #e6d49b; border-radius: 8px; background: var(--atencao-fundo); color: var(--atencao); font-size: 12px; }
+    .aviso[hidden] { display: none; }
+    .toast { position: fixed; z-index: 100; right: 16px; bottom: 16px; max-width: min(460px, calc(100% - 32px)); padding: 10px 12px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--borda); border-radius: 10px; background: var(--texto); color: var(--cartao); box-shadow: var(--sombra); font-size: 12px; }
+    .toast:not([hidden]) { animation: toast-entrar .18s ease-out; }
+    .toast button { min-height: 36px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid currentColor; border-radius: 6px; background: transparent; color: inherit; font-weight: 600; }
+    @keyframes revelar { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes dialog-entrar { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes toast-entrar { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @media (hover: hover) and (pointer: fine) {
+      .botao:hover { transform: translateY(-1px); }
+      .transacao:hover, .linha:hover { background: color-mix(in srgb, var(--muted) 38%, var(--cartao)); }
+    }
+    @media (max-width: 900px) {
+      .duas-colunas { grid-template-columns: 1fr; }
+      .duas-colunas > section:first-child { border-right: 0; border-bottom: 1px solid var(--borda); }
+      .pendencias-totais { grid-template-columns: 1fr; }
+      .pendencia-total { border-left: 0; border-top: 1px solid var(--borda); }
+      .pendencia-total:first-child { border-top: 0; }
+    }
+    @media (max-width: 760px) {
+      .topo-interno { min-height: 56px; gap: 10px; }
+      .navegacao { display: none; }
+      .conta { gap: 4px; }
+      .avatar { display: none; }
+      .maquete { font-size: 8px; }
+      main { padding: 18px 12px calc(92px + env(safe-area-inset-bottom)); gap: 14px; }
+      h1 { font-size: 34px; }
+      .titulo-linha .botao-primario { flex: 1; }
+      .resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .metrica { padding: 10px 12px; }
+      .metrica:nth-child(3) { border-left: 0; border-top: 1px solid var(--borda); }
+      .metrica:nth-child(4) { border-top: 1px solid var(--borda); }
+      .metrica dd { font-size: 22px; }
+      .pendencias-totais { grid-template-columns: 1fr; }
+      .pendencia-total { padding: 7px 12px; }
+      .trabalho { top: 56px; padding: 7px; gap: 6px; }
+      .mes { width: 100%; justify-content: space-between; }
+      .mes strong { min-width: 0; }
+      .trabalho .botao-primario { margin-left: 0; flex: 1; }
+      .trabalho > .botao:not(.botao-primario) { flex: 1; }
+      .abas { margin-inline: -2px; }
+      .aba { min-height: 44px; flex: 1; }
+      .linha { padding: 10px; }
+      .linha-principal { flex-basis: 150px; }
+      .linha-valor { font-size: 10px; }
+      .linha .botao { min-height: 44px; }
+      .filtros > * { flex: 1 1 100%; }
+      .filtros select { width: 100%; }
+      .comissao-total strong { font-size: 17px; }
+      .resumo-grid { grid-template-columns: 1fr; padding: 13px; }
+      .navegacao-mobile { position: fixed; z-index: 30; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--borda); background: var(--cartao); padding-bottom: env(safe-area-inset-bottom); }
+      .navegacao-mobile span { min-height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--suave); font-size: 10px; }
+      .navegacao-mobile span.ativo { color: var(--texto); font-weight: 600; }
+      .navegacao-mobile svg { width: 19px; height: 19px; }
+      .toast { right: 12px; bottom: calc(68px + env(safe-area-inset-bottom)); left: 12px; max-width: none; justify-content: space-between; }
+      dialog { position: fixed; inset: auto 0 0; width: 100%; max-width: none; max-height: 92dvh; margin: 0; border-bottom: 0; border-radius: 18px 18px 0 0; }
+      dialog[open] { animation: folha-entrar .2s ease-out; }
+      .modal-topo { position: sticky; z-index: 2; top: 0; padding-top: 22px; background: var(--cartao); }
+      .modal-topo::before { content: ""; position: absolute; top: 8px; left: 50%; width: 36px; height: 4px; border-radius: 999px; background: var(--borda); transform: translateX(-50%); }
+      .modal-corpo { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+      .modal-acoes { position: sticky; bottom: 0; margin: 4px -18px -18px; padding: 12px 18px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--borda); background: var(--cartao); }
+      .modal-acoes .botao { flex: 1; min-height: 48px; }
+      @keyframes folha-entrar { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+      .campos-duplos { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topo">
+    <div class="topo-interno">
+      <div class="marca"><span class="marca-simbolo" aria-hidden="true">R</span><span>RuphusBel</span></div>
+      <nav class="navegacao" aria-label="Seções do painel"><span>Agenda</span><span>Serviços</span><span>Equipe</span><span>Clientes</span><span class="ativo" aria-current="page">Caixa</span><span>Meu negócio</span></nav>
+      <div class="conta"><span class="maquete">Maquete</span><button class="icone-botao" id="tema" type="button" aria-label="Ativar tema escuro"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2Z"/></svg></button><span class="avatar" aria-label="Conta de Alexandre">AF</span></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="titulo-linha" aria-labelledby="titulo">
+      <div><h1 id="titulo">Caixa</h1><p class="subtitulo">Fechamento do mês, sem procurar informação.</p></div>
+      <button class="botao botao-primario" id="nova-entrada" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nova entrada</button>
+    </section>
+
+    <dl class="resumo" aria-label="Resumo do mês">
+      <div class="metrica principal" id="bloco-sobrou"><dt><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16v12H4zM7 4v6M8 15h8"/></svg>Sobrou</dt><dd id="sobrou">R$ 4.820,00</dd></div>
+      <div class="metrica"><dt><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>Entrou</dt><dd id="entrou">R$ 8.400,00</dd></div>
+      <div class="metrica"><dt><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg>Saiu</dt><dd id="saiu">R$ 3.580,00</dd></div>
+      <div class="metrica"><dt><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg>A receber</dt><dd id="a-receber">R$ 640,00</dd></div>
+      <div class="pendencias-totais" aria-label="Pendências do mês">
+        <span class="pendencia-total"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Agenda a receber <strong id="total-agenda">R$ 640,00</strong></span>
+        <span class="pendencia-total"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3h12v18H6zM9 7h6M9 11h6M9 15h4"/></svg>Contas a pagar <strong id="total-contas">R$ 1.200,00</strong></span>
+        <span class="pendencia-total"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg>Comissões <strong id="total-comissoes">R$ 420,00</strong></span>
+      </div>
+    </dl>
+
+    <section class="trabalho" aria-label="Controles do Caixa">
+      <div class="mes"><button class="icone-botao" id="mes-anterior" type="button" aria-label="Mês anterior"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><strong id="mes-atual">Novembro de 2026</strong><button class="icone-botao" id="mes-proximo" type="button" aria-label="Próximo mês"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button></div>
+      <button class="botao" id="este-mes" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Este mês</button>
+      <span class="separador" aria-hidden="true"></span>
+      <button class="botao" id="nova-saida" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14"/></svg>Nova saída</button>
+      <button class="botao botao-primario" id="nova-entrada-2" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nova entrada</button>
+    </section>
+
+    <div class="abas" role="group" aria-label="Seções do Caixa">
+      <button class="aba" type="button" data-aba="hoje" aria-pressed="true"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Hoje</button>
+      <button class="aba" type="button" data-aba="lancamentos" aria-pressed="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3h12v18H6zM9 7h6M9 11h6M9 15h4"/></svg>Lançamentos</button>
+      <button class="aba" type="button" data-aba="comissoes" aria-pressed="false"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg>Comissões</button>
+      <button class="aba" type="button" data-aba="resumo" aria-pressed="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Resumo</button>
+    </div>
+
+    <section class="painel" id="painel-hoje" aria-labelledby="hoje-titulo">
+      <div class="painel-topo"><div><h2 id="hoje-titulo">O que precisa da sua atenção</h2><p>Pendências antes do histórico.</p></div><span id="total-pendencias">7 itens</span></div>
+      <div class="duas-colunas">
+        <section aria-labelledby="agenda-titulo">
+          <div class="secao-titulo"><h3 id="agenda-titulo"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>A receber da agenda</h3><span id="valor-agenda">R$ 640,00</span></div>
+          <div id="lista-agenda"></div>
+        </section>
+        <section aria-labelledby="contas-titulo">
+          <div class="secao-titulo"><h3 id="contas-titulo"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3h12v18H6zM9 7h6M9 11h6M9 15h4"/></svg>Contas a pagar</h3><span id="valor-contas">R$ 1.200,00</span></div>
+          <div id="lista-contas"></div>
+        </section>
+      </div>
+      <div class="rodape"><span>Toque em Receber ou Pagar para concluir.</span><strong id="resumo-pendencias">R$ 1.840,00 pendentes</strong></div>
+    </section>
+
+    <section class="painel" id="painel-lancamentos" aria-labelledby="lancamentos-titulo" hidden>
+      <div class="painel-topo"><div><h2 id="lancamentos-titulo">Lançamentos do mês</h2><p>O dinheiro que já passou pelo Caixa.</p></div><button class="botao botao-pequeno" id="exportar" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Exportar planilha</button></div>
+      <div class="filtros"><input class="busca" id="busca" type="search" placeholder="Buscar cliente, serviço ou categoria" aria-label="Buscar lançamentos"><select id="filtro-tipo" aria-label="Tipo de lançamento"><option value="tudo">Entradas e saídas</option><option value="entrada">Entradas</option><option value="saida">Saídas</option></select><select id="filtro-forma" aria-label="Forma de pagamento"><option value="tudo">Todas as formas</option><option value="pix">Pix</option><option value="dinheiro">Dinheiro</option><option value="cartao">Cartão</option></select></div>
+      <div id="lista-lancamentos"></div>
+    </section>
+
+    <section class="painel" id="painel-comissoes" aria-labelledby="comissoes-titulo" hidden>
+      <div class="painel-topo"><div><h2 id="comissoes-titulo">Comissões da equipe</h2><p>O que cada profissional recebeu pela agenda.</p></div><span>Só você vê</span></div>
+      <div class="comissao-total"><div><span>Total</span><strong id="comissao-total">R$ 420,00</strong></div><div><span>Pago</span><strong id="comissao-pago">R$ 0,00</strong></div><div><span>Falta pagar</span><strong id="comissao-falta">R$ 420,00</strong></div></div>
+      <div id="lista-comissoes"></div>
+    </section>
+
+    <section class="painel" id="painel-resumo" aria-labelledby="resumo-titulo" hidden>
+      <div class="painel-topo"><div><h2 id="resumo-titulo">Resumo do mês</h2><p>Comparativos para decidir sem planilha.</p></div></div>
+      <div class="resumo-grid" id="resumo-graficos"></div>
+    </section>
+  </main>
+
+  <nav class="navegacao-mobile" aria-label="Seções do painel">
+    <span><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Agenda</span>
+    <span><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg>Clientes</span>
+    <span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 4h12M6 9h12M6 14h8"/><circle cx="17.5" cy="17.5" r="3"/></svg>Serviços</span>
+    <span class="ativo" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg>Caixa</span>
+    <span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Mais</span>
+  </nav>
+
+  <dialog id="form-dialog" aria-labelledby="form-titulo">
+    <div class="modal-topo"><div><h2 id="form-titulo">Nova entrada</h2><p id="form-subtitulo">Registre o dinheiro que entrou no Caixa.</p></div><button class="icone-botao" type="button" data-fechar aria-label="Fechar"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+    <div class="modal-corpo">
+      <form class="formulario" id="form-lancamento">
+        <div class="campos-duplos"><div class="campo"><label for="form-tipo">Tipo</label><select id="form-tipo"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div><div class="campo"><label for="form-valor">Valor</label><input id="form-valor" inputmode="numeric" placeholder="R$ 0,00" required></div></div>
+        <div class="campo"><label for="form-categoria">Categoria</label><select id="form-categoria"><option>Atendimento</option><option>Produto</option><option>Aluguel</option><option>Contas</option><option>Comissão/salário</option><option>Estorno</option></select></div>
+        <div class="campo"><label for="form-forma">Forma de pagamento</label><select id="form-forma"><option value="pix">Pix</option><option value="dinheiro">Dinheiro</option><option value="cartao">Cartão</option></select></div>
+        <div class="campo"><label for="form-descricao">Descrição</label><input id="form-descricao" maxlength="70" placeholder="Ex.: venda de shampoo"></div>
+        <p class="aviso" id="form-erro" role="alert" hidden></p>
+        <div class="modal-acoes"><button class="botao" type="button" data-fechar><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>Cancelar</button><button class="botao botao-primario" type="submit"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>Salvar lançamento</button></div>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="receber-dialog" aria-labelledby="receber-titulo">
+    <div class="modal-topo"><div><h2 id="receber-titulo">Receber atendimento</h2><p id="receber-subtitulo"></p></div><button class="icone-botao" type="button" data-fechar aria-label="Fechar"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+    <div class="modal-corpo">
+      <form class="formulario" id="form-receber">
+        <div class="campo"><label for="receber-valor">Valor recebido</label><input id="receber-valor" inputmode="numeric" required></div>
+        <div class="campo"><label for="receber-forma">Forma de pagamento</label><select id="receber-forma"><option value="pix">Pix</option><option value="dinheiro">Dinheiro</option><option value="cartao">Cartão</option></select></div>
+        <div class="modal-acoes"><button class="botao" type="button" data-fechar><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>Voltar</button><button class="botao botao-primario" type="submit"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>Confirmar recebimento</button></div>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="confirmar-dialog" aria-labelledby="confirmar-titulo">
+    <div class="modal-topo"><div><h2 id="confirmar-titulo">Confirmar pagamento</h2><p id="confirmar-subtitulo"></p></div><button class="icone-botao" type="button" data-fechar aria-label="Fechar"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+    <div class="modal-corpo"><p class="aviso">Confirme que o valor já saiu do Caixa. Esta ação será refletida nos totais do mês.</p><div class="modal-acoes"><button class="botao" type="button" data-fechar><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>Voltar</button><button class="botao botao-primario" id="confirmar-pagamento" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>Confirmar pagamento</button></div></div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><span id="toast-texto"></span><button id="fechar-toast" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>Fechar</button></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const dinheiro = (cents) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    const numeros = (v) => Number(String(v).replace(/\D/g, "")) || 0;
+    const mascara = (v) => {
+      const n = numeros(v);
+      return n ? dinheiro(n) : "";
+    };
+    const financeiro = { entrou: 840000, saiu: 358000, aReceber: 64000, contas: 120000, comissoes: 42000, comissaoPaga: 0 };
+    const agenda = [
+      { id: "a1", cliente: "Marina Oliveira", servico: "Corte e escova", profissional: "Ana Souza", horario: "Hoje · 14:00", valor: 12000 },
+      { id: "a2", cliente: "Rafael Costa", servico: "Corte", profissional: "Bruno Lima", horario: "Ontem · 16:30", valor: 7000 },
+      { id: "a3", cliente: "Joana Ribeiro", servico: "Corte e escova", profissional: "Ana Souza", horario: "10 nov · 11:00", valor: 12000 },
+      { id: "a4", cliente: "Beatriz Ramos", servico: "Coloração", profissional: "Ana Souza", horario: "10 nov · 09:30", valor: 33000 }
+    ];
+    const contas = [
+      { id: "f1", nome: "Aluguel da sala", detalhe: "Venceu dia 10 · Aluguel", valor: 90000 },
+      { id: "f2", nome: "Internet fibra", detalhe: "Vence dia 15 · Contas", valor: 30000 }
+    ];
+    const comissoes = [
+      { id: "ana", nome: "Ana Souza", faturado: 52000, pct: 50, valor: 26000, paga: false },
+      { id: "carla", nome: "Carla Mendes", faturado: 40000, pct: 40, valor: 16000, paga: false }
+    ];
+    const transacoes = [
+      { id: "t1", data: "12/11", cliente: "Venda de shampoo", categoria: "Produto", forma: "pix", tipo: "entrada", valor: 4500 },
+      { id: "t2", data: "12/11", cliente: "Corte e escova · Ana Souza", categoria: "Atendimento", forma: "pix", tipo: "entrada", valor: 12000 },
+      { id: "t3", data: "11/11", cliente: "Aluguel da sala", categoria: "Aluguel", forma: "pix", tipo: "saida", valor: 90000 },
+      { id: "t4", data: "11/11", cliente: "Manicure · Carla Mendes", categoria: "Atendimento", forma: "dinheiro", tipo: "entrada", valor: 5500 },
+      { id: "t5", data: "10/11", cliente: "Conta de luz", categoria: "Contas", forma: "pix", tipo: "saida", valor: 18000 },
+      { id: "t6", data: "10/11", cliente: "Design de sobrancelhas · Elisa Rocha", categoria: "Atendimento", forma: "cartao", tipo: "entrada", valor: 6500 },
+      { id: "t7", data: "09/11", cliente: "Estorno de cliente", categoria: "Estorno", forma: "pix", tipo: "saida", valor: 2000 },
+      { id: "t8", data: "09/11", cliente: "Corte · Bruno Lima", categoria: "Atendimento", forma: "dinheiro", tipo: "entrada", valor: 7000 }
+    ];
+    let aba = "hoje";
+    let recebendo = null;
+    let confirmando = null;
+    let temporizador;
+    const icones = {
+      receber: '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>',
+      pagar: '<svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg>',
+      agenda: '<svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+      vale: '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16v12H4zM7 4v6M8 15h8"/></svg>',
+      pessoa: '<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>',
+      lixo: '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14"/></svg>'
+    };
+
+    function mostrarToast(texto) {
+      clearTimeout(temporizador);
+      $("toast-texto").textContent = texto;
+      $("toast").hidden = false;
+      temporizador = setTimeout(() => { $("toast").hidden = true; }, 5000);
+    }
+
+    function renderizarTotais() {
+      $("sobrou").textContent = dinheiro(financeiro.entrou - financeiro.saiu);
+      $("entrou").textContent = dinheiro(financeiro.entrou);
+      $("saiu").textContent = dinheiro(financeiro.saiu);
+      $("a-receber").textContent = dinheiro(financeiro.aReceber);
+      $("bloco-sobrou").classList.toggle("negativo", financeiro.entrou - financeiro.saiu < 0);
+      $("total-agenda").textContent = dinheiro(financeiro.aReceber);
+      $("valor-agenda").textContent = dinheiro(financeiro.aReceber);
+      $("total-contas").textContent = dinheiro(financeiro.contas);
+      $("valor-contas").textContent = dinheiro(financeiro.contas);
+      $("total-comissoes").textContent = dinheiro(financeiro.comissoes);
+      $("comissao-total").textContent = dinheiro(financeiro.comissoes + financeiro.comissaoPaga);
+      $("comissao-pago").textContent = dinheiro(financeiro.comissaoPaga);
+      $("comissao-falta").textContent = dinheiro(financeiro.comissoes);
+      $("resumo-pendencias").textContent = `${dinheiro(financeiro.aReceber + financeiro.contas + financeiro.comissoes)} pendentes`;
+      $("total-pendencias").textContent = `${agenda.length + contas.length + comissoes.filter((c) => !c.paga).length} itens`;
+    }
+
+    function linhaAcao({ avatar, titulo, detalhe, valor, acao, acaoLabel, secundaria }) {
+      return `<div class="linha"><div class="linha-principal"><span class="linha-avatar" aria-hidden="true">${avatar}</span><div class="linha-texto"><strong>${titulo}</strong><small>${detalhe}</small></div></div><span class="linha-valor">${dinheiro(valor)}</span><div class="flex gap-1.5"><button class="botao botao-pequeno" type="button" data-acao="${acao}">${icones.receber}${acaoLabel}</button>${secundaria ? `<button class="botao botao-pequeno botao-perigo" type="button" data-secundaria="${secundaria}">${icones.lixo}Não veio</button>` : ""}</div></div>`;
+    }
+
+    function renderizarAgenda() {
+      $("lista-agenda").innerHTML = agenda.length ? agenda.map((a) => `<div data-id="${a.id}">${linhaAcao({ avatar: icones.agenda, titulo: a.cliente, detalhe: `${a.servico} · ${a.profissional} · ${a.horario}`, valor: a.valor, acao: `receber-${a.id}`, acaoLabel: "Receber", secundaria: `falta-${a.id}` })}</div>`).join("") : '<p class="vazio">Tudo recebido por aqui.</p>';
+      $("lista-agenda").querySelectorAll("[data-acao]").forEach((botao) => botao.addEventListener("click", () => abrirRecebimento(botao.dataset.acao)));
+      $("lista-agenda").querySelectorAll("[data-secundaria]").forEach((botao) => botao.addEventListener("click", () => registrarFalta(botao.dataset.secundaria)));
+    }
+
+    function renderizarContas() {
+      $("lista-contas").innerHTML = contas.length ? contas.map((c) => `<div data-id="${c.id}">${linhaAcao({ avatar: icones.pagar, titulo: c.nome, detalhe: c.detalhe, valor: c.valor, acao: `conta-${c.id}`, acaoLabel: "Pagar" })}</div>`).join("") : '<p class="vazio">Todas as contas estão pagas neste mês.</p>';
+      $("lista-contas").querySelectorAll("[data-acao]").forEach((botao) => botao.addEventListener("click", () => abrirConfirmacao(botao.dataset.acao)));
+    }
+
+    function renderizarComissoes() {
+      $("lista-comissoes").innerHTML = comissoes.map((c) => `<div class="linha"><div class="linha-principal"><span class="linha-avatar" aria-hidden="true">${icones.pessoa}</span><div class="linha-texto"><strong>${c.nome} <span class="percentual">${c.pct}%</span></strong><small>Faturou ${dinheiro(c.faturado)} pela agenda</small></div></div><span class="linha-valor">${dinheiro(c.valor)}</span><div class="flex gap-1.5"><button class="botao botao-pequeno" type="button" data-vale="${c.id}">${icones.vale}Vale</button>${c.paga ? '<span class="pago">Paga</span>' : `<button class="botao botao-pequeno" type="button" data-comissao="${c.id}">${icones.receber}Pagar</button>`}</div></div>`).join("");
+      $("lista-comissoes").querySelectorAll("[data-comissao]").forEach((botao) => botao.addEventListener("click", () => abrirConfirmacao(botao.dataset.comissao)));
+      $("lista-comissoes").querySelectorAll("[data-vale]").forEach((botao) => botao.addEventListener("click", () => mostrarToast(`Vale para ${botao.dataset.vale === "ana" ? "Ana Souza" : "Carla Mendes"}: escolha o valor na próxima etapa.`)));
+    }
+
+    function renderizarLancamentos() {
+      const busca = $("busca").value.trim().toLowerCase();
+      const tipo = $("filtro-tipo").value;
+      const forma = $("filtro-forma").value;
+      const filtrados = transacoes.filter((t) => (tipo === "tudo" || t.tipo === tipo) && (forma === "tudo" || t.forma === forma) && (!busca || `${t.cliente} ${t.categoria}`.toLowerCase().includes(busca)));
+      const dias = [...new Set(filtrados.map((t) => t.data))];
+      $("lista-lancamentos").innerHTML = filtrados.length ? dias.map((dia) => `<section><div class="dia"><strong>${dia === "12/11" ? "Hoje" : dia}</strong><span>${dinheiro(filtrados.filter((t) => t.data === dia).reduce((total, t) => total + (t.tipo === "entrada" ? t.valor : -t.valor), 0))}</span></div>${filtrados.filter((t) => t.data === dia).map((t) => `<div class="transacao"><div><strong>${t.cliente}</strong><small>${t.categoria} · ${t.forma === "pix" ? "Pix" : t.forma === "dinheiro" ? "Dinheiro" : "Cartão"}</small></div><span class="valor ${t.tipo === "entrada" ? "valor-positivo" : "valor-negativo"}">${t.tipo === "entrada" ? "+" : "−"} ${dinheiro(t.valor)}</span></div>`).join("")}</section>`).join("") : '<p class="vazio">Nenhum lançamento encontrado. Ajuste os filtros.</p>';
+    }
+
+    function renderizarResumo() {
+      const grupos = [
+        ["Recebido por forma", [["Pix", 520000], ["Dinheiro", 190000], ["Cartão", 130000]]],
+        ["Faturamento por profissional", [["Ana Souza", 520000], ["Carla Mendes", 400000], ["Bruno Lima", 260000], ["Elisa Rocha", 130000]]],
+        ["Entradas por categoria", [["Atendimento", 650000], ["Produto", 190000]]],
+        ["Saídas por categoria", [["Aluguel", 90000], ["Comissão/salário", 160000], ["Contas", 108000]]]
+      ];
+      $("resumo-graficos").innerHTML = grupos.map(([titulo, linhas]) => {
+        const maior = Math.max(...linhas.map(([, valor]) => valor));
+        return `<section><h3>${titulo}</h3>${linhas.map(([nome, valor]) => `<div class="barra-item"><span>${nome}<strong>${dinheiro(valor)}</strong></span><div class="barra-fundo"><i style="width:${Math.round(valor / maior * 100)}%"></i></div></div>`).join("")}</section>`;
+      }).join("");
+    }
+
+    function renderizar() {
+      renderizarTotais();
+      renderizarAgenda();
+      renderizarContas();
+      renderizarComissoes();
+      renderizarLancamentos();
+      renderizarResumo();
+    }
+
+    function trocarAba(nova) {
+      aba = nova;
+      document.querySelectorAll("[data-aba]").forEach((botao) => botao.setAttribute("aria-pressed", String(botao.dataset.aba === aba)));
+      for (const nome of ["hoje", "lancamentos", "comissoes", "resumo"]) $( `painel-${nome}`).hidden = nome !== aba;
+    }
+
+    function abrirRecebimento(id) {
+      recebendo = agenda.find((a) => a.id === id.split("-").pop());
+      if (!recebendo) return;
+      $("receber-subtitulo").textContent = `${recebendo.cliente} · ${recebendo.servico} · ${recebendo.profissional}`;
+      $("receber-valor").value = dinheiro(recebendo.valor);
+      $("receber-dialog").showModal();
+    }
+
+    function abrirConfirmacao(id) {
+      confirmando = id.split("-").pop();
+      const c = contas.find((item) => item.id === id);
+      const p = comissoes.find((item) => item.id === id);
+      $("confirmar-subtitulo").textContent = c ? `${c.nome} · ${dinheiro(c.valor)}` : p ? `${p.nome} · ${dinheiro(p.valor)}` : "";
+      $("confirmar-dialog").showModal();
+    }
+
+    function registrarFalta(id) {
+      const a = agenda.find((item) => item.id === id.split("-").pop());
+      if (!a) return;
+      agenda.splice(agenda.indexOf(a), 1);
+      financeiro.aReceber -= a.valor;
+      renderizar();
+      mostrarToast(`${a.cliente}: falta registrada. O valor saiu de “A receber”.`);
+    }
+
+    function concluirRecebimento(a, forma) {
+      agenda.splice(agenda.indexOf(a), 1);
+      financeiro.aReceber -= a.valor;
+      financeiro.entrou += a.valor;
+      transacoes.unshift({ id: `r${Date.now()}`, data: "12/11", cliente: `${a.servico} · ${a.profissional}`, categoria: "Atendimento", forma, tipo: "entrada", valor: a.valor });
+      renderizar();
+      mostrarToast(`${a.cliente}: ${dinheiro(a.valor)} recebido.`);
+    }
+
+    function concluirPagamento() {
+      const c = contas.find((item) => item.id === confirmando);
+      const p = comissoes.find((item) => item.id === confirmando);
+      if (c) {
+        contas.splice(contas.indexOf(c), 1);
+        financeiro.contas -= c.valor;
+        financeiro.saiu += c.valor;
+        transacoes.unshift({ id: `f${Date.now()}`, data: "12/11", cliente: c.nome, categoria: c.detalhe.split(" · ")[1], forma: "pix", tipo: "saida", valor: c.valor });
+        mostrarToast(`${c.nome}: pagamento registrado.`);
+      } else if (p) {
+        p.paga = true;
+        financeiro.comissoes -= p.valor;
+        financeiro.comissaoPaga += p.valor;
+        financeiro.saiu += p.valor;
+        transacoes.unshift({ id: `c${Date.now()}`, data: "12/11", cliente: `Comissão ${p.nome}`, categoria: "Comissão/salário", forma: "pix", tipo: "saida", valor: p.valor });
+        mostrarToast(`Comissão de ${p.nome} paga.`);
+      }
+      confirmando = null;
+      $("confirmar-dialog").close();
+      renderizar();
+    }
+
+    function abrirFormulario(tipo) {
+      $("form-titulo").textContent = tipo === "entrada" ? "Nova entrada" : "Nova saída";
+      $("form-subtitulo").textContent = tipo === "entrada" ? "Registre o dinheiro que entrou no Caixa." : "Registre o dinheiro que saiu do Caixa.";
+      $("form-tipo").value = tipo;
+      $("form-erro").hidden = true;
+      $("form-dialog").showModal();
+    }
+
+    $("nova-entrada").addEventListener("click", () => abrirFormulario("entrada"));
+    $("nova-entrada-2").addEventListener("click", () => abrirFormulario("entrada"));
+    $("nova-saida").addEventListener("click", () => abrirFormulario("saida"));
+    $("form-receber").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const valor = numeros($("receber-valor").value);
+      if (!valor || !recebendo) return;
+      const a = { ...recebendo, valor };
+      $("receber-dialog").close();
+      recebendo = null;
+      concluirRecebimento(a, $("receber-forma").value);
+    });
+    $("confirmar-pagamento").addEventListener("click", concluirPagamento);
+    $("form-lancamento").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const valor = numeros($("form-valor").value);
+      if (!valor) {
+        $("form-erro").textContent = "Informe o valor do lançamento.";
+        $("form-erro").hidden = false;
+        return;
+      }
+      const tipo = $("form-tipo").value;
+      const cliente = $("form-descricao").value.trim() || $("form-categoria").value;
+      transacoes.unshift({ id: `n${Date.now()}`, data: "12/11", cliente, categoria: $("form-categoria").value, forma: $("form-forma").value, tipo, valor });
+      if (tipo === "entrada") financeiro.entrou += valor;
+      else financeiro.saiu += valor;
+      $("form-dialog").close();
+      event.target.reset();
+      renderizar();
+      trocarAba("lancamentos");
+      mostrarToast(`${tipo === "entrada" ? "Entrada" : "Saída"} de ${dinheiro(valor)} lançada.`);
+    });
+    for (const id of ["form-valor", "receber-valor"]) $(id).addEventListener("input", (event) => { event.target.value = mascara(event.target.value); });
+    document.querySelectorAll("[data-aba]").forEach((botao) => botao.addEventListener("click", () => trocarAba(botao.dataset.aba)));
+    for (const id of ["busca", "filtro-tipo", "filtro-forma"]) $(id).addEventListener("input", renderizarLancamentos);
+    $("exportar").addEventListener("click", () => {
+      const linhas = ["Data;Tipo;Categoria;Cliente;Forma;Valor", ...transacoes.map((t) => `${t.data};${t.tipo};${t.categoria};${t.cliente};${t.forma};${(t.valor / 100).toFixed(2).replace(".", ",")}`)].join("\r\n");
+      const url = URL.createObjectURL(new Blob(["\uFEFF" + linhas], { type: "text/csv;charset=utf-8" }));
+      const a = Object.assign(document.createElement("a"), { href: url, download: "caixa-novembro-2026.csv" });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      mostrarToast("Planilha do mês exportada.");
+    });
+    $("este-mes").addEventListener("click", () => mostrarToast("Você já está vendo o mês atual."));
+    $("mes-anterior").addEventListener("click", () => mostrarToast("A navegação de meses é ilustrativa nesta maquete."));
+    $("mes-proximo").addEventListener("click", () => mostrarToast("A navegação de meses é ilustrativa nesta maquete."));
+    $("fechar-toast").addEventListener("click", () => { $("toast").hidden = true; });
+    $("tema").addEventListener("click", () => {
+      const escuro = document.documentElement.dataset.tema !== "escuro";
+      document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
+      $("tema").setAttribute("aria-label", escuro ? "Ativar tema claro" : "Ativar tema escuro");
+      document.querySelector('meta[name="theme-color"]').content = escuro ? "#15130f" : "#f7f5f0";
+    });
+    document.querySelectorAll("[data-fechar]").forEach((botao) => botao.addEventListener("click", () => botao.closest("dialog").close()));
+    document.querySelectorAll("dialog").forEach((dialog) => dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); }));
+    renderizar();
+  </script>
+</body>
+</html>
