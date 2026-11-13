@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { adminDb } from "@/lib/admin";
 import { reverificarDominios } from "@/lib/dominio.server";
 import { enviarLembretesDoDia } from "@/lib/lembretes-whatsapp.server";
+import { enviarAvaliacoesDoDia } from "@/lib/avaliacoes-whatsapp.server";
 import { segredoIgual } from "@/lib/segredo.server";
 import { expirarSinais } from "@/lib/sinal.server";
 import { enviarLembretesPorSms } from "@/lib/sms-agendamento.server";
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
   // sinal vencido primeiro: o horário liberado já não recebe lembrete
   const sinaisVencidos = await expirarSinais(adminDb).catch((e) => (console.error("[cron] expirar sinais", e), 0));
   const enviados = await enviarLembretesDoDia().catch((e) => (console.error("[cron] lembretes do WhatsApp", e), 0));
+  const avaliacoes = await enviarAvaliacoesDoDia().catch((e) => (console.error("[cron] avaliações do WhatsApp", e), 0));
   // comando do dono (CONFIRMADO/RECUSAR) que ficou sem processar: depois dos lembretes (cada um
   // pode esperar o atendys; antes, um comando lento atrasava o ciclo dos lembretes)
   const comandos = await reprocessarComandos(adminDb).catch((e) => (console.error("[cron] comandos pendentes", e), 0));
@@ -28,5 +30,5 @@ export async function GET(request: NextRequest) {
   const dominiosRebaixados = agora.getHours() === 4 && agora.getMinutes() < 10 ? await reverificarDominios(adminDb).catch((e) => (console.error("[cron] reverificar domínios", e), 0)) : null;
   // o instrumentation confere esta marca a cada 10 min e avisa o admin se passar de 30 min
   await adminDb.doc("config/cron").set({ ultimaExecucao: FieldValue.serverTimestamp() }, { merge: true });
-  return Response.json({ ok: true, sinaisVencidos, comandos, enviados, sms, dominiosRebaixados });
+  return Response.json({ ok: true, sinaisVencidos, comandos, enviados, avaliacoes, sms, dominiosRebaixados });
 }

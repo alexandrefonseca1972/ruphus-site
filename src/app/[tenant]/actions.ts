@@ -6,10 +6,11 @@ import { painelDeConsumo, resumoDoSaldo } from "@/lib/consumo-painel.server";
 import { abrirCobranca, listarCobrancas } from "@/lib/cobranca";
 import { cadastrarDonoOficial, conexaoOficial, enviarConfirmacaoDono, exigeNaoPausado, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { adminDb } from "@/lib/admin";
-import { createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, restaurarAgendamento, salvarDadosCliente, UserError } from "@/lib/booking.server";
+import { concluirAtendimento, createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, restaurarAgendamento, salvarDadosCliente, UserError } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
 import { erroNome } from "@/lib/nome";
 import { z } from "zod";
+import { ConfigAvaliacoes } from "@/lib/avaliacoes";
 import { LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
@@ -96,6 +97,11 @@ export const meuContratoAction = memberAction(z.object({ tenantId: docIdStaff })
   const a = docs[0];
   return { ok: true as const, contrato: a ? { versao: a.versao as string, em: (a.em?.toMillis?.() as number | undefined) ?? null } : null };
 });
+
+export const concluirAtendimentoAction = memberAction(
+  z.object({ tenantId: docIdStaff, appointmentId: docIdStaff }),
+  (data, user) => concluirAtendimento(adminDb, data, user),
+);
 
 // painel: remarca mesmo com o serviço oculto ou o profissional fora do link
 export const rescheduleAppointment = memberAction(RescheduleInput, (data, user) => reschedule(adminDb, data, user, { exigirAtivo: false }));
@@ -344,6 +350,22 @@ export const configurarLembretesWhatsAppAction = memberAction(
     if (!(await usaCanalOficial(adminDb, tenantId))) throw new UserError("Salve o seu WhatsApp antes de ligar os lembretes.");
     await adminDb.doc(`tenants/${tenantId}`).set({ whatsapp: { remindersEnabled: enabled, remindersBeforeHours: hours } }, { merge: true });
     return { enabled, hours };
+  },
+);
+
+export const configurarAvaliacoesAction = memberAction(
+  z.object({ tenantId: docIdStaff, enabled: z.boolean(), delayMin: ConfigAvaliacoes.shape.delayMin }),
+  async ({ tenantId, enabled, delayMin }, user) => {
+    await exigeGestor(tenantId, user.uid);
+    if (enabled) {
+      await exigeNaoPausado(adminDb, tenantId);
+      if (!(await usaCanalOficial(adminDb, tenantId))) throw new UserError("Salve o seu WhatsApp antes de ligar as avaliações.");
+    }
+    const ref = adminDb.doc(`tenants/${tenantId}`);
+    const atual = await ref.get();
+    const ativando = enabled && atual.get("avaliacoes.enabled") !== true;
+    await ref.set({ avaliacoes: { enabled, delayMin, ...(ativando && { enabledAt: FieldValue.serverTimestamp() }) } }, { merge: true });
+    return { ok: true as const, enabled, delayMin };
   },
 );
 

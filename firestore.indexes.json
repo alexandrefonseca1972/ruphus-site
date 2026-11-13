@@ -85,6 +85,20 @@
       ]
     },
     {
+      "collectionGroup": "avaliacoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "staffId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "respondidaEm",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "prospeccaoFila",
       "queryScope": "COLLECTION",
       "fields": [

@@ -3,8 +3,8 @@
 // servidor monta a evidência a partir dos mesmos valores. Sem aceite gravado, nada sai.
 
 /** Muda sempre que o texto do aceite mudar: a versão vai gravada junto de cada aceite. */
-export const TERMO_WHATSAPP_VERSAO = "2026-11-08";
-export const TEXTO_ACEITE_WHATSAPP = "Quero receber pelo WhatsApp a confirmação e os avisos deste agendamento.";
+export const TERMO_WHATSAPP_VERSAO = "2026-11-13";
+export const TEXTO_ACEITE_WHATSAPP = "Quero receber pelo WhatsApp a confirmação, os avisos e o pedido de avaliação deste atendimento.";
 
 /** Última linha das mensagens automáticas ao cliente. "SAIR" é stop word do gateway (opt-out do
  *  cliente); o dono usa CONFIRMADO/RECUSAR, e lerComando não reconhece SAIR. */
@@ -32,4 +32,9 @@ export function optInDoDoc(tenantId: string, d: { id: string; get(campo: string)
   const em = c.em instanceof Date ? c.em : (c.em as { toDate?: () => Date } | undefined)?.toDate?.();
   if (!em) return null;
   return optInDoAgendamento({ tenantId, agendamentoId: d.id, versao: String(c.versao ?? ""), em });
+}
+
+export function optInAvaliacaoDoDoc(tenantId: string, d: { id: string; get(campo: string): unknown }) {
+  const c = d.get("whatsappConsent") as { versao?: unknown } | undefined;
+  return c?.versao === TERMO_WHATSAPP_VERSAO ? optInDoDoc(tenantId, d) : null;
 }

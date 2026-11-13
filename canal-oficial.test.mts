@@ -1,6 +1,11 @@
 // Rode: npx tsx --conditions=react-server canal-oficial.test.mts  (só funções puras do canal oficial)
 import assert from "node:assert/strict";
-import { contatoDoNegocio, idBotao, lerBotao, parametro, respostaForaDoFluxo, templateCliente, templateConfirmarDono, templateNovoDono, templateSaldoBaixo, TEMPLATES } from "@/lib/canal-oficial.server";
+import { contatoDoNegocio, idBotao, lerBotao, parametro, respostaForaDoFluxo, templateAvaliacao, templateCliente, templateConfirmarDono, templateNovoDono, templateSaldoBaixo, TEMPLATES } from "@/lib/canal-oficial.server";
+
+assert.deepEqual(templateAvaliacao({ nome: "Maria\nSouza", negocio: "Salão *Bela*", servico: "Corte", profissional: "Ana", link: "https://www.ruphus.site/avaliar/bela/a1?t=abc" }), {
+  nome: "avaliacao_atendimento",
+  parametros: ["Maria Souza", "*Salão Bela*", "Corte", "Ana", "https://www.ruphus.site/avaliar/bela/a1?t=abc"],
+});
 
 // a Meta recusa parâmetro com quebra de linha, tab ou mais de 4 espaços seguidos; vazio também
 assert.equal(parametro("Corte\n e\t\tescova     longa"), "Corte e escova longa");

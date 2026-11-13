@@ -39,6 +39,7 @@ export type ConexaoWhatsapp = {
    *  vez, dentro da janela [início - horas, início). */
   remindersEnabled?: boolean;
   remindersBeforeHours?: number | null;
+  avaliacoes?: { enabled: boolean; delayMin: number; enabledAt?: FirebaseFirestore.Timestamp };
   /** Última falha ao avisar o dono de um agendamento (gateway fora, envio
    *  rejeitado…). Visível na gaveta; sumir quando um aviso sai com sucesso. */
   lastNotifyError?: { message: string; at: number } | null;
@@ -62,9 +63,10 @@ export async function lerConfigWhatsApp(db: Firestore, slug: string): Promise<Co
   const [t, p] = await Promise.all([db.doc(`tenants/${slug}`).get(), privado(db, slug).get()]);
   const w = t.get("whatsapp") as Record<string, unknown> | undefined;
   const pv = p.data();
-  if (!w && !pv) return null;
+  const avaliacoes = t.get("avaliacoes") as ConexaoWhatsapp["avaliacoes"] | undefined;
+  if (!w && !pv && !avaliacoes) return null;
   // ownerPhone antigo ainda no documento do negócio vale enquanto o privado não tem o dele
-  return { ...so(w, [...DO_NEGOCIO, ...DO_PRIVADO]), ...so(pv, DO_PRIVADO) } as ConexaoWhatsapp;
+  return { ...so(w, [...DO_NEGOCIO, ...DO_PRIVADO]), ...so(pv, DO_PRIVADO), ...(avaliacoes && { avaliacoes }) } as ConexaoWhatsapp;
 }
 
 /** Aviso de novo agendamento não chegou ao dono: grava para a gaveta mostrar

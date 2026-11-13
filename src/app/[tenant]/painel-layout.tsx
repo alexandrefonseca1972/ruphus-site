@@ -117,6 +117,7 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
     { href: `/${slug}/servicos`, label: "Serviços", curto: "Serviços", icone: ICONES.servicos },
     { href: `/${slug}/profissionais`, label: "Profissionais", curto: "Equipe", icone: ICONES.equipe },
     { href: `/${slug}/clientes`, label: "Clientes", curto: "Clientes", icone: ICONES.clientes },
+    ...(state.podeGerir ? [{ href: `/${slug}/avaliacoes`, label: "Avaliações", curto: "Notas", icone: ICONES.avaliacoes }] : []),
     // Caixa incluído no plano; dinheiro só para quem gere
     ...(state.podeGerir ? [{ href: `/${slug}/caixa`, label: "Caixa", curto: "Caixa", icone: ICONES.caixa }] : []),
     // mensagens enviadas e saldo: custo é dinheiro, só para quem gere
@@ -226,6 +227,7 @@ const ICONES = {
   servicos: icone(<><path d="M6 4h12M6 9h12M6 14h8" /><circle cx="17.5" cy="17.5" r="3" /></>),
   equipe: icone(<><circle cx="12" cy="7.5" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></>),
   clientes: icone(<><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6" /></>),
+  avaliacoes: icone(<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z" />),
   negocio: icone(<><path d="M4 10.5 12 4l8 6.5V20H4z" /><path d="M9.5 20v-5h5v5" /></>),
   caixa: icone(<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h3" /></>),
   consumo: icone(<><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>),

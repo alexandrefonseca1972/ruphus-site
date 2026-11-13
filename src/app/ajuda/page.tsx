@@ -80,6 +80,11 @@ export default function ManualDoUsuario() {
               WhatsApp do negócio, se estiver conectado, ou abrindo a conversa no seu WhatsApp. Se a gravação falhar, nada é enviado: você nunca avisa um cliente de algo que não aconteceu.
             </>,
             <>
+              <Termo>Concluir atendimento</Termo> aparece depois do fim do horário e registra que o serviço aconteceu.
+              Receber o atendimento no Caixa faz a mesma marca. Se os pedidos de avaliação estiverem ativados, a conclusão
+              agenda a mensagem ao cliente; horário que só passou da hora não gera avaliação.
+            </>,
+            <>
               <Termo>Remarcar</Termo> mostra os horários livres da nova data. O horário antigo fica livre na hora, e o
               agendamento volta para “aguardando confirmação”, porque o combinado mudou.
             </>,
@@ -103,8 +108,8 @@ export default function ManualDoUsuario() {
           ]}
         />
         <Atencao>
-          Atendimento já recebido no Caixa não pode ser remarcado, cancelado nem virar falta: o dinheiro dele já está
-          lançado. Para mudar, apague antes o recebimento no Caixa.
+          Atendimento concluído ou já recebido no Caixa não pode ser remarcado, cancelado nem virar falta: o histórico,
+          a avaliação e o dinheiro dele precisam continuar coerentes. Confira antes de concluir ou receber.
         </Atencao>
       </Secao>
 
@@ -270,7 +275,10 @@ export default function ManualDoUsuario() {
               oficial da Ruphus, com o nome do seu negócio. Salve <Termo>Seu WhatsApp</Termo> (um celular com DDD): é
               nele que chegam os pedidos, e você confirma ou recusa pelos botões da mensagem. Ao salvar, mandamos uma
               mensagem para esse número: toque em <Termo>Sou eu</Termo> para confirmar que é seu. Os{" "}
-              <Termo>lembretes automáticos</Termo> saem quantas horas antes você escolher.
+              <Termo>lembretes automáticos</Termo> saem quantas horas antes você escolher. Em{" "}
+              <Termo>Pedir avaliação após concluir o atendimento</Termo>, você ativa uma mensagem opcional e escolhe
+              15, 30, 60 ou 120 minutos depois da conclusão. O cliente precisa ter aceitado esse aviso ao agendar.
+              As respostas ficam em <Termo>Avaliações</Termo>, com médias e comentários privados do negócio.
             </>,
             <>
               <Termo>Pix para receber</Termo>: a sua chave (CPF, CNPJ, e-mail, celular ou aleatória), o nome como está

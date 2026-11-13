@@ -72,7 +72,8 @@
     "test:coleta-selecao": "tsx coleta-selecao.test.mts",
     "test:mensagens": "tsx mensagens.test.mts",
     "canal-oficial": "tsx --conditions=react-server --env-file=.env.local scripts/canal-oficial.mts",
-    "test:canal-oficial": "tsx --conditions=react-server canal-oficial.test.mts"
+    "test:canal-oficial": "tsx --conditions=react-server canal-oficial.test.mts",
+    "test:avaliacoes": "NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-siteflow firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server avaliacoes.test.mts'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",

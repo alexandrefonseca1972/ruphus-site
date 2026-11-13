@@ -21,6 +21,7 @@ export const Tenant = z.object({
   // WhatsApp do negócio (o WhatsApp pessoal do dono mora em privado/whatsapp)
   // canalOficial: os avisos saem pelo número da plataforma; as mensagens paradas aparecem na agenda
   whatsapp: z.object({ canalOficial: z.boolean().optional() }).optional().catch(undefined),
+  avaliacoes: z.object({ enabled: z.boolean(), delayMin: z.number().int() }).optional().catch(undefined),
   // SMS de confirmação e lembrete ligado (o resto da configuração é lido no servidor: configSms)
   sms: z.object({ ligado: z.boolean().optional() }).optional().catch(undefined),
 });

@@ -247,6 +247,11 @@ export async function baixarAgendamento(db: Firestore, tenantId: string, b: z.in
       tx.create(historico, { appointmentId: b.appointmentId, type: "confirmed", reason: "caixa_recebido", at: FieldValue.serverTimestamp(), by: quem.uid, byName: quem.email ?? null });
       tx.update(agendamento, { status: "confirmed", lastHistoryId: historico.id });
     }
+    if (!a.get("completedAt")) {
+      const historico = db.collection(`tenants/${tenantId}/history`).doc();
+      tx.create(historico, { appointmentId: b.appointmentId, type: "completed", reason: "caixa_recebido", at: FieldValue.serverTimestamp(), by: quem.uid, byName: quem.email ?? null });
+      tx.update(agendamento, { completedAt: FieldValue.serverTimestamp(), lastHistoryId: historico.id });
+    }
     // o sinal foi por Pix: junto da baixa, "por forma" diria que entrou tudo na forma do balcão
     aplicarAjuste(tx, db, tenantId, ajuste);
     // recebido: o sinal passa a contar para a comissão, no mês do recebimento
