@@ -1,7 +1,9 @@
 import "server-only";
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { z } from "zod";
 import { atualizarParada, avisarFalhaDeEnvio, NAO_SAI_A_TEMPO, prazoDaParada, registrarParada, vigiarEnvio } from "@/lib/mensagens-paradas.server";
 import { ErroPrevisto } from "@/lib/erro-previsto";
+import { mascararDigitos } from "@/lib/sanitizar";
 import { agendamentoDoEnvio, statusDoAtendys, tipoDoTemplate, type TipoEnvio } from "@/lib/consumo";
 import { atualizarEnvio, marcarAviso, registrarEnvio, SemSaldo, verificarEnvio } from "@/lib/consumo.server";
 import { efeitoNoAviso, MOTIVO_OPT_OUT } from "@/lib/aviso-cliente";
@@ -27,7 +29,7 @@ const SITE = () => (process.env.PUBLIC_SITE_URL ?? "https://ruphus.site").replac
 const WEBHOOK_URL = () => `${SITE()}/api/webhooks/atendys`;
 // o primeiro envio para um número novo estabelece a sessão de criptografia do
 // WhatsApp e leva 8–15s; 35s cobre o pior caso sem deixar a tela travada
-const TIMEOUT_MS = 35_000;
+export const TIMEOUT_MS = 35_000;
 
 /** O que vai para quem gere (lastNotifyError, painel): a frase prevista, nunca o texto técnico
  *  de um erro inesperado (ex.: "Unexpected token '<'" de um proxy que devolveu HTML). */
@@ -44,6 +46,15 @@ export type Envio = {
   /** Por que parou (RATE_LIMITED, INSTANCE_UNAVAILABLE, QUIET_HOURS), quando o atendys diz. */
   errorCode?: string;
 };
+/** O que o POST de envio devolve (validado: `id` e `status` texto; o resto, da cota, opcional). */
+const RespostaEnvio = z.object({
+  id: z.string(),
+  status: z.string(),
+  retryAt: z.string().nullish(),
+  manualHandoffRequired: z.boolean().optional(),
+  manualHandoffUrl: z.string().nullish(),
+  errorCode: z.string().nullish(),
+});
 export const aguardaDecisao = (e: Pick<Envio, "status">) => e.status === "awaiting_manual";
 
 // quem envia/recebe: precisa da apikey do tenant e do nome da instância
@@ -100,7 +111,8 @@ async function erroDaResposta(res: Response, method: string, caminho: string): P
   // sem consentimento (o envio registra o opt-in e repete) e opt-in em conflito (aceite já
   // registrado, ou anterior a um SAIR) são o fluxo de consentimento funcionando, não falha
   const esperado = codigo === "NOT_OPTED_IN" || (res.status === 409 && caminho === "/v1/optin");
-  (esperado ? console.warn : console.error)(`[atendys] ${method} ${caminho} → ${res.status}${requestId ? ` (requestId ${requestId})` : ""} ${detalhe.slice(0, 300)}`);
+  // L-1: o corpo pode citar o telefone do destinatário; no log, só os 4 últimos dígitos
+  (esperado ? console.warn : console.error)(`[atendys] ${method} ${caminho} → ${res.status}${requestId ? ` (requestId ${requestId})` : ""} ${mascararDigitos(detalhe.slice(0, 300))}`);
   // limite (por minuto, por dia, por destinatário), categoria desligada e validação: o atendys
   // já explica em português, e "espere um pouco" enganava quando o limite era o do dia
   const usaDoServidor = codigo !== null && ["RATE_LIMITED", "FORBIDDEN", "VALIDATION_ERROR"].includes(codigo) && doServidor;
@@ -150,6 +162,15 @@ async function chamar<T>(auth: Record<string, string>, method: string, caminho: 
   const res = await pedir(auth, method, caminho, corpo);
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+/** A resposta passa pelo schema: fora dele (ex.: `phone` número), AtendysForaDoAr, nunca um tipo
+ *  mentiroso que quebra adiante com TypeError. Num envio, a mensagem pode ter saído: quem chama trata
+ *  como incerto (a fila repete com a mesma idempotency-key); na trava da prospecção vira CanalProibido. */
+async function chamarComSchema<S extends z.ZodType>(schema: S, auth: Record<string, string>, method: string, caminho: string, corpo?: unknown): Promise<z.output<S>> {
+  const lida = schema.safeParse(await chamar<unknown>(auth, method, caminho, corpo));
+  if (!lida.success) throw new AtendysForaDoAr(`O serviço de WhatsApp respondeu fora do formato (${caminho}).`, false);
+  return lida.data;
 }
 
 async function chamarAdmin<T>(method: string, caminho: string, corpo?: unknown): Promise<T> {
@@ -271,9 +292,11 @@ export function ajustarLimitesDoTenant(tenantId: string) {
   return chamarAdmin("PATCH", `/admin/tenants/${encodeURIComponent(tenantId)}`, LIMITES_DESTINATARIO);
 }
 
-/** Número e estado da instância da Meta usada pela plataforma. */
+const StatusInstancia = z.object({ name: z.string().optional(), status: z.string(), phone: z.string().nullish(), connectedAt: z.string().nullish() });
+
+/** Número e estado da instância da Meta usada pela plataforma (resposta validada com Zod). */
 export function statusDaInstancia(conn: ConexaoAtendys) {
-  return chamar<{ name: string; status: string; phone?: string; connectedAt?: string }>(authTenant(conn), "GET", `/v1/instance/${encodeURIComponent(conn.instanceId)}/status`);
+  return chamarComSchema(StatusInstancia, authTenant(conn), "GET", `/v1/instance/${encodeURIComponent(conn.instanceId)}/status`);
 }
 
 export type InstanciaAtendys = { name: string; phone?: string; status: string; provider?: string; waWabaId?: string };
@@ -314,10 +337,13 @@ export const OPTIN_DONO: OptIn = { origem: "ruphus-aviso-dono", evidencia: "Núm
 /** opcoes.resposta: a pessoa acabou de escrever ou tocar num botão (janela de 24 h): no atendys não
  *  conta na cota por destinatário nem no dedupe de 10 min (replyToInbound).
  *  opcoes.chave: idempotency-key (chaveDeEnvio); repetir o envio com ela devolve a mensagem já aceita. */
-/** opcoes.tipo: o que é o aviso no consumo do negócio (sem ele: resposta ou outro). */
-export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean; chave?: string; tipo?: TipoEnvio } = {}): Promise<Envio> {
+/** opcoes.tipo: o que é o aviso no consumo do negócio (sem ele: resposta ou outro).
+ *  opcoes.categoria: a categoria do envio no atendys (sem ela, transactional); a fila da prospecção (F5)
+ *  manda "marketing", a mesma do opt-in gravado pelo agente. */
+export async function enviarTexto(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean; chave?: string; tipo?: TipoEnvio; categoria?: "transactional" | "marketing" } = {}): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
-  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", { number: digits, text: message, ...validade(prazo), ...(opcoes.resposta && { replyToInbound: true }) }, message, prazo, opcoes.resposta, opcoes.chave, { tipo: opcoes.tipo });
+  const corpo = { number: digits, text: message, ...validade(prazo), ...(opcoes.resposta && { replyToInbound: true }), ...(opcoes.categoria && { category: opcoes.categoria }) };
+  return enviarComOptIn(conn, digits, optIn, "/v1/message/send-text", corpo, message, prazo, opcoes.resposta, opcoes.chave, { tipo: opcoes.tipo });
 }
 
 /** Idempotency-key determinística para send-text/send-template: o mesmo envio repetido (timeout, cron
@@ -336,7 +362,8 @@ function validade(prazo?: Date) {
  *  fora da janela de 24 h. parametros vão, em ordem, para {{1}}, {{2}}… do corpo. */
 export type Template = { nome: string; idioma?: string; parametros: string[]; /** payload de cada botão de resposta rápida, na ordem do template */ botoes?: string[] };
 
-export async function enviarTemplate(conn: ConexaoAtendys, phone: string, t: Template, optIn: OptIn, prazo?: Date, opcoes: { chave?: string } = {}): Promise<Envio> {
+/** opcoes.categoria: a categoria do envio no atendys (sem ela, transactional), como no enviarTexto. */
+export async function enviarTemplate(conn: ConexaoAtendys, phone: string, t: Template, optIn: OptIn, prazo?: Date, opcoes: { chave?: string; categoria?: "transactional" | "marketing" } = {}): Promise<Envio> {
   const digits = phone.replace(/\D/g, "");
   const corpo = {
     number: digits,
@@ -350,6 +377,7 @@ export async function enviarTemplate(conn: ConexaoAtendys, phone: string, t: Tem
         ] }
       : {}),
     ...validade(prazo),
+    ...(opcoes.categoria && { category: opcoes.categoria }),
   };
   // texto da parada (painel "Mensagens"): o template com os parâmetros, já que não há texto livre
   return enviarComOptIn(conn, digits, optIn, "/v1/message/send-template", corpo, `[${t.nome}] ${t.parametros.join(" · ")}`, prazo, false, opcoes.chave, { tipo: tipoDoTemplate(t.nome), template: t.nome, botoes: t.botoes });
@@ -398,7 +426,7 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
     }
   }
   const enviar = async (): Promise<Envio> => {
-    const r = await chamar<{ id: string; status: string } & Omit<Envio, "messageId" | "status">>(auth, "POST", caminho, corpo);
+    const r = await chamarComSchema(RespostaEnvio, auth, "POST", caminho, corpo);
     // os campos da cota só quando vêm: o envio comum continua { messageId, status }
     return {
       messageId: r.id,
@@ -463,7 +491,7 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
           if (r instanceof ErroAtendys && r.status === 409 && /já foi registrado/i.test(r.message)) return;
           // o cliente respondeu SAIR depois deste aceite: respeita, sem nova tentativa e sem enviar
           if (r instanceof ErroAtendys && r.status === 409 && /posterior à revogação/i.test(r.message)) {
-            console.warn(`[atendys] ${optIn.eventId ?? digits}: o cliente saiu (SAIR) depois deste aceite; mensagem não enviada`);
+            console.warn(`[atendys] ${mascararDigitos(optIn.eventId ?? digits)}: o cliente saiu (SAIR) depois deste aceite; mensagem não enviada`);
             throw new ErroAtendys("O cliente pediu para não receber mais mensagens (SAIR) depois deste aceite.", 409, "OPT_OUT");
           }
           throw r;
@@ -548,12 +576,13 @@ export async function enviarSemOperador(conn: ConexaoAtendys, phone: string, mes
 }
 
 /** Consentimento explícito (quando o fluxo pede, ex.: aceite no agendamento). Com eventId e
- *  occurredAt quando o aceite tem (o atendys exige os dois para reativar quem saiu). */
-export function registrarOptIn(conn: ConexaoAtendys, phone: string, optIn: NonNullable<OptIn>) {
+ *  occurredAt quando o aceite tem (o atendys exige os dois para reativar quem saiu).
+ *  categoria: o atendys guarda o consentimento por categoria; a prospecção (F3) grava "marketing". */
+export function registrarOptIn(conn: ConexaoAtendys, phone: string, optIn: NonNullable<OptIn>, categoria: "transactional" | "marketing" = "transactional") {
   return chamar(authTenant(conn), "POST", "/v1/optin", {
     number: phone.replace(/\D/g, ""),
     source: optIn.origem,
-    category: "transactional",
+    category: categoria,
     evidence: optIn.evidencia,
     ...(optIn.eventId && { eventId: optIn.eventId }),
     ...(optIn.occurredAt && { occurredAt: optIn.occurredAt }),

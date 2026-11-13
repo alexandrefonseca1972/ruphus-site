@@ -4,3 +4,7 @@
 # Falha vai para o syslog: journalctl -t ruphus-cron. Cron parado de vez vira e-mail (src/instrumentation.ts)
 */10 * * * * . /opt/ruphus-site/cron.env && curl -fsS -m 120 -H "Authorization: Bearer $CRON_SECRET" http://localhost:3001/api/cron/lembretes >/dev/null || logger -t ruphus-cron "lembretes falhou"
 0 3 * * *    . /opt/ruphus-site/cron.env && curl -fsS -m 300 -H "Authorization: Bearer $CRON_SECRET" http://localhost:3001/api/cron/demo >/dev/null || logger -t ruphus-cron "demo falhou"
+# Fila da prospecção (F5): produtor às 7h de seg a sex, consumidor a cada minuto (um item por execução, só com
+# config/prospeccao.ativo e na janela seg-sex 9h-11h30/14h-17h30; fora disso responde sem enviar).
+0 7 * * 1-5  . /opt/ruphus-site/cron.env && curl -fsS -m 120 -H "Authorization: Bearer $CRON_SECRET" http://localhost:3001/api/cron/prospeccao-produtor >/dev/null || logger -t ruphus-cron "prospeccao-produtor falhou"
+* * * * *    . /opt/ruphus-site/cron.env && curl -fsS -m 55 -H "Authorization: Bearer $CRON_SECRET" http://localhost:3001/api/cron/prospeccao >/dev/null || logger -t ruphus-cron "prospeccao falhou"

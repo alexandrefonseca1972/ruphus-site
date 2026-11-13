@@ -399,7 +399,9 @@ export function renderEditorial(d: DadosSite): string {
   const passos = porTelefone
     ? ["Escolha o serviço e o melhor dia para você.", "Ligue para a equipe.", "Combine o horário na própria ligação."]
     : escolhido(VARIANTES.passos, "passos");
-  const [precoTitulo, precoTexto] = escolhido(VARIANTES.precos, "precos");
+  const [precoTitulo, precoTexto] = d.agendamento === false
+    ? ["Valores com o negócio.", "Consulte os valores e a disponibilidade com a equipe pelo canal de contato."]
+    : escolhido(VARIANTES.precos, "precos");
   const intro = porTelefone
     ? `Ligue para ${esc(d.nome)} e marque na hora, sem cadastro e sem aplicativo.`
     : escolhido(VARIANTES.intro, "intro").replace("{nome}", esc(d.nome));
@@ -421,6 +423,8 @@ ${cabecaComum(d, tituloPag, descr, d.publicado)}
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${ink}"/><text x="32" y="45" font-family="Arial Narrow,Arial,sans-serif" font-size="36" font-weight="700" fill="${acc}" text-anchor="middle">${esc(d.nome[0].toUpperCase())}</text></svg>`)}">
 ${jsonLdNegocio(d, descr, naRaiz(fotos.hero))}
 ${ESTILO_AGENDAR}
+<link rel="stylesheet" href="../assets/site-ui.css">
+<script src="../assets/site-ui.js" defer></script>
 </head>
 <body id="top">
 ${d.publicado ? "" : faixaProposta(d)}
@@ -433,8 +437,7 @@ ${d.publicado ? "" : faixaProposta(d)}
 </header>
 
 <section class="hero">
-  <div class="bgimg"><img src="${noHtml(fotos.hero)}" alt="${alt}"></div>
-  <canvas id="fx3d"></canvas>
+  <div class="bgimg"><img src="${noHtml(fotos.hero)}" alt="${alt}" width="1024" height="1536" fetchpriority="high" decoding="async"></div>
   <div class="hero-inner">
     <span class="tag">${esc(tag)}</span>
     <h1 class="rv${d.nome.length > 40 ? " nml" : d.nome.length > 24 ? " nl" : ""}">${esc(linha1)}${linha2 ? `<span class="row2">${esc(linha2)}</span>` : ""}</h1>
@@ -459,7 +462,7 @@ ${d.agendamento === false ? "" : BOTAO_AGENDAR}
 
 <section class="galeria" id="trabalhos">
   <div class="sec-head rv"><span class="label">Galeria</span><h2>${esc(t.galeria || escolhido(VARIANTES.galeria, "galeria"))}</h2></div>
-  <div class="gal-grid">${[fotos.ga1, fotos.ga2, fotos.ga3].map((ref) => `<div class="tilt rv fit-cover"><img src="${noHtml(ref)}" alt="${alt}" loading="lazy">${doBanco(ref) ? '<span class="cap">Imagem ilustrativa</span>' : ""}</div>`).join("")}</div>
+  <div class="gal-grid">${[fotos.ga1, fotos.ga2, fotos.ga3].map((ref) => `<div class="tilt rv fit-cover"><img src="${noHtml(ref)}" alt="${alt}" width="1024" height="1536" loading="lazy" decoding="async">${doBanco(ref) ? '<span class="cap">Imagem ilustrativa</span>' : ""}</div>`).join("")}</div>
 </section>
 
 <section class="servicos" id="servicos">
@@ -469,7 +472,7 @@ ${d.agendamento === false ? "" : BOTAO_AGENDAR}
     return `<div class="svc-row rv"><span class="num">${String(i + 1).padStart(2, "0")}</span><div><h3>${esc(s)}</h3><p>${esc(p)}</p></div><span class="tag-pill">${esc(selo)}</span></div>`;
   }).join("")}
   <div class="precos rv"><h3>Tabela de preços</h3>
-      <div class="price-placeholder"><b>${precoTitulo}</b> ${precoTexto} <a href="/agendar">Ver valores e horários →</a></div></div>
+      <div class="price-placeholder"><b>${precoTitulo}</b> ${precoTexto} <a href="${d.agendamento === false ? "#agendar" : "/agendar"}">${d.agendamento === false ? "Consultar valores →" : "Ver valores e horários →"}</a></div></div>
 </section>
 
 <section class="agendar" id="agendar">
@@ -483,7 +486,7 @@ ${d.agendamento === false ? "" : BOTAO_AGENDAR}
         <div class="step"><b>3</b><span>${passos[2]}</span></div>
       </div>
     </div>
-    ${porTelefone ? `<div class="waform rv"><p>Ligue para ${esc(d.nome)} e combine o serviço e o melhor horário.</p><a class="btn-solid" href="tel:+${d.telefone}">${WA} Ligar ${foneBR(d.telefone)}</a></div>` : `<form class="waform rv" id="waform" data-wa="${d.telefone}">
+    ${porTelefone ? `<div class="waform rv"><p>Ligue para ${esc(d.nome)} e combine o serviço e o melhor horário.</p><a class="btn-solid" href="tel:+${d.telefone}">${WA} Ligar ${foneBR(d.telefone)}</a></div>` : `<form class="waform rv" id="waform" data-wa="${d.telefone}" data-brand="${esc(d.nome)}">
       <label for="wf-nome">Seu nome</label>
       <input id="wf-nome" name="nome" type="text" placeholder="Como podemos te chamar?" autocomplete="name" required>
       <label for="wf-svc">Serviço</label>
@@ -547,20 +550,8 @@ var hd=document.getElementById('hd');
 addEventListener('scroll',function(){hd.classList.toggle('scrolled',scrollY>40);},{passive:true});
 var io=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target);}});},{threshold:.12});
 document.querySelectorAll('.rv').forEach(function(el){io.observe(el);});
-${porTelefone ? "" : `// dia de preferência a partir de hoje (no fuso de quem abre): o navegador recusa data passada
-document.getElementById('wf-dia').min=new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
-document.getElementById('waform').addEventListener('submit',function(ev){
-  ev.preventDefault();
-  var f=ev.target, linhas=['Olá! Quero agendar um horário.','Nome: '+f.nome.value];
-  if(f.servico.value)linhas.push('Serviço: '+f.servico.value);
-  if(f.dia.value){var d=f.dia.value.split('-');linhas.push('Dia de preferência: '+d[2]+'/'+d[1]+'/'+d[0]);}
-  if(f.periodo.value)linhas.push('Período: '+f.periodo.value);
-  if(f.msg.value)linhas.push('Obs.: '+f.msg.value);
-  window.open('https://wa.me/'+f.getAttribute('data-wa')+'?text='+encodeURIComponent(linhas.join('\\n')),'_blank');
-});`}
 </script>
 <script src="../assets/fx.js" defer></script>
-<script>window.addEventListener('load',function(){if(window.init3D)init3D('fx3d','${acc}',{shapes:12,opacity:.45});});</script>
 </body>
 </html>
 `;

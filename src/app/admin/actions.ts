@@ -36,9 +36,14 @@ import {
   pixCadastrado,
   salvarPix,
 } from "@/lib/cobranca";
-import { anotar, CrmInput, lerCrm, lerFechados, linhaDoTempo, listarNotas, marcarContato, registrarMensagem, salvarCrm } from "@/lib/crm";
+import { anotar, CrmInput, historicoDoCopiloto, lerCrm, lerFechados, linhaDoTempo, listarNotas, marcarContato, paradoNaProspeccao, registrarFalhaIA, registrarMensagem, salvarCrm } from "@/lib/crm";
 import type { Crm } from "@/lib/crm-tipos";
-import { diaCurto, hojeISO, mensalidadeDe } from "@/lib/crm-tipos";
+import { diaCurto, EnvioConfirmado, ESTAGIOS, hojeISO, mensalidadeDe } from "@/lib/crm-tipos";
+import { LeadParou, sugerirResposta } from "@/lib/prospeccao-ia.server";
+import { roteamentoNaTela, salvarRoteamento } from "@/lib/ia-roteador.server";
+import { TextosCrm } from "@/lib/crm-textos";
+import { varianteDoNegocio } from "@/lib/prospeccao";
+import { textoSeguro } from "@/lib/sanitizar";
 import { formatBRL, linkWhatsApp } from "@/lib/datetime";
 import { competenciaAtual } from "@/lib/pix";
 import { lerSite, personalDe, publicarSite } from "@/lib/gerador.server";
@@ -323,6 +328,8 @@ export type Painel = {
   hoje: Resumo;
   /** quem assina as mensagens do CRM */
   assinatura: string;
+  /** os textos das mensagens prontas que o vendedor personalizou (aba Prospecção); o resto é o padrão */
+  textos: TextosCrm;
   /** minutos parado até o logout automático; 0 desliga */
   minutosInativo: number;
   /** ID do Pixel da Meta; vazio = desligado */
@@ -347,6 +354,7 @@ export const abrirPainel = adminAction(async (): Promise<Painel> => {
   return {
     hoje,
     assinatura: String(assina.get("assinatura") ?? ""),
+    textos: TextosCrm.parse(assina.get("textos") ?? {}),
     minutosInativo: Number(sessao.get("minutos")) || 0,
     metaPixel: String(marketing.get("metaPixel") ?? ""),
   };
@@ -359,6 +367,10 @@ export type Detalhe = {
   profissionais: number;
   agendamentos30d: number;
   telefone: string | null;
+  /** A variante A/B do primeiro contato (piloto F1: só salão); null fora do piloto */
+  varianteId: string | null;
+  /** Um telefone do negócio pediu PARE no número de prospecção (F3): a cadência não abre o WhatsApp */
+  paradoNaProspeccao: boolean;
 };
 
 /** O que o painel lateral de um espaço mostra além dos acessos. */
@@ -367,12 +379,13 @@ export const detalhesEspaco = adminAction(async (_user, slug: string): Promise<D
   const t = adminDb.collection("tenants").doc(slug);
   const desde = new Date();
   desde.setDate(desde.getDate() - 30);
-  const [tenant, servicos, staff, agendamentos, crm] = await Promise.all([
+  const [tenant, servicos, staff, agendamentos, crm, parado] = await Promise.all([
     t.get(),
     t.collection("services").where("active", "==", true).count().get(),
     t.collection("staff").where("active", "==", true).count().get(),
     t.collection("appointments").where("start", ">=", desde).count().get(),
     lerCrm(adminDb, [slug]),
+    paradoNaProspeccao(adminDb, slug),
   ]);
   return {
     crm: crm[slug] ?? null,
@@ -380,6 +393,8 @@ export const detalhesEspaco = adminAction(async (_user, slug: string): Promise<D
     profissionais: staff.data().count,
     agendamentos30d: agendamentos.data().count,
     telefone: tenant.get("site.phone") ?? null,
+    varianteId: varianteDoNegocio(slug, tenant.get("gerado.sub"))?.id ?? null,
+    paradoNaProspeccao: parado,
   };
 });
 
@@ -425,24 +440,67 @@ export const linhaDoTempoDo = adminAction(async (_user, slug: string) => {
   return linhaDoTempo(adminDb, slug);
 });
 
-/** A mensagem pronta foi aberta no WhatsApp: vira contato feito na linha do tempo. */
-export const registrarEnvio = adminAction(async (user, slug: string, modelo: string, para: string) => {
+// o que chega da tela nas actions de envio: modelo ("Lembrete", "Cobrança de novembro", "Lembrete: convite") e
+// para (nome do dono, "o dono", "a recepção") são texto livre, com tamanho; oque é uma das 4 ações
+const ModeloDoEnvio = z.string().trim().min(1).max(80);
+const ParaDoEnvio = z.string().trim().min(1).max(120);
+const OqueDoContato = z.enum(["respondeu", "automatica", "parar", "liberar"]);
+
+/** A mensagem pronta saiu pelo WhatsApp (o vendedor confirmou no "Enviou?"): vira contato feito
+ *  na linha do tempo. Com `envio`, o toque da cadência grava texto (e a variante, que o servidor
+ *  deriva do tenant), uma vez só por envioId. */
+export const registrarEnvio = adminAction(async (user, slug: string, modelo: unknown, para: unknown, envio?: unknown) => {
   if (!SLUG.test(slug)) throw new Error("negócio inválido");
-  await registrarMensagem(adminDb, slug, modelo, para, user.email ?? user.uid);
+  const m = ModeloDoEnvio.parse(modelo);
+  const p = ParaDoEnvio.parse(para);
+  // a limpeza guarda as quebras de linha (o texto que saiu tem parágrafos) e não corta: o limite de
+  // 1000 é do EnvioConfirmado, que recusa em vez de gravar o texto pela metade
+  const e = envio === undefined ? null : EnvioConfirmado.safeParse({ ...(envio as object), textoEnviado: textoSeguro(String((envio as { textoEnviado?: unknown })?.textoEnviado ?? ""), Infinity, true) });
+  if (e && !e.success) throw new ErroPrevisto("Envio inválido: confira o texto da mensagem (até 1000 caracteres).");
+  // false: este mesmo envio (o mesmo envioId) já estava gravado; a tela avisa em vez de calar
+  if (!(await registrarMensagem(adminDb, slug, m, p, user.email ?? user.uid, e?.data))) throw new ErroPrevisto("Este envio já estava registrado: nada foi gravado de novo.");
   await noIndice(slug);
   // o doc também: a cadência acabou de agendar o próximo toque, e a gaveta mostra
   const [eventos, crm] = await Promise.all([linhaDoTempo(adminDb, slug), lerCrm(adminDb, [slug])]);
   return { eventos, crm: crm[slug] ?? null };
 });
 
-/** O lead respondeu, ou pediu para parar (ou voltou atrás). */
-export const marcarContatoDo = adminAction(async (user, slug: string, oque: string) => {
+/** O lead respondeu (gente ou saudação automática), ou pediu para parar (ou voltou atrás). */
+export const marcarContatoDo = adminAction(async (user, slug: string, oque: unknown) => {
   slugValido(slug);
-  if (oque !== "respondeu" && oque !== "parar" && oque !== "liberar") throw new ErroPrevisto("Ação inválida.");
-  await marcarContato(adminDb, slug, oque, user.email ?? user.uid);
+  const o = OqueDoContato.safeParse(oque);
+  if (!o.success) throw new ErroPrevisto("Ação inválida.");
+  await marcarContato(adminDb, slug, o.data, user.email ?? user.uid);
   await noIndice(slug);
   const [eventos, crm] = await Promise.all([linhaDoTempo(adminDb, slug), lerCrm(adminDb, [slug])]);
   return { eventos, crm: crm[slug] ?? null };
+});
+
+/** Copiloto (F2): a resposta sugerida pela IA para o que o lead escreveu. É rascunho: o vendedor
+ *  revisa, edita e envia pelo wa.me; nada sai daqui. Volta com os links que a tela aceita. O
+ *  histórico sai do CRM (envios confirmados), nunca da tela. */
+export const sugerirRespostaDo = adminAction(async (_user, slug: string, mensagem: unknown) => {
+  slugValido(slug);
+  const [tenant, crm, historico, parado] = await Promise.all([adminDb.doc(`tenants/${slug}`).get(), adminDb.doc(`crm/${slug}`).get(), historicoDoCopiloto(adminDb, slug), paradoNaProspeccao(adminDb, slug)]);
+  if (!tenant.exists) throw new ErroPrevisto("Negócio não encontrado.");
+  const token = String(crm.get("propostaToken") ?? "");
+  const estagio = z.enum(ESTAGIOS).catch("novo").parse(crm.get("estagio"));
+  const lead = {
+    slug,
+    nome: String(tenant.get("name") ?? slug),
+    estagio,
+    linkProposta: token ? `${SITE_BASE}/proposta/${slug}?t=${token}` : null,
+    // a mesma regra da gaveta (pediu para parar e não é cliente) e o PARE no número de prospecção
+    parou: (!!crm.get("naoContatarEm") && estagio !== "fechado") || parado,
+  };
+  try {
+    return await sugerirResposta(lead, String(mensagem ?? ""), historico);
+  } catch (e) {
+    // a recusa por PARE e a mensagem vazia não são falha da IA
+    // gravar a falha que falha não esconde o erro da IA: loga e segue com o original
+    if (!(e instanceof LeadParou) && !(e instanceof z.ZodError)) await registrarFalhaIA(adminDb, slug, "copiloto", e).catch((x) => console.error("[copiloto] não gravei a falha da IA", x));
+    throw e;
+  }
 });
 
 export const anotarNegocio = adminAction(async (user, slug: string, texto: string) => {
@@ -1022,6 +1080,13 @@ export const definirSms = adminAction(async (_user, slug: string, cfg: unknown) 
 });
 
 // ─── Ajustes: chaves dos serviços de fora (SMS, e-mail, WhatsApp) ──────────────
+
+/** Roteamento da IA (F2): a config salva (vazia = o padrão do código), o aviso se a salva não vale, o
+ *  padrão para referência e o custo por tarefa e modelo dos últimos 30 dias (null se a leitura falhar). */
+export const lerRoteamentoIA = adminAction(async () => roteamentoNaTela(adminDb));
+
+/** Troca a rota de IA sem deploy: validada com o mesmo schema da tela; vale na próxima chamada. */
+export const salvarRoteamentoIA = adminAction(async (_user, config: unknown) => salvarRoteamento(adminDb, config));
 
 /** O que está cadastrado e de onde vem; segredo só com os 4 últimos caracteres. */
 export const lerIntegracoes = adminAction(async () => integracoesNaTela());

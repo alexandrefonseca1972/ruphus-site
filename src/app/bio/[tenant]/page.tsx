@@ -4,8 +4,10 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { adminDb } from "@/lib/admin";
 import { agendaDesligada, agendaDias, foraDoAr } from "@/lib/booking.server";
-import { addDays, formatBRL, fusoDe, linkWhatsApp, todayIn, weekday, WEEKDAYS, precoDe, type TipoPreco } from "@/lib/datetime";
+import { addDays, formatBRL, fusoDe, todayIn, weekday, WEEKDAYS, precoDe, type TipoPreco } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
+import { situacaoExpediente } from "@/lib/bio";
+import { telefoneDoNegocio, telefoneFixo, whatsappDoNegocio } from "@/lib/contato";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/;
 
@@ -110,15 +112,18 @@ export async function generateMetadata({ params }: PageProps<"/bio/[tenant]">): 
   const bio = await carregar(tenant);
   if (!bio) return { title: "Minisite" };
   const local = bio.cidade ? ` · ${bio.cidade}${bio.uf ? `/${bio.uf}` : ""}` : "";
+  const acao = bio.agendaOnline && bio.servicos.length ? "Agende online" : "Veja os serviços";
+  const contato = telefoneFixo(bio.telefone) ? "ligue para o negócio" : "fale no WhatsApp";
+  const descricao = `${acao}, ${contato} e veja onde fica ${bio.nome}.`;
   return {
     title: `${bio.nome}${local}`,
-    description: `Agende online, fale no WhatsApp e veja onde fica ${bio.nome}.`,
+    description: descricao,
     robots: { index: false, follow: false },
     // o ícone é gerado em /bio/<slug>/icon; no subdomínio do site o caminho precisa ser absoluto
     icons: { icon: `https://www.ruphus.site/bio/${tenant}/icon` },
     openGraph: {
       title: bio.nome,
-      description: `Agende online, fale no WhatsApp e veja onde fica ${bio.nome}.`,
+      description: descricao,
       images: [`${bio.site}og.jpg`],
       type: "website",
       locale: "pt_BR",
@@ -137,20 +142,6 @@ function claro(hex: string) {
 const hhmm = (t: string) => t.replace(":00", "h").replace(":", "h");
 const duracao = (min: number) =>
   min >= 60 ? `${Math.floor(min / 60)}h${min % 60 ? ` ${min % 60}min` : ""}` : `${min} min`;
-
-/** Aberto agora? Compara o relógio de Brasília com o expediente do dia. */
-function situacao(expediente: Expediente[]) {
-  const jornada = expediente.find((e) => e.dia === weekday(todayIn()));
-  const hora = new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date());
-  return jornada && hora >= jornada.inicio && hora < jornada.fim
-    ? { aberto: true, ate: jornada.fim }
-    : { aberto: false, ate: null };
-}
 
 const Seta = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -179,13 +170,13 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
 
   const local = [bio.cidade, bio.uf].filter(Boolean).join("/");
   const agendar = `${bio.site}agendar`;
-  // sem catálogo ou com a agenda desligada pelo dono, a barra leva ao WhatsApp
+  // Sem catálogo ou com a agenda desligada, o contato direto assume; telefone fixo vira ligação.
   const agenda = bio.servicos.length > 0 && bio.agendaOnline;
   const mapa = bio.endereco
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${bio.nome} ${bio.endereco}`)}`
     : null;
-  const zap = linkWhatsApp(bio.telefone, `Olá! Vim pelo Instagram do ${bio.nome}.`);
-  const { aberto, ate } = situacao(bio.expediente);
+  const zap = whatsappDoNegocio(bio.telefone, `Olá! Vim pelo Instagram do ${bio.nome}.`);
+  const { aberto, ate } = situacaoExpediente(bio.expediente, bio.fuso);
   const dias = [...bio.expediente].sort((a, b) => ((a.dia + 6) % 7) - ((b.dia + 6) % 7));
   // Caminho completo nos dois endereços: em www é o arquivo; no subdomínio o proxy o deixa
   // passar sem prefixar de novo. Sem ler o host, a página inteira pode ficar em cache.
@@ -195,10 +186,11 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
   // Cor clara demais some sobre o fundo creme (#faf3f1 no Amanda): o destaque vira tinta
   const acento = claro(bio.cor) ? "#17150F" : bio.cor;
 
-  const hoje = weekday(todayIn());
+  const hoje = weekday(todayIn(bio.fuso));
   const precos = bio.servicos.map((x) => x.preco).filter(Boolean);
   const jornadaHoje = bio.expediente.find((e) => e.dia === hoje);
-  const ligar = bio.telefone ? `tel:+${bio.telefone.replace(/\D/g, "").replace(/^(?!55)/, "55")}` : null;
+  const ligar = telefoneDoNegocio(bio.telefone);
+  const contato = zap ?? ligar;
   const atalhos = [
     zap && { href: zap, rotulo: "WhatsApp", tinta: "#2C6A53", icone: <IconeZap /> },
     ligar && { href: ligar, rotulo: "Ligar", tinta: "#17150F", icone: <IconeFone />, externo: false },
@@ -206,9 +198,9 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
     bio.instagram && { href: `https://instagram.com/${bio.instagram}`, rotulo: "Instagram", tinta: "#8A3A63", icone: <IconeInsta /> },
   ].filter(Boolean) as { href: string; rotulo: string; tinta: string; icone: React.ReactNode; externo?: boolean }[];
 
-  // tocar num serviço já abre a agenda com ele marcado; sem agenda, pergunta no WhatsApp
+  // Tocar num serviço abre a agenda; sem ela, pergunta pelo canal que o negócio atende.
   const linkServico = (sv: Servico) =>
-    agenda ? `${agendar}?servico=${encodeURIComponent(sv.id)}` : (linkWhatsApp(bio.telefone, `Olá! Quero saber do serviço ${sv.nome}.`) ?? agendar);
+    agenda ? `${agendar}?servico=${encodeURIComponent(sv.id)}` : (whatsappDoNegocio(bio.telefone, `Olá! Quero saber do serviço ${sv.nome}.`) ?? ligar ?? agendar);
   const linhaServico = (sv: Servico, i: number) => (
     <li key={sv.id}>
       <a href={linkServico(sv)} className={`flex min-h-15 items-center gap-3 px-4 py-2.5 hover:bg-[#FAF8F4] ${i ? "border-t border-[#EFEBE3]" : ""}`}>
@@ -285,7 +277,7 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
               key={a.rotulo}
               href={a.href}
               {...(a.externo !== false && { target: "_blank", rel: "noreferrer" })}
-              className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border border-[#E2DDD3] bg-white px-3.5 text-[13px] font-semibold active:scale-[0.97]"
+              className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-[#E2DDD3] bg-white px-3.5 text-[13px] font-semibold active:scale-[0.97]"
             >
               <span style={{ color: a.tinta }}>{a.icone}</span>
               {a.rotulo}
@@ -309,7 +301,7 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
                 <input key={d.date} type="radio" name="dia" id={`dia-${k}`} defaultChecked={k === 0} className="sr-only" />
               ))}
               {livres.dias.map((d, k) => (
-                <label key={d.date} htmlFor={`dia-${k}`} className="inline-flex min-h-10 cursor-pointer items-center rounded-full px-3.5 text-[13px] font-semibold text-[#6F6A5E]">
+                <label key={d.date} htmlFor={`dia-${k}`} className="inline-flex min-h-11 cursor-pointer items-center rounded-full px-3.5 text-[13px] font-semibold text-[#6F6A5E]">
                   {d.rotulo}
                 </label>
               ))}
@@ -319,7 +311,7 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
                     <a
                       key={h}
                       href={`${agendar}?servico=${encodeURIComponent(livres.servico.id)}&data=${d.date}&hora=${h}`}
-                      className={`rounded-xl border py-2.5 text-center text-sm font-semibold tabular-nums ${d === primeiro && h === primeiro.horarios[0] ? "border-[#17150F] bg-[#17150F] text-white" : "border-[#E2DDD3] bg-white"}`}
+                      className={`flex min-h-11 items-center justify-center rounded-xl border px-1 py-2 text-center text-sm font-semibold tabular-nums ${d === primeiro && h === primeiro.horarios[0] ? "border-[#17150F] bg-[#17150F] text-white" : "border-[#E2DDD3] bg-white"}`}
                     >
                       {hhmm(h)}
                     </a>
@@ -341,7 +333,7 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
               {bio.servicos.length > VISIVEIS && (
                 // <details> nativo: o resto da lista sem JavaScript; o "ver os N" some ao abrir
                 <details className="group">
-                  <summary className="cursor-pointer list-none border-t border-[#EFEBE3] py-3 text-center text-[13px] font-semibold text-[#6F6A5E] group-open:hidden [&::-webkit-details-marker]:hidden">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center border-t border-[#EFEBE3] px-3 py-2 text-center text-[13px] font-semibold text-[#6F6A5E] group-open:hidden [&::-webkit-details-marker]:hidden">
                     Ver os {bio.servicos.length} serviços
                   </summary>
                   <ul className="border-t border-[#EFEBE3]">{bio.servicos.slice(VISIVEIS).map(linhaServico)}</ul>
@@ -387,8 +379,8 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
               )}
               {/* a cidade já está na capa: o cartão só aparece com endereço, que abre no mapa */}
               {mapa && (
-                <a href={mapa} target="_blank" rel="noreferrer" className={`${CARTAO} min-w-0 self-start px-3.5 py-3 text-[13px] text-[#6F6A5E] ${dias.length ? "" : "col-span-2"}`}>
-                  <b className="block truncate text-sm text-[#17150F]">{bio.endereco}</b>
+                <a href={mapa} target="_blank" rel="noreferrer" className={`${CARTAO} flex min-h-11 min-w-0 flex-col justify-center self-start px-3.5 py-3 text-[13px] text-[#6F6A5E] ${dias.length ? "" : "col-span-2"}`}>
+                  <b className="block break-words text-sm text-[#17150F]">{bio.endereco}</b>
                   Abrir no mapa
                 </a>
               )}
@@ -397,31 +389,29 @@ export default async function BioPage({ params }: PageProps<"/bio/[tenant]">) {
         )}
 
         <footer className="flex flex-col items-center gap-2.5 pt-2 text-center text-xs text-[#8B8578]">
-          <a href={bio.site} className="inline-flex items-center gap-1 text-sm font-semibold text-[#17150F]">
+          <a href={bio.site} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[#17150F]">
             Ver o site completo
             <Seta className="text-[#A9A396]" />
           </a>
           <p>
             {bio.nome} · feito com{" "}
-            <a href="https://www.ruphus.site/" className="underline underline-offset-2">
+            <a href="https://www.ruphus.site/" className="inline-flex min-h-11 items-center px-1 underline underline-offset-2">
               Ruphus
             </a>
           </p>
         </footer>
       </div>
 
-      {/* a barra fica à vista o tempo todo: agendar é o motivo de a pessoa ter vindo do Instagram.
-          Sem catálogo não há o que marcar, e prometer agendamento levaria a pessoa a uma página
-          vazia — nesse caso a barra leva ao WhatsApp, que é o que o negócio tem para oferecer. */}
-      {(agenda ? agendar : zap) && (
+      {/* Sem agenda, a barra usa o canal de contato disponível, inclusive ligação para número fixo. */}
+      {(agenda ? agendar : contato) && (
         <div className="fixed inset-x-0 bottom-0 border-t border-[#E7E2D8] bg-[#F7F5F1]/95 backdrop-blur">
           <div className="mx-auto w-full max-w-[520px] px-4 pt-2.5 pb-[max(1rem,env(safe-area-inset-bottom))]">
             <a
-              href={agenda ? agendar : zap!}
+              href={agenda ? agendar : contato!}
               className="flex min-h-[54px] items-center justify-between gap-3 rounded-2xl px-5 py-2.5"
               style={{ background: acento, color: "#FFFFFF" }}
             >
-              <span className="text-[15px] font-bold">{agenda ? "Agendar online" : "Falar no WhatsApp"}</span>
+              <span className="text-[15px] font-bold">{agenda ? "Agendar online" : zap ? "Falar no WhatsApp" : "Ligar para o negócio"}</span>
               {agenda && primeiro && (
                 <span className="text-xs opacity-85">
                   livre {primeiro.rotulo.toLowerCase()} {hhmm(primeiro.horarios[0])}

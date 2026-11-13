@@ -12,6 +12,14 @@ export async function numerosReservadosMeta(db: Firestore): Promise<string[]> {
   return [...new Set([NUMERO_META_ATUAL, ...lista.map((v) => soDigitosComDDI(String(v))).filter((v): v is string => !!v)])];
 }
 
+/** Os números que nunca prospectam: os reservados e o phone que a plataforma usa hoje (o remetente
+ *  escolhido no admin), a mesma lista da trava do agente. O botão do site demo usa. */
+export async function reservadosDaProspeccao(db: Firestore): Promise<string[]> {
+  const [reservados, plat] = await Promise.all([numerosReservadosMeta(db), db.doc(DOC).get()]);
+  const fone = soDigitosComDDI(String(plat.get("phone") ?? ""));
+  return fone ? [...reservados, fone] : reservados;
+}
+
 export async function telefoneReservadoPelaMeta(db: Firestore, valor: string): Promise<boolean> {
   return telefoneDaMeta(valor, await numerosReservadosMeta(db));
 }

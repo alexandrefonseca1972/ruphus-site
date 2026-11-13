@@ -11,7 +11,9 @@ import { SaldosDosNegocios } from "./mensagens-gaveta";
 import { RemetenteWhatsApp } from "./remetente-whatsapp";
 import type { IntegracaoNaTela } from "@/lib/integracoes.server";
 import type { Situacao } from "@/lib/verificar-integracoes.server";
-import { lerIntegracoes, lerConfigMensagensAction, salvarConfigMensagensAction, salvarIntegracao, testarEmail, testarSms, verificarAjustes } from "./actions";
+import { z } from "zod";
+import { ConfigRoteamento, type CustoTarefa } from "@/lib/ia-roteamento";
+import { lerIntegracoes, lerRoteamentoIA, salvarRoteamentoIA, lerConfigMensagensAction, salvarConfigMensagensAction, salvarIntegracao, testarEmail, testarSms, verificarAjustes } from "./actions";
 
 const BOTAO = "inline-flex h-11 items-center justify-center rounded-[10px] px-4 text-sm font-semibold transition-colors";
 const BOTAO_ESCURO = `${BOTAO} bg-[#17150F] text-white hover:bg-[#2C2920] disabled:opacity-50`;
@@ -105,6 +107,7 @@ export function Ajustes({ idToken }: { idToken: string }) {
       ))}
       <RemetenteWhatsApp />
       <PrecosMensagem idToken={idToken} />
+      <RoteamentoIA idToken={idToken} />
       <SaldosDosNegocios />
     </div>
   );
@@ -233,6 +236,155 @@ function PrecosMensagem({ idToken }: { idToken: string }) {
         </form>
       )}
       {aviso && <p role="status" className={`text-xs ${aviso.ok ? "text-[#2C6A53]" : "text-[#8A2F2F]"}`}>{aviso.texto}</p>}
+    </section>
+  );
+}
+
+/** O que a config da IA tem de errado agora (null = pode salvar). A mesma regra do servidor. */
+function erroDaConfig(texto: string): string | null {
+  let bruto: unknown;
+  try {
+    bruto = JSON.parse(texto || "{}");
+  } catch (e) {
+    return `JSON inválido: ${e instanceof Error ? e.message : "confira vírgulas e aspas"}`;
+  }
+  const r = ConfigRoteamento.safeParse(bruto);
+  return r.success ? null : z.prettifyError(r.error);
+}
+
+const dolar = (centavos: number) => (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
+/** Roteamento da IA (config/ia-roteamento): qual modelo cada tarefa usa, a cadeia de fallback e o
+ *  orçamento do dia. Vale na próxima chamada, sem deploy. A tabela embaixo mostra custo e erro por
+ *  tarefa e modelo (iaChamadas), que é de onde sai a decisão de trocar. */
+function RoteamentoIA({ idToken }: { idToken: string }) {
+  const [texto, setTexto] = useState<string | null>(null);
+  const [padrao, setPadrao] = useState<unknown>(null);
+  const [custos, setCustos] = useState<{ desde: string; linhas: CustoTarefa[] } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
+  // a config salva no Firestore não passa no schema: o roteador está no padrão, e a tela diz por quê
+  const [invalida, setInvalida] = useState<string | null>(null);
+  // a leitura falhou: não se sabe o que está gravado, e salvar por cima apagaria a config boa
+  const [naoLida, setNaoLida] = useState(false);
+
+  useEffect(() => {
+    if (!idToken) return;
+    let atual = true;
+    tokenAtual().then((tk) => lerRoteamentoIA(tk)).then(
+      (r) => {
+        if (!atual) return;
+        if (!r.ok) return setAviso({ ok: false, texto: r.error });
+        // inválida: o JSON gravado, para corrigir (não {}); não lida: vazio, com Salvar desligado
+        setTexto(r.dados.gravado ?? "");
+        setNaoLida(!r.dados.lida);
+        setPadrao(r.dados.padrao);
+        setCustos(r.dados.custos);
+        setInvalida(r.dados.invalida);
+      },
+      () => atual && setAviso({ ok: false, texto: "Não foi possível carregar o roteamento da IA." }),
+    );
+    return () => {
+      atual = false;
+    };
+  }, [idToken]);
+
+  // validação a cada digitação (JSON e Zod de um texto curto: sem debounce)
+  const erro = texto === null ? null : erroDaConfig(texto);
+
+  return (
+    <section aria-label="Roteamento da IA" className="flex flex-col gap-4 rounded-2xl border border-[#E2DDD3] bg-white p-4">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-sm font-semibold">IA: modelo por tarefa</h3>
+        <p className="text-xs text-[#6F6A5E]">
+          Cada tarefa tem uma cadeia de modelos: se um falhar, demorar ou responder fora do formato, o próximo tenta. Tarefa fora daqui usa o padrão do código. O orçamento do dia é em centavos de dólar. Vale na próxima chamada.
+        </p>
+      </div>
+      {texto === null && !aviso && <p className="text-sm text-[#6F6A5E]">Carregando…</p>}
+      {invalida && (
+        <div role="alert" className="flex flex-col gap-1 rounded-xl bg-[#F1E7E7] px-3 py-2 text-xs leading-relaxed [overflow-wrap:anywhere] text-[#8A2F2F]">
+          <p className="font-medium">A config salva não vale: todas as tarefas estão no padrão do código. Corrija e salve de novo.</p>
+          <pre className="whitespace-pre-wrap">{invalida}</pre>
+        </div>
+      )}
+      {naoLida && (
+        <p role="alert" className="rounded-xl bg-[#F1E7E7] px-3 py-2 text-xs leading-relaxed text-[#8A2F2F]">
+          Não foi possível ler a config salva: o roteador está no padrão do código, sem orçamento pago. Salvar fica desligado até ler; recarregue a página.
+        </p>
+      )}
+      {texto !== null && (
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (erro || naoLida) return;
+            setBusy(true);
+            setAviso(null);
+            const r = await tokenAtual().then((tk) => salvarRoteamentoIA(tk, JSON.parse(texto || "{}"))).catch(() => null);
+            setBusy(false);
+            if (!r?.ok) return setAviso({ ok: false, texto: r?.error ?? "Não foi possível salvar agora." });
+            setTexto(JSON.stringify(r.dados, null, 2));
+            setInvalida(null);
+            setAviso({ ok: true, texto: "Salvo. A próxima chamada já usa esta rota." });
+          }}
+        >
+          <label htmlFor="ia-roteamento" className="text-xs font-medium text-[#17150F]">config/ia-roteamento (JSON)</label>
+          <textarea
+            id="ia-roteamento"
+            value={texto}
+            onChange={(e) => (setTexto(e.target.value), setAviso(null))}
+            rows={12}
+            spellCheck={false}
+            aria-invalid={!!erro}
+            aria-describedby="ia-roteamento-erro"
+            className="w-full resize-y rounded-xl border border-[#D8D2C6] bg-[#FBFAF8] p-3 font-mono text-xs leading-relaxed text-[#17150F] outline-none focus:border-[#17150F] aria-[invalid=true]:border-[#8A2F2F]"
+          />
+          <pre id="ia-roteamento-erro" aria-live="polite" className="whitespace-pre-wrap text-xs text-[#8A2F2F]">{erro ?? ""}</pre>
+          <div className="flex flex-wrap gap-2">
+            <button type="submit" disabled={busy || !!erro || naoLida} className={BOTAO_ESCURO}>
+              {busy ? "Salvando…" : "Salvar"}
+            </button>
+            <button type="button" disabled={busy || !padrao} onClick={() => (setTexto(JSON.stringify(padrao, null, 2)), setAviso(null))} className={BOTAO_CLARO}>
+              Começar do padrão
+            </button>
+          </div>
+        </form>
+      )}
+      {aviso && <p role={aviso.ok ? "status" : "alert"} className={`text-xs ${aviso.ok ? "text-[#2C6A53]" : "text-[#8A2F2F]"}`}>{aviso.texto}</p>}
+      {texto !== null && !custos && <p className="text-xs text-[#6F6A5E]">Não foi possível ler o custo por tarefa agora.</p>}
+      {custos && (
+        <div className="flex flex-col gap-2">
+          <h4 className="text-xs font-medium text-[#17150F]">Custo por tarefa desde {custos.desde.split("-").reverse().join("/")}</h4>
+          {custos.linhas.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs tabular-nums">
+                <thead className="text-[#6F6A5E]">
+                  <tr>
+                    <th scope="col" className="py-1 pr-3 font-medium">Tarefa</th>
+                    <th scope="col" className="py-1 pr-3 font-medium">Modelo</th>
+                    <th scope="col" className="py-1 pr-3 text-right font-medium">Chamadas</th>
+                    <th scope="col" className="py-1 pr-3 text-right font-medium">Erro</th>
+                    <th scope="col" className="py-1 text-right font-medium">Custo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {custos.linhas.map((l) => (
+                    <tr key={`${l.tarefa}-${l.modelo}-${l.provedor}`} className="border-t border-[#EDEAE0]">
+                      <td className="py-1 pr-3">{l.tarefa}</td>
+                      <td className="py-1 pr-3">{l.modelo}{l.provedor !== "anthropic" && ` (${l.provedor})`}</td>
+                      <td className="py-1 pr-3 text-right">{l.chamadas}</td>
+                      <td className="py-1 pr-3 text-right">{Math.round((l.erros / l.chamadas) * 100)}%</td>
+                      <td className="py-1 text-right">{dolar(l.custoCentavos)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-xs text-[#6F6A5E]">Nenhuma chamada de IA no período.</p>
+          )}
+        </div>
+      )}
     </section>
   );
 }

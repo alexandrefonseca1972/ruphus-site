@@ -800,3 +800,25 @@ export async function reschedule(db: Firestore, input: RescheduleInput, actor: A
     return { ok: true as const };
   }, TX));
 }
+
+/** Desfaz o cancelamento sem encobrir um horário que outro cliente ocupou depois. */
+export async function restaurarAgendamento(db: Firestore, input: { tenantId: string; appointmentId: string; status: "booked" | "confirmed" }, actor: Actor) {
+  const preso = await profissionalDaConta(db, input.tenantId, actor.uid);
+  return contended(() => db.runTransaction(async (tx) => {
+    const t = db.collection("tenants").doc(input.tenantId);
+    const ref = t.collection("appointments").doc(input.appointmentId);
+    const appt = await tx.get(ref);
+    if (!appt.exists || appt.get("status") !== "cancelled") return { ok: false as const, error: "Este agendamento não está cancelado." };
+    if (preso && appt.get("staffId") !== preso) return { ok: false as const, error: DE_OUTRO };
+    const start = appt.get("start") as Timestamp;
+    const end = appt.get("end") as Timestamp;
+    const conflitos = await tx.get(t.collection("appointments").where("staffId", "==", appt.get("staffId")).where("start", "<", end));
+    if (conflitos.docs.some((d) => d.id !== ref.id && ["booked", "confirmed"].includes(d.get("status")) && (d.get("end") as Timestamp).toMillis() > start.toMillis())) {
+      return { ok: false as const, error: "Não foi possível desfazer o cancelamento: o horário já foi ocupado." };
+    }
+    const history = t.collection("history").doc();
+    tx.create(history, { appointmentId: ref.id, type: "restored", at: FieldValue.serverTimestamp(), by: actor.uid, byName: actor.email ?? actor.uid, toStatus: input.status });
+    tx.update(ref, { status: input.status, lastHistoryId: history.id });
+    return { ok: true as const };
+  }, TX));
+}

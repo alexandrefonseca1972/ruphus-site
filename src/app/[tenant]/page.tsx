@@ -10,10 +10,12 @@ import { MensagensParadas } from "./mensagens-paradas";
 import { Fragment, useEffect, useState } from "react";
 import { z } from "zod";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { FeedbackDialog } from "@/components/feedback-dialog";
+import { FormMessage } from "@/components/form-message";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
-import { addDays, customerKey, dateIn, formatLongDate, formatTime, todayIn, weekday, WEEKDAYS, whatsappLink, zonedTime, precoDe, fusoDe } from "@/lib/datetime";
+import { addDays, customerKey, dateIn, formatLongDate, formatTime, todayIn, weekday, whatsappLink, zonedTime, precoDe, fusoDe } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
 import { cn, openExternal } from "@/lib/utils";
@@ -25,7 +27,10 @@ import { itensDoRecibo } from "@/lib/recibo";
 import { Recibo } from "./caixa/recibo";
 import { useTenant } from "./painel-layout";
 import { PageTitle } from "./page-title";
+import { AgendaOverview, CapacidadeEquipe, horariosVagos, type FiltroStatus } from "./agenda-overview";
+import { PeriodBoard } from "./period-board";
 import { Reschedule } from "./reschedule";
+import { CalendarDays, ChevronLeft, ChevronRight, ListFilter, Plus, UsersRound } from "lucide-react";
 import { RowMenu } from "./row-menu";
 import { ShareLink } from "./share-link";
 import { mudarStatus, STATUS } from "./status";
@@ -71,6 +76,10 @@ export default function AgendaPage() {
   const tenant = useTenant();
   const { brl, oculto } = useValores();
   const [date, setDate] = useState(todayIn);
+  const [modo, setModo] = useState<"periodo" | "profissional">("periodo");
+  const [periodoFiltro, setPeriodoFiltro] = useState<"ativos" | "vagos" | "todos">("ativos");
+  const [statusFiltro, setStatusFiltro] = useState<FiltroStatus>(null);
+  const [foco, setFoco] = useState<{ minutos: number; id: number } | null>(null);
   const [error, setError] = useState("");
   const [rescheduling, setRescheduling] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState<string | null>(null);
@@ -87,12 +96,6 @@ export default function AgendaPage() {
   const mensagem = (a: Appointment, tipo: AvisoCliente, start = a.start.toDate()) =>
     textoAvisoCliente(tipo, { ...a, start }, tenant.name, `${location.origin}/agendar/${tenant.id}`);
   const aviso = notice?.aviso;
-  // o aviso some sozinho: só texto em 6 s; com botão (avisar, recibo) fica 20 s para dar tempo de tocar
-  useEffect(() => {
-    if (!notice) return;
-    const t = setTimeout(() => setNotice(null), notice.aviso || notice.recibo ? 20_000 : 6_000);
-    return () => clearTimeout(t);
-  }, [notice]);
   // O relógio anda a cada minuto: com a agenda aberta o dia todo, o horário que passa perde
   // o "Confirmar" e ganha o "Faltou", e a linha do "agora" desce, sem recarregar a página
   const [now, setNow] = useState(Date.now);
@@ -158,14 +161,17 @@ export default function AgendaPage() {
     if (avisaPelaApi(tenant.whatsapp?.canalOficial, a.whatsappConsent)) {
       setPending(a.id);
       const saved = await changeStatus(a, status);
-      if (!saved) return setPending(null);
+      if (!saved) {
+        setPending(null);
+        return false;
+      }
       const r = await idToken()
         .then((t) => avisarClienteAction(t, { tenantId: tenant.id, appointmentId: a.id, tipo }))
         .catch(() => null);
       setPending(null);
       const faixa = faixaDoAviso(r && r.ok ? r : r ? { situacao: "falhou", motivo: r.error } : null, `${a.customerName}: horário ${status === "confirmed" ? "confirmado" : "cancelado"}`);
       setNotice({ text: faixa.texto, ...(faixa.waMe && { aviso: { a, tipo, start: a.start.toDate(), resolver: true } }) });
-      return;
+      return true;
     }
     // a aba abre ainda dentro do clique: depois do await da gravação o navegador já não conta
     // como gesto, bloqueava a aba nova, e o WhatsApp tomava o lugar do painel
@@ -174,12 +180,16 @@ export default function AgendaPage() {
     const saved = await changeStatus(a, status);
     setPending(null);
     // Falhou a gravação: não avisa o cliente de algo que não aconteceu
-    if (!saved) return aba?.close();
+    if (!saved) {
+      aba?.close();
+      return false;
+    }
     const link = whatsappLink(a.customerPhone, mensagem(a, tipo));
     if (aba) {
       aba.opener = null;
       aba.location.href = link;
     } else if (!openExternal(link)) location.assign(link); // webview bloqueou a aba nova
+    return true;
   }
 
   async function sinalRecebido(a: Appointment) {
@@ -197,14 +207,20 @@ export default function AgendaPage() {
       : changeStatus(a, "cancelled");
   }
 
+  function concluirRemarcacao(a: Appointment, newDate: string, start: Date) {
+    setRescheduling(null);
+    setNotice({
+      text: `${a.customerName} remarcado para ${formatLongDate(start)} às ${formatTime(start)}.`,
+      aviso: { a, tipo: "remarcado", start },
+    });
+    setDate(newDate);
+  }
+
   // o profissional de quem entrou pela equipe pode ter sido excluído: aí abre em "Todos"
   const filtro = staffFilter && staff && !staff.some((p) => p.id === staffFilter) ? "" : staffFilter;
   const shown = items?.filter((a) => !filtro || a.staffId === filtro) ?? null;
   const active = shown?.filter(ATIVO) ?? [];
-  const dias = Array.from({ length: 7 }, (_, i) => {
-    const d = addDays(semana, i);
-    return { date: d, count: daSemana?.filter((a) => ATIVO(a) && dateIn(a.start.toDate()) === d).length ?? 0 };
-  });
+  const agendaFiltrada = active.filter((a) => statusFiltro === "booked" ? a.status === "booked" && a.sinal?.status !== "pendente" : statusFiltro === "signal" ? a.sinal?.status === "pendente" : true);
   const hoje = todayIn();
   // aviso automático que não chegou e ainda serve: o texto do wa.me de reserva de cada horário
   const avisoDe = (a: Appointment) => avisoPendente({ avisoFalhou: a.avisoFalhou, status: a.status, start: a.start.toMillis() }, now);
@@ -212,88 +228,112 @@ export default function AgendaPage() {
   const resolverAviso = (a: Appointment) => void idToken().then((t) => resolverAvisoAction(t, { tenantId: tenant.id, appointmentId: a.id })).catch(() => {});
   // Linha do "agora": antes do primeiro horário que ainda não começou, só no dia de hoje
   const agoraAntesDe = date === hoje ? shown?.find((a) => a.start.toMillis() > now)?.id : undefined;
-  const stats = [
-    { label: "Horários", value: active.length },
-    { label: "Confirmados", value: active.filter((a) => a.status === "confirmed").length },
-    { label: "Aguardando", value: active.filter((a) => a.status === "booked").length },
-    { label: "Previsto", value: brl(active.reduce((sum, a) => sum + a.priceCents, 0)) },
-  ];
+  const cancelados = shown?.filter((a) => a.status === "cancelled") ?? [];
+  const vagos = horariosVagos(active, staff ?? []);
+
+  function focarQuadro(minutos: number) {
+    setModo("periodo");
+    setStaffFilter("");
+    setStatusFiltro(null);
+    setPeriodoFiltro("todos");
+    setFoco({ minutos: Math.floor(minutos / 60) * 60, id: Date.now() });
+    setTimeout(() => document.getElementById("quadro")?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }), 0);
+  }
 
   return (
     <>
       <PageTitle title="Agenda" valores sub={capitaliza(formatLongDate(zonedTime(date, "12:00")))}>
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          <Button variant="outline" size="icon-lg" className="size-10 max-sm:size-11" onClick={() => setDate(addDays(date, -7))} aria-label="Semana anterior">‹</Button>
-          <Label htmlFor="agenda-date" className="sr-only">Data</Label>
-          <Input id="agenda-date" type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="h-10 w-auto grow bg-card max-sm:h-11 sm:grow-0" />
-          <Button variant="outline" size="icon-lg" className="size-10 max-sm:size-11" onClick={() => setDate(addDays(date, 7))} aria-label="Próxima semana">›</Button>
-          <Button variant="ghost" className="h-10 px-3 max-sm:h-11" disabled={date === hoje} onClick={() => setDate(hoje)}>Hoje</Button>
-        </div>
+        <Link href={`/agendar/${tenant.id}`} target="_blank" className={buttonVariants({ className: "h-11 w-full gap-2 px-4 sm:w-auto" })}>
+          <Plus className="size-4" strokeWidth={1.8} aria-hidden="true" />
+          Novo agendamento
+        </Link>
       </PageTitle>
 
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5" role="group" aria-label="Dias da semana">
-        {dias.map((d) => {
-          const sel = d.date === date;
-          return (
-            <button
-              key={d.date}
-              type="button"
-              aria-pressed={sel}
-              aria-label={`${WEEKDAYS[weekday(d.date)]} ${Number(d.date.slice(8))}: ${d.count} horário(s)`}
-              onClick={() => setDate(d.date)}
-              className={cn(
-                "grid justify-items-center gap-1 rounded-xl border bg-card py-2.5 hover:border-foreground/40 sm:py-3",
-                sel && "border-primary bg-primary text-primary-foreground hover:border-primary",
-              )}
-            >
-              <span className="text-[11px] tracking-wider uppercase opacity-75">{WEEKDAYS[weekday(d.date)].slice(0, 3)}</span>
-              <span className={cn("font-serifa text-2xl leading-none sm:text-3xl", d.date === hoje && !sel && "underline underline-offset-4")}>{Number(d.date.slice(8))}</span>
-              {/* no celular o dia tem ~46px: "4 hor." cabe, "4 horários" não */}
-              <span className="text-[10px] leading-none whitespace-nowrap opacity-75 sm:text-xs" aria-hidden="true">
-                {d.count ? (
-                  <>
-                    {d.count} hor<span className="sm:hidden">.</span>
-                    <span className="hidden sm:inline">ário{d.count > 1 ? "s" : ""}</span>
-                  </>
-                ) : (
-                  "livre"
-                )}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {shown && !!staff?.length && <AgendaOverview items={active} staff={staff} previsto={brl(active.reduce((sum, a) => sum + a.priceCents, 0))} filtro={statusFiltro} onFilter={setStatusFiltro} />}
 
-      {!!daSemana?.length && (
-        <dl className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3 sm:grid-cols-4 sm:gap-4">
-          {stats.map((st) => (
-            <div key={st.label} className="grid min-w-0 gap-1.5 rounded-2xl border bg-card px-4 py-4 sm:px-5">
-              <dt className="text-[13px] text-muted-foreground">{st.label}</dt>
-              <dd className="font-serifa text-2xl leading-none tabular-nums [overflow-wrap:anywhere] sm:text-3xl">{st.value}</dd>
+      {shown && !!staff?.length && (
+        <section className="sticky top-14 z-20 flex flex-wrap items-center gap-2 rounded-xl border bg-card/95 p-2 shadow-[0_5px_16px_rgb(23_21_15/4%)] backdrop-blur-xl sm:top-0" aria-label="Controles da agenda">
+          <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-1 sm:w-auto">
+            <Button variant="outline" size="icon-lg" className="size-11" onClick={() => setDate(addDays(date, -1))} aria-label="Dia anterior"><ChevronLeft className="size-4" aria-hidden="true" /></Button>
+            <Label htmlFor="agenda-date" className="sr-only">Data do quadro</Label>
+            <Input id="agenda-date" type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="h-11 w-full bg-card text-center font-mono text-xs sm:w-[9.5rem]" />
+            <Button variant="outline" size="icon-lg" className="size-11" onClick={() => setDate(addDays(date, 1))} aria-label="Próximo dia"><ChevronRight className="size-4" aria-hidden="true" /></Button>
+          </div>
+          <Button variant="outline" className="h-11 gap-2 px-3" disabled={date === hoje} onClick={() => setDate(hoje)}><CalendarDays className="size-4" aria-hidden="true" />Hoje</Button>
+          {(staff.length > 1) && (
+            <>
+              <Label htmlFor="agenda-staff" className="sr-only">Profissional</Label>
+              <select id="agenda-staff" value={filtro} onChange={(e) => setStaffFilter(e.target.value)} className="h-11 min-w-0 flex-1 rounded-lg border bg-card px-2 text-xs sm:max-w-44">
+                <option value="">Toda a equipe</option>
+                {staff.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </>
+          )}
+          <div className="flex flex-1 gap-1 rounded-lg bg-muted p-1" role="group" aria-label="Forma de visualização">
+            <button type="button" aria-pressed={modo === "periodo"} onClick={() => setModo("periodo")} className={cn("inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-[11px] font-semibold text-muted-foreground hover:bg-card hover:text-foreground", modo === "periodo" && "bg-card text-foreground shadow-sm")}>
+              <CalendarDays className="size-4" strokeWidth={1.8} aria-hidden="true" />Por período
+            </button>
+            <button type="button" aria-pressed={modo === "profissional"} onClick={() => setModo("profissional")} className={cn("inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-[11px] font-semibold text-muted-foreground hover:bg-card hover:text-foreground", modo === "profissional" && "bg-card text-foreground shadow-sm")}>
+              <UsersRound className="size-4" strokeWidth={1.8} aria-hidden="true" />Por profissional
+            </button>
+          </div>
+          {modo === "periodo" && (
+            <div className="relative flex-1 sm:flex-none">
+              <ListFilter className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Label htmlFor="periodo-filtro" className="sr-only">Períodos exibidos</Label>
+              <select id="periodo-filtro" value={periodoFiltro} onChange={(e) => setPeriodoFiltro(e.target.value as typeof periodoFiltro)} className="h-11 w-full rounded-lg border bg-card pr-2 pl-8 text-xs sm:w-40">
+                <option value="ativos">Agendados</option>
+                <option value="vagos">Horários vagos</option>
+                <option value="todos">Todos os períodos</option>
+              </select>
             </div>
-          ))}
-        </dl>
+          )}
+        </section>
       )}
+
+      {shown && !!staff?.length && <CapacidadeEquipe items={active} staff={staff} onSelect={focarQuadro} />}
 
       {/* gestor com o canal oficial: as que pararam na cota sem ninguém olhando */}
       {tenant.podeGerir && tenant.whatsapp?.canalOficial && <MensagensParadas tenantId={tenant.id} fuso={fuso} />}
-      {notice && (
-        <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950">
-          <span>{notice.text}</span>
-          <div className="flex gap-2">
-            {aviso && (
-              <a href={whatsappLink(aviso.a.customerPhone, mensagem(aviso.a, aviso.tipo, aviso.start))} target="_blank" rel="noreferrer" onClick={() => aviso.resolver && resolverAviso(aviso.a)} className={cn(BOTAO_AVISO, "max-sm:h-11")}>
-                Avisar pelo WhatsApp
-              </a>
-            )}
-            {notice.recibo && (
-              <Button variant="outline" size="sm" onClick={() => abrirRecibo(notice.recibo!)}>Recibo</Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={() => setNotice(null)}>Fechar</Button>
-          </div>
-        </div>
+      {error && <FeedbackDialog tipo="erro" mensagem={error} onClose={() => setError("")} />}
+      {!error && loadError && <FormMessage>{loadError}</FormMessage>}
+      {notice && !error && (
+        <FeedbackDialog
+          tipo="sucesso"
+          titulo="Agenda atualizada"
+          mensagem={notice.text}
+          closeLabel="Fechar"
+          actions={(aviso || notice.recibo) && (
+            <>
+              {aviso && (
+                <a href={whatsappLink(aviso.a.customerPhone, mensagem(aviso.a, aviso.tipo, aviso.start))} target="_blank" rel="noreferrer" onClick={() => aviso.resolver && resolverAviso(aviso.a)} className={cn(BOTAO_AVISO, "h-11 justify-center")}>
+                  Avisar pelo WhatsApp
+                </a>
+              )}
+              {notice.recibo && <Button variant="outline" className="h-11 px-4" onClick={() => { setNotice(null); void abrirRecibo(notice.recibo!); }}>Abrir recibo</Button>}
+            </>
+          )}
+          onClose={() => setNotice(null)}
+        />
       )}
-      {(error || loadError) && <p role="alert" className="text-sm text-destructive">{error || loadError}</p>}
+
+      <section id="quadro" aria-labelledby="quadro-titulo" className="scroll-mt-24 rounded-xl border bg-card shadow-[0_12px_28px_rgb(23_21_15/6%)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2.5">
+          <div>
+            <h2 id="quadro-titulo" className="text-sm font-semibold">Horários do dia</h2>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{periodoFiltro === "ativos" ? "Somente períodos com compromissos" : periodoFiltro === "vagos" ? "Somente períodos com vagas" : "Todos os períodos de 1 hora"}</p>
+          </div>
+          <span className="text-[11px] text-muted-foreground">Expediente das 08:00 às 18:00</span>
+        </div>
+
+        {shown && !!staff?.length && (
+          <div className="flex flex-wrap gap-x-4 gap-y-2 border-b px-4 py-3 text-[11px] text-muted-foreground" aria-label="Legenda">
+            <span className="inline-flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300"><i className="size-2 rounded-full bg-current" />Confirmado</span>
+            <span className="inline-flex items-center gap-1.5 text-amber-800 dark:text-amber-300"><i className="size-2 rounded-full bg-current" />Aguardando confirmação</span>
+            <span className="inline-flex items-center gap-1.5 text-violet-800 dark:text-violet-300"><i className="size-2 rounded-full bg-current" />Aguardando sinal</span>
+            <span className="inline-flex items-center gap-1.5"><i className="size-2 rounded-full border border-dashed border-muted-foreground" />Vago</span>
+          </div>
+        )}
 
       {!shown ? (
         <p className="text-sm text-muted-foreground">Carregando…</p>
@@ -302,32 +342,9 @@ export default function AgendaPage() {
            agendamento não tem o que oferecer — e "Nenhum agendamento neste dia"
            faz parecer que é só um dia vazio. */
         <Onboarding tenantId={tenant.id} name={tenant.name} temServicos={!!services?.length} />
-      ) : (
-        <section aria-labelledby="dia" className="overflow-hidden rounded-2xl border bg-card">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
-            <h2 id="dia" className="font-semibold">Horários do dia</h2>
-            {(staff?.length ?? 0) > 1 && (
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por profissional">
-                {[{ id: "", name: "Todos" }, ...(staff ?? [])].map((p) => {
-                  const n = p.id ? items?.filter((a) => ATIVO(a) && a.staffId === p.id).length : undefined;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      aria-pressed={filtro === p.id}
-                      onClick={() => setStaffFilter(p.id)}
-                      className={cn(
-                        "h-9 rounded-full border px-3.5 text-[13px] hover:bg-muted max-sm:h-11",
-                        filtro === p.id && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
-                      )}
-                    >
-                      {p.name}{n ? ` · ${n}` : ""}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+      ) : modo === "profissional" ? (
+        <section aria-labelledby="dia" className="overflow-hidden">
+          <h2 id="dia" className="sr-only">Horários por profissional</h2>
           {shown.length === 0 ? (
             <p className="border-t px-6 py-12 text-center text-sm text-muted-foreground">
               {filtro ? "Nenhum horário para este profissional neste dia." : "Nenhum horário marcado neste dia."}
@@ -481,14 +498,7 @@ export default function AgendaPage() {
                   tenantId={tenant.id}
                   appointment={a}
                   onClose={() => setRescheduling(null)}
-                  onDone={(newDate, start) => {
-                    setRescheduling(null);
-                    setNotice({
-                      text: `${a.customerName} remarcado para ${formatLongDate(start)} às ${formatTime(start)}.`,
-                      aviso: { a, tipo: "remarcado", start },
-                    });
-                    setDate(newDate);
-                  }}
+                  onDone={(newDate, start) => concluirRemarcacao(a, newDate, start)}
                 />
               )}
             </li>
@@ -498,7 +508,43 @@ export default function AgendaPage() {
         </ul>
           )}
         </section>
+      ) : (
+        <PeriodBoard
+          key={foco?.id ?? "quadro"}
+          tenantId={tenant.id}
+          items={agendaFiltrada}
+          staff={staff ?? []}
+          date={date}
+          foco={foco}
+          periodoFiltro={periodoFiltro}
+          onPeriodoFiltroChange={setPeriodoFiltro}
+          now={now}
+          onMoved={concluirRemarcacao}
+          onCancel={cancel}
+        />
       )}
+
+      {shown && !!staff?.length && (
+        <details className="m-4 rounded-lg border bg-background">
+          <summary className="min-h-11 cursor-pointer px-4 py-3 text-xs font-semibold">Histórico de cancelamentos <span className="ml-1 font-normal text-muted-foreground">{cancelados.length}</span></summary>
+          <div className="px-4 pb-3 text-xs text-muted-foreground">
+            {cancelados.length === 0 ? <p>Nenhum agendamento cancelado neste dia.</p> : cancelados.map((a) => (
+              <div key={a.id} className="flex flex-wrap justify-between gap-2 border-t py-2">
+                <span><strong className="font-medium text-destructive line-through">{a.customerName}</strong> · {a.serviceName}</span>
+                <span>{formatTime(a.start.toDate())} · {a.staffName}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+      {shown && !!staff?.length && (
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
+          <span className="hidden items-center gap-2 lg:inline-flex">Arraste um cartão para reagendar. Toque nele para ver as outras ações.</span>
+          <span className="inline-flex items-center gap-2"><Plus className="size-4" strokeWidth={1.8} aria-hidden="true" />Toque em um horário vago para agendar.</span>
+          <strong className="ml-auto font-semibold text-foreground">{active.length} {active.length === 1 ? "agendamento" : "agendamentos"} · {vagos} vagos</strong>
+        </footer>
+      )}
+      </section>
       {folha && (
         <LancamentoFolha
           tenantId={tenant.id}

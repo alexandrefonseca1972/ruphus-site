@@ -7,7 +7,7 @@ import { useCollection } from "@/lib/use-collection";
 
 const Range = z.object({ start: z.instanceof(Timestamp), end: z.instanceof(Timestamp) });
 const Entry = z.object({
-  type: z.enum(["created", "confirmed", "rescheduled", "cancelled", "no_show"]),
+  type: z.enum(["created", "confirmed", "rescheduled", "cancelled", "restored", "no_show"]),
   at: z.instanceof(Timestamp),
   by: z.string(),
   byName: z.string().nullish(),
@@ -38,6 +38,8 @@ function describe(e: Entry) {
         : `Remarcado por ${who}`;
     case "cancelled":
       return e.reason === "plan_ended" ? `Cancelado ao encerrar o plano recorrente, por ${who}` : `Cancelado por ${who}`;
+    case "restored":
+      return `Cancelamento desfeito por ${who}`;
     case "no_show":
       return `Falta registrada por ${who}`;
   }

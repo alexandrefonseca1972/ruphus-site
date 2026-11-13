@@ -183,7 +183,7 @@ export function renderClaro(d: DadosSite): string {
   const nav = [["servicos", "Serviços"], ["procedimentos", "Como funciona"], ["valores", "Valores"], ...(temNota ? [["avaliacoes", "Avaliações"]] : []), ["local", "Como chegar"], ["agendar", "Contato"]];
   const endereco = d.endereco || [onde, d.uf].filter(Boolean).join(" - ");
   const horario = d.horario || "Confirme o horário pelo WhatsApp";
-  const botaoWa = (classe: string) => `<a class="${classe}" href="${oi}" target="_blank" rel="noopener">${WA}<span>Falar no WhatsApp</span></a>`;
+  const botaoWa = (classe: string) => `<a class="${classe}" href="${oi}" target="_blank" rel="noopener" data-menu-close>${WA}<span>Falar no WhatsApp</span></a>`;
   const faq = girar(c.faq, d, "faq");
   const descricao = (s: string) => c.descricoes.find(([re]) => re.test(s))?.[1] ?? "Serviço oferecido pela casa — confirme detalhes pelo WhatsApp.";
   const img = (nome: string) => imagem(c, nome);
@@ -210,6 +210,8 @@ ${cabecaComum(d, tituloPag, descr, d.publicado)}
 ${d.uf ? `<meta name="geo.region" content="BR-${esc(d.uf)}">` : ""}
 ${jsonLdNegocio(d, descr, propriaNoTopo ? `/${proprias.hero}` : `/assets/${c.pasta}/${topo}.jpg`)}${jsonLd({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) })}
 ${ESTILO_AGENDAR}
+<link rel="stylesheet" href="../assets/site-ui.css">
+<script src="../assets/site-ui.js" defer></script>
 </head>
 <body>
 ${d.publicado ? "" : faixaProposta(d)}
@@ -225,23 +227,22 @@ ${d.publicado ? "" : faixaProposta(d)}
     </a>
     <nav class="main-nav">${nav.map(([id, t]) => `<a href="#${id}">${itemMenu(id, t)}</a>`).join("")}</nav>
     <div class="header-actions">
-      <button class="hamburger" id="hamburgerBtn" aria-label="Abrir menu"><span></span></button>
+      <button class="hamburger" id="hamburgerBtn" aria-label="Abrir menu" aria-controls="drawer" aria-expanded="false" data-menu-open="drawer"><span></span></button>
     </div>
   </div>
 </header>
 
-<div class="drawer-backdrop" id="drawerBackdrop"></div>
-<aside class="drawer" id="drawer" aria-hidden="true">
+<dialog class="drawer site-menu" id="drawer" aria-label="Menu do site">
   <div class="drawer-head">
-    <a href="#top" class="brand">
+    <a href="#top" class="brand" data-menu-close>
       <img class="seal" src="${seloSrc}" alt="Selo ${esc(d.nome)}" width="40" height="40">
       <span class="brand-text"><span class="brand-name" style="max-width:none;">${esc(d.nome)}</span></span>
     </a>
-    <button class="drawer-close" id="drawerCloseBtn" aria-label="Fechar menu">&times;</button>
+    <button class="drawer-close" id="drawerCloseBtn" aria-label="Fechar menu" data-menu-close>&times;</button>
   </div>
   <nav>${nav.map(([id, t]) => `<a href="#${id}" class="drawer-link">${itemMenu(id, t)}</a>`).join("")}</nav>
   ${botaoWa("btn btn-primary btn-block")}
-</aside>
+</dialog>
 
 <div id="top"></div>
 <section class="hero">
@@ -369,12 +370,12 @@ ${temNota ? `
     <div class="agendar-box">
       ${porTelefone ? `<div class="agendar-actions"><a class="btn btn-primary" href="tel:+${d.telefone}">${FONE}<span>Ligar ${foneBR(d.telefone)}</span></a></div>` : `<form id="agendarForm" data-brand="${esc(d.nome)}" data-wa="${d.telefone}">
         <div class="form-grid">
-          <div class="full"><label for="agNome">Seu nome</label><input id="agNome" required placeholder="Seu nome completo"></div>
-          <div><label for="agTelefone">Telefone / WhatsApp</label><input id="agTelefone" required placeholder="(00) 90000-0000"></div>
-          <div><label for="agServico">Serviço desejado</label><select id="agServico">${[...servicos, "Outro"].map((s) => `<option>${esc(s)}</option>`).join("")}</select></div>
-          <div><label for="agData">Data</label><input id="agData" type="date"></div>
-          <div><label for="agHora">Horário</label><input id="agHora" type="time"></div>
-          <div class="full"><label for="agObs">${c.textos.obs[0]}</label><textarea id="agObs" placeholder="${c.textos.obs[1]}"></textarea></div>
+          <div class="full"><label for="agNome">Seu nome</label><input id="agNome" name="nome" type="text" autocomplete="name" required placeholder="Seu nome completo"></div>
+          <div><label for="agTelefone">Telefone / WhatsApp</label><input id="agTelefone" name="telefone" type="tel" inputmode="tel" autocomplete="tel-national" required placeholder="(00) 90000-0000"></div>
+          <div><label for="agServico">Serviço desejado</label><select id="agServico" name="servico">${[...servicos, "Outro"].map((s) => `<option>${esc(s)}</option>`).join("")}</select></div>
+          <div><label for="agData">Data</label><input id="agData" name="dia" type="date" autocomplete="off"></div>
+          <div><label for="agHora">Horário</label><input id="agHora" name="hora" type="time" autocomplete="off"></div>
+          <div class="full"><label for="agObs">${c.textos.obs[0]}</label><textarea id="agObs" name="msg" placeholder="${c.textos.obs[1]}"></textarea></div>
         </div>
         <div class="agendar-actions">
           <button type="submit" class="btn btn-primary" id="waSubmitBtn">${WA}<span>Enviar no WhatsApp</span></button>
@@ -426,32 +427,7 @@ ${BOTAO_TOPO}
 (function(){
   var header=document.getElementById('siteHeader');
   window.addEventListener('scroll',function(){header.classList.toggle('scrolled',window.scrollY>8);},{passive:true});
-  var drawer=document.getElementById('drawer');
-  function openDrawer(){document.body.classList.add('drawer-open');drawer.setAttribute('aria-hidden','false');}
-  function closeDrawer(){document.body.classList.remove('drawer-open');drawer.setAttribute('aria-hidden','true');}
-  document.getElementById('hamburgerBtn').addEventListener('click',openDrawer);
-  document.getElementById('drawerCloseBtn').addEventListener('click',closeDrawer);
-  document.getElementById('drawerBackdrop').addEventListener('click',closeDrawer);
-  document.querySelectorAll('.drawer-link').forEach(function(a){a.addEventListener('click',closeDrawer);});
   document.getElementById('yr').textContent=new Date().getFullYear();
-  ${porTelefone ? "" : `// data a partir de hoje (no fuso de quem abre): o navegador recusa data passada
-  document.getElementById('agData').min=new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
-  var form=document.getElementById('agendarForm');
-  var v=function(id){return document.getElementById(id).value.trim();};
-  form.addEventListener('submit',function(e){
-    e.preventDefault();
-    var nome=document.getElementById('agNome'),tel=document.getElementById('agTelefone');
-    if(!nome.value.trim())return nome.reportValidity();
-    if(!tel.value.trim())return tel.reportValidity();
-    var msg='Olá! Vim pelo site da '+form.getAttribute('data-brand')+' e quero agendar um horário.\\n'
-      +'Nome: '+v('agNome')+'\\nTelefone: '+v('agTelefone')+'\\nServiço: '+v('agServico')+'\\n';
-    if(v('agData'))msg+='Data: '+v('agData')+'\\n';
-    if(v('agHora'))msg+='Horário: '+v('agHora')+'\\n';
-    if(v('agObs'))msg+='Observação: '+v('agObs')+'\\n';
-    window.open('https://wa.me/'+form.getAttribute('data-wa')+'?text='+encodeURIComponent(msg),'_blank');
-    var note=document.getElementById('agendarNote');
-    note.textContent='Abrindo o WhatsApp com sua mensagem pronta...';note.classList.add('ok');
-  });`}
 })();
 </script>
 </body>

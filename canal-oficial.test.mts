@@ -61,7 +61,11 @@ assert.equal(
   "Este número da Ruphus só envia avisos de agendamento. Para falar com *Salão Bela*, chame (91) 99999-0000.",
 );
 assert.equal(respostaForaDoFluxo("oi", null), "Este número da Ruphus só envia avisos de agendamento. Fale com o estabelecimento onde você agendou.");
-for (const sair of ["SAIR", " sair! ", "Parar", "STOP", "cancelar"]) assert.equal(respostaForaDoFluxo(sair, null), null, sair);
+for (const sair of ["SAIR", " sair! ", "Parar", "STOP", "Sáir"]) assert.equal(respostaForaDoFluxo(sair, null), null, sair);
+// LOW-6 (revisão do núcleo): o atendys só registra a palavra sozinha (stop/parar/sair); "pare", "cancelar"
+// e "pare por favor" não viram opt-out lá, então a resposta diz como sair em vez de calar
+for (const quase of ["pare", "cancelar", "pare por favor", "sair agora"]) assert.match(respostaForaDoFluxo(quase, null) ?? "", /responda só SAIR\.$/, quase);
+assert.equal(respostaForaDoFluxo("oi", null)?.includes("SAIR"), false, "mensagem comum não ganha a instrução");
 assert.equal(respostaForaDoFluxo("quero sair da lista amanhã", null)?.startsWith("Este número"), true, "frase com sair ainda responde");
 // cliente não é dono: "Confirmado" dele também recebe a orientação
 assert.equal(respostaForaDoFluxo("Confirmado", null)?.startsWith("Este número"), true);

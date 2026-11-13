@@ -3,6 +3,7 @@ import type { DocumentSnapshot, Firestore, QuerySnapshot } from "firebase-admin/
 import { negocio, trivial } from "@/lib/crm";
 import type { Crm } from "@/lib/crm-tipos";
 import { LIMITE_STAFF_MAX, limiteStaffDe } from "@/lib/limites";
+import { limparCacheDeTelefones } from "@/lib/painel-consulta";
 import { ehUf, limparTexto, nichoDe, type Espaco } from "@/lib/painel-tipos";
 
 // Índice do painel do admin (docs/plano-paginacao-admin.md, 3.1): uma cópia enxuta de
@@ -251,6 +252,8 @@ export function criarIndice(db: Firestore, { ociosoMs = OCIOSO_MS, prazoMs = PRA
 
   async function montar(): Promise<Estado> {
     const inicio = Date.now();
+    // remontar relê tudo: o cache de telefones normalizados começa do zero junto (não cresce para sempre)
+    limparCacheDeTelefones();
     let abortar: (err: Error) => void = () => {};
     const abortada = new Promise<never>((_, rej) => (abortar = rej));
     abortada.catch(() => {}); // rejeitar depois de pronta não é erro de ninguém

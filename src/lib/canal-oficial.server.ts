@@ -3,6 +3,7 @@ import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore"
 import { apontarWebhook, enviarTemplate, enviarTexto, garantirTenant, listarInstanciasAtendys, OPTIN_DONO, revogarChavesAntigas, statusDaInstancia, type ConexaoAtendys, type Template } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
+import { ehOptOut } from "@/lib/prospeccao-canal";
 import { customerKey, formatBRL, formatPhone, todayIn } from "@/lib/datetime";
 import { SITE_BASE, urlDoSite, type Dominio } from "@/lib/dominio";
 import type { Previsao } from "@/lib/consumo";
@@ -338,14 +339,20 @@ export async function confirmarDono(db: Firestore, slug: string, telefone: strin
     return { negocio: String(t.get("name") ?? "").trim() || slug };
   });
 }
+/** A palavra sozinha que o atendys registra como opt-out (../wtsfy, apps/api/src/utils/conversation-intent.ts,
+ *  OPT_OUT_PATTERNS `^(?:stop|parar|sair)$`, conferido no commit 2c1efaa), com a mesma normalização dele. */
+const optOutDoAtendys = (texto: string) => /^(?:stop|parar|sair)$/.test(texto.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim());
+
 /** Resposta automática a quem escreveu ao número da plataforma sem ser dono de negócio do canal
  *  oficial (o cliente respondendo a um aviso; botão nem chega aqui). null = não responde: mensagem
- *  vazia ou só a palavra de opt-out (o SAIR é do atendys, que já registra a revogação). */
+ *  vazia ou só a palavra que o atendys registra (SAIR, PARAR, STOP: ele já gravou a revogação). Pedido
+ *  de parar que o atendys NÃO registra ("pare", "cancelar", "pare por favor") recebe o aviso e como sair
+ *  de fato: calar ali deixaria a pessoa achando que saiu. */
 export function respostaForaDoFluxo(texto: string, ultimo: { negocio: string; contato: string } | null): string | null {
-  const palavra = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/gi, "").trim().toLowerCase();
-  if (!palavra || ["sair", "parar", "pare", "stop", "cancelar", "descadastrar"].includes(palavra)) return null;
+  if (!texto.normalize("NFD").replace(/[^a-z0-9]/gi, "") || optOutDoAtendys(texto)) return null;
   const aviso = "Este número da Ruphus só envia avisos de agendamento.";
-  return ultimo ? `${aviso} Para falar com *${ultimo.negocio.replace(/\*/g, "")}*, chame ${ultimo.contato}.` : `${aviso} Fale com o estabelecimento onde você agendou.`;
+  const base = ultimo ? `${aviso} Para falar com *${ultimo.negocio.replace(/\*/g, "")}*, chame ${ultimo.contato}.` : `${aviso} Fale com o estabelecimento onde você agendou.`;
+  return ehOptOut(texto) ? `${base} Para não receber mais avisos deste número, responda só SAIR.` : base;
 }
 
 /** Negócio e contato do agendamento mais recente deste telefone entre os negócios do canal oficial.

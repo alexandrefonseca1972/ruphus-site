@@ -3,12 +3,13 @@
 import assert from "node:assert/strict";
 import lerAbas from "read-excel-file/node";
 import { montar, porRamo } from "@/lib/catalogo";
-import { candidatos, type DadosSite, fixo, lerPlanilha as lerAbasDaPlanilha, nichoDe, outraForma, ufDe, ufDoTelefone, variante } from "@/lib/gerador";
+import { slugDaEntrada } from "@/lib/prospeccao-canal";
+import { candidatos, type DadosSite, faixaProposta, fixo, lerPlanilha as lerAbasDaPlanilha, nichoDe, outraForma, SUBS, ufDe, ufDoTelefone, variante } from "@/lib/gerador";
 
 // uma aba só, como a maioria das planilhas
 const lerPlanilha = (linhas: unknown[][]) => lerAbasDaPlanilha([{ aba: "Leads", linhas }]);
 import { renderEditorial as renderBeleza } from "@/lib/site-editorial";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { AULAS } from "@/lib/nichos/aulas";
 import { AUTOMOTIVO } from "@/lib/nichos/automotivo";
 import { FITNESS } from "@/lib/nichos/fitness";
@@ -229,7 +230,9 @@ for (const [nome, html] of [
   assert.ok(html.includes('content="noindex, nofollow"'), `${nome}: fora do Google`);
   assert.ok(html.includes('<meta property="og:image" content="https://pet-feliz.ruphus.site/og.jpg">') && html.includes('content="1200"'), `${nome}: prévia do WhatsApp em og.jpg 1200×630`);
   assert.ok(!html.includes("undefined") && !html.includes("null"), `${nome}: nenhum campo vazio vazou`);
-  assert.ok(/getElementById\('(wf-dia|agData)'\)\.min=new Date/.test(html), `${nome}: data do formulário a partir de hoje`);
+  assert.ok(html.includes('../assets/site-ui.js') && html.includes('../assets/site-ui.css'), `${nome}: comportamento compartilhado`);
+  assert.ok(!html.includes("init3D") && !html.includes("fx3d"), `${nome}: sem WebGL morto`);
+  for (const img of html.match(/<img\b[^>]*>/g) ?? []) assert.ok(img.includes("width=") && img.includes("height="), `${nome}: imagem sem dimensões: ${img}`);
 }
 // domínio próprio ativo vira o endereço oficial; pendente, segue o subdomínio
 {
@@ -301,13 +304,14 @@ assert.equal(montar("Harmonização facial").priceCents, 20000);
 assert.equal(montar("Limpeza de pele").priceCents, 12000);
 
 // toda página de todo nicho: nada vazio vazando, camada Ruphus, e saúde sem preço nem antes/depois
-const subs: DadosSite["sub"][] = ["petshop", "vet", "barbearia", "salao", "estetica", "unhas", "tatuagem", "odonto", "fisio", "psico", "nutri", "clinica",
-  "idiomas", "reforco", "musica", "autoescola", "academia", "pilates", "lutas", "danca", "oficina", "lavagem", "pneus"];
+const subs = Object.keys(SUBS) as DadosSite["sub"][];
 for (const sub of subs) {
   const d = { ...base, sub, nome: "Negócio Exemplo", servicos: [] };
   const html = ehClaro(sub) ? renderClaro(d) : renderBeleza(d);
   assert.ok(!html.includes("undefined") && !html.includes("null") && !html.includes("NaN"), `${sub}: campo vazio vazou`);
   assert.ok(html.includes('data-ysis="proposta"') && html.includes('data-agendar="1"'), `${sub}: camada Ruphus`);
+  assert.ok(html.includes('../assets/site-ui.js') && !html.includes("init3D"), `${sub}: comportamento compartilhado sem WebGL`);
+  for (const img of html.match(/<img\b[^>]*>/g) ?? []) assert.ok(img.includes("width=") && img.includes("height="), `${sub}: imagem sem dimensões`);
   if (["odonto", "fisio", "psico", "nutri", "clinica"].includes(sub)) {
     assert.ok(!/R\$\s?\d/.test(html), `${sub}: saúde não anuncia preço`);
     assert.ok(!/antes e depois|resultado garantido|o melhor/i.test(html), `${sub}: publicidade vedada em saúde`);
@@ -552,7 +556,58 @@ console.log("telefone fixo vira ligação: ok");
   const claro = renderClaro({ ...base, sub: "petshop", agendamento: false });
   assert.ok(!editorial.includes('data-agendar="1"'), "editorial sem Agendamento não mostra o botão");
   assert.ok(!claro.includes('data-agendar="1"'), "claro sem Agendamento não mostra o botão");
+  assert.ok(!editorial.includes('href="/agendar"') && !editorial.includes("Ver valores e horários"), "editorial sem agenda não promete horários online");
+  assert.ok(editorial.includes("Valores com o negócio") && editorial.includes('href="#agendar"'), "editorial sem agenda oferece contato alternativo");
+  assert.ok(!claro.includes('href="/agendar"'), "claro sem agenda não linka a grade online");
   assert.ok(renderBeleza({ ...base, sub: "barbearia", agendamento: true }).includes('data-agendar="1"'));
   assert.ok(renderClaro({ ...base, sub: "petshop", agendamento: true }).includes('data-agendar="1"'));
   console.log("botão do site conforme o plano: ok");
+}
+
+// F3: "Falar com a Ruphus" na faixa de proposta abre o número de prospecção com a mensagem de entrada
+{
+  const NUM = "5511900000042"; // sintético
+  const com = faixaProposta({ slug: "salao-da-ana", origem: "prospeccao", reservados: [] }, NUM);
+  const href = /data-ysis="falar" href="([^"]+)"/.exec(com)?.[1]?.replace(/&amp;/g, "&");
+  assert.ok(href?.startsWith(`https://wa.me/${NUM}?text=`), "botão leva ao número de prospecção");
+  assert.equal(slugDaEntrada(decodeURIComponent(href!.split("?text=")[1])), "salao-da-ana", "a mensagem traz o código do site");
+  assert.ok(/Falar com a Ruphus/.test(com) && /Pedir remoção/.test(com), "botão ao lado de Pedir remoção");
+  assert.ok(!/whatsapp/i.test(com.replace(/wa\.me\/\d+/g, "")), "o texto da faixa não fala em WhatsApp");
+  // sem número, com o 1726 (com ou sem o 9) ou no site do próprio dono: sem botão
+  const r: readonly string[] = [];
+  for (const [d, n] of [[{ slug: "x1", origem: "prospeccao", reservados: r }, undefined], [{ slug: "x1", origem: "prospeccao", reservados: r }, "5591992361726"], [{ slug: "x1", origem: "prospeccao", reservados: r }, "559192361726"], [{ slug: "x1", origem: "cadastro", reservados: r }, NUM]] as const) {
+    assert.ok(!faixaProposta(d, n).includes('data-ysis="falar"'), `sem botão: ${d.origem} ${n}`);
+  }
+  // a trava completa: número reservado no Firestore (ou o phone da plataforma, que entra na lista) não vira
+  // botão (qualquer formatação); sem a lista (leitura falhou), também não
+  assert.ok(!faixaProposta({ slug: "x1", origem: "prospeccao", reservados: ["+55 11 90000-0042"] }, NUM).includes('data-ysis="falar"'), "reservado não vira botão");
+  assert.ok(!faixaProposta({ slug: "x1", origem: "prospeccao" }, NUM).includes('data-ysis="falar"'), "sem a lista de reservados, sem botão");
+  assert.ok(faixaProposta({ slug: "x1", origem: "prospeccao", reservados: ["5511900000099"] }, NUM).includes('data-ysis="falar"'), "outro reservado não tira o botão");
+  console.log("faixa de proposta com Falar com a Ruphus: ok");
+}
+
+
+// Formulários e sites personalizados usam o mesmo comportamento acessível.
+{
+  const claro = renderClaro({ ...base, sub: "petshop" });
+  for (const atributo of ['name="telefone"', 'type="tel"', 'inputmode="tel"', 'autocomplete="tel-national"', 'name="dia"', 'name="msg"']) {
+    assert.ok(claro.includes(atributo), `modelo claro: ${atributo}`);
+  }
+  assert.ok(claro.includes('<dialog class="drawer site-menu"') && claro.includes('data-menu-open="drawer"'), "menu claro usa diálogo nativo");
+  const ui = readFileSync("public/s/assets/site-ui.js", "utf8");
+  for (const comportamento of ["showModal", "setCustomValidity", "window.open", "clipboard.writeText", "dataLocal"]) assert.ok(ui.includes(comportamento), `site-ui: ${comportamento}`);
+  assert.ok(!readFileSync("public/s/assets/fx.js", "utf8").includes("THREE"), "fx.js não depende de Three.js");
+
+  const personalizados = readdirSync("sites", { withFileTypes: true }).filter((d) => d.isDirectory() && existsSync(`sites/${d.name}/index.html`));
+  assert.equal(personalizados.length, 9, "os nove sites personalizados entram na revisão");
+  for (const diretorio of personalizados) {
+    const caminho = `sites/${diretorio.name}/index.html`;
+    const html = readFileSync(caminho, "utf8");
+    assert.ok(html.includes('../assets/site-ui.js') && html.includes('../assets/site-ui.css'), `${caminho}: asset compartilhado`);
+    assert.ok(!html.includes("init3D") && !html.includes("fx3d"), `${caminho}: sem WebGL morto`);
+    assert.ok(!html.includes("waform').addEventListener") && !html.includes("agendarForm').addEventListener"), `${caminho}: sem formulário duplicado`);
+    for (const img of html.match(/<img\b[^>]*>/g) ?? []) assert.ok(img.includes("width=") && img.includes("height="), `${caminho}: imagem sem dimensões`);
+    for (const campo of html.match(/<(?:input|select|textarea)\b[^>]*>/g) ?? []) assert.ok(campo.includes("name="), `${caminho}: campo sem nome: ${campo}`);
+  }
+  console.log("formulários e sites personalizados: ok");
 }

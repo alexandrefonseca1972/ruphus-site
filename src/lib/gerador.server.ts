@@ -9,7 +9,7 @@ import { candidatos, type DadosSite, type Escolha, fixo, Lead, type Nicho, nicho
 import type { Utm } from "@/lib/crm-tipos";
 import { dateIn } from "@/lib/datetime";
 import { telefoneDaMeta } from "@/lib/telefone";
-import { numerosReservadosMeta } from "@/lib/telefones-meta.server";
+import { numerosReservadosMeta, reservadosDaProspeccao } from "@/lib/telefones-meta.server";
 import { combinacoesEditorial, escolhaEditorial, Personal, visualEditorial } from "@/lib/site-editorial";
 import { combinacoesClaro, ehClaro, escolhaClaro, visualClaro } from "@/lib/site-claro";
 
@@ -300,7 +300,15 @@ const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julh
 export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | null> {
   if (!SLUG.test(slug)) return null;
   const t = db.collection("tenants").doc(slug);
-  const [tenant, servicos] = await Promise.all([t.get(), t.collection("services").where("active", "==", true).get()]);
+  const [tenant, servicos, reservados] = await Promise.all([
+    t.get(),
+    t.collection("services").where("active", "==", true).get(),
+    // o botão "Falar com a Ruphus" precisa da lista; sem ela (leitura falhou), o site sai sem o botão
+    reservadosDaProspeccao(db).catch((e) => {
+      console.error("[gerador] não li os números reservados; o site sai sem o botão Falar com a Ruphus", e);
+      return undefined;
+    }),
+  ]);
   const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; origem?: string; publicadoEm?: unknown; atualizadoEm?: { toDate(): Date }; escolha?: Escolha; variantes?: boolean; personal?: unknown } | undefined;
   if (!tenant.exists || !gerado?.sub) return null;
 
@@ -333,6 +341,7 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
     publicado: !!gerado.publicadoEm,
     dominio: (tenant.get("dominio") as DadosSite["dominio"]) ?? null,
     remocao: assinaturaDeRemocao(slug) ?? undefined,
+    ...(reservados && { reservados }),
     ...(gerado.escolha && { escolha: gerado.escolha }),
     ...(gerado.variantes && { variantes: true }),
     ...(personalDe(gerado.personal) && { personal: personalDe(gerado.personal) }),

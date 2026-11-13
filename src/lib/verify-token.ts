@@ -8,6 +8,17 @@ const JWKS = createRemoteJWKSet(
 );
 
 export async function verifyFirebaseToken(token: string, projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!) {
+  if (process.env.RUPHUS_E2E === "1" && process.env.FIREBASE_AUTH_EMULATOR_HOST && projectId === "demo-siteflow") {
+    const { getAuth } = await import("firebase-admin/auth");
+    const payload = await getAuth().verifyIdToken(token);
+    return {
+      uid: payload.sub,
+      authTimeMs: payload.auth_time * 1000,
+      email: typeof payload.email === "string" && payload.email_verified === true ? payload.email : undefined,
+      emailPendente: typeof payload.email === "string" && payload.email_verified !== true ? payload.email : undefined,
+      name: typeof payload.name === "string" && payload.name.trim() ? payload.name.trim() : undefined,
+    };
+  }
   const { payload } = await jwtVerify(token, JWKS, {
     issuer: `https://securetoken.google.com/${projectId}`,
     audience: projectId,

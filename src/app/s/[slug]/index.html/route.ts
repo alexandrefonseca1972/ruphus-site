@@ -5,6 +5,7 @@ import { SLUG_SITE } from "@/lib/site-arquivo";
 import { doStorage } from "@/lib/site-arquivo.server";
 import { renderEditorial } from "@/lib/site-editorial";
 import { ehClaro, renderClaro } from "@/lib/site-claro";
+import { comBeacon } from "@/lib/prospeccao";
 
 // O proxy reescreve {slug}.ruphus.site/ para /s/{slug}/index.html. Quando a pasta
 // existe em public/s (os sites da fábrica), o arquivo responde antes desta rota.
@@ -18,7 +19,7 @@ import { ehClaro, renderClaro } from "@/lib/site-claro";
 // pouca visita: duas leituras por acesso custam menos do que um site que não muda.
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const slug = (await params).slug;
   if (!SLUG_SITE.test(slug)) return new Response("Página não encontrada", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
   // tirado do ar (cobrança) e o index.html publicado, juntos: o proxy barra o subdomínio, e isto
@@ -28,6 +29,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   if (publicado) return publicado;
   const dados = await lerSite(adminDb, slug);
   if (!dados) return new Response("Página não encontrada", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
-  const html = ehClaro(dados.sub) ? renderClaro(dados) : renderEditorial(dados);
+  // o beacon de visita (F1): só no site montado aqui, que é o da prospecção, e só com o marcador
+  // ?c=1 que o link das mensagens da cadência leva. A landing e a vitrine linkam /s/{slug} sem ele:
+  // quem chega por lá não é o lead abrindo o link e não conta como visita
+  const pagina = ehClaro(dados.sub) ? renderClaro(dados) : renderEditorial(dados);
+  const html = new URL(req.url).searchParams.get("c") === "1" ? comBeacon(pagina, slug) : pagina;
   return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
 }

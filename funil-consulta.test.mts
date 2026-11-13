@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { campanhaDe, ESTAGIOS, MOTIVOS_PERDA, ORIGENS, prazoDe, PRECO_PADRAO, type Crm, type Estagio, type MotivoPerda, type Origem } from "@/lib/crm-tipos";
-import { ajustarFunil, COLUNAS, inicioDoDia, NOVOS_POR_VEZ, numerosDaSemana, PERIODOS, resumoDoFunil, type Periodo } from "@/lib/funil-consulta";
+import { ajustarFunil, COLUNAS, inicioDoDia, NOVOS_POR_VEZ, numerosDaSemana, PERIODOS, porVariante, resumoDoFunil, type Periodo } from "@/lib/funil-consulta";
 import type { Espaco } from "@/lib/painel-tipos";
 
 // O funil saiu do useMemo de src/app/admin/funil.tsx (fase 4 do docs/plano-paginacao-admin.md).
@@ -112,7 +112,7 @@ for (let semente = 1; semente <= 300; semente++) {
         origem: talvez(0.7, () => (r() < 0.05 ? ("velha" as Origem) : um(Object.keys(ORIGENS) as Origem[]))), indicadoPor: null,
         entrouEm: talvez(0.6, () => iso(r)), perdidoEm: talvez(0.6, () => iso(r)), ultimoContatoEm: null, fixadoAte: null,
         utm: talvez(0.2, () => ({ source: "meta", medium: "cpc", campaign: um(["verao", "Verão", "beleza"]), content: null, term: null })) as Crm["utm"],
-        toques: 0, respondeuEm: null, naoContatarEm: null, propostaVistaEm: null,
+        toques: 0, respondeuEm: null, naoContatarEm: null, propostaVistaEm: null, varianteId: null, siteVistoEm: null,
       };
   }
   const periodo = um(Object.keys(PERIODOS) as Periodo[]);
@@ -152,8 +152,34 @@ for (let semente = 1; semente <= 300; semente++) {
   assert.deepEqual(numerosDaSemana([], crm, agoraSemana), { contatados: 0, responderam: 0, fecharam: 0 });
 }
 
-// 20 mil negócios: abaixo de 50 ms
+// a tabela por variante (F1): só quem tem primeiro contato confirmado com variante entra
 {
+  const e = (slug: string): Espaco => ({ slug, nome: slug, telefone: null, nicho: "Outros", cidade: null, uf: null, nota: null, avaliacoes: null, acessos: 1, limiteStaff: 2, caixa: false });
+  const A = "salao-primeiro-elogio-google", B = "salao-primeiro-agenda-online";
+  const crm: Record<string, Crm> = {
+    a1: { estagio: "novo", varianteId: A, respondeuEm: "2026-11-10T12:00:00.000Z", siteVistoEm: "2026-11-10T11:00:00.000Z" } as Crm,
+    a2: { estagio: "oferta", varianteId: A, respondeuEm: "2026-11-10T12:00:00.000Z" } as Crm,
+    a3: { estagio: "perdido", varianteId: A, naoContatarEm: "2026-11-10T12:00:00.000Z" } as Crm,
+    a4: { estagio: "novo", varianteId: A } as Crm,
+    b1: { estagio: "fechado", varianteId: B, respondeuEm: "2026-11-09T12:00:00.000Z", siteVistoEm: "2026-11-09T10:00:00.000Z" } as Crm,
+    b2: { estagio: "novo", varianteId: B } as Crm,
+    // contatado sem variante (fora do piloto ou antes da F1): fora da tabela
+    c1: { estagio: "oferta", varianteId: null, respondeuEm: "2026-11-09T12:00:00.000Z" } as Crm,
+  };
+  const espacos = [...Object.keys(crm), "sem-crm"].map(e);
+  assert.deepEqual(porVariante(espacos, crm), [
+    { varianteId: B, confirmados: 2, humanas: 1, optouts: 0, visitas: 1, avancaram: 1 },
+    { varianteId: A, confirmados: 4, humanas: 2, optouts: 1, visitas: 1, avancaram: 1 },
+  ]);
+  // respeita os filtros do painel: é calculada sobre a lista que chega
+  assert.deepEqual(porVariante(espacos.filter((x) => x.slug.startsWith("b")), crm).map((l) => l.varianteId), [B]);
+  assert.deepEqual(porVariante([], crm), []);
+}
+
+// 20 mil negócios: abaixo de 50 ms. Benchmark, não regra: só com PERF=1
+// (PERF=1 npm run test:painel). O gate test:prospeccao-f1 não define PERF: numa máquina ocupada o tempo
+// passava do teto e derrubava a cadeia (&&) antes dos asserts de regra. O teto continua 50 ms.
+if (process.env.PERF === "1") {
   const espacos: Espaco[] = Array.from({ length: 20_000 }, (_, i) => ({ slug: `s${i}`, nome: `Negócio ${i}`, telefone: null, nicho: "Outros", cidade: null, uf: null, nota: null, avaliacoes: null, acessos: 1, limiteStaff: 2, caixa: false }));
   const crm: Record<string, Crm> = {};
   resumoDoFunil(espacos, crm, { periodo: "mes", hoje, agora: agora.getTime(), novos: 6 });

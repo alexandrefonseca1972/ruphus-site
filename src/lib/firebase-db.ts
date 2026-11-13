@@ -1,4 +1,4 @@
-import { clearIndexedDbPersistence, getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, terminate } from "firebase/firestore";
+import { clearIndexedDbPersistence, connectFirestoreEmulator, getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, terminate } from "firebase/firestore";
 import { app } from "@/lib/firebase";
 
 /** O Firestore do navegador, em módulo separado de propósito.
@@ -20,6 +20,7 @@ export const db = (() => {
     return getFirestore(app);
   }
 })();
+if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === "demo-siteflow") connectFirestoreEmulator(db, "127.0.0.1", 8085);
 
 /** Apaga do aparelho os dados do negócio. Só funciona com o Firestore encerrado, então
  *  depois disto a página tem de recarregar. Com outra aba do painel aberta o navegador

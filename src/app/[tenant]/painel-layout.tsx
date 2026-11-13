@@ -5,6 +5,7 @@ import { collectionGroup, doc, getDoc, getDocs, limit, query, where } from "fire
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, use, useEffect, useState } from "react";
+import { Menu, X } from "lucide-react";
 import { MonitorConexao } from "@/components/monitor-conexao";
 import { Button } from "@/components/ui/button";
 import { AvisoSessao } from "@/components/aviso-sessao";
@@ -108,6 +109,8 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
       </div>
     );
 
+  // Consumo é a conta de WhatsApp e SMS: só para o negócio que tem um dos dois ligado
+  const usaMensagens = state.whatsapp?.canalOficial === true || state.sms?.ligado === true;
   // curto: o rótulo da barra de baixo no celular (até sete lado a lado em 360px: rótulos de até 8 letras) e das abas no tablet
   const links = [
     { href: `/${slug}`, label: "Agenda", curto: "Agenda", icone: ICONES.agenda },
@@ -117,16 +120,25 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
     // Caixa incluído no plano; dinheiro só para quem gere
     ...(state.podeGerir ? [{ href: `/${slug}/caixa`, label: "Caixa", curto: "Caixa", icone: ICONES.caixa }] : []),
     // mensagens enviadas e saldo: custo é dinheiro, só para quem gere
-    ...(state.podeGerir ? [{ href: `/${slug}/consumo`, label: "Consumo", curto: "Consumo", icone: ICONES.consumo, soNoTopo: true }] : []),
+    ...(state.podeGerir && usaMensagens ? [{ href: `/${slug}/consumo`, label: "Consumo", curto: "Consumo", icone: ICONES.consumo, soNoTopo: true }] : []),
     // os dados do negócio (site, bio, WhatsApp) só para quem gere
     ...(state.podeGerir ? [{ href: `/${slug}/negocio`, label: "Meu negócio", curto: "Negócio", icone: ICONES.negocio }] : []),
   ];
   // plano do negócio (/admin): sem agendamento fica só Serviços e Meu negócio; sem Caixa, sem a aba
-  const doPlano = (href: string) => telaDoPlano(state.modulos, href.split("/")[2] ?? "");
+  const doPlano = (href: string) => {
+    const tela = href.split("/")[2] ?? "";
+    return telaDoPlano(state.modulos, tela) && (tela !== "consumo" || usaMensagens);
+  };
   const noPlano = links.filter((l) => doPlano(l.href));
-  // barra de baixo do celular: até sete cabem em 360px; o Consumo é o que sai quando passa (fica no
-  // topo do computador, na faixa de saldo e no Meu negócio)
-  const deBaixo = noPlano.length > 7 ? noPlano.filter((l) => !("soNoTopo" in l)) : noPlano;
+  const prioridade = ["Agenda", "Clientes", "Serviços", "Caixa"];
+  const deBaixo = prioridade.flatMap((nome) => {
+    const link = noPlano.find((l) => l.label === nome);
+    return link ? [link] : [];
+  });
+  for (const link of noPlano) {
+    if (deBaixo.length < 4 && !deBaixo.includes(link)) deBaixo.push(link);
+  }
+  const restantes = noPlano.filter((l) => !deBaixo.includes(l));
   const isActive = (href: string) => pathname === href || (href !== `/${slug}` && pathname.startsWith(`${href}/`));
   return (
     <TenantContext value={{ ...state, atualizar: (parcial) => setLoaded({ slug, value: { ...state, ...parcial } }) }}>
@@ -170,10 +182,10 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)] gap-7 px-4 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pt-10 sm:pb-16">
+      <main className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)] gap-4 px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pt-6 sm:pb-16">
         {/* o convite fala de avisos de agendamento: fora do plano só site */}
         {agendamentoLigado(state.modulos) && <AppInstalado />}
-        {state.podeGerir && agendamentoLigado(state.modulos) && <FaixaDeSaldo slug={slug} />}
+        {state.podeGerir && usaMensagens && agendamentoLigado(state.modulos) && <FaixaDeSaldo slug={slug} />}
         {/* tela fora do plano (link antigo, favorito): leva ao Meu negócio em vez de mostrar uma tela vazia */}
         {doPlano(pathname) ? children : <ForaDoPlano slug={slug} />}
       </main>
@@ -181,7 +193,7 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
       <nav
         aria-label="Seções"
         className="fixed inset-x-0 bottom-0 z-10 grid border-t bg-card pb-[env(safe-area-inset-bottom)] sm:hidden"
-        style={{ gridTemplateColumns: `repeat(${deBaixo.length}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${deBaixo.length + (restantes.length ? 1 : 0)}, minmax(0, 1fr))` }}
       >
         {deBaixo.map((l) => (
           <Link
@@ -197,6 +209,7 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
             {l.curto}
           </Link>
         ))}
+        {restantes.length > 0 && <MaisMenu key={pathname} links={restantes} isActive={isActive} />}
       </nav>
       </div>
     </TenantContext>
@@ -217,6 +230,51 @@ const ICONES = {
   caixa: icone(<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h3" /></>),
   consumo: icone(<><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>),
 };
+
+type LinkItem = { href: string; label: string; curto: string; icone: React.ReactNode; soNoTopo?: boolean };
+
+export function MaisMenu({ links, isActive }: { links: LinkItem[]; isActive: (href: string) => boolean }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const anterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const esc = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.body.style.overflow = anterior;
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button type="button" aria-expanded={open} aria-controls="mais-secoes" onClick={() => setOpen((v) => !v)} className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 px-0.5 py-1 text-[11px] leading-tight text-muted-foreground", open && "font-semibold text-foreground")}>
+        <Menu className="size-[22px]" strokeWidth={1.8} aria-hidden="true" />Mais
+      </button>
+      {open && (
+        <>
+          <button type="button" aria-label="Fechar menu de seções" className="fixed inset-0 z-30 bg-black/25" onClick={() => setOpen(false)} />
+          <section id="mais-secoes" role="dialog" aria-modal="true" aria-label="Mais seções" className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 rounded-2xl border bg-popover p-3 shadow-xl">
+            <div className="flex items-center justify-between px-2 pb-2">
+              <h2 className="font-serifa text-2xl">Mais seções</h2>
+              <Button variant="ghost" size="icon-lg" className="size-11" aria-label="Fechar" onClick={() => setOpen(false)}><X className="size-5" aria-hidden="true" /></Button>
+            </div>
+            <nav className="grid gap-1" aria-label="Outras seções">
+              {links.map((l) => (
+                <Link key={l.href} href={l.href} onClick={() => setOpen(false)} aria-current={isActive(l.href) ? "page" : undefined} className={cn("flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground", isActive(l.href) && "bg-muted font-semibold text-foreground")}>
+                  {l.icone}{l.label}
+                </Link>
+              ))}
+            </nav>
+          </section>
+        </>
+      )}
+    </>
+  );
+}
 
 /** Saldo de mensagens baixo ou zerado: a faixa leva à recarga. Fora do pré-pago, nada. */
 function FaixaDeSaldo({ slug }: { slug: string }) {

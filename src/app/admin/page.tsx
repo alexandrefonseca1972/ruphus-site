@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePainel, type PaginaDoServidor } from "./use-painel";
 import { ajustarFunil, COLUNAS, NOVOS_MAX, NOVOS_POR_VEZ, type Periodo } from "@/lib/funil-consulta";
 import { auth } from "@/lib/firebase";
-import { formatBRL, linkWhatsApp } from "@/lib/datetime";
+import { addDays, formatBRL, linkWhatsApp } from "@/lib/datetime";
 import {
   abrirPainel,
   anotarNegocio,
@@ -29,6 +29,7 @@ import {
   definirPixel,
   definirLimiteStaff,
   linkDaProposta,
+  sugerirRespostaDo,
   enviarPropostaPorEmail,
   enviarConvitePorEmail,
   liberarNegocios,
@@ -46,13 +47,16 @@ import { MINUTOS_MAX, sair, useAutoLogout } from "@/lib/sessao";
 import { AvisoSessao } from "@/components/aviso-sessao";
 import { COMMIT, VERSAO } from "@/lib/versao";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX } from "@/lib/limites";
-import { ContatoDono, Destaque, ImplantacaoESaude, LinhaDoTempo, mensagem, MensagensProntas, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
+import { confirmarEnvio, ContatoDono, Copiloto, Destaque, type Envio, EnviouModal, ImplantacaoESaude, LinhaDoTempo, linkDaBarra, mensagem, MensagensProntas, modeloDaVez, montarPronto, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
+import type { TextosCrm } from "@/lib/crm-textos";
+import { varianteDoId } from "@/lib/prospeccao-variantes";
 import { FichaDoNegocio } from "./ficha-gaveta";
 import { SiteDoNegocio } from "./site-gaveta";
 import { SmsDoNegocio } from "./sms-gaveta";
 import { MensagensDoNegocio } from "./mensagens-gaveta";
 import { PlanoDoNegocio } from "./plano-gaveta";
 import { Ajustes } from "./ajustes";
+import { Prospeccao } from "./prospeccao";
 import { WhatsAppDoNegocio } from "./whatsapp-gaveta";
 import { EnviarPorEmail } from "./enviar-email";
 import { Carteira } from "./carteira";
@@ -60,13 +64,13 @@ import { ColetaMaps } from "./coleta";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
 import { DemoMenu } from "./demo-menu";
-import { AUTOR_LEVANTAMENTO, COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, campanhaDe, TOQUES_MAX, type Crm, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
+import { AUTOR_LEVANTAMENTO, COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, campanhaDe, TOQUES_MAX, type Crm, type EnvioConfirmado, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
 
 const VAZIO: Crm = {
   estagio: "novo", entradaCents: null, mensalCents: null, caixaCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
   donoNome: null, donoPapel: null, donoWhatsapp: null, donoEmail: null, outrosContatos: [], motivoPerda: null, detalhePerda: null,
   origem: null, indicadoPor: null, entrouEm: null, perdidoEm: null, ultimoContatoEm: null, fixadoAte: null,
-  utm: null, toques: 0, respondeuEm: null, naoContatarEm: null, propostaVistaEm: null,
+  utm: null, toques: 0, respondeuEm: null, naoContatarEm: null, propostaVistaEm: null, varianteId: null, siteVistoEm: null,
 };
 const CIDADES_VISIVEIS = 5;
 // antes da primeira página: chips, visões e alertas zerados (a lista mostra "carregando")
@@ -84,6 +88,8 @@ const CONTAGENS_VAZIAS: PaginaDoServidor["contagens"] = {
 const FILAS_DO_TOPO: [Fila, string][] = [["retornos", "Retornos de hoje"], ["primeiro", "Primeiro contato"], ["responderam", "Responderam"]];
 /** Quantos contatos por dia a prospecção pede: o contador do topo conta até aqui */
 const META_DIA = 30;
+/** As abas da gaveta que só fazem sentido depois da venda */
+const ABAS_DE_CLIENTE = ["cliente", "whatsapp", "cobranca"] as const;
 const ITEM_MENU = "flex h-11 items-center rounded-lg px-2.5 text-left text-[13px] text-[#17150F] hover:bg-[#F4F2EE]";
 
 async function token() {
@@ -137,6 +143,7 @@ export default function AdminPage() {
   // é de um negócio que está ou esteve na tela.
   const [espacos, setEspacos] = useState<Record<string, Espaco>>({});
   const [assinatura, setAssinatura] = useState("");   // quem assina as mensagens do CRM
+  const [textos, setTextos] = useState<TextosCrm>({}); // textos personalizados das mensagens prontas
   const [atrasadas, setAtrasadas] = useState(0);      // cobranças vencidas, no rótulo da aba
   const [hoje, setHoje] = useState<{ agendamentosHoje: number; espacosComAgenda: number } | null>(null);
   const [busca, setBusca] = useState("");
@@ -150,6 +157,8 @@ export default function AdminPage() {
   const [aberto, setAberto] = useState<Espaco | null>(null);
   const [acessos, setAcessos] = useState<Acesso[] | null>(null);
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null);
+  // o detalhe não carregou (também de negócio já conhecido): a cadência da gaveta fica travada, com "Tentar de novo"
+  const [erroDetalhe, setErroDetalhe] = useState<string | null>(null);
   const [convite, setConvite] = useState<{ slug: string; url: string; email: string | null; copiado: boolean } | null>(null);
   const [idToken, setIdToken] = useState("");
   const [copiado, setCopiado] = useState("");
@@ -164,10 +173,10 @@ export default function AdminPage() {
   const levantamento = eventos?.find(doLevantamento)?.detalhe ?? null;
   // qual negócio está sendo marcado como perdido (pela gaveta ou soltando no funil)
   const [perdendo, setPerdendo] = useState<string | null>(null);
-  const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca" | "coleta" | "ajustes">("lista");
+  const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca" | "coleta" | "prospeccao" | "ajustes">("lista");
   // Coleta, Ajustes, Clientes (carteira) e Cobrança não são recortes da lista: sem visões, filtros
   // nem alertas do funil (os contadores só vêm do servidor na Lista e no Funil e ali ficavam em 0)
-  const ferramenta = tela === "coleta" || tela === "ajustes" || tela === "clientes" || tela === "cobranca";
+  const ferramenta = tela === "coleta" || tela === "prospeccao" || tela === "ajustes" || tela === "clientes" || tela === "cobranca";
   // os sites novos (da Coleta) entram na lista e no funil na próxima página; o índice
   // do servidor os recebe pelo listener (~1 s), daí a segunda recarga
   function juntarGerados(slugs: string[]) {
@@ -194,8 +203,15 @@ export default function AdminPage() {
   const [alerta, setAlerta] = useState<Filtros["alerta"]>(""); // id do alerta em foco
   const [menuAjustes, setMenuAjustes] = useState(false);     // engrenagem: o que é da plataforma
   const [menuNegocio, setMenuNegocio] = useState(false);     // "…" da gaveta: atalhos e tirar do ar
-  // a mensagem escolhida no bloco, para a barra fixa do rodapé da gaveta
-  const [pronto, setPronto] = useState<{ modelo: string; texto: string; link: string | null; para: string } | null>(null);
+  // a barra fixa do rodapé da gaveta (fora da Venda): o detalhe do negócio aberto, buscado na hora para
+  // a chave `slug|aba`. A mensagem sai dele e do CRM atual (montarPronto), nunca do pronto de outro lead
+  const [daBarra, setDaBarra] = useState<{ chave: string; detalhe: Detalhe | null } | null>(null);
+  // F1: o clique no WhatsApp só deixa o envio pendente; ao voltar para a aba, o "Enviou?" pergunta.
+  // `proximo`: o "ir ao próximo" abre este depois da resposta (null fecha a gaveta; undefined fica)
+  // `gravando`: a resposta está indo ao servidor (o modal sai); erro reabre o modal com o mesmo envioId
+  const [pendente, setPendente] = useState<{ slug: string; modelo: string; para: string; envio: EnvioConfirmado; proximo?: Espaco | null; voltou: boolean; gravando?: boolean; erro?: string } | null>(null);
+  // F1-13: a resposta do "Enviou?" que já está indo ao servidor (o envioId): o segundo clique não grava de novo
+  const respondendo = useRef<string | null>(null);
   // o link da proposta do negócio aberto: o mesmo vai por WhatsApp e por e-mail
   const [proposta, setProposta] = useState<{ slug: string; url: string; valeAte: string } | null>(null);
   const [fixados, setFixados] = useState(false);
@@ -205,6 +221,8 @@ export default function AdminPage() {
   // o painel se alinha pela direita do botão; quando a barra quebra e o botão cai à esquerda, isso o joga para fora da tela
   const [filtrosAEsquerda, setFiltrosAEsquerda] = useState(false);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
+  // marcar em lote é exceção: as caixas só aparecem com "Selecionar" ligado
+  const [selecionando, setSelecionando] = useState(false);
   // negócios com escrita em curso (quantas): a página que chegar no meio (pedida antes) não desfaz a edição
   const pendentes = useRef(new Map<string, number>());
   const marcarPendente = (slug: string) => pendentes.current.set(slug, (pendentes.current.get(slug) ?? 0) + 1);
@@ -245,6 +263,7 @@ export default function AdminPage() {
         if (!r.ok) return setEstado("negado");
         setHoje(r.dados.hoje);
         setAssinatura(r.dados.assinatura);
+        setTextos(r.dados.textos);
         setMinutosInativo(r.dados.minutosInativo);
         setMetaPixel(r.dados.metaPixel);
         setEstado("pronto");
@@ -339,13 +358,25 @@ export default function AdminPage() {
     setProposta(null);
     setAcessos(null);
     setDetalhe(null);
+    setErroDetalhe(null);
     setErroAoAbrir("");
     setAviso("");
     // "Copiado ✓" é do negócio em que se copiou: sem isto, abrir o próximo já mostrava copiado
     setCopiado("");
-    const t = await token();
     setEventos(null);
-    const [a, d, n] = await Promise.all([listarAcessos(t, e.slug), detalhesEspaco(t, e.slug), linhaDoTempoDo(t, e.slug)]);
+    // L-8: token() ou a busca que rejeita (rede, sessão) vira erro do detalhe, não um "carregando" para sempre
+    let a: Awaited<ReturnType<typeof listarAcessos>>, d: Awaited<ReturnType<typeof detalhesEspaco>>, n: Awaited<ReturnType<typeof linhaDoTempoDo>>;
+    try {
+      const t = await token();
+      [a, d, n] = await Promise.all([listarAcessos(t, e.slug), detalhesEspaco(t, e.slug), linhaDoTempoDo(t, e.slug)]);
+    } catch (erro) {
+      console.error(`[admin] não abri ${e.slug}`, erro);
+      if (abertoRef.current !== e.slug) return;
+      const msg = "Não consegui carregar este negócio (conexão ou sessão).";
+      setErroDetalhe(msg);
+      if (!conhecidos.has(e.slug)) setErroAoAbrir(msg);
+      return;
+    }
     if (abertoRef.current !== e.slug) return;
     if (a.ok) setAcessos(a.dados);
     if (d.ok) {
@@ -362,7 +393,10 @@ export default function AdminPage() {
         });
         setConhecidos((c) => new Set(c).add(e.slug));
       }
-    } else if (!conhecidos.has(e.slug)) setErroAoAbrir(d.error);
+    } else {
+      setErroDetalhe(d.error);
+      if (!conhecidos.has(e.slug)) setErroAoAbrir(d.error);
+    }
     if (n.ok) setEventos(n.dados);
   }
 
@@ -490,6 +524,25 @@ export default function AdminPage() {
       atual = false;
     };
   }, [aba, slugAberto, clienteAberto, idToken, dataDeHoje]);
+  // barra fixa: fora da Venda, busca o detalhe do negócio aberto a cada aba (um PARE dado em outro lugar
+  // chega); a resposta de outro negócio ou de outra aba não vale (chave)
+  useEffect(() => {
+    if (!slugAberto || aba === "venda") return;
+    const chave = `${slugAberto}|${aba}`;
+    let vale = true;
+    token()
+      .then((t) => detalhesEspaco(t, slugAberto))
+      .then(
+        (d) => vale && setDaBarra({ chave, detalhe: d.ok ? d.dados : null }),
+        (erro) => {
+          console.error(`[admin] barra fixa sem o detalhe de ${slugAberto}`, erro);
+          if (vale) setDaBarra({ chave, detalhe: null });
+        },
+      );
+    return () => {
+      vale = false;
+    };
+  }, [slugAberto, aba]);
 
   /** WhatsApp aberto antes de qualquer espera: depois de um await o navegador bloqueia a aba nova. */
   function abrirAba() {
@@ -521,7 +574,8 @@ export default function AdminPage() {
     }
     if (janela) janela.location.href = link;
     else location.assign(link);
-    enviouMensagem(slug, `Lembrete: ${passo === "convite" ? "convite" : passo === "servicos" ? "serviços" : passo === "profissionais" ? "profissionais" : "divulgar o link"}`, c.donoNome ?? "o dono");
+    // o clique não prova o envio: fica pendente até o "Enviou?" (não conta toque de cadência)
+    aguardarEnvio(slug, `Lembrete: ${passo === "convite" ? "convite" : passo === "servicos" ? "serviços" : passo === "profissionais" ? "profissionais" : "divulgar o link"}`, c.donoNome ?? "o dono", { texto, editado: false });
   }
 
   async function fecharVenda(slug: string, d: { entradaCents: number; mensalCents: number; cobrarEntrada: boolean; boasVindas: boolean; convite: boolean }) {
@@ -548,12 +602,12 @@ export default function AdminPage() {
       const c = { ...(crm[slug] ?? VAZIO), entradaCents: d.entradaCents, mensalCents: d.mensalCents, estagio: "fechado" as const };
       const e = espacos[slug];
       const numero = c.donoWhatsapp ?? e?.telefone ?? null;
-      const texto = mensagem("Boas-vindas", { slug, nome: e?.nome ?? slug, telefone: e?.telefone ?? null }, c, assinatura) + (urlConvite ? `\n\nSeu acesso ao painel: ${urlConvite}` : "");
+      const texto = mensagem("Boas-vindas", { slug, nome: e?.nome ?? slug, telefone: e?.telefone ?? null }, c, assinatura, null, null, textos) + (urlConvite ? `\n\nSeu acesso ao painel: ${urlConvite}` : "");
       const link = numero && linkWhatsApp(numero, texto);
       if (link) {
         janela.location.href = link;
-        feito.push("boas-vindas aberta no WhatsApp");
-        enviouMensagem(slug, "Boas-vindas", c.donoNome ?? "o dono");
+        feito.push("boas-vindas aberta no WhatsApp (confirme no \"Enviou?\" ao voltar)");
+        aguardarEnvio(slug, "Boas-vindas", c.donoNome ?? "o dono", { texto, editado: false });
       } else {
         janela.close();
         feito.push("sem telefone para as boas-vindas");
@@ -563,37 +617,63 @@ export default function AdminPage() {
     return true;
   }
 
-  async function enviouMensagem(slug: string, modelo: string, para: string) {
-    const r = await registrarEnvio(await token(), slug, modelo, para);
-    setRecarga((x) => x + 1);
-    if (!r.ok) return setAviso(r.error);
-    contatoMudou(slug, r.dados);
-  }
 
-  /** "Abrir no WhatsApp e ir ao próximo": registra como o botão simples e, quando a página volta
-   *  a ter foco (de volta do WhatsApp), abre o próximo da fila na tela; sem próximo, fecha a gaveta.
-   *  O próximo é o da lista de agora: depois do envio o lead pode sair da fila. */
-  function enviarEProximo(slug: string, modelo: string, para: string) {
-    void enviouMensagem(slug, modelo, para);
-    const i = visiveis.findIndex((e) => e.slug === slug);
-    // aberto de fora da Lista (Funil, Carteira, Cobrança): não há fila, só registra o envio
-    if (i < 0) return;
-    const proximo = visiveis[i + 1];
-    // último da página carregada, mas a lista tem mais: a gaveta fica aberta
-    if (!proximo && total > visiveis.length) return;
+  /** O clique em wa.me não prova o envio: fica pendente até a volta do WhatsApp, quando o "Enviou?"
+   *  pergunta. Todo envio leva um envioId gerado agora: dois "Sim" do mesmo clique gravam uma vez. Na
+   *  cadência, o número do toque e a variante o servidor tira do doc; fora dela (proposta, boas-vindas,
+   *  implantação) não há toque. */
+  function aguardarEnvio(slug: string, modelo: string, para: string, e: Envio, proximo?: Espaco | null) {
+    const envio = { envioId: crypto.randomUUID(), textoEnviado: e.texto, editado: e.editado };
     soltarVolta();
+    setPendente({ slug, modelo, para, envio, proximo, voltou: false });
     const voltou = () => {
       if (document.visibilityState !== "visible") return;
       soltarVolta();
-      // gaveta fechada ou outro negócio aberto nesse meio-tempo: fica como está
-      if (abertoRef.current !== slug || !document.getElementById("gaveta-negocio")) return;
-      if (proximo) void abrir(proximo);
-      else setAberto(null);
+      setPendente((p) => (p ? { ...p, voltou: true } : p));
     };
     voltaPendente.current = voltou;
     // celular volta do app pelo visibilitychange; o computador, pelo foco da janela
     addEventListener("focus", voltou);
     document.addEventListener("visibilitychange", voltou);
+  }
+
+  /** A resposta do "Enviou?": só o Sim registra e, na prospecção, segue para o próximo da fila. */
+  async function responderEnvio(r: "sim" | "nao") {
+    const p = pendente;
+    if (!p || respondendo.current === p.envio.envioId) return;
+    // "Não": nada gravado e a gaveta fica no lead (dá para abrir o WhatsApp de novo)
+    if (r === "nao") return setPendente(null);
+    respondendo.current = p.envio.envioId;
+    const comTexto = { ...p, gravando: false };
+    // o modal sai enquanto grava; o pendente só some com r.ok
+    setPendente({ ...comTexto, gravando: true });
+    const res = await confirmarEnvio(comTexto, async () => registrarEnvio(await token(), p.slug, p.modelo, p.para, comTexto.envio));
+    respondendo.current = null;
+    setRecarga((x) => x + 1);
+    if (!res.ok) {
+      // reabre o "Enviou?" com o mesmo envioId (e o texto editado): nada se perde em silêncio
+      // (outro clique no WhatsApp nesse meio-tempo já trocou o pendente: fica o aviso)
+      setAviso(res.aviso);
+      setPendente((atual) => (atual && atual.envio.envioId !== p.envio.envioId ? atual : { ...res.pendente, erro: res.aviso }));
+      return;
+    }
+    setPendente((atual) => (atual?.envio.envioId === p.envio.envioId ? null : atual));
+    contatoMudou(p.slug, res.dados);
+    // gaveta fechada ou outro negócio aberto nesse meio-tempo: fica como está
+    if (p.proximo === undefined || abertoRef.current !== p.slug || !document.getElementById("gaveta-negocio")) return;
+    if (p.proximo) void abrir(p.proximo);
+    else setAberto(null);
+  }
+
+  /** O botão do WhatsApp nos toques da cadência: registra e, depois do "Sim" no "Enviou?", abre o
+   *  próximo da fila; sem próximo, fecha a gaveta. O próximo é o da lista de agora: depois do envio
+   *  o lead pode sair da fila. */
+  function enviarEProximo(slug: string, modelo: string, para: string, e: Envio) {
+    const i = visiveis.findIndex((x) => x.slug === slug);
+    // aberto de fora da Lista (Funil, Carteira, Cobrança): não há fila, só registra o envio.
+    // Último da página carregada, mas a lista tem mais: a gaveta fica aberta
+    const proximo = i < 0 || (!visiveis[i + 1] && total > visiveis.length) ? undefined : (visiveis[i + 1] ?? null);
+    aguardarEnvio(slug, modelo, para, e, proximo);
   }
 
   // o servidor devolve o doc já com o próximo toque agendado (ou o pedido de parar): a gaveta segue
@@ -602,7 +682,7 @@ export default function AdminPage() {
     if (aberto?.slug === slug) setEventos(d.eventos);
   }
 
-  async function marcarResposta(slug: string, oque: "respondeu" | "parar" | "liberar") {
+  async function marcarResposta(slug: string, oque: "respondeu" | "automatica" | "parar" | "liberar") {
     if (oque === "parar" && !(await confirmar({ titulo: "Pediu para não receber mensagens?", texto: "O negócio vai para Perdido e as mensagens prontas deixam de abrir o WhatsApp. Dá para desfazer depois.", acao: "Confirmar", tom: "normal" }))) return;
     marcarPendente(slug);
     const r = await marcarContatoDo(await token(), slug, oque).finally(() => soltarPendente(slug));
@@ -806,6 +886,182 @@ export default function AdminPage() {
     );
   });
 
+
+  // A aba Venda muda com o momento do negócio aberto. Prospecção: ainda sem resposta (a cadência
+  // cuida do próximo passo). Conversa: respondeu e não fechou nem perdeu (objeções, IA e proposta
+  // sobem para perto da mensagem). Os três blocos mudam de lugar, por isso nascem aqui
+  const crmAberto = aberto ? (crm[aberto.slug] ?? VAZIO) : VAZIO;
+  const prospectando = crmAberto.estagio === "novo" && !crmAberto.respondeuEm;
+  const conversando = !prospectando && crmAberto.estagio !== "fechado" && crmAberto.estagio !== "perdido";
+  // depois do "Respondeu" fica junto da mensagem; na prospecção e no cliente fechado, dentro do "Mais"
+  const blocoEtapa = aberto && (
+    <>
+            {/* Só o progresso: Fechou e Perdeu são os botões do topo da Venda */}
+            <section aria-label="Etapa" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-[11px] font-semibold tracking-[0.07em] text-[#6F6A5E] uppercase">Etapa</h3>
+                <div className="grow" />
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR[crm[aberto.slug]?.estagio ?? "novo"]}`}>
+                  {ROTULO[crm[aberto.slug]?.estagio ?? "novo"]}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+                <div className="flex grow overflow-hidden rounded-full border border-[#D8D2C6]">
+                  {ETAPAS.map((e, i) => {
+                    const ativa = (crm[aberto.slug]?.estagio ?? "novo") === e;
+                    return (
+                      <button
+                        key={e}
+                        type="button"
+                        aria-pressed={ativa}
+                        onClick={() => mudarNegocio(aberto.slug, { estagio: e })}
+                        className={`h-11 grow px-3 text-[12.5px] transition-colors ${i ? "border-l border-[#D8D2C6]" : ""} ${
+                          ativa ? "bg-[#17150F] font-semibold text-white" : "bg-white text-[#4A4639] hover:text-[#17150F]"
+                        }`}
+                      >
+                        {ROTULO[e]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+    </>
+  );
+              const blocoProposta = aberto && (
+                <>
+            <details key={`precos-${aberto.slug}`} className="rounded-2xl border border-[#E2DDD3] px-4 py-3">
+              <summary className="cursor-pointer text-[12.5px] text-[#4A4639]">
+                Proposta · {formatBRL(crm[aberto.slug]?.entradaCents ?? PRECO_PADRAO.entradaCents)} de ativação + {formatBRL(crm[aberto.slug]?.mensalCents ?? PRECO_PADRAO.mensalCents)}/mês
+              </summary>
+              <div className="mt-3 flex flex-col gap-3">
+                {/* O link é a proposta: o dono abre no celular, lê e fecha pelo
+                    botão. Vale 7 dias, e o mesmo link serve para os dois canais. */}
+                <div className="flex flex-col gap-2 rounded-xl border border-[#E2DDD3] bg-[#FBFAF8] p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-[#4A4639]">Proposta para mandar</span>
+                    <div className="grow" />
+                    {proposta?.slug === aberto.slug && (
+                      <span className="text-[11px] text-[#6F6A5E]">vale até {diaCurto(proposta.valeAte)}</span>
+                    )}
+                  </div>
+
+                  {proposta?.slug === aberto.slug ? (
+                    <>
+                      <p className="truncate rounded-[10px] border border-[#E2DDD3] bg-white px-3 py-2 font-[family-name:var(--font-geist-mono)] text-[11.5px] text-[#4A4639]">
+                        {proposta.url}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" className={MENOR} onClick={() => copiar(proposta.url, "proposta")}>
+                          {copiado === "proposta" ? "Copiado ✓" : "Copiar link"}
+                        </button>
+                        {(() => {
+                          const c = crm[aberto.slug];
+                          const numero = c?.donoWhatsapp ?? aberto.telefone;
+                          const texto =
+                            `Oi${c?.donoNome ? `, ${c.donoNome.split(" ")[0]}` : ""}! Aqui é ${assinatura || "o pessoal"}, da Ruphus.\n\n` +
+                            `Montei a proposta do ${aberto.nome} numa página só, dá para ler no celular em um minuto: ${proposta.url}\n\n` +
+                            `Qualquer dúvida me chama por aqui.\n\nSe não quiser mais mensagens, responda PARE.`;
+                          const zap = numero ? linkWhatsApp(numero, texto) : null;
+                          return zap ? (
+                            <a className={MENOR} href={zap} target="_blank" rel="noreferrer" onClick={() => aguardarEnvio(aberto.slug, "Proposta", c?.donoNome ?? "o dono", { texto, editado: false })}>
+                              Enviar no WhatsApp
+                            </a>
+                          ) : (
+                            <span className={`${MENOR} border-dashed text-[#8B8578]`}>Sem WhatsApp do dono</span>
+                          );
+                        })()}
+                        <div className="w-full">
+                          <EnviarPorEmail
+                            key={`prop-${aberto.slug}-${crm[aberto.slug]?.donoEmail ?? ""}`}
+                            cadastrado={crm[aberto.slug]?.donoEmail ?? null}
+                            onEnviar={(para) => enviarPropostaEmail(aberto.slug, para)}
+                          />
+                        </div>
+                        <a className={MENOR} href={`${proposta.url}&admin=1`} target="_blank" rel="noreferrer">Ver como o dono vê</a>
+                        {/* O PDF é a mesma proposta impressa: abre a caixa de
+                            impressão para salvar o arquivo e anexar no e-mail
+                            ou no WhatsApp de quem prefere anexo a link. */}
+                        <a className={MENOR} href={`${proposta.url}&pdf=1`} target="_blank" rel="noreferrer">Baixar PDF</a>
+                        <button type="button" className={MENOR} onClick={() => gerarLinkProposta(aberto.slug, true)}>
+                          Refazer
+                        </button>
+                      </div>
+                      <span className="text-[11px] leading-relaxed text-[#6F6A5E]">
+                        Refazer invalida o link anterior. Os valores vêm daqui de cima: mude antes de mandar.
+                      </span>
+                    </>
+                  ) : (
+                    <button type="button" className={`${BOTAO_ESCURO} self-start`} onClick={() => gerarLinkProposta(aberto.slug)}>
+                      Gerar link da proposta
+                    </button>
+                  )}
+                </div>
+
+              {/* Nasce no preco padrao: com 675 negocios, digitar o mesmo
+                  numero 675 vezes e o que faz alguem parar de preencher. */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {(
+                  [
+                    { id: "entrada", rotulo: "Taxa de ativação", campo: "entradaCents", padrao: PRECO_PADRAO.entradaCents, sufixo: "" },
+                    { id: "mensal", rotulo: "Mensalidade", campo: "mensalCents", padrao: PRECO_PADRAO.mensalCents, sufixo: "/mês" },
+                  ] as const
+                ).map((c) => (
+                  <label key={c.id} htmlFor={c.id} className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
+                    {c.rotulo}
+                    <span className="flex h-11 items-center rounded-[10px] border border-[#D8D2C6] bg-white focus-within:border-[#17150F]">
+                      <span className="pl-3 pr-1.5 text-sm text-[#8B8578]">R$</span>
+                      <input
+                        id={c.id}
+                        type="text"
+                        inputMode="decimal"
+                        defaultValue={emReais(crm[aberto.slug]?.[c.campo] ?? c.padrao)}
+                        onBlur={(ev) => {
+                          const valor = cents(ev.target.value);
+                          // texto que não é número não apaga o preço: volta o que estava
+                          if (ev.target.value.trim() && (Number.isNaN(valor) || valor < 0)) {
+                            ev.target.value = emReais(crm[aberto.slug]?.[c.campo] ?? c.padrao);
+                            return setAviso("Valor inválido. Use 59,90.");
+                          }
+                          const novo = ev.target.value.trim() ? valor : null;
+                          ev.target.value = novo === null ? "" : emReais(novo);
+                          mudarNegocio(aberto.slug, { [c.campo]: novo });
+                        }}
+                        className="h-full min-w-0 grow bg-transparent text-sm tabular-nums text-[#17150F] outline-none"
+                      />
+                      {c.sufixo && <span className="pr-3 text-xs text-[#8B8578]">{c.sufixo}</span>}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              </div>
+            </details>
+                </>
+              );
+              const blocoCopiloto = aberto && (
+            <details key={`copiloto-${aberto.slug}`} className="rounded-2xl border border-[#E2DDD3] px-4 py-3">
+              <summary className="cursor-pointer text-[12.5px] text-[#4A4639]">Ele respondeu · sugerir resposta com IA</summary>
+              <div className="mt-3">
+                <Copiloto
+                  slug={aberto.slug}
+                  numero={crm[aberto.slug]?.donoWhatsapp ?? aberto.telefone}
+                  parou={(!!crm[aberto.slug]?.naoContatarEm && crm[aberto.slug]?.estagio !== "fechado") || !!detalhe?.paradoNaProspeccao}
+                  linkProposta={proposta?.slug === aberto.slug ? proposta.url : null}
+                  sugerir={async (m) => sugerirRespostaDo(await token(), aberto.slug, m)}
+                />
+              </div>
+            </details>
+              );
+              const blocoObjecoes = aberto && (
+            <details key={`obj-${aberto.slug}`} className="rounded-2xl border border-[#E2DDD3] px-4 py-3">
+              <summary className="cursor-pointer text-[12.5px] text-[#4A4639]">Se ele responder isso · 5 respostas prontas</summary>
+              <div className="mt-3">
+                <Objecoes onCopiar={(texto) => copiar(texto, "resposta")} />
+              </div>
+            </details>
+              );
+
   return (
     <>
       <AvisoSessao aberto={avisoSessao} onContinuar={continuarSessao} />
@@ -817,7 +1073,7 @@ export default function AdminPage() {
         </span>
 
         <div role="group" aria-label="Visão" className="hidden rounded-[10px] bg-[#EFEBE2] p-[3px] sm:flex">
-          {(["lista", "funil", "clientes", "cobranca", "coleta", "ajustes"] as const).map((v) => (
+          {(["lista", "funil", "clientes", "cobranca", "coleta", "prospeccao", "ajustes"] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -825,7 +1081,7 @@ export default function AdminPage() {
               onClick={() => setTela(v)}
               className={`h-8 rounded-lg px-3 text-[12px] ${tela === v ? "bg-white font-semibold shadow-[0_1px_2px_rgba(23,21,15,.12)]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
             >
-              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : v === "clientes" ? "Clientes" : v === "cobranca" ? "Cobrança" : v === "coleta" ? "Coleta" : "Ajustes"}
+              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : v === "clientes" ? "Clientes" : v === "cobranca" ? "Cobrança" : v === "coleta" ? "Coleta" : v === "prospeccao" ? "Prospecção" : "Ajustes"}
               {v === "cobranca" && atrasadas > 0 && (
                 <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${tela === v ? "bg-[#FBF0EE] text-[#8A2F2F]" : "bg-[#F1E7E7] text-[#8A2F2F]"}`}>
                   {atrasadas}
@@ -1322,6 +1578,8 @@ export default function AdminPage() {
 
         {tela === "cobranca" ? null : tela === "coleta" ? (
           <ColetaMaps idToken={idToken} aoGerar={juntarGerados} />
+        ) : tela === "prospeccao" ? (
+          <Prospeccao idToken={idToken} assinatura={assinatura} textos={textos} onTextos={setTextos} />
         ) : tela === "ajustes" ? (
           <Ajustes idToken={idToken} />
         ) : tela === "clientes" ? (
@@ -1350,6 +1608,7 @@ export default function AdminPage() {
           <Funil
             resumo={resumo}
             semana={comFunil?.semana}
+            variantes={comFunil?.variantes}
             crm={crmDoFunil}
             hoje={dataDeHoje}
             periodo={periodo}
@@ -1408,6 +1667,23 @@ export default function AdminPage() {
               {cidade && ` · ${cidade}`}
               {nicho && ` · ${nicho}`}
             </span>
+            {visiveis[0] && (
+              <button type="button" className={BOTAO_ESCURO} onClick={() => abrir(visiveis[0])}>
+                Começar
+              </button>
+            )}
+            {/* marcar em lote (convites, estágio) é exceção: liga as caixas; desligar limpa a seleção */}
+            <button
+              type="button"
+              aria-pressed={selecionando}
+              className={MENOR}
+              onClick={() => {
+                if (selecionando) setMarcados(new Set());
+                setSelecionando(!selecionando);
+              }}
+            >
+              {selecionando ? "Cancelar seleção" : "Selecionar"}
+            </button>
             {/* enquanto a página dos filtros atuais não chega, a anterior fica esmaecida */}
             {servidor && doServidor.situacao === "preparando" && <span className="text-[13px] text-[#7A5A2E]">Preparando o painel…</span>}
             {servidor && doServidor.situacao === "erro" && (
@@ -1430,6 +1706,7 @@ export default function AdminPage() {
 
           {/* Cabeçalho de coluna: sem ele, "★ 4,9 · 1.125" é um número a adivinhar */}
           <div className="hidden items-center gap-4 border-b border-[#E2DDD3] bg-[#FBFAF8] px-5 py-2.5 text-[#6F6A5E] xl:flex">
+            {selecionando && (
             <input
               type="checkbox"
               aria-label="Marcar os negócios desta tela"
@@ -1447,7 +1724,8 @@ export default function AdminPage() {
                 })
               }
             />
-            <button type="button" onClick={() => setOrdem("nome")} className={`${ORDENAVEL} w-[288px] shrink-0`}>
+            )}
+            <button type="button" onClick={() => setOrdem("nome")} className={`${ORDENAVEL} ${selecionando ? "w-[288px]" : "w-[320px]"} shrink-0`}>
               Negócio{seta("nome")}
             </button>
             <span className="w-[150px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.06em]">Cidade</span>
@@ -1459,7 +1737,6 @@ export default function AdminPage() {
             <button type="button" onClick={() => setOrdem("compromisso")} className={`${ORDENAVEL} min-w-0 grow`}>
               Próxima ação{seta("compromisso")}
             </button>
-            <span className="w-[180px] shrink-0" />
           </div>
 
           <ul aria-busy={carregandoLista} inert={carregandoLista || undefined} className={carregandoLista && visiveis.length ? "opacity-60" : undefined}>
@@ -1472,18 +1749,23 @@ export default function AdminPage() {
               const ativo = e.acessos > 1;
               const p = prazoDe(crm[e.slug], dataDeHoje);
               return (
+                // a linha inteira abre o negócio (o nome é o botão, para o teclado); marcar é só no modo "Selecionar"
                 <li
                   key={e.slug}
-                  className="flex flex-col gap-3 border-b border-[#F1EDE6] px-4 py-3.5 last:border-0 sm:px-5 xl:flex-row xl:items-center xl:gap-4"
+                  onClick={() => abrir(e)}
+                  className="flex cursor-pointer flex-col gap-3 border-b border-[#F1EDE6] px-4 py-3.5 last:border-0 hover:bg-[#FBFAF8] sm:px-5 xl:flex-row xl:items-center xl:gap-4"
                 >
                   <div className="flex min-w-0 items-start gap-3 xl:w-[320px] xl:shrink-0">
-                    <input
-                      type="checkbox"
-                      aria-label={`Marcar ${e.nome}`}
-                      className="mt-3.5 size-4 shrink-0 accent-[#17150F]"
-                      checked={marcados.has(e.slug)}
-                      onChange={() => alternar(e.slug)}
-                    />
+                    {selecionando && (
+                      <input
+                        type="checkbox"
+                        aria-label={`Marcar ${e.nome}`}
+                        className="mt-3.5 size-4 shrink-0 accent-[#17150F]"
+                        checked={marcados.has(e.slug)}
+                        onClick={(ev) => ev.stopPropagation()}
+                        onChange={() => alternar(e.slug)}
+                      />
+                    )}
                     <div
                       aria-hidden="true"
                       className={`flex size-11 shrink-0 items-center justify-center rounded-[10px] font-[family-name:var(--fonte-serifa)] text-xl ${ativo ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#F0E6DE] text-[#8A4520]"}`}
@@ -1499,7 +1781,7 @@ export default function AdminPage() {
                             </svg>
                           </span>
                         )}
-                        <span className="truncate">{e.nome}</span>
+                        <button type="button" className="truncate text-left hover:underline">{e.nome}</button>
                       </p>
                       <p className="truncate text-[13px] text-[#6F6A5E]">{e.slug}</p>
                     </div>
@@ -1555,16 +1837,10 @@ export default function AdminPage() {
                     </span>
                   </div>
 
-                  <div className="flex grow justify-end gap-2 xl:w-[180px] xl:shrink-0 xl:grow-0">
-                    {!ativo && (
-                      <button type="button" className={BOTAO_ESCURO} onClick={() => convidar(e.slug)}>
-                        {convite?.slug === e.slug ? (convite.copiado ? "Copiado ✓" : "Link gerado") : "Convidar"}
-                      </button>
-                    )}
-                    <button type="button" className={BOTAO_CLARO} onClick={() => abrir(e)}>
-                      Abrir
-                    </button>
-                  </div>
+                  {/* o clique sobe para a linha, que abre o negócio */}
+                  <button type="button" className="h-9 shrink-0 self-start rounded-lg border border-[#D9D3C7] bg-white px-4 text-[13px] font-semibold hover:bg-[#F4F2EE] xl:self-center">
+                    Abrir
+                  </button>
                 </li>
               );
             })}
@@ -1628,7 +1904,7 @@ export default function AdminPage() {
       </main>
 
       {/* No celular as telas moram embaixo, ao alcance do polegar: no topo não cabiam */}
-      <nav aria-label="Telas do admin" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-6 border-t border-[#E2DDD3] bg-white pb-[env(safe-area-inset-bottom)] sm:hidden">
+      <nav aria-label="Telas do admin" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-7 border-t border-[#E2DDD3] bg-white pb-[env(safe-area-inset-bottom)] sm:hidden">
         {(
           [
             ["lista", "Lista", <path key="l" d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />],
@@ -1636,6 +1912,7 @@ export default function AdminPage() {
             ["clientes", "Clientes", <><circle key="c" cx="12" cy="8" r="3.5" /><path key="p" d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" /></>],
             ["cobranca", "Cobrança", <><rect key="r" x="3" y="6" width="18" height="12" rx="2" /><path key="p" d="M3 10h18M7 15h3" /></>],
             ["coleta", "Coleta", <><path key="p" d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" /><circle key="c" cx="12" cy="10" r="2.3" /></>],
+            ["prospeccao", "Prospecção", <path key="m" d="M4 5h16v11H8l-4 4z" />],
             ["ajustes", "Ajustes", <><circle key="c" cx="12" cy="12" r="3" /><path key="p" d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" /></>],
           ] as const
         ).map(([v, rotulo, icone]) => (
@@ -1685,6 +1962,9 @@ export default function AdminPage() {
                   <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR[crm[aberto.slug]?.estagio ?? "novo"]}`}>
                     {ROTULO[crm[aberto.slug]?.estagio ?? "novo"]}
                   </span>
+                  <span title="Contatados hoje" className={`rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums ${contagens.faleiHoje >= META_DIA ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#F3EFE7] text-[#4A4639]"}`}>
+                    {contagens.faleiHoje}/{META_DIA} hoje
+                  </span>
                   {(() => {
                     const c = crm[aberto.slug];
                     const p = prazoDe(c, dataDeHoje);
@@ -1719,6 +1999,12 @@ export default function AdminPage() {
                       <a role="menuitem" className={ITEM_MENU} href={`/${aberto.slug}`}>Painel do negócio</a>
                       <a role="menuitem" className={ITEM_MENU} href={`https://${aberto.slug}.ruphus.site/`} target="_blank" rel="noreferrer">Ver o site ↗</a>
                       <a role="menuitem" className={ITEM_MENU} href={`https://${aberto.slug}.ruphus.site/agendar`} target="_blank" rel="noreferrer">Agendamento ↗</a>
+                      {crm[aberto.slug]?.estagio !== "fechado" &&
+                        ABAS_DE_CLIENTE.map((id) => (
+                          <button key={id} type="button" role="menuitem" className={`${ITEM_MENU} text-left`} onClick={() => (setAba(id), setMenuNegocio(false))}>
+                            {{ cliente: "Cliente e convite", whatsapp: "WhatsApp do negócio", cobranca: "Cobrança" }[id]}
+                          </button>
+                        ))}
                       <span className="my-1 h-px bg-[#EDE9E1]" />
                       {/* Ação rara e perigosa: longe dos campos do dia */}
                       <button
@@ -1770,7 +2056,11 @@ export default function AdminPage() {
                   ["whatsapp", "WhatsApp", <path key="w" d="M20.5 11.5a8.5 8.5 0 0 1-12.4 7.6L3.5 20.5l1.4-4.4A8.5 8.5 0 1 1 20.5 11.5z" />],
                   ["cobranca", "Cobrança", <><rect key="r" x="3" y="6" width="18" height="12" rx="2" /><path key="p" d="M3 10h18M7 15h3" /></>],
                 ] as const
-              ).map(([id, rotulo, icone]) => (
+              )
+                // lead em prospecção não tem cliente, WhatsApp nem cobrança: só depois de fechar (a aba já
+                // escolhida fica; o menu "…" abre as outras)
+                .filter(([id]) => crm[aberto.slug]?.estagio === "fechado" || aba === id || !(ABAS_DE_CLIENTE as readonly string[]).includes(id))
+                .map(([id, rotulo, icone]) => (
                 <button
                   key={id}
                   type="button"
@@ -1822,11 +2112,18 @@ export default function AdminPage() {
               negocio={aberto}
               crm={crm[aberto.slug] ?? VAZIO}
               assinatura={assinatura}
-              onEnviar={(modelo, para) => enviouMensagem(aberto.slug, modelo, para)}
-              onEnviarEProximo={(modelo, para) => enviarEProximo(aberto.slug, modelo, para)}
+              onEnviar={(modelo, para, envio) => aguardarEnvio(aberto.slug, modelo, para, envio)}
+              onEnviarEProximo={(modelo, para, envio) => enviarEProximo(aberto.slug, modelo, para, envio)}
+              variante={detalhe ? varianteDoId(detalhe.varianteId) : null}
+              textos={textos}
+              carregando={!detalhe && !erroDetalhe}
+              erroDetalhe={erroDetalhe}
+              onTentarDeNovo={() => abrir(aberto)}
+              paradoNaProspeccao={!!detalhe?.paradoNaProspeccao}
               onCopiar={(texto) => copiar(texto, "mensagem")}
-              onPronto={setPronto}
               linkProposta={proposta?.slug === aberto.slug ? proposta.url : null}
+              onGerarLink={() => gerarLinkProposta(aberto.slug)}
+              onNumero={(d) => mudarNegocio(aberto.slug, { donoWhatsapp: d })}
               onMarcar={(oque) => marcarResposta(aberto.slug, oque)}
               onEncerrar={() => mudarNegocio(aberto.slug, { estagio: "perdido", motivoPerda: "nao_respondeu" })}
             />
@@ -1840,8 +2137,10 @@ export default function AdminPage() {
               const ACAO = "h-11 rounded-full border bg-white px-3 text-[12.5px] font-semibold disabled:cursor-not-allowed disabled:opacity-50";
               return (
                 <section aria-label="O que ele fez" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {/* Respondeu para a cadência e conta como resposta; a saudação automática do WhatsApp não se marca */}
                   <button
                     type="button"
+                    title="Uma pessoa respondeu"
                     disabled={!!c.respondeuEm || parou || desfecho}
                     onClick={() => marcarResposta(aberto.slug, "respondeu")}
                     className={`${ACAO} border-[#2C6A53] text-[#2C6A53] hover:bg-[#EEF2F0]`}
@@ -1850,12 +2149,12 @@ export default function AdminPage() {
                   </button>
                   <button
                     type="button"
-                    title="Pediu para não receber mensagens"
+                    title="Respondeu PARE: não recebe mais mensagens"
                     disabled={parou || desfecho}
                     onClick={() => marcarResposta(aberto.slug, "parar")}
                     className={`${ACAO} border-[#D8D2C6] text-[#8A2F2F] hover:border-[#8A2F2F]`}
                   >
-                    Parou
+                    PARE
                   </button>
                   {DESFECHOS.map((e) => {
                     const ativa = c.estagio === e;
@@ -1876,8 +2175,19 @@ export default function AdminPage() {
               );
             })()}
 
-            {/* O próximo passo: a cadência já preenche; é ele que governa "Retornos de hoje"
-                e o alerta de negócio sem próximo passo */}
+            {/* Depois da resposta, objeções, IA e proposta ficam logo abaixo da mensagem: é quando servem */}
+            {conversando && (
+              <>
+                {blocoEtapa}
+                {blocoObjecoes}
+                {blocoCopiloto}
+                {blocoProposta}
+              </>
+            )}
+
+            {/* O próximo passo: governa "Retornos de hoje" e o alerta de negócio sem próximo passo.
+                Na prospecção a cadência preenche sozinha, e o bloco não aparece */}
+            {!prospectando && (
             <section aria-label="O combinado" className="flex flex-col gap-2.5 rounded-2xl border border-[#C9DACF] bg-[#F4F8F6] p-4">
               <div className="flex items-center gap-2">
                 <h3 className="text-[11px] font-semibold tracking-[0.07em] text-[#2C6A53] uppercase">O combinado</h3>
@@ -1916,7 +2226,22 @@ export default function AdminPage() {
                   className="h-11 w-full shrink-0 rounded-[10px] border border-[#C9DACF] bg-white px-3 text-sm text-[#17150F] outline-none focus:border-[#2C6A53] sm:w-[150px]"
                 />
               </div>
+              {/* o dia em um toque; o calendário fica para a exceção */}
+              <div role="group" aria-label="Quando, em um toque" className="flex flex-wrap gap-1.5">
+                {([["Hoje", 0], ["Amanhã", 1], ["+3 dias", 3], ["+7 dias", 7]] as const).map(([rotulo, dias]) => (
+                  <button
+                    key={rotulo}
+                    type="button"
+                    aria-pressed={crm[aberto.slug]?.proximaData === addDays(dataDeHoje, dias)}
+                    onClick={() => mudarNegocio(aberto.slug, { proximaData: addDays(dataDeHoje, dias) })}
+                    className="h-9 rounded-full border border-[#C9DACF] bg-white px-3 text-xs font-semibold text-[#1F4C3B] hover:border-[#2C6A53] aria-pressed:border-[#2C6A53] aria-pressed:bg-[#E3EFE8]"
+                  >
+                    {rotulo}
+                  </button>
+                ))}
+              </div>
             </section>
+            )}
 
             {/* as últimas notas e o campo para anotar; o resto da linha do tempo está em Histórico */}
             <LinhaDoTempo
@@ -1927,11 +2252,19 @@ export default function AdminPage() {
               anotar={(texto) => novaNota(aberto.slug, texto)}
             />
 
+            {/* fora do "Mais": é o número para onde a mensagem vai */}
+            <ContatoDono
+              key={`contato-${aberto.slug}`}
+              negocio={aberto}
+              crm={crm[aberto.slug] ?? VAZIO}
+              salvar={(dados) => mudarNegocio(aberto.slug, dados)}
+            />
+
             {/* Consulta e preparo, não trabalho do dia: recolhido. Aberto só para cliente fechado,
-                que é quando preço, proposta e contato do dono voltam a importar */}
+                que é quando preço e proposta voltam a importar */}
             <details key={`mais-${aberto.slug}`} open={crm[aberto.slug]?.estagio === "fechado"} className="group rounded-2xl border border-[#E2DDD3] px-4 py-3">
               <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-[13px] font-semibold [&::-webkit-details-marker]:hidden">
-                Mais · etapa, proposta, contato do dono, origem e objeções
+                {conversando ? "Mais · origem e destaque" : "Mais · etapa, proposta, origem e objeções"}
                 <span aria-hidden="true" className="text-[#6F6A5E] group-open:rotate-180">⌄</span>
               </summary>
               <div className="mt-3 flex flex-col gap-5">
@@ -1951,64 +2284,8 @@ export default function AdminPage() {
               );
             })()}
 
-            {/* Etapa numa linha: progresso à esquerda, desfecho à direita. São
-                coisas diferentes — fechar e perder perguntam antes de gravar. */}
-            <section aria-label="Etapa" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] p-4">
-              <div className="flex items-center gap-2">
-                <h3 className="text-[11px] font-semibold tracking-[0.07em] text-[#6F6A5E] uppercase">Etapa</h3>
-                <div className="grow" />
-                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR[crm[aberto.slug]?.estagio ?? "novo"]}`}>
-                  {ROTULO[crm[aberto.slug]?.estagio ?? "novo"]}
-                </span>
-              </div>
+            {!conversando && blocoEtapa}
 
-              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-                <div className="flex grow overflow-hidden rounded-full border border-[#D8D2C6]">
-                  {ETAPAS.map((e, i) => {
-                    const ativa = (crm[aberto.slug]?.estagio ?? "novo") === e;
-                    return (
-                      <button
-                        key={e}
-                        type="button"
-                        aria-pressed={ativa}
-                        onClick={() => mudarNegocio(aberto.slug, { estagio: e })}
-                        className={`h-11 grow px-3 text-[12.5px] transition-colors ${i ? "border-l border-[#D8D2C6]" : ""} ${
-                          ativa ? "bg-[#17150F] font-semibold text-white" : "bg-white text-[#4A4639] hover:text-[#17150F]"
-                        }`}
-                      >
-                        {ROTULO[e]}
-                      </button>
-                    );
-                  })}
-                </div>
-                <span aria-hidden="true" className="hidden h-6 w-px bg-[#E2DDD3] sm:block" />
-                <div className="flex gap-2">
-                  {DESFECHOS.map((e) => {
-                    const ativa = (crm[aberto.slug]?.estagio ?? "novo") === e;
-                    const cor = e === "fechado" ? "border-[#2C6A53] text-[#2C6A53] hover:bg-[#EEF2F0]" : "border-[#D8D2C6] text-[#8A2F2F] hover:border-[#8A2F2F]";
-                    return (
-                      <button
-                        key={e}
-                        type="button"
-                        aria-pressed={ativa}
-                        onClick={() => (ativa ? undefined : e === "perdido" ? setPerdendo(aberto.slug) : setFechando(aberto.slug))}
-                        className={`h-11 grow rounded-full border px-4 text-[12.5px] font-semibold sm:grow-0 ${ativa ? `border-transparent ${COR[e]}` : `bg-white ${cor}`}`}
-                      >
-                        {e === "fechado" ? "Fechou" : "Perdeu"}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <span className="text-[11.5px] text-[#6F6A5E]">Fechar ou perder abre uma pergunta antes de gravar.</span>
-            </section>
-
-            <ContatoDono
-              key={`contato-${aberto.slug}`}
-              negocio={aberto}
-              crm={crm[aberto.slug] ?? VAZIO}
-              salvar={(dados) => mudarNegocio(aberto.slug, dados)}
-            />
             {/* Consulta, não trabalho do dia: ficam a um clique */}
             <details key={`atributos-${aberto.slug}`} className="rounded-2xl border border-[#E2DDD3] px-4 py-3">
               <summary className="cursor-pointer text-[12.5px] text-[#4A4639]">
@@ -2023,120 +2300,14 @@ export default function AdminPage() {
               </div>
             </details>
 
-            {/* Preço só importa ao propor e ao fechar: fica a um clique */}
-            <details key={`precos-${aberto.slug}`} className="rounded-2xl border border-[#E2DDD3] px-4 py-3">
-              <summary className="cursor-pointer text-[12.5px] text-[#4A4639]">
-                Proposta · {formatBRL(crm[aberto.slug]?.entradaCents ?? PRECO_PADRAO.entradaCents)} de ativação + {formatBRL(crm[aberto.slug]?.mensalCents ?? PRECO_PADRAO.mensalCents)}/mês
-              </summary>
-              <div className="mt-3 flex flex-col gap-3">
-                {/* O link é a proposta: o dono abre no celular, lê e fecha pelo
-                    botão. Vale 7 dias, e o mesmo link serve para os dois canais. */}
-                <div className="flex flex-col gap-2 rounded-xl border border-[#E2DDD3] bg-[#FBFAF8] p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-semibold text-[#4A4639]">Proposta para mandar</span>
-                    <div className="grow" />
-                    {proposta?.slug === aberto.slug && (
-                      <span className="text-[11px] text-[#6F6A5E]">vale até {diaCurto(proposta.valeAte)}</span>
-                    )}
-                  </div>
-
-                  {proposta?.slug === aberto.slug ? (
-                    <>
-                      <p className="truncate rounded-[10px] border border-[#E2DDD3] bg-white px-3 py-2 font-[family-name:var(--font-geist-mono)] text-[11.5px] text-[#4A4639]">
-                        {proposta.url}
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <button type="button" className={MENOR} onClick={() => copiar(proposta.url, "proposta")}>
-                          {copiado === "proposta" ? "Copiado ✓" : "Copiar link"}
-                        </button>
-                        {(() => {
-                          const c = crm[aberto.slug];
-                          const numero = c?.donoWhatsapp ?? aberto.telefone;
-                          const texto =
-                            `Oi${c?.donoNome ? `, ${c.donoNome.split(" ")[0]}` : ""}! Aqui é ${assinatura || "o pessoal"}, da Ruphus.\n\n` +
-                            `Montei a proposta do ${aberto.nome} numa página só, dá para ler no celular em um minuto: ${proposta.url}\n\n` +
-                            `Qualquer dúvida me chama por aqui.`;
-                          const zap = numero ? linkWhatsApp(numero, texto) : null;
-                          return zap ? (
-                            <a className={MENOR} href={zap} target="_blank" rel="noreferrer" onClick={() => enviouMensagem(aberto.slug, "Proposta", c?.donoNome ?? "o dono")}>
-                              Enviar no WhatsApp
-                            </a>
-                          ) : (
-                            <span className={`${MENOR} border-dashed text-[#8B8578]`}>Sem WhatsApp do dono</span>
-                          );
-                        })()}
-                        <div className="w-full">
-                          <EnviarPorEmail
-                            key={`prop-${aberto.slug}-${crm[aberto.slug]?.donoEmail ?? ""}`}
-                            cadastrado={crm[aberto.slug]?.donoEmail ?? null}
-                            onEnviar={(para) => enviarPropostaEmail(aberto.slug, para)}
-                          />
-                        </div>
-                        <a className={MENOR} href={`${proposta.url}&admin=1`} target="_blank" rel="noreferrer">Ver como o dono vê</a>
-                        {/* O PDF é a mesma proposta impressa: abre a caixa de
-                            impressão para salvar o arquivo e anexar no e-mail
-                            ou no WhatsApp de quem prefere anexo a link. */}
-                        <a className={MENOR} href={`${proposta.url}&pdf=1`} target="_blank" rel="noreferrer">Baixar PDF</a>
-                        <button type="button" className={MENOR} onClick={() => gerarLinkProposta(aberto.slug, true)}>
-                          Refazer
-                        </button>
-                      </div>
-                      <span className="text-[11px] leading-relaxed text-[#6F6A5E]">
-                        Refazer invalida o link anterior. Os valores vêm daqui de cima: mude antes de mandar.
-                      </span>
-                    </>
-                  ) : (
-                    <button type="button" className={`${BOTAO_ESCURO} self-start`} onClick={() => gerarLinkProposta(aberto.slug)}>
-                      Gerar link da proposta
-                    </button>
-                  )}
-                </div>
-
-              {/* Nasce no preco padrao: com 675 negocios, digitar o mesmo
-                  numero 675 vezes e o que faz alguem parar de preencher. */}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {(
-                  [
-                    { id: "entrada", rotulo: "Taxa de ativação", campo: "entradaCents", padrao: PRECO_PADRAO.entradaCents, sufixo: "" },
-                    { id: "mensal", rotulo: "Mensalidade", campo: "mensalCents", padrao: PRECO_PADRAO.mensalCents, sufixo: "/mês" },
-                  ] as const
-                ).map((c) => (
-                  <label key={c.id} htmlFor={c.id} className="flex flex-col gap-1 text-xs text-[#6F6A5E]">
-                    {c.rotulo}
-                    <span className="flex h-11 items-center rounded-[10px] border border-[#D8D2C6] bg-white focus-within:border-[#17150F]">
-                      <span className="pl-3 pr-1.5 text-sm text-[#8B8578]">R$</span>
-                      <input
-                        id={c.id}
-                        type="text"
-                        inputMode="decimal"
-                        defaultValue={emReais(crm[aberto.slug]?.[c.campo] ?? c.padrao)}
-                        onBlur={(ev) => {
-                          const valor = cents(ev.target.value);
-                          // texto que não é número não apaga o preço: volta o que estava
-                          if (ev.target.value.trim() && (Number.isNaN(valor) || valor < 0)) {
-                            ev.target.value = emReais(crm[aberto.slug]?.[c.campo] ?? c.padrao);
-                            return setAviso("Valor inválido. Use 59,90.");
-                          }
-                          const novo = ev.target.value.trim() ? valor : null;
-                          ev.target.value = novo === null ? "" : emReais(novo);
-                          mudarNegocio(aberto.slug, { [c.campo]: novo });
-                        }}
-                        className="h-full min-w-0 grow bg-transparent text-sm tabular-nums text-[#17150F] outline-none"
-                      />
-                      {c.sufixo && <span className="pr-3 text-xs text-[#8B8578]">{c.sufixo}</span>}
-                    </span>
-                  </label>
-                ))}
-              </div>
-              </div>
-            </details>
-
-            <details key={`obj-${aberto.slug}`} className="rounded-2xl border border-[#E2DDD3] px-4 py-3">
-              <summary className="cursor-pointer text-[12.5px] text-[#4A4639]">Se ele responder isso · 5 respostas prontas</summary>
-              <div className="mt-3">
-                <Objecoes onCopiar={(texto) => copiar(texto, "resposta")} />
-              </div>
-            </details>
+            {/* em prospecção e no cliente fechado, proposta, IA e objeções ficam aqui dentro */}
+            {!conversando && (
+              <>
+                {blocoProposta}
+                {blocoCopiloto}
+                {blocoObjecoes}
+              </>
+            )}
 
               </div>
             </details>
@@ -2474,21 +2645,46 @@ export default function AdminPage() {
                 Na Venda não aparece: mandar e anotar já estão no topo dela */}
             {aba !== "venda" && (
             <div className="sticky bottom-[calc(-1.5rem-env(safe-area-inset-bottom))] -mx-6 -mb-6 mt-auto flex gap-2 border-t border-[#E2DDD3] bg-white px-6 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:-bottom-8 sm:-mx-8 sm:-mb-8 sm:px-8">
-              {pronto?.link ? (
-                <a
-                  href={pronto.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => enviouMensagem(aberto.slug, pronto.modelo, pronto.para)}
-                  className={`${BOTAO_VERDE} grow`}
-                >
-                  Abrir no WhatsApp · {pronto.modelo}
-                </a>
-              ) : (
-                <span className={`${BOTAO} grow border border-dashed border-[#D8D2C6] text-[#8B8578]`}>
-                  {assinatura ? "Cadastre o WhatsApp do dono" : "Defina quem assina, nos ajustes"}
-                </span>
-              )}
+              {(() => {
+                // H-1/barra: a mensagem do negócio aberto, com o detalhe buscado para esta aba; enquanto
+                // busca, carregando; o link só existe com o slug deste negócio (linkDaBarra)
+                if (daBarra?.chave !== `${aberto.slug}|${aba}`) {
+                  return (
+                    <span role="status" className={`${BOTAO} grow border border-dashed border-[#D8D2C6] text-[#8B8578]`}>
+                      Buscando a mensagem…
+                    </span>
+                  );
+                }
+                const c = crm[aberto.slug] ?? VAZIO;
+                const d = daBarra.detalhe;
+                const { pronto } = montarPronto(modeloDaVez(c), null, {
+                  negocio: aberto,
+                  crm: c,
+                  assinatura,
+                  linkProposta: proposta?.slug === aberto.slug ? proposta.url : null,
+                  variante: d ? varianteDoId(d.varianteId) : null,
+                  textos,
+                  erroDetalhe: d ? null : "sem detalhe",
+                  paradoNaProspeccao: !!d?.paradoNaProspeccao,
+                });
+                const link = linkDaBarra(pronto, aberto.slug);
+                return link ? (
+                  <a
+                    href={link}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => aguardarEnvio(aberto.slug, pronto.modelo, pronto.para, pronto.envio)}
+                    className={`${BOTAO_VERDE} grow`}
+                  >
+                    Abrir no WhatsApp · {pronto.modelo}
+                  </a>
+                ) : (
+                  // sem link (PARE, sem detalhe, sem número ou sem quem assina): a Venda explica o porquê
+                  <button type="button" onClick={() => setAba("venda")} className={`${BOTAO_CLARO} grow`}>
+                    Mensagens prontas
+                  </button>
+                );
+              })()}
               <button type="button" onClick={() => setAba("historico")} className={BOTAO_CLARO}>
                 Anotar
               </button>
@@ -2521,6 +2717,8 @@ export default function AdminPage() {
           }}
         />
       )}
+
+      {pendente?.voltou && !pendente.gravando && <EnviouModal key={pendente.envio.envioId} nome={espacos[pendente.slug]?.nome ?? pendente.slug} modelo={pendente.modelo} erro={pendente.erro} responder={(r) => void responderEnvio(r)} />}
     </>
   );
 }

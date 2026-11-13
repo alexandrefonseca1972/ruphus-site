@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { connectAuthEmulator, getAuth } from "firebase/auth";
 import { z } from "zod";
 
 const config = z
@@ -22,6 +22,9 @@ const config = z
 
 export const app = getApps().length ? getApp() : initializeApp(config);
 export const auth = getAuth(app);
+if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === "demo-siteflow" && !auth.emulatorConfig) {
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+}
 // `db` mora em @/lib/firebase-db: aqui ele faria todo mundo que precisa só de
 // login baixar 1 MB do SDK do Firestore junto.
 

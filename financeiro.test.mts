@@ -48,6 +48,10 @@ await ag("passado", zonedTime(addDays(hoje, -1), "10:00"));
 await ag("futuro", zonedTime(addDays(hoje, 1), "10:00"));
 await ag("cancelado", zonedTime(addDays(hoje, -1), "11:00"), "cancelled");
 
+await assert.rejects(baixarAgendamento(db, "salao", { appointmentId: "passado", valorCents: 3500, forma: "cartao" }, quem), /valor deste atendimento/, "preço fixo não aceita troco arbitrário");
+await ag("preco-aberto", zonedTime(addDays(hoje, -1), "09:00"));
+await db.doc("tenants/salao/appointments/preco-aberto").update({ precoAberto: true, priceCents: 0, staffId: "outra", staffName: "Outra" });
+await baixarAgendamento(db, "salao", { appointmentId: "preco-aberto", valorCents: 3500, forma: "cartao" }, quem);
 await baixarAgendamento(db, "salao", { appointmentId: "passado", valorCents: 4000, forma: "cartao" }, quem);
 const b = (await db.doc(`tenants/salao/lancamentos/${idDaBaixa("passado")}`).get()).data()!;
 assert.deepEqual([b.tipo, b.categoria, b.staffName, b.customerName, b.data, b.forma], ["entrada", "Atendimento", "Bia", "Ana", addDays(hoje, -1), "cartao"]);
@@ -106,11 +110,13 @@ const aluguel = cfg.fixas[0].id as string;
 await removerFixa(db, "salao", cfg.fixas[1].id);
 assert.equal((await db.doc("tenants/salao/caixa/config").get()).get("fixas").filter((f: { ate?: string }) => !f.ate).length, 1, "tirada fica só até este mês");
 assert.deepEqual((await db.doc("tenants/salao/caixa/config").get()).get("comissoes"), { bia: 40, leo: 30 }, "tirar conta não mexe na comissão");
-await pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes, valorCents: 119000, forma: "pix" }, quem);
+await assert.rejects(pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes, valorCents: 119000, forma: "pix" }, quem), /valor cadastrado/, "pagar menos não quita a conta");
+await pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes, valorCents: 120000, forma: "pix" }, quem);
 const fx = (await db.doc(`tenants/salao/lancamentos/${idDoPagamento("fixa", aluguel, mes)}`).get()).data()!;
-assert.deepEqual([fx.tipo, fx.valorCents, fx.categoria, fx.descricao, fx.mes, fx.data], ["saida", 119000, "Aluguel", "Aluguel", mes, hoje]);
+assert.deepEqual([fx.tipo, fx.valorCents, fx.categoria, fx.descricao, fx.mes, fx.data], ["saida", 120000, "Aluguel", "Aluguel", mes, hoje]);
 await assert.rejects(pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes, valorCents: 120000, forma: "pix" }, quem), /já foi paga/);
-await assert.rejects(editar(db, "salao", idDoPagamento("fixa", aluguel, mes), { ...entrada, tipo: "entrada" }, quem), /sempre saída/);
+await assert.rejects(editar(db, "salao", idDoPagamento("fixa", aluguel, mes), { ...entrada, valorCents: 120000, tipo: "entrada" }, quem), /sempre saída/);
+await assert.rejects(editar(db, "salao", idDoPagamento("fixa", aluguel, mes), { tipo: "saida", valorCents: 119000, data: hoje, categoria: "Aluguel", forma: "pix" }, quem), /valor de uma conta paga/);
 // antes de cadastrada, a conta não se paga
 await assert.rejects(pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes: "2026-02", valorCents: 120000, forma: "pix" }, quem), /ainda não existia/);
 // conta de um mês passado cai no dia dela (cadastrada antes daquele mês)
@@ -130,7 +136,7 @@ const tirada = (await db.doc("tenants/salao/caixa/config").get()).get("fixas")[0
 assert.deepEqual([tirada.id, tirada.ate], [aluguel, proximo], "a deste mês continua a pagar");
 await removerFixa(db, "salao", aluguel);
 assert.equal((await db.doc("tenants/salao/caixa/config").get()).get("fixas")[0].ate, proximo, "tirar de novo não mexe");
-await pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes: "2026-03", valorCents: 120000, forma: "pix" }, quem);
+await pagar(db, "salao", { tipo: "fixa", alvoId: aluguel, mes: "2026-03", valorCents: 150000, forma: "pix" }, quem);
 await assert.rejects(editarFixa(db, "salao", aluguel, { nome: "x", valorCents: 1, dia: 1, categoria: "Aluguel" }), /não encontrada/);
 assert.equal(fixaNoMes(tirada, "2026-03"), true);
 assert.equal(fixaNoMes(tirada, mes), true);

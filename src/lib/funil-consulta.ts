@@ -185,3 +185,23 @@ export function numerosDaSemana(espacos: readonly Espaco[], crm: Record<string, 
   }
   return n;
 }
+
+/** Uma linha da tabela por variante (F1): contagens; a tela tira as porcentagens sobre `confirmados`. */
+export type LinhaVariante = { varianteId: string; confirmados: number; humanas: number; optouts: number; visitas: number; avancaram: number };
+/** Os negócios com primeiro contato confirmado, agrupados pela variante: quantos responderam (gente,
+ *  não saudação automática), pediram PARE, abriram o site e passaram de "novo" (oferta adiante). */
+export function porVariante(espacos: readonly Espaco[], crm: Record<string, Crm>): LinhaVariante[] {
+  const m = new Map<string, LinhaVariante>();
+  for (const x of espacos) {
+    const c = crm[x.slug];
+    if (!c?.varianteId) continue;
+    let l = m.get(c.varianteId);
+    if (!l) m.set(c.varianteId, (l = { varianteId: c.varianteId, confirmados: 0, humanas: 0, optouts: 0, visitas: 0, avancaram: 0 }));
+    l.confirmados++;
+    if (c.respondeuEm) l.humanas++;
+    if (c.naoContatarEm) l.optouts++;
+    if (c.siteVistoEm) l.visitas++;
+    if (c.estagio === "oferta" || c.estagio === "negociando" || c.estagio === "fechado") l.avancaram++;
+  }
+  return [...m.values()].sort((a, b) => a.varianteId.localeCompare(b.varianteId));
+}

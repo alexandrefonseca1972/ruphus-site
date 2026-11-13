@@ -4,7 +4,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore, Timestamp } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
-import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, LIMITS, loadCatalog, redeDoIp, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente } from "@/lib/booking.server";
+import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, LIMITS, loadCatalog, redeDoIp, renameCustomer, requireMember, reschedule, rescheduleSlots, restaurarAgendamento, salvarDadosCliente } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
 import { addDays, agoraNaParede, customerKey, formatPhone, fusoDaUF, maskBRL, freeSlots, phoneError, planDates, datasDoPlano, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput, PlanInput } from "@/lib/scheduling";
@@ -203,6 +203,15 @@ await corte.ref.update({ status: "no_show" });
 assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "09:00" }, actor)).ok, false, "falta não remarca");
 await corte.ref.update({ status: "cancelled" });
 assert.equal((await reschedule(db, { tenantId: "salao", appointmentId: corte.id, date: D1, time: "09:00" }, actor)).ok, false, "cancelado não remarca");
+
+// Desfazer o cancelamento preserva o estado e nunca sobrepõe outra reserva
+assert.equal((await restaurarAgendamento(db, { tenantId: "salao", appointmentId: corte.id, status: "booked" }, actor)).ok, true);
+const restaurado = (await corte.ref.get()).data()!;
+assert.equal(restaurado.status, "booked");
+assert.equal((await t.collection("history").doc(restaurado.lastHistoryId).get()).get("type"), "restored");
+await corte.ref.update({ status: "cancelled" });
+assert.equal((await book(db, { ...base, ...outro(), serviceIds: ["corte"], date: D1, time: "11:30" })).ok, true, "outro cliente ocupa o horário cancelado");
+assert.equal((await restaurarAgendamento(db, { tenantId: "salao", appointmentId: corte.id, status: "booked" }, actor)).ok, false, "não restaura sobre outra reserva");
 
 // Membro do tenant (emulador de Auth)
 const auth = getAuth(app);
@@ -554,17 +563,20 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.equal((await crmDoc()).get("origem"), "indicacao");
 }
 
+// Toque de cadência só conta com envio confirmado (Sim ou Editei), como na gaveta.
+const envioOk = () => ({ envioId: crypto.randomUUID(), textoEnviado: "mensagem enviada", editado: false });
+
 // Cadência: cada toque agenda o próximo; resposta para a cadência; pedir para parar bloqueia
 {
   const slug = "cadencia-teste";
   const crmDoc = async () => (await db.doc(`crm/${slug}`).get());
   const hoje = todayIn();
-  await registrarMensagem(db, slug, "Primeiro contato", "a recepção", "vendedor@teste.dev");
+  await registrarMensagem(db, slug, "Primeiro contato", "a recepção", "vendedor@teste.dev", envioOk());
   let d = await crmDoc();
   assert.equal(d.get("toques"), 1);
   assert.equal(d.get("proximaAcao"), "Lembrete");
   assert.equal(d.get("proximaData"), addDays(hoje, 3));
-  await registrarMensagem(db, slug, "Lembrete", "a recepção", "vendedor@teste.dev");
+  await registrarMensagem(db, slug, "Lembrete", "a recepção", "vendedor@teste.dev", envioOk());
   d = await crmDoc();
   assert.equal(d.get("toques"), 2);
   assert.equal(d.get("proximaData"), addDays(hoje, 7));
@@ -577,7 +589,7 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.ok(d.get("respondeuEm"));
   assert.equal(d.get("proximaData"), hoje, "respondeu: o próximo passo é falar com ele hoje");
   assert.equal(d.get("proximaAcao"), "Responder e mandar a proposta");
-  await registrarMensagem(db, slug, "Última tentativa", "a recepção", "vendedor@teste.dev");
+  await registrarMensagem(db, slug, "Última tentativa", "a recepção", "vendedor@teste.dev", envioOk());
   assert.equal((await crmDoc()).get("toques"), 2, "depois da resposta, não é mais cadência");
 
   // combinado pelo vendedor sobrevive à resposta
@@ -591,7 +603,7 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   assert.equal(d.get("estagio"), "perdido");
   assert.equal(d.get("motivoPerda"), "sem_interesse");
   assert.equal(d.get("proximaData"), undefined);
-  await assert.rejects(registrarMensagem(db, slug, "Lembrete", "a recepção", "vendedor@teste.dev"), /pediu para não receber/);
+  await assert.rejects(registrarMensagem(db, slug, "Lembrete", "a recepção", "vendedor@teste.dev", envioOk()), /pediu para não receber/);
   await marcarContato(db, slug, "liberar", "vendedor@teste.dev");
   d = await crmDoc();
   assert.equal(d.get("naoContatarEm"), undefined);
@@ -607,7 +619,10 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   const vistas = linha.filter((e) => e.titulo === "Abriu a proposta");
   assert.equal(vistas.length, 1);
   assert.equal(vistas[0].autor, "o dono, pelo link", "o que o dono fez não aparece como da Ruphus");
-  assert.equal(linha.filter((e) => e.titulo === "Novo → Perdido").length, 1);
+  // PARE grava um evento só, com a mudança de estágio no detalhe (revisão F1, item 11)
+  const pare = linha.filter((e) => e.titulo === "Respondeu PARE");
+  assert.equal(pare.length, 1);
+  assert.match(pare[0].detalhe ?? "", /→ Perdido/);
 }
 
 // Cadência não pisa no combinado à mão; encerrar como perdido tira o toque agendado
@@ -615,12 +630,12 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   const slug = "cadencia-manual";
   const crmDoc = async () => (await db.doc(`crm/${slug}`).get());
   await salvarCrm(db, slug, { proximaAcao: "ligar terça", proximaData: "2030-02-05" });
-  await registrarMensagem(db, slug, "Primeiro contato", "a recepção", "vendedor@teste.dev");
+  await registrarMensagem(db, slug, "Primeiro contato", "a recepção", "vendedor@teste.dev", envioOk());
   let d = await crmDoc();
   assert.equal(d.get("proximaData"), "2030-02-05");
   assert.equal(d.get("toques"), 1, "o toque conta mesmo sem agendar");
   await salvarCrm(db, slug, { proximaAcao: null, proximaData: null });
-  await registrarMensagem(db, slug, "Última tentativa", "a recepção", "vendedor@teste.dev");
+  await registrarMensagem(db, slug, "Última tentativa", "a recepção", "vendedor@teste.dev", envioOk());
   assert.ok((await crmDoc()).get("proximaData"));
   await salvarCrm(db, slug, { estagio: "perdido", motivoPerda: "nao_respondeu" });
   d = await crmDoc();

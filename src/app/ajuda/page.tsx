@@ -64,6 +64,12 @@ export default function ManualDoUsuario() {
           Os números do dia (horários, confirmados, aguardando e o previsto em reais) contam só o que está de pé.
         </P>
         <P>
+          A visão <Termo>Por período</Termo> agrupa os agendamentos por hora e mostra a quantidade e os profissionais livres.
+          Passe o mouse ou toque em um período para ver detalhes e ações. Para reagendar, arraste o cartão para outro
+          período ou use <Termo>Reagendar</Termo> — inclusive no celular e no teclado. A visão anterior continua em
+          <Termo>Por profissional</Termo>.
+        </P>
+        <P>
           Uma linha marca <Termo>agora</Termo> e desce sozinha durante o dia. Por isso um horário que acabou de passar
           perde o botão de confirmar e ganha a opção de registrar falta, sem você recarregar nada.
         </P>
@@ -79,7 +85,8 @@ export default function ManualDoUsuario() {
             </>,
             <>
               <Termo>Cancelar</Termo> pergunta antes e já oferece avisar o cliente pelo WhatsApp, com a mensagem pronta
-              e o link para ele marcar outro horário.
+              e o link para ele marcar outro horário. O histórico é preservado. <Termo>Desfazer</Termo> restaura o
+              agendamento se outro cliente ainda não tiver ocupado o horário.
             </>,
             <>
               <Termo>Faltou</Termo> fica no histórico do cliente e não volta atrás pelo painel. Registre só quando tiver

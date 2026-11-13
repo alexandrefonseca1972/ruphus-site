@@ -99,6 +99,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
   const [modelo, setModelo] = useState("");
   const [avisoModelo, setAvisoModelo] = useState<{ ok: boolean; texto: string } | null>(null);
   const [previaModelo, setPreviaModelo] = useState<string | null>(null);
+  const [tela, setTela] = useState<Tela>("celular");
   const [visualizando, setVisualizando] = useState(false);
   // a confirmação da troca fica dentro da gaveta, logo abaixo do botão (o diálogo solto não abria por cima dela)
   const [confirmandoModelo, setConfirmandoModelo] = useState(false);
@@ -277,10 +278,17 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
             )}
             {previaModelo !== null && (
               <div className="flex flex-col gap-2">
-                <PreviaModelo html={previaModelo} />
-                <div className="flex justify-end">
-                  <button type="button" className={BOTAO_CLARO} onClick={() => setPreviaModelo(null)}>Fechar prévia do modelo</button>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div role="group" aria-label="Tela da prévia do modelo" className="flex rounded-[10px] border border-[#D8D2C6] p-0.5">
+                    {(["celular", "computador"] as const).map((opcao) => (
+                      <button key={opcao} type="button" aria-pressed={tela === opcao} className={`h-11 rounded-[8px] px-3 text-xs font-semibold ${tela === opcao ? "bg-[#17150F] text-white" : "text-[#4A4639]"}`} onClick={() => setTela(opcao)}>
+                        {opcao === "celular" ? "Celular" : "Computador"}
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" className={BOTAO_CLARO} onClick={() => setPreviaModelo(null)}>Fechar prévia</button>
                 </div>
+                <PreviaModelo html={previaModelo} tela={tela} />
               </div>
             )}
             {avisoModelo && (

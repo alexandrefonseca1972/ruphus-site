@@ -7,7 +7,7 @@ import type { Alerta } from "@/lib/alertas";
 import { UFS, type Uf } from "@/lib/coleta";
 import { ESTAGIOS, type Crm, type Prazo } from "@/lib/crm-tipos";
 import type { ResultadoPainel } from "@/lib/painel-consulta";
-import { NOVOS_MAX, NOVOS_POR_VEZ, PERIODOS, type NumerosDaSemana, type Periodo, type ResumoDoFunil } from "@/lib/funil-consulta";
+import { NOVOS_MAX, NOVOS_POR_VEZ, PERIODOS, type LinhaVariante, type NumerosDaSemana, type Periodo, type ResumoDoFunil } from "@/lib/funil-consulta";
 
 export type Espaco = {
   slug: string;
@@ -165,6 +165,8 @@ export type RespostaPainel =
       funil?: ResumoDoFunil;
       /** com funil=1: a linha de números do funil, dos últimos 7 dias */
       semana?: NumerosDaSemana;
+      /** com funil=1: o A/B do primeiro contato (F1), uma linha por variante */
+      variantes?: LinhaVariante[];
       versao: number;
       montadoEm: string;
     }

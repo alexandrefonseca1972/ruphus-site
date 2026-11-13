@@ -274,7 +274,18 @@ export function Atrasadas({
           enviadas={enviadas}
           enviou={(c) => {
             setEnviadas((e) => new Set(e).add(c.id));
-            tokenAtual().then((tk) => registrarEnvio(tk, c.slug, `Cobrança de ${lote.mes}`, c.nome)).catch(() => {});
+            // o lote segue, mas um registro que falhou aparece: a linha do tempo ficaria sem a cobrança
+            tokenAtual()
+              .then((tk) => registrarEnvio(tk, c.slug, `Cobrança de ${lote.mes}`, c.nome))
+              .then(
+                (r) => {
+                  if (!r.ok) aviso(`${c.nome}: o envio não foi registrado na linha do tempo (${r.error}).`);
+                },
+                (e) => {
+                  console.error("[cobranca] não registrei o envio", e);
+                  aviso(`${c.nome}: o envio não foi registrado na linha do tempo (sem resposta do servidor).`);
+                },
+              );
           }}
           fechar={() => setLote(null)}
         />

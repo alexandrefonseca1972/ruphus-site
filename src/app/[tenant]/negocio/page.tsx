@@ -209,7 +209,7 @@ export default function MeuNegocio() {
           <a key={href} href={href} className="flex h-10 shrink-0 items-center rounded-full border bg-card px-3.5 text-sm font-medium hover:bg-muted">{rotulo}</a>
         ))}
         {/* no celular o Consumo não cabe na barra de baixo: o caminho fica aqui */}
-        {agendamento && <Link href={`/${slug}/consumo`} className="flex h-10 shrink-0 items-center rounded-full border bg-card px-3.5 text-sm font-medium hover:bg-muted">Mensagens e saldo →</Link>}
+        {agendamento && (tenant.whatsapp?.canalOficial === true || tenant.sms?.ligado === true) && <Link href={`/${slug}/consumo`} className="flex h-10 shrink-0 items-center rounded-full border bg-card px-3.5 text-sm font-medium hover:bg-muted">Mensagens e saldo →</Link>}
       </nav>
 
       {/* Uma coluna com todos os formulários e, ao lado, só os links (fixos ao rolar). Antes o

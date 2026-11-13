@@ -63,6 +63,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Biblioteca de variantes da prospecção (F4): texto e números só pelo servidor (aba Prospecção do
+    // admin, com adminAction). Nem o admin da plataforma lê pelo SDK do navegador.
+    match /prospeccaoVariantes/{id} {
+      allow read, write: if false;
+    }
+
     // "Meus tenants": collectionGroup("members") where uid == me
     match /{path=**}/members/{uid} {
       allow read: if request.auth != null && naoRevogado() && resource.data.uid == request.auth.uid;

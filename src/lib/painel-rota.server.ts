@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { errors } from "jose";
 import { invalido, semPermissao } from "@/lib/admin-guard";
 import type { Crm } from "@/lib/crm-tipos";
-import { numerosDaSemana, resumoDoFunil } from "@/lib/funil-consulta";
+import { numerosDaSemana, porVariante, resumoDoFunil } from "@/lib/funil-consulta";
 import { consultar, contarFilas } from "@/lib/painel-consulta";
 import type { criarIndice, Indice } from "@/lib/painel-indice.server";
 import { ConsultaPainel, type CodigoDeErro, type RespostaPainel } from "@/lib/painel-tipos";
@@ -80,6 +80,7 @@ export async function responderPainel(req: Request, { db, indice, verificar = ve
       contagens: { ...contagens, avisos: avisos.map(({ slugs, ...a }) => ({ ...a, total: slugs.length })), ...contarFilas(pronto.lista(), filtros, ctx) },
       funil: resumo,
       semana: funil ? numerosDaSemana(r.lista, pronto.crm, Date.now()) : undefined,
+      variantes: funil ? porVariante(r.lista, pronto.crm) : undefined,
       versao: pronto.versao,
       montadoEm: new Date(pronto.montadoEm).toISOString(),
     };

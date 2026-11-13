@@ -6,13 +6,17 @@ import { useValores } from "@/lib/valores";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { z } from "zod";
+import { ArrowDownToLine, ArrowUpFromLine, Check, ChevronLeft, ChevronRight, CircleCheckBig, Download, FileText, Focus, HandCoins, History, Plus, ReceiptText, RotateCcw, Search, Settings2, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FormMessage } from "@/components/form-message";
+import { FeedbackDialog } from "@/components/feedback-dialog";
 import { errorMessage } from "@/lib/auth-errors";
-import { formatLongDate, formatTime, todayIn, zonedTime } from "@/lib/datetime";
+import { dateIn, formatLongDate, formatTime, todayIn, zonedTime } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
 import { CaixaConfig, comissoesDoMes, diaNoMes, fixaNoMes, mesDaComissao, pctDoTexto, csvDoMes, idDaBaixa, idDoEstorno, ehVale, idDoPagamento, Lancamento, resumoDoMes, ROTULO_FORMA } from "@/lib/financeiro";
 import { useCollection } from "@/lib/use-collection";
+import { usePaginatedCollection } from "@/lib/use-paginated-collection";
 import { cn } from "@/lib/utils";
 import { definirComissaoAction } from "../actions";
 import { restanteDe } from "@/lib/sinal";
@@ -27,17 +31,15 @@ import { useTenant } from "../painel-layout";
 import { PageTitle } from "../page-title";
 import { mudarStatus } from "../status";
 
-// O que o "fechar o dia" precisa do agendamento
 const Atendimento = z.object({
   serviceName: z.string(),
   staffName: z.string(),
   priceCents: z.number(),
+  precoAberto: z.boolean().optional().catch(undefined),
   customerName: z.string(),
-  // o Pix pelo WhatsApp abre a conversa com o cliente
   customerPhone: z.string().optional().catch(undefined),
   start: z.instanceof(Timestamp),
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
-  // sinal pago pelo agendamento online: já entrou no Caixa, sai do que falta receber
   sinal: z.object({ cents: z.number(), status: z.string() }).optional().catch(undefined),
 });
 
@@ -51,6 +53,8 @@ const nomeDoMes = (mes: string) => {
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
+type FilaItem = { id: string; titulo: string; detalhe: string; valorCents: number; acao: string; abrir: () => void; secundaria?: () => void };
+
 export default function CaixaPage() {
   const { brl } = useValores();
   const tenant = useTenant();
@@ -62,123 +66,95 @@ export default function CaixaPage() {
   const [verFixas, setVerFixas] = useState(false);
   const [recibo, setRecibo] = useState<Lancamento[] | null>(null);
   const [reciboDoAviso, setReciboDoAviso] = useState<string | null>(null);
-  // o "Fechar o dia" mostra os mais recentes; a lista toda só quando o dono pede
   const [verTodos, setVerTodos] = useState(false);
+  const [verAtividade, setVerAtividade] = useState(false);
+  const [foco, setFoco] = useState(false);
   const [historico, setHistorico] = useState<{ staffId: string; nome: string } | null>(null);
   const [vale, setVale] = useState<{ id: string; nome: string } | null>(null);
-  // a lista do mês por tipo: o dono leigo vê o que entrou separado do que saiu (contas, comissões, vales)
   const [filtro, setFiltro] = useState<"tudo" | "entrada" | "saida">("tudo");
-  // o % digitado vale na hora, só enquanto a gravação dele está a caminho: "Pagar" logo depois
-  // usa o novo. Voltou do servidor, sai daqui e vale o da configuração, mude ela onde mudar.
-  // ponytail: entre a resposta e o snapshot pode piscar o % velho; esperar o snapshot se incomodar
+  const [forma, setForma] = useState("todas");
+  const [busca, setBusca] = useState("");
+  const [tentativa, setTentativa] = useState(0);
   const [pcts, setPcts] = useState<Record<string, { pct: number; vez: number }>>({});
-  // o relógio anda a cada minuto: com o Caixa aberto, o horário que passa entra no "Fechar o dia" sem recarregar
   const [agora, setAgora] = useState(Date.now);
   useEffect(() => {
     const t = setInterval(() => setAgora(Date.now()), 60_000);
     return () => clearInterval(t);
   }, []);
-  const ligado = tenant.podeGerir && caixaLigado(tenant.modulos);
+  useEffect(() => {
+    if (!aviso) return;
+    const t = setTimeout(() => (setAviso(""), setReciboDoAviso(null)), 7000);
+    return () => clearTimeout(t);
+  }, [aviso]);
 
+  const ligado = tenant.podeGerir && caixaLigado(tenant.modulos);
   const hoje = todayIn();
-  // aberto na virada do mês: quem olhava o mês corrente passa para o novo, senão o lançamento
-  // de hoje nasceria no dia 31 e o "Fechar o dia" deixaria os atendimentos de hoje de fora
   const [mesCorrente, setMesCorrente] = useState(hoje.slice(0, 7));
   if (mesCorrente !== hoje.slice(0, 7)) {
     setMesCorrente(hoje.slice(0, 7));
     if (mes === mesCorrente) setMes(hoje.slice(0, 7));
   }
-  // no mês corrente, o "Fechar o dia" também olha o mês anterior: o atendimento das 19h do
-  // dia 31 não some na virada do mês. Os lançamentos de lá só servem para saber o que já foi recebido.
-  // ponytail: só um mês para trás; o que ficou de antes, o dono acha voltando o mês
   const desde = mes === hoje.slice(0, 7) ? mesSeguinte(mes, -1) : mes;
-  // num mês passado, o seguinte também: o estorno nasce no dia em que foi feito, e a entrada
-  // daqui precisa saber que já foi estornada. ponytail: estorno 2+ meses depois, só o servidor barra
   const ate = mes < hoje.slice(0, 7) ? mesSeguinte(mes, 1) : mes;
-  // as consultas só sobem com o Caixa ligado: desligado, a regra negaria a leitura
-  const [comAnteriorLido, erroLeitura, foraDoMes] = useCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mes", "in", [...new Set([desde, mes, ate])])], `${desde}/${mes}/${ate}`);
-  // o sinal pago 2+ meses antes do atendimento conta na comissão do mês em que o atendimento foi
-  // recebido (mesComissao). O servidor soma por aqui também: sem esta leitura, a tela pagava menos
-  // e o "Pagar" era recusado
-  const [daComissaoLido, erroComissao, foraDaComissao] = useCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mesComissao", "==", mes)], `comissao/${mes}`);
-  // leitura com erro chega vazia: tratada como "carregando", senão a tela daria R$ 0, tudo a
-  // receber de novo e todas as contas em aberto como se fosse verdade
-  const comAnterior =
-    erroLeitura || erroComissao || !comAnteriorLido || !daComissaoLido ? null : [...new Map([...comAnteriorLido, ...daComissaoLido].map((l) => [l.id, l])).values()];
+  const [comAnteriorLido, erroLeitura, foraDoMes] = useCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mes", "in", [...new Set([desde, mes, ate])])], `${desde}/${mes}/${ate}/${tentativa}`);
+  const [daComissaoLido, erroComissao, foraDaComissao] = useCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mesComissao", "==", mes)], `comissao/${mes}/${tentativa}`);
+  const comAnterior = erroLeitura || erroComissao || !comAnteriorLido || !daComissaoLido ? null : [...new Map([...comAnteriorLido, ...daComissaoLido].map((l) => [l.id, l])).values()];
   const descartados = new Set([...foraDoMes, ...foraDaComissao]).size;
-  const lancamentos = comAnterior && comAnterior.filter((l) => l.mes === mes);
-  const [doMes, erroAgenda] = useCollection(
-    ligado ? tenant.id : "",
-    "appointments",
-    Atendimento,
-    [where("start", ">=", zonedTime(`${desde}-01`, "00:00")), where("start", "<", zonedTime(`${mesSeguinte(mes, 1)}-01`, "00:00")), orderBy("start")],
-    `${desde}/${mes}`,
-  );
-  // lido solto e conferido aqui: o useCollection descartaria em silêncio um documento fora do
-  // esquema, e o Caixa mostraria contas e comissões zeradas como se fossem verdade
-  const [equipe] = useCollection(ligado ? tenant.id : "", "staff", z.object({ name: z.string() }));
-  const [configs, erroConfig] = useCollection(ligado ? tenant.id : "", "caixa", z.record(z.string(), z.unknown()));
+  const lancamentos = comAnterior?.filter((l) => l.mes === mes) ?? null;
+  const [doMes, erroAgenda] = useCollection(ligado ? tenant.id : "", "appointments", Atendimento, [where("start", ">=", zonedTime(`${desde}-01`, "00:00")), where("start", "<", zonedTime(`${mesSeguinte(mes, 1)}-01`, "00:00")), orderBy("start")], `${desde}/${mes}/${tentativa}`);
+  const [equipe, erroEquipe] = useCollection(ligado ? tenant.id : "", "staff", z.object({ name: z.string() }), [], tentativa.toString());
+  const [configs, erroConfig] = useCollection(ligado ? tenant.id : "", "caixa", z.record(z.string(), z.unknown()), [], tentativa.toString());
+  const atividade = usePaginatedCollection(ligado ? tenant.id : "", "lancamentos", Lancamento, [where("mes", "==", mes), orderBy("data", "desc")], `${mes}/${tentativa}`);
   const lido = CaixaConfig.safeParse(configs?.find((c) => c.id === "config") ?? {});
-  // sem a configuração lida não se mexe nela: mostrar vazio e deixar editar enganaria o dono
   const configPronta = configs !== null && !erroConfig && lido.success;
   const config = lido.success ? lido.data : CaixaConfig.parse({});
   const configQuebrada = configs !== null && (!!erroConfig || !lido.success);
+  const erroPrincipal = erroLeitura || erroComissao || erroAgenda || erroEquipe;
 
   if (!ligado) {
-    return (
-      <>
-        <PageTitle title="Caixa" />
-        <p className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">
-          {tenant.podeGerir ? "O Caixa não está ativo para este negócio. Para usar, fale com a Ruphus." : "Só o dono ou um administrador do negócio vê o Caixa."}
-        </p>
-      </>
-    );
+    return <><PageTitle title="Caixa" /><p className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">{tenant.podeGerir ? "O Caixa não está ativo para este negócio. Para usar, fale com a Ruphus." : "Só o dono ou um administrador do negócio vê o Caixa."}</p></>;
   }
 
   const recebidos = new Set(comAnterior?.map((l) => l.id));
-  // o sinal que restanteDe tira do preço: vai junto na baixa, para o servidor conferir que não mudou
   const sinalDe = (a: z.infer<typeof Atendimento>) => (a.sinal?.status === "pago" ? a.sinal.cents : 0);
-  // ponytail: sinal de 100% confirmado com o Caixa desligado fica fora (restante 0 não aparece aqui)
-  // sem os lançamentos carregados não dá para saber o que já foi recebido
-  const pendentes = (comAnterior ? (doMes ?? []) : []).filter(
-    (a) => (a.status === "booked" || a.status === "confirmed") && a.start.toMillis() <= agora && !recebidos.has(idDaBaixa(a.id)) && (restanteDe(a) > 0 || sinalDe(a) === 0),
-  );
+  const mesesDaFila = new Set(mes === hoje.slice(0, 7) ? [desde, mes] : [mes]);
+  const pendentes = (comAnterior ? (doMes ?? []) : []).filter((a) => mesesDaFila.has(dateIn(a.start.toDate()).slice(0, 7)) && (a.status === "booked" || a.status === "confirmed") && a.start.toMillis() <= agora && !recebidos.has(idDaBaixa(a.id)) && (restanteDe(a) > 0 || sinalDe(a) === 0));
   const aReceber = pendentes.reduce((t, a) => t + restanteDe(a), 0);
-  // o de hoje primeiro: é o que o dono está fechando; os antigos esperam no "ver todos"
-  const PRIMEIROS = 3;
-  const visiveis = [...pendentes].reverse().slice(0, verTodos ? undefined : PRIMEIROS);
   const r = resumoDoMes(lancamentos ?? []);
-  // contas fixas ainda não pagas no mês, pela ordem do vencimento
-  // antes de a conta existir, ela não conta: nem a pagar, nem "tudo pago"
   const doMesFixas = config.fixas.filter((f) => fixaNoMes(f, mes));
   const contas = (lancamentos ? doMesFixas : []).filter((f) => !recebidos.has(idDoPagamento("fixa", f.id, mes))).sort((a, b) => a.dia - b.dia);
   const pctsPendentes = Object.fromEntries(Object.entries(pcts).map(([k, o]) => [k, o.pct]));
-  // nome de quem só tem crédito no mês: o cadastro, ou o último lançamento dele que a tela tem
   const nomes = Object.fromEntries([...(comAnterior ?? []).filter((l) => l.staffId && l.staffName).map((l) => [l.staffId!, l.staffName!]), ...(equipe ?? []).map((p) => [p.id, p.name])]);
-  // pelo mês da comissão: o sinal só depois de o atendimento ser recebido, no mês do recebimento
   const daComissao = (comAnterior ?? []).filter((l) => mesDaComissao(l) === mes);
   const todasComissoes = comissoesDoMes(lancamentos ? daComissao : [], { ...config.comissoes, ...pctsPendentes }, config.descontos, nomes);
-  // sem % no cadastro, sem comissão: fica fora da lista e do total. Só fica quem, mesmo sem %,
-  // ainda tem algo a acertar no mês (comissão já paga ou estorno guardado)
   const comissoes = todasComissoes.filter((c) => c.pct > 0 || c.desconto !== 0 || lancamentos?.some((l) => l.id === idDoPagamento("comissao", c.staffId, mes)));
   const semPct = todasComissoes.length - comissoes.length;
-  // lançamento novo cai no mês da tela: hoje, ou o último dia de um mês passado
   const diaNovo = mes === hoje.slice(0, 7) ? hoje : diaNoMes(mes, mes < hoje ? 31 : 1);
   const pagas = new Map(lancamentos?.filter((l) => l.id.startsWith("cm-")).map((l) => [l.id, l]));
-  // vales dados no mês, por profissional: já saíram do caixa, contam como pago
   const vales = (lancamentos ?? []).filter((l) => ehVale(l.id)).reduce<Record<string, number>>((t, l) => ((t[l.staffId ?? ""] = (t[l.staffId ?? ""] ?? 0) + l.valorCents), t), {});
-  const totalDe = (tipo: "entrada" | "saida") => (lancamentos ?? []).reduce((t, l) => t + (l.tipo === tipo ? l.valorCents : 0), 0);
-  const porDia = Object.entries(
-    [...(lancamentos ?? [])].filter((l) => filtro === "tudo" || l.tipo === filtro).sort((a, b) => b.data.localeCompare(a.data)).reduce<Record<string, Lancamento[]>>((g, l) => ((g[l.data] ??= []).push(l), g), {}),
-  );
+  const abrirBaixa = (a: z.infer<typeof Atendimento> & { id: string }) => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, customerPhone: a.customerPhone, serviceName: a.serviceName, priceCents: restanteDe(a), precoAberto: a.precoAberto, sinalCents: sinalDe(a) } });
+  const fila: FilaItem[] = [
+    ...[...pendentes].reverse().map((a) => ({ id: `ag-${a.id}`, titulo: a.customerName, detalhe: `${formatLongDate(a.start.toDate())}, ${formatTime(a.start.toDate())} · ${a.serviceName} · ${a.staffName}${sinalDe(a) ? ` · sinal de ${brl(sinalDe(a))} pago` : ""}`, valorCents: restanteDe(a), acao: "Receber", abrir: () => abrirBaixa(a), secundaria: () => setFaltou({ id: a.id, nome: a.customerName }) })),
+    ...contas.map((f) => ({ id: `fx-${f.id}`, titulo: f.nome, detalhe: `${f.categoria} · vence dia ${Number(diaNoMes(mes, f.dia).slice(8))}`, valorCents: f.valorCents, acao: "Pagar", abrir: () => setFolha({ modo: "pagar", titulo: `Pagar ${f.nome}`, detalhe: `${f.categoria} · ${nomeDoMes(mes)}`, valorCents: f.valorCents, pagamento: { tipo: "fixa", alvoId: f.id, mes } }) })),
+    ...comissoes.filter((c) => !pagas.has(idDoPagamento("comissao", c.staffId, mes)) && (c.valor > 0 || c.abatido > 0)).map((c) => ({ id: `cm-${c.staffId}`, titulo: `Comissão de ${c.nome}`, detalhe: `${String(c.pct).replace(".", ",")}% de ${brl(c.faturado)}${c.abatido ? ` · ajuste de ${brl(c.abatido)}` : ""}`, valorCents: c.valor, acao: "Pagar", abrir: () => setFolha({ modo: "pagar", titulo: `Pagar comissão de ${c.nome}`, detalhe: `${String(c.pct).replace(".", ",")}% de ${brl(c.faturado)} · ${nomeDoMes(mes)}`, valorCents: c.valor, pagamento: { tipo: "comissao", alvoId: c.staffId, mes, descontoCents: c.abatido } }) })),
+  ];
+  const filaVisivel = foco ? fila.slice(0, 1) : verTodos ? fila : fila.slice(0, 5);
+  const pagoComissoes = comissoes.filter((c) => !pagas.has(idDoPagamento("comissao", c.staffId, mes))).reduce((t, c) => t + c.valor, 0);
+  const devidoContas = contas.reduce((t, f) => t + f.valorCents, 0);
+  const atendimentosFeitos = (doMes ?? []).filter((a) => mesesDaFila.has(dateIn(a.start.toDate()).slice(0, 7)) && (a.status === "booked" || a.status === "confirmed") && a.start.toMillis() <= agora);
+  const progresso = atendimentosFeitos.length ? Math.round(((atendimentosFeitos.length - pendentes.length) / atendimentosFeitos.length) * 100) : fila.length ? 0 : 100;
+  const normalizar = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const filtrar = (l: Lancamento) => (filtro === "tudo" || l.tipo === filtro) && (forma === "todas" || l.forma === forma) && (!busca.trim() || normalizar(`${l.customerName ?? ""} ${l.descricao} ${l.categoria} ${l.staffName ?? ""}`).includes(normalizar(busca.trim())));
+  const atividadeFiltrada = (atividade.items ?? []).filter(filtrar);
+  const filtrando = !!busca.trim() || filtro !== "tudo" || forma !== "todas";
+  const atividadeVisivel = verAtividade || filtrando ? atividadeFiltrada : atividadeFiltrada.slice(0, 8);
+  const exportaveis = (lancamentos ?? []).filter(filtrar);
 
   function fechar(msg?: string) {
-    // recebeu um atendimento: o aviso já oferece o recibo dele
     setReciboDoAviso(folha?.modo === "baixa" && msg ? idDaBaixa(folha.atendimento.id) : null);
     setFolha(null);
     if (msg) setAviso(msg);
   }
-  // com o mês anterior junto: o atendimento do dia 31 recebido no dia 1 e o sinal pago no mês de antes
   const abrirRecibo = (l: Lancamento) => (setFolha(null), setRecibo(itensDoRecibo(l, comAnterior ?? [])));
   const doAviso = reciboDoAviso ? comAnterior?.find((l) => l.id === reciboDoAviso) : undefined;
 
@@ -186,17 +162,17 @@ export default function CaixaPage() {
     setErro("");
     const vez = Date.now() + Math.random();
     setPcts((p) => ({ ...p, [staffId]: { pct, vez } }));
-    const r = await definirComissaoAction(await idToken(), { tenantId: tenant.id, staffId, pct }).catch(() => ({ ok: false as const, error: "Sem conexão. Tente de novo." }));
-    if (!r.ok) setErro(r.error ?? "Não foi possível salvar.");
-    // tira só este %: um digitado depois, ainda a caminho, fica
+    const res = await definirComissaoAction(await idToken(), { tenantId: tenant.id, staffId, pct }).catch(() => ({ ok: false as const, error: "Sem conexão. Confira a internet e tente de novo." }));
+    if (!res.ok) setErro(res.error ?? "Não foi possível salvar a comissão. Tente de novo.");
     setPcts(({ [staffId]: o, ...resto }) => (o?.vez === vez ? resto : { ...resto, ...(o && { [staffId]: o }) }));
   }
 
   function baixarCsv() {
-    const url = URL.createObjectURL(new Blob(["\uFEFF" + csvDoMes(lancamentos ?? [])], { type: "text/csv;charset=utf-8" }));
+    const url = URL.createObjectURL(new Blob(["\uFEFF" + csvDoMes(exportaveis)], { type: "text/csv;charset=utf-8" }));
     const a = Object.assign(document.createElement("a"), { href: url, download: `caixa-${tenant.id}-${mes}.csv` });
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setAviso(`${exportaveis.length} ${exportaveis.length === 1 ? "registro exportado" : "registros exportados"}.`);
   }
 
   async function registrarFalta(id: string) {
@@ -204,371 +180,99 @@ export default function CaixaPage() {
     setErro("");
     try {
       await mudarStatus(tenant.id, id, "no_show");
-      setAviso("Falta registrada.");
+      setAviso("Falta registrada. O atendimento saiu da fila de recebimento.");
     } catch (err) {
       setErro(err instanceof Error && err.message.startsWith("Sessão") ? err.message : errorMessage(err));
     }
   }
 
   return (
-    <>
-      <PageTitle title="Caixa" valores sub={nomeDoMes(mes)}>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon-lg" className="size-10 max-sm:size-11" onClick={() => setMes(mesSeguinte(mes, -1))} aria-label="Mês anterior">‹</Button>
-          <Button variant="outline" size="icon-lg" className="size-10 max-sm:size-11" onClick={() => setMes(mesSeguinte(mes, 1))} aria-label="Próximo mês">›</Button>
-          <Button variant="ghost" className="h-10 px-3 max-sm:h-11" disabled={mes === hoje.slice(0, 7)} onClick={() => setMes(hoje.slice(0, 7))}>Este mês</Button>
+    <div className="grid gap-4 pb-24 sm:gap-5 sm:pb-0">
+      <PageTitle title="Conciliação" valores sub={<>{nomeDoMes(mes)} · Feche o dia antes de analisar o mês.</>}>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1" aria-label="Escolher mês">
+            <Button variant="outline" size="icon-lg" className="size-11" onClick={() => setMes(mesSeguinte(mes, -1))} aria-label="Mês anterior"><ChevronLeft aria-hidden="true" /></Button>
+            <Button variant="outline" size="icon-lg" className="size-11" onClick={() => setMes(mesSeguinte(mes, 1))} aria-label="Próximo mês"><ChevronRight aria-hidden="true" /></Button>
+            <Button variant="ghost" className="h-11 px-3" disabled={mes === hoje.slice(0, 7)} onClick={() => setMes(hoje.slice(0, 7))}>Este mês</Button>
+          </div>
+          <Button variant="outline" className="h-11" onClick={() => setFolha({ modo: "novo", tipo: "saida", data: diaNovo })}><ArrowUpFromLine aria-hidden="true" />Nova saída</Button>
+          <Button className="h-11 max-sm:hidden" onClick={() => setFolha({ modo: "novo", tipo: "entrada", data: diaNovo })}><Plus aria-hidden="true" />Novo lançamento</Button>
         </div>
       </PageTitle>
 
-      {descartados > 0 && (
-        <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
-          {descartados === 1 ? "1 lançamento não pôde ser lido e ficou fora das contas." : `${descartados} lançamentos não puderam ser lidos e ficaram fora das contas.`} Os totais podem estar errados. Fale com a Ruphus.
-        </p>
-      )}
+      <ol className="flex items-center gap-2 text-xs font-medium text-muted-foreground" aria-label="Etapas da conciliação">
+        {[["Receber", pendentes.length === 0], ["Pagar", contas.length + pagoComissoes === 0], ["Conferir", fila.length === 0]].map(([rotulo, feita], i) => <li key={String(rotulo)} className="contents"><span className={cn("flex items-center gap-1.5", feita && "text-foreground")}><span className={cn("grid size-6 place-items-center rounded-full border text-[11px]", feita && "border-primary bg-primary text-primary-foreground")}>{feita ? <Check className="size-3.5" aria-hidden="true" /> : i + 1}</span>{rotulo}</span>{i < 2 && <span className="h-px w-5 bg-border sm:w-9" aria-hidden="true" />}</li>)}
+      </ol>
 
-      {/* No celular, três cartões de ~115 px partiam "R$ 12.345,00" no meio: o Sobrou (o que o
-          dono quer saber) ocupa a linha de cima, maior, e Entrou/Saiu dividem a de baixo. */}
-      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4">
-        {[
-          { label: "Entrou", valor: r.entrou, cor: "text-emerald-800 dark:text-emerald-300", destaque: false },
-          { label: "Saiu", valor: r.saiu, cor: "text-red-800 dark:text-red-300", destaque: false },
-          { label: "Sobrou", valor: r.sobrou, cor: r.sobrou < 0 ? "text-red-800 dark:text-red-300" : "", destaque: true },
-        ].map((t) => (
-          // min-w-0 e quebra em qualquer ponto: segurança para valores enormes em 320 px
-          <div key={t.label} className={cn("grid min-w-0 gap-1.5 rounded-2xl border bg-card px-4 py-4 sm:px-5", t.destaque && "max-sm:order-first max-sm:col-span-2")}>
-            <dt className="text-[13px] text-muted-foreground">{t.label}</dt>
-            <dd className={cn("font-serifa leading-none tabular-nums [overflow-wrap:anywhere] sm:text-3xl", t.destaque ? "text-3xl" : "text-2xl max-[359px]:text-xl", t.cor)}>{lancamentos ? brl(t.valor) : "…"}</dd>
-          </div>
-        ))}
-      </dl>
+      {descartados > 0 && <FormMessage tone="warning">{descartados === 1 ? "1 lançamento não pôde ser lido e ficou fora das contas." : `${descartados} lançamentos não puderam ser lidos e ficaram fora das contas.`} Os totais podem estar errados. Fale com a Ruphus.</FormMessage>}
+      {erroPrincipal && <FormMessage><span className="grid flex-1 gap-2"><span>Não foi possível conferir todos os dados. Os valores e a fila estão pausados para não mostrar um saldo errado.</span><Button variant="outline" size="sm" className="h-10 w-fit bg-card" onClick={() => setTentativa((t) => t + 1)}><RotateCcw aria-hidden="true" />Tentar novamente</Button></span></FormMessage>}
+      {configQuebrada && <FormMessage>Não foi possível ler as contas fixas e as comissões. Fale com a Ruphus antes de alterar esses dados.</FormMessage>}
+      {!erroPrincipal && (!comAnterior || doMes === null) && <p role="status" className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Conferindo atendimentos e lançamentos…</p>}
 
-      {/* no computador, dois botões de meia tela pesavam mais que os números: largura do texto */}
-      <div className="grid grid-cols-2 gap-3 sm:flex">
-        <Button className="h-12 text-base sm:min-w-44" onClick={() => setFolha({ modo: "novo", tipo: "entrada", data: diaNovo })}>+ Entrada</Button>
-        <Button variant="outline" className="h-12 text-base sm:min-w-44" onClick={() => setFolha({ modo: "novo", tipo: "saida", data: diaNovo })}>− Saída</Button>
-      </div>
-
-      {aviso && (
-        <p role="status" className="flex items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950">
-          <span>{aviso}</span>
-          <span className="flex shrink-0 gap-1">
-            {doAviso && <Button variant="outline" size="sm" onClick={() => abrirRecibo(doAviso)}>Recibo</Button>}
-            <Button variant="ghost" size="sm" onClick={() => (setAviso(""), setReciboDoAviso(null))}>Fechar</Button>
-          </span>
-        </p>
-      )}
-      {(erro || erroLeitura) && <p role="alert" className="text-sm text-destructive">{erro || erroLeitura}</p>}
-      {configQuebrada && <p role="alert" className="text-sm text-destructive">Não foi possível ler as contas fixas e as comissões. Fale com a Ruphus antes de mexer nelas.</p>}
-
-      {/* sem a agenda, "Fechar o dia" sumiria calado e o dono acharia que recebeu tudo */}
-      {erroAgenda && <p role="alert" className="text-sm text-destructive">Não foi possível ler a agenda: os atendimentos a receber não aparecem. Recarregue a página.</p>}
-      {!erroAgenda && comAnterior && doMes === null && <p className="text-sm text-muted-foreground">Conferindo os atendimentos a receber…</p>}
-
-      {pendentes.length > 0 && (
-        <section aria-labelledby="fechar" className="overflow-hidden rounded-2xl border bg-card">
-          <div className="grid gap-0.5 px-4 py-4 sm:px-6">
-            {/* "Fechar o dia" listava também os dias anteriores: o título diz o que é a lista */}
-            <h2 id="fechar" className="font-semibold">A receber da agenda</h2>
-            <p className="text-sm text-muted-foreground">
-              {pendentes.length} atendimento{pendentes.length > 1 ? "s" : ""} já feito{pendentes.length > 1 ? "s" : ""}, sem recebimento · {brl(aReceber)}
-            </p>
-          </div>
-          <ul>
-            {visiveis.map((a) => (
-              <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t px-4 py-3.5 sm:px-6">
-                <div className="grid min-w-0 flex-1 basis-60 gap-0.5">
-                  <span className="font-semibold">{a.customerName}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {formatLongDate(a.start.toDate())}, {formatTime(a.start.toDate())} · {a.serviceName} · {a.staffName}
-                    {sinalDe(a) > 0 && ` · sinal de ${brl(sinalDe(a))} já pago`}
-                  </span>
-                </div>
-                {/* serviço sem preço no cadastro: o valor se digita ao receber */}
-                <span className="font-serifa text-xl tabular-nums max-sm:mr-auto">{restanteDe(a) ? brl(restanteDe(a)) : "a combinar"}</span>
-                <div className="flex gap-2">
-                  <Button className="h-10 px-4" onClick={() => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, customerPhone: a.customerPhone, serviceName: a.serviceName, priceCents: restanteDe(a), sinalCents: sinalDe(a) } })}>Recebi</Button>
-                  <Button variant="outline" className="h-10 px-4" onClick={() => setFaltou({ id: a.id, nome: a.customerName })}>Não veio</Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-          {pendentes.length > PRIMEIROS && (
-            <button
-              type="button"
-              aria-expanded={verTodos}
-              onClick={() => setVerTodos(!verTodos)}
-              className="flex min-h-12 w-full items-center justify-center border-t px-4 text-sm font-medium hover:bg-muted/50"
-            >
-              {verTodos ? "Mostrar só os mais recentes" : `Ver os outros ${pendentes.length - PRIMEIROS}, mais antigos`}
-            </button>
-          )}
+      {!erroPrincipal && comAnterior && <>
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm" aria-label="Situação da conciliação">
+          <div><strong className="font-serifa text-2xl font-normal">{fila.length ? `${fila.length} ${fila.length === 1 ? "ação restante" : "ações restantes"}` : mes === hoje.slice(0, 7) ? "Dia conciliado" : "Mês conciliado"}</strong><p className="text-sm text-muted-foreground">{fila.length ? `${brl(aReceber + devidoContas + pagoComissoes)} em movimentações pendentes` : "Tudo recebido e pago por aqui."}</p></div>
+          <Button variant="outline" className="h-11" aria-pressed={foco} onClick={() => setFoco((v) => !v)}><Focus aria-hidden="true" />{foco ? "Mostrar fila completa" : "Modo foco"}</Button>
         </section>
-      )}
 
-      {!configQuebrada && <section aria-labelledby="contas" className="overflow-hidden rounded-2xl border bg-card">
-        <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
-          <div className="grid gap-0.5">
-            <h2 id="contas" className="font-semibold">Contas do mês</h2>
-            <p className="text-sm text-muted-foreground">
-              {!config.fixas.some((f) => !f.ate)
-                ? "Cadastre aluguel, internet e o que se repete todo mês."
-                : doMesFixas.length === 0
-                  ? "Nenhuma conta fixa neste mês."
-                  : contas.length === 0
-                    ? "Tudo pago neste mês."
-                  : `${contas.length} a pagar · ${brl(contas.reduce((t, f) => t + f.valorCents, 0))}`}
-            </p>
-          </div>
-          <Button variant="outline" className="h-10 px-3 max-sm:h-11" disabled={!configPronta} onClick={() => setVerFixas(true)}>Contas fixas</Button>
-        </div>
-        {contas.length > 0 && (
-          <ul>
-            {contas.map((f) => (
-              <li key={f.id} className="flex items-center gap-3 border-t px-4 py-3 sm:px-6">
-                <span className="grid min-w-0 flex-1 gap-0.5">
-                  <span className="truncate font-medium">{f.nome}</span>
-                  <span className="text-[13px] text-muted-foreground">vence dia {Number(diaNoMes(mes, f.dia).slice(8))} · {f.categoria}</span>
-                </span>
-                <span className="shrink-0 whitespace-nowrap font-serifa text-lg tabular-nums">{brl(f.valorCents)}</span>
-                <Button
-                  className="h-10 px-4"
-                  onClick={() => setFolha({ modo: "pagar", titulo: `Pagar ${f.nome}`, detalhe: `${f.categoria} · ${nomeDoMes(mes)}`, valorCents: f.valorCents, pagamento: { tipo: "fixa", alvoId: f.id, mes } })}
-                >
-                  Paguei
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>}
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(280px,.75fr)]">
+          <section aria-labelledby="fila-titulo" className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
+              <div><h2 id="fila-titulo" className="font-semibold">Fila de ação</h2><p className="text-sm text-muted-foreground">Recebimentos, contas e comissões em um só lugar.</p></div>
+              {fila[0] && <Button variant="outline" className="h-11 max-sm:hidden" onClick={fila[0].abrir}><ArrowDownToLine aria-hidden="true" />{fila[0].acao} próximo</Button>}
+            </div>
+            {fila.length === 0 ? <div className="grid justify-items-start gap-2 border-t px-5 py-8"><CircleCheckBig className="size-8 text-emerald-700 dark:text-emerald-300" aria-hidden="true" /><h3 className="font-serifa text-2xl">Tudo em dia.</h3><p className="text-sm text-muted-foreground">Não há pendências. Confira a atividade e o resumo do mês abaixo.</p></div> : <ul className="border-t">
+              {filaVisivel.map((item, i) => <li key={item.id} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 border-b px-4 py-3.5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:px-5", i === 0 && "bg-amber-50/60 shadow-[inset_3px_0_0_var(--foreground)] dark:bg-amber-950/20")}>
+                <div className="grid min-w-0 gap-1"><div className="flex flex-wrap items-center gap-2"><strong>{item.titulo}</strong>{i === 0 && <span className="rounded-full bg-foreground px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-background">Próximo</span>}</div><span className="text-[13px] leading-snug text-muted-foreground">{item.detalhe}</span></div>
+                <span className="text-right font-serifa text-xl tabular-nums">{item.valorCents ? brl(item.valorCents) : "a combinar"}</span>
+                <div className="col-span-2 flex flex-wrap justify-end gap-2 sm:col-span-1"><Button className="h-11 min-w-28" onClick={item.abrir}>{item.acao === "Receber" ? <ArrowDownToLine aria-hidden="true" /> : <HandCoins aria-hidden="true" />}{item.acao}</Button>{item.secundaria && <Button variant="ghost" className="h-11" onClick={item.secundaria}><X aria-hidden="true" />Não veio</Button>}</div>
+              </li>)}
+            </ul>}
+            {!foco && fila.length > 5 && <button type="button" aria-expanded={verTodos} onClick={() => setVerTodos((v) => !v)} className="min-h-12 w-full border-t px-4 text-sm font-medium hover:bg-muted/50">{verTodos ? "Mostrar menos" : `Ver todas as ${fila.length} ações`}</button>}
+          </section>
 
-      <section aria-labelledby="lancamentos" className="overflow-hidden rounded-2xl border bg-card">
-        <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
-          <h2 id="lancamentos" className="font-semibold">Lançamentos do mês</h2>
-          {!!lancamentos?.length && <Button variant="ghost" className="h-10 px-3 max-sm:h-11" onClick={baixarCsv}>Exportar planilha</Button>}
+          <aside className="grid gap-4 sm:max-lg:grid-cols-2" aria-label="Resumo do mês">
+            <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5"><h2 className="font-semibold">Mês em números</h2><dl className="mt-2">
+              {[["Sobrou", r.sobrou], ["Entrou", r.entrou], ["Saiu", r.saiu]].map(([rotulo, valor], i) => <div key={String(rotulo)} className="flex items-center justify-between gap-3 border-t py-2.5 first:border-t-0"><dt className="text-sm text-muted-foreground">{rotulo}</dt><dd className={cn("text-right tabular-nums", i === 0 ? "font-serifa text-2xl" : "font-semibold", rotulo === "Entrou" && "text-emerald-800 dark:text-emerald-300", (rotulo === "Saiu" || (rotulo === "Sobrou" && r.sobrou < 0)) && "text-red-800 dark:text-red-300")}>{lancamentos ? brl(Number(valor)) : "…"}</dd></div>)}
+            </dl><div className="mt-2"><div className="flex justify-between gap-2 text-xs text-muted-foreground"><span>{progresso}% dos atendimentos recebidos</span><strong>{progresso}%</strong></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Atendimentos recebidos" aria-valuenow={progresso} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full bg-primary transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${progresso}%` }} /></div></div></section>
+            <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5"><h2 className="font-semibold">Próximas obrigações</h2><div className="mt-2 flex justify-between gap-3 border-b py-2.5 text-sm"><span className="text-muted-foreground">Comissões da equipe</span><strong className="tabular-nums">{brl(pagoComissoes)}</strong></div><div className="flex justify-between gap-3 py-2.5 text-sm"><span className="text-muted-foreground">Contas do mês</span><strong className="tabular-nums">{brl(devidoContas)}</strong></div><div className="grid gap-2"><Button variant="outline" className="h-11 w-full justify-start" onClick={() => document.getElementById("comissoes")?.scrollIntoView({ behavior: "smooth", block: "start" })}><UsersRound aria-hidden="true" />Ver comissões</Button><Button variant="outline" className="h-11 w-full justify-start" disabled={!configPronta} onClick={() => setVerFixas(true)}><Settings2 aria-hidden="true" />Contas fixas</Button></div></section>
+          </aside>
         </div>
-        {!!lancamentos?.length && (
-          <div role="group" aria-label="Mostrar" className="grid grid-cols-3 gap-1 border-t p-2 sm:px-6">
-            {([["tudo", "Tudo", null], ["entrada", "Entradas", totalDe("entrada")], ["saida", "Saídas", totalDe("saida")]] as const).map(([f, rotulo, total]) => (
-              <button
-                key={f}
-                type="button"
-                aria-pressed={filtro === f}
-                onClick={() => setFiltro(f)}
-                className={cn("grid min-h-11 content-center rounded-lg px-2 py-1.5 text-sm hover:bg-muted", filtro === f && "bg-primary text-primary-foreground hover:bg-primary/90")}
-              >
-                <span className="font-medium">{rotulo}</span>
-                {total !== null && <span className="text-xs tabular-nums opacity-80">{brl(total)}</span>}
-              </button>
-            ))}
-          </div>
-        )}
-        {!lancamentos ? (
-          <p className="border-t px-6 py-8 text-sm text-muted-foreground">Carregando…</p>
-        ) : porDia.length === 0 && lancamentos.length ? (
-          <p className="border-t px-6 py-10 text-center text-sm text-muted-foreground">{filtro === "entrada" ? "Nenhuma entrada neste mês." : "Nenhuma saída neste mês."}</p>
-        ) : porDia.length === 0 ? (
-          <p className="border-t px-6 py-10 text-center text-sm text-muted-foreground">Nada lançado neste mês. Use “+ Entrada” e “− Saída”, ou receba os atendimentos da agenda.</p>
-        ) : (
-          porDia.map(([dia, itens]) => {
-            const saldo = itens.reduce((t, l) => t + (l.tipo === "entrada" ? l.valorCents : -l.valorCents), 0);
-            return (
-              <div key={dia} className="border-t">
-                <div className="flex justify-between gap-3 bg-muted/40 px-4 py-2 text-[13px] text-muted-foreground sm:px-6">
-                  <span className="min-w-0">{formatLongDate(zonedTime(dia, "12:00"))}{dia === hoje ? " · hoje" : ""}</span>
-                  <span className="shrink-0 whitespace-nowrap tabular-nums">{saldo >= 0 ? "+" : "−"} {brl(Math.abs(saldo))}</span>
-                </div>
-                <ul>
-                  {itens.map((l) => (
-                    <li key={l.id}>
-                      <button
-                        type="button"
-                        onClick={() => setFolha({ modo: "editar", lancamento: l })}
-                        className="flex w-full items-center gap-3 border-t px-4 py-3 text-left first:border-t-0 hover:bg-muted/50 sm:px-6"
-                      >
-                        <span className="grid min-w-0 flex-1 gap-0.5">
-                          <span className="truncate font-medium">{l.customerName || l.descricao || l.categoria}</span>
-                          <span className="truncate text-[13px] text-muted-foreground">
-                            {/* sem cliente nem descrição, a categoria já é o título: não repete embaixo */}
-                            {[recebidos.has(idDoEstorno(l.id)) && "Estornado", (l.customerName || l.descricao) && l.categoria, l.customerName && l.descricao, l.staffName, ROTULO_FORMA[l.forma]].filter(Boolean).join(" · ")}
-                          </span>
-                        </span>
-                        <span className={cn("shrink-0 whitespace-nowrap tabular-nums font-semibold", l.tipo === "saida" ? "text-red-800 dark:text-red-300" : "text-emerald-800 dark:text-emerald-300")}>
-                          {l.tipo === "saida" ? "−" : "+"} {brl(l.valorCents)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            );
-          })
-        )}
+      </>}
+
+      <section aria-labelledby="atividade-titulo" className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5"><div><h2 id="atividade-titulo" className="font-semibold">Atividade recente</h2><p className="text-sm text-muted-foreground">Confira, corrija ou emita um recibo sem abrir uma planilha.</p></div><Button variant="outline" className="h-11" disabled={!exportaveis.length} onClick={baixarCsv}><Download aria-hidden="true" />Exportar{busca || filtro !== "tudo" || forma !== "todas" ? " filtrados" : " mês"}</Button></div>
+        <div className="grid gap-2 border-t p-3 sm:grid-cols-[minmax(200px,1fr)_auto_auto] sm:px-5"><label className="relative"><span className="sr-only">Buscar nos registros carregados</span><Search className="pointer-events-none absolute top-3.5 left-3 size-4 text-muted-foreground" aria-hidden="true" /><Input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente, descrição ou categoria" className="h-11 pl-9 text-base" /></label><label><span className="sr-only">Filtrar por tipo</span><select value={filtro} onChange={(e) => setFiltro(e.target.value as typeof filtro)} className="h-11 w-full rounded-md border bg-card px-3 text-sm sm:w-auto"><option value="tudo">Entradas e saídas</option><option value="entrada">Só entradas</option><option value="saida">Só saídas</option></select></label><label><span className="sr-only">Filtrar por forma de pagamento</span><select value={forma} onChange={(e) => setForma(e.target.value)} className="h-11 w-full rounded-md border bg-card px-3 text-sm sm:w-auto"><option value="todas">Todas as formas</option>{Object.entries(ROTULO_FORMA).map(([id, rotulo]) => <option key={id} value={id}>{rotulo}</option>)}</select></label></div>
+        {atividade.error && <div className="border-t p-4"><FormMessage><span className="grid flex-1 gap-2">{atividade.error}<Button variant="outline" size="sm" className="h-10 w-fit bg-card" onClick={atividade.items?.length ? atividade.loadMore : () => setTentativa((t) => t + 1)}><RotateCcw aria-hidden="true" />Tentar novamente</Button></span></FormMessage></div>}
+        {!atividade.items && !atividade.error ? <p role="status" className="border-t px-5 py-8 text-sm text-muted-foreground">Carregando a atividade…</p> : atividadeFiltrada.length === 0 ? <div className="grid justify-items-center gap-2 border-t px-5 py-9 text-center"><ReceiptText className="size-7 text-muted-foreground" aria-hidden="true" /><p className="text-sm text-muted-foreground">{busca || filtro !== "tudo" || forma !== "todas" ? "Nenhum registro encontrado nos lançamentos carregados. Ajuste os filtros ou carregue mais." : "Nada lançado neste mês. Receba um atendimento ou registre uma entrada."}</p></div> : <ul className="border-t">{atividadeVisivel.map((l) => <li key={l.id} className="border-b last:border-b-0"><button type="button" onClick={() => setFolha({ modo: "editar", lancamento: l })} className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50 sm:grid-cols-[minmax(0,1fr)_7rem_7rem_auto] sm:px-5"><span className="grid min-w-0 gap-0.5"><span className="font-medium [overflow-wrap:anywhere]">{l.customerName || l.descricao || l.categoria}</span><span className="text-[13px] text-muted-foreground">{[recebidos.has(idDoEstorno(l.id)) && "Estornado", (l.customerName || l.descricao) && l.categoria, l.customerName && l.descricao, l.staffName].filter(Boolean).join(" · ") || "Lançamento manual"}</span></span><span className="text-sm text-muted-foreground max-sm:col-span-2">{formatLongDate(zonedTime(l.data, "12:00"))}{l.data === hoje ? " · hoje" : ""}</span><span className="text-sm text-muted-foreground max-sm:col-span-2">{ROTULO_FORMA[l.forma]}</span><span className={cn("text-right font-semibold whitespace-nowrap tabular-nums max-sm:col-start-2 max-sm:row-start-1", l.tipo === "saida" ? "text-red-800 dark:text-red-300" : "text-emerald-800 dark:text-emerald-300")}>{l.tipo === "saida" ? "−" : "+"} {brl(l.valorCents)}</span></button></li>)}</ul>}
+        {!filtrando && atividadeFiltrada.length > 8 && <div className="border-t p-2"><Button variant="ghost" className="h-11 w-full" aria-expanded={verAtividade} onClick={() => setVerAtividade((v) => !v)}>{verAtividade ? "Mostrar só os 8 mais recentes" : `Ver todos os ${atividadeFiltrada.length} registros carregados`}</Button></div>}
+        {atividade.hasMore && <div className="border-t p-3 text-center"><Button variant="ghost" className="h-11 w-full" disabled={atividade.busy} onClick={atividade.loadMore}>{atividade.busy ? "Carregando…" : "Carregar mais 30 registros"}</Button><p className="text-xs text-muted-foreground">A busca e os filtros também procuram nos registros já carregados.</p></div>}
       </section>
 
-      {!!lancamentos?.length && (
-        <details className="rounded-2xl border bg-card">
-          <summary className="cursor-pointer px-4 py-4 font-semibold sm:px-6">Resumo do mês</summary>
-          <div className="grid gap-6 border-t px-4 py-5 sm:grid-cols-2 sm:px-6">
-            <Bloco titulo="Recebido por forma (já sem estornos)" linhas={r.porForma} />
-            <Bloco titulo="Faturamento por profissional" linhas={r.porProfissional} vazio="Só conta o que foi recebido pela agenda." />
-            <Bloco titulo="Entradas por categoria" linhas={r.entradasPorCategoria} />
-            <Bloco titulo="Saídas por categoria" linhas={r.saidasPorCategoria} />
-          </div>
-        </details>
-      )}
+      {!!lancamentos?.length && <details className="rounded-2xl border bg-card"><summary className="flex min-h-14 cursor-pointer items-center gap-2 px-4 py-4 font-semibold sm:px-5"><FileText aria-hidden="true" className="size-5" />Resumo do mês</summary><div className="grid gap-6 border-t px-4 py-5 sm:grid-cols-2 sm:px-5"><Bloco titulo="Recebido por forma (já sem estornos)" linhas={r.porForma} /><Bloco titulo="Faturamento por profissional" linhas={r.porProfissional} vazio="Só conta o que foi recebido pela agenda." /><Bloco titulo="Entradas por categoria" linhas={r.entradasPorCategoria} /><Bloco titulo="Saídas por categoria" linhas={r.saidasPorCategoria} /></div></details>}
 
-      {!configQuebrada && todasComissoes.length > 0 && (
-        <section aria-labelledby="comissoes" className="overflow-hidden rounded-2xl border bg-card">
-          <div className="grid gap-0.5 px-4 py-4 sm:px-6">
-            <h2 id="comissoes" className="font-semibold">Comissões</h2>
-            <p className="text-sm text-muted-foreground">Sobre o que cada profissional recebeu pela agenda neste mês. Toque no nome para ver os meses anteriores. Só você vê.</p>
-            {semPct > 0 && (
-              <p className="text-sm text-muted-foreground">
-                {semPct === 1 ? "1 profissional sem % de comissão fica fora." : `${semPct} profissionais sem % de comissão ficam fora.`}{" "}
-                <Link href={`/${tenant.id}/profissionais`} className="underline underline-offset-4">Definir em Profissionais</Link>
-              </p>
-            )}
-          </div>
-          {/* o mês de relance: o pago é o que saiu; o que falta, o que ainda não foi pago */}
-          {comissoes.length > 0 && (
-            <dl className="grid grid-cols-3 border-t text-sm">
-              {[
-                { label: "Total", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? c.valor) + (vales[c.staffId] ?? 0), 0) },
-                { label: "Pago", valor: comissoes.reduce((t, c) => t + (pagas.get(idDoPagamento("comissao", c.staffId, mes))?.valorCents ?? 0) + (vales[c.staffId] ?? 0), 0) },
-                { label: "Falta pagar", valor: comissoes.reduce((t, c) => t + (pagas.has(idDoPagamento("comissao", c.staffId, mes)) ? 0 : c.valor), 0) },
-              ].map((t) => (
-                <div key={t.label} className="grid min-w-0 gap-0.5 border-l px-2.5 py-3 first:border-l-0 sm:px-6">
-                  <dt className="text-[13px] text-muted-foreground">{t.label}</dt>
-                  <dd className="font-serifa text-base tabular-nums [overflow-wrap:anywhere] sm:text-lg">{brl(t.valor)}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-          <ul>
-            {comissoes.map((c) => {
-              const paga = pagas.get(idDoPagamento("comissao", c.staffId, mes));
-              // paga: a conta é a do dia do pagamento, com o estorno que ele abateu; o estorno de
-              // depois fica guardado para o próximo
-              const devido = paga ? c.bruto - (paga.descontoCents ?? 0) : c.valor;
-              const fica = paga ? c.desconto : c.desconto - c.abatido;
-              return (
-                <li key={c.staffId} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t px-4 py-3 sm:px-6">
-                  <span className="grid min-w-0 flex-1 basis-60 gap-0.5">
-                    <button type="button" onClick={() => setHistorico({ staffId: c.staffId, nome: c.nome })} className="-my-2 w-fit max-w-full truncate py-2 text-left font-medium underline decoration-dotted underline-offset-4 sm:no-underline sm:hover:underline">
-                      {c.nome}
-                    </button>
-                    <span className="text-[13px] text-muted-foreground tabular-nums">
-                      faturou {brl(c.faturado)}
-                      {/* pago: o vale do mês já está no total; em aberto, aparece no "menos … de vale" */}
-                      {paga && vales[c.staffId] > 0 && ` · ${brl(vales[c.staffId])} em vale`}
-                      {!paga && c.abatido > 0 && ` · menos ${brl(c.abatido)} de vale e estorno`}
-                      {!paga && c.abatido < 0 && ` · mais ${brl(-c.abatido)} de estorno desfeito`}
-                      {/* paga antes de novos recebimentos ou de mudar o %: o dono vê a diferença */}
-                      {paga && paga.valorCents !== devido && ` · pago ${brl(paga.valorCents)}, a conta dá ${brl(devido)}`}
-                      {fica > 0 && ` · ${brl(fica)} de vale e estorno a descontar no próximo pagamento`}
-                      {fica < 0 && ` · ${brl(-fica)} de estorno desfeito a devolver no próximo pagamento`}
-                    </span>
-                  </span>
-                  <label className="flex items-center gap-1.5 text-sm max-sm:mr-auto">
-                    <Input
-                      key={`${c.staffId}-${c.pct}`}
-                      inputMode="decimal"
-                      disabled={!configPronta}
-                      defaultValue={c.pct ? String(c.pct).replace(".", ",") : ""}
-                      placeholder="0"
-                      aria-label={`Comissão de ${c.nome} em %`}
-                      onBlur={(e) => {
-                        // vírgula do teclado brasileiro; vazio ou texto não zera o que estava
-                        const pct = pctDoTexto(e.target.value);
-                        if (pct === null) return void (e.target.value = c.pct ? String(c.pct).replace(".", ",") : "");
-                        if (pct !== c.pct) mudarPct(c.staffId, pct);
-                      }}
-                      className="h-10 w-16 text-right tabular-nums sm:w-20"
-                    />
-                    %
-                  </label>
-                  <span className="text-right font-serifa text-lg tabular-nums sm:w-24">{brl(paga ? paga.valorCents : c.valor)}</span>
-                  {/* vale a qualquer dia, mesmo com o mês pago: sai do próximo pagamento */}
-                  <Button variant="ghost" className="h-10 px-3" disabled={!configPronta} onClick={() => setVale({ id: c.staffId, nome: c.nome })}>Vale</Button>
-                  {paga ? (
-                    <span className="text-center text-sm text-emerald-800 sm:w-24 dark:text-emerald-300">Paga</span>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      className="h-10 px-4 sm:w-24"
-                      // o estorno que zera a comissão também se registra: o mês fica acertado e o desconto, usado
-                      disabled={!c.valor && !(c.abatido > 0)}
-                      onClick={() =>
-                        setFolha({
-                          modo: "pagar",
-                          titulo: `Pagar comissão de ${c.nome}`,
-                          detalhe: `${String(c.pct).replace(".", ",")}% de ${brl(c.faturado)}${c.abatido > 0 ? ` − ${brl(c.abatido)} de vale e estorno` : c.abatido < 0 ? ` + ${brl(-c.abatido)} de estorno desfeito` : ""} · ${nomeDoMes(mes)}`,
-                          valorCents: c.valor,
-                          pagamento: { tipo: "comissao", alvoId: c.staffId, mes, descontoCents: c.abatido },
-                        })
-                      }
-                    >
-                      Pagar
-                    </Button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      {!configQuebrada && todasComissoes.length > 0 && <details id="comissoes" className="scroll-mt-20 rounded-2xl border bg-card"><summary className="flex min-h-14 cursor-pointer items-center justify-between gap-3 px-4 py-4 sm:px-5"><span className="flex items-center gap-2 font-semibold"><UsersRound className="size-5" aria-hidden="true" />Comissões</span><span className="text-sm font-normal text-muted-foreground">{brl(pagoComissoes)} a pagar</span></summary><div className="border-t px-4 py-4 sm:px-5"><p className="text-sm text-muted-foreground">Sobre o que cada profissional recebeu pela agenda. Toque no nome para ver o histórico.</p>{semPct > 0 && <p className="mt-2 text-sm text-muted-foreground">{semPct === 1 ? "1 profissional sem % fica fora." : `${semPct} profissionais sem % ficam fora.`} <Link href={`/${tenant.id}/profissionais`} className="underline underline-offset-4">Definir em Profissionais</Link></p>}</div><ul>{comissoes.map((c) => {
+        const paga = pagas.get(idDoPagamento("comissao", c.staffId, mes));
+        const devido = paga ? c.bruto - (paga.descontoCents ?? 0) : c.valor;
+        const fica = paga ? c.desconto : c.desconto - c.abatido;
+        return <li key={c.staffId} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 border-t px-4 py-3.5 sm:grid-cols-[minmax(0,1fr)_6rem_7rem_auto] sm:px-5"><span className="grid min-w-0 gap-0.5"><button type="button" onClick={() => setHistorico({ staffId: c.staffId, nome: c.nome })} className="flex min-h-11 w-fit max-w-full items-center gap-1.5 text-left font-medium underline decoration-dotted underline-offset-4"><UserRound className="size-4 shrink-0" aria-hidden="true" /><span className="truncate">{c.nome}</span><History className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" /></button><span className="text-[13px] text-muted-foreground tabular-nums">faturou {brl(c.faturado)}{vales[c.staffId] > 0 && ` · ${brl(vales[c.staffId])} em vale`}{!paga && c.abatido !== 0 && ` · ajuste de ${brl(c.abatido)}`}{paga && paga.valorCents !== devido && ` · pago ${brl(paga.valorCents)}, conta atual ${brl(devido)}`}{fica !== 0 && ` · ${brl(Math.abs(fica))} ${fica > 0 ? "a descontar" : "a devolver"} no próximo`}</span></span><label className="flex items-center gap-1 text-sm"><Input key={`${c.staffId}-${c.pct}`} inputMode="decimal" disabled={!configPronta} defaultValue={c.pct ? String(c.pct).replace(".", ",") : ""} placeholder="0" aria-label={`Comissão de ${c.nome} em %`} onBlur={(e) => { const pct = pctDoTexto(e.target.value); if (pct === null) return void (e.target.value = c.pct ? String(c.pct).replace(".", ",") : ""); if (pct !== c.pct) mudarPct(c.staffId, pct); }} className="h-11 w-16 text-right text-base tabular-nums" />%</label><span className="font-serifa text-xl tabular-nums max-sm:col-start-1">{brl(paga ? paga.valorCents : c.valor)}</span><div className="flex justify-end gap-1 max-sm:col-start-2 max-sm:row-start-3"><Button variant="ghost" className="h-11 px-3" disabled={!configPronta} onClick={() => setVale({ id: c.staffId, nome: c.nome })}><WalletCards aria-hidden="true" />Vale</Button>{paga ? <span className="flex min-h-11 items-center gap-1 text-sm text-emerald-800 dark:text-emerald-300"><Check className="size-4" aria-hidden="true" />Paga</span> : <Button variant="outline" className="h-11" disabled={!c.valor && !(c.abatido > 0)} onClick={() => setFolha({ modo: "pagar", titulo: `Pagar comissão de ${c.nome}`, detalhe: `${String(c.pct).replace(".", ",")}% de ${brl(c.faturado)}${c.abatido > 0 ? ` − ${brl(c.abatido)} de vale e estorno` : c.abatido < 0 ? ` + ${brl(-c.abatido)} de estorno desfeito` : ""} · ${nomeDoMes(mes)}`, valorCents: c.valor, pagamento: { tipo: "comissao", alvoId: c.staffId, mes, descontoCents: c.abatido } })}><HandCoins aria-hidden="true" />Pagar</Button>}</div></li>;
+      })}</ul></details>}
 
-      {historico && (
-        <ComissoesHistorico
-          tenantId={tenant.id}
-          staffId={historico.staffId}
-          nome={historico.nome}
-          pct={config.comissoes[historico.staffId] ?? 0}
-          guardado={config.descontos[historico.staffId] ?? 0}
-          onClose={() => setHistorico(null)}
-        />
-      )}
+      <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-20 border-t bg-card p-3 sm:hidden"><Button className="h-12 w-full text-base" onClick={fila[0]?.abrir ?? (() => setFolha({ modo: "novo", tipo: "entrada", data: diaNovo }))} disabled={!!erroPrincipal}>{fila[0] ? <><ArrowDownToLine aria-hidden="true" />{fila[0].acao} próximo · {fila[0].valorCents ? brl(fila[0].valorCents) : "a combinar"}</> : <><Plus aria-hidden="true" />Novo lançamento</>}</Button></div>
+      {aviso && <div role="status" className="fixed inset-x-3 bottom-[calc(9.5rem+env(safe-area-inset-bottom))] z-30 flex items-center justify-between gap-2 rounded-xl border bg-foreground p-3 text-sm text-background shadow-lg sm:top-5 sm:right-5 sm:bottom-auto sm:left-auto sm:max-w-md"><span className="flex items-start gap-2"><CircleCheckBig className="mt-0.5 size-4 shrink-0" aria-hidden="true" />{aviso}</span><span className="flex shrink-0 gap-1">{doAviso && <Button variant="outline" size="sm" className="h-10 bg-background text-foreground" onClick={() => abrirRecibo(doAviso)}><ReceiptText aria-hidden="true" />Recibo</Button>}<Button variant="ghost" size="icon" className="size-10 text-background hover:bg-background/20 hover:text-background" aria-label="Fechar aviso" onClick={() => (setAviso(""), setReciboDoAviso(null))}><X aria-hidden="true" /></Button></span></div>}
+      {erro && <FeedbackDialog tipo="erro" mensagem={erro} onClose={() => setErro("")} />}
+      {historico && <ComissoesHistorico tenantId={tenant.id} staffId={historico.staffId} nome={historico.nome} pct={config.comissoes[historico.staffId] ?? 0} guardado={config.descontos[historico.staffId] ?? 0} onClose={() => setHistorico(null)} />}
       {vale && <ValeFolha tenantId={tenant.id} negocio={tenant.name} staff={vale} onClose={(msg) => (setVale(null), msg && setAviso(msg))} />}
       {verFixas && <ContasFixas tenantId={tenant.id} nicho={tenant.gerado?.nicho} fixas={config.fixas.filter((f) => !f.ate)} onClose={() => setVerFixas(false)} />}
       {folha && <LancamentoFolha tenantId={tenant.id} nicho={tenant.gerado?.nicho} folha={folha} estornado={folha.modo === "editar" && recebidos.has(idDoEstorno(folha.lancamento.id))} onClose={fechar} onRecibo={folha.modo === "editar" ? () => abrirRecibo(folha.lancamento) : undefined} />}
       {recibo && <Recibo tenantId={tenant.id} itens={recibo} onClose={() => setRecibo(null)} />}
-      {faltou && (
-        <ConfirmDialog
-          title={`Registrar que ${faltou.nome} faltou?`}
-          description="O atendimento sai de “A receber da agenda” e fica no histórico do cliente."
-          confirmLabel="Sim, registrar falta"
-          onConfirm={() => registrarFalta(faltou.id)}
-          onCancel={() => setFaltou(null)}
-        />
-      )}
-    </>
+      {faltou && <ConfirmDialog title={`Registrar que ${faltou.nome} faltou?`} description="O atendimento sai da fila de recebimento e fica no histórico do cliente." confirmLabel="Sim, registrar falta" onConfirm={() => registrarFalta(faltou.id)} onCancel={() => setFaltou(null)} />}
+    </div>
   );
 }
 
-/** Uma lista de valores com a barra proporcional ao maior: o resumo lido de relance. */
 function Bloco({ titulo, linhas, vazio = "Nada neste mês." }: { titulo: string; linhas: [string, number][]; vazio?: string }) {
   const { brl } = useValores();
   const maior = linhas[0]?.[1] ?? 0;
-  return (
-    <div className="grid content-start gap-2.5">
-      <h3 className="text-sm font-medium">{titulo}</h3>
-      {linhas.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{vazio}</p>
-      ) : (
-        // por posição: o nome se repete (duas "Ana" na equipe) e a lista não muda de ordem na tela
-        linhas.map(([nome, valor], i) => (
-          <div key={i} className="grid gap-1">
-            <div className="flex justify-between gap-3 text-sm">
-              <span className="truncate">{nome}</span>
-              <span className="tabular-nums">{brl(valor)}</span>
-            </div>
-            <div className="h-1.5 rounded-full bg-muted">
-              <div className="h-full rounded-full bg-primary" style={{ width: `${maior ? (valor / maior) * 100 : 0}%` }} />
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
+  return <div className="grid content-start gap-2.5"><h3 className="text-sm font-medium">{titulo}</h3>{linhas.length === 0 ? <p className="text-sm text-muted-foreground">{vazio}</p> : linhas.map(([nome, valor], i) => <div key={i} className="grid gap-1"><div className="flex justify-between gap-3 text-sm"><span className="truncate">{nome}</span><span className="tabular-nums">{brl(valor)}</span></div><div className="h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${maior ? (valor / maior) * 100 : 0}%` }} /></div></div>)}</div>;
 }

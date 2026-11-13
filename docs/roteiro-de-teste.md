@@ -33,7 +33,7 @@ Versão de referência: `main` em `a85ee5e` (05/11/2026). Cada item tem um códi
 
 - [ ] `AUT-01` `npm run lint && npm run typecheck` → sem erro.
 - [ ] `AUT-02` Suítes com emulador: `npm run test:rules`, `test:booking`, `test:scale`, `test:convite`, `test:cobranca`, `test:financeiro`, `test:atendys`, `test:integracoes`, `test:painel-indice`, `test:gerador-banco`, `test:sinal` → cada uma termina com "… ok" e `exited successfully`.
-- [ ] `AUT-03` Suítes sem emulador: `test:proxy`, `test:site-arquivo`, `test:avisos`, `test:clientes`, `test:crm`, `test:pix`, `test:whatsapp`, `test:admin`, `test:sms`, `test:consumo`, `test:painel`, `test:gerador`, `test:ia`, `test:foto-rota`, `test:coleta`, `test:lembrete`, `test:proposta-email`, `test:convite-email`, `test:sinal-puro`, `test:conexao`, `test:coleta-tempo`, `test:coleta-selecao` → todas ok.
+- [ ] `AUT-03` Suítes sem emulador: `test:proxy`, `test:site-arquivo`, `test:avisos`, `test:clientes`, `test:crm`, `test:pix`, `test:whatsapp`, `test:admin`, `test:sms`, `test:consumo`, `test:painel`, `test:gerador`, `test:bio`, `test:ia`, `test:foto-rota`, `test:coleta`, `test:lembrete`, `test:proposta-email`, `test:convite-email`, `test:sinal-puro`, `test:conexao`, `test:coleta-tempo`, `test:coleta-selecao` → todas ok.
 - [ ] `AUT-04` CI do PR verde (job `testes`).
 
 ---
@@ -63,16 +63,21 @@ Versão de referência: `main` em `a85ee5e` (05/11/2026). Cada item tem um códi
 - [ ] `SITE-07` Arquivo inexistente como página → HTML "Página não encontrada… Ir para o início do site"; como asset → texto "Arquivo não encontrado".
 - [ ] `SITE-08` Site tirado do ar (ver `GAV-03`) → em até ~90 s `/` mostra `/indisponivel` ("Este site está fora do ar") com status 404; `/agendar` e `/bio` → 404.
 - [ ] `SITE-09` Domínio próprio ativo (se houver um de teste) → subdomínio redireciona 308 para o domínio; host secundário → principal; `/agendar` e `/bio` funcionam no domínio.
+- [ ] `SITE-10` Menu mobile abre por toque e teclado, contém o foco, fecha por Escape/link e devolve o foco ao botão; `aria-expanded` acompanha o estado.
+- [ ] `SITE-11` Formulário valida nome/telefone junto ao campo e foca o primeiro erro; com nova aba bloqueada, oferece link e copiar mensagem; nenhum dado é gravado.
+- [ ] `SITE-12` Agenda desligada remove todos os links/promessas de horários online e mantém contato alternativo; telefone fixo vira ligação.
+- [ ] `SITE-13` Os 9 HTMLs personalizados abrem com imagens dimensionadas, menu/formulário compartilhado e sem chamadas WebGL; conteúdo e agendas externas permanecem inalterados.
 
 ### 1.3 Bio `/bio/{slug}`
 - [ ] `BIO-01` Capa (ou inicial), avatar, nome, cidade/UF, nota e avaliações.
-- [ ] `BIO-02` Selo "Aberto agora · até HHhMM" / "Fechado agora" coerente com os horários da equipe (horário de Brasília).
-- [ ] `BIO-03` Atalhos: WhatsApp ("Olá! Vim pelo Instagram do {nome}."), Instagram, Como chegar, Ligar — só os que têm dado.
-- [ ] `BIO-04` "Serviços" abre: "N serviços · a partir de R$ X"; cada item leva ao agendamento.
-- [ ] `BIO-05` "Horário" abre: "Hoje: …" e os 7 dias.
+- [ ] `BIO-02` Selo "Aberto agora · até HHhMM" / "Fechado agora" coerente com o fuso do negócio, inclusive virada de dia e horário de abertura/fechamento.
+- [ ] `BIO-03` Atalhos: WhatsApp ("Olá! Vim pelo Instagram do {nome}."), Instagram, Como chegar, Ligar — só os que têm dado; telefone fixo não oferece WhatsApp.
+- [ ] `BIO-04` "Serviços" abre: "N serviços · a partir de R$ X"; cada item leva ao agendamento ou ao contato disponível.
+- [ ] `BIO-05` "Horário" abre: "Hoje: …" no fuso do negócio e os 7 dias.
 - [ ] `BIO-06` Barra fixa "Agendar online" com próximos horários livres.
-- [ ] `BIO-07` Com agenda online desligada (`PN-NEG-08`) → itens e barra viram "Falar no WhatsApp".
-- [ ] `BIO-08` 📱 Layout no celular.
+- [ ] `BIO-07` Com agenda online desligada (`PN-NEG-08`) → itens e barra viram WhatsApp ou ligação, conforme o telefone.
+- [ ] `BIO-08` 📱 Layout no celular, sem rolagem horizontal e com todos os alvos de toque ≥44 px.
+- [ ] `BIO-09` Abas dos próximos horários funcionam por toque e teclado; endereço longo quebra de linha sem ficar cortado.
 
 ### 1.4 Agendamento público `/agendar/{slug}`
 Pré: negócio de teste (ou demo) com serviços, profissionais e agenda online ligada. ⚠ Se o negócio estiver no canal oficial, sai mensagem real ao número digitado.
@@ -113,11 +118,12 @@ Pré: negócio de teste (ou demo) com serviços, profissionais e agenda online l
 - [ ] `AG-26` Idempotência: confirmar, recarregar e confirmar de novo → mesmo agendamento, sem duplicar.
 - [ ] `AG-27` Dois navegadores no mesmo horário → o segundo vê "Esse horário acabou de ser ocupado. Escolha outro." e volta à grade.
 - [ ] `AG-28` Limite: 4º horário futuro com o mesmo telefone no mesmo negócio → "Você já tem 3 horários marcados…".
-- [ ] `AG-29` Agenda online desligada → página "Serviços e preços" com "Falar no WhatsApp".
+- [ ] `AG-29` Agenda online desligada → página "Serviços e preços" com WhatsApp ou ligação, conforme o telefone.
 - [ ] `AG-30` Negócio sem serviço agendável → "agenda online ainda fechada".
 - [ ] `AG-31` Slug inexistente → 404 ("Erro 404 · Página não encontrada…").
 - [ ] `AG-32` Push: aparelho com avisos ligados (`PN-CASCA-08`) recebe "Novo agendamento · nome · serviço · quando".
 - [ ] `AG-33` ⚠ Negócio no canal oficial: o dono recebe no WhatsApp pessoal, pelo número da Ruphus, o pedido com o código (CONFIRMADO/RECUSAR ou os botões); o cliente que aceitou o WhatsApp recebe o recibo (template). Fora do canal oficial: nenhum WhatsApp sai, só o push "Novo agendamento".
+- [ ] `AG-34` Negócio com telefone fixo: cabeçalho, encaixe, confirmação, comprovante e desmarcação oferecem ligação, nunca `wa.me` inválido.
 
 ### 1.5 Proposta, pagamento, remoção
 - [ ] `PROP-01` `/proposta/{slug}?t={token}` (gerar em `GAV-VENDA-10`) → "Agenda online para o {nome}", incluídos, valores, validade, rodapé com CNPJ.
@@ -375,7 +381,7 @@ Pré: convite aceito (`CONV-03`) para o profissional A, numa conta sua.
 
 **Site**
 - [ ] `GAV-SITE-01` Situação (Publicado/Proposta), `og.jpg`, Ver o site, Bio.
-- [ ] `GAV-SITE-02` Modelo: "Prévia" não grava; ⚠ "Aplicar" → confirmação → site e bio mudam.
+- [ ] `GAV-SITE-02` Modelo: "Prévia" não grava e alterna Celular/Computador; ⚠ "Aplicar" → confirmação → site e bio mudam.
 - [ ] `GAV-SITE-03` Dados: "Revisar mudanças" lista antes → depois; nada mudou → "Nada mudou…"; ⚠ "Publicar mudanças" → "Publicado…".
 - [ ] `GAV-SITE-04` Visual: fotos (JPG/PNG/WebP ≤ 12 MB; HEIC/arquivo grande → erro), cores, fonte, textos com contador, prévia celular/computador; selo "Rascunho não publicado".
 - [ ] `GAV-SITE-05` Visual com IA (custa crédito): pedido → sugestões com checkbox → "Aplicar na prévia" / "Descartar"; sem chave → orientação.

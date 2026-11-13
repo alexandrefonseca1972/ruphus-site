@@ -3,6 +3,7 @@
 // e renderizar), sem banco nem "server-only".
 import { z } from "zod";
 import { telefoneFalso } from "@/lib/telefone";
+import { linkDeEntrada } from "@/lib/prospeccao-canal";
 import { normalizar, RUPHUS } from "@/lib/catalogo";
 import { FUSOS } from "@/lib/datetime";
 import { slugify, TenantInput } from "@/lib/tenant-input";
@@ -491,6 +492,9 @@ export type DadosSite = {
   publicado?: boolean;
   /** assinatura do link "Pedir remoção" (src/lib/remocao.server.ts); sem ela, o link pede contato */
   remocao?: string;
+  /** números que nunca prospectam (numerosReservados e o phone da plataforma, lidos do Firestore):
+   *  o botão "Falar com a Ruphus" passa pela trava completa. Ausente (leitura falhou): sem botão. */
+  reservados?: readonly string[];
   /** domínio próprio do cliente: ativo, vira o endereço oficial (canonical, og, JSON-LD) */
   dominio?: Pick<Dominio, "host" | "status"> | null;
 };
@@ -500,13 +504,18 @@ export const mapa = (d: Pick<DadosSite, "nome" | "endereco" | "cidade" | "uf">) 
   [d.nome, d.endereco || [d.cidade, d.uf].filter(Boolean).join(" - ")].filter(Boolean).join(", ");
 
 /** A camada da Ruphus que todo site-proposta carrega, igual à dos sites que já estão no ar.
- *  O do cadastro não oferece "Pedir remoção": foi o próprio dono que criou. */
-export const faixaProposta = (d: Pick<DadosSite, "slug" | "origem" | "remocao">) =>
-  `<aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">${
+ *  O do cadastro não oferece "Pedir remoção": foi o próprio dono que criou.
+ *  Prospecção (F3): "Falar com a Ruphus" abre o número de prospecção com a mensagem de entrada (o lead
+ *  inicia a conversa). Sem número (RUPHUS_WHATSAPP_PROSPECCAO), com um número da plataforma ou reservado
+ *  (`d.reservados`), ou sem a lista de reservados, sem botão. */
+export const faixaProposta = (d: Pick<DadosSite, "slug" | "origem" | "remocao" | "reservados">, numeroProspeccao = process.env.RUPHUS_WHATSAPP_PROSPECCAO) => {
+  const falar = d.origem === "cadastro" ? null : linkDeEntrada(numeroProspeccao, d.slug, d.reservados);
+  return `<aside data-ysis="proposta" role="note" style="position:sticky;top:0;z-index:99999;background:#171013;color:#f0e7e2;font:600 13px/1.45 system-ui,sans-serif;padding:8px 16px;text-align:center">${
     d.origem === "cadastro"
       ? `Esta página é uma prévia feita com a <a href="https://www.ruphus.site/" style="color:#f2b56b">Ruphus</a>, ainda não publicada. <a href="https://www.ruphus.site/privacidade" style="color:#a2918d">Privacidade</a>`
-      : `Esta página é uma proposta da <a href="https://www.ruphus.site/" style="color:#f2b56b">Ruphus</a>, não o site oficial. <a href="https://www.ruphus.site/remover/${d.slug}${d.remocao ? `?t=${d.remocao}` : ""}" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ruphus.site/privacidade" style="color:#a2918d">Privacidade</a>`
+      : `Esta página é uma proposta da <a href="https://www.ruphus.site/" style="color:#f2b56b">Ruphus</a>, não o site oficial. ${falar ? `<a data-ysis="falar" href="${esc(falar)}" target="_blank" rel="noopener" style="color:#171013;background:#f2b56b;border-radius:99px;padding:2px 10px;text-decoration:none">Falar com a Ruphus</a> · ` : ""}<a href="https://www.ruphus.site/remover/${d.slug}${d.remocao ? `?t=${d.remocao}` : ""}" style="color:#f2b56b">Pedir remoção</a> · <a href="https://www.ruphus.site/privacidade" style="color:#a2918d">Privacidade</a>`
   }</aside><script data-ysis="proposta">document.addEventListener("DOMContentLoaded",function(){var b=document.querySelector("aside[data-ysis=proposta]");if(!b)return;var h=b.getBoundingClientRect().height;document.querySelectorAll("header,nav,.site-header,.nav,.topo").forEach(function(el){var s=getComputedStyle(el);if(s.position==="fixed"||s.position==="sticky")el.style.top=h+"px"});});</script>`;
+};
 
 export const AVISO =
   '<p data-ysis="aviso" style="margin-top:14px;font-size:.8rem;line-height:1.5;opacity:.72">Seus dados não ficam neste site: o formulário monta a mensagem e abre o WhatsApp para você enviar. Nada é gravado aqui, e o retorno vem pelo mesmo canal.</p>';

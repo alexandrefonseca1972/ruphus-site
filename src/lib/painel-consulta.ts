@@ -10,6 +10,7 @@
 import { alertas, type Alerta } from "@/lib/alertas";
 import { mensal, mensalidadeDe, prazoDe, type Crm, type Estagio, type Prazo } from "@/lib/crm-tipos";
 import { FILAS, type Espaco, type Fila, type Filtros, type Ordem, type Situacao } from "@/lib/painel-tipos";
+import { paraTelefoneNorm, type TelefoneNorm } from "@/lib/tipos-marca";
 
 export const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 /** relevância: a nota pesa, mas um 5,0 de três pessoas não passa na frente de um 4,7 de quinhentas */
@@ -18,14 +19,42 @@ export const relevancia = (e: Espaco) => (e.nota ?? 0) * Math.log10((e.avaliacoe
 export const local = (e: Espaco) => (e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ""}` : "");
 /** Celular brasileiro (DDD + 9 + 8 dígitos, com ou sem o 55): fixo raramente tem WhatsApp. */
 export const celular = (t: string | null | undefined) => /^(?:55)?[1-9]{2}9\d{8}$/.test((t ?? "").replace(/\D/g, ""));
+// O telefone normalizado de cada texto, uma vez: normalizar 20 mil a cada consulta pesava.
+const normas = new Map<string, TelefoneNorm | null>();
+/** O índice do painel foi remontado: os telefones de antes (editados, apagados) não ficam no cache. */
+export const limparCacheDeTelefones = () => normas.clear();
+/** O celular de contato do negócio (o do dono, senão o do site), normalizado; null se não for
+ *  celular válido ou for número inventado. É ele que entra na fila "Primeiro contato". */
+export function celularDe(e: Espaco, c: Crm | undefined): TelefoneNorm | null {
+  const fone = c?.donoWhatsapp || e.telefone;
+  if (!fone || !celular(fone)) return null;
+  let n = normas.get(fone);
+  if (n === undefined) normas.set(fone, (n = paraTelefoneNorm(fone)));
+  return n;
+}
+/** Celulares que aparecem em mais de um negócio: a mesma pessoa receberia o primeiro contato duas vezes. */
+export function celularesRepetidos(espacos: readonly Espaco[], crm: Record<string, Crm>): Set<TelefoneNorm> {
+  const vistos = new Set<TelefoneNorm>();
+  const repetidos = new Set<TelefoneNorm>();
+  for (const e of espacos) {
+    const n = celularDe(e, crm[e.slug]);
+    if (n) (vistos.has(n) ? repetidos : vistos).add(n);
+  }
+  return repetidos;
+}
+
 /** Se o negócio está na fila: "retornos" (atrasados e para hoje), "primeiro" (nunca abordado,
- *  com celular e sem pedido para parar) ou "responderam" (em conversa, ainda sem desfecho). */
-export function naFila(fila: Fila, e: Espaco, c: Crm | undefined, prazo: Prazo | null) {
+ *  sem pedido para parar, com celular válido que nenhum outro negócio usa e com nota no Google)
+ *  ou "responderam" (em conversa, ainda sem desfecho). `repetidos`: de `celularesRepetidos`. */
+export function naFila(fila: Fila, e: Espaco, c: Crm | undefined, prazo: Prazo | null, repetidos: ReadonlySet<TelefoneNorm>) {
   const estagio = c?.estagio ?? "novo";
   if (fila === "retornos") return prazo === "atrasada" || prazo === "hoje";
   // `toques` só existe desde 05/11 (#262), sem migração: quem foi abordado antes tem só o último contato
-  if (fila === "primeiro")
-    return estagio === "novo" && !c?.toques && !c?.ultimoContatoEm && !c?.respondeuEm && !c?.naoContatarEm && celular(c?.donoWhatsapp || e.telefone);
+  if (fila === "primeiro") {
+    if (estagio !== "novo" || c?.toques || c?.ultimoContatoEm || c?.respondeuEm || c?.naoContatarEm || !e.nota) return false;
+    const n = celularDe(e, c);
+    return !!n && !repetidos.has(n);
+  }
   return (estagio === "negociando" || !!c?.respondeuEm) && estagio !== "fechado" && estagio !== "perdido";
 }
 export const emDestaque = (c: Crm | undefined, hoje: string) => !!c?.fixadoAte && c.fixadoAte >= hoje;
@@ -142,7 +171,7 @@ function contador() {
 }
 
 /** Os filtros que cada negócio reprova (um bit por filtro), com o que foi calculado no caminho. */
-function mascarador(f: Filtros, { crm, hoje, fuso }: Contexto, emFoco: Set<string> | null) {
+function mascarador(f: Filtros, { crm, hoje, fuso }: Contexto, emFoco: Set<string> | null, repetidos: ReadonlySet<TelefoneNorm>) {
   const termo = semAcento(f.busca.trim());
   return (e: Espaco) => {
     const c = crm[e.slug];
@@ -163,7 +192,7 @@ function mascarador(f: Filtros, { crm, hoje, fuso }: Contexto, emFoco: Set<strin
     if (f.contato && !falou) m |= B.contato;
     if (f.fixados && !destaque) m |= B.fixados;
     if (emFoco && !emFoco.has(e.slug)) m |= B.alerta;
-    if (f.fila && !naFila(f.fila, e, c, prazo)) m |= B.fila;
+    if (f.fila && !naFila(f.fila, e, c, prazo, repetidos)) m |= B.fila;
     return { c, estagio, prazo, falou, destaque, m };
   };
 }
@@ -172,14 +201,15 @@ function mascarador(f: Filtros, { crm, hoje, fuso }: Contexto, emFoco: Set<strin
  *  e a própria fila não contam: são outra entrada na mesma lista. `faleiHoje` é o contador do dia:
  *  quantos receberam contato hoje, sem filtro nenhum. */
 export function contarFilas(espacos: readonly Espaco[], f: Filtros, ctx: Contexto): { filas: Record<Fila, number>; faleiHoje: number } {
-  const marcar = mascarador(f, ctx, null);
+  const repetidos = celularesRepetidos(espacos, ctx.crm);
+  const marcar = mascarador(f, ctx, null, repetidos);
   const livres = B.situacao | B.estagio | B.prazo | B.fora | B.contato | B.fixados | B.alerta | B.fila;
   const filas: Record<Fila, number> = { retornos: 0, primeiro: 0, responderam: 0 };
   let faleiHoje = 0;
   for (const e of espacos) {
     const x = marcar(e);
     if (x.falou) faleiHoje += 1;
-    if (passaSalvo(x.m, livres)) for (const fila of FILAS) if (naFila(fila, e, x.c, x.prazo)) filas[fila] += 1;
+    if (passaSalvo(x.m, livres)) for (const fila of FILAS) if (naFila(fila, e, x.c, x.prazo, repetidos)) filas[fila] += 1;
   }
   return { filas, faleiHoje };
 }
@@ -189,7 +219,8 @@ export function consultar(espacos: readonly Espaco[], f: Filtros, ctx: Contexto)
   const avisos = alertas([...espacos], crm, hoje);
   const foco = f.alerta ? avisos.find((a) => a.id === f.alerta) : undefined;
   const emFoco = foco ? new Set(foco.slugs) : null;
-  const marcar = mascarador(f, ctx, emFoco);
+  // só a fila "Primeiro contato" precisa dos repetidos: as outras consultas não pagam a passada
+  const marcar = mascarador(f, ctx, emFoco, f.fila === "primeiro" ? celularesRepetidos(espacos, crm) : new Set());
 
   // destacados ficam no topo de qualquer ordenação: separados aqui, ordenados cada grupo
   // e juntados no fim (o mesmo que usar o destaque como primeiro critério, sem recalculá-lo

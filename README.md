@@ -44,7 +44,7 @@ Cada negócio tem um endereço em `{slug}.ruphus.site`. O site é montado do Fir
 
 ### 2. O painel do negócio
 
-- **Agenda** do dia e da semana, com remarcação, confirmação pelo WhatsApp e histórico.
+- **Agenda** do dia e da semana, com visão por períodos ou por profissional, remarcação por botões ou arraste, confirmação pelo WhatsApp, histórico e restauração segura de cancelamentos.
 - **Serviços** com preço, duração e validação em tempo real (nome duplicado é barrado).
 - **Profissionais** com horário por dia da semana e serviços que cada um faz. O plano inclui **5 profissionais**; o admin da plataforma libera mais.
 - **Clientes** com ficha, etiquetas, histórico e planos.
@@ -242,6 +242,7 @@ npm run test:canal-oficial # templates e botões do canal oficial
 npm run test:admin        # o select da lista do /admin x os campos lidos
 npm run test:scale        # comportamento com volume
 npm run test:gerador      # planilha, nichos, modelos e personalização (sem emulador)
+npm run test:bio          # fuso e canais de contato do minisite (sem emulador)
 npm run test:gerador-banco # gravação do gerador, fotos próprias no Storage (emulador)
 npm run test:ia           # assistente da seção Visual: pedido e resposta (sem rede)
 ```

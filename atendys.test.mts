@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { assinaturaValida, assinaturaV2Valida, assumirEnvio, chaveDeEnvio, enviarSemOperador, enviarTexto, ErroAtendys, manterAgendada, garantirTenant, revogarChavesAntigas, versaoDaAssinatura } from "@/lib/atendys";
+import { assinaturaValida, assinaturaV2Valida, assumirEnvio, AtendysForaDoAr, chaveDeEnvio, enviarSemOperador, enviarTexto, ErroAtendys, manterAgendada, garantirTenant, revogarChavesAntigas, statusDaInstancia, versaoDaAssinatura } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { comAvisoSair, optInDoDoc } from "@/lib/consentimento-whatsapp";
 import { codigosUnicos, lerConfigWhatsApp, lerComando, pareceComando, processarComandoAgendamento } from "@/lib/whatsapp.server";
@@ -196,6 +196,15 @@ await assert.rejects(enviarTexto(conn, "5511912345678", "x", null), /Limite diá
 // corpo que não é JSON: frase genérica com o status
 novo({ "POST /v1/message/send-text": () => new Response("<html>bad gateway</html>", { status: 502 }) });
 await assert.rejects(enviarTexto(conn, "5511912345678", "x", null), (e) => e instanceof ErroAtendys && e.codigo === null && /\(502\)/.test(e.message) && !/html/.test(e.message));
+// LOW-4 (revisão do núcleo): resposta do envio fora do formato (id número) passa pelo Zod e vira
+// AtendysForaDoAr (incerto: pode ter saído), não um messageId mentiroso
+novo({ "POST /v1/message/send-text": () => Response.json({ id: 7, status: "queued" }) });
+await assert.rejects(enviarTexto(conn, "5511912345678", "x", null), (e) => e instanceof AtendysForaDoAr && /fora do formato/.test(e.message));
+// statusDaInstancia: phone número é recusado (a trava da prospecção transforma em CanalProibido)
+novo({ "GET /v1/instance/casa-main/status": json({ name: "casa-main", status: "connected", phone: 5511900000042 }) });
+await assert.rejects(statusDaInstancia(conn), AtendysForaDoAr);
+novo({ "GET /v1/instance/casa-main/status": json({ name: "casa-main", status: "connected", phone: "5511900000042" }) });
+assert.equal((await statusDaInstancia(conn)).phone, "5511900000042");
 
 // ── reativação depois do SAIR: o atendys (optin.service.ts) exige eventId + occurredAt de um
 // aceite posterior à revogação; o mesmo eventId reenviado é "já registrado" ──

@@ -6,6 +6,7 @@ import { atualizarParada, avisarFalhaDeEnvio, lerIndice, NAO_SAI_A_TEMPO } from 
 import { codigoDoAgendamento, executarComandoPendente, idDoComando, registrarMensagemRecebida } from "@/lib/whatsapp.server";
 import { confirmarDono, conexaoOficial, instanciaPlataforma, lerBotao, negocioDoComando, negociosDoDono, responderForaDoFluxo, segredoPlataforma, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { acaoDoCliente, pedidoDesatualizado } from "@/lib/botoes-whatsapp.server";
+import { atenderProspeccao, configProspeccao, falhaDeEnvio, resumoDoErro } from "@/lib/prospeccao-agente.server";
 
 // Onde o atendys avisa o que acontece no número da plataforma (canal oficial): mensagem recebida
 // (comando ou botão do dono, botão ou resposta do cliente) e status de envio. Cada webhook é
@@ -42,8 +43,14 @@ function responder(status: number, corpo: unknown) {
   return NextResponse.json(corpo, { status });
 }
 
+/** L-4: o maior evento do atendys tem poucos KB; acima disto, 413 antes de ler (ou de guardar) o corpo. */
+const LIMITE_CORPO = 64 * 1024;
+
 export async function POST(req: Request) {
+  if (Number(req.headers.get("content-length") ?? 0) > LIMITE_CORPO) return responder(413, { error: "Corpo grande demais." });
   const bruto = await req.text();
+  // sem content-length (chunked): confere depois de ler
+  if (bruto.length > LIMITE_CORPO) return responder(413, { error: "Corpo grande demais." });
   const eventoHeader = req.headers.get("x-atendys-event");
   const cab: CabecalhosWebhook = {
     v1: req.headers.get("x-atendys-signature"),
@@ -73,6 +80,12 @@ export async function POST(req: Request) {
   // cota. Fora dele (envio comum), ack 200 sem gravar nada — 400 fazia o atendys repetir 5 vezes
   if (evento.event === "message.status") {
     const id = evento.messageId;
+    // envio da prospecção (F3) que falhou: conta como bloqueio no disjuntor. Só failed (o resto não
+    // interessa ao disjuntor) e só com a assinatura do tenant de prospecção
+    if (evento.status === "failed" && typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)) {
+      const prosp = await configProspeccao(adminDb);
+      if (prosp && versaoDaAssinatura(prosp.webhookSecret, bruto, cab) && (await falhaDeEnvio(adminDb, id))) return responder(200, { ok: true });
+    }
     const indice = typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id) ? await lerIndice(id) : null;
     if (!indice || !STATUS_MENSAGEM.has(String(evento.status))) return responder(200, { ok: true });
     const slugDaMensagem = indice.slug;
@@ -175,6 +188,18 @@ export async function POST(req: Request) {
           .catch((e) => console.error("[atendys] comando pelo canal oficial", e)),
       );
     }
+    return responder(200, { ok: true });
+  }
+
+  // número de prospecção (F3): tenant separado no atendys, com segredo próprio. Nunca a instância da
+  // plataforma (o ramo acima pega a dela primeiro, e a trava do agente recusa a 1726 de novo)
+  const prosp = await configProspeccao(adminDb);
+  if (prosp && evento.instance === prosp.instancia) {
+    if (!versaoDaAssinatura(prosp.webhookSecret, bruto, cab)) return recusar("Assinatura inválida.", " na prospecção");
+    if (evento.event !== "message.received") return responder(200, { ok: true });
+    // falha aqui não volta como 500: a reentrega cairia no dedupe e não refaria nada
+    const r = await atenderProspeccao(adminDb, prosp, evento).catch((e) => (console.error(`[webhook atendys] prospecção: ${resumoDoErro(e)}`), "erro"));
+    console.log(`[webhook atendys] prospecção …${String(evento.phone ?? "").slice(-4)}: ${r}`);
     return responder(200, { ok: true });
   }
 

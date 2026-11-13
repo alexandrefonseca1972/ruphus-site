@@ -53,6 +53,7 @@ export async function editar(db: Firestore, tenantId: string, id: string, l: Lan
     if (!atual.exists) throw new UserError("Lançamento não encontrado.");
     // comissão paga: o valor é a conta do mês (pagar confere); aqui só forma e descrição. Inclui o R$ 0 todo abatido
     if (id.startsWith("cm-") && l.valorCents !== Number(atual.get("valorCents"))) throw new UserError("O valor de uma comissão paga não muda. Para corrigir, apague o pagamento e pague de novo.");
+    if (id.startsWith("fx-") && l.valorCents !== Number(atual.get("valorCents"))) throw new UserError("O valor de uma conta paga não muda. Edite a conta fixa para os próximos pagamentos ou apague este pagamento e lance de novo.");
     if (!l.valorCents && !id.startsWith("cm-")) throw new UserError("Informe o valor.");
     // entrada estornada continua entrada, e não fica menor que o que já foi devolvido
     if (estorno.exists && l.tipo !== "entrada") throw new UserError("Este recebimento tem estorno: continua entrada.");
@@ -231,6 +232,10 @@ export async function baixarAgendamento(db: Firestore, tenantId: string, b: z.in
     const sinalPago = a.get("sinal.status") === "pago" ? Number(a.get("sinal.cents")) || 0 : 0;
     // a tela abriu antes de o sinal ser confirmado: o valor dela ainda inclui o sinal
     if ((b.sinalCents ?? 0) !== sinalPago) throw new UserError("O sinal deste atendimento mudou enquanto a tela estava aberta. Feche e abra de novo para ver o valor certo.");
+    if (!a.get("precoAberto")) {
+      const esperado = Math.max(0, Number(a.get("priceCents")) - sinalPago);
+      if (b.valorCents !== esperado) throw new UserError(`O valor deste atendimento é ${formatBRL(esperado)}. Feche e abra de novo para ver o valor certo.`);
+    }
     const sinalFora = sn.exists ? 0 : sinalPago;
     // comissão do mês já paga: o que entra agora fica devendo ao profissional (lido antes de gravar)
     // o atendimento inteiro (restante + sinal) conta no mês do recebimento
@@ -386,7 +391,10 @@ export async function pagar(db: Firestore, tenantId: string, p: z.infer<typeof P
       const devido = bruto - abatido;
       if (!devido && abatido <= 0) throw new UserError("Não há comissão a pagar neste mês.");
       if (p.valorCents !== devido) throw new UserError(`A comissão deste mês é ${formatBRL(devido)}. Feche e abra de novo para ver o valor certo.`);
-    } else if (!p.valorCents) throw new UserError("Informe o valor.");
+    } else {
+      const devido = configDe(cfg.data()).fixas.find((f) => f.id === p.alvoId)!.valorCents;
+      if (p.valorCents !== devido) throw new UserError(`O valor cadastrado desta conta é ${formatBRL(devido)}. Edite a conta fixa antes se o valor mudou.`);
+    }
     tx.create(ref, { tipo: "saida", valorCents: p.valorCents, forma: p.forma, ...campos, ...(abatido && { descontoCents: abatido }), ...(pctComissao !== undefined && { pctComissao }), mes: p.mes, criadoPor: quem.email ?? quem.uid, criadoEm: FieldValue.serverTimestamp() });
   });
 }

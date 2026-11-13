@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 // Os mesmos estágios do servidor, importáveis pelo componente de tela
 export const ESTAGIOS = ["novo", "oferta", "negociando", "fechado", "perdido"] as const;
 export type Estagio = (typeof ESTAGIOS)[number];
@@ -39,6 +41,9 @@ export const CADENCIA: Record<string, { proxima: string; dias: number }> = {
   Lembrete: { proxima: "Última tentativa", dias: 7 },
   "Última tentativa": { proxima: "Sem resposta: encerrar como perdido", dias: 7 },
 };
+/** M-7: o PARE dado no número de prospecção barra a cadência e a proposta de quem não é cliente;
+ *  cliente fechado segue recebendo a proposta. Object.hasOwn: "constructor" não é cadência (L-9). */
+export const barradoPeloPareDoAgente = (modelo: string, estagio: Estagio) => Object.hasOwn(CADENCIA, modelo) || (modelo === "Proposta" && estagio !== "fechado");
 /** O próximo passo foi agendado pela cadência (não combinado pelo vendedor) */
 export const daCadencia = (acao: unknown) => Object.values(CADENCIA).some((p) => p.proxima === acao);
 /** Respondeu: o próximo passo vira falar com ele hoje */
@@ -118,6 +123,10 @@ export type Crm = {
   naoContatarEm: string | null;
   /** Primeira vez que o dono abriu o link da proposta atual */
   propostaVistaEm: string | null;
+  /** A variante A/B do "Primeiro contato" confirmado: a tabela por variante do funil sai daqui */
+  varianteId: string | null;
+  /** Primeira visita real ao site demo (beacon, sem prévia de link) */
+  siteVistoEm: string | null;
 };
 
 export type Contato = { nome: string; whatsapp: string };
@@ -139,6 +148,63 @@ export type Evento = {
 };
 
 export type Nota = { id: string; texto: string; quando: string; autor: string };
+
+/** As etapas da cadência como entram no id do evento (`slug__etapa__envioId`). */
+export const ETAPA_DO_MODELO = { "Primeiro contato": "primeiro", Lembrete: "lembrete", "Última tentativa": "ultima" } as const;
+export type EtapaCadencia = (typeof ETAPA_DO_MODELO)[keyof typeof ETAPA_DO_MODELO];
+export const etapaDoModelo = (modelo: string): EtapaCadencia | null =>
+  Object.hasOwn(ETAPA_DO_MODELO, modelo) ? ETAPA_DO_MODELO[modelo as keyof typeof ETAPA_DO_MODELO] : null;
+
+/** O que a gaveta manda quando o vendedor confirma o envio ("Sim" ou "Editei"). `envioId` nasce no
+ *  clique (o envio pendente): dois "Sim" do mesmo envio dão o mesmo id e gravam uma vez só, e dois
+ *  envios diferentes nunca colidem. O número do toque e a variante saem do servidor, não daqui. */
+export const EnvioConfirmado = z.object({
+  envioId: z.uuid(),
+  textoEnviado: z.string().trim().min(1).max(1000),
+  editado: z.boolean(),
+});
+export type EnvioConfirmado = z.infer<typeof EnvioConfirmado>;
+
+/** O envio a que uma resposta ou um opt-out se liga (null: nada confirmado ainda). */
+const Ligacao = { envioId: z.string().nullable(), varianteId: z.string().nullable(), textoEnviado: z.string().nullable() };
+
+/** Os eventos da prospecção medida (F1), gravados em crm/{slug}/eventos com `tipo` como discriminante. */
+export const EventoProspeccao = z.discriminatedUnion("tipo", [
+  z.object({ tipo: z.literal("envio_confirmado"), etapa: z.enum(["primeiro", "lembrete", "ultima"]), toque: z.number().int().min(1), varianteId: z.string().nullable(), textoEnviado: z.string(), editado: z.boolean() }),
+  z.object({ tipo: z.literal("resposta_humana"), ...Ligacao }),
+  z.object({ tipo: z.literal("resposta_automatica"), ...Ligacao }),
+  z.object({ tipo: z.literal("optout"), ...Ligacao }),
+  z.object({ tipo: z.literal("site_visto") }),
+  // falha do copiloto ou do agente de IA: o código do erro (IAIndisponivel, SaidaIAInvalida...), nunca a mensagem inteira
+  z.object({ tipo: z.literal("ia_falha"), origem: z.enum(["copiloto", "agente"]), codigo: z.string() }),
+]);
+export type EventoProspeccao = z.infer<typeof EventoProspeccao>;
+export type TipoProspeccao = EventoProspeccao["tipo"];
+
+/** Na linha do tempo, os eventos da prospecção aparecem como mensagem. */
+export const tipoNaTela = (tipo: unknown): Evento["tipo"] => {
+  const t = String(tipo) as Evento["tipo"] | TipoProspeccao;
+  switch (t) {
+    case "nota":
+    case "estagio":
+    case "mensagem":
+    case "convite":
+    case "agendamento":
+    case "cobranca":
+    case "pagamento":
+      return t;
+    case "envio_confirmado":
+    case "resposta_humana":
+    case "resposta_automatica":
+    case "optout":
+    case "site_visto":
+    case "ia_falha":
+      return "mensagem";
+    default:
+      t satisfies never;
+      return "mensagem";
+  }
+};
 
 // Hoje no fuso de quem está olhando. toISOString() devolveria a data em UTC e,
 // em Manaus, a partir das 20h já apontaria o dia seguinte — todo compromisso de

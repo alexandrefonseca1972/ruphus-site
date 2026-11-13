@@ -10,7 +10,6 @@ import {
   formatLongDate,
   formatTime,
   formatPhone,
-  linkWhatsApp,
   MAX_DAYS_AHEAD,
   phoneError,
   TIMEZONE,
@@ -27,6 +26,7 @@ import { textoDoSinal, valorDoSinal } from "@/lib/sinal";
 import type { ConfigSinal } from "@/lib/sinal-config";
 import { foraDoLimite, limitesDe, type LimitesAgenda } from "@/lib/scheduling";
 import { TERMO_WHATSAPP_VERSAO, TEXTO_ACEITE_WHATSAPP } from "@/lib/consentimento-whatsapp";
+import { telefoneDoNegocio, telefoneFixo, whatsappDoNegocio } from "@/lib/contato";
 
 type Resposta = Awaited<ReturnType<typeof book>>;
 
@@ -134,7 +134,8 @@ function Identidade({ name, rating, reviews, city }: Pick<Props, "name" | "ratin
 }
 
 function Cabecalho({ tenantId, temSite, siteUrl, name, rating, reviews, city, phone }: Pick<Props, "tenantId" | "temSite" | "siteUrl" | "name" | "rating" | "reviews" | "city" | "phone">) {
-  const falar = linkWhatsApp(phone, `Olá! Quero marcar um horário no ${name}.`);
+  const zap = whatsappDoNegocio(phone, `Olá! Quero marcar um horário no ${name}.`);
+  const falar = zap ?? telefoneDoNegocio(phone);
   // O nome leva ao negócio: no computador, o site inteiro; no celular, a bio, que cabe na
   // tela e já tem os botões. Endereço completo: esta página também abre em www.ruphus.site.
   const base = (siteUrl ?? `https://${tenantId}.ruphus.site/`).replace(/\/$/, "");
@@ -151,7 +152,7 @@ function Cabecalho({ tenantId, temSite, siteUrl, name, rating, reviews, city, ph
           target="_blank"
           rel="noreferrer"
           title={`Ver a página de ${name}`}
-          className={cn("min-w-0 flex-1 items-center gap-3 rounded-[11px] hover:[&_h1]:underline", d.className)}
+          className={cn("min-h-11 min-w-0 flex-1 items-center gap-3 rounded-[11px] hover:[&_h1]:underline", d.className)}
         >
           <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-[#17150F] text-[12px] text-[#FAF9F5]", MONO)}>
             {iniciais(name)}
@@ -164,7 +165,7 @@ function Cabecalho({ tenantId, temSite, siteUrl, name, rating, reviews, city, ph
           href={falar}
           target="_blank"
           rel="noreferrer"
-          aria-label={`Falar com ${name} no WhatsApp`}
+          aria-label={zap ? `Falar com ${name} no WhatsApp` : `Ligar para ${name}`}
           className="flex size-11 shrink-0 items-center justify-center rounded-[11px] border border-[#D5D0C1] bg-white text-[#2C6A53] hover:bg-[#F6F4EB]"
         >
           <Zap />
@@ -541,7 +542,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   // O recado que o cliente leva no WhatsApp: é ele que avisa quem atende, então
   // sai pronto, com tudo que a casa precisa para achar o horário na agenda.
   const recado = (servicos: string, dia: string, hora: string, codigo: string, quem?: string) =>
-    linkWhatsApp(
+    whatsappDoNegocio(
       phone,
       [
         `Olá! Agendei ${servicos} para ${longDate(dia)}, às ${hora} (código ${codigo}).`,
@@ -559,7 +560,9 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     const total = precoDe({ priceCents: reserva.priceCents, tipoPreco: reserva.precoAberto ? "aPartir" : "fixo" });
     // a mesma frase na tela e no evento do Google Agenda
     const comoPaga = reserva.sinal ? (reserva.sinal.cents >= reserva.priceCents ? "todo por Pix, no sinal" : `sinal de ${formatBRL(reserva.sinal.cents)} por Pix, o resto no local`) : "pago no local";
-    const avisoUrl = recado(servicos, date, hora, reserva.id.slice(0, 4).toUpperCase(), quem);
+    const zapAviso = recado(servicos, date, hora, reserva.id.slice(0, 4).toUpperCase(), quem);
+    const ligar = telefoneDoNegocio(phone);
+    const avisoUrl = zapAviso ?? ligar;
     const fim = fimDe(date, hora, totalMin);
     const dias = Math.round((Date.parse(date) - Date.parse(today)) / 86_400_000);
     const quando = dias <= 0 ? "hoje" : dias === 1 ? "amanhã" : `daqui a ${dias} dias`;
@@ -574,7 +577,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       inicio: zonedTime(date, hora, fuso),
       fim: new Date(zonedTime(date, hora, fuso).getTime() + totalMin * 60_000),
       local: onde || [name, cidadeUf].filter(Boolean).join(", "),
-      detalhes: [quem ? `Com ${quem}.` : "", total ? `${total}, ${comoPaga}.` : "", phone ? `WhatsApp de ${name}: ${formatPhone(phone)}` : ""]
+      detalhes: [quem ? `Com ${quem}.` : "", total ? `${total}, ${comoPaga}.` : "", phone ? `${telefoneFixo(phone) ? "Telefone" : "WhatsApp"} de ${name}: ${formatPhone(phone)}` : ""]
         .filter(Boolean)
         .join("\n"),
     };
@@ -585,10 +588,10 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
-    const desmarcar = linkWhatsApp(
+    const desmarcar = whatsappDoNegocio(
       phone,
       `Olá! Preciso desmarcar ou mudar meu horário de ${longDate(date)}, às ${hora} (${servicos}). Meu nome é ${customerName.trim()}.`,
-    );
+    ) ?? ligar;
     return (
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col gap-4 bg-[#F2F0E7] p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-[#17150F]">
         <Cabecalho tenantId={tenantId} temSite={temSite} siteUrl={siteUrl} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
@@ -663,12 +666,12 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                       <PixQr recebedor={reserva.sinal.pix} valorCents={reserva.sinal.cents} txid={reserva.sinal.txid} ate={reserva.sinal.ate} mensagem={`Sinal do horário de ${longDate(date)}, às ${hora}, em ${name}`} ajuda={`Fale com ${name} para combinar o pagamento.`}>
                         {phone && (
                           <a
-                            href={linkWhatsApp(phone, `Olá! Paguei o sinal de ${formatBRL(reserva.sinal.cents)} do meu horário de ${longDate(date)}, às ${hora} (${servicos}). Meu nome é ${customerName.trim()}. Segue o comprovante.`) ?? undefined}
+                            href={whatsappDoNegocio(phone, `Olá! Paguei o sinal de ${formatBRL(reserva.sinal.cents)} do meu horário de ${longDate(date)}, às ${hora} (${servicos}). Meu nome é ${customerName.trim()}. Segue o comprovante.`) ?? ligar ?? undefined}
                             target="_blank"
                             rel="noreferrer"
                             className="flex min-h-11 items-center justify-center rounded-lg bg-[#17150F] px-4 py-2 text-center text-sm font-semibold text-[#FAF9F5]"
                           >
-                            Enviar comprovante para {name}
+                            {telefoneFixo(phone) ? `Ligar para ${name} e avisar o pagamento` : `Enviar comprovante para ${name}`}
                           </a>
                         )}
                       </PixQr>
@@ -698,13 +701,12 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                   className="flex h-[50px] items-center justify-center gap-2.5 rounded-[10px] border border-[#D5D0C1] bg-white text-[15px] font-semibold text-[#17150F] hover:border-[#17150F]"
                 >
                   <Zap />
-                  Confirmar pelo WhatsApp
+                  {zapAviso ? "Confirmar pelo WhatsApp" : "Ligar para confirmar"}
                 </a>
                 <p className="text-center text-xs text-[#5C5747]">Opcional: o pedido já chegou para {name}.</p>
               </div>
             ) : (
-              // o negócio não recebe o pedido pelo WhatsApp automático: só o vê na agenda online.
-              // A mensagem do cliente é o aviso imediato, então vira a ação principal
+              // Sem aviso automático ao dono, o contato do cliente é a notificação imediata.
               <div className="flex flex-col gap-2">
                 <a
                   href={avisoUrl}
@@ -713,9 +715,9 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                   className="flex min-h-[50px] items-center justify-center gap-2.5 rounded-[10px] bg-[#17150F] px-4 py-2 text-center text-[15px] font-semibold text-[#FAF9F5]"
                 >
                   <Zap className="shrink-0" />
-                  Avise {name} pelo WhatsApp para confirmar
+                  {zapAviso ? `Avise ${name} pelo WhatsApp para confirmar` : `Ligue para ${name} para confirmar`}
                 </a>
-                <p className="text-center text-xs text-[#5C5747]">Sem esta mensagem, {name} só vê o pedido quando abrir a agenda online.</p>
+                <p className="text-center text-xs text-[#5C5747]">{zapAviso ? "Sem esta mensagem" : "Sem esta ligação"}, {name} só vê o pedido quando abrir a agenda online.</p>
               </div>
             ))}
           </div>
@@ -742,7 +744,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 ) : (
                   <>
                     <p className="text-[16px] leading-snug font-semibold">{[bairro, cidadeUf].filter(Boolean).join(" · ")}</p>
-                    <p className="text-[13px] text-[#5C5747]">O endereço exato: confirme com {name} pelo WhatsApp.</p>
+                    <p className="text-[13px] text-[#5C5747]">O endereço exato: confirme com {name} {telefoneFixo(phone) ? "por telefone" : "pelo WhatsApp"}.</p>
                   </>
                 )}
               </div>
@@ -779,7 +781,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                     () => {},
                   )
                 }
-                className="h-10 text-[13px] font-semibold underline underline-offset-4"
+                className="h-11 text-[13px] font-semibold underline underline-offset-4"
               >
                 <span aria-live="polite">{copiado ? "Endereço copiado" : "Copiar endereço"}</span>
               </button>
@@ -799,7 +801,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
               rel="noreferrer"
               className="flex h-11 items-center justify-center rounded-[10px] border border-[#D5D0C1] bg-white text-sm font-semibold hover:border-[#17150F]"
             >
-              Falar com {name} no WhatsApp
+              {telefoneFixo(phone) ? `Ligar para ${name}` : `Falar com ${name} no WhatsApp`}
             </a>
           )}
         </div>
@@ -825,18 +827,17 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   }
 
   // ---------- agenda ainda não montada ----------
-  // Sem isso a página fica um beco sem saída: quem veio marcar horário lê
-  // "nenhum serviço" e não tem para onde ir — nem de volta ao site, nem para o
-  // WhatsApp da casa.
+  // Sem catálogo, o visitante ainda pode voltar ao site ou usar o contato do negócio.
   if (!services.length) {
-    const falar = linkWhatsApp(phone, `Olá! Quero marcar um horário no ${name}.`);
+    const zap = whatsappDoNegocio(phone, `Olá! Quero marcar um horário no ${name}.`);
+    const falar = zap ?? telefoneDoNegocio(phone);
     return (
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col gap-4 bg-[#F2F0E7] p-4 py-6 text-[#17150F]">
         <Cabecalho tenantId={tenantId} temSite={temSite} siteUrl={siteUrl} name={name} rating={rating} reviews={reviews} city={city} phone={phone} />
         <div className={cn(PAINEL, "flex flex-col gap-4 p-5")}>
           <p className={cn("text-[11px] font-medium tracking-[0.16em] text-[#6B6555] uppercase", MONO)}>agenda online ainda fechada</p>
           <p className="text-sm leading-relaxed text-[#5C5747]">
-            {name} ainda não abriu os horários aqui. Para marcar, fale direto — responde no WhatsApp o dia inteiro.
+            {name} ainda não abriu os horários aqui. Para marcar, {zap ? "envie uma mensagem pelo WhatsApp" : falar ? "ligue para o negócio" : "consulte os canais de contato no site"}.
           </p>
           {falar && (
             <a
@@ -846,7 +847,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
               className="flex h-[50px] items-center justify-center gap-2.5 rounded-[10px] bg-[#2C6A53] text-[15px] font-semibold text-[#FAF9F5] hover:bg-[#245743]"
             >
               <Zap />
-              Falar no WhatsApp
+              {zap ? "Falar no WhatsApp" : "Ligar para o negócio"}
             </a>
           )}
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages --
@@ -868,10 +869,11 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const ocupou = !!tomado?.msg.startsWith("Esse horário");
   const fecharSe = (qual: typeof folha) => () => setFolha((f) => (f === qual ? null : f));
   const quemTexto = escolhido ? `Com ${escolhido.name.split(" ")[0]}` : "Qualquer profissional";
-  const zapEncaixe = linkWhatsApp(
+  const zapEncaixe = whatsappDoNegocio(
     phone,
     `Olá! Queria um horário para ${escolhidos.map((s) => s.name).join(" + ")}${escolhido ? ` com ${escolhido.name}` : ""} na semana de ${longDate(from)}. Não achei vaga no site. Tem encaixe?`,
   );
+  const contatoEncaixe = zapEncaixe ?? telefoneDoNegocio(phone);
 
   // Semana sem nenhum horário: as saídas no lugar dos horários (aqui e na folha "outro dia")
   const semVaga = (
@@ -892,10 +894,10 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           <Seta />
         </button>
       )}
-      {zapEncaixe && (
-        <a href={zapEncaixe} target="_blank" rel="noreferrer" className="flex min-h-14 items-center gap-3 rounded-[14px] border border-[#D5D0C1] bg-white px-4">
+      {contatoEncaixe && (
+        <a href={contatoEncaixe} target="_blank" rel="noreferrer" className="flex min-h-14 items-center gap-3 rounded-[14px] border border-[#D5D0C1] bg-white px-4">
           <Zap className="text-[#2C6A53]" />
-          <span className="flex-1 text-[15px] font-semibold">Pedir um encaixe no WhatsApp</span>
+          <span className="flex-1 text-[15px] font-semibold">{zapEncaixe ? "Pedir um encaixe no WhatsApp" : "Ligar para pedir um encaixe"}</span>
         </a>
       )}
     </div>
@@ -1286,6 +1288,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 <button type="button" disabled={busy} onClick={() => setFolha(null)} className="min-h-11 shrink-0 px-1 text-sm font-medium underline underline-offset-[3px]">
                   Trocar
                 </button>
+                {/* a saída à vista: "Trocar" não se lê como fechar, e no celular não há Esc */}
+                <Fechar onClick={() => !busy && setFolha(null)} />
               </div>
 
               {valorSinal > 0 && sinal ? (

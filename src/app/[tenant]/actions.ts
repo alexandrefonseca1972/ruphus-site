@@ -6,7 +6,7 @@ import { painelDeConsumo, resumoDoSaldo } from "@/lib/consumo-painel.server";
 import { abrirCobranca, listarCobrancas } from "@/lib/cobranca";
 import { cadastrarDonoOficial, conexaoOficial, enviarConfirmacaoDono, exigeNaoPausado, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { adminDb } from "@/lib/admin";
-import { createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, salvarDadosCliente, UserError } from "@/lib/booking.server";
+import { createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, restaurarAgendamento, salvarDadosCliente, UserError } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
 import { erroNome } from "@/lib/nome";
 import { z } from "zod";
@@ -99,6 +99,10 @@ export const meuContratoAction = memberAction(z.object({ tenantId: docIdStaff })
 
 // painel: remarca mesmo com o serviço oculto ou o profissional fora do link
 export const rescheduleAppointment = memberAction(RescheduleInput, (data, user) => reschedule(adminDb, data, user, { exigirAtivo: false }));
+export const desfazerCancelamentoAction = memberAction(
+  z.object({ tenantId: docIdStaff, appointmentId: docIdStaff, status: z.enum(["booked", "confirmed"]) }),
+  (data, user) => restaurarAgendamento(adminDb, data, user),
+);
 export const createPlanAction = memberAction(PlanInput, (data, user) => createPlan(adminDb, data, user));
 const docId = z.string().min(1).max(128).regex(/^[^/]+$/);
 export const endPlanAction = memberAction(

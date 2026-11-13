@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { formatBRL } from "@/lib/datetime";
 import { COR, diaCurto, mensal, MOTIVOS_PERDA, ORIGENS, prazoDe, ROTULO, type Crm, type Estagio, type MotivoPerda } from "@/lib/crm-tipos";
-import { COLUNAS, NOVOS_MAX, NOVOS_POR_VEZ, origemDe, PERIODOS, ehPeriodo, type NumerosDaSemana, type Periodo, type ResumoDoFunil } from "@/lib/funil-consulta";
+import { COLUNAS, NOVOS_MAX, NOVOS_POR_VEZ, origemDe, PERIODOS, ehPeriodo, type LinhaVariante, type NumerosDaSemana, type Periodo, type ResumoDoFunil } from "@/lib/funil-consulta";
 import type { Espaco } from "./actions";
 
 // O funil em colunas: os mesmos negócios da lista (com os mesmos filtros e busca),
@@ -13,6 +13,7 @@ import type { Espaco } from "./actions";
 export function Funil({
   resumo: n,
   semana,
+  variantes,
   crm,
   hoje,
   periodo,
@@ -28,6 +29,8 @@ export function Funil({
   resumo: ResumoDoFunil;
   /** contatados, responderam e fecharam nos últimos 7 dias; ausente enquanto a rota não responde */
   semana?: NumerosDaSemana;
+  /** o A/B do primeiro contato (F1): uma linha por variante, sobre os negócios filtrados */
+  variantes?: LinhaVariante[];
   /** o CRM dos cartões (pode ter mais) */
   crm: Record<string, Crm>;
   hoje: string;
@@ -99,6 +102,42 @@ export function Funil({
           </div>
         ))}
       </dl>
+
+      {/* O piloto A/B (F1): só a resposta humana conta; a meta é resposta ≥ 8% e PARE < 2% */}
+      {!!variantes?.length && (
+        <section aria-labelledby="ab-t" className="flex flex-col gap-2 rounded-2xl border border-[#E2DDD3] bg-white px-4 py-3">
+          <h3 id="ab-t" className="text-[13px] font-semibold">Primeiro contato por variante</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[34rem] text-left text-[12.5px] tabular-nums">
+              <thead className="text-[11px] tracking-[0.06em] text-[#6F6A5E] uppercase">
+                <tr>
+                  <th scope="col" className="py-1.5 pr-3 font-normal">Variante</th>
+                  <th scope="col" className="py-1.5 pr-3 font-normal">Confirmados</th>
+                  <th scope="col" className="py-1.5 pr-3 font-normal">Resposta humana</th>
+                  <th scope="col" className="py-1.5 pr-3 font-normal">PARE</th>
+                  <th scope="col" className="py-1.5 pr-3 font-normal">Viu o site</th>
+                  <th scope="col" className="py-1.5 font-normal">Avançou</th>
+                </tr>
+              </thead>
+              <tbody>
+                {variantes.map((v) => {
+                  const pct = (n: number) => `${Math.round((n / v.confirmados) * 100)}% (${n})`;
+                  return (
+                    <tr key={v.varianteId} className="border-t border-[#EDEAE0]">
+                      <th scope="row" className="py-1.5 pr-3 font-semibold">{v.varianteId}</th>
+                      <td className="py-1.5 pr-3">{v.confirmados}</td>
+                      <td className="py-1.5 pr-3">{pct(v.humanas)}</td>
+                      <td className="py-1.5 pr-3">{pct(v.optouts)}</td>
+                      <td className="py-1.5 pr-3">{pct(v.visitas)}</td>
+                      <td className="py-1.5">{pct(v.avancaram)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <details className="group rounded-2xl border border-[#E2DDD3] bg-white px-4 py-3">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-[13px] font-semibold [&::-webkit-details-marker]:hidden">

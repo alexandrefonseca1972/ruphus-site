@@ -9,10 +9,10 @@ export function PageTitle({ title, sub, valores, children }: { title: string; su
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div className="grid gap-1.5">
         <div className="flex items-center gap-2">
-          <h1 className="font-serifa text-4xl leading-none tracking-tight sm:text-5xl">{title}</h1>
+          <h1 className="font-serifa text-[35px] leading-none tracking-tight sm:text-5xl">{title}</h1>
           {valores && <OlhoValores />}
         </div>
-        {sub && <p className="text-[15px] text-muted-foreground">{sub}</p>}
+        {sub && <p className="text-[13px] text-muted-foreground">{sub}</p>}
       </div>
       {children}
     </div>

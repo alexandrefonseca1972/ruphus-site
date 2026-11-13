@@ -53,6 +53,7 @@ jobs:
       - run: npm run test:sms
       - run: npm run test:consumo
       - run: npm run test:gerador
+      - run: npm run test:bio
       - run: npm run test:ia
       - run: npm run test:foto-rota
       - run: npm run test:lembrete

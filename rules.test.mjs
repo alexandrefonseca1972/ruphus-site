@@ -323,5 +323,27 @@ await assertFails(getDoc(doc(alice, "tenants/acme/privado/whatsapp")), "o dono n
 await assertFails(getDoc(doc(carla, "tenants/acme/privado/whatsapp")), "a equipe não lê o WhatsApp do dono");
 await assertFails(setDoc(doc(alice, "tenants/acme/privado/whatsapp"), { ownerPhone: "5511900000000", ownerPhoneVerifiedAt: 2 }), "nem grava (a confirmação seria forjada)");
 
+// F4: a biblioteca de variantes da prospecção é só do servidor (nem o admin da plataforma lê pelo cliente)
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "prospeccaoVariantes/salao-primeiro-elogio-google"), { texto: "x PARE", enviados: 3 }));
+await assertFails(getDoc(doc(alice, "prospeccaoVariantes/salao-primeiro-elogio-google")), "dono não lê variante");
+await assertFails(getDoc(doc(suporte, "prospeccaoVariantes/salao-primeiro-elogio-google")), "admin da plataforma não lê pelo cliente");
+await assertFails(getDocs(collection(suporte, "prospeccaoVariantes")), "nem lista");
+await assertFails(setDoc(doc(suporte, "prospeccaoVariantes/nova"), { texto: "y PARE" }), "nem grava");
+await assertFails(updateDoc(doc(alice, "prospeccaoVariantes/salao-primeiro-elogio-google"), { enviados: 0 }), "ninguém zera os números");
+
+// F5 e CRM: fila, conversas, envios, dias, crm e config/prospeccao são só do servidor (Admin SDK):
+// nem o dono nem o admin da plataforma leem ou gravam pelo cliente
+await env.withSecurityRulesDisabled(async (ctx) => {
+  const s = ctx.firestore();
+  for (const p of ["prospeccaoFila/acme__primeiro", "prospeccaoConversas/5511900000001", "prospeccaoEnvios/m1", "prospeccaoDias/2026-11-12", "crm/acme", "config/prospeccao"]) await setDoc(doc(s, p), { x: 1 });
+});
+for (const p of ["prospeccaoFila/acme__primeiro", "prospeccaoConversas/5511900000001", "prospeccaoEnvios/m1", "prospeccaoDias/2026-11-12", "crm/acme", "config/prospeccao"]) {
+  for (const [quem, db] of [["dono", alice], ["admin da plataforma", suporte]]) {
+    await assertFails(getDoc(doc(db, p)), `${quem} não lê ${p}`);
+    await assertFails(setDoc(doc(db, p), { x: 2 }), `${quem} não grava ${p}`);
+  }
+}
+for (const c of ["prospeccaoFila", "prospeccaoConversas", "prospeccaoEnvios", "prospeccaoDias", "crm"]) await assertFails(getDocs(collection(suporte, c)), `admin da plataforma não lista ${c}`);
+
 await env.cleanup();
 console.log("rules ok");

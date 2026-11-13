@@ -369,6 +369,7 @@ imprimindo `ok`. O que toca o banco sobe o emulador sozinho.
 | `npm run test:cobranca` | sim | Pix, token, baixa |
 | `npm run test:scale` | sim | carga e concorrência com equipe grande |
 | `npm run test:gerador` | não | leitura da planilha, nicho, slug, HTML escapado e camada Ruphus |
+| `npm run test:bio` | não | fuso do expediente e escolha entre WhatsApp e ligação |
 | `npm run test:gerador-banco` | sim | endereço ocupado, reenvio sem apagar agenda e funil, a rota do site |
 
 O CI roda o conjunto a cada push. **Confira a execução do commit final antes de

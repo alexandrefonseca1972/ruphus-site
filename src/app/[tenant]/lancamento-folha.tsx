@@ -2,7 +2,9 @@
 
 import { Dialog } from "@base-ui/react/dialog";
 import { useState } from "react";
+import { ArrowLeft, Check, QrCode, ReceiptText, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FormMessage } from "@/components/form-message";
 import { Input } from "@/components/ui/input";
 import { formatBRL, maskBRL, todayIn } from "@/lib/datetime";
 import { idToken } from "@/lib/firebase";
@@ -19,7 +21,7 @@ import { useTenant } from "./painel-layout";
 export type Folha =
   | { modo: "novo"; tipo: "entrada" | "saida"; data: string }
   | { modo: "editar"; lancamento: Lancamento }
-  | { modo: "baixa"; atendimento: { id: string; customerName: string; customerPhone?: string; serviceName: string; priceCents: number; sinalCents: number } }
+  | { modo: "baixa"; atendimento: { id: string; customerName: string; customerPhone?: string; serviceName: string; priceCents: number; precoAberto?: boolean; sinalCents: number } }
   | { modo: "pagar"; titulo: string; detalhe: string; valorCents: number; pagamento: { tipo: "fixa" | "comissao"; alvoId: string; mes: string; descontoCents?: number } };
 
 export const Chip = ({ ativo, onClick, children }: { ativo: boolean; onClick: () => void; children: React.ReactNode }) => (
@@ -58,14 +60,14 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
   const tipo = folha.modo === "novo" ? folha.tipo : folha.modo === "baixa" ? "entrada" : folha.modo === "pagar" ? "saida" : folha.lancamento.tipo;
   const valorInicial = base?.valorCents ?? (folha.modo === "baixa" ? folha.atendimento.priceCents : folha.modo === "pagar" ? folha.valorCents : 0);
   const [valor, setValor] = useState(valorInicial ? formatBRL(valorInicial) : "");
-  // comissão: o servidor só aceita o valor que a conta dá; para mudar, muda o % ou os recebimentos.
-  // Já paga, o valor fica travado também: corrige só forma e descrição
+  // Valores calculados ou cadastrados não podem ser alterados durante a quitação.
   const comissao = (folha.modo === "pagar" && folha.pagamento.tipo === "comissao") || (folha.modo === "editar" && folha.lancamento.id.startsWith("cm-"));
+  const valorFixo = comissao || folha.modo === "pagar" || (folha.modo === "editar" && folha.lancamento.id.startsWith("fx-")) || (folha.modo === "baixa" && !folha.atendimento.precoAberto);
   const [categoria, setCategoria] = useState(base?.categoria ?? (folha.modo === "baixa" ? "Atendimento" : ""));
   const [forma, setForma] = useState<(typeof FORMAS)[number]>(() => base?.forma ?? ultimaForma(tipo));
   // entrada/saída avulsa: o id nasce aqui, e repetir o envio (a resposta caiu) não duplica
   const [idNovo] = useState(() => `mn-${crypto.randomUUID().replace(/-/g, "")}`);
-  const [confirmouPouco, setConfirmouPouco] = useState(false);
+  const [confirmarPouco, setConfirmarPouco] = useState(false);
   // lançamento novo nasce no mês que está na tela, não no de hoje
   const [data, setData] = useState(base?.data ?? (folha.modo === "novo" ? folha.data : todayIn()));
   const [descricao, setDescricao] = useState(base?.descricao ?? "");
@@ -107,16 +109,17 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
     onClose(aviso);
   }
 
-  function salvar() {
+  function salvar(valorBaixoConfirmado = false) {
     // comissão toda abatida por estorno: R$ 0 registra o acerto do mês
     const zeroPorEstorno =
       (folha.modo === "pagar" && folha.valorCents === 0 && (folha.pagamento.descontoCents ?? 0) > 0) ||
       // o mesmo pagamento de R$ 0 depois, para corrigir a forma ou a descrição
       (folha.modo === "editar" && folha.lancamento.id.startsWith("cm-") && (folha.lancamento.descontoCents ?? 0) > 0);
-    if (!centavos && !zeroPorEstorno) return setErro("Informe o valor.");
-    if (centavos && centavos < POUCO && !confirmouPouco) {
-      setConfirmouPouco(true);
-      return setErro(`${formatBRL(centavos)}, menos de R$ 1? Para R$ 35,00 digite 3500. Se está certo, toque de novo para confirmar.`);
+    if (!centavos && !zeroPorEstorno) return setErro("Informe o valor do lançamento.");
+    if (centavos && centavos < POUCO && !valorBaixoConfirmado) {
+      setErro("");
+      setConfirmarPouco(true);
+      return;
     }
     if (estornando && base) {
       if (centavos > base.valorCents) return setErro(`O estorno vai até ${formatBRL(base.valorCents)}, o valor recebido.`);
@@ -142,10 +145,10 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
     <Dialog.Root open onOpenChange={(open) => !open && !ocupado && onClose()}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40" />
-        {/* no celular sobe de baixo, no alcance do polegar; no computador fica no meio */}
-        <Dialog.Popup className="fixed inset-x-0 bottom-0 z-50 grid max-h-[92dvh] gap-5 overflow-y-auto rounded-t-2xl border bg-popover p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-popover-foreground shadow-xl outline-none sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:p-6">
+        {/* no celular sobe de baixo; no desktop mantém o contexto ao lado */}
+        <Dialog.Popup className="fixed inset-x-0 bottom-0 z-50 grid max-h-[92dvh] gap-5 overflow-y-auto overscroll-contain rounded-t-2xl border bg-popover p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-popover-foreground shadow-xl outline-none motion-safe:animate-in motion-safe:slide-in-from-bottom-4 sm:inset-y-0 sm:right-0 sm:left-auto sm:h-dvh sm:max-h-none sm:w-full sm:max-w-[440px] sm:rounded-none sm:rounded-l-2xl sm:p-6 motion-safe:sm:slide-in-from-bottom-0 motion-safe:sm:slide-in-from-right-8">
           {/* formulário: Enter no valor já salva, sem caçar o botão */}
-          <form className="contents" onSubmit={(e) => (e.preventDefault(), void salvar())}>
+          <form noValidate className="contents" onSubmit={(e) => (e.preventDefault(), void salvar())}>
           <div className="grid gap-1">
             <Dialog.Title className="font-serifa text-2xl leading-tight">{titulo}</Dialog.Title>
             {(folha.modo === "baixa" || folha.modo === "pagar") && <Dialog.Description className="text-sm text-muted-foreground">{folha.modo === "baixa" ? `${folha.atendimento.serviceName}${folha.atendimento.sinalCents ? ` · sinal de ${formatBRL(folha.atendimento.sinalCents)} já pago, cobre só o restante` : ""}` : folha.detalhe}</Dialog.Description>}
@@ -156,16 +159,18 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
           <label className="grid gap-1.5">
             <span className="text-sm font-medium">Valor</span>
             <Input
-              autoFocus={!comissao}
-              readOnly={comissao}
+              autoFocus={!valorFixo}
+              readOnly={valorFixo}
               inputMode="numeric"
               placeholder="R$ 0,00"
               value={valor}
-              aria-describedby="valor-dica"
-              onChange={(e) => (setValor(maskBRL(e.target.value)), setConfirmouPouco(false), setMostrarPix(false))}
-              className={cn("h-14 font-serifa text-3xl tabular-nums md:text-3xl", (tipo === "saida" || estornando) && "text-red-700 dark:text-red-300")}
+              required={!valorFixo}
+              aria-invalid={!!erro && !centavos}
+              aria-describedby={`valor-dica${erro ? " erro-lancamento" : ""}`}
+              onChange={(e) => (setValor(maskBRL(e.target.value)), setConfirmarPouco(false), setMostrarPix(false), setErro(""))}
+              className={cn("h-14 font-serifa text-3xl tabular-nums md:text-3xl", (tipo === "saida" || estornando) && "text-red-700 dark:text-red-300", valorFixo && "bg-muted/50")}
             />
-            <span id="valor-dica" className="text-xs text-muted-foreground">{comissao ? "Calculado pelo que o profissional faturou no mês e pelo % dele." : "Só números, com os centavos: 3500 = R$ 35,00"}</span>
+            <span id="valor-dica" className="text-xs text-muted-foreground">{comissao ? "Calculado pelo faturamento e pelo % do profissional." : valorFixo ? "Valor definido no atendimento ou na conta. Para alterar, edite o cadastro correspondente." : "Só números, com os centavos: 3500 = R$ 35,00"}</span>
           </label>
 
           {!vinculado && !estornando && (
@@ -173,7 +178,7 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
               <legend className="mb-2 text-sm font-medium">Categoria</legend>
               <div className="flex flex-wrap gap-2">
                 {categorias(tipo, nicho).map((c) => (
-                  <Chip key={c} ativo={categoria === c} onClick={() => setCategoria(c)}>{c}</Chip>
+                  <Chip key={c} ativo={categoria === c} onClick={() => { setCategoria(c); setErro(""); }}>{c}</Chip>
                 ))}
               </div>
             </fieldset>
@@ -200,7 +205,7 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
               <PixQr key={centavos} recebedor={pix} valorCents={centavos} txid={txid} telefone={folha.modo === "baixa" ? folha.atendimento.customerPhone : null} />
             ) : (
               <Button type="button" variant="outline" className="h-11" disabled={!centavos} onClick={() => setMostrarPix(true)}>
-                Mostrar QR do Pix
+                <QrCode aria-hidden="true" />Mostrar QR do Pix
               </Button>
             )
           )}
@@ -219,15 +224,15 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
             </div>
           )}
 
-          {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
+          {erro && <FormMessage id="erro-lancamento">{erro}</FormMessage>}
 
           {/* no celular os botões ficam presos no rodapé da folha: com o teclado aberto, Lançar
               continua à vista (o teclado numérico do iPhone não tem Enter) */}
-          <div className="flex flex-col-reverse gap-2 max-sm:sticky max-sm:-bottom-[calc(1.25rem+env(safe-area-inset-bottom))] max-sm:-mx-5 max-sm:-mb-[calc(1.25rem+env(safe-area-inset-bottom))] max-sm:border-t max-sm:bg-popover max-sm:px-5 max-sm:pt-3 max-sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:flex-row sm:justify-between">
+          <div className="flex flex-col-reverse gap-2 max-sm:sticky max-sm:-bottom-[calc(1.25rem+env(safe-area-inset-bottom))] max-sm:-mx-5 max-sm:-mb-[calc(1.25rem+env(safe-area-inset-bottom))] max-sm:border-t max-sm:bg-popover max-sm:px-5 max-sm:pt-3 max-sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:mt-auto sm:flex-row sm:justify-between">
             {folha.modo === "editar" && !estornando ? (
               <div className="flex flex-wrap gap-2 max-sm:justify-between">
                 {/* recibo do que entrou: impressão, WhatsApp ou e-mail */}
-                {tipo === "entrada" && onRecibo && <Button type="button" variant="outline" className="h-11 px-4" disabled={ocupado} onClick={onRecibo}>Recibo</Button>}
+                {tipo === "entrada" && onRecibo && <Button type="button" variant="outline" className="h-11 px-4" disabled={ocupado} onClick={onRecibo}><ReceiptText aria-hidden="true" />Recibo</Button>}
                 {/* estornado não se apaga: primeiro apaga o estorno */}
                 {!estornado && <Button
                   type="button"
@@ -236,7 +241,7 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
                   disabled={ocupado}
                   onClick={() => setApagar(true)}
                 >
-                  Apagar
+                  <Trash2 aria-hidden="true" />Apagar
                 </Button>}
                 {podeEstornar && (
                   <Button
@@ -244,21 +249,34 @@ export function LancamentoFolha({ tenantId, nicho, folha, estornado, onClose, on
                     variant="ghost"
                     className="h-11 px-4"
                     disabled={ocupado}
-                    onClick={() => (setErro(""), setConfirmouPouco(false), setValorAntes(valor), setValor(formatBRL(folha.lancamento.valorCents)), setEstornando(true))}
+                    onClick={() => (setErro(""), setConfirmarPouco(false), setValorAntes(valor), setValor(formatBRL(folha.lancamento.valorCents)), setEstornando(true))}
                   >
-                    Estornar
+                    <RotateCcw aria-hidden="true" />Estornar
                   </Button>
                 )}
               </div>
             ) : <span />}
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row">
-              <Button type="button" variant="outline" className="h-11 px-4" disabled={ocupado} onClick={() => (estornando ? (setErro(""), setConfirmouPouco(false), setValor(valorAntes), setForma(base?.forma ?? "pix"), setEstornando(false)) : onClose())}>Voltar</Button>
+              <Button type="button" variant="outline" className="h-11 px-4" disabled={ocupado} onClick={() => (estornando ? (setErro(""), setConfirmarPouco(false), setValor(valorAntes), setForma(base?.forma ?? "pix"), setEstornando(false)) : onClose())}><ArrowLeft aria-hidden="true" />Voltar</Button>
               <Button type="submit" className="h-11 px-5" disabled={ocupado}>
-                {ocupado ? "Salvando…" : estornando ? "Estornar" : folha.modo === "baixa" ? "Recebi" : folha.modo === "pagar" ? "Paguei" : folha.modo === "novo" ? `Lançar ${tipo === "entrada" ? "entrada" : "saída"}` : "Salvar"}
+                {!ocupado && <Check aria-hidden="true" />}{ocupado ? "Salvando…" : estornando ? "Estornar" : folha.modo === "baixa" ? "Recebi" : folha.modo === "pagar" ? "Paguei" : folha.modo === "novo" ? `Lançar ${tipo === "entrada" ? "entrada" : "saída"}` : "Salvar"}
               </Button>
             </div>
           </div>
           </form>
+          {confirmarPouco && (
+            <ConfirmDialog
+              title={`Confirmar valor de ${formatBRL(centavos)}?`}
+              description="O valor está abaixo de R$ 1. Para registrar R$ 35,00, volte e digite 3500. Se o valor estiver correto, confirme para continuar."
+              confirmLabel="Sim, usar este valor"
+              tom="normal"
+              onConfirm={() => {
+                setConfirmarPouco(false);
+                return salvar(true);
+              }}
+              onCancel={() => setConfirmarPouco(false)}
+            />
+          )}
           {/* apagar não tem volta: um toque errado no celular não pode sumir com dinheiro */}
           {apagar && folha.modo === "editar" && (
             <ConfirmDialog
