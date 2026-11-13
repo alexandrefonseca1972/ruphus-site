@@ -336,7 +336,15 @@ for (let semente = 1; semente <= 500; semente++) {
   const fuso = um(["America/Sao_Paulo", "America/Manaus", "America/Noronha", undefined]);
   const hoje = um(DIAS);
   const { avisos, ...novo } = consultar(espacos, filtros, { crm, hoje, fuso });
-  assert.deepEqual(avisos, alertas(espacos, crm, hoje), `avisos, semente ${semente}`);
+  // os alertas contam no recorte de busca, lugar, nicho e Caixa (o mesmo das filas); sem recorte, todos
+  const recortado = !!(filtros.busca || filtros.uf || filtros.cidade || filtros.nicho || filtros.caixa);
+  const noRecorte = new Set(consultar(espacos, { ...filtros, situacao: "", estagio: "", prazo: "", alerta: "", fila: "", fora: false, contato: false, fixados: false }, { crm, hoje, fuso }).lista.map((e) => e.slug));
+  const esperados = alertas(espacos, crm, hoje);
+  assert.deepEqual(
+    avisos,
+    recortado ? esperados.map((x) => ({ ...x, slugs: x.slugs.filter((y) => noRecorte.has(y)) })).filter((x) => x.slugs.length > 0 || x.id === filtros.alerta) : esperados,
+    `avisos, semente ${semente}`,
+  );
   assert.deepEqual(novo, antigo(espacos, filtros, crm, hoje, fuso), `semente ${semente}: ${JSON.stringify(filtros)}`);
 }
 console.log("paridade com o cálculo antigo em 500 bases sorteadas: ok");

@@ -5,6 +5,7 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Lista do /admin, filtros: os filtros ligados e o “Limpar filtros” ficam numa linha própria; limpar numa fila do dia mantém a fila; a tela abre em “Retornos de hoje” já por compromisso mais próximo; os números dos alertas (“Sem próximo passo”, “Parado há 7+ dias”…) passam a contar no recorte de busca, lugar, nicho e Caixa.
 - Sites: a pasta `sites/` com 9 páginas feitas à mão (leads do DF) saiu do repositório. Nenhuma estava publicada: o Storage só guarda as fotos desses negócios, e os 9 endereços já eram montados pelo gerador, como todos os outros.
 - Prospecção manual no /admin: a gaveta mostra a mensagem da vez com um só botão “Abrir no WhatsApp” e a pergunta “Enviou?” (Sim/Não) na volta; depois do “Sim” abre o próximo da fila. O número de destino é editado no campo “Enviar para” (máscara e validação de DDD, também no servidor). Os 5 textos são personalizados em Prospecção, “Textos das mensagens” (`config/crm.textos`, marcadores como `{cliente}` e `{vendedor}`). Proposta enviada move o lead de Novo para Oferta enviada. Botões Respondeu, PARE, Fechou e Perdeu; lista com “Começar”, linha clicável e modo “Selecionar”. O link abre em `api.whatsapp.com/send` (o `wa.me` trocava emoji por “�”).
 - Prospecção automática (código pronto, desligado): variantes por nicho, fila de envio com cota e disjuntor, agente de IA com permissão e PARE, roteador de IA com orçamento diário. Nada disso envia sem `config/prospeccao.ativo`; a aba Prospecção recolhe esse bloco em “Envio automático · desligado”.

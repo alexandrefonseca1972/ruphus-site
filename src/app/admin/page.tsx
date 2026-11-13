@@ -151,7 +151,7 @@ export default function AdminPage() {
   const [cidade, setCidade] = useState("");
   const [nicho, setNicho] = useState("");
   const [situacao, setSituacao] = useState<Filtros["situacao"]>("");
-  const [ordem, setOrdem] = useState<Ordem>("relevancia");
+  const [ordem, setOrdem] = useState<Ordem>("compromisso");   // a da fila inicial (retornos), como em verFila
   const [todasCidades, setTodasCidades] = useState(false);
   const [pagina, setPagina] = useState({ chave: "", n: PAGINA });
   const [aberto, setAberto] = useState<Espaco | null>(null);
@@ -846,7 +846,8 @@ export default function AdminPage() {
     setCidade("");
     setNicho("");
     setComCaixa(false);
-    verVisao(VISOES.find((v) => v.id === "todos")!);   // por id: a ordem das visões muda
+    // numa fila do dia, limpar tira só a busca, o lugar, o nicho e o Caixa: a fila fica
+    if (!fila) verVisao(VISOES.find((v) => v.id === "todos")!);   // por id: a ordem das visões muda
   }
 
   const ABA = "flex h-12 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 text-[13px] transition-colors";
@@ -1470,11 +1471,15 @@ export default function AdminPage() {
         </select>
         </div>
 
+        {/* os filtros ligados numa linha própria: soltos na barra, quebravam um a um ("Limpar filtros"
+            ficava sozinho na linha de baixo) */}
+        {filtrando && (
+        <div className="flex w-full flex-wrap items-center gap-1.5 pb-2">
         {uf && (
           <button
             type="button"
             onClick={() => escolherUf("")}
-            className="my-2 mr-1.5 flex h-8 items-center gap-2 rounded-full bg-[#17150F] pl-3 pr-2 text-[12px] font-semibold text-white"
+            className="flex h-8 items-center gap-2 rounded-full bg-[#17150F] pl-3 pr-2 text-[12px] font-semibold text-white"
           >
             {uf} <span aria-hidden="true">✕</span>
             <span className="sr-only">Tirar o filtro de estado</span>
@@ -1484,7 +1489,7 @@ export default function AdminPage() {
           <button
             type="button"
             onClick={() => setCidade("")}
-            className="my-2 flex h-8 items-center gap-2 rounded-full bg-[#17150F] pl-3 pr-2 text-[12px] font-semibold text-white"
+            className="flex h-8 items-center gap-2 rounded-full bg-[#17150F] pl-3 pr-2 text-[12px] font-semibold text-white"
           >
             {cidade} <span aria-hidden="true">✕</span>
             <span className="sr-only">Tirar o filtro de cidade</span>
@@ -1494,20 +1499,20 @@ export default function AdminPage() {
           <button
             type="button"
             onClick={() => setNicho("")}
-            className="my-2 ml-1.5 flex h-8 items-center gap-2 rounded-full bg-[#17150F] pl-3 pr-2 text-[12px] font-semibold text-white"
+            className="flex h-8 items-center gap-2 rounded-full bg-[#17150F] pl-3 pr-2 text-[12px] font-semibold text-white"
           >
             {nicho} <span aria-hidden="true">✕</span>
             <span className="sr-only">Tirar o filtro de nicho</span>
           </button>
         )}
-        {filtrando && (
           <button
             type="button"
             onClick={limparTudo}
-            className="my-2 ml-2 h-8 px-2 text-[12px] text-[#6F6A5E] underline underline-offset-4 hover:text-[#17150F]"
+            className="h-8 px-2 text-[12px] text-[#6F6A5E] underline underline-offset-4 hover:text-[#17150F]"
           >
             Limpar filtros
           </button>
+        </div>
         )}
       </div>
 

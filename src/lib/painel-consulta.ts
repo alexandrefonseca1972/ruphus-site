@@ -233,9 +233,15 @@ export function consultar(espacos: readonly Espaco[], f: Filtros, ctx: Contexto)
   const visoes: Record<VisaoId, number> = { atrasados: 0, hoje: 0, falei: 0, fixados: 0, todos: 0, pendentes: 0, negociando: 0, foradoar: 0 };
   let caixa = 0, contratadoCents = 0, negociacaoCents = 0;
   const tirando = { cidade: 0, nicho: 0 };
+  // os alertas contam no mesmo recorte das filas (busca, lugar, nicho e Caixa): com a cidade
+  // filtrada, o número do chip é o que a lista mostra ao tocar nele
+  const recortado = !!(f.busca || f.uf || f.cidade || f.nicho || f.caixa);
+  const noRecorte = new Set<string>();
+  const foraDoRecorte = B.situacao | B.estagio | B.prazo | B.fora | B.contato | B.fixados | B.alerta | B.fila;
 
   for (const e of espacos) {
     const { c, estagio, prazo, falou, destaque, m } = marcar(e);
+    if (recortado && passaSalvo(m, foraDoRecorte)) noRecorte.add(e.slug);
 
     if (m === 0) (destaque ? destacados : demais).push(e);
     if (passaSalvo(m, B.uf)) ufs.somar(e.uf ?? "");
@@ -295,7 +301,9 @@ export function consultar(espacos: readonly Espaco[], f: Filtros, ctx: Contexto)
     caixa,
     tirando,
     visoes,
-    avisos,
+    avisos: recortado
+      ? avisos.map((a) => ({ ...a, slugs: a.slugs.filter((x) => noRecorte.has(x)) })).filter((a) => a.slugs.length > 0 || a.id === f.alerta)
+      : avisos,
     totais: { contratadoCents, negociacaoCents },
   };
 }
