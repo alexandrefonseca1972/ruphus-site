@@ -6,6 +6,10 @@ import { COR, diaCurto, mensal, MOTIVOS_PERDA, ORIGENS, prazoDe, ROTULO, type Cr
 import { COLUNAS, NOVOS_MAX, NOVOS_POR_VEZ, origemDe, PERIODOS, ehPeriodo, type LinhaVariante, type NumerosDaSemana, type Periodo, type ResumoDoFunil } from "@/lib/funil-consulta";
 import type { Espaco } from "./actions";
 
+// A coluna é a etapa do banco: o Novo junta quem nunca foi contatado e quem já recebeu mensagem
+// (na Lista, "Em contato"). O rótulo diz isso; arrastar para cá grava "novo"
+const ROTULO_COLUNA: typeof ROTULO = { ...ROTULO, novo: "Novo e em contato" };
+
 // O funil em colunas: os mesmos negócios da lista (com os mesmos filtros e busca),
 // agrupados por estágio, com os números do período em cima e origem e perdas embaixo.
 // Os números vêm prontos da rota do painel (src/lib/funil-consulta.ts).
@@ -189,7 +193,7 @@ export function Funil({
               <li key={e} className="flex flex-col gap-1.5">
                 <span className={`h-2.5 rounded-full ${COR[e].split(" ")[0]}`} />
                 <span className="flex justify-between gap-2 text-[11px]">
-                  <span><b className="font-semibold">{ROTULO[e]}</b> · {n.colunas[e].total}</span>
+                  <span><b className="font-semibold">{ROTULO_COLUNA[e]}</b> · {n.colunas[e].total}</span>
                   {i > 0 && <span className="text-[#6F6A5E]">{antes ? `${Math.round((aqui / antes) * 100)}% chegam` : "—"}</span>}
                 </span>
               </li>
@@ -288,7 +292,7 @@ export function Funil({
             onClick={() => setEtapaMovel(e)}
             className={`flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-xs whitespace-nowrap ${etapaMovel === e ? "border-[#17150F] bg-[#17150F] font-bold text-white" : "border-[#D8D2C6] bg-white font-semibold text-[#17150F]"}`}
           >
-            {ROTULO[e]} <span className={etapaMovel === e ? "text-white/70" : "text-[#6F6A5E]"}>{(e === "perdido" ? n.perdidos : n.colunas[e].total).toLocaleString("pt-BR")}</span>
+            {ROTULO_COLUNA[e]} <span className={etapaMovel === e ? "text-white/70" : "text-[#6F6A5E]"}>{(e === "perdido" ? n.perdidos : n.colunas[e].total).toLocaleString("pt-BR")}</span>
           </button>
         ))}
       </div>
@@ -301,12 +305,12 @@ export function Funil({
             return (
               <section
                 key={e}
-                aria-label={ROTULO[e]}
+                aria-label={ROTULO_COLUNA[e]}
                 {...alvo(e)}
                 className={`flex flex-col gap-2.5 rounded-2xl p-3 transition-colors ${etapaMovel === e ? "" : "max-sm:hidden"} ${sobre === e ? "bg-[#E4DED2] ring-2 ring-[#17150F]" : "bg-[#EFEBE2]"}`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR[e]}`}>{ROTULO[e]}</span>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR[e]}`}>{ROTULO_COLUNA[e]}</span>
                   <span className="text-[11px] text-[#6F6A5E]">
                     {total}
                     {e !== "novo" && total ? ` · ${formatBRL(soma)}/mês` : ""}
@@ -338,7 +342,7 @@ export function Funil({
                       Mostrar mais {Math.min(NOVOS_POR_VEZ, total - novos)}
                     </button>
                     <button type="button" onClick={verNovos} className="h-9 text-[11px] font-semibold underline underline-offset-4">
-                      Ver os {total} novos na Lista
+                      Ver os novos na Lista
                     </button>
                   </div>
                 )}

@@ -64,7 +64,7 @@ import { ColetaMaps } from "./coleta";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
 import { DemoMenu } from "./demo-menu";
-import { AUTOR_LEVANTAMENTO, COR, DESFECHOS, diaCurto, ESTAGIOS, ETAPAS, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, campanhaDe, TOQUES_MAX, type Crm, type EnvioConfirmado, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
+import { AUTOR_LEVANTAMENTO, COR, COR_NA_TELA, DESFECHOS, diaCurto, ETAPAS, ETAPAS_NA_TELA, etapaNaTela, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, ROTULO_NA_TELA, campanhaDe, TOQUES_MAX, type Crm, type EnvioConfirmado, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
 
 const VAZIO: Crm = {
   estagio: "novo", entradaCents: null, mensalCents: null, caixaCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
@@ -76,7 +76,7 @@ const CIDADES_VISIVEIS = 5;
 // antes da primeira página: chips, visões e alertas zerados (a lista mostra "carregando")
 const CONTAGENS_VAZIAS: PaginaDoServidor["contagens"] = {
   ufs: [], cidades: [], nichos: [], caixa: 0, avisos: [],
-  estagios: { novo: 0, oferta: 0, negociando: 0, fechado: 0, perdido: 0 },
+  estagios: { novo: 0, contato: 0, oferta: 0, negociando: 0, fechado: 0, perdido: 0 },
   prazos: { atrasada: 0, hoje: 0, futura: 0 },
   tirando: { cidade: 0, nicho: 0 },
   visoes: Object.fromEntries(VISOES.map((v) => [v.id, 0])) as PaginaDoServidor["contagens"]["visoes"],
@@ -902,8 +902,8 @@ export default function AdminPage() {
               <div className="flex items-center gap-2">
                 <h3 className="text-[11px] font-semibold tracking-[0.07em] text-[#6F6A5E] uppercase">Etapa</h3>
                 <div className="grow" />
-                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR[crm[aberto.slug]?.estagio ?? "novo"]}`}>
-                  {ROTULO[crm[aberto.slug]?.estagio ?? "novo"]}
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR_NA_TELA[etapaNaTela(crm[aberto.slug])]}`}>
+                  {ROTULO_NA_TELA[etapaNaTela(crm[aberto.slug])]}
                 </span>
               </div>
 
@@ -1408,12 +1408,12 @@ export default function AdminPage() {
                 <div className="flex flex-wrap items-center gap-2 border-t border-[#EDE9E1] pt-3.5">
                   <span className="mr-1 w-full text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6F6A5E]">Funil</span>
                   <Chip ativo={!estagio} onClick={() => setEstagio("")}>Todos</Chip>
-                  {ESTAGIOS.map((e) => {
+                  {ETAPAS_NA_TELA.map((e) => {
                     const n = contagens.estagios[e];
                     // oferecer um chip que dá lista vazia é oferecer um beco sem saída
                     return (
                       <Chip key={e} ativo={estagio === e} disabled={!n && estagio !== e} onClick={() => setEstagio(estagio === e ? "" : e)}>
-                        {ROTULO[e]} <span className={estagio === e ? "text-white/70" : "text-[#6F6A5E]"}>{n}</span>
+                        {ROTULO_NA_TELA[e]} <span className={estagio === e ? "text-white/70" : "text-[#6F6A5E]"}>{n}</span>
                       </Chip>
                     );
                   })}
@@ -1805,8 +1805,8 @@ export default function AdminPage() {
                         : "sem nota"}
                     </span>
                     <span className="flex flex-wrap items-center gap-1 xl:w-[190px] xl:shrink-0">
-                      <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${COR[(crm[e.slug]?.estagio ?? "novo") as Estagio]}`}>
-                        {ROTULO[(crm[e.slug]?.estagio ?? "novo") as Estagio]}
+                      <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${COR_NA_TELA[etapaNaTela(crm[e.slug])]}`}>
+                        {ROTULO_NA_TELA[etapaNaTela(crm[e.slug])]}
                       </span>
                       {/* em prospecção: em que toque da cadência ele está */}
                       {(crm[e.slug]?.estagio ?? "novo") === "novo" && !crm[e.slug]?.respondeuEm && (
@@ -1964,8 +1964,8 @@ export default function AdminPage() {
                 <p className="truncate text-[13px] text-[#6F6A5E]">{[local(aberto), aberto.nicho].filter(Boolean).join(" · ")}</p>
                 {/* O que o vendedor precisa saber antes de rolar: em que pé está e o que ficou combinado */}
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR[crm[aberto.slug]?.estagio ?? "novo"]}`}>
-                    {ROTULO[crm[aberto.slug]?.estagio ?? "novo"]}
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${COR_NA_TELA[etapaNaTela(crm[aberto.slug])]}`}>
+                    {ROTULO_NA_TELA[etapaNaTela(crm[aberto.slug])]}
                   </span>
                   <span title="Contatados hoje" className={`rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums ${contagens.faleiHoje >= META_DIA ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#F3EFE7] text-[#4A4639]"}`}>
                     {contagens.faleiHoje}/{META_DIA} hoje

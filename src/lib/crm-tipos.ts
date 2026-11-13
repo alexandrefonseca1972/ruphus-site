@@ -25,6 +25,17 @@ export const COR: Record<Estagio, string> = {
   perdido: "bg-[#F1E7E7] text-[#8A2F2F]",
 };
 
+/** Na tela, "Novo" se divide em dois: quem já recebeu mensagem e segue sem responder é "Em contato".
+ *  No banco a etapa é a mesma (novo); a divisão sai dos toques e do último contato. */
+export type EtapaNaTela = Estagio | "contato";
+export const ETAPAS_NA_TELA = ["novo", "contato", "oferta", "negociando", "fechado", "perdido"] as const satisfies readonly EtapaNaTela[];
+export const etapaNaTela = (c?: { estagio?: Estagio; toques?: number | null; ultimoContatoEm?: string | null } | null): EtapaNaTela => {
+  const e = c?.estagio ?? "novo";
+  return e === "novo" && (c?.toques || c?.ultimoContatoEm) ? "contato" : e;
+};
+export const ROTULO_NA_TELA: Record<EtapaNaTela, string> = { ...ROTULO, contato: "Em contato" };
+export const COR_NA_TELA: Record<EtapaNaTela, string> = { ...COR, contato: "bg-[#E8EEF3] text-[#2F4A5C]" };
+
 /** O que a Ruphus cobra por padrao, em centavos. Mesmo numero que o JSON-LD da
  *  landing anuncia ("R$ 250 + R$ 89,90/mes"): um negocio novo ja nasce com ele
  *  no cartao, e so se digita quando o acerto sai do padrao. */

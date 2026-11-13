@@ -5,7 +5,7 @@
 import { z } from "zod";
 import type { Alerta } from "@/lib/alertas";
 import { UFS, type Uf } from "@/lib/coleta";
-import { ESTAGIOS, type Crm, type Prazo } from "@/lib/crm-tipos";
+import { ETAPAS_NA_TELA, type Crm, type Prazo } from "@/lib/crm-tipos";
 import type { ResultadoPainel } from "@/lib/painel-consulta";
 import { NOVOS_MAX, NOVOS_POR_VEZ, PERIODOS, type LinhaVariante, type NumerosDaSemana, type Periodo, type ResumoDoFunil } from "@/lib/funil-consulta";
 
@@ -110,7 +110,7 @@ export const ConsultaPainel = z.strictObject({
   cidade: texto(100).default(""),
   nicho: z.string().refine((s) => s === "" || NICHOS_DO_PAINEL.includes(s), "nicho desconhecido").default(""),
   situacao: opcao(SITUACOES),
-  estagio: opcao(ESTAGIOS),
+  estagio: opcao(ETAPAS_NA_TELA),   // "contato" = Novo que já recebeu mensagem (etapaNaTela)
   prazo: opcao(PRAZOS),
   alerta: opcao(ALERTAS),
   // sem padrão: ausente quando não vem na URL

@@ -4,6 +4,10 @@ import { ESTAGIOS, mensalidadeDe, prazoDe, PRECO_PADRAO, type Crm, type Estagio 
 import { celular, celularDe, celularesRepetidos, consultar, contarFilas, diaLocal, local, semAcento, visaoDe, VISOES, type ResultadoPainel } from "@/lib/painel-consulta";
 import { ORDENS, SEM_FILTROS, type Espaco, type Filtros } from "@/lib/painel-tipos";
 
+// a etapa como a tela mostra, reescrita aqui (não importa a de produção): Novo que já recebeu mensagem é "Em contato"
+const NA_TELA = [...ESTAGIOS, "contato"] as const;
+const etapaDe = (c?: Crm) => { const e = c?.estagio ?? "novo"; return e === "novo" && (c?.toques || c?.ultimoContatoEm) ? "contato" : e; };
+
 // A consulta do painel (src/lib/painel-consulta.ts) substitui o cálculo que vivia no
 // /admin. Três partes: regras uma a uma, paridade com o cálculo antigo em bases
 // sorteadas, e o teto de tempo que o servidor vai precisar (docs/plano-paginacao-admin.md).
@@ -49,7 +53,8 @@ const slugs = (r: ResultadoPainel) => r.lista.map((e) => e.slug);
   assert.deepEqual(slugs(consultar(base, f({ situacao: "ativo" }), ctx)), ["cliente"]);
   assert.equal(consultar(base, f({ situacao: "pendente" }), ctx).lista.length, 3);
   assert.deepEqual(slugs(consultar(base, f({ estagio: "negociando" }), ctx)), ["ana-barbearia"]);
-  assert.equal(consultar(base, f({ estagio: "novo" }), ctx).lista.length, 2, "sem CRM conta como novo");
+  assert.deepEqual(slugs(consultar(base, f({ estagio: "novo" }), ctx)), ["sem-cidade"], "sem CRM conta como novo; o já contatado não");
+  assert.deepEqual(slugs(consultar(base, f({ estagio: "contato" }), ctx)), ["jose-salao"], "Novo que já recebeu mensagem é Em contato");
   assert.deepEqual(slugs(consultar(base, f({ prazo: "atrasada" }), ctx)), ["ana-barbearia"]);
   assert.deepEqual(slugs(consultar(base, f({ prazo: "hoje" }), ctx)), ["jose-salao"]);
   assert.deepEqual(slugs(consultar(base, f({ fora: true }), ctx)), ["jose-salao"]);
@@ -68,7 +73,7 @@ const slugs = (r: ResultadoPainel) => r.lista.map((e) => e.slug);
 
   const todos = consultar(base, f(), ctx);
   assert.deepEqual(todos.prazos, { atrasada: 1, hoje: 1, futura: 0 });
-  assert.deepEqual(todos.estagios, { novo: 2, oferta: 0, negociando: 1, fechado: 1, perdido: 0 });
+  assert.deepEqual(todos.estagios, { novo: 1, contato: 1, oferta: 0, negociando: 1, fechado: 1, perdido: 0 });
   assert.equal(todos.caixa, 4, "Caixa incluído em todos os negócios");
   assert.deepEqual(todos.visoes, { atrasados: 1, hoje: 1, falei: 1, fixados: 1, todos: 4, pendentes: 3, negociando: 1, foradoar: 1 });
   // o valor legado do Caixa não soma mais na mensalidade
@@ -216,7 +221,7 @@ function antigo(espacos: Espaco[], x: Filtros, crm: Record<string, Crm>, dataDeH
     cidade: (e) => !x.cidade || local(e) === x.cidade,
     nicho: (e) => !x.nicho || e.nicho === x.nicho,
     situacao: (e) => !x.situacao || (x.situacao === "ativo" ? e.acessos > 1 : e.acessos <= 1),
-    estagio: (e) => !x.estagio || (crm[e.slug]?.estagio ?? "novo") === x.estagio,
+    estagio: (e) => !x.estagio || etapaDe(crm[e.slug]) === x.estagio,
     prazo: (e) => !x.prazo || prazoDe(crm[e.slug], dataDeHoje) === x.prazo,
     fora: (e) => !x.fora || crm[e.slug]?.publicado === false,
     caixa: (e) => !x.caixa || e.caixa,
@@ -263,7 +268,7 @@ function antigo(espacos: Espaco[], x: Filtros, crm: Record<string, Crm>, dataDeH
     ufs: contar(espacos.filter((e) => passa(e, "uf")), (e) => e.uf ?? ""),
     cidades: contar(espacos.filter((e) => passa(e, "cidade")), local),
     nichos: contar(espacos.filter((e) => passa(e, "nicho")), (e) => e.nicho),
-    estagios: Object.fromEntries(ESTAGIOS.map((s) => [s, noFunil.filter((y) => (crm[y.slug]?.estagio ?? "novo") === s).length])) as Record<Estagio, number>,
+    estagios: Object.fromEntries(NA_TELA.map((s) => [s, noFunil.filter((y) => etapaDe(crm[y.slug]) === s).length])) as ResultadoPainel["estagios"],
     prazos,
     caixa: espacos.filter((e) => e.caixa && passa(e, "caixa")).length,
     tirando: { cidade: espacos.filter((y) => passa(y, "cidade")).length, nicho: espacos.filter((y) => passa(y, "nicho")).length },
@@ -326,7 +331,7 @@ for (let semente = 1; semente <= 500; semente++) {
     cidade: r() < 0.2 ? local(amostra) : "",
     nicho: r() < 0.2 ? um(NICHOS) : "",
     situacao: r() < 0.2 ? um(["ativo", "pendente"] as const) : "",
-    estagio: r() < 0.2 ? um(ESTAGIOS) : "",
+    estagio: r() < 0.2 ? um(NA_TELA) : "",
     prazo: r() < 0.2 ? um(["atrasada", "hoje", "futura"] as const) : "",
     alerta: r() < 0.15 ? um(["sem_proxima", "parado", "implantacao", "destaque"] as const) : "",
     fora: r() < 0.1, caixa: r() < 0.1, contato: r() < 0.1, fixados: r() < 0.1,

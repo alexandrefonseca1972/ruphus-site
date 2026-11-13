@@ -8,7 +8,7 @@
 // sobram com os OUTROS filtros ligados. Somar tudo fazia um chip prometer 115 e
 // entregar lista vazia.
 import { alertas, type Alerta } from "@/lib/alertas";
-import { mensal, mensalidadeDe, prazoDe, type Crm, type Estagio, type Prazo } from "@/lib/crm-tipos";
+import { etapaNaTela, mensal, mensalidadeDe, prazoDe, type Crm, type Estagio, type EtapaNaTela, type Prazo } from "@/lib/crm-tipos";
 import { FILAS, type Espaco, type Fila, type Filtros, type Ordem, type Situacao } from "@/lib/painel-tipos";
 import { paraTelefoneNorm, type TelefoneNorm } from "@/lib/tipos-marca";
 
@@ -150,7 +150,7 @@ export type ResultadoPainel = {
   ufs: [string, number][];
   cidades: [string, number][];
   nichos: [string, number][];
-  estagios: Record<Estagio, number>;
+  estagios: Record<EtapaNaTela, number>;
   prazos: Record<Prazo, number>;
   caixa: number;
   /** quantos sobram ao tirar o filtro de cidade ou de nicho (inclui quem não tem cidade) */
@@ -176,6 +176,8 @@ function mascarador(f: Filtros, { crm, hoje, fuso }: Contexto, emFoco: Set<strin
   return (e: Espaco) => {
     const c = crm[e.slug];
     const estagio = c?.estagio ?? "novo";
+    // o filtro e os chips de etapa separam o Novo já contatado ("Em contato"); as visões e o dinheiro seguem a etapa do banco
+    const etapa = etapaNaTela(c);
     const prazo = prazoDe(c, hoje);
     const falou = diaLocal(c?.ultimoContatoEm ?? null, fuso) === hoje;
     const destaque = emDestaque(c, hoje);
@@ -185,7 +187,7 @@ function mascarador(f: Filtros, { crm, hoje, fuso }: Contexto, emFoco: Set<strin
     if (f.cidade && local(e) !== f.cidade) m |= B.cidade;
     if (f.nicho && e.nicho !== f.nicho) m |= B.nicho;
     if (f.situacao && !naSituacao(e, f.situacao)) m |= B.situacao;
-    if (f.estagio && estagio !== f.estagio) m |= B.estagio;
+    if (f.estagio && etapa !== f.estagio) m |= B.estagio;
     if (f.prazo && prazo !== f.prazo) m |= B.prazo;
     if (f.fora && c?.publicado !== false) m |= B.fora;
     if (f.caixa && !e.caixa) m |= B.caixa;
@@ -193,7 +195,7 @@ function mascarador(f: Filtros, { crm, hoje, fuso }: Contexto, emFoco: Set<strin
     if (f.fixados && !destaque) m |= B.fixados;
     if (emFoco && !emFoco.has(e.slug)) m |= B.alerta;
     if (f.fila && !naFila(f.fila, e, c, prazo, repetidos)) m |= B.fila;
-    return { c, estagio, prazo, falou, destaque, m };
+    return { c, estagio, etapa, prazo, falou, destaque, m };
   };
 }
 
@@ -228,7 +230,7 @@ export function consultar(espacos: readonly Espaco[], f: Filtros, ctx: Contexto)
   const destacados: Espaco[] = [];
   const demais: Espaco[] = [];
   const ufs = contador(), cidades = contador(), nichos = contador();
-  const estagios: Record<Estagio, number> = { novo: 0, oferta: 0, negociando: 0, fechado: 0, perdido: 0 };
+  const estagios: Record<EtapaNaTela, number> = { novo: 0, contato: 0, oferta: 0, negociando: 0, fechado: 0, perdido: 0 };
   const prazos: Record<Prazo, number> = { atrasada: 0, hoje: 0, futura: 0 };
   const visoes: Record<VisaoId, number> = { atrasados: 0, hoje: 0, falei: 0, fixados: 0, todos: 0, pendentes: 0, negociando: 0, foradoar: 0 };
   let caixa = 0, contratadoCents = 0, negociacaoCents = 0;
@@ -240,7 +242,7 @@ export function consultar(espacos: readonly Espaco[], f: Filtros, ctx: Contexto)
   const foraDoRecorte = B.situacao | B.estagio | B.prazo | B.fora | B.contato | B.fixados | B.alerta | B.fila;
 
   for (const e of espacos) {
-    const { c, estagio, prazo, falou, destaque, m } = marcar(e);
+    const { c, estagio, etapa, prazo, falou, destaque, m } = marcar(e);
     if (recortado && passaSalvo(m, foraDoRecorte)) noRecorte.add(e.slug);
 
     if (m === 0) (destaque ? destacados : demais).push(e);
@@ -254,7 +256,7 @@ export function consultar(espacos: readonly Espaco[], f: Filtros, ctx: Contexto)
       tirando.nicho += 1;
     }
     // estágio fora da lista (dado antigo) não vira chip, como antes
-    if (passaSalvo(m, B.estagio) && estagio in estagios) estagios[estagio] += 1;
+    if (passaSalvo(m, B.estagio) && etapa in estagios) estagios[etapa] += 1;
     if (passaSalvo(m, B.prazo) && prazo) prazos[prazo] += 1;
     if (passaSalvo(m, B.caixa) && e.caixa) caixa += 1;
     // cada visão controla prazo, situação, estágio e fora do ar; o resto vem dos filtros ligados.
