@@ -42,10 +42,17 @@ export async function enviarAvaliacoesDoDia(db: Firestore = adminDb, agora = new
     if (enabledAt === null) return;
 
     const limite = new Date(agora.getTime() - delayMin * 60_000);
+    // Só quem ficou devido nas últimas 48 h, do mais novo para o mais antigo. Sem o piso, a consulta
+    // relia todo concluído desde que o negócio ligou as avaliações e, passando de 100, devolvia sempre
+    // os 100 mais antigos (já pedidos): os novos nunca ganhavam pedido.
+    // ponytail: cron parado por mais de 48 h perde os pedidos da janela; negócio com mais de 300
+    // concluídos em 48 h perde os mais antigos. Para subir disso, gravar a data devida ao concluir
+    const piso = new Date(Math.max(enabledAt, limite.getTime() - 2 * DIA));
     const concluidos = await t.ref.collection("appointments")
-      .where("completedAt", ">=", new Date(enabledAt))
+      .where("completedAt", ">=", piso)
       .where("completedAt", "<=", limite)
-      .limit(100)
+      .orderBy("completedAt", "desc")
+      .limit(300)
       .get();
     for (const a of concluidos.docs) {
       if (a.get("status") !== "confirmed" || a.get("reviewRequestCreatedAt")) continue;

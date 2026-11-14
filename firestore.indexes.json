@@ -99,6 +99,34 @@
       ]
     },
     {
+      "collectionGroup": "avaliacoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "staffId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "respondidaEm",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "avaliacoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "staffId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "enviadaEm",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "prospeccaoFila",
       "queryScope": "COLLECTION",
       "fields": [

@@ -387,7 +387,7 @@ imprimindo `ok`. O que toca o banco sobe o emulador sozinho.
 | `npm run test:whatsapp` | não | DDI por tamanho do número |
 | `npm run test:rules` | sim | regras do Firestore e do Storage |
 | `npm run test:booking` | sim | reservas, concorrência, planos, limites, CRM |
-| `npm run test:avaliacoes` | sim | conclusão, cron, retries, tokens, resposta, sanitização e limites |
+| `npm run test:avaliacoes` | sim | conclusão, cron, retries, tokens, resposta e sanitização |
 | `npm run test:convite` | sim | validade, uso único e a quem o link abre |
 | `npm run test:admin` | não | o `select` da lista não pode ficar atrás dos campos lidos |
 | `npm run test:cobranca` | sim | Pix, token, baixa |

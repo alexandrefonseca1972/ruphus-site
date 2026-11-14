@@ -4,8 +4,6 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { COMENTARIO_AVALIACAO_MAX, mediaGeral, RespostaAvaliacao } from "@/lib/avaliacoes";
 import { textoSeguro } from "@/lib/sanitizar";
 import { segredoIgual } from "@/lib/segredo.server";
-import { todayIn } from "@/lib/datetime";
-import { redeDoIp } from "@/lib/booking.server";
 
 export function tokenAvaliacao(tenantId: string, appointmentId: string) {
   const segredo = process.env.AVALIACAO_TOKEN_SECRET || process.env.CRON_SECRET;
@@ -50,7 +48,10 @@ export async function abrirAvaliacao(db: Firestore, tenantId: string, appointmen
   };
 }
 
-export async function responderAvaliacao(db: Firestore, entrada: unknown, ip?: string) {
+// Sem limite por IP: o token do link é um HMAC de 256 bits (não se adivinha), token inválido já sai
+// antes de qualquer gravação e cada atendimento aceita uma resposta só. O limite que havia (10 por
+// rede e por dia) só barrava clientes de verdade atrás da mesma rede de operadora.
+export async function responderAvaliacao(db: Firestore, entrada: unknown) {
   const parsed = RespostaAvaliacao.safeParse(entrada);
   if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0].message };
   const input = parsed.data;
@@ -58,18 +59,14 @@ export async function responderAvaliacao(db: Firestore, entrada: unknown, ip?: s
   if (Array.from(comentario).length > COMENTARIO_AVALIACAO_MAX) return { ok: false as const, error: `Use no máximo ${COMENTARIO_AVALIACAO_MAX} caracteres no comentário.` };
   const ref = refAvaliacao(db, input.tenantId, input.appointmentId);
   const appointment = db.doc(`tenants/${input.tenantId}/appointments/${input.appointmentId}`);
-  const dia = todayIn();
-  const limite = ip ? db.doc(`tenants/${input.tenantId}/limits/review-${createHash("sha256").update(`ruphus-avaliacao-ip:${redeDoIp(ip.trim().slice(0, 100))}`).digest("hex").slice(0, 16)}-${dia}`) : null;
 
   return db.runTransaction(async (tx) => {
-    const [snap, agendamento, contador] = await Promise.all([tx.get(ref), tx.get(appointment), ...(limite ? [tx.get(limite)] : [])]);
+    const [snap, agendamento] = await Promise.all([tx.get(ref), tx.get(appointment)]);
     if (!snap.exists || !segredoIgual(hashTokenAvaliacao(input.token), String(snap.get("tokenHash") ?? ""))) return { ok: false as const, error: "Este link de avaliação não é válido." };
     if (snap.get("status") === "respondida") return { ok: true as const, already: true };
     const expiraEm = millis(snap.get("expiraEm"));
     if (expiraEm !== null && expiraEm <= Date.now()) return { ok: false as const, error: "Este link de avaliação venceu. Fale com o negócio se ainda quiser compartilhar sua experiência." };
     if (!agendamento.exists || !agendamento.get("completedAt") || agendamento.get("status") !== "confirmed") return { ok: false as const, error: "Este atendimento não está mais disponível para avaliação." };
-    if (Number(contador?.get("count") ?? 0) >= 10) return { ok: false as const, error: "Muitas tentativas em sequência. Aguarde alguns minutos e tente de novo." };
-    if (limite) tx.set(limite, { count: FieldValue.increment(1), day: dia }, { merge: true });
     tx.update(ref, {
       status: "respondida",
       notas: input.notas,

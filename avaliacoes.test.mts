@@ -1,6 +1,5 @@
 // Rode: npm run test:avaliacoes
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { concluirAtendimento, reschedule, rescheduleSlots } from "@/lib/booking.server";
@@ -8,7 +7,6 @@ import { abrirAvaliacao, hashTokenAvaliacao, refAvaliacao, responderAvaliacao, t
 import { enviarAvaliacoesDoDia } from "@/lib/avaliacoes-whatsapp.server";
 import { mediaGeral, primeiroNome, RespostaAvaliacao } from "@/lib/avaliacoes";
 import { TERMO_WHATSAPP_VERSAO } from "@/lib/consentimento-whatsapp";
-import { todayIn } from "@/lib/datetime";
 
 process.env.CRON_SECRET = "segredo-de-teste-para-avaliacoes";
 assert.equal(mediaGeral({ servico: 5, profissional: 4, atendimento: 5, ambiente: null, localizacao: null }), 14 / 3);
@@ -82,13 +80,13 @@ assert.equal(Object.hasOwn((await abrirAvaliacao(db, "loja", "a1", token)) ?? {}
 
 const notas = { servico: 5, profissional: 5, atendimento: 4, ambiente: null, localizacao: null };
 const resposta = { tenantId: "loja", appointmentId: "a1", token, notas, comentario: "  <script>alert(1)</script>\u200b\n  Ótimo   atendimento  " };
-const respondida = await responderAvaliacao(db, resposta, "203.0.113.10");
+const respondida = await responderAvaliacao(db, resposta);
 assert.deepEqual(respondida, { ok: true, already: false });
 const salva = await refAvaliacao(db, "loja", "a1").get();
 assert.equal(salva.get("status"), "respondida");
 assert.equal(salva.get("notaGeral"), 14 / 3);
 assert.equal(salva.get("comentario"), "<script>alert(1)</script>\nÓtimo atendimento");
-assert.deepEqual(await responderAvaliacao(db, { ...resposta, comentario: "mudança não vale" }, "203.0.113.10"), { ok: true, already: true });
+assert.deepEqual(await responderAvaliacao(db, { ...resposta, comentario: "mudança não vale" }), { ok: true, already: true });
 assert.equal((await refAvaliacao(db, "loja", "a1").get()).get("comentario"), "<script>alert(1)</script>\nÓtimo atendimento");
 assert.equal((await abrirAvaliacao(db, "loja", "a1", token))?.status, "respondida");
 assert.equal((await responderAvaliacao(db, { ...resposta, notas: { ...notas, servico: 6 } })).ok, false);
@@ -99,11 +97,6 @@ await agenda("exp");
 await refAvaliacao(db, "loja", "exp").set({ status: "enviada", tokenHash: hashTokenAvaliacao(tokenAvaliacao("loja", "exp")), expiraEm: at("2026-11-12T00:00:00.000Z"), customerName: "Exp", businessName: "Salão", serviceName: "Corte", staffName: "Ana", siteUrl: "https://loja.ruphus.site/" });
 assert.equal((await abrirAvaliacao(db, "loja", "exp", tokenAvaliacao("loja", "exp")))?.status, "expirada");
 assert.equal((await responderAvaliacao(db, { ...resposta, appointmentId: "exp", token: tokenAvaliacao("loja", "exp") })).ok, false);
-await agenda("limite");
-await refAvaliacao(db, "loja", "limite").set({ status: "enviada", tokenHash: hashTokenAvaliacao(tokenAvaliacao("loja", "limite")), expiraEm: at("2026-11-20T00:00:00.000Z") });
-const ipHash = createHash("sha256").update("ruphus-avaliacao-ip:203.0.113.11").digest("hex").slice(0, 16);
-await db.doc(`tenants/loja/limits/review-${ipHash}-${todayIn()}`).set({ count: 10 });
-assert.match((await responderAvaliacao(db, { ...resposta, appointmentId: "limite", token: tokenAvaliacao("loja", "limite") }, "203.0.113.11")).error ?? "", /Muitas tentativas/);
 
 // Conclusão explícita: só depois do fim, pelo profissional certo, uma vez e sem remarcação depois.
 await agenda("futuro", { completedAt: null, end: new Date(Date.now() + 60_000) });
@@ -162,6 +155,19 @@ await agenda("concorrente");
 const antesConcorrencia = envios.length;
 await Promise.all([enviarAvaliacoesDoDia(db, agora, deps), enviarAvaliacoesDoDia(db, agora, deps)]);
 assert.equal(envios.length - antesConcorrencia, 1, "duas execuções não duplicam a mensagem");
+
+// negócio com mais de 100 atendimentos antigos já pedidos: o concluído de agora ainda ganha o pedido
+// (a consulta relia os 100 mais antigos desde enabledAt e nunca chegava ao novo)
+await db.doc("tenants/cheia").set({
+  name: "Cheia", site: { uf: "SP", phone: "5511988880000" }, whatsapp: { canalOficial: true },
+  avaliacoes: { enabled: true, delayMin: 30, enabledAt: at("2026-10-01T10:00:00.000Z") },
+});
+const lote = db.batch();
+for (let i = 0; i < 120; i++) lote.set(db.doc(`tenants/cheia/appointments/velho${i}`), { ...baseAgenda, completedAt: at("2026-11-05T12:00:00.000Z"), reviewRequestCreatedAt: at("2026-11-05T12:40:00.000Z") });
+lote.set(db.doc("tenants/cheia/appointments/novo"), { ...baseAgenda, completedAt: at("2026-11-13T10:30:00.000Z") });
+await lote.commit();
+await enviarAvaliacoesDoDia(db, agora, deps);
+assert.ok((await db.doc("tenants/cheia/avaliacoes/novo").get()).exists, "o atendimento novo ganha pedido mesmo com 120 antigos na frente");
 
 await db.terminate();
 console.log("avaliacoes: ok");
