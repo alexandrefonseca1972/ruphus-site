@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { atualizarParada, avisarFalhaDeEnvio, NAO_SAI_A_TEMPO, prazoDaParada, registrarParada, vigiarEnvio } from "@/lib/mensagens-paradas.server";
+import { avisarFalhaDeEnvio, NAO_SAI_A_TEMPO, vigiarEnvio } from "@/lib/mensagens-paradas.server";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { mascararDigitos } from "@/lib/sanitizar";
 import { agendamentoDoEnvio, statusDoAtendys, tipoDoTemplate, type TipoEnvio } from "@/lib/consumo";
@@ -34,15 +34,12 @@ export const TIMEOUT_MS = 35_000;
 /** O que vai para quem gere (lastNotifyError, painel): a frase prevista, nunca o texto técnico
  *  de um erro inesperado (ex.: "Unexpected token '<'" de um proxy que devolveu HTML). */
 export const motivoLegivel = (e: unknown) => (e instanceof ErroPrevisto ? e.message : "erro inesperado no serviço de WhatsApp");
-/** Resposta do envio. status "queued" com retryAt: aceita, sai mais tarde (limite curto).
- *  "awaiting_manual": a cota estourou e a mensagem fica parada até alguém escolher entre
- *  enviar à mão (manual-handoff) ou manter agendada (resume). Nenhum dos dois é "enviada". */
+/** Resposta do envio. status "queued" com retryAt: aceita, sai mais tarde (cota, horário de
+ *  silêncio, agendamento). */
 export type Envio = {
   messageId: string;
   status: string;
   retryAt?: string | null;
-  manualHandoffRequired?: boolean;
-  manualHandoffUrl?: string;
   /** Por que parou (RATE_LIMITED, INSTANCE_UNAVAILABLE, QUIET_HOURS), quando o atendys diz. */
   errorCode?: string;
 };
@@ -51,14 +48,11 @@ const RespostaEnvio = z.object({
   id: z.string(),
   status: z.string(),
   retryAt: z.string().nullish(),
-  manualHandoffRequired: z.boolean().optional(),
-  manualHandoffUrl: z.string().nullish(),
   errorCode: z.string().nullish(),
 });
-export const aguardaDecisao = (e: Pick<Envio, "status">) => e.status === "awaiting_manual";
 
 // quem envia/recebe: precisa da apikey do tenant e do nome da instância
-// slug: o negócio (conexaoOficial preenche); com ele, mensagem parada na cota fica registrada para o painel
+// slug: o negócio (conexaoOficial preenche); com ele, o envio entra no consumo e é vigiado
 // oficial: conexão da plataforma (conexaoOficial preenche); sem import de canal-oficial (circular)
 export type ConexaoAtendys = { atendysApiKey: string; instanceId: string; slug?: string; oficial?: boolean };
 
@@ -405,7 +399,7 @@ const NAO_ENVIADA = { messageId: "", status: "not_sent", destino: "nao_sai" as c
 export async function enviarTemplateSemOperador(conn: ConexaoAtendys, phone: string, t: Template, optIn: OptIn, prazo?: Date, opcoes: { chave?: string } = {}) {
   if (semFolga(prazo)) return NAO_ENVIADA;
   const envio = await enviarTemplate(conn, phone, t, optIn, prazo, opcoes);
-  return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };
+  return { ...envio, destino: seguirSemOperador(envio, prazo) };
 }
 
 // rotulo: o que vai para o consumo do negócio (tenants/{slug}/envios); o resto sai do próprio envio
@@ -432,18 +426,15 @@ async function enviarComOptIn(conn: ConexaoAtendys, digits: string, optIn: OptIn
       messageId: r.id,
       status: r.status,
       ...(r.retryAt && { retryAt: r.retryAt }),
-      ...(r.manualHandoffRequired && { manualHandoffRequired: true }),
-      ...(r.manualHandoffUrl && { manualHandoffUrl: r.manualHandoffUrl }),
       ...(r.errorCode && { errorCode: r.errorCode }),
     };
   };
   const registrar = async (e: Envio) => {
     // consumo: antes do índice do webhook, para o message.status já achar o envio
     if (conn.slug && consumo) await registrarEnvio(conn.slug, { ...consumo, id: e.messageId, status: statusDoAtendys(e.status) ?? "aceito", erro: e.errorCode });
-    if (aguardaDecisao(e) && conn.slug) await registrarParada(conn.slug, { messageId: e.messageId, retryAt: e.retryAt, errorCode: e.errorCode, para: digits, texto: message, prazo });
     // todo envio aceito é vigiado: a falha que vem depois (a Meta recusou, venceu o prazo no
     // atendys) chega ao negócio pelo message.status failed
-    else if (conn.slug) {
+    if (conn.slug) {
       await vigiarEnvio(conn.slug, e.messageId, message, prazo);
       // a falha pode ter chegado antes do índice (o webhook não achou o negócio e ficou no ack):
       // confere uma vez agora. Já avisada pelo webhook, a marca da mensagem não deixa repetir.
@@ -516,63 +507,33 @@ const caminhoDa = (messageId: string, acao: string) => {
   return `/v1/message/${messageId}/${acao}`;
 };
 
-/** "Enviar agora" de uma mensagem parada na cota: o atendys marca manual_started (ação manual
- *  iniciada, não enviada) e devolve o wa.me com o número e o texto. A URL tem dados do cliente:
- *  não vai para log. Repetir é seguro (devolve o mesmo fluxo). */
-export async function assumirEnvio(conn: ConexaoAtendys, messageId: string) {
-  return chamar<{ id: string; status: string; manualHandoffUrl: string; manualHandoffAt: string | null }>(authTenant(conn), "POST", caminhoDa(messageId, "manual-handoff"), {});
-}
-
-/** "Manter agendada": volta à fila para sair no retryAt (hora em UTC). */
-export async function manterAgendada(conn: ConexaoAtendys, messageId: string) {
-  return chamar<{ id: string; status: string; retryAt: string | null }>(authTenant(conn), "POST", caminhoDa(messageId, "resume"), {});
-}
-
-/** Estado atual de uma mensagem (queued, awaiting_manual, manual_started, sent, delivered, read, failed). */
+/** Estado atual de uma mensagem (queued, sent, delivered, read, failed, cancelled). */
 export async function statusDaMensagem(conn: ConexaoAtendys, messageId: string) {
-  return chamar<{ id: string; status: string; retryAt?: string | null; errorCode?: string | null; errorMessage?: string | null; manualHandoffRequired?: boolean; manualHandoffUrl?: string }>(authTenant(conn), "GET", caminhoDa(messageId, "status"));
+  return chamar<{ id: string; status: string; retryAt?: string | null; errorCode?: string | null; errorMessage?: string | null }>(authTenant(conn), "GET", caminhoDa(messageId, "status"));
 }
 
-/** Envio sem ninguém olhando (lembrete, aviso de agendamento, robô): parada na cota, volta à fila
- *  se o retryAt ainda serve (antes do prazo, quando há); senão fica parada para o painel decidir.
- *  Devolve o que aconteceu, para quem chama não registrar como enviada. */
-export async function seguirSemOperador(conn: ConexaoAtendys, envio: Envio, prazo?: Date): Promise<"enviada" | "agendada" | "parada" | "nao_sai" | "falhou"> {
+/** Envio sem ninguém olhando (lembrete, aviso de agendamento, robô): na fila para depois do prazo
+ *  não serve. Devolve o que aconteceu, para quem chama não registrar como enviada. */
+export function seguirSemOperador(envio: Envio, prazo?: Date): "enviada" | "agendada" | "nao_sai" | "falhou" {
   // recusada logo depois do aceite (a conferência do envio achou failed)
   if (envio.status === "failed") return "falhou";
-  if (!aguardaDecisao(envio)) {
-    if (!envio.retryAt) return "enviada";
-    // adiada para depois do prazo (horário silencioso, limite): com expiresAt o atendys descarta;
-    // não é "agendada" (o dono ouviria "cliente avisado" de um aviso que não vai sair). Só quando
-    // o expiresAt foi: sem ele, a mensagem sai atrasada
-    const quando = new Date(envio.retryAt);
-    if (prazo && "expiresAt" in validade(prazo) && !Number.isNaN(quando.getTime()) && quando >= prazo) {
-      console.warn(`[atendys] mensagem ${envio.messageId} adiada para depois do prazo; não sai`);
-      return "nao_sai";
-    }
-    return "agendada";
+  if (!envio.retryAt) return "enviada";
+  // adiada para depois do prazo (horário silencioso, limite): com expiresAt o atendys descarta;
+  // não é "agendada" (o dono ouviria "cliente avisado" de um aviso que não vai sair). Só quando
+  // o expiresAt foi: sem ele, a mensagem sai atrasada
+  const quando = new Date(envio.retryAt);
+  if (prazo && "expiresAt" in validade(prazo) && !Number.isNaN(quando.getTime()) && quando >= prazo) {
+    console.warn(`[atendys] mensagem ${envio.messageId} adiada para depois do prazo; não sai`);
+    return "nao_sai";
   }
-  const quando = envio.retryAt ? new Date(envio.retryAt) : null;
-  // sem prazo, não há como saber se ainda serve amanhã ("confirmado" um dia depois engana): fica parada
-  if (prazo && quando && !Number.isNaN(quando.getTime()) && quando < prazo) {
-    // a mensagem já foi aceita: falha ao reagendar não é falha de envio (quem chama não reenvia)
-    const ok = await manterAgendada(conn, envio.messageId).then(() => true, (e) => (console.error(`[atendys] resume de ${envio.messageId}`, e), false));
-    if (ok) {
-      // voltou à fila: sai da lista do painel (senão o dono poderia mandar à mão de novo)
-      if (conn.slug) await atualizarParada(conn.slug, envio.messageId, "queued", envio.retryAt).catch((e) => console.error(`[mensagens] fila de ${envio.messageId}`, e));
-      return "agendada";
-    }
-  }
-  // parada até o horário: depois dele, some da lista do painel
-  if (prazo && conn.slug) await prazoDaParada(conn.slug, envio.messageId, prazo);
-  console.warn(`[atendys] mensagem ${envio.messageId} parada na cota, sem horário útil para reenviar`);
-  return "parada";
+  return "agendada";
 }
 
 /** enviarTexto + seguirSemOperador: para quem envia sem ninguém olhando a tela. */
 export async function enviarSemOperador(conn: ConexaoAtendys, phone: string, message: string, optIn: OptIn, prazo?: Date, opcoes: { resposta?: boolean; chave?: string; tipo?: TipoEnvio } = {}) {
   if (semFolga(prazo)) return NAO_ENVIADA;
   const envio = await enviarTexto(conn, phone, message, optIn, prazo, opcoes);
-  return { ...envio, destino: await seguirSemOperador(conn, envio, prazo) };
+  return { ...envio, destino: seguirSemOperador(envio, prazo) };
 }
 
 /** Consentimento explícito (quando o fluxo pede, ex.: aceite no agendamento). Com eventId e

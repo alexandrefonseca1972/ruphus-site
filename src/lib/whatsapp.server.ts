@@ -133,11 +133,10 @@ export async function registrarMensagemRecebida(
 }
 
 const PENDENTES = "comandosPendentes";
-const AVISO_PARADO = "O aviso ao cliente parou na cota diária do WhatsApp: decida em Mensagens no painel.";
 const AVISO_NAO_SAI = "O aviso ao cliente não sai antes do horário do agendamento (fora do horário de envio do WhatsApp): avise o cliente por outro meio.";
 const AVISO_FALHOU = "O aviso ao cliente não foi entregue (o WhatsApp recusou): avise o cliente por outro meio.";
 /** Aceito, mas o cliente não vai receber: o que dizer ao dono. null = enviado ou agendado a tempo. */
-const avisoNaoEntregue = (destino: string) => (destino === "parada" ? AVISO_PARADO : destino === "nao_sai" ? AVISO_NAO_SAI : destino === "falhou" ? AVISO_FALHOU : null);
+const avisoNaoEntregue = (destino: string) => (destino === "nao_sai" ? AVISO_NAO_SAI : destino === "falhou" ? AVISO_FALHOU : null);
 /** Id do pendente do comando recebido (a mensagem da caixa de entrada do negócio). */
 export const idDoComando = (slug: string, inboxId: string) => `${slug}__${inboxId}`;
 const PARADO_MS = 5 * 60_000;

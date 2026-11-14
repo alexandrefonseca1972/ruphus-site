@@ -132,10 +132,9 @@ async function avisarPeloCanalOficialSemCaptura(
   ).catch(() => {});
 }
 
-/** Aceito, mas não vai sair (parado na cota ou adiado para depois do horário): falha visível
+/** Aceito, mas não vai sair (adiado para depois do horário ou recusado): falha visível
  *  na gaveta, como na confirmação. null = enviado ou agendado a tempo. */
 function naoSaiu(e: { destino: string; errorCode?: string }) {
-  if (e.destino === "parada") return "parou na cota diária do WhatsApp: decida em Mensagens no painel";
   if (e.destino === "nao_sai") return "não sai antes do horário do agendamento (fora do horário de envio do WhatsApp)";
   if (e.destino === "falhou") return `não foi entregue: ${motivoDaFalha(e.errorCode)}`; // o mesmo motivo que avisarFalhaDeEnvio gravou
   return null;
