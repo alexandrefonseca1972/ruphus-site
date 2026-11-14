@@ -256,7 +256,8 @@ export function consultar(espacos: readonly Espaco[], f: Filtros, ctx: Contexto)
       tirando.nicho += 1;
     }
     // estágio fora da lista (dado antigo) não vira chip, como antes
-    if (passaSalvo(m, B.estagio) && etapa in estagios) estagios[etapa] += 1;
+    // a etapa tira da fila do dia (escolherEtapa, na tela): o chip conta sem a fila, que é o que o clique mostra
+    if (passaSalvo(m, B.estagio | B.fila) && etapa in estagios) estagios[etapa] += 1;
     if (passaSalvo(m, B.prazo) && prazo) prazos[prazo] += 1;
     if (passaSalvo(m, B.caixa) && e.caixa) caixa += 1;
     // cada visão controla prazo, situação, estágio e fora do ar; o resto vem dos filtros ligados.

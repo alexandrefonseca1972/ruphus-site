@@ -548,6 +548,14 @@ assert.equal(curta.status, 401);
   assert.equal(oi.origem, "ruphus-agendamento-online");
   for (const parte of ["Quero receber pelo WhatsApp a confirmação e os avisos deste agendamento.", "2026-11-08", "2026-11-08T10:00:00.000Z", "Ac01bb", "salao"]) assert.ok(oi.evidencia.includes(parte), parte);
   assert.ok(oi.evidencia.length < 500);
+  // a evidência cita o texto da versão aceita: quem marcou a de 08/11 não aceitou o pedido de avaliação
+  assert.ok(!oi.evidencia.includes("avaliação"), "aceite antigo não ganha o texto novo");
+  const aceiteNovo = optInDoDoc("salao", { id: "Ac02", get: (c: string) => (c === "whatsappConsent" ? { aceito: true, versao: "2026-11-13", em: new Date("2026-11-13T10:00:00Z") } : undefined) })!;
+  assert.ok(aceiteNovo.evidencia.includes("o pedido de avaliação deste atendimento"), "aceite de 13/11 cita o texto novo");
+  const { versaoDoAceite } = await import("@/lib/consentimento-whatsapp");
+  assert.equal(versaoDoAceite("2026-11-08"), "2026-11-08", "página aberta antes da troca grava a versão que mostrou");
+  assert.equal(versaoDoAceite("9999-01-01"), "2026-11-13");
+  assert.equal(versaoDoAceite(undefined), "2026-11-13");
   assert.equal(optInDoDoc("salao", { id: "x", get: () => undefined }), null, "agendamento antigo, sem o campo");
   assert.equal(optInDoDoc("salao", { id: "x", get: () => ({ aceito: false, versao: "v", em: new Date() }) }), null, "não aceitou");
   assert.ok(comAvisoSair("oi").endsWith("Para não receber mais mensagens, responda SAIR."));

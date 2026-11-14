@@ -24,6 +24,8 @@ const eslintConfig = defineConfig([
     // inline dos sites gerados, que o eslint não lê — então tudo ali parece
     // função morta e parâmetro sem uso.
     "public/**",
+    // cópias de trabalho de outras sessões (worktrees): outro checkout inteiro, com o lint dele
+    ".claude/**",
   ]),
 ]);
 

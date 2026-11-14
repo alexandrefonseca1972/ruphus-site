@@ -74,6 +74,8 @@ const slugs = (r: ResultadoPainel) => r.lista.map((e) => e.slug);
   const todos = consultar(base, f(), ctx);
   assert.deepEqual(todos.prazos, { atrasada: 1, hoje: 1, futura: 0 });
   assert.deepEqual(todos.estagios, { novo: 1, contato: 1, oferta: 0, negociando: 1, fechado: 1, perdido: 0 });
+  // dentro de uma fila do dia o chip de etapa conta a base (escolher a etapa sai da fila): senão "Novo" dava 0 em Retornos
+  assert.deepEqual(consultar(base, f({ fila: "retornos" }), ctx).estagios, todos.estagios, "o chip de etapa ignora a fila");
   assert.equal(todos.caixa, 4, "Caixa incluído em todos os negócios");
   assert.deepEqual(todos.visoes, { atrasados: 1, hoje: 1, falei: 1, fixados: 1, todos: 4, pendentes: 3, negociando: 1, foradoar: 1 });
   // o valor legado do Caixa não soma mais na mensalidade

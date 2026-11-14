@@ -6,6 +6,16 @@
 export const TERMO_WHATSAPP_VERSAO = "2026-11-13";
 export const TEXTO_ACEITE_WHATSAPP = "Quero receber pelo WhatsApp a confirmação, os avisos e o pedido de avaliação deste atendimento.";
 
+/** O texto de cada versão. A evidência cita o que o cliente marcou na hora, não o texto de hoje: quem
+ *  aceitou a versão de 08/11 não aceitou o pedido de avaliação. Versão nova entra aqui; nenhuma sai. */
+const TEXTOS_ACEITE: Record<string, string> = {
+  "2026-11-08": "Quero receber pelo WhatsApp a confirmação e os avisos deste agendamento.",
+  [TERMO_WHATSAPP_VERSAO]: TEXTO_ACEITE_WHATSAPP,
+};
+/** A versão que a tela do cliente mostrou (página aberta antes de uma troca de texto manda a antiga);
+ *  desconhecida ou ausente, a atual. */
+export const versaoDoAceite = (daTela?: string | null) => (daTela && Object.hasOwn(TEXTOS_ACEITE, daTela) ? daTela : TERMO_WHATSAPP_VERSAO);
+
 /** Última linha das mensagens automáticas ao cliente. "SAIR" é stop word do gateway (opt-out do
  *  cliente); o dono usa CONFIRMADO/RECUSAR, e lerComando não reconhece SAIR. */
 export const AVISO_SAIR = "Para não receber mais mensagens, responda SAIR.";
@@ -20,7 +30,7 @@ export function optInDoAgendamento(c: { tenantId: string; agendamentoId: string;
     eventId: `ruphus-agendamento:${c.tenantId}:${c.agendamentoId}`.slice(0, 128),
     occurredAt: c.em.toISOString(),
     origem: "ruphus-agendamento-online",
-    evidencia: `Aceite marcado pelo cliente no agendamento online de ${c.tenantId} (ruphus.site). Texto: "${TEXTO_ACEITE_WHATSAPP}" Versão ${c.versao}. Em ${c.em.toISOString()}. Agendamento ${c.agendamentoId}.`,
+    evidencia: `Aceite marcado pelo cliente no agendamento online de ${c.tenantId} (ruphus.site). Texto: "${TEXTOS_ACEITE[c.versao] ?? TEXTO_ACEITE_WHATSAPP}" Versão ${c.versao}. Em ${c.em.toISOString()}. Agendamento ${c.agendamentoId}.`,
   };
 }
 

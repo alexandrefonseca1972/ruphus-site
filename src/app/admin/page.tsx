@@ -829,6 +829,12 @@ export default function AdminPage() {
     setAlerta("");
     setFila("");
   }
+  // Etapa e fila do dia não combinam: "Novo" (nunca contatado) dentro de "Retornos de hoje" dá sempre
+  // zero. Escolher a etapa sai da fila e mostra a base naquele recorte
+  function escolherEtapa(e: Filtros["estagio"]) {
+    setEstagio(e);
+    if (e) setFila("");
+  }
   function verFila(id: Fila) {
     verVisao(VISOES.find((v) => v.id === "todos")!);
     setFila(id);
@@ -1412,7 +1418,7 @@ export default function AdminPage() {
                     const n = contagens.estagios[e];
                     // oferecer um chip que dá lista vazia é oferecer um beco sem saída
                     return (
-                      <Chip key={e} ativo={estagio === e} disabled={!n && estagio !== e} onClick={() => setEstagio(estagio === e ? "" : e)}>
+                      <Chip key={e} ativo={estagio === e} disabled={!n && estagio !== e} onClick={() => escolherEtapa(estagio === e ? "" : e)}>
                         {ROTULO_NA_TELA[e]} <span className={estagio === e ? "text-white/70" : "text-[#6F6A5E]"}>{n}</span>
                       </Chip>
                     );
@@ -1630,12 +1636,12 @@ export default function AdminPage() {
               setTela("lista");
             }}
             verPerdidos={() => {
-              setEstagio("perdido");
+              escolherEtapa("perdido");
               setPrazo("");
               setTela("lista");
             }}
             verNovos={() => {
-              setEstagio("novo");
+              escolherEtapa("novo");
               setPrazo("");
               setTela("lista");
             }}

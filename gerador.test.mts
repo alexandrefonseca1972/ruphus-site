@@ -9,7 +9,7 @@ import { candidatos, type DadosSite, faixaProposta, fixo, lerPlanilha as lerAbas
 // uma aba só, como a maioria das planilhas
 const lerPlanilha = (linhas: unknown[][]) => lerAbasDaPlanilha([{ aba: "Leads", linhas }]);
 import { renderEditorial as renderBeleza } from "@/lib/site-editorial";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { AULAS } from "@/lib/nichos/aulas";
 import { AUTOMOTIVO } from "@/lib/nichos/automotivo";
 import { FITNESS } from "@/lib/nichos/fitness";
@@ -598,16 +598,6 @@ console.log("telefone fixo vira ligação: ok");
   for (const comportamento of ["showModal", "setCustomValidity", "window.open", "clipboard.writeText", "dataLocal"]) assert.ok(ui.includes(comportamento), `site-ui: ${comportamento}`);
   assert.ok(!readFileSync("public/s/assets/fx.js", "utf8").includes("THREE"), "fx.js não depende de Three.js");
 
-  const personalizados = readdirSync("sites", { withFileTypes: true }).filter((d) => d.isDirectory() && existsSync(`sites/${d.name}/index.html`));
-  assert.equal(personalizados.length, 9, "os nove sites personalizados entram na revisão");
-  for (const diretorio of personalizados) {
-    const caminho = `sites/${diretorio.name}/index.html`;
-    const html = readFileSync(caminho, "utf8");
-    assert.ok(html.includes('../assets/site-ui.js') && html.includes('../assets/site-ui.css'), `${caminho}: asset compartilhado`);
-    assert.ok(!html.includes("init3D") && !html.includes("fx3d"), `${caminho}: sem WebGL morto`);
-    assert.ok(!html.includes("waform').addEventListener") && !html.includes("agendarForm').addEventListener"), `${caminho}: sem formulário duplicado`);
-    for (const img of html.match(/<img\b[^>]*>/g) ?? []) assert.ok(img.includes("width=") && img.includes("height="), `${caminho}: imagem sem dimensões`);
-    for (const campo of html.match(/<(?:input|select|textarea)\b[^>]*>/g) ?? []) assert.ok(campo.includes("name="), `${caminho}: campo sem nome: ${campo}`);
-  }
-  console.log("formulários e sites personalizados: ok");
+  // a pasta sites/ (9 páginas feitas à mão) saiu do repositório em 13/11: todo site sai do gerador
+  console.log("formulários dos modelos: ok");
 }

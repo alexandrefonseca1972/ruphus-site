@@ -5,6 +5,8 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Consentimento de WhatsApp: o comprovante enviado ao atendys cita o texto da versão que o cliente aceitou (quem aceitou a de 08/11 não aceitou o pedido de avaliação), e o agendamento grava a versão que a tela mostrou, não a do servidor.
+- Lista do /admin, filtro de etapa: escolher uma etapa (ou “Ver os novos” e “Ver perdidos” no Funil) sai da fila do dia e mostra a base naquela etapa; “Novo” dentro de “Retornos de hoje” dava sempre zero. Os números dos chips de etapa contam sem a fila.
 - Agenda do dono: o bloco de mensagens do WhatsApp aguardando decisão (“Enviar agora” / “Manter agendada”) saiu. O atendys (0.7.0) não para mais mensagem na cota: a que não pode sair na hora fica na fila e sai sozinha no horário informado; se não der tempo, o aviso de falha continua igual.
 - Lista do /admin, etapa: o “Novo” que já recebeu mensagem e segue sem responder aparece como “Em contato” (selo da lista, topo da gaveta e filtro de etapa). “Novo” passa a ser só quem nunca foi contatado. No banco a etapa é a mesma; no Funil a coluna vira “Novo e em contato”.
 - Lista do /admin, filtros: os filtros ligados e o “Limpar filtros” ficam numa linha própria; limpar numa fila do dia mantém a fila; a tela abre em “Retornos de hoje” já por compromisso mais próximo; os números dos alertas (“Sem próximo passo”, “Parado há 7+ dias”…) passam a contar no recorte de busca, lugar, nicho e Caixa.
