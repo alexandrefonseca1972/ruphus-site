@@ -169,5 +169,21 @@ await lote.commit();
 await enviarAvaliacoesDoDia(db, agora, deps);
 assert.ok((await db.doc("tenants/cheia/avaliacoes/novo").get()).exists, "o atendimento novo ganha pedido mesmo com 120 antigos na frente");
 
+// resumo da tela do dono: médias no navegador, nota opcional vazia fora da conta, agrupado por profissional
+{
+  const { resumirAvaliacoes } = await import("@/lib/avaliacoes");
+  const n = (servico: number, ambiente: number | null) => ({ servico, profissional: 4, atendimento: 5, ambiente, localizacao: null });
+  const r = resumirAvaliacoes([
+    { staffId: "ana", notaGeral: 5, notas: n(5, 4) },
+    { staffId: "ana", notaGeral: 3, notas: n(3, null) },
+    { staffId: "bia", notaGeral: 4, notas: n(4, 2) },
+  ]);
+  assert.equal(r.total, 3);
+  assert.equal(r.geral, 4);
+  assert.deepEqual(r.categorias, { servico: 4, profissional: 4, atendimento: 5, ambiente: 3, localizacao: null });
+  assert.deepEqual(r.porStaff, [{ id: "ana", total: 2, media: 4 }, { id: "bia", total: 1, media: 4 }]);
+  assert.deepEqual(resumirAvaliacoes([]), { total: 0, geral: null, categorias: { servico: null, profissional: null, atendimento: null, ambiente: null, localizacao: null }, porStaff: [] });
+}
+
 await db.terminate();
 console.log("avaliacoes: ok");

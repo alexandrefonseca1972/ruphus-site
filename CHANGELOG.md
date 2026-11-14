@@ -5,6 +5,7 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Avaliações, tela do dono: o resumo (total, médias e quadro por profissional) passa a ser calculado no navegador sobre as respostas do período, até 500. A tela pedia 7 médias numa consulta só e o Firestore aceita 5: por isso não abria.
 - Avaliações: a tela do dono não abria por falta de dois índices (respostas e convites por profissional), e o pedido de avaliação parava de ser criado depois de 100 atendimentos concluídos; o cron agora olha só os concluídos das últimas 48 horas. O limite de 10 respostas por rede e por dia saiu: só barrava clientes de verdade.
 - Consentimento de WhatsApp: o comprovante enviado ao atendys cita o texto da versão que o cliente aceitou (quem aceitou a de 08/11 não aceitou o pedido de avaliação), e o agendamento grava a versão que a tela mostrou, não a do servidor.
 - Lista do /admin, filtro de etapa: escolher uma etapa (ou “Ver os novos” e “Ver perdidos” no Funil) sai da fila do dia e mostra a base naquela etapa; “Novo” dentro de “Retornos de hoje” dava sempre zero. Os números dos chips de etapa contam sem a fila.

@@ -38,3 +38,22 @@ export function mediaGeral(notas: NotasAvaliacao): number {
 export function primeiroNome(nome: string): string {
   return nome.trim().split(/\s+/)[0] || "";
 }
+
+/** O resumo da tela do dono, calculado no navegador sobre as respostas do período. As médias do
+ *  servidor (getAggregateFromServer) não servem aqui: o Firestore aceita no máximo 5 agregações por
+ *  consulta (a tela pedia 7) e cada média com filtro de data exige um índice composto próprio. */
+export function resumirAvaliacoes(respostas: readonly { staffId: string; notaGeral: number; notas: NotasAvaliacao }[]) {
+  const media = (valores: (number | null)[]) => {
+    const v = valores.filter((x): x is number => x !== null);
+    return v.length ? v.reduce((t, n) => t + n, 0) / v.length : null;
+  };
+  const chaves = ["servico", "profissional", "atendimento", "ambiente", "localizacao"] as const;
+  const porStaff = new Map<string, number[]>();
+  for (const r of respostas) porStaff.set(r.staffId, [...(porStaff.get(r.staffId) ?? []), r.notaGeral]);
+  return {
+    total: respostas.length,
+    geral: media(respostas.map((r) => r.notaGeral)),
+    categorias: Object.fromEntries(chaves.map((c) => [c, media(respostas.map((r) => r.notas[c]))])) as Record<(typeof chaves)[number], number | null>,
+    porStaff: [...porStaff].map(([id, notas]) => ({ id, total: notas.length, media: media(notas) })),
+  };
+}

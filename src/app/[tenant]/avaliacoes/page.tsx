@@ -2,15 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { average, collection, count, DocumentSnapshot, getAggregateFromServer, getDocs, limit, orderBy, query, startAfter, Timestamp, where, type QueryConstraint } from "firebase/firestore";
+import { collection, count, DocumentSnapshot, getAggregateFromServer, getDocs, limit, orderBy, query, startAfter, Timestamp, where, type QueryConstraint } from "firebase/firestore";
 import { Star } from "lucide-react";
 import { z } from "zod";
 import { db } from "@/lib/firebase-db";
 import { useTenant } from "../painel-layout";
-import { emParalelo } from "@/lib/paralelo";
+import { resumirAvaliacoes } from "@/lib/avaliacoes";
 import { Button } from "@/components/ui/button";
 
 const POR_PAGINA = 25;
+const MAX_RESUMO = 500;
 const Review = z.object({
   customerKey: z.string().nullish(),
   customerName: z.string(),
@@ -39,6 +40,7 @@ export default function AvaliacoesPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [ultimo, setUltimo] = useState<DocumentSnapshot | null>(null);
   const [temMais, setTemMais] = useState(false);
+  const [parcial, setParcial] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [mais, setMais] = useState(false);
   const [erro, setErro] = useState("");
@@ -58,31 +60,25 @@ export default function AvaliacoesPage() {
       const convites = query(collection(db, "tenants", tenant.id, "avaliacoes"), where("enviadaEm", ">=", inicio), ...(staffId ? [where("staffId", "==", staffId)] : []));
       const staff = await getDocs(collection(db, "tenants", tenant.id, "staff"));
       setProfissionais(staff.docs.map((p) => ({ id: p.id, nome: String(p.get("name") ?? "") })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
-      const porStaff: PorProfissional = [];
-      const [notas, enviados, lista] = await Promise.all([
-        getAggregateFromServer(respondidas, {
-          total: count(), geral: average("notaGeral"), servico: average("notas.servico"), profissional: average("notas.profissional"),
-          atendimento: average("notas.atendimento"), ambiente: average("notas.ambiente"), localizacao: average("notas.localizacao"),
-        }),
+      // As respostas do período vêm inteiras (até MAX_RESUMO) e o resumo é calculado aqui: ver resumirAvaliacoes.
+      // ponytail: acima de MAX_RESUMO respostas no período, as médias cobrem só as mais recentes (a tela avisa)
+      const [enviados, lista] = await Promise.all([
         getAggregateFromServer(convites, { total: count() }),
-        getDocs(query(respondidas, orderBy("respondidaEm", "desc"), limit(POR_PAGINA))),
-        emParalelo(staff.docs.filter((p) => !staffId || p.id === staffId), 4, async (p) => {
-          const r = await getAggregateFromServer(
-            query(collection(db, "tenants", tenant.id, "avaliacoes"), where("staffId", "==", p.id), where("respondidaEm", ">=", inicio)),
-            { total: count(), media: average("notaGeral") },
-          );
-          porStaff.push({ id: p.id, nome: String(p.get("name") ?? ""), total: r.data().total, media: r.data().media });
-        }),
+        getDocs(query(respondidas, orderBy("respondidaEm", "desc"), limit(MAX_RESUMO))),
       ]);
-      const a = notas.data();
-      setResumo({ total: a.total, convites: enviados.data().total, geral: a.geral, categorias: { servico: a.servico, profissional: a.profissional, atendimento: a.atendimento, ambiente: a.ambiente, localizacao: a.localizacao } });
-      setEquipe(porStaff.filter((p) => p.total > 0).sort((x, y) => y.total - x.total || x.nome.localeCompare(y.nome, "pt-BR")));
-      setReviews(lista.docs.flatMap((d) => {
+      const todas = lista.docs.flatMap((d) => {
         const r = Review.safeParse(d.data());
-        return r.success ? [{ ...r.data, id: d.id }] : [];
-      }));
-      setUltimo(lista.docs.at(-1) ?? null);
-      setTemMais(lista.size === POR_PAGINA);
+        return r.success ? [{ ...r.data, id: d.id, doc: d }] : [];
+      });
+      const a = resumirAvaliacoes(todas);
+      const nomes = new Map(staff.docs.map((p) => [p.id, String(p.get("name") ?? "")]));
+      setResumo({ total: a.total, convites: enviados.data().total, geral: a.geral, categorias: a.categorias });
+      setParcial(lista.size === MAX_RESUMO);
+      setEquipe(a.porStaff.map((p) => ({ ...p, nome: nomes.get(p.id) ?? todas.find((r) => r.staffId === p.id)?.staffName ?? "" })).sort((x, y) => y.total - x.total || x.nome.localeCompare(y.nome, "pt-BR")));
+      const pagina = todas.slice(0, POR_PAGINA);
+      setReviews(pagina.map(({ doc: _doc, ...r }) => r));
+      setUltimo(pagina.at(-1)?.doc ?? null);
+      setTemMais(todas.length > POR_PAGINA);
     } catch (e) {
       console.error("[avaliacoes] falha ao carregar painel", e);
       setErro("Não foi possível carregar as avaliações. Confira sua conexão e tente de novo.");
@@ -139,6 +135,7 @@ export default function AvaliacoesPage() {
       {!tenant.avaliacoes?.enabled && <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:bg-amber-950 dark:text-amber-100">Os pedidos automáticos estão desligados. <Link className="font-semibold underline underline-offset-2" href={`/${tenant.id}/negocio#whatsapp`}>Configurar no Meu negócio</Link>.</p>}
       {erro && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm"><span>{erro}</span><Button variant="outline" onClick={() => void carregar()}>Tentar de novo</Button></div>}
 
+      {parcial && <p className="text-sm text-muted-foreground">O período tem mais de {MAX_RESUMO} respostas: o total e as médias consideram as {MAX_RESUMO} mais recentes.</p>}
       <section aria-label="Resumo das avaliações" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Cartao titulo="Respostas" valor={carregando ? "…" : String(resumo?.total ?? 0)} />
         <Cartao titulo="Média geral" valor={carregando ? "…" : fmt(resumo?.geral ?? null)} estrela />
