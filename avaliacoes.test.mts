@@ -47,11 +47,11 @@ await db.doc("tenants/am").set({
 });
 await db.doc("tenants/am/appointments/a1").set({ ...baseAgenda, completedAt: at("2026-11-13T11:00:00.000Z") });
 
-const envios: { key?: string; template: { nome: string; parametros: string[] } }[] = [];
+const envios: { key?: string; prazo?: Date; template: { nome: string; parametros: string[] } }[] = [];
 const deps = {
   conexao: async () => ({ atendysApiKey: "teste", instanceId: "teste" }),
-  enviar: async (_c: unknown, _phone: string, template: { nome: string; parametros: string[] }, _optIn: unknown, _prazo?: Date, opcoes?: { chave?: string }) => {
-    envios.push({ key: opcoes?.chave, template });
+  enviar: async (_c: unknown, _phone: string, template: { nome: string; parametros: string[] }, _optIn: unknown, prazo?: Date, opcoes?: { chave?: string }) => {
+    envios.push({ key: opcoes?.chave, prazo, template });
     return { messageId: `m${envios.length}`, status: "sent", destino: "enviada" as const };
   },
 };
@@ -59,6 +59,7 @@ assert.equal(await enviarAvaliacoesDoDia(db, agora, deps), 1);
 assert.equal(envios.length, 1);
 assert.equal(envios[0].template.nome, "avaliacao_atendimento");
 assert.match(envios[0].template.parametros[4], /\/avaliar\/loja\/a1\?t=[a-f0-9]{64}$/);
+assert.equal(envios[0].prazo?.toISOString(), "2026-11-20T11:30:00.000Z", "a fila não entrega depois da validade do link");
 const a1 = await refAvaliacao(db, "loja", "a1").get();
 assert.equal(a1.get("status"), "enviada");
 assert.equal(a1.get("token"), undefined, "token nunca é gravado em texto puro");
@@ -140,6 +141,22 @@ await enviarAvaliacoesDoDia(db, new Date(agora.getTime() + 11 * 60_000), retryDe
 assert.ok(tentativas >= 2);
 assert.equal(retryKeys[1], retryKeys[0], "retry usa a mesma chave de idempotência");
 assert.equal((await refAvaliacao(db, "loja", "retry").get()).get("status"), "enviada");
+
+await agenda("sem-campanha");
+await db.doc("tenants/loja/customers/5511999990000").set({ semCampanha: true });
+await enviarAvaliacoesDoDia(db, agora, deps);
+assert.equal((await refAvaliacao(db, "loja", "sem-campanha").get()).get("status"), "ignorada");
+await db.doc("tenants/loja/customers/5511999990000").set({ semCampanha: false });
+
+await agenda("vencido");
+const falhaVencido = { ...deps, enviar: async (...args: Parameters<typeof deps.enviar>) => {
+  if (args[2].parametros[4].includes("/vencido?")) throw new Error("rede antes do vencimento");
+  return deps.enviar(...args);
+} };
+await enviarAvaliacoesDoDia(db, agora, falhaVencido);
+assert.equal((await refAvaliacao(db, "loja", "vencido").get()).get("status"), "pendente");
+await enviarAvaliacoesDoDia(db, new Date(agora.getTime() + 8 * 24 * 60 * 60_000), deps);
+assert.equal((await refAvaliacao(db, "loja", "vencido").get()).get("status"), "ignorada", "convite vencido não entra na fila do WhatsApp");
 
 await agenda("concorrente");
 const antesConcorrencia = envios.length;

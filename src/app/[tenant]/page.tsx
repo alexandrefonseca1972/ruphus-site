@@ -159,9 +159,14 @@ export default function AgendaPage() {
     setConfirming(null);
     setError("");
     setPending(a.id);
-    const r = await concluirAtendimentoAction(await idToken(), { tenantId: tenant.id, appointmentId: a.id }).catch(() => null);
-    setPending(null);
-    if (!r || !r.ok) setError(r?.error ?? "Sem conexão. Tente de novo.");
+    try {
+      const r = await concluirAtendimentoAction(await idToken(), { tenantId: tenant.id, appointmentId: a.id });
+      if (!r.ok) setError(r.error);
+    } catch {
+      setError("Sem conexão. Tente de novo.");
+    } finally {
+      setPending(null);
+    }
   }
 
   async function notifyAndChange(a: Appointment, status: "confirmed" | "cancelled") {

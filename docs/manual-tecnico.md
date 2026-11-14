@@ -156,8 +156,9 @@ Com `avaliacoes.enabled=true`, o cron seleciona somente conclusões posteriores 
 `enabledAt` e já vencidas pelo `delayMin` (padrão: 30 min). O consentimento precisa
 mencionar o pedido de avaliação na versão atual. `avaliacoes-whatsapp.server.ts`
 cria `avaliacoes/{appointmentId}` e envia uma vez pelo canal oficial, com lease,
-backoff e idempotency key estável. O link usa HMAC com `AVALIACAO_TOKEN_SECRET` ou
-`CRON_SECRET`; no banco fica apenas o hash. A resposta pública passa por Server Action,
+backoff e idempotency key estável. Respeita `customers.semCampanha` e não coloca na
+fila um convite cuja validade terminou. O link usa HMAC com `AVALIACAO_TOKEN_SECRET`
+ou `CRON_SECRET`; no banco fica apenas o hash. A resposta pública passa por Server Action,
 Zod, sanitização, validade, transação e limite por hash de IP. Só gestores leem as
 avaliações pelo SDK web.
 

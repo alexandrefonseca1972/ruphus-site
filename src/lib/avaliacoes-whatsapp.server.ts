@@ -68,10 +68,13 @@ export async function enviarAvaliacoesDoDia(db: Firestore = adminDb, agora = new
       const reservado = await reservarEnvio(db, t.id, review.id, agora);
       if (!reservado) continue;
       const a = await t.ref.collection("appointments").doc(review.id).get();
+      const customerKey = String(a.get("customerKey") ?? "");
+      const customer = customerKey ? await t.ref.collection("customers").doc(customerKey).get() : null;
       const cliente = soDigitosComDDI(String(a.get("customerPhone") ?? ""));
       const optIn = optInAvaliacaoDoDoc(t.id, a);
-      if (!a.exists || a.get("status") !== "confirmed" || !a.get("completedAt") || !cliente || !optIn) {
-        await review.ref.update({ status: "ignorada", ultimoErro: "Sem conclusão, telefone ou consentimento atualizado.", enviandoEm: FieldValue.delete(), proximaTentativaEm: FieldValue.delete() });
+      const expiraEm = valorMs(review.get("expiraEm"));
+      if (!a.exists || a.get("status") !== "confirmed" || !a.get("completedAt") || !cliente || !optIn || customer?.get("semCampanha") === true || (expiraEm !== null && expiraEm <= agora.getTime())) {
+        await review.ref.update({ status: "ignorada", ultimoErro: "Sem conclusão, telefone, consentimento atualizado ou autorização para contato; o link também pode ter vencido.", enviandoEm: FieldValue.delete(), proximaTentativaEm: FieldValue.delete() });
         continue;
       }
       const link = `${SITE_BASE}/avaliar/${encodeURIComponent(t.id)}/${encodeURIComponent(review.id)}?t=${tokenAvaliacao(t.id, review.id)}`;
@@ -82,7 +85,7 @@ export async function enviarAvaliacoesDoDia(db: Firestore = adminDb, agora = new
           servico: String(review.get("serviceName") ?? ""),
           profissional: String(review.get("staffName") ?? ""),
           link,
-        }), optIn, undefined, { chave: chaveDeEnvio("avaliacao", t.id, review.id) });
+        }), optIn, expiraEm === null ? undefined : new Date(expiraEm), { chave: chaveDeEnvio("avaliacao", t.id, review.id) });
         if (e.messageId) await review.ref.update({ messageId: e.messageId });
         if (e.destino === "falhou") throw new Error(e.errorCode ?? "O envio foi recusado depois do aceite.");
         if (e.destino === "enviada" || e.destino === "agendada") {

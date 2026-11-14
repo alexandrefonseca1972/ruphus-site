@@ -7,6 +7,7 @@ import { Star } from "lucide-react";
 import { z } from "zod";
 import { db } from "@/lib/firebase-db";
 import { useTenant } from "../painel-layout";
+import { emParalelo } from "@/lib/paralelo";
 import { Button } from "@/components/ui/button";
 
 const POR_PAGINA = 25;
@@ -34,6 +35,7 @@ export default function AvaliacoesPage() {
   const [staffId, setStaffId] = useState("");
   const [resumo, setResumo] = useState<Resumo | null>(null);
   const [equipe, setEquipe] = useState<PorProfissional>([]);
+  const [profissionais, setProfissionais] = useState<{ id: string; nome: string }[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [ultimo, setUltimo] = useState<DocumentSnapshot | null>(null);
   const [temMais, setTemMais] = useState(false);
@@ -55,17 +57,22 @@ export default function AvaliacoesPage() {
       const respondidas = consulta(inicio);
       const convites = query(collection(db, "tenants", tenant.id, "avaliacoes"), where("enviadaEm", ">=", inicio), ...(staffId ? [where("staffId", "==", staffId)] : []));
       const staff = await getDocs(collection(db, "tenants", tenant.id, "staff"));
-      const [notas, enviados, lista, ...porStaff] = await Promise.all([
+      setProfissionais(staff.docs.map((p) => ({ id: p.id, nome: String(p.get("name") ?? "") })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
+      const porStaff: PorProfissional = [];
+      const [notas, enviados, lista] = await Promise.all([
         getAggregateFromServer(respondidas, {
           total: count(), geral: average("notaGeral"), servico: average("notas.servico"), profissional: average("notas.profissional"),
           atendimento: average("notas.atendimento"), ambiente: average("notas.ambiente"), localizacao: average("notas.localizacao"),
         }),
         getAggregateFromServer(convites, { total: count() }),
         getDocs(query(respondidas, orderBy("respondidaEm", "desc"), limit(POR_PAGINA))),
-        ...staff.docs.filter((p) => !staffId || p.id === staffId).map((p) => getAggregateFromServer(
-          query(collection(db, "tenants", tenant.id, "avaliacoes"), where("staffId", "==", p.id), where("respondidaEm", ">=", inicio)),
-          { total: count(), media: average("notaGeral") },
-        ).then((r) => ({ id: p.id, nome: String(p.get("name") ?? ""), total: r.data().total, media: r.data().media }))),
+        emParalelo(staff.docs.filter((p) => !staffId || p.id === staffId), 4, async (p) => {
+          const r = await getAggregateFromServer(
+            query(collection(db, "tenants", tenant.id, "avaliacoes"), where("staffId", "==", p.id), where("respondidaEm", ">=", inicio)),
+            { total: count(), media: average("notaGeral") },
+          );
+          porStaff.push({ id: p.id, nome: String(p.get("name") ?? ""), total: r.data().total, media: r.data().media });
+        }),
       ]);
       const a = notas.data();
       setResumo({ total: a.total, convites: enviados.data().total, geral: a.geral, categorias: { servico: a.servico, profissional: a.profissional, atendimento: a.atendimento, ambiente: a.ambiente, localizacao: a.localizacao } });
@@ -124,7 +131,7 @@ export default function AvaliacoesPage() {
           </select>
           <select aria-label="Filtrar por profissional" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="h-11 max-w-[190px] rounded-lg border border-input bg-card px-3">
             <option value="">Todos os profissionais</option>
-            {equipe.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            {profissionais.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
           </select>
         </div>
       </section>

@@ -1,6 +1,6 @@
 # Plano: pesquisa de avaliação pós-pagamento
 
-> Status: guardado para implementar no futuro (07/11/2026). Protótipo: [prototipo-avaliacao.html](prototipo-avaliacao.html) (abrir no navegador) · Artifact: https://claude.ai/artifact/4LSv6hZX74E9p8wMcV87mW
+> Status: implementação posterior no PR #327, adaptada à conclusão do atendimento em vez do pagamento. Este arquivo preserva o plano original; o comportamento vigente está no manual técnico. Protótipo: [prototipo-avaliacao.html](prototipo-avaliacao.html) (abrir no navegador) · Artifact: https://claude.ai/artifact/4LSv6hZX74E9p8wMcV87mW
 
 ## Context
 Hoje o "Recebi" do caixa (`baixarAgendamento`) registra o pagamento e não manda nada ao cliente (`financeiro.server.ts:236`, "sem WhatsApp ao cliente"). O negócio não tem retorno sobre o atendimento. A pesquisa usa nota 1–5 e comentário opcional. O link vai por WhatsApp automático, cerca de 2h depois do pagamento. O painel mostra a média por profissional. Hoje não existe nenhum código de avaliação: tudo que se chama "rating" no projeto é a nota do Google, em `site.rating`.
