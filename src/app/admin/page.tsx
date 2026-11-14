@@ -642,12 +642,16 @@ export default function AdminPage() {
   }
 
   /** A resposta do "Enviou?". Sim: registra e, nos toques da cadência, fecha a gaveta (a lista
-   *  fica à vista para abrir o próximo). "Ainda não enviei": nada gravado, a gaveta fica no lead.
-   *  Não com motivo: o lead vai para a reserva e a gaveta fecha. */
+   *  fica à vista para abrir o próximo). "Ainda não enviei": nada gravado, a gaveta fecha e o
+   *  negócio segue na lista. Não com motivo: o lead vai para a reserva e a gaveta fecha. */
   async function responderEnvio(r: RespostaEnviou) {
     const p = pendente;
     if (!p || respondendo.current === p.envio.envioId) return;
-    if (r.tipo === "nao_enviei") return setPendente(null);
+    if (r.tipo === "nao_enviei") {
+      setPendente(null);
+      if (abertoRef.current === p.slug && document.getElementById("gaveta-negocio")) setAberto(null);
+      return;
+    }
     respondendo.current = p.envio.envioId;
     const comTexto = { ...p, gravando: false };
     // o modal sai enquanto grava; o pendente só some com r.ok

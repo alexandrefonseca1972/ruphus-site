@@ -9,7 +9,7 @@ o PR, onde está o porquê.
 - Ficha do cliente: botão “Agendar” abre a página de agendamento com nome e telefone já preenchidos. Pela ficha o horário sai sem aceite de WhatsApp (o aceite é do próprio cliente) e o contato do navegador do dono não é trocado.
 - Lista de clientes: a busca acha por nome, e-mail, etiqueta, celular (também digitado sem o 9), outro telefone e CPF.
 - Etiquetas, “Não receber campanhas” e anotações da ficha avisam quando não salvam, em vez de falhar em silêncio.
-- Prospecção no /admin, “Enviou?”: depois do “Sim” a gaveta fecha e volta para a lista. “Não” pergunta o motivo: “Sem WhatsApp”, “Contato inválido” e “Outro motivo” tiram o negócio da lista e das filas e o mandam para a reserva (aba “Em reserva” em Mais visões); “Ainda não enviei” não muda nada. Na gaveta, “Devolver à lista” traz de volta depois de revisar o contato.
+- Prospecção no /admin, “Enviou?”: depois do “Sim” a gaveta fecha e volta para a lista. “Não” pergunta o motivo: “Sem WhatsApp”, “Contato inválido” e “Outro motivo” tiram o negócio da lista e das filas e o mandam para a reserva (aba “Em reserva” em Mais visões); “Ainda não enviei” não grava nada: fecha a gaveta e o negócio segue na lista. Na gaveta, “Devolver à lista” traz de volta depois de revisar o contato.
 - Busca do /admin: o “X” de limpar aparece também no celular.
 - Sair do painel do dono: as listas abertas não mostram mais erro (“escuta caiu… Firestore shutting down”) nem tentam reconectar durante a saída.
 - Avaliações, tela do dono: o resumo (total, médias e quadro por profissional) passa a ser calculado no navegador sobre as respostas do período, até 500. A tela pedia 7 médias numa consulta só e o Firestore aceita 5: por isso não abria.
