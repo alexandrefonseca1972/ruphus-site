@@ -119,6 +119,8 @@ export const ConsultaPainel = z.strictObject({
   caixa: z.stringbool().default(false),
   contato: z.stringbool().default(false), // "falei hoje"
   fixados: z.stringbool().default(false),
+  // a reserva (contato que não serviu): fora de toda lista, menos da própria aba
+  reserva: z.stringbool().default(false),
   ordem: z.enum(ORDENS).default("relevancia"),
   // só dígitos: "0x28", "4e1" e " 40 " seriam 40 com a coerção solta
   n: z.string().regex(/^\d{1,4}$/, "número inteiro").transform(Number).pipe(z.number().int().min(1).max(PAGINA_MAX)).default(PAGINA),
@@ -139,7 +141,7 @@ export type ConsultaPainel = z.output<typeof ConsultaPainel>;
 export type Filtros = Omit<ConsultaPainel, "n" | "hoje" | "tz" | "uf" | "funil" | "periodo" | "novos" | "fila"> & { uf: string; fila?: "" | Fila };
 export const SEM_FILTROS: Filtros = {
   busca: "", uf: "", cidade: "", nicho: "", situacao: "", estagio: "", prazo: "", alerta: "",
-  fila: "", fora: false, caixa: false, contato: false, fixados: false, ordem: "relevancia",
+  fila: "", fora: false, caixa: false, contato: false, fixados: false, reserva: false, ordem: "relevancia",
 };
 
 /** Guarda de tipo para o que vem de fora (chip, <select>, URL). */

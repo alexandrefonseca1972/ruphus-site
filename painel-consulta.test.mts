@@ -16,7 +16,7 @@ const VAZIO: Crm = {
   estagio: "novo", entradaCents: null, mensalCents: null, caixaCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
   donoNome: null, donoPapel: null, donoWhatsapp: null, donoEmail: null, outrosContatos: [], motivoPerda: null, detalhePerda: null,
   origem: null, indicadoPor: null, entrouEm: null, perdidoEm: null, ultimoContatoEm: null, fixadoAte: null, utm: null,
-  toques: 0, respondeuEm: null, naoContatarEm: null, propostaVistaEm: null, varianteId: null, siteVistoEm: null,
+  toques: 0, respondeuEm: null, naoContatarEm: null, propostaVistaEm: null, varianteId: null, siteVistoEm: null, reservaEm: null, reservaMotivo: null, reservaDetalhe: null,
 };
 const espaco = (slug: string, e: Partial<Espaco> = {}): Espaco => ({
   slug, nome: slug, telefone: null, nicho: "Barbearia", cidade: "Belém", uf: "PA", nota: null, avaliacoes: null, acessos: 1, limiteStaff: 2, caixa: true, ...e,
@@ -77,7 +77,22 @@ const slugs = (r: ResultadoPainel) => r.lista.map((e) => e.slug);
   // dentro de uma fila do dia o chip de etapa conta a base (escolher a etapa sai da fila): senão "Novo" dava 0 em Retornos
   assert.deepEqual(consultar(base, f({ fila: "retornos" }), ctx).estagios, todos.estagios, "o chip de etapa ignora a fila");
   assert.equal(todos.caixa, 4, "Caixa incluído em todos os negócios");
-  assert.deepEqual(todos.visoes, { atrasados: 1, hoje: 1, falei: 1, fixados: 1, todos: 4, pendentes: 3, negociando: 1, foradoar: 1 });
+  assert.deepEqual(todos.visoes, { atrasados: 1, hoje: 1, falei: 1, fixados: 1, todos: 4, pendentes: 3, negociando: 1, foradoar: 1, reserva: 0 });
+
+  // Reserva ("Enviou?" → "Não" com motivo): sai da lista, das filas e das contagens; só a aba dela mostra
+  {
+    const reservada = { ...VAZIO, proximaData: HOJE, reservaEm: "2026-11-01T12:00:00.000Z", reservaMotivo: "sem_whatsapp" as const };
+    const ctxR = { ...ctx, crm: { ...crm, "sem-cidade": reservada } };
+    const r = consultar(base, f(), ctxR);
+    assert.equal(slugs(r).includes("sem-cidade"), false, "fora da lista");
+    assert.equal(r.visoes.todos, 3);
+    assert.equal(r.visoes.reserva, 1);
+    assert.equal(r.prazos.hoje, 1, "o retorno de hoje dela não conta");
+    assert.deepEqual(slugs(consultar(base, f({ reserva: true }), ctxR)), ["sem-cidade"], "a aba mostra só a reserva");
+    assert.equal(consultar(base, f({ fila: "retornos" }), ctxR).lista.some((e) => e.slug === "sem-cidade"), false, "nenhuma fila do dia");
+    assert.equal(contarFilas(base, f(), ctxR).filas.retornos, 2, "os dois de antes; a reserva com retorno hoje não entra");
+    assert.equal(visaoDe({ prazo: "", situacao: "", estagio: "", fora: false, contato: false, fixados: false, reserva: true })?.id, "reserva");
+  }
   // o valor legado do Caixa não soma mais na mensalidade
   assert.deepEqual(todos.totais, { contratadoCents: 8990, negociacaoCents: 9000 });
   // a visão "Atrasados" ignora o filtro de prazo ligado, mas respeita a busca
@@ -230,6 +245,7 @@ function antigo(espacos: Espaco[], x: Filtros, crm: Record<string, Crm>, dataDeH
     contato: (e) => !x.contato || diaDe(crm[e.slug]?.ultimoContatoEm ?? null) === dataDeHoje,
     fixados: (e) => !x.fixados || emDestaque(crm[e.slug], dataDeHoje),
     alerta: (e) => !emFoco || emFoco.has(e.slug),
+    reserva: (e) => !!crm[e.slug]?.reservaEm === !!x.reserva,
   };
   const passa = (e: Espaco, ...exceto: string[]) => Object.entries(testes).every(([nome, teste]) => exceto.includes(nome) || teste(e));
   const contar = (es: Espaco[], campo: (e: Espaco) => string) => {
@@ -257,7 +273,8 @@ function antigo(espacos: Espaco[], x: Filtros, crm: Record<string, Crm>, dataDeH
   const noFunil = espacos.filter((e) => passa(e, "estagio"));
   const visoes = Object.fromEntries(VISOES.map((v) => [v.id, espacos.filter(
     (e) =>
-      passa(e, "prazo", "situacao", "estagio", "fora") &&
+      passa(e, "prazo", "situacao", "estagio", "fora", "reserva") &&
+      !!v.reserva === !!crm[e.slug]?.reservaEm &&
       (!v.prazo || prazoDe(crm[e.slug], dataDeHoje) === v.prazo) &&
       (!v.situacao || (v.situacao === "ativo" ? e.acessos > 1 : e.acessos <= 1)) &&
       (!v.estagio || (crm[e.slug]?.estagio ?? "novo") === v.estagio) &&
@@ -326,6 +343,8 @@ function base(semente: number, n: number) {
 
 for (let semente = 1; semente <= 500; semente++) {
   const { espacos, crm, um, r } = base(semente, 60 + (semente % 7) * 30);
+  // um em cada sete com CRM vai para a reserva (sem mexer no sorteio da base)
+  Object.keys(crm).forEach((slug, i) => { if (i % 7 === 3) crm[slug] = { ...crm[slug], reservaEm: "2026-10-30T12:00:00.000Z", reservaMotivo: "contato_invalido" }; });
   const amostra = um(espacos);
   const filtros: Filtros = {
     busca: r() < 0.3 ? um([semAcento(amostra.nome.split(" ")[0]), amostra.nome.slice(0, 3).toUpperCase(), "  bel ", "zzz"]) : "",
@@ -336,7 +355,7 @@ for (let semente = 1; semente <= 500; semente++) {
     estagio: r() < 0.2 ? um(NA_TELA) : "",
     prazo: r() < 0.2 ? um(["atrasada", "hoje", "futura"] as const) : "",
     alerta: r() < 0.15 ? um(["sem_proxima", "parado", "implantacao", "destaque"] as const) : "",
-    fora: r() < 0.1, caixa: r() < 0.1, contato: r() < 0.1, fixados: r() < 0.1,
+    fora: r() < 0.1, caixa: r() < 0.1, contato: r() < 0.1, fixados: r() < 0.1, reserva: semente % 5 === 0,
     ordem: um(ORDENS),
   };
   // sem fuso é como a tela chama hoje (o da máquina)

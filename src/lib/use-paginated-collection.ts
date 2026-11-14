@@ -4,7 +4,7 @@ import { collection, documentId, getDocs, limit, onSnapshot, orderBy, query, sta
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { z } from "zod";
 import { errorMessage } from "@/lib/auth-errors";
-import { db } from "@/lib/firebase-db";
+import { db, encerrandoSessao } from "@/lib/firebase-db";
 
 const PAGINA = 30;
 
@@ -50,6 +50,7 @@ export function usePaginatedCollection<S extends z.ZodType>(tenantId: string, na
         hasMore: extra.hasMore,
       });
     }, (err) => {
+      if (encerrandoSessao()) return; // saindo da conta: não é falha de leitura
       if (!ativo) return;
       console.error(`[${name}] leitura paginada falhou`, err);
       setResult((old) => old?.for === current ? { ...old, error: errorMessage(err) } : { for: current, items: [], error: errorMessage(err), descartados: [], hasMore: false });

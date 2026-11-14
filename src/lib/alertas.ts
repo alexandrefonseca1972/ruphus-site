@@ -39,6 +39,8 @@ export function alertas(negocios: Negocio[], crm: Record<string, Crm>, hoje: str
 
   for (const n of negocios) {
     const c = crm[n.slug];
+    // na reserva o contato não serve: nada a cobrar até alguém revisar e devolver
+    if (c?.reservaEm) continue;
     if (emNegociacao(c)) {
       // O erro mais comum de CRM: conversa viva e nada combinado para depois
       if (!c!.proximaData) semProxima.push(n.slug);

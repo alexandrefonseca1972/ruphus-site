@@ -11,7 +11,7 @@ const recusa = (x: Record<string, unknown>, motivo: string) => assert.equal(Cons
 // padrão: sem filtro, 40 itens, por relevância
 assert.deepEqual(ok({}), {
   busca: "", uf: "", cidade: "", nicho: "", situacao: "", estagio: "", prazo: "", alerta: "",
-  fora: false, caixa: false, contato: false, fixados: false, ordem: "relevancia", n: PAGINA, hoje,
+  fora: false, caixa: false, contato: false, fixados: false, reserva: false, ordem: "relevancia", n: PAGINA, hoje,
   funil: false, periodo: "mes", novos: 6,
 });
 

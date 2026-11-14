@@ -38,13 +38,15 @@ export async function sair(destino = "/login", { manterPush = false } = {}) {
       // sem service worker ou sem push: nada inscrito
     }
   }
-  await signOut(auth).catch(() => {});
+  // Firestore encerrado ANTES do signOut: com a conta saindo primeiro, cada escuta aberta caía com
+  // "permissão negada", virava erro na tela e tentava de novo. Encerrado, as escutas param caladas
   try {
     const { limparCacheLocal } = await import("@/lib/firebase-db");
     await limparCacheLocal();
   } catch {
     // sem IndexedDB (aba anônima antiga): não havia cache para apagar
   }
+  await signOut(auth).catch(() => {});
   window.location.replace(destino);
 }
 

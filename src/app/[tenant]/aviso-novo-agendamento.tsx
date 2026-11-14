@@ -3,7 +3,7 @@
 import { collection, onSnapshot, orderBy, query, Timestamp, where } from "firebase/firestore";
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { db } from "@/lib/firebase-db";
+import { db, encerrandoSessao } from "@/lib/firebase-db";
 import { formatTime, TIMEZONE } from "@/lib/datetime";
 import { tituloDeNovoAgendamento } from "@/lib/titulo-aba";
 import { useTenant } from "./painel-layout";
@@ -127,7 +127,7 @@ export function AvisoNovoAgendamento() {
         }
       },
       // sem a escuta o painel segue normal; o push continua avisando
-      (e) => console.warn("[aviso de agendamento] escuta caiu", e),
+      (e) => encerrandoSessao() || console.warn("[aviso de agendamento] escuta caiu", e),
     );
   }, [tenant.id, soDe]);
 

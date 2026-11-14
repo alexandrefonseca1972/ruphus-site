@@ -80,6 +80,23 @@ export const MOTIVOS_PERDA = {
 } as const;
 export type MotivoPerda = keyof typeof MOTIVOS_PERDA;
 
+/** Por que o vendedor não conseguiu mandar a mensagem ("Enviou?" → "Não"). O lead sai da lista
+ *  e fica na reserva até alguém corrigir o contato (revisão ou nova rodada de coleta). */
+export const MOTIVOS_RESERVA = {
+  sem_whatsapp: "Sem WhatsApp",
+  contato_invalido: "Contato inválido",
+  outro: "Outro motivo",
+} as const;
+export type MotivoReserva = keyof typeof MOTIVOS_RESERVA;
+export const DETALHE_RESERVA_MAX = 200;
+export const Reserva = z
+  .object({
+    motivo: z.enum(Object.keys(MOTIVOS_RESERVA) as [MotivoReserva, ...MotivoReserva[]]),
+    detalhe: z.string().max(DETALHE_RESERVA_MAX * 2).default(""),
+  })
+  // "Outro" sem explicação não ajuda quem revisa depois
+  .refine((r) => r.motivo !== "outro" || r.detalhe.trim().length > 0, { message: "Conte o motivo em poucas palavras.", path: ["detalhe"] });
+
 /** Como o contato chegou. Os sites importados em lote entram como "importado". */
 export const ORIGENS = {
   porta: "Porta a porta",
@@ -138,6 +155,10 @@ export type Crm = {
   varianteId: string | null;
   /** Primeira visita real ao site demo (beacon, sem prévia de link) */
   siteVistoEm: string | null;
+  /** Na reserva desde (o vendedor não conseguiu enviar): fora da lista e das filas até ser devolvido */
+  reservaEm: string | null;
+  reservaMotivo: MotivoReserva | null;
+  reservaDetalhe: string | null;
 };
 
 export type Contato = { nome: string; whatsapp: string };

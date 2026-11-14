@@ -1,3 +1,4 @@
+import { contatoDaUrl } from "@/lib/cliente-dados";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
@@ -43,8 +44,9 @@ export default async function BookingPage({ params, searchParams }: PageProps<"/
   // sem o pedido pela API, o WhatsApp do cliente é o único aviso imediato: a tela pede que ele avise.
   // Falha na leitura: fica o texto de sempre (o pedido chega pelo painel de qualquer jeito)
   const { canalOficial, ...publico } = catalog;
+  const q = await searchParams;
   const donoAvisado = await donoRecebePelaApi(adminDb, tenant, canalOficial).catch(() => true);
-  return <BookingForm tenantId={tenant} today={today} inicial={inicial(await searchParams, catalog.services, today)} donoAvisado={donoAvisado} {...publico} />;
+  return <BookingForm tenantId={tenant} today={today} inicial={inicial(q, catalog.services, today)} contato={contatoDaUrl(q)} donoAvisado={donoAvisado} {...publico} />;
 }
 
 const um = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);

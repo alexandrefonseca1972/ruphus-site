@@ -145,7 +145,7 @@ export async function renameCustomer(
   return { ok: true as const, name, agendamentos: futuros.size };
 }
 
-/** Data de nascimento e e-mail do cliente, que o dono registra. São dados pessoais: só
+/** Nascimento, e-mail, CPF, outro telefone e cuidados do cliente, que o dono registra. Dados pessoais: só
  *  dono ou admin do negócio grava, e só pelo servidor, que confere de novo (as regras
  *  do Firestore não deixam o navegador escrever esses campos). Vazio apaga. */
 export async function salvarDadosCliente(
@@ -156,9 +156,14 @@ export async function salvarDadosCliente(
   await exigeDono(db, tenantId, user.uid, "registrar dados do cliente");
   const cliente = db.collection("tenants").doc(tenantId).collection("customers").doc(customerId);
   if (!(await cliente.get()).exists) throw new UserError("Cliente não encontrado.");
+  // o id do cliente já é o telefone canônico: repetir o mesmo número como "outro" não acrescenta nada
+  if (dados.telefoneContato && dados.telefoneContato === canonicalBrMobile(customerId)) throw new UserError("O outro telefone é o mesmo do cadastro.");
   await cliente.update({
     nascimento: dados.nascimento || FieldValue.delete(),
     email: dados.email || FieldValue.delete(),
+    cpf: dados.cpf || FieldValue.delete(),
+    telefoneContato: dados.telefoneContato || FieldValue.delete(),
+    cuidados: dados.cuidados || FieldValue.delete(),
     updatedAt: FieldValue.serverTimestamp(),
   });
   return { ok: true as const };

@@ -20,6 +20,8 @@ import {
   linhaDoTempoDo,
   registrarEnvio,
   marcarContatoDo,
+  reservarLeadDo,
+  devolverDaReservaDo,
   marcarEstagio,
   salvarNegocio,
   revogarAcesso,
@@ -47,7 +49,7 @@ import { MINUTOS_MAX, sair, useAutoLogout } from "@/lib/sessao";
 import { AvisoSessao } from "@/components/aviso-sessao";
 import { COMMIT, VERSAO } from "@/lib/versao";
 import { DIAS_CONVITE, LIMITE_STAFF_MAX } from "@/lib/limites";
-import { confirmarEnvio, ContatoDono, Copiloto, Destaque, type Envio, EnviouModal, ImplantacaoESaude, LinhaDoTempo, linkDaBarra, mensagem, MensagensProntas, modeloDaVez, montarPronto, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
+import { confirmarEnvio, ContatoDono, type RespostaEnviou, Copiloto, Destaque, type Envio, EnviouModal, ImplantacaoESaude, LinhaDoTempo, linkDaBarra, mensagem, MensagensProntas, modeloDaVez, montarPronto, MotivoDaPerda, Objecoes, OrigemDoContato, VendaFechada, type Passo } from "./crm-gaveta";
 import type { TextosCrm } from "@/lib/crm-textos";
 import { varianteDoId } from "@/lib/prospeccao-variantes";
 import { FichaDoNegocio } from "./ficha-gaveta";
@@ -64,13 +66,13 @@ import { ColetaMaps } from "./coleta";
 import type { ClienteSaude } from "@/lib/saude.server";
 import { Funil } from "./funil";
 import { DemoMenu } from "./demo-menu";
-import { AUTOR_LEVANTAMENTO, COR, COR_NA_TELA, DESFECHOS, diaCurto, ETAPAS, ETAPAS_NA_TELA, etapaNaTela, hojeISO, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, ROTULO_NA_TELA, campanhaDe, TOQUES_MAX, type Crm, type EnvioConfirmado, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
+import { AUTOR_LEVANTAMENTO, COR, COR_NA_TELA, DESFECHOS, diaCurto, ETAPAS, ETAPAS_NA_TELA, etapaNaTela, hojeISO, MOTIVOS_RESERVA, ORIGENS, prazoDe, PRECO_PADRAO, ROTULO, ROTULO_NA_TELA, campanhaDe, TOQUES_MAX, type Crm, type EnvioConfirmado, type Estagio, type Evento, type Prazo } from "@/lib/crm-tipos";
 
 const VAZIO: Crm = {
   estagio: "novo", entradaCents: null, mensalCents: null, caixaCents: null, fechadoEm: null, proximaAcao: null, proximaData: null, publicado: true, notas: 0,
   donoNome: null, donoPapel: null, donoWhatsapp: null, donoEmail: null, outrosContatos: [], motivoPerda: null, detalhePerda: null,
   origem: null, indicadoPor: null, entrouEm: null, perdidoEm: null, ultimoContatoEm: null, fixadoAte: null,
-  utm: null, toques: 0, respondeuEm: null, naoContatarEm: null, propostaVistaEm: null, varianteId: null, siteVistoEm: null,
+  utm: null, toques: 0, respondeuEm: null, naoContatarEm: null, propostaVistaEm: null, varianteId: null, siteVistoEm: null, reservaEm: null, reservaMotivo: null, reservaDetalhe: null,
 };
 const CIDADES_VISIVEIS = 5;
 // antes da primeira página: chips, visões e alertas zerados (a lista mostra "carregando")
@@ -207,14 +209,16 @@ export default function AdminPage() {
   // a chave `slug|aba`. A mensagem sai dele e do CRM atual (montarPronto), nunca do pronto de outro lead
   const [daBarra, setDaBarra] = useState<{ chave: string; detalhe: Detalhe | null } | null>(null);
   // F1: o clique no WhatsApp só deixa o envio pendente; ao voltar para a aba, o "Enviou?" pergunta.
-  // `proximo`: o "ir ao próximo" abre este depois da resposta (null fecha a gaveta; undefined fica)
+  // `fechar`: depois do "Sim" a gaveta fecha e a lista fica à vista (toques da cadência)
   // `gravando`: a resposta está indo ao servidor (o modal sai); erro reabre o modal com o mesmo envioId
-  const [pendente, setPendente] = useState<{ slug: string; modelo: string; para: string; envio: EnvioConfirmado; proximo?: Espaco | null; voltou: boolean; gravando?: boolean; erro?: string } | null>(null);
+  const [pendente, setPendente] = useState<{ slug: string; modelo: string; para: string; envio: EnvioConfirmado; fechar?: boolean; voltou: boolean; gravando?: boolean; erro?: string } | null>(null);
   // F1-13: a resposta do "Enviou?" que já está indo ao servidor (o envioId): o segundo clique não grava de novo
   const respondendo = useRef<string | null>(null);
   // o link da proposta do negócio aberto: o mesmo vai por WhatsApp e por e-mail
   const [proposta, setProposta] = useState<{ slug: string; url: string; valeAte: string } | null>(null);
   const [fixados, setFixados] = useState(false);
+  // a aba "Em reserva": só quem saiu da lista porque o contato não serviu
+  const [reserva, setReserva] = useState(false);
   const [foraDoAr, setForaDoAr] = useState(false);
   const [comCaixa, setComCaixa] = useState(false);
   const [menuFiltros, setMenuFiltros] = useState(false);
@@ -295,11 +299,11 @@ export default function AdminPage() {
 
   const filtros: Filtros = {
     busca, uf, cidade, nicho, situacao, estagio, prazo, alerta,
-    fora: foraDoAr, caixa: comCaixa, contato: contato === "hoje", fixados, ordem,
+    fora: foraDoAr, caixa: comCaixa, contato: contato === "hoje", fixados, reserva, ordem,
     // a fila é da Lista: o funil mostra as colunas inteiras
     fila: tela === "lista" ? fila : "",
   };
-  const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), String(comCaixa), contato, String(fixados), alerta, filtros.fila].join("|");
+  const chave = [busca, uf, cidade, nicho, situacao, ordem, estagio, prazo, String(foraDoAr), String(comCaixa), contato, String(fixados), String(reserva), alerta, filtros.fila].join("|");
   const quantos = pagina.chave === chave ? pagina.n : PAGINA;
   const servidor = (tela === "lista" || tela === "funil") && estado === "pronto";
   // cada página que chega entra no cache, menos os negócios com escrita em curso
@@ -622,10 +626,10 @@ export default function AdminPage() {
    *  pergunta. Todo envio leva um envioId gerado agora: dois "Sim" do mesmo clique gravam uma vez. Na
    *  cadência, o número do toque e a variante o servidor tira do doc; fora dela (proposta, boas-vindas,
    *  implantação) não há toque. */
-  function aguardarEnvio(slug: string, modelo: string, para: string, e: Envio, proximo?: Espaco | null) {
+  function aguardarEnvio(slug: string, modelo: string, para: string, e: Envio, fechar = false) {
     const envio = { envioId: crypto.randomUUID(), textoEnviado: e.texto, editado: e.editado };
     soltarVolta();
-    setPendente({ slug, modelo, para, envio, proximo, voltou: false });
+    setPendente({ slug, modelo, para, envio, fechar, voltou: false });
     const voltou = () => {
       if (document.visibilityState !== "visible") return;
       soltarVolta();
@@ -637,17 +641,23 @@ export default function AdminPage() {
     document.addEventListener("visibilitychange", voltou);
   }
 
-  /** A resposta do "Enviou?": só o Sim registra e, na prospecção, segue para o próximo da fila. */
-  async function responderEnvio(r: "sim" | "nao") {
+  /** A resposta do "Enviou?". Sim: registra e, nos toques da cadência, fecha a gaveta (a lista
+   *  fica à vista para abrir o próximo). "Ainda não enviei": nada gravado, a gaveta fica no lead.
+   *  Não com motivo: o lead vai para a reserva e a gaveta fecha. */
+  async function responderEnvio(r: RespostaEnviou) {
     const p = pendente;
     if (!p || respondendo.current === p.envio.envioId) return;
-    // "Não": nada gravado e a gaveta fica no lead (dá para abrir o WhatsApp de novo)
-    if (r === "nao") return setPendente(null);
+    if (r.tipo === "nao_enviei") return setPendente(null);
     respondendo.current = p.envio.envioId;
     const comTexto = { ...p, gravando: false };
     // o modal sai enquanto grava; o pendente só some com r.ok
     setPendente({ ...comTexto, gravando: true });
-    const res = await confirmarEnvio(comTexto, async () => registrarEnvio(await token(), p.slug, p.modelo, p.para, comTexto.envio));
+    const res =
+      r.tipo === "sim"
+        ? await confirmarEnvio(comTexto, async () => registrarEnvio(await token(), p.slug, p.modelo, p.para, comTexto.envio))
+        : await confirmarEnvio(comTexto, async () => reservarLeadDo(await token(), p.slug, { motivo: r.motivo, detalhe: r.detalhe })).then((x) =>
+            x.ok ? x : { ...x, aviso: x.aviso.replace("O envio não foi registrado", "Não foi para a reserva") },
+          );
     respondendo.current = null;
     setRecarga((x) => x + 1);
     if (!res.ok) {
@@ -659,27 +669,39 @@ export default function AdminPage() {
     }
     setPendente((atual) => (atual?.envio.envioId === p.envio.envioId ? null : atual));
     contatoMudou(p.slug, res.dados);
+    const nome = espacos[p.slug]?.nome ?? p.slug;
+    if (r.tipo === "reserva") setAviso(`${nome} saiu da lista e foi para a reserva (${MOTIVOS_RESERVA[r.motivo]}). Está em Mais visões → Em reserva.`);
     // gaveta fechada ou outro negócio aberto nesse meio-tempo: fica como está
-    if (p.proximo === undefined || abertoRef.current !== p.slug || !document.getElementById("gaveta-negocio")) return;
-    if (p.proximo) void abrir(p.proximo);
-    else setAberto(null);
+    if ((r.tipo === "reserva" || p.fechar) && abertoRef.current === p.slug && document.getElementById("gaveta-negocio")) setAberto(null);
   }
 
-  /** O botão do WhatsApp nos toques da cadência: registra e, depois do "Sim" no "Enviou?", abre o
-   *  próximo da fila; sem próximo, fecha a gaveta. O próximo é o da lista de agora: depois do envio
-   *  o lead pode sair da fila. */
-  function enviarEProximo(slug: string, modelo: string, para: string, e: Envio) {
-    const i = visiveis.findIndex((x) => x.slug === slug);
-    // aberto de fora da Lista (Funil, Carteira, Cobrança): não há fila, só registra o envio.
-    // Último da página carregada, mas a lista tem mais: a gaveta fica aberta
-    const proximo = i < 0 || (!visiveis[i + 1] && total > visiveis.length) ? undefined : (visiveis[i + 1] ?? null);
-    aguardarEnvio(slug, modelo, para, e, proximo);
+  /** O botão do WhatsApp nos toques da cadência: registra e, depois do "Sim" no "Enviou?", fecha a
+   *  gaveta e volta para a lista, onde o vendedor escolhe o próximo negócio. */
+  function enviarEFechar(slug: string, modelo: string, para: string, e: Envio) {
+    aguardarEnvio(slug, modelo, para, e, true);
   }
 
   // o servidor devolve o doc já com o próximo toque agendado (ou o pedido de parar): a gaveta segue
   function contatoMudou(slug: string, d: { eventos: Evento[]; crm: Crm | null }) {
     if (d.crm) setCrm((c) => ({ ...c, [slug]: d.crm! }));
     if (aberto?.slug === slug) setEventos(d.eventos);
+  }
+
+  /** Contato revisado (telefone corrigido ou confirmado): o negócio sai da reserva e volta para a lista. */
+  async function devolverDaLista(slug: string) {
+    marcarPendente(slug);
+    try {
+      const r = await devolverDaReservaDo(await token(), slug);
+      if (!r.ok) return setAviso(r.error);
+      contatoMudou(slug, r.dados);
+      setAviso(`${espacos[slug]?.nome ?? slug} voltou para a lista.`);
+    } catch (e) {
+      console.error("[reserva] não devolveu", e);
+      setAviso("Não foi possível devolver à lista (sem resposta do servidor). Tente de novo.");
+    } finally {
+      soltarPendente(slug);
+      setRecarga((x) => x + 1);
+    }
   }
 
   async function marcarResposta(slug: string, oque: "respondeu" | "automatica" | "parar" | "liberar") {
@@ -818,7 +840,7 @@ export default function AdminPage() {
   const nFiltros = [uf, cidade, nicho, estagio, prazo, foraDoAr ? "x" : "", comCaixa ? "x" : ""].filter(Boolean).length;
 
   // com uma fila escolhida, nenhuma visão está ativa (os filtros dela estão zerados, como em "Todos")
-  const visaoAtiva = filtros.fila ? undefined : visaoDe({ prazo, situacao, estagio, fora: foraDoAr, contato: contato === "hoje", fixados });
+  const visaoAtiva = filtros.fila ? undefined : visaoDe({ prazo, situacao, estagio, fora: foraDoAr, contato: contato === "hoje", fixados, reserva });
   function verVisao(v: Visao) {
     setPrazo(v.prazo);
     setSituacao(v.situacao);
@@ -826,6 +848,7 @@ export default function AdminPage() {
     setForaDoAr(v.fora);
     setContato(v.contato ? "hoje" : "");
     setFixados(v.fixados ?? false);
+    setReserva(v.reserva ?? false);
     setAlerta("");
     setFila("");
   }
@@ -1122,8 +1145,24 @@ export default function AdminPage() {
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar negócio"
-            className="grow bg-transparent text-[13px] outline-none placeholder:text-[#8B8578]"
+            // o X nativo só existe no Chrome do computador: o botão abaixo vale em todo navegador
+            className="min-w-0 grow bg-transparent text-[16px] outline-none placeholder:text-[#8B8578] sm:text-[13px] [&::-webkit-search-cancel-button]:appearance-none"
           />
+          {busca && (
+            <button
+              type="button"
+              aria-label="Limpar a busca"
+              onClick={() => {
+                setBusca("");
+                campoBusca.current?.focus();
+              }}
+              className="-mr-2 grid size-10 shrink-0 place-items-center rounded-md text-[#6F6A5E] hover:text-[#17150F] sm:size-7"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
+          )}
           <kbd className="hidden rounded border border-[#D8D2C6] bg-white px-1.5 text-[11px] text-[#6F6A5E] sm:block">/</kbd>
         </div>
 
@@ -1546,6 +1585,7 @@ export default function AdminPage() {
                         setForaDoAr(todos.fora);
                         setContato("");
                         setFixados(false);
+                        setReserva(false);
                         setFila("");
                       }
                     }}
@@ -2124,7 +2164,7 @@ export default function AdminPage() {
               crm={crm[aberto.slug] ?? VAZIO}
               assinatura={assinatura}
               onEnviar={(modelo, para, envio) => aguardarEnvio(aberto.slug, modelo, para, envio)}
-              onEnviarEProximo={(modelo, para, envio) => enviarEProximo(aberto.slug, modelo, para, envio)}
+              onEnviarEProximo={(modelo, para, envio) => enviarEFechar(aberto.slug, modelo, para, envio)}
               variante={detalhe ? varianteDoId(detalhe.varianteId) : null}
               textos={textos}
               carregando={!detalhe && !erroDetalhe}
@@ -2138,6 +2178,24 @@ export default function AdminPage() {
               onMarcar={(oque) => marcarResposta(aberto.slug, oque)}
               onEncerrar={() => mudarNegocio(aberto.slug, { estagio: "perdido", motivoPerda: "nao_respondeu" })}
             />
+
+            {/* Na reserva: o contato não serviu. Corrige o telefone acima e devolve à lista */}
+            {crm[aberto.slug]?.reservaEm && (() => {
+              const c = crm[aberto.slug]!;
+              return (
+                <section aria-label="Na reserva" className="flex flex-col gap-2 rounded-2xl border border-[#E8D9B8] bg-[#FBF6EA] p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-0.5">
+                    <p className="text-[13px] font-semibold text-[#7A5A2E]">
+                      Na reserva desde {diaCurto(c.reservaEm!.slice(0, 10))} · {c.reservaMotivo ? MOTIVOS_RESERVA[c.reservaMotivo] : "motivo não informado"}
+                    </p>
+                    <p className="text-[12px] text-[#6F6A5E]">{c.reservaDetalhe || "Fora da lista e das filas. Revise o contato e devolva quando estiver certo."}</p>
+                  </div>
+                  <button type="button" onClick={() => void devolverDaLista(aberto.slug)} className="h-11 shrink-0 rounded-full bg-[#17150F] px-4 text-[12.5px] font-semibold text-white hover:bg-[#2C2920]">
+                    Devolver à lista
+                  </button>
+                </section>
+              );
+            })()}
 
             {/* O que o lead fez: para a cadência, ou tira o negócio das filas. Fechar e perder
                 perguntam antes de gravar */}

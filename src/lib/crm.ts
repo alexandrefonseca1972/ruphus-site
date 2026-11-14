@@ -14,7 +14,7 @@ import { paraTelefoneNorm, paraVarianteId, type VarianteId } from "@/lib/tipos-m
 const RAIZ = "crm";
 
 export { ESTAGIOS, ROTULO } from "@/lib/crm-tipos";
-import { barradoPeloPareDoAgente, CADENCIA, daCadencia, DEPOIS_DA_RESPOSTA, DETALHE_PAROU, EnvioConfirmado, ESTAGIOS as LISTA, etapaDoModelo, EventoProspeccao, MOTIVOS_PERDA, ORIGENS, ROTULO, tipoNaTela, TOQUES_MAX, type Crm, type Evento, type MotivoPerda, type Nota, type Origem, type Utm } from "@/lib/crm-tipos";
+import { barradoPeloPareDoAgente, CADENCIA, daCadencia, DEPOIS_DA_RESPOSTA, DETALHE_PAROU, EnvioConfirmado, ESTAGIOS as LISTA, etapaDoModelo, EventoProspeccao, MOTIVOS_PERDA, MOTIVOS_RESERVA, ORIGENS, ROTULO, tipoNaTela, DETALHE_RESERVA_MAX, TOQUES_MAX, type Crm, type Evento, type MotivoPerda, type MotivoReserva, type Nota, type Origem, type Utm } from "@/lib/crm-tipos";
 export type { Crm, Evento, Nota };
 
 /** Erro previsto: a mensagem chega à tela como está (o resto vira "não foi possível") */
@@ -163,6 +163,9 @@ export function negocio(d: { get: (campo: string) => unknown }): Crm {
     propostaVistaEm: (d.get("propostaVistaEm") as { toDate?: () => Date } | null)?.toDate?.().toISOString() ?? null,
     varianteId: VarianteDoDoc.parse(d.get("varianteId") ?? null),
     siteVistoEm: DataDoDoc.parse(d.get("siteVistoEm")),
+    reservaEm: DataDoDoc.parse(d.get("reservaEm")),
+    reservaMotivo: Object.hasOwn(MOTIVOS_RESERVA, String(d.get("reservaMotivo"))) ? (d.get("reservaMotivo") as MotivoReserva) : null,
+    reservaDetalhe: typeof d.get("reservaDetalhe") === "string" ? (d.get("reservaDetalhe") as string) : null,
   };
 }
 
@@ -504,6 +507,46 @@ export async function marcarContato(db: Firestore, slug: string, oque: "responde
     return parar;
   });
   for (const telefone of fones ?? []) await cancelarPendentes(db, { telefone }, "optout");
+}
+
+/** "Enviou?" → "Não" com motivo: o contato não serve (sem WhatsApp, número errado…). O lead sai
+ *  da lista e das filas e fica na reserva, com o motivo, até alguém corrigir o contato e devolver.
+ *  O próximo passo da cadência deixa de valer (sem contato não há retorno); o que o vendedor
+ *  combinou fica. Repetir com o lead já na reserva só troca o motivo. */
+export async function reservarLead(db: Firestore, slug: string, motivo: MotivoReserva, detalhe: string, autor: string) {
+  const ref = db.doc(`${RAIZ}/${slug}`);
+  const limpo = detalhe.replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim().slice(0, DETALHE_RESERVA_MAX);
+  await db.runTransaction(async (tx) => {
+    const atual = await tx.get(ref);
+    const estagio = (atual.get("estagio") as Crm["estagio"] | undefined) ?? "novo";
+    if (estagio === "fechado") throw new CrmErro("Este negócio já é cliente: não vai para a reserva.");
+    const agora = FieldValue.serverTimestamp();
+    const cadencia = !atual.get("proximaData") || daCadencia(atual.get("proximaAcao"));
+    tx.set(
+      ref,
+      {
+        reservaEm: atual.get("reservaEm") ?? agora,
+        reservaMotivo: motivo,
+        reservaDetalhe: limpo || FieldValue.delete(),
+        ...(cadencia ? { proximaAcao: FieldValue.delete(), proximaData: FieldValue.delete() } : {}),
+        atualizadoEm: agora,
+      },
+      { merge: true },
+    );
+    tx.set(ref.collection("eventos").doc(), { tipo: "estagio", titulo: "Foi para a reserva", detalhe: [MOTIVOS_RESERVA[motivo], limpo].filter(Boolean).join(" · "), autor, quando: agora });
+  });
+}
+
+/** Contato revisado: o lead volta para a lista e para as filas, na etapa em que estava. */
+export async function devolverDaReserva(db: Firestore, slug: string, autor: string) {
+  const ref = db.doc(`${RAIZ}/${slug}`);
+  await db.runTransaction(async (tx) => {
+    const atual = await tx.get(ref);
+    if (!atual.get("reservaEm")) throw new CrmErro("Este negócio não está na reserva.");
+    const agora = FieldValue.serverTimestamp();
+    tx.set(ref, { reservaEm: FieldValue.delete(), reservaMotivo: FieldValue.delete(), reservaDetalhe: FieldValue.delete(), atualizadoEm: agora }, { merge: true });
+    tx.set(ref.collection("eventos").doc(), { tipo: "estagio", titulo: "Voltou da reserva", detalhe: "Contato revisado", autor, quando: agora });
+  });
 }
 
 /** O que a Ruphus já mandou ao lead, do mais antigo ao mais novo: os envios confirmados recentes (da

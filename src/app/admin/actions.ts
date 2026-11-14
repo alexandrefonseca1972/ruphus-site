@@ -36,9 +36,9 @@ import {
   pixCadastrado,
   salvarPix,
 } from "@/lib/cobranca";
-import { anotar, CrmInput, historicoDoCopiloto, lerCrm, lerFechados, linhaDoTempo, listarNotas, marcarContato, paradoNaProspeccao, registrarFalhaIA, registrarMensagem, salvarCrm } from "@/lib/crm";
+import { anotar, CrmInput, historicoDoCopiloto, lerCrm, lerFechados, linhaDoTempo, devolverDaReserva, listarNotas, marcarContato, paradoNaProspeccao, reservarLead, registrarFalhaIA, registrarMensagem, salvarCrm } from "@/lib/crm";
 import type { Crm } from "@/lib/crm-tipos";
-import { diaCurto, EnvioConfirmado, ESTAGIOS, hojeISO, mensalidadeDe } from "@/lib/crm-tipos";
+import { diaCurto, EnvioConfirmado, ESTAGIOS, hojeISO, mensalidadeDe, Reserva } from "@/lib/crm-tipos";
 import { LeadParou, sugerirResposta } from "@/lib/prospeccao-ia.server";
 import { roteamentoNaTela, salvarRoteamento } from "@/lib/ia-roteador.server";
 import { TextosCrm } from "@/lib/crm-textos";
@@ -471,6 +471,26 @@ export const marcarContatoDo = adminAction(async (user, slug: string, oque: unkn
   const o = OqueDoContato.safeParse(oque);
   if (!o.success) throw new ErroPrevisto("Ação inválida.");
   await marcarContato(adminDb, slug, o.data, user.email ?? user.uid);
+  await noIndice(slug);
+  const [eventos, crm] = await Promise.all([linhaDoTempo(adminDb, slug), lerCrm(adminDb, [slug])]);
+  return { eventos, crm: crm[slug] ?? null };
+});
+
+/** "Enviou?" → "Não" com motivo: o lead sai da lista e fica na reserva para revisão. */
+export const reservarLeadDo = adminAction(async (user, slug: string, reserva: unknown) => {
+  slugValido(slug);
+  const r = Reserva.safeParse(reserva);
+  if (!r.success) throw new ErroPrevisto(r.error.issues[0]?.message ?? "Motivo inválido.");
+  await reservarLead(adminDb, slug, r.data.motivo, r.data.detalhe, user.email ?? user.uid);
+  await noIndice(slug);
+  const [eventos, crm] = await Promise.all([linhaDoTempo(adminDb, slug), lerCrm(adminDb, [slug])]);
+  return { eventos, crm: crm[slug] ?? null };
+});
+
+/** Contato revisado: o lead sai da reserva e volta para a lista. */
+export const devolverDaReservaDo = adminAction(async (user, slug: string) => {
+  slugValido(slug);
+  await devolverDaReserva(adminDb, slug, user.email ?? user.uid);
   await noIndice(slug);
   const [eventos, crm] = await Promise.all([linhaDoTempo(adminDb, slug), lerCrm(adminDb, [slug])]);
   return { eventos, crm: crm[slug] ?? null };

@@ -42,7 +42,7 @@ assert.equal(erroNome("Zé"), "");
 console.log("nome: ok");
 
 // dados do cliente na ficha: nascimento e e-mail
-import { erroEmail, erroNascimento, idade, isoDeBR, mascaraData, mascaraEmail } from "@/lib/cliente-dados";
+import { erroCpf, erroEmail, erroNascimento, erroTelefoneContato, idade, isoDeBR, mascaraCpf, mascaraData, mascaraEmail } from "@/lib/cliente-dados";
 assert.equal(mascaraData("31121990"), "31/12/1990");
 assert.equal(mascaraData("3a1/1"), "31/1", "letra e barra digitada não entram");
 assert.equal(mascaraData("311219901234"), "31/12/1990", "no máximo 8 dígitos");
@@ -130,3 +130,51 @@ console.log("preço: ok");
   assert.equal(erroContatoNegocio("559132334455", reservados), null, "telefone fixo também pode ser contato");
   console.log("contato do negócio e números da Meta: ok");
 }
+
+// CPF e outro telefone da ficha do cliente: a máscara e o erro que a tela mostra
+assert.deepEqual(["", "529", "5299", "529982", "5299822", "52998224725", "52998224725999"].map(mascaraCpf), ["", "529", "529.9", "529.982", "529.982.2", "529.982.247-25", "529.982.247-25"]);
+assert.equal(erroCpf(""), "");
+assert.equal(erroCpf("529.982.247-25"), "");
+assert.match(erroCpf("529.982"), /Complete/);
+assert.match(erroCpf("529.982.247-26"), /inválido/);
+assert.equal(erroTelefoneContato(""), "");
+assert.equal(erroTelefoneContato("(91) 98123-4706"), "");
+assert.match(erroTelefoneContato("8888-7777"), /DDD/);
+
+// Ficha do cliente: a máscara da data não deixa dia nem mês impossíveis
+import { contatoDaUrl, ehCelular, limparTexto, mascaraTelefoneContato, sugestaoEmail } from "@/lib/cliente-dados";
+assert.deepEqual(
+  ["43434343", "3", "32", "31", "3113", "1213", "1200", "0", "00", "4", "12021990", "5/7/1990"].map(mascaraData),
+  ["04/03/4343", "3", "3", "31", "31/1", "12/1", "12/0", "0", "0", "04", "12/02/1990", "05/07/1990"],
+);
+assert.match(erroNascimento("01/01/1890"), /ano/);
+// editar o meio da data não apaga o resto: tirar o "1" de 12/05/1990 deixa 20/05/1990
+assert.equal(mascaraData("2/05/1990"), "20/05/1990");
+assert.equal(mascaraData("12/5/1990"), "12/05/1990");
+assert.equal(mascaraData("1990-05-12"), "12/05/1990", "colado em ISO");
+assert.equal(mascaraData("39/13/2000"), "31/03/2000", "dígito impossível sai sozinho, o resto fica");
+// outro telefone: nunca passa de 11 dígitos; DDD, celular sem 9, inventado e repetido são recusados
+assert.equal(mascaraTelefoneContato("434343434343434"), "(43) 43434-3434");
+assert.equal(mascaraTelefoneContato("5591988887777"), "(91) 98888-7777");
+assert.equal(erroTelefoneContato("(91) 3222-1100"), "", "fixo vale");
+assert.match(erroTelefoneContato("(20) 98888-7777"), /DDD/);
+assert.match(erroTelefoneContato("(91) 8888-7777"), /9 depois do DDD/);
+assert.match(erroTelefoneContato("(91) 99999-9999"), /inventado/);
+assert.match(erroTelefoneContato("(91) 98123-4706", "5591981234706"), /mesmo telefone/);
+assert.match(erroTelefoneContato("(91) 9888"), /Complete/);
+// e-mail: só números não passa; domínio errado ganha sugestão
+assert.notEqual(erroEmail("4343434343434343"), "");
+assert.equal(sugestaoEmail("ana@gmial.com"), "ana@gmail.com");
+assert.equal(sugestaoEmail("ana@gmail.com"), "");
+// cuidados: sem controle, sem espaço sobrando, no máximo uma linha em branco
+assert.equal(limparTexto("  Alergia\u0007 a amônia  \n\n\n\nGestante​  "), "Alergia a amônia\n\nGestante");
+// celular recebe WhatsApp; fixo vira "ligar"
+assert.deepEqual(["5591981234706", "(91) 98123-4706", "559132221100", "(91) 3222-1100", "(91) 8123-4706"].map(ehCelular), [true, true, false, false, true]);
+// contato da URL (?nome=&fone=): só nome limpo e telefone de 10 a 13 dígitos
+assert.deepEqual(contatoDaUrl({ nome: "  Maria\u0007   Souza ", fone: "5591981234706" }), { nome: "Maria Souza", fone: "5591981234706" });
+assert.deepEqual(contatoDaUrl({ nome: ["Ana", "Bia"], fone: "(91) 98123-4706" }), { nome: "Ana", fone: "91981234706" });
+assert.equal(contatoDaUrl({ nome: "Ana", fone: "123" }), null);
+assert.equal(contatoDaUrl({ nome: "   ", fone: "91981234706" }), null);
+assert.equal(contatoDaUrl({ fone: "91981234706" }), null);
+assert.equal(contatoDaUrl({ nome: "x".repeat(200), fone: "91981234706" })?.nome.length, 80);
+console.log("ficha do cliente: ok");

@@ -398,16 +398,42 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
 
   // Nascimento e e-mail: o dono registra; o servidor limpa e confere de novo
   const dados = DadosCliente.parse({ nascimento: "1990-12-31", email: " Marcia@Email.COM " });
-  assert.deepEqual(dados, { nascimento: "1990-12-31", email: "marcia@email.com" }, "e-mail sem espaço e minúsculo");
+  assert.deepEqual(dados, { nascimento: "1990-12-31", email: "marcia@email.com", cpf: "", telefoneContato: "", cuidados: "" }, "e-mail sem espaço e minúsculo");
   await salvarDadosCliente(db, { tenantId: "salao", customerId: chave, dados }, { uid: "owner" });
   assert.deepEqual([(await cli.get()).get("nascimento"), (await cli.get()).get("email")], ["1990-12-31", "marcia@email.com"]);
   await assert.rejects(salvarDadosCliente(db, { tenantId: "salao", customerId: chave, dados }, { uid: "recepcao" }), /dono ou um administrador/, "dado pessoal: a equipe não grava");
-  for (const ruim of [{ nascimento: "1990-02-31", email: "" }, { nascimento: "2999-01-01", email: "" }, { nascimento: "", email: "marcia@" }]) {
+  // CPF, outro telefone e cuidados: gravados limpos (só dígitos, telefone com DDI)
+  const completo = DadosCliente.parse({ nascimento: "", email: "", cpf: "529.982.247-25", telefoneContato: "(91) 98123-4706", cuidados: "  Alergia a amônia  " });
+  assert.deepEqual([completo.cpf, completo.telefoneContato, completo.cuidados], ["52998224725", "5591981234706", "Alergia a amônia"]);
+  await salvarDadosCliente(db, { tenantId: "salao", customerId: chave, dados: completo }, { uid: "owner" });
+  assert.deepEqual([(await cli.get()).get("cpf"), (await cli.get()).get("telefoneContato"), (await cli.get()).get("cuidados")], ["52998224725", "5591981234706", "Alergia a amônia"]);
+  // outro telefone igual ao do cadastro: o servidor recusa mesmo sem a tela
+  await t.collection("customers").doc("5511981234706").set({ name: "Rita", phone: "(11) 98123-4706" });
+  await assert.rejects(
+    salvarDadosCliente(db, { tenantId: "salao", customerId: "5511981234706", dados: DadosCliente.parse({ nascimento: "", email: "", telefoneContato: "(11) 98123-4706" }) }, { uid: "owner" }),
+    /mesmo do cadastro/,
+  );
+  await t.collection("customers").doc("5511981234706").delete();
+  await assert.rejects(
+    salvarDadosCliente(db, { tenantId: "naoexiste", customerId: chave, dados: completo }, { uid: "owner" }),
+    /dono ou um administrador|não encontrado/,
+    "negócio de outro: recusa",
+  );
+  for (const ruim of [
+    { nascimento: "1990-02-31", email: "" },
+    { nascimento: "2999-01-01", email: "" },
+    { nascimento: "", email: "marcia@" },
+    { nascimento: "", email: "", cpf: "529.982.247-26" },
+    { nascimento: "", email: "", cpf: "111.111.111-11" },
+    { nascimento: "", email: "", telefoneContato: "8888-7777" },
+    { nascimento: "", email: "", cuidados: "x".repeat(301) },
+  ]) {
     assert.equal(DadosCliente.safeParse(ruim).success, false, JSON.stringify(ruim));
   }
   // vazio apaga
   await salvarDadosCliente(db, { tenantId: "salao", customerId: chave, dados: DadosCliente.parse({ nascimento: "", email: "" }) }, { uid: "owner" });
-  assert.deepEqual([(await cli.get()).get("nascimento"), (await cli.get()).get("email")], [undefined, undefined]);
+  const apagado = (await cli.get()).data() ?? {};
+  assert.deepEqual(["nascimento", "email", "cpf", "telefoneContato", "cuidados"].filter((c) => c in apagado), []);
 
   // Excluir: só dono/admin, e nunca com horário marcado
   await t.collection("members").doc("func").set({ uid: "func", role: "member" });

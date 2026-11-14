@@ -3,18 +3,19 @@
 import { caixaLigado } from "@/lib/modulos";
 import { errorMessage } from "@/lib/auth-errors";
 import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, serverTimestamp, Timestamp, updateDoc, where } from "firebase/firestore";
+import { CalendarPlus, Check, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { auth, idToken } from "@/lib/firebase";
-import { db } from "@/lib/firebase-db";
+import { db, encerrandoSessao } from "@/lib/firebase-db";
 import { dateIn, formatBRL, formatLongDate, formatTime, fusoDe, whatsappLink, precoDe } from "@/lib/datetime";
 import { useCollection } from "@/lib/use-collection";
 import { Lancamento } from "@/lib/financeiro";
-import { brDeIso, erroEmail, erroNascimento, idade, isoDeBR, mascaraData, mascaraEmail } from "@/lib/cliente-dados";
+import { brDeIso, ehCelular, erroCpf, erroEmail, erroNascimento, erroTelefoneContato, idade, isoDeBR, limparTexto, mascaraCpf, mascaraData, mascaraEmail, mascaraTelefoneContato, MAX_CUIDADOS, sugestaoEmail } from "@/lib/cliente-dados";
 import { deleteCustomerAction, endPlanAction, renameCustomerAction, salvarDadosClienteAction } from "../../actions";
 import { ConfirmDialog } from "../../confirm-dialog";
 import { History } from "../../history";
@@ -64,7 +65,7 @@ export default function CustomerPage() {
   const { customer: rawKey } = useParams<{ customer: string }>();
   const key = /^\d{10,15}$/.test(rawKey) ? rawKey : ""; // id do cliente = telefone só com dígitos
   const [customer, setCustomer] = useState<
-    { name: string; phone: string; etiquetas: string[]; semCampanha: boolean; nascimento: string; email: string } | null | undefined
+    ({ name: string; phone: string; etiquetas: string[]; semCampanha: boolean } & Cadastro) | null | undefined
   >(undefined);
   const [appointments] = useCollection(tenant.id, "appointments", Appointment, [where("customerKey", "==", key), orderBy("start", "desc")], key);
   const [plans] = useCollection(tenant.id, "plans", Plan, [where("customerKey", "==", key)], key);
@@ -80,6 +81,19 @@ export default function CustomerPage() {
   const [deleting, setDeleting] = useState(false);
   const router = useRouter();
   const [error, setError] = useState("");
+  // falha ao gravar etiqueta, campanha ou anotação: aparece na própria seção, não lá embaixo
+  const [erroFicha, setErroFicha] = useState("");
+  const grava = (p: Promise<unknown>) => {
+    setErroFicha("");
+    return p.then(
+      () => true,
+      (err) => {
+        console.error("[cliente] não gravou", err);
+        setErroFicha(`Não foi possível salvar: ${errorMessage(err)}`);
+        return false;
+      },
+    );
+  };
   const [now] = useState(Date.now);
 
   useEffect(() => {
@@ -96,10 +110,14 @@ export default function CustomerPage() {
                   semCampanha: snap.get("semCampanha") === true,
                   nascimento: String(snap.get("nascimento") ?? ""),
                   email: String(snap.get("email") ?? ""),
+                  cpf: String(snap.get("cpf") ?? ""),
+                  telefoneContato: String(snap.get("telefoneContato") ?? ""),
+                  cuidados: String(snap.get("cuidados") ?? ""),
                 }
               : null,
           ),
-      () => setCustomer(null),
+      // saindo da conta, a escuta cai: não é "cliente não encontrado"
+      () => encerrandoSessao() || setCustomer(null),
     );
   }, [tenant.id, key]);
 
@@ -201,7 +219,16 @@ export default function CustomerPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           {tenant.podeGerir && !deleting && <Button variant="ghost" onClick={() => setDeleting(true)}>Excluir cliente</Button>}
-          {!planning && <Button onClick={() => setPlanning(true)}>Novo plano recorrente</Button>}
+          {!planning && <Button variant="outline" onClick={() => setPlanning(true)}>Novo plano recorrente</Button>}
+          {/* o link público com o contato já preenchido: o horário entra como os demais do link */}
+          <Link
+            href={`/agendar/${tenant.id}?${new URLSearchParams({ nome: customer.name, fone: key })}`}
+            target="_blank"
+            className={buttonVariants({ className: "gap-2" })}
+          >
+            <CalendarPlus className="size-4" aria-hidden="true" />
+            Agendar
+          </Link>
         </div>
       </div>
       {deleting && (
@@ -212,6 +239,13 @@ export default function CustomerPage() {
           onConfirm={remove}
           onCancel={() => setDeleting(false)}
         />
+      )}
+
+      {customer.cuidados && (
+        <div role="note" aria-label="Cuidados no atendimento" className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <p className="whitespace-pre-line">{customer.cuidados}</p>
+        </div>
       )}
 
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-6">
@@ -229,8 +263,7 @@ export default function CustomerPage() {
         <DadosDoCliente
           tenantId={tenant.id}
           customerId={key}
-          nascimento={customer.nascimento}
-          email={customer.email}
+          dados={customer}
           podeEditar={tenant.podeGerir}
         />
 
@@ -241,7 +274,7 @@ export default function CustomerPage() {
               <button
                 type="button"
                 aria-label={`Tirar a etiqueta ${e}`}
-                onClick={() => updateDoc(doc(db, "tenants", tenant.id, "customers", key), { etiquetas: customer.etiquetas.filter((x) => x !== e) })}
+                onClick={() => grava(updateDoc(doc(db, "tenants", tenant.id, "customers", key), { etiquetas: customer.etiquetas.filter((x) => x !== e) }))}
                 className="-my-1 -mr-1.5 inline-grid size-8 place-items-center rounded-full text-muted-foreground hover:text-foreground"
               >
                 ×
@@ -257,8 +290,10 @@ export default function CustomerPage() {
               const repetida = customer.etiquetas.some((e) => e.toLocaleLowerCase("pt-BR") === nova.toLocaleLowerCase("pt-BR"));
               if (repetida) campo.value = "";
               if (!nova || repetida || customer.etiquetas.length >= 8) return;
-              updateDoc(doc(db, "tenants", tenant.id, "customers", key), { etiquetas: [...customer.etiquetas, nova] });
               campo.value = "";
+              grava(updateDoc(doc(db, "tenants", tenant.id, "customers", key), { etiquetas: [...customer.etiquetas, nova] })).then((ok) => {
+                if (!ok) campo.value = nova; // devolve o que foi digitado para tentar de novo
+              });
             }}
             className="max-sm:w-full"
           >
@@ -271,7 +306,7 @@ export default function CustomerPage() {
           <input
             type="checkbox"
             checked={customer.semCampanha}
-            onChange={(ev) => updateDoc(doc(db, "tenants", tenant.id, "customers", key), { semCampanha: ev.target.checked })}
+            onChange={(ev) => grava(updateDoc(doc(db, "tenants", tenant.id, "customers", key), { semCampanha: ev.target.checked }))}
             className="size-5 accent-primary"
           />
           Não receber campanhas
@@ -284,21 +319,24 @@ export default function CustomerPage() {
             const texto = campo.value.trim();
             if (!texto) return;
             const user = auth.currentUser;
-            if (!user) return;
-            await addDoc(collection(db, "tenants", tenant.id, "customers", key, "notas"), {
-              texto,
-              quando: serverTimestamp(),
-              por: user.uid,
-              porNome: user.emailVerified ? user.email : null,
-            });
-            campo.value = "";
+            if (!user) return setErroFicha("Sua sessão expirou. Entre de novo para anotar.");
+            const ok = await grava(
+              addDoc(collection(db, "tenants", tenant.id, "customers", key, "notas"), {
+                texto,
+                quando: serverTimestamp(),
+                por: user.uid,
+                porNome: user.emailVerified ? user.email : null,
+              }),
+            );
+            if (ok) campo.value = ""; // falhou: o texto fica no campo
           }}
           className="flex gap-2"
         >
           <label htmlFor="nota" className="sr-only">Anotação</label>
-          <Input id="nota" name="nota" maxLength={600} placeholder="Alergias, preferências, o que combinaram…" className="h-10 max-sm:h-11" />
+          <Input id="nota" name="nota" maxLength={600} placeholder="Preferências, o que combinaram…" className="h-10 max-sm:h-11" />
           <Button type="submit">Anotar</Button>
         </form>
+        {erroFicha && <p role="alert" className="text-sm text-destructive">{erroFicha}</p>}
 
         {!!notas?.length && (
           <ul className="grid gap-2">
@@ -407,121 +445,274 @@ export default function CustomerPage() {
   );
 }
 
-/** Nascimento e e-mail: o dono registra, a equipe vê. Máscara ao digitar, erro no campo
- *  (ao sair dele, e a cada tecla depois disso) e o servidor confere de novo ao salvar. */
+type Cadastro = { nascimento: string; email: string; cpf: string; telefoneContato: string; cuidados: string };
+
+/** Nascimento, CPF, e-mail, outro telefone e cuidados: o dono registra, a equipe vê (o CPF
+ *  mascarado). Máscara ao digitar, erro no campo assim que ele está completo (ou ao sair
+ *  dele) e o servidor confere de novo ao salvar. */
 function DadosDoCliente({
   tenantId,
   customerId,
-  nascimento,
-  email,
+  dados,
   podeEditar,
 }: {
   tenantId: string;
   customerId: string;
-  nascimento: string;
-  email: string;
+  dados: Cadastro & { phone?: string };
   podeEditar: boolean;
 }) {
-  const [data, setData] = useState(brDeIso(nascimento));
-  const [mail, setMail] = useState(email);
-  const [vistos, setVistos] = useState<ReadonlySet<string>>(new Set());
-  const [busy, setBusy] = useState(false);
-  const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [editando, setEditando] = useState(false);
+  const [aviso, setAviso] = useState("");
+  const vazio = !dados.nascimento && !dados.email && !dados.cpf && !dados.telefoneContato && !dados.cuidados;
+  // cuidados aparecem na faixa do topo da ficha; aqui só os outros campos
 
-  if (!podeEditar) {
-    if (!nascimento && !email) return null;
+  if (editando)
     return (
-      <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-        {nascimento && (
-          <div className="flex gap-1.5">
-            <dt className="text-muted-foreground">Nascimento</dt>
-            <dd>{brDeIso(nascimento)} · {idade(nascimento)} anos</dd>
-          </div>
-        )}
-        {email && (
-          <div className="flex min-w-0 flex-wrap gap-1.5">
-            <dt className="text-muted-foreground">E-mail</dt>
-            <dd className="min-w-0 break-all">{email}</dd>
-          </div>
-        )}
-      </dl>
+      <FormCadastro
+        tenantId={tenantId}
+        principal={dados.phone ?? ""}
+        customerId={customerId}
+        dados={dados}
+        onFechar={(salvo) => {
+          setEditando(false);
+          setAviso(salvo ? "Salvo." : "");
+        }}
+      />
     );
-  }
 
-  const erros = { data: erroNascimento(data), email: erroEmail(mail) };
-  // a data completa já diz se vale, sem esperar a pessoa sair do campo
-  const mostra = (c: "data" | "email") => (vistos.has(c) || (c === "data" && data.length === 10) ? erros[c] : "");
-  const ver = (c: string) => setVistos((v) => new Set(v).add(c));
-  const mudou = isoDeBR(data) !== nascimento || mail !== email;
-  const iso = isoDeBR(data);
+  type Linha = { rotulo: string; valor: React.ReactNode; largo?: boolean };
+  const linhas = ([
+    dados.nascimento && { rotulo: "Nascimento", valor: `${brDeIso(dados.nascimento)} · ${idade(dados.nascimento)} anos` },
+    dados.cpf && { rotulo: "CPF", valor: podeEditar ? mascaraCpf(dados.cpf) : `***.${dados.cpf.slice(3, 6)}.***-**` },
+    dados.email && { rotulo: "E-mail", valor: dados.email },
+    dados.telefoneContato && {
+      rotulo: "Outro telefone",
+      valor: (
+        ehCelular(dados.telefoneContato) ? (
+          <a href={whatsappLink(dados.telefoneContato)} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline">
+            {mascaraTelefoneContato(dados.telefoneContato)} · WhatsApp
+          </a>
+        ) : (
+          <a href={`tel:+${dados.telefoneContato}`} className="underline-offset-4 hover:underline">
+            {mascaraTelefoneContato(dados.telefoneContato)} · ligar
+          </a>
+        )
+      ),
+    },
+  ] as (Linha | "")[]).filter((l): l is Linha => !!l);
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-medium">Cadastro</h3>
+        {podeEditar && (
+          <Button type="button" size="sm" variant="outline" onClick={() => { setEditando(true); setAviso(""); }} className="max-sm:h-11">
+            {vazio ? "Completar cadastro" : "Editar"}
+          </Button>
+        )}
+      </div>
+      {vazio ? (
+        <p className="text-sm text-muted-foreground">Sem nascimento, CPF, e-mail, outro telefone nem cuidados registrados.</p>
+      ) : (
+        <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+          {linhas.map((l) => (
+            <div key={l.rotulo} className={`grid min-w-0 gap-0.5 ${l.largo ? "sm:col-span-2" : ""}`}>
+              <dt className="text-xs text-muted-foreground">{l.rotulo}</dt>
+              <dd className="min-w-0 break-words">{l.valor}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {aviso && <p role="status" className="text-xs text-emerald-700 dark:text-emerald-400">{aviso}</p>}
+    </div>
+  );
+}
+
+type Campo = "data" | "cpf" | "email" | "fone";
+const ORDEM: Campo[] = ["data", "cpf", "email", "fone"];
+const ID: Record<Campo, string> = { data: "nascimento", cpf: "cpf-cliente", email: "email-cliente", fone: "fone-cliente" };
+
+function FormCadastro({
+  tenantId,
+  customerId,
+  dados,
+  principal,
+  onFechar,
+}: {
+  tenantId: string;
+  customerId: string;
+  dados: Cadastro;
+  principal: string;
+  onFechar: (salvo: boolean) => void;
+}) {
+  const inicial = {
+    data: brDeIso(dados.nascimento),
+    cpf: mascaraCpf(dados.cpf),
+    email: dados.email,
+    fone: mascaraTelefoneContato(dados.telefoneContato),
+    cuidados: dados.cuidados,
+  };
+  const [v, setV] = useState(inicial);
+  const [vistos, setVistos] = useState<ReadonlySet<Campo>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [falha, setFalha] = useState("");
+  const form = useRef<HTMLFormElement>(null);
+
+  const erros: Record<Campo, string> = {
+    data: erroNascimento(v.data),
+    cpf: erroCpf(v.cpf),
+    email: erroEmail(v.email),
+    fone: erroTelefoneContato(v.fone, principal),
+  };
+  // Em tempo real assim que o campo está completo (data, CPF, telefone com 11 dígitos);
+  // antes disso, só depois de sair do campo. Quem corrige vê o erro sumir na hora.
+  const completo: Record<Campo, boolean> = {
+    data: v.data.length === 10,
+    cpf: v.cpf.length === 14,
+    email: false,
+    // celular com 11 dígitos, ou fixo com 10 (2-5 depois do DDD): já dá para dizer se vale
+    fone: ((d) => d.length === 11 || (d.length === 10 && /^[2-5]/.test(d.slice(2))))(v.fone.replace(/\D/g, "")),
+  };
+  const mostra = (c: Campo) => (vistos.has(c) || completo[c] ? erros[c] : "");
+  const ver = (c: Campo) => setVistos((x) => new Set(x).add(c));
+  const iso = isoDeBR(v.data);
+  const cuidadosLimpos = limparTexto(v.cuidados);
+  const mudou = (Object.keys(inicial) as (keyof typeof inicial)[]).some((k) => (k === "cuidados" ? cuidadosLimpos !== limparTexto(inicial.cuidados) : v[k] !== inicial[k]));
+  const sugestao = !erros.email ? sugestaoEmail(v.email) : "";
+  const muda = (k: keyof typeof inicial, valor: string) => {
+    setV((x) => ({ ...x, [k]: valor }));
+    setFalha("");
+  };
+
+  // primeiro campo em foco ao abrir; Esc fecha sem salvar
+  useEffect(() => form.current?.querySelector<HTMLInputElement>("input")?.focus(), []);
 
   async function salvar(ev: React.FormEvent) {
     ev.preventDefault();
-    setVistos(new Set(["data", "email"]));
-    setAviso(null);
-    if (erros.data || erros.email) return;
+    setVistos(new Set(ORDEM));
+    setFalha("");
+    const primeiro = ORDEM.find((c) => erros[c]);
+    if (primeiro) return document.getElementById(ID[primeiro])?.focus();
+    if (!mudou) return onFechar(false);
     setBusy(true);
-    const r = await salvarDadosClienteAction(await idToken(), { tenantId, customerId, dados: { nascimento: iso, email: mail } }).catch(() => null);
-    setBusy(false);
-    if (!r) return setAviso({ ok: false, texto: "Não foi possível salvar. Verifique a conexão." });
-    setAviso(r.ok ? { ok: true, texto: "Salvo." } : { ok: false, texto: r.error });
+    let r: Awaited<ReturnType<typeof salvarDadosClienteAction>> | null = null;
+    try {
+      // o token também pode falhar (sessão expirada, sem rede): nada fica preso em "Salvando…"
+      r = await salvarDadosClienteAction(await idToken(), {
+        tenantId,
+        customerId,
+        dados: { nascimento: iso, email: v.email, cpf: v.cpf, telefoneContato: v.fone, cuidados: cuidadosLimpos },
+      });
+    } catch (err) {
+      console.error("[cliente] não salvou o cadastro", err);
+    } finally {
+      setBusy(false);
+    }
+    if (!r) return setFalha("Não foi possível salvar. Verifique a conexão e tente de novo.");
+    if (!r.ok) return setFalha(r.error);
+    onFechar(true);
   }
 
-  const campo = (erro: string) => `h-10 max-sm:h-11 ${erro ? "border-destructive focus-visible:border-destructive" : ""}`;
-  return (
-    <form noValidate onSubmit={salvar} className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)_auto] sm:items-start">
-      <div className="grid gap-1">
-        <label htmlFor="nascimento" className="text-xs text-muted-foreground">Nascimento</label>
-        <Input
-          id="nascimento"
-          inputMode="numeric"
-          autoComplete="off"
-          placeholder="DD/MM/AAAA"
-          value={data}
-          onChange={(e) => {
-            setData(mascaraData(e.target.value));
-            setAviso(null);
-          }}
-          onBlur={() => ver("data")}
-          aria-invalid={!!mostra("data")}
-          aria-describedby="nascimento-aviso"
-          className={`${campo(mostra("data"))} tabular-nums`}
-        />
-        <p id="nascimento-aviso" aria-live="polite" className={`min-h-4 text-xs ${mostra("data") ? "text-destructive" : "text-muted-foreground"}`}>
-          {mostra("data") || (iso && !erros.data ? `${idade(iso)} anos` : "")}
+  const campo = (c: Campo, rotulo: string, props: React.ComponentProps<typeof Input>, dica: React.ReactNode = "") => {
+    const erro = mostra(c);
+    const ok = !erros[c] && completo[c];
+    return (
+      <div className="grid content-start gap-1.5">
+        <label htmlFor={ID[c]} className="text-sm font-medium">{rotulo}</label>
+        <div className="relative">
+          <Input
+            id={ID[c]}
+            autoComplete="off"
+            onBlur={() => ver(c)}
+            aria-invalid={!!erro}
+            aria-describedby={`${ID[c]}-aviso`}
+            className={`h-11 pr-9 ${erro ? "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20" : ""}`}
+            {...props}
+          />
+          {ok && <Check className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />}
+        </div>
+        <p id={`${ID[c]}-aviso`} aria-live="polite" className={`min-h-5 text-xs ${erro ? "text-destructive" : "text-muted-foreground"}`}>
+          {erro || dica}
         </p>
       </div>
-      <div className="grid gap-1">
-        <label htmlFor="email-cliente" className="text-xs text-muted-foreground">E-mail</label>
-        <Input
-          id="email-cliente"
-          type="email"
-          inputMode="email"
-          autoComplete="off"
-          autoCapitalize="none"
-          spellCheck={false}
-          placeholder="nome@exemplo.com"
-          value={mail}
-          onChange={(e) => {
-            setMail(mascaraEmail(e.target.value));
-            setAviso(null);
-          }}
-          onBlur={() => ver("email")}
-          aria-invalid={!!mostra("email")}
-          aria-describedby="email-cliente-aviso"
-          className={campo(mostra("email"))}
-        />
-        <p id="email-cliente-aviso" aria-live="polite" className="min-h-4 text-xs text-destructive">{mostra("email")}</p>
+    );
+  };
+
+  const restante = MAX_CUIDADOS - v.cuidados.length;
+  return (
+    <form
+      ref={form}
+      noValidate
+      onSubmit={salvar}
+      onKeyDown={(e) => {
+        if (e.key !== "Escape" || busy) return;
+        // com algo digitado, Esc não descarta: só o botão Cancelar faz isso
+        if (!mudou) onFechar(false);
+        else setFalha("Há mudanças não salvas. Salve ou use Cancelar para descartar.");
+      }}
+      className="grid max-w-3xl gap-4 rounded-lg border bg-muted/30 p-4"
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="font-medium">Cadastro</h3>
+        <p className="text-xs text-muted-foreground">Tudo opcional</p>
       </div>
-      <div className="grid gap-1 sm:pt-5">
-        <Button type="submit" size="sm" disabled={busy || !mudou} className="max-sm:h-11">
-          {busy ? "Salvando…" : "Salvar"}
-        </Button>
-        {aviso && (
-          <p role={aviso.ok ? "status" : "alert"} className={`text-xs ${aviso.ok ? "text-emerald-700 dark:text-emerald-400" : "text-destructive"}`}>
-            {aviso.texto}
-          </p>
+      <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+        {campo(
+          "data",
+          "Nascimento",
+          { inputMode: "numeric", placeholder: "DD/MM/AAAA", maxLength: 10, value: v.data, onChange: (e) => muda("data", mascaraData(e.target.value)) },
+          iso && !erros.data ? `${idade(iso)} anos` : "Dia, mês e ano",
         )}
+        {campo("cpf", "CPF", { inputMode: "numeric", placeholder: "000.000.000-00", maxLength: 14, value: v.cpf, onChange: (e) => muda("cpf", mascaraCpf(e.target.value)) }, "Só números; a máscara entra sozinha")}
+        {campo(
+          "email",
+          "E-mail",
+          {
+            type: "email",
+            inputMode: "email",
+            autoCapitalize: "none",
+            spellCheck: false,
+            placeholder: "nome@exemplo.com",
+            maxLength: 254,
+            value: v.email,
+            onChange: (e) => muda("email", mascaraEmail(e.target.value)),
+          },
+          sugestao ? (
+            <button type="button" onClick={() => muda("email", sugestao)} className="text-left underline underline-offset-2 hover:text-foreground">
+              Você quis dizer {sugestao}?
+            </button>
+          ) : (
+            ""
+          ),
+        )}
+        {campo(
+          "fone",
+          "Outro telefone",
+          { type: "tel", inputMode: "tel", placeholder: "(11) 98877-6655", maxLength: 15, value: v.fone, onChange: (e) => muda("fone", mascaraTelefoneContato(e.target.value)) },
+          "Celular ou fixo, com DDD",
+        )}
+      </div>
+      <div className="grid gap-1.5">
+        <label htmlFor="cuidados-cliente" className="text-sm font-medium">Cuidados no atendimento</label>
+        <textarea
+          id="cuidados-cliente"
+          value={v.cuidados}
+          maxLength={MAX_CUIDADOS}
+          rows={3}
+          placeholder="Alergias, gestação, sensibilidade: o que a equipe precisa saber antes de atender"
+          onChange={(e) => muda("cuidados", e.target.value)}
+          aria-describedby="cuidados-cliente-conta"
+          className="min-h-20 resize-y rounded-lg border border-input bg-card px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:text-sm"
+        />
+        <p id="cuidados-cliente-conta" aria-live="polite" className="flex justify-between gap-2 text-xs text-muted-foreground">
+          <span>Aparece em destaque no topo da ficha, para toda a equipe.</span>
+          <span className={`tabular-nums ${restante <= 30 ? "font-medium text-amber-700 dark:text-amber-400" : ""}`}>{v.cuidados.length}/{MAX_CUIDADOS}</span>
+        </p>
+      </div>
+      {falha && <p role="alert" className="text-sm text-destructive">{falha}</p>}
+      <div className="flex gap-2 max-sm:grid max-sm:grid-cols-2">
+        <Button type="submit" disabled={busy || !mudou} className="h-11 sm:h-10">{busy ? "Salvando…" : "Salvar"}</Button>
+        <Button type="button" variant="ghost" disabled={busy} onClick={() => onFechar(false)} className="h-11 sm:h-10">Cancelar</Button>
       </div>
     </form>
   );

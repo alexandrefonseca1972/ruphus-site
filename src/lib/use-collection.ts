@@ -4,7 +4,7 @@ import { collection, onSnapshot, query, type QueryConstraint } from "firebase/fi
 import { useEffect, useState } from "react";
 import type { z } from "zod";
 import { errorMessage } from "@/lib/auth-errors";
-import { db } from "@/lib/firebase-db";
+import { db, encerrandoSessao } from "@/lib/firebase-db";
 
 /** Coleção do tenant em tempo real; documentos fora do schema são ignorados e contados (terceiro item).
  *  tenantId vazio não consulta: fica em "carregando" (null). */
@@ -28,27 +28,31 @@ export function useCollection<S extends z.ZodType>(
     let parar = () => {};
     let espera: ReturnType<typeof setTimeout> | undefined;
     let tentativa = 0;
-    const assinar = () => (parar = onSnapshot(
-      query(collection(db, "tenants", tenantId, name), ...constraints),
-      (snap) => {
-        // documento fora do formato some da lista: fica no console e na contagem, para a tela avisar
-        const descartados: string[] = [];
-        const items = snap.docs.flatMap((d) => {
-          const r = schema.safeParse(d.data({ serverTimestamps: "estimate" }));
-          if (!r.success) {
-            descartados.push(d.id);
-            console.warn(`[${name}] ${d.id} fora do formato:`, r.error.issues[0]);
-          }
-          return r.success ? [{ ...(r.data as object), id: d.id } as Item] : [];
-        });
-        setResult({ for: current, items, descartados });
-      },
-      (err) => {
-        console.error(`[${name}] escuta caiu (tentativa ${tentativa + 1})`, err);
-        setResult({ for: current, items: [], error: errorMessage(err), descartados: [] });
-        if (tentativa < 3) espera = setTimeout(assinar, 1500 * 2 ** tentativa++);
-      },
-    ));
+    const assinar = () => {
+      if (encerrandoSessao()) return;
+      parar = onSnapshot(
+        query(collection(db, "tenants", tenantId, name), ...constraints),
+        (snap) => {
+          // documento fora do formato some da lista: fica no console e na contagem, para a tela avisar
+          const descartados: string[] = [];
+          const items = snap.docs.flatMap((d) => {
+            const r = schema.safeParse(d.data({ serverTimestamps: "estimate" }));
+            if (!r.success) {
+              descartados.push(d.id);
+              console.warn(`[${name}] ${d.id} fora do formato:`, r.error.issues[0]);
+            }
+            return r.success ? [{ ...(r.data as object), id: d.id } as Item] : [];
+          });
+          setResult({ for: current, items, descartados });
+        },
+        (err) => {
+          if (encerrandoSessao()) return; // saindo da conta: a escuta cai por isso, sem erro nem nova tentativa
+          console.error(`[${name}] escuta caiu (tentativa ${tentativa + 1})`, err);
+          setResult({ for: current, items: [], error: errorMessage(err), descartados: [] });
+          if (tentativa < 3) espera = setTimeout(assinar, 1500 * 2 ** tentativa++);
+        },
+      );
+    };
     assinar();
     return () => {
       clearTimeout(espera);

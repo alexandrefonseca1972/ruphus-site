@@ -74,6 +74,9 @@ assert.deepEqual(magro, {
   propostaVistaEm: null,
   varianteId: null,
   siteVistoEm: null,
+  reservaEm: null,
+  reservaMotivo: null,
+  reservaDetalhe: null,
 });
 
 // estágio desconhecido não quebra a tela nem pinta chip inexistente

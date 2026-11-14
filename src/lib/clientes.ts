@@ -1,3 +1,5 @@
+import { canonicalBrMobile } from "@/lib/telefone";
+
 /** Faixas de "sem vir há" oferecidas na lista de clientes. A maior manda na
  *  consulta: o Firestore devolve essa janela uma vez, e trocar de faixa é só
  *  recortar o que já está na memória. */
@@ -49,4 +51,29 @@ export function resumoPorCliente(visitas: readonly (Visita & { priceCents?: numb
     m.set(v.customerKey, r);
   }
   return m;
+}
+
+const semAcento = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/** Dígitos da busca prontos para comparar com telefone gravado (55 + DDD + 9 + número):
+ *  com DDD e sem o 9, ganha o 9, como o cadastro grava. Pedaço de número fica como veio. */
+function digitosDaBusca(d: string) {
+  if (d.length === 10) return canonicalBrMobile(`55${d}`).slice(2);
+  if (d.length === 12 && d.startsWith("55")) return canonicalBrMobile(d);
+  return d;
+}
+
+export type ClienteBuscavel = { id: string; name: string; email?: string; cpf?: string; telefoneContato?: string; etiquetas?: string[] };
+
+/** A busca da lista de clientes: nome, e-mail e etiqueta por texto (sem acento nem maiúscula);
+ *  celular, outro telefone e CPF por dígitos (com ou sem máscara, com ou sem o 9). */
+export function casaBusca(c: ClienteBuscavel, busca: string) {
+  const termo = semAcento(busca.trim());
+  if (!termo) return true;
+  if ([c.name, c.email ?? "", ...(c.etiquetas ?? [])].some((t) => semAcento(t).includes(termo))) return true;
+  const d = busca.replace(/\D/g, "");
+  // dígitos de verdade: "2" num nome com número não vira busca por telefone
+  if (d.length < 3 || d.length < busca.replace(/[\s().+\-/]/g, "").length) return false;
+  const alvo = digitosDaBusca(d);
+  return [c.id, c.telefoneContato ?? ""].some((t) => t.includes(alvo) || t.includes(d)) || (!!c.cpf && c.cpf.includes(d));
 }

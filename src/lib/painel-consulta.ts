@@ -47,6 +47,8 @@ export function celularesRepetidos(espacos: readonly Espaco[], crm: Record<strin
  *  sem pedido para parar, com celular válido que nenhum outro negócio usa e com nota no Google)
  *  ou "responderam" (em conversa, ainda sem desfecho). `repetidos`: de `celularesRepetidos`. */
 export function naFila(fila: Fila, e: Espaco, c: Crm | undefined, prazo: Prazo | null, repetidos: ReadonlySet<TelefoneNorm>) {
+  // na reserva o contato não serve: nenhuma fila do dia o mostra
+  if (c?.reservaEm) return false;
   const estagio = c?.estagio ?? "novo";
   if (fila === "retornos") return prazo === "atrasada" || prazo === "hoje";
   // `toques` só existe desde 05/11 (#262), sem migração: quem foi abordado antes tem só o último contato
@@ -78,7 +80,7 @@ export const diaLocal = (iso: string | null, fuso?: string) => {
 // filtros, não um caminho paralelo.
 export type Visao = {
   id: string; rotulo: string; urgente?: boolean; separa?: boolean;
-  prazo: "" | Prazo; situacao: "" | Situacao; estagio: "" | Estagio; fora: boolean; contato?: boolean; fixados?: boolean;
+  prazo: "" | Prazo; situacao: "" | Situacao; estagio: "" | Estagio; fora: boolean; contato?: boolean; fixados?: boolean; reserva?: boolean;
 };
 const LISTA_DE_VISOES = [
   { id: "atrasados", rotulo: "Atrasados", urgente: true, prazo: "atrasada", situacao: "", estagio: "", fora: false },
@@ -89,22 +91,24 @@ const LISTA_DE_VISOES = [
   { id: "pendentes", rotulo: "Sem cliente dentro", prazo: "", situacao: "pendente", estagio: "", fora: false },
   { id: "negociando", rotulo: "Em negociação", prazo: "", situacao: "", estagio: "negociando", fora: false },
   { id: "foradoar", rotulo: "Fora do ar", prazo: "", situacao: "", estagio: "", fora: true },
+  // o vendedor não conseguiu enviar: espera revisão do contato ou nova rodada de coleta
+  { id: "reserva", rotulo: "Em reserva", prazo: "", situacao: "", estagio: "", fora: false, reserva: true },
 ] as const satisfies readonly Visao[];
 export type VisaoId = (typeof LISTA_DE_VISOES)[number]["id"];
 export const VISOES: readonly (Visao & { id: VisaoId })[] = LISTA_DE_VISOES;
 
 /** A visão que os filtros ligados formam, se formam alguma. */
-export const visaoDe = (f: Pick<Filtros, "prazo" | "situacao" | "estagio" | "fora" | "contato" | "fixados">): Visao | undefined =>
+export const visaoDe = (f: Pick<Filtros, "prazo" | "situacao" | "estagio" | "fora" | "contato" | "fixados"> & { reserva?: boolean }): Visao | undefined =>
   VISOES.find(
     (v) =>
       v.prazo === f.prazo && v.situacao === f.situacao && v.estagio === f.estagio && v.fora === f.fora &&
-      (v.contato ?? false) === f.contato && (v.fixados ?? false) === f.fixados,
+      (v.contato ?? false) === f.contato && (v.fixados ?? false) === f.fixados && (v.reserva ?? false) === (f.reserva ?? false),
   );
 
 // um bit por filtro
 const B = {
   busca: 1 << 0, uf: 1 << 1, cidade: 1 << 2, nicho: 1 << 3, situacao: 1 << 4, estagio: 1 << 5,
-  prazo: 1 << 6, fora: 1 << 7, caixa: 1 << 8, contato: 1 << 9, fixados: 1 << 10, alerta: 1 << 11, fila: 1 << 12,
+  prazo: 1 << 6, fora: 1 << 7, caixa: 1 << 8, contato: 1 << 9, fixados: 1 << 10, alerta: 1 << 11, fila: 1 << 12, reserva: 1 << 13,
 } as const;
 /** passa em todos os filtros, exceto (talvez) os dos bits em `livres` */
 const passaSalvo = (mascara: number, livres: number) => (mascara & ~livres) === 0;
@@ -195,7 +199,10 @@ function mascarador(f: Filtros, { crm, hoje, fuso }: Contexto, emFoco: Set<strin
     if (f.fixados && !destaque) m |= B.fixados;
     if (emFoco && !emFoco.has(e.slug)) m |= B.alerta;
     if (f.fila && !naFila(f.fila, e, c, prazo, repetidos)) m |= B.fila;
-    return { c, estagio, etapa, prazo, falou, destaque, m };
+    // a reserva sai de tudo; a aba "Em reserva" mostra só ela
+    const reservado = !!c?.reservaEm;
+    if (reservado !== !!f.reserva) m |= B.reserva;
+    return { c, estagio, etapa, prazo, falou, destaque, reservado, m };
   };
 }
 
@@ -232,7 +239,7 @@ export function consultar(espacos: readonly Espaco[], f: Filtros, ctx: Contexto)
   const ufs = contador(), cidades = contador(), nichos = contador();
   const estagios: Record<EtapaNaTela, number> = { novo: 0, contato: 0, oferta: 0, negociando: 0, fechado: 0, perdido: 0 };
   const prazos: Record<Prazo, number> = { atrasada: 0, hoje: 0, futura: 0 };
-  const visoes: Record<VisaoId, number> = { atrasados: 0, hoje: 0, falei: 0, fixados: 0, todos: 0, pendentes: 0, negociando: 0, foradoar: 0 };
+  const visoes: Record<VisaoId, number> = { atrasados: 0, hoje: 0, falei: 0, fixados: 0, todos: 0, pendentes: 0, negociando: 0, foradoar: 0, reserva: 0 };
   let caixa = 0, contratadoCents = 0, negociacaoCents = 0;
   const tirando = { cidade: 0, nicho: 0 };
   // os alertas contam no mesmo recorte das filas (busca, lugar, nicho e Caixa): com a cidade
@@ -242,7 +249,7 @@ export function consultar(espacos: readonly Espaco[], f: Filtros, ctx: Contexto)
   const foraDoRecorte = B.situacao | B.estagio | B.prazo | B.fora | B.contato | B.fixados | B.alerta | B.fila;
 
   for (const e of espacos) {
-    const { c, estagio, etapa, prazo, falou, destaque, m } = marcar(e);
+    const { c, estagio, etapa, prazo, falou, destaque, reservado, m } = marcar(e);
     if (recortado && passaSalvo(m, foraDoRecorte)) noRecorte.add(e.slug);
 
     if (m === 0) (destaque ? destacados : demais).push(e);
@@ -262,8 +269,9 @@ export function consultar(espacos: readonly Espaco[], f: Filtros, ctx: Contexto)
     if (passaSalvo(m, B.caixa) && e.caixa) caixa += 1;
     // cada visão controla prazo, situação, estágio e fora do ar; o resto vem dos filtros ligados.
     // A fila é outra entrada: não muda a contagem das visões ("Falei hoje" é o contador do dia)
-    if (passaSalvo(m, B.prazo | B.situacao | B.estagio | B.fora | B.fila)) {
+    if (passaSalvo(m, B.prazo | B.situacao | B.estagio | B.fora | B.fila | B.reserva)) {
       for (const v of VISOES) {
+        if ((v.reserva ?? false) !== reservado) continue;
         if (v.prazo && prazo !== v.prazo) continue;
         if (v.situacao && !naSituacao(e, v.situacao)) continue;
         if (v.estagio && estagio !== v.estagio) continue;

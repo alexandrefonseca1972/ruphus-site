@@ -207,6 +207,9 @@ await assertFails(updateDoc(cliente(mallory), { etiquetas: ["invadido"] }));
 // nascimento e e-mail são dado pessoal: só o servidor grava (dono/admin, validado)
 await assertFails(updateDoc(cliente(alice), { email: "x@y.com" }));
 await assertFails(updateDoc(cliente(alice), { nascimento: "1990-01-01" }));
+await assertFails(updateDoc(cliente(alice), { cpf: "52998224725" }));
+await assertFails(updateDoc(cliente(alice), { telefoneContato: "5511981234706" }));
+await assertFails(updateDoc(cliente(alice), { cuidados: "Alergia a amônia" }));
 await assertFails(getDoc(cliente(mallory)));
 
 const notas = (db) => collection(db, "tenants/acme/customers/5511999990000/notas");

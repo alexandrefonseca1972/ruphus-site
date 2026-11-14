@@ -22,10 +22,17 @@ export const db = (() => {
 })();
 if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === "demo-siteflow") connectFirestoreEmulator(db, "127.0.0.1", 8085);
 
+let saindo = false;
+/** A sessão está saindo: o Firestore foi (ou está sendo) encerrado. As escutas abertas caem com
+ *  "Firestore shutting down" — é o esperado, não erro: nada de aviso na tela nem nova tentativa
+ *  (num Firestore encerrado, assinar de novo lança "client has already been terminated"). */
+export const encerrandoSessao = () => saindo;
+
 /** Apaga do aparelho os dados do negócio. Só funciona com o Firestore encerrado, então
  *  depois disto a página tem de recarregar. Com outra aba do painel aberta o navegador
  *  recusa: aí o cache fica até a próxima saída. */
 export async function limparCacheLocal() {
+  saindo = true;
   await terminate(db);
   await clearIndexedDbPersistence(db).catch(() => {});
 }

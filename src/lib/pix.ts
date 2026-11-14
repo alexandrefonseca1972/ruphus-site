@@ -89,7 +89,7 @@ export const txidLivre = (prefixo: string) =>
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function cpfValido(d: string) {
+export function cpfValido(d: string) {
   if (!/^\d{11}$/.test(d) || /^(\d)\1+$/.test(d)) return false;
   const dv = (n: number) => {
     let s = 0;

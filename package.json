@@ -1,6 +1,6 @@
 {
   "name": "siteflow",
-  "version": "0.38.0",
+  "version": "0.39.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -73,6 +73,7 @@
     "test:mensagens": "tsx mensagens.test.mts",
     "canal-oficial": "tsx --conditions=react-server --env-file=.env.local scripts/canal-oficial.mts",
     "test:canal-oficial": "tsx --conditions=react-server canal-oficial.test.mts",
+    "test:reserva": "NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-siteflow firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server src/lib/crm-reserva.test.mts'",
     "test:avaliacoes": "NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-siteflow firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server avaliacoes.test.mts'"
   },
   "dependencies": {

@@ -9,7 +9,7 @@ import { ROTULO_SAUDE } from "@/lib/saude";
 import { celular } from "@/lib/painel-consulta";
 import { chaveDoModelo, preencherTexto, TEXTOS_PADRAO, type TextosCrm } from "@/lib/crm-textos";
 import { linksPermitidos, OBJECOES, preencher, problemasDaResposta, type Variante } from "@/lib/prospeccao-variantes";
-import { barradoPeloPareDoAgente, CADENCIA, DIAS_PROPOSTA, diaCurto, hojeISO, MOTIVOS_PERDA, TOQUES_MAX, ORIGENS, PRECO_PADRAO, ROTULO, type Crm, type Estagio, type Evento, type MotivoPerda, type Origem } from "@/lib/crm-tipos";
+import { barradoPeloPareDoAgente, CADENCIA, DIAS_PROPOSTA, diaCurto, hojeISO, DETALHE_RESERVA_MAX, MOTIVOS_PERDA, MOTIVOS_RESERVA, TOQUES_MAX, ORIGENS, PRECO_PADRAO, ROTULO, type Crm, type Estagio, type Evento, type MotivoPerda, type MotivoReserva, type Origem } from "@/lib/crm-tipos";
 
 // Partes da gaveta do negócio que formam o CRM: quem decide, o que dizer a ele,
 // o que já aconteceu e por que se perdeu. Fora de page.tsx, que já passa de mil linhas.
@@ -905,33 +905,113 @@ export async function confirmarEnvio<P extends { envio: { envioId: string } }, T
   }
 }
 
-/** A volta do WhatsApp: o clique não prova que a mensagem saiu. Só "Sim" conta o envio. Quem mudou o
- *  texto na caixa da gaveta antes de abrir já vai como editado. Um clique só: depois dele, os botões
- *  desligam. */
-export function EnviouModal({ nome, modelo, erro, responder }: { nome: string; modelo: string; erro?: string; responder: (r: "sim" | "nao") => void }) {
+/** O que o vendedor respondeu no "Enviou?". */
+export type RespostaEnviou = { tipo: "sim" } | { tipo: "nao_enviei" } | { tipo: "reserva"; motivo: MotivoReserva; detalhe: string };
+
+const OPCOES_NAO: { id: "nao_enviei" | MotivoReserva; rotulo: string; ajuda: string }[] = [
+  { id: "sem_whatsapp", rotulo: MOTIVOS_RESERVA.sem_whatsapp, ajuda: "O número existe, mas não tem WhatsApp." },
+  { id: "contato_invalido", rotulo: MOTIVOS_RESERVA.contato_invalido, ajuda: "Número errado, de outra pessoa ou que não existe." },
+  { id: "outro", rotulo: MOTIVOS_RESERVA.outro, ajuda: "Conte em poucas palavras." },
+  { id: "nao_enviei", rotulo: "Ainda não enviei", ajuda: "Nada muda: o negócio continua na lista." },
+];
+
+/** A volta do WhatsApp: o clique não prova que a mensagem saiu. Só "Sim" conta o envio. "Não" pede
+ *  o porquê: sem WhatsApp, contato inválido ou outro motivo tiram o negócio da lista (vai para a
+ *  reserva, para revisar o contato); "Ainda não enviei" não muda nada. Um envio por clique: depois
+ *  da resposta, os botões desligam. */
+export function EnviouModal({ nome, modelo, erro, responder }: { nome: string; modelo: string; erro?: string; responder: (r: RespostaEnviou) => void }) {
   const [feito, setFeito] = useState(false);
-  const uma = (r: "sim" | "nao") => {
+  const [passo, setPasso] = useState<"pergunta" | "motivo">("pergunta");
+  const [escolha, setEscolha] = useState<(typeof OPCOES_NAO)[number]["id"] | null>(null);
+  const [detalhe, setDetalhe] = useState("");
+  const [tentou, setTentou] = useState(false);
+  const faltaDetalhe = escolha === "outro" && !detalhe.trim();
+  const uma = (r: RespostaEnviou) => {
     if (feito) return;
     setFeito(true);
     responder(r);
+  };
+  const confirmarNao = () => {
+    setTentou(true);
+    if (!escolha || faltaDetalhe) return;
+    uma(escolha === "nao_enviei" ? { tipo: "nao_enviei" } : { tipo: "reserva", motivo: escolha, detalhe: detalhe.trim() });
   };
   return (
     // Esc (ou qualquer fechamento sem botão) não responde: "Não" é um clique, nunca o padrão de quem fecha
     <AlertDialog.Root open>
       <AlertDialog.Portal container={typeof document === "undefined" ? undefined : document.getElementById("admin-raiz")}>
         <AlertDialog.Backdrop className="fixed inset-0 z-[60] bg-[#17150F]/35" />
-        <AlertDialog.Popup className="fixed top-1/2 left-1/2 z-[70] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-2xl bg-white p-6 font-[family-name:var(--fonte-mono)] text-[#17150F] shadow-2xl outline-none">
+        <AlertDialog.Popup className="fixed top-1/2 left-1/2 z-[70] flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-2xl bg-white p-6 font-[family-name:var(--fonte-mono)] text-[#17150F] shadow-2xl outline-none">
           <div className="flex flex-col gap-1">
-            <AlertDialog.Title className="font-[family-name:var(--fonte-serifa)] text-[26px] leading-tight">Enviou?</AlertDialog.Title>
+            <AlertDialog.Title className="font-[family-name:var(--fonte-serifa)] text-[26px] leading-tight">{passo === "pergunta" ? "Enviou?" : "Por que não enviou?"}</AlertDialog.Title>
             <AlertDialog.Description className="text-[12.5px] leading-relaxed text-[#6F6A5E]">
-              {modelo} para {nome}. Só o que foi enviado entra na linha do tempo e nos números.
+              {passo === "pergunta"
+                ? `${modelo} para ${nome}. Só o que foi enviado entra na linha do tempo e nos números.`
+                : `Sem WhatsApp, contato inválido ou outro motivo tiram ${nome} da lista: fica na reserva até o contato ser revisado.`}
             </AlertDialog.Description>
           </div>
           {erro && <p role="alert" className="rounded-[10px] bg-[#F7EFEF] px-3 py-2.5 text-xs text-[#8A2F2F]">{erro}</p>}
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" disabled={feito} onClick={() => uma("sim")} className={`${BOTAO_VERDE} disabled:opacity-50`}>Sim</button>
-            <button type="button" disabled={feito} onClick={() => uma("nao")} className={BOTAO_CLARO}>Não</button>
-          </div>
+          {passo === "pergunta" ? (
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" disabled={feito} onClick={() => uma({ tipo: "sim" })} className={`${BOTAO_VERDE} disabled:opacity-50`}>Sim</button>
+              <button type="button" disabled={feito} onClick={() => setPasso("motivo")} className={BOTAO_CLARO}>Não</button>
+            </div>
+          ) : (
+            <>
+              <fieldset className="flex flex-col gap-2" aria-describedby={tentou && !escolha ? "enviou-falta" : undefined}>
+                <legend className="sr-only">Motivo</legend>
+                {OPCOES_NAO.map((o) => (
+                  <label
+                    key={o.id}
+                    className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border px-3 py-2.5 ${escolha === o.id ? "border-[#17150F] bg-[#F7F5F1]" : "border-[#E2DDD3] hover:border-[#17150F]"}`}
+                  >
+                    <input
+                      type="radio"
+                      name="motivo-envio"
+                      value={o.id}
+                      checked={escolha === o.id}
+                      disabled={feito}
+                      onChange={() => setEscolha(o.id)}
+                      className="mt-0.5 size-4 shrink-0 accent-[#17150F]"
+                    />
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-[13px] font-semibold">{o.rotulo}</span>
+                      <span className="text-[11.5px] text-[#6F6A5E]">{o.ajuda}</span>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+              {escolha === "outro" && (
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="enviou-detalhe" className="text-xs font-semibold">Qual o motivo?</label>
+                  <textarea
+                    id="enviou-detalhe"
+                    autoFocus
+                    rows={2}
+                    maxLength={DETALHE_RESERVA_MAX}
+                    value={detalhe}
+                    disabled={feito}
+                    onChange={(e) => setDetalhe(e.target.value)}
+                    aria-invalid={tentou && faltaDetalhe}
+                    aria-describedby="enviou-detalhe-aviso"
+                    placeholder="Ex.: fechou as portas, número de outro salão"
+                    className={`rounded-[10px] border px-3 py-2 text-[13px] outline-none focus:border-[#17150F] ${tentou && faltaDetalhe ? "border-[#8A2F2F]" : "border-[#D8D2C6]"}`}
+                  />
+                  <p id="enviou-detalhe-aviso" className={`flex justify-between text-[11px] ${tentou && faltaDetalhe ? "text-[#8A2F2F]" : "text-[#6F6A5E]"}`}>
+                    <span>{tentou && faltaDetalhe ? "Conte o motivo em poucas palavras." : ""}</span>
+                    <span className="tabular-nums">{detalhe.length}/{DETALHE_RESERVA_MAX}</span>
+                  </p>
+                </div>
+              )}
+              {tentou && !escolha && <p id="enviou-falta" role="alert" className="text-xs text-[#8A2F2F]">Escolha uma opção.</p>}
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" disabled={feito} onClick={() => { setPasso("pergunta"); setTentou(false); }} className={BOTAO_CLARO}>Voltar</button>
+                <button type="button" disabled={feito} onClick={confirmarNao} className={`${BOTAO_VERDE} disabled:opacity-50`}>
+                  {escolha && escolha !== "nao_enviei" ? "Tirar da lista" : "Confirmar"}
+                </button>
+              </div>
+            </>
+          )}
         </AlertDialog.Popup>
       </AlertDialog.Portal>
     </AlertDialog.Root>

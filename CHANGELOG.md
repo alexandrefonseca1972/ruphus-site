@@ -5,6 +5,13 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Ficha do cliente (painel do dono): o cadastro ganha CPF, outro telefone e “Cuidados no atendimento” (alergias, gestação…), além de nascimento e e-mail. Os cuidados aparecem numa faixa no topo da ficha para toda a equipe. O cadastro abre em leitura com “Editar”; máscaras e validação em tempo real (data sem dia ou mês impossível, CPF com dígito verificador, telefone com DDD, sugestão para e-mail com domínio errado), conferidas de novo no servidor. Só dono e administrador editam; a equipe vê o CPF mascarado.
+- Ficha do cliente: botão “Agendar” abre a página de agendamento com nome e telefone já preenchidos. Pela ficha o horário sai sem aceite de WhatsApp (o aceite é do próprio cliente) e o contato do navegador do dono não é trocado.
+- Lista de clientes: a busca acha por nome, e-mail, etiqueta, celular (também digitado sem o 9), outro telefone e CPF.
+- Etiquetas, “Não receber campanhas” e anotações da ficha avisam quando não salvam, em vez de falhar em silêncio.
+- Prospecção no /admin, “Enviou?”: depois do “Sim” a gaveta fecha e volta para a lista. “Não” pergunta o motivo: “Sem WhatsApp”, “Contato inválido” e “Outro motivo” tiram o negócio da lista e das filas e o mandam para a reserva (aba “Em reserva” em Mais visões); “Ainda não enviei” não muda nada. Na gaveta, “Devolver à lista” traz de volta depois de revisar o contato.
+- Busca do /admin: o “X” de limpar aparece também no celular.
+- Sair do painel do dono: as listas abertas não mostram mais erro (“escuta caiu… Firestore shutting down”) nem tentam reconectar durante a saída.
 - Avaliações, tela do dono: o resumo (total, médias e quadro por profissional) passa a ser calculado no navegador sobre as respostas do período, até 500. A tela pedia 7 médias numa consulta só e o Firestore aceita 5: por isso não abria.
 - Avaliações: a tela do dono não abria por falta de dois índices (respostas e convites por profissional), e o pedido de avaliação parava de ser criado depois de 100 atendimentos concluídos; o cron agora olha só os concluídos das últimas 48 horas. O limite de 10 respostas por rede e por dia saiu: só barrava clientes de verdade.
 - Consentimento de WhatsApp: o comprovante enviado ao atendys cita o texto da versão que o cliente aceitou (quem aceitou a de 08/11 não aceitou o pedido de avaliação), e o agendamento grava a versão que a tela mostrou, não a do servidor.

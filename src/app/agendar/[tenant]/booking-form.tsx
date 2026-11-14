@@ -56,6 +56,9 @@ type Props = {
   staff: { id: string; name: string; serviceIds: string[]; workDays: number[] }[];
   /** vindo da bio (?servico=&data=&hora=): serviço marcado e, se ainda livre, o horário */
   inicial?: { servico: string; data?: string; hora?: string } | null;
+  /** contato vindo da ficha do cliente no painel: o dono agenda por ele. Nada é lido nem
+   *  gravado no contato lembrado deste navegador (é o do dono, não o do cliente). */
+  contato?: { nome: string; fone: string } | null;
   /** o pedido chega ao WhatsApp do dono pela API (canal oficial, número confirmado); sem isso o
    *  "Confirmar pelo WhatsApp" do cliente deixa de ser opcional */
   donoAvisado?: boolean;
@@ -280,7 +283,7 @@ const Seta = ({ d = "M9 6l6 6-6 6", size = 16 }: { d?: string; size?: number }) 
   </svg>
 );
 
-export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, sinal, fuso, services, staff, inicial, limites = limitesDe(null), donoAvisado = true }: Props) {
+export function BookingForm({ tenantId, today, name, phone, rating, reviews, city, uf, address, bairro, temSite, siteUrl, recadoDono, sinal, fuso, services, staff, inicial, contato, limites = limitesDe(null), donoAvisado = true }: Props) {
   // Nada vem marcado: quem agenda diz o que quer, e só então os horários aparecem.
   // Os serviços chegam do servidor na ordem do que mais se agenda.
   // A exceção é quem tocou num serviço ou num horário da bio: chega com ele escolhido.
@@ -304,6 +307,9 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [lembrado, setLembrado] = useState(false);
+  // a ficha manda o contato por valor: um objeto novo a cada render não reaplica o que o dono já mudou
+  const nomeDaFicha = contato?.nome;
+  const foneDaFicha = contato?.fone;
   // aceite do WhatsApp: desmarcado sempre; nunca vem do localStorage (cada agendamento pede o seu)
   const [aceiteWhatsapp, setAceiteWhatsapp] = useState(false);
   const [ultimo, setUltimo] = useState<Ultimo | null>(null);
@@ -346,12 +352,20 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
 
   // Contato e último pedido lembrados neste navegador
   useEffect(() => {
+    if (nomeDaFicha && foneDaFicha) {
+      // Vem da URL, que qualquer um monta: o formulário fica aberto para quem agenda ver
+      // (e trocar) o nome e o telefone antes de confirmar, em vez de um cartão fechado.
+      setCustomerName(nomeDaFicha); // eslint-disable-line react-hooks/set-state-in-effect -- contato da ficha, uma vez
+      setCustomerPhone(formatPhone(foneDaFicha));
+      setLembrado(false);
+      return;
+    }
     try {
       const saved = JSON.parse(localStorage.getItem(CONTACT_KEY) ?? "null");
       if (saved?.name && saved?.phone) {
         const nome = String(saved.name);
         const fone = formatPhone(String(saved.phone));
-        setCustomerName(nome); // eslint-disable-line react-hooks/set-state-in-effect -- leitura única do localStorage
+        setCustomerName(nome); // leitura única do localStorage
         setCustomerPhone(fone);
         // Só esconde o formulário se o contato guardado ainda vale: um nome de antes da regra
         // atual deixava o botão desligado, o formulário escondido e nenhum aviso — a tela travava
@@ -359,7 +373,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       }
       if (Array.isArray(saved?.ultimo?.serviceIds)) setUltimo({ serviceIds: saved.ultimo.serviceIds.map(String), staffId: String(saved.ultimo.staffId ?? ""), atendeu: String(saved.ultimo.atendeu ?? "") });
     } catch {}
-  }, []);
+  }, [nomeDaFicha, foneDaFicha]);
 
   useEffect(() => {
     if (!serviceIds.length) return;
@@ -500,7 +514,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
         // "qualquer um": se o oferecido na grade ocupou, o servidor tenta outro livre na mesma hora
         qualquer: !staffId,
         pedido: pedido.current,
-        aceiteWhatsapp,
+        aceiteWhatsapp: !contato && aceiteWhatsapp, // pela ficha nunca há aceite (é o dono quem agenda)
         termoWhatsapp: TERMO_WHATSAPP_VERSAO,
       }),
       signal: aborta.signal,
@@ -523,7 +537,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       pedido.current = undefined;
       try {
         sessionStorage.removeItem(chavePedido);
-        localStorage.setItem(
+        if (!contato) localStorage.setItem(
           CONTACT_KEY,
           JSON.stringify({ name: customerName.trim(), phone: customerPhone, ultimo: { serviceIds, staffId, atendeu: vaga.staffId } }),
         );
@@ -692,7 +706,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
             </ol>
             {/* o recado é do dono (texto puro, quebras de linha mantidas) */}
             {recadoDono && <p className="text-[15px] leading-relaxed whitespace-pre-line break-words">{recadoDono}</p>}
-            {avisoUrl && (donoAvisado ? (
+            {/* agendado pelo dono na ficha: avisar o próprio negócio não faz sentido */}
+            {avisoUrl && !contato && (donoAvisado ? (
               <div className="flex flex-col gap-2">
                 <a
                   href={avisoUrl}
@@ -1419,15 +1434,21 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
           </form>
               )}
 
-              <label className="flex min-h-11 items-start gap-3 text-sm leading-snug">
-                <input
-                  type="checkbox"
-                  checked={aceiteWhatsapp}
-                  onChange={(e) => setAceiteWhatsapp(e.target.checked)}
-                  className="mt-0.5 size-5 shrink-0 accent-[#17150F] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17150F]"
-                />
-                <span>{TEXTO_ACEITE_WHATSAPP}</span>
-              </label>
+              {/* O aceite é do cliente, dado por ele: quem agenda pela ficha é o dono, e marcar por
+                  ele gravaria um consentimento que o cliente não deu. Sai sem aceite. */}
+              {contato ? (
+                <p className="text-sm leading-snug text-[#5C5747]">Agendando pelo painel: as mensagens automáticas no WhatsApp só valem depois que o próprio cliente aceitar, num agendamento feito por ele.</p>
+              ) : (
+                <label className="flex min-h-11 items-start gap-3 text-sm leading-snug">
+                  <input
+                    type="checkbox"
+                    checked={aceiteWhatsapp}
+                    onChange={(e) => setAceiteWhatsapp(e.target.checked)}
+                    className="mt-0.5 size-5 shrink-0 accent-[#17150F] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17150F]"
+                  />
+                  <span>{TEXTO_ACEITE_WHATSAPP}</span>
+                </label>
+              )}
 
               {submitError && (
                 <p role="alert" className="rounded-[10px] border border-[#E7C9BF] bg-[#FBF1EE] p-3 text-sm text-[#B4472F]">

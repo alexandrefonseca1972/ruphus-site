@@ -5,6 +5,9 @@ import { version } from "./package.json";
 // que só existe no build lá. Em desenvolvimento fica "local", sem enfeite.
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Só desenvolvimento: com o console do navegador indo para .next/dev/logs, o Next via o arquivo
+  // mudar, recarregava a página, que escrevia de novo no console — o /admin recarregava sem parar
+  logging: { browserToTerminal: false },
   async headers() {
     return [
       // Em toda resposta: sem adivinhar tipo de arquivo, e /admin e /painel fora de

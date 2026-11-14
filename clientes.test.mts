@@ -91,3 +91,14 @@ console.log("clientes: ok");
   assert.deepEqual(r.get("ana"), { ultimaMs: diasAtras(10), visitas: 2, gastoCents: 15000 });
   assert.equal(r.has("bia"), false, "falta não é visita");
 }
+
+// Busca da lista: nome, e-mail, etiqueta, celular (com ou sem 9), outro telefone e CPF
+import { casaBusca } from "@/lib/clientes";
+const maria = { id: "5591992361726", name: "Maria José", email: "maria@gmail.com", cpf: "52998224725", telefoneContato: "559132221100", etiquetas: ["VIP"] };
+for (const q of ["", "maria", "JOSE", "gmail", "vip", "99236", "(91) 99236-1726", "(91) 9236-1726", "559192361726", "3222-1100", "529.982", "52998224725"]) {
+  assert.equal(casaBusca(maria, q), true, `deveria achar: ${q}`);
+}
+for (const q of ["ana", "12", "(91) 98888-0000", "111.222"]) {
+  assert.equal(casaBusca(maria, q), false, `não deveria achar: ${q}`);
+}
+console.log("busca de clientes: ok");

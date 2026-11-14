@@ -9,7 +9,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ativosDesde, DIA_EM_MS, JANELAS, MAIOR_JANELA, resumoPorCliente } from "@/lib/clientes";
+import { ativosDesde, casaBusca, DIA_EM_MS, JANELAS, MAIOR_JANELA, resumoPorCliente } from "@/lib/clientes";
 import { whatsappLink } from "@/lib/datetime";
 import { useCollection } from "@/lib/use-collection";
 import { useTenant } from "../painel-layout";
@@ -23,6 +23,9 @@ const Customer = z.object({
   updatedAt: z.instanceof(Timestamp).optional(),
   etiquetas: z.array(z.string()).optional(),
   semCampanha: z.boolean().optional(),
+  email: z.string().optional(),
+  cpf: z.string().optional(),
+  telefoneContato: z.string().optional(),
 });
 
 // Quem esteve aqui, e nao quem marcou: customers.updatedAt e a data do ultimo
@@ -56,7 +59,6 @@ function haQuanto(ms: number, agora: number) {
 }
 
 
-const normalize = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 export default function CustomersPage() {
   const { brl } = useValores();
@@ -92,10 +94,8 @@ export default function CustomersPage() {
   // existe justamente para mandar mensagem.
   const sumidos = janela === null ? null : (customers?.filter((c) => !ativos.has(c.id) && !c.semCampanha) ?? []);
 
-  const term = normalize(search.trim());
-  const digits = search.replace(/\D/g, "");
   const base = sumidos ?? customers;
-  const filtrados = base?.filter((c) => !term || normalize(c.name).includes(term) || (digits && c.id.includes(digits)));
+  const filtrados = base?.filter((c) => casaBusca(c, search));
   const valor = (c: { id: string }) => {
     const r = resumo.get(c.id);
     return ordem.por === "ultima" ? (r?.ultimaMs ?? 0) : ordem.por === "visitas" ? (r?.visitas ?? 0) : (r?.gastoCents ?? 0);
@@ -160,7 +160,7 @@ export default function CustomersPage() {
             id="search"
             type="search"
             value={search}
-            placeholder="Buscar por nome ou telefone"
+            placeholder="Buscar por nome, telefone, CPF ou e-mail"
             onChange={(e) => { setSearch(e.target.value); setPagina(1); }}
             className="h-11 bg-card pl-11 text-[15px]"
           />
@@ -202,7 +202,7 @@ export default function CustomersPage() {
         <p className="text-sm text-muted-foreground">Carregando…</p>
       ) : shown.length === 0 ? (
         <p className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {janela !== null && !term
+          {janela !== null && !search.trim()
             ? `Todo mundo passou por aqui nos últimos ${JANELAS.find((j) => j.dias === janela)?.rotulo}.`
             : customers?.length
               ? "Nenhum cliente encontrado."
