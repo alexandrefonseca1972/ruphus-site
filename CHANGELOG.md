@@ -5,6 +5,7 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Agenda do dono: o bloco de mensagens do WhatsApp aguardando decisão (“Enviar agora” / “Manter agendada”) saiu. O atendys (0.7.0) não para mais mensagem na cota: a que não pode sair na hora fica na fila e sai sozinha no horário informado; se não der tempo, o aviso de falha continua igual.
 - Lista do /admin, etapa: o “Novo” que já recebeu mensagem e segue sem responder aparece como “Em contato” (selo da lista, topo da gaveta e filtro de etapa). “Novo” passa a ser só quem nunca foi contatado. No banco a etapa é a mesma; no Funil a coluna vira “Novo e em contato”.
 - Lista do /admin, filtros: os filtros ligados e o “Limpar filtros” ficam numa linha própria; limpar numa fila do dia mantém a fila; a tela abre em “Retornos de hoje” já por compromisso mais próximo; os números dos alertas (“Sem próximo passo”, “Parado há 7+ dias”…) passam a contar no recorte de busca, lugar, nicho e Caixa.
 - Sites: a pasta `sites/` com 9 páginas feitas à mão (leads do DF) saiu do repositório. Nenhuma estava publicada: o Storage só guarda as fotos desses negócios, e os 9 endereços já eram montados pelo gerador, como todos os outros.
