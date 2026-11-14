@@ -57,7 +57,7 @@ export const ItemFila = z.discriminatedUnion("status", [
     envioId: z.string().min(1),
     /** o toque ainda não entrou no CRM: o consumidor tenta de novo (reconciliarCrm) */
     crmPendente: z.boolean().optional(),
-    /** o atendys aceitou sem sair agora (retryAt, awaiting_manual...): o CRM espera o status da mensagem */
+    /** o atendys aceitou sem sair agora (queued com retryAt, outro status): o CRM espera o status da mensagem */
     aguardaStatus: z.boolean().optional(),
     /** o CRM recusou o toque de vez (PARE, limite de toques): não tenta mais */
     crmErro: z.string().optional(),
@@ -72,7 +72,7 @@ export const ItemFila = z.discriminatedUnion("status", [
 ]);
 export type ItemFila = z.infer<typeof ItemFila>;
 
-/** Reconciliação do CRM (M-2, terceira rodada): um item preso (awaiting_manual sem fim, status 404)
+/** Reconciliação do CRM (M-2, terceira rodada): um item preso (queued sem fim, status 404)
  *  sai dela com crmErro depois de tentativasMax passagens ou prazoMs desde o envio. */
 export const RECONCILIAR = { tentativasMax: 20, prazoMs: 7 * 86_400_000, esperaMaxMs: 6 * 3_600_000 } as const;
 export const desistirDaReconciliacao = (item: { tentativasCrm?: number; enviadoEm: number }, agora: number) =>

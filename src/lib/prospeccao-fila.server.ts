@@ -454,7 +454,7 @@ async function processar(db: Firestore, cfg: ConfigProspeccao, r: Reserva, agora
     throw e;
   }
   if (!envio) return (await concluir(db, ref, token, { status: "cancelado", canceladoEm: agora, motivo: "naoContatar", ...talvez })) ? "cancelado" : "lease_perdido";
-  // aceito sem sair agora (retryAt, awaiting_manual, outro status): o CRM e a conta do dia esperam o
+  // aceito sem sair agora (queued com retryAt, outro status): o CRM e a conta do dia esperam o
   // status da mensagem (reconciliarCrm)
   const saiu = SAIU.has(envio.status) || (envio.status === "queued" && !envio.retryAt);
   if (!(await concluir(db, ref, token, { status: "enviado", enviadoEm: agora, envioId: envio.messageId, reconciliarApos: agora, ...(!saiu && { crmPendente: true, aguardaStatus: true }) }))) return "lease_perdido";

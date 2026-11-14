@@ -471,7 +471,7 @@ assert.equal(await consumirUm(db, { agora: T + LIMITES_FILA.leaseMs + ESP }), "f
 assert.deepEqual([(await lido(rDef)).status, (await lido(rDef)).talvezEnviado], ["falhou", true]);
 console.log("recusas: ok");
 
-// ————— 2xx sem sair agora (retryAt, awaiting_manual): o CRM espera o status da mensagem —————
+// ————— 2xx sem sair agora (queued com retryAt): o CRM espera o status da mensagem —————
 await novaRodada();
 const rRetry = await item(9, T - 60_000);
 const toquesDe9 = async () => Number((await lido(db.doc(`crm/${SLUGS[9]}`))).toques ?? 0);
@@ -491,11 +491,11 @@ dRetry = await lido(rRetry);
 assert.deepEqual([dRetry.crmPendente, dRetry.aguardaStatus], [undefined, undefined]);
 assert.equal(await toquesDe9(), toques9 + 1, "saiu: o toque entrou");
 assert.equal((await lido(db.doc(`prospeccaoDias/${QUA}`))).enviadas, 1);
-// awaiting_manual que acaba failed: o item vira falhou e o CRM não conta
+// adiada que acaba failed: o item vira falhou e o CRM não conta
 await novaRodada();
 const rManual = await item(7, T - 60_000, {});
 await db.doc(`crm/${SLUGS[7]}`).set({ estagio: "novo" }, { merge: true });
-respostaNoProximo = { status: "awaiting_manual" };
+respostaNoProximo = { status: "queued", retryAt: new Date(T + 3_600_000).toISOString() };
 assert.equal(await consumirUm(db, { agora: T }), "enviado");
 statusMensagem = "failed";
 await consumirUm(db, { agora: T + ESP });
@@ -523,7 +523,7 @@ assert.equal((await lido(rCrmF)).crmPendente, undefined);
 assert.equal(Number((await lido(db.doc(`crm/${SLUGS[8]}`))).toques ?? 0), toques8 + 1, "o lead não fica preso na etapa");
 console.log("crm pendente: ok");
 
-// ————— M-2 (terceira rodada): um item preso (awaiting_manual sem fim) não ocupa a vaga dos outros —————
+// ————— M-2 (terceira rodada): um item preso (queued sem fim) não ocupa a vaga dos outros —————
 await novaRodada();
 {
   const enviado = (id: string, i: number, extra: Record<string, unknown>) =>
@@ -534,7 +534,7 @@ await novaRodada();
   const cfg = CFG;
   await db.doc(`crm/${SLUGS[5]}`).set({ estagio: "novo", toques: 0, naoContatarEm: FieldValue.delete() }, { merge: true });
   const toques5 = 0;
-  statusMensagem = "awaiting_manual";
+  statusMensagem = "queued";
   await reconciliarCrm(db, cfg, T, 1);
   assert.equal((await lido(db.doc(`${FILA}/preso`))).tentativasCrm, 1, "o preso passou uma vez");
   assert.equal((await lido(db.doc(`${FILA}/bom`))).crmPendente, true, "vaga única: o bom espera a vez");

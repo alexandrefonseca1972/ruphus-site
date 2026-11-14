@@ -291,8 +291,8 @@ console.log("escolherVariante: ok");
   assert.equal(desistirDaReconciliacao({ tentativasCrm: RECONCILIAR.tentativasMax, enviadoEm: T0 }, T0), true, "N passagens");
   assert.equal(desistirDaReconciliacao({ tentativasCrm: 1, enviadoEm: T0 }, T0 + RECONCILIAR.prazoMs), true, "prazo desde o envio");
   assert.deepEqual([1, 2, 3, 10, 20].map((n) => proximaReconciliacao(n, 0)), [60_000, 120_000, 240_000, RECONCILIAR.esperaMaxMs, RECONCILIAR.esperaMaxMs]);
-  // o laço de reconciliarCrm no modelo (orderBy reconciliarApos, 5 vagas): 5 presos (awaiting_manual,
-  // manual_started, 404) e um bom atrás deles
+  // o laço de reconciliarCrm no modelo (orderBy reconciliarApos, 5 vagas): 5 presos (queued sem fim,
+  // 404) e um bom atrás deles
   type I = { id: string; enviadoEm: number; reconciliarApos: number; tentativasCrm?: number; pendente: boolean; preso: boolean };
   const fila: I[] = [
     ...Array.from({ length: 5 }, (_, i) => ({ id: `preso-${i}`, enviadoEm: T0, reconciliarApos: T0 + i, pendente: true, preso: true })),
