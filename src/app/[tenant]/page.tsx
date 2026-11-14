@@ -6,7 +6,6 @@ import { OCULTO, useValores } from "@/lib/valores";
 import { doc, getDoc, orderBy, Timestamp, where } from "firebase/firestore";
 import { db } from "@/lib/firebase-db";
 import { quandoSai } from "@/components/cota-whatsapp";
-import { MensagensParadas } from "./mensagens-paradas";
 import { Fragment, useEffect, useState } from "react";
 import { z } from "zod";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -293,8 +292,6 @@ export default function AgendaPage() {
 
       {shown && !!staff?.length && <CapacidadeEquipe items={active} staff={staff} onSelect={focarQuadro} />}
 
-      {/* gestor com o canal oficial: as que pararam na cota sem ninguém olhando */}
-      {tenant.podeGerir && tenant.whatsapp?.canalOficial && <MensagensParadas tenantId={tenant.id} fuso={fuso} />}
       {error && <FeedbackDialog tipo="erro" mensagem={error} onClose={() => setError("")} />}
       {!error && loadError && <FormMessage>{loadError}</FormMessage>}
       {notice && !error && (

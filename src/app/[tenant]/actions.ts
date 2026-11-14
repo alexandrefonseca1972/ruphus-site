@@ -4,7 +4,7 @@ import { RECARGA_MAXIMA_CENTS, RECARGA_MINIMA_CENTS } from "@/lib/consumo";
 import { criarRecarga, lerConfigMensagens } from "@/lib/consumo.server";
 import { painelDeConsumo, resumoDoSaldo } from "@/lib/consumo-painel.server";
 import { abrirCobranca, listarCobrancas } from "@/lib/cobranca";
-import { cadastrarDonoOficial, conexaoOficial, enviarConfirmacaoDono, exigeNaoPausado, usaCanalOficial } from "@/lib/canal-oficial.server";
+import { cadastrarDonoOficial, enviarConfirmacaoDono, exigeNaoPausado, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { adminDb } from "@/lib/admin";
 import { createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, restaurarAgendamento, salvarDadosCliente, UserError } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
@@ -15,12 +15,10 @@ import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
 import { criarProfissional, gastarCota, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
 import { SITE_BASE } from "@/lib/dominio";
-import { assumirEnvio, ErroAtendys, manterAgendada, statusDaMensagem, type ConexaoAtendys } from "@/lib/atendys";
 import { DEMO } from "@/lib/demo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { avisarConfirmacaoPorSms } from "@/lib/sms-agendamento.server";
 import { enviarEmail } from "@/lib/email.server";
-import { atualizarParada, negocioDaMensagem, paradasDoNegocio } from "@/lib/mensagens-paradas.server";
 import { htmlDoRecibo, textoDoRecibo } from "@/lib/recibo";
 import { reciboDoBanco } from "@/lib/recibo.server";
 import { formatBRL, todayIn } from "@/lib/datetime";
@@ -469,68 +467,6 @@ export const resolverAvisoAction = memberAction(z.object({ tenantId: docIdStaff,
   return { ok: true as const };
 });
 
-/** Mensagem parada na cota do dia: "Enviar agora" (o atendys marca a ação manual e devolve o
- *  wa.me, que a tela abre só depois desta resposta) ou "Manter agendada" (volta à fila para o
- *  retryAt). Só quem gere: o wa.me leva o telefone e o texto do cliente, e a lista das paradas
- *  (mensagensParadasAction) também é só de quem gere. A equipe vê o aviso e o dono decide. */
-export const decidirEnvioAction = memberAction(
-  z.object({ tenantId: docIdStaff, messageId: z.string().uuid(), acao: z.enum(["agora", "agendar"]) }),
-  async (data, user) => {
-    await exigeGestor(data.tenantId, user.uid);
-    // a mensagem tem de ser DESTE negócio: no canal oficial a credencial (da plataforma) é a mesma
-    // para todos, e o atendys não distingue o salão A do B. Sem isto, o UUID de uma mensagem de
-    // outro salão devolvia o wa.me com o telefone e o texto do cliente dele
-    if ((await negocioDaMensagem(data.messageId)) !== data.tenantId) throw new UserError("Mensagem não encontrada.");
-    const w = await conexaoDasParadas(data.tenantId);
-    if (!w) throw new UserError("O canal oficial do WhatsApp não está ligado neste negócio.");
-    try {
-      if (data.acao === "agora") {
-        const r = await assumirEnvio(w, data.messageId);
-        // manual_started: ação manual iniciada, não "enviada"; sai da lista de pendentes
-        await atualizarParada(data.tenantId, data.messageId, "manual_started");
-        return { ok: true as const, url: r.manualHandoffUrl, retryAt: null, vencida: false };
-      }
-      const r = await manterAgendada(w, data.messageId);
-      await atualizarParada(data.tenantId, data.messageId, "queued", r.retryAt);
-      return { ok: true as const, url: null, retryAt: r.retryAt, vencida: false };
-    } catch (e) {
-      // 409: o atendys não segura mais a mensagem (venceu as 24 h ou já foi resolvida). Sai da
-      // lista em vez de deixar dois botões que sempre falham
-      if (!(e instanceof ErroAtendys && e.status === 409)) throw e;
-      await atualizarParada(data.tenantId, data.messageId, "expired");
-      return { ok: true as const, url: null, retryAt: null, vencida: true };
-    }
-  },
-);
-
-/** Mensagens que pararam na cota sem ninguém olhando (lembrete, aviso de agendamento, robô):
- *  o painel lista para o dono decidir. Só quem gere (texto e número do cliente). */
-export const mensagensParadasAction = memberAction(SoTenant, async ({ tenantId }, user) => {
-  await exigeGestor(tenantId, user.uid);
-  const lista = await paradasDoNegocio(tenantId);
-  if (!lista.length) return { ok: true as const, mensagens: lista };
-  // confere cada uma no atendys: só fica a que ele ainda segura para decisão. A vencida, a de
-  // conta de WhatsApp excluída/reconectada e a que ele não conhece saem da lista (sem isto o painel
-  // oferecia "Enviar agora" e "Manter agendada" que sempre falhavam). Atendys fora do ar: não tira nada
-  const w = await conexaoDasParadas(tenantId);
-  if (!w) return { ok: true as const, mensagens: lista };
-  const valem = await Promise.all(
-    lista.map(async (m) => {
-      try {
-        const r = await statusDaMensagem(w, m.messageId);
-        if (r.status === "awaiting_manual") return true;
-        await atualizarParada(tenantId, m.messageId, r.status, r.retryAt);
-        return false;
-      } catch (e) {
-        if (!(e instanceof ErroAtendys && [404, 409, 410].includes(e.status))) return true;
-        await atualizarParada(tenantId, m.messageId, "expired");
-        return false;
-      }
-    }),
-  );
-  return { ok: true as const, mensagens: lista.filter((_, i) => valem[i]) };
-});
-
 /** Recarga de mensagens pré-pagas: pacote do /admin ou valor livre (mínimo R$ 10,00). Devolve a
  *  cobrança Pix (a mesma página /pagar da mensalidade); o saldo entra quando o pagamento é baixado. */
 export const criarRecargaAction = memberAction(
@@ -585,8 +521,3 @@ export const resumoDoSaldoAction = memberAction(z.object({ tenantId: docIdStaff 
   await exigeGestor(tenantId, user.uid);
   return { ok: true as const, saldo: await resumoDoSaldo(tenantId) };
 });
-
-// As mensagens paradas saem do canal oficial (tenant da plataforma no atendys).
-async function conexaoDasParadas(tenantId: string): Promise<ConexaoAtendys | null> {
-  return conexaoOficial(adminDb, tenantId).catch((e) => (console.error(`[mensagens] canal oficial de ${tenantId}`, e), null));
-}
