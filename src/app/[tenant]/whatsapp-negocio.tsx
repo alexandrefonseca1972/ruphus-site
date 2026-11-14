@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { idToken } from "@/lib/firebase";
 import { celularDoDono, mascaraTelefoneBR, soDigitosComDDI } from "@/lib/telefone";
 import { TIMEZONE } from "@/lib/datetime";
+import { ATRASO_AVALIACAO_PADRAO, ATRASOS_AVALIACAO } from "@/lib/avaliacoes";
 import { useTenantSeHouver } from "./painel-layout";
-import { configurarLembretesWhatsAppAction, definirWhatsAppDonoAction, lerWhatsAppDoNegocioAction, reenviarConfirmacaoDonoAction } from "./actions";
+import { configurarAvaliacoesAction, configurarLembretesWhatsAppAction, definirWhatsAppDonoAction, lerWhatsAppDoNegocioAction, reenviarConfirmacaoDonoAction } from "./actions";
 
 // Avisos pelo WhatsApp no painel do dono. Os avisos aos clientes e os pedidos de agendamento saem
 // pelo número oficial da Ruphus (canal oficial): o dono só cadastra o WhatsApp pessoal, que recebe
@@ -20,6 +21,7 @@ type Config = {
   ownerPhoneVerifiedAt?: number | null;
   remindersEnabled?: boolean;
   remindersBeforeHours?: number | null;
+  avaliacoes?: { enabled: boolean; delayMin: number };
   // último aviso que não saiu (cota, número recusado…); some quando um aviso sai
   lastNotifyError?: { message: string; at: number } | null;
 };
@@ -51,11 +53,15 @@ export function WhatsAppNegocio({ slug, telefoneNegocio }: { slug: string; telef
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const [lembretes, setLembretes] = useState(false);
   const [horasLembretes, setHorasLembretes] = useState(2);
+  const [avaliacoes, setAvaliacoes] = useState(false);
+  const [atrasoAvaliacoes, setAtrasoAvaliacoes] = useState<number>(ATRASO_AVALIACAO_PADRAO);
   const tenant = useTenantSeHouver();
   // uma gravação de lembretes de cada vez: cliques rápidos em checkbox e hora não disputam, a última
   // fica. O último valor confirmado fica num ref: o estado do clique é velho quando a fila anda
   const filaLembretes = useRef<Promise<void>>(Promise.resolve());
+  const filaAvaliacoes = useRef<Promise<void>>(Promise.resolve());
   const confirmado = useRef<{ on: boolean; hours: number } | null>(null);
+  const avaliacoesConfirmadas = useRef<{ on: boolean; delay: number } | null>(null);
 
   useEffect(() => {
     let atual = true;
@@ -68,7 +74,10 @@ export function WhatsAppNegocio({ slug, telefoneNegocio }: { slug: string; telef
       setFone((r.ownerPhone ?? "").replace(/^55(?=\d{11}$)/, ""));
       setLembretes(r.remindersEnabled === true);
       setHorasLembretes(r.remindersBeforeHours ?? 2);
+      setAvaliacoes(r.avaliacoes?.enabled === true);
+      setAtrasoAvaliacoes(r.avaliacoes?.delayMin ?? ATRASO_AVALIACAO_PADRAO);
       confirmado.current = { on: r.remindersEnabled === true, hours: r.remindersBeforeHours ?? 2 };
+      avaliacoesConfirmadas.current = { on: r.avaliacoes?.enabled === true, delay: r.avaliacoes?.delayMin ?? ATRASO_AVALIACAO_PADRAO };
     })();
     return () => {
       atual = false;
@@ -121,6 +130,22 @@ export function WhatsAppNegocio({ slug, telefoneNegocio }: { slug: string; telef
         return;
       }
       confirmado.current = { on: enabled, hours };
+    });
+  }
+
+  function salvarAvaliacoes(enabled: boolean, delayMin: number) {
+    setAviso(null);
+    filaAvaliacoes.current = filaAvaliacoes.current.then(async () => {
+      const t = await token();
+      const r = t ? await configurarAvaliacoesAction(t, { tenantId: slug, enabled, delayMin }).catch(() => null) : null;
+      if (!r || falhou(r)) {
+        setAviso({ ok: false, texto: r ? r.error : SEM_REDE });
+        setAvaliacoes(avaliacoesConfirmadas.current?.on ?? false);
+        setAtrasoAvaliacoes(avaliacoesConfirmadas.current?.delay ?? ATRASO_AVALIACAO_PADRAO);
+        return;
+      }
+      avaliacoesConfirmadas.current = { on: enabled, delay: delayMin };
+      setAviso({ ok: true, texto: enabled ? `Pedidos de avaliação ativados: saem ${delayMin} minutos após a conclusão.` : "Pedidos de avaliação desativados." });
     });
   }
 
@@ -261,6 +286,43 @@ export function WhatsAppNegocio({ slug, telefoneNegocio }: { slug: string; telef
           Cada cliente com horário <strong>confirmado</strong> recebe um lembrete pelo WhatsApp uma vez, na hora
           marcada aqui em cima. Não envia entre 22h e 7h30 — quem vencer nesse intervalo recebe às 7h30. Cliente que
           ainda não foi confirmado não recebe.
+        </p>
+      </div>
+
+      <div className="grid gap-3 rounded-lg border p-3">
+        <label className="flex min-h-11 items-center gap-2.5 text-sm font-medium">
+          <input
+            type="checkbox"
+            className="size-5 accent-primary"
+            checked={avaliacoes}
+            onChange={(e) => {
+              const enabled = e.target.checked;
+              setAvaliacoes(enabled);
+              salvarAvaliacoes(enabled, atrasoAvaliacoes);
+            }}
+          />
+          Pedir avaliação após concluir o atendimento
+        </label>
+        {avaliacoes && (
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            Enviar
+            <select
+              aria-label="Minutos após a conclusão para pedir avaliação"
+              value={atrasoAvaliacoes}
+              onChange={(e) => {
+                const delay = Number(e.target.value);
+                setAtrasoAvaliacoes(delay);
+                salvarAvaliacoes(avaliacoes, delay);
+              }}
+              className="h-11 rounded-lg border border-input bg-card px-2 tabular-nums"
+            >
+              {ATRASOS_AVALIACAO.map((minutos) => <option key={minutos} value={minutos}>{minutos} minutos</option>)}
+            </select>
+            depois da conclusão
+          </div>
+        )}
+        <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+          Uma mensagem por atendimento concluído na agenda ou no Caixa, somente para clientes que autorizaram os avisos e o pedido de avaliação no agendamento. O envio usa o saldo e a cota de mensagens.
         </p>
       </div>
     </section>

@@ -103,6 +103,7 @@ service cloud.firestore {
           && resource.data.status in ['booked', 'confirmed']
           && request.resource.data.status in ['confirmed', 'cancelled', 'no_show']
           && request.resource.data.status != resource.data.status
+          && !('completedAt' in resource.data)
           // recebido no Caixa não se cancela nem vira falta: o dinheiro ficaria contando
           && (request.resource.data.status == 'confirmed' || !exists(/databases/$(database)/documents/tenants/$(t)/lancamentos/$('ag-' + a)))
           && !exists(/databases/$(database)/documents/tenants/$(t)/history/$(request.resource.data.lastHistoryId))
@@ -167,6 +168,11 @@ service cloud.firestore {
       // Gravar, só o servidor (financeiro.server).
       match /lancamentos/{l} {
         allow read: if ehAdminPlataforma() || hasRole(t, ['owner', 'admin']);
+        allow write: if false;
+      }
+      // Avaliações são privadas do negócio; o cliente responde só pelo servidor, com o token do link.
+      match /avaliacoes/{a} {
+        allow read: if gere(t);
         allow write: if false;
       }
       // contas fixas e comissões (%) do Caixa: mesma porta dos lançamentos

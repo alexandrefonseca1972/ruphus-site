@@ -33,7 +33,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, ListFilter, Plus, UsersRound }
 import { RowMenu } from "./row-menu";
 import { ShareLink } from "./share-link";
 import { mudarStatus, STATUS } from "./status";
-import { avisarClienteAction, avisarConfirmacaoSmsAction, confirmarSinalAction, resolverAvisoAction } from "./actions";
+import { avisarClienteAction, avisarConfirmacaoSmsAction, confirmarSinalAction, concluirAtendimentoAction, resolverAvisoAction } from "./actions";
 import { idToken } from "@/lib/firebase";
 import { restanteDe } from "@/lib/sinal";
 import { type AvisoCliente, textoAvisoCliente } from "@/lib/mensagens";
@@ -53,6 +53,7 @@ const Appointment = z.object({
   customerKey: z.string().optional(),
   planId: z.string().optional(),
   status: z.enum(["booked", "confirmed", "cancelled", "no_show"]),
+  completedAt: z.instanceof(Timestamp).optional().catch(undefined),
   // sinal do agendamento online (Pix na chave do salão); só o servidor grava
   sinal: z.object({ cents: z.number(), status: z.enum(["pendente", "pago", "vencido", "dispensado", "erro"]), hora: z.string() }).optional().catch(undefined),
   // o cliente tocou em "Confirmar presença" no WhatsApp (instante real); a remarcação apaga
@@ -82,7 +83,7 @@ export default function AgendaPage() {
   const [error, setError] = useState("");
   const [rescheduling, setRescheduling] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState<{ id: string; kind: "cancel" | "no_show" | "sinal" } | null>(null);
+  const [confirming, setConfirming] = useState<{ id: string; kind: "cancel" | "no_show" | "sinal" | "complete" } | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   // quem é da equipe abre na própria agenda; "Todos" continua a um toque
   const [staffFilter, setStaffFilter] = useState(tenant.staffId ?? "");
@@ -150,6 +151,20 @@ export default function AgendaPage() {
     } catch (err) {
       setError(err instanceof Error && err.message.startsWith("Sessão") ? err.message : errorMessage(err));
       return false;
+    }
+  }
+
+  async function concluir(a: Appointment) {
+    setConfirming(null);
+    setError("");
+    setPending(a.id);
+    try {
+      const r = await concluirAtendimentoAction(await idToken(), { tenantId: tenant.id, appointmentId: a.id });
+      if (!r.ok) setError(r.error);
+    } catch {
+      setError("Sem conexão. Tente de novo.");
+    } finally {
+      setPending(null);
     }
   }
 
@@ -353,19 +368,22 @@ export default function AgendaPage() {
             const showSinal = (a.sinal?.status === "pendente" || a.sinal?.status === "vencido" || a.sinal?.status === "erro") && ATIVO(a) && tenant.podeGerir;
             // Confirmar só antes do horário: depois dele já não há o que combinar com o cliente
             const showConfirmar = a.status === "booked" && a.start.toMillis() > now && meu(a);
-            // recebido no Caixa: remarcar deixaria o recebimento no dia antigo
-            const showRemarcar = ATIVO(a) && meu(a) && !recebidos.has(idDaBaixa(a.id));
+            // concluído ou recebido no Caixa: remarcar deixaria histórico, avaliação e recebimento inconsistentes
+            const showRemarcar = ATIVO(a) && meu(a) && !a.completedAt && !recebidos.has(idDaBaixa(a.id));
             const menu = (
             <RowMenu
               label={`Mais ações: ${a.customerName} às ${formatTime(a.start.toDate())}`}
               actions={[
+                ...(ATIVO(a) && meu(a) && !a.completedAt && a.end.toMillis() <= now
+                  ? [{ label: pending === a.id ? "Concluindo…" : "Concluir atendimento", onClick: () => setConfirming({ id: a.id, kind: "complete" as const }) }]
+                  : []),
                 ...(caixa && recebidosDaSemana && ATIVO(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) && restanteDe(a) > 0
                   ? [{ label: "Recebido", onClick: () => setFolha({ modo: "baixa", atendimento: { id: a.id, customerName: a.customerName, customerPhone: a.customerPhone, serviceName: a.serviceName, priceCents: restanteDe(a), sinalCents: a.sinal?.status === "pago" ? a.sinal.cents : 0 } }) }]
                   : []),
                 ...(caixa && recebidos.has(idDaBaixa(a.id)) ? [{ label: "Recibo", onClick: () => abrirRecibo(idDaBaixa(a.id)) }] : []),
-                // recebido no Caixa não vira falta: a entrada contaria um atendimento que não houve
-                ...(ATIVO(a) && meu(a) && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Faltou", onClick: () => setConfirming({ id: a.id, kind: "no_show" as const }) }] : []),
-                ...(ATIVO(a) && meu(a) && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Cancelar horário", danger: true, onClick: () => setConfirming({ id: a.id, kind: "cancel" as const }) }] : []),
+                // concluído ou recebido no Caixa é final: o histórico e a avaliação já podem existir
+                ...(ATIVO(a) && meu(a) && !a.completedAt && a.start.toMillis() <= now && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Faltou", onClick: () => setConfirming({ id: a.id, kind: "no_show" as const }) }] : []),
+                ...(ATIVO(a) && meu(a) && !a.completedAt && !recebidos.has(idDaBaixa(a.id)) ? [{ label: "Cancelar horário", danger: true, onClick: () => setConfirming({ id: a.id, kind: "cancel" as const }) }] : []),
                 { label: showHistory === a.id ? "Esconder histórico" : "Histórico", onClick: () => setShowHistory(showHistory === a.id ? null : a.id) },
               ]}
             />
@@ -393,6 +411,7 @@ export default function AgendaPage() {
                     </Link>
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS[a.status].className}`}>{STATUS[a.status].label}</span>
                     {a.planId && <span className="rounded-full border px-2.5 py-0.5 text-xs">Recorrente</span>}
+                    {a.completedAt && <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">Concluído</span>}
                     {a.presencaConfirmadaEm && ATIVO(a) && (
                       <span title={`Confirmada pelo cliente no WhatsApp: ${quandoSai(a.presencaConfirmadaEm.toDate().toISOString(), fuso)}`} className="rounded-full border px-2.5 py-0.5 text-xs">
                         Presença confirmada às {formatTime(a.presencaConfirmadaEm.toDate(), fuso)}
@@ -460,6 +479,16 @@ export default function AgendaPage() {
                   notifyLabel="Avisar o cliente pelo WhatsApp"
                   confirmLabel="Sim, cancelar"
                   onConfirm={(notify) => cancel(a, notify)}
+                  onCancel={() => setConfirming(null)}
+                />
+              )}
+              {confirming?.id === a.id && confirming.kind === "complete" && (
+                <ConfirmDialog
+                  title={`Concluir o atendimento de ${a.customerName}?`}
+                  description={`${a.serviceName} com ${a.staffName}. A conclusão entra no histórico e, se os pedidos de avaliação estiverem ativados, o cliente poderá ser avisado.`}
+                  confirmLabel="Sim, concluir atendimento"
+                  tom="normal"
+                  onConfirm={() => concluir(a)}
                   onCancel={() => setConfirming(null)}
                 />
               )}

@@ -146,6 +146,25 @@ com 10 reservas simultâneas no mesmo horário exigindo exatamente um sucesso.
 
 Fuso fixo: `America/Sao_Paulo`.
 
+### Conclusão e avaliações
+
+`completedAt` marca a conclusão explícita na agenda ou pelo recebimento no Caixa; o
+status continua `confirmed` para não mudar o restante do produto. Concluído não pode
+ser remarcado, cancelado nem virar falta. O evento `completed` fica no histórico.
+
+Com `avaliacoes.enabled=true`, o cron seleciona somente conclusões posteriores a
+`enabledAt` e já vencidas pelo `delayMin` (padrão: 30 min). O consentimento precisa
+mencionar o pedido de avaliação na versão atual. `avaliacoes-whatsapp.server.ts`
+cria `avaliacoes/{appointmentId}` e envia uma vez pelo canal oficial, com lease,
+backoff e idempotency key estável. Respeita `customers.semCampanha` e não coloca na
+fila um convite cuja validade terminou. O link usa HMAC com `AVALIACAO_TOKEN_SECRET`
+ou `CRON_SECRET`; no banco fica apenas o hash. A resposta pública passa por Server Action,
+Zod, sanitização, validade, transação e limite por hash de IP. Só gestores leem as
+avaliações pelo SDK web.
+
+O template `avaliacao_atendimento` precisa ser aprovado como utility na WABA antes de
+ativar o recurso em produção. Não há backfill nem envio para a demonstração.
+
 ---
 
 ## 5. Autenticação e autorização
@@ -190,7 +209,10 @@ tenants/{slug}                  name, ownerId, limiteStaff, site.*
   appointments/{id}             start, end, status, serviceIds[], serviceName,
                                 durationMin, priceCents, staffId, staffName,
                                 customerKey, customerName, customerPhone,
-                                planId?, lastHistoryId
+                                planId?, completedAt?, reviewRequestCreatedAt?, lastHistoryId
+  avaliacoes/{appointmentId}    status, tokenHash, criadaEm, enviadaEm, respondidaEm,
+                                expiraEm, customerKey, serviceName, staffId, staffName,
+                                notas?, notaGeral?, comentario? (uma por atendimento)
   history/{id}                  appointmentId, type, at, by, byName, from?, to?, reason?
   customers/{telefone}          name, phone, updatedAt, etiquetas[], semCampanha
     notas/{id}                  texto, quando, por, porNome
@@ -233,7 +255,8 @@ A regra é **lista fechada**: coleção nova sob `tenants/{t}` nasce negada.
 |---|---|
 | `tenants/{t}` | membro lê; dono/admin edita, **menos** `ownerId` e `limiteStaff`; criar e apagar, nunca |
 | `members/{uid}` | dono/admin cria e remove, menos o `owner`; **`viaConvite` é só do servidor** |
-| `appointments` | membro lê; só muda `status` + `lastHistoryId`, e só junto de um registro novo de histórico no mesmo batch |
+| `appointments` | membro lê; só muda `status` + `lastHistoryId`, e só junto de um registro novo de histórico no mesmo batch; concluído é final |
+| `avaliacoes` | só gestor lê; criação e resposta passam pelo servidor com token |
 | `history` | membro cria com autor e horário cravados pela regra; sem update e sem delete |
 | `customers` | membro lê; edita **só** `etiquetas` (≤8) e `semCampanha` |
 | `customers/*/notas` | membro cria (autor e horário cravados) e apaga; sem edição |
@@ -364,6 +387,7 @@ imprimindo `ok`. O que toca o banco sobe o emulador sozinho.
 | `npm run test:whatsapp` | não | DDI por tamanho do número |
 | `npm run test:rules` | sim | regras do Firestore e do Storage |
 | `npm run test:booking` | sim | reservas, concorrência, planos, limites, CRM |
+| `npm run test:avaliacoes` | sim | conclusão, cron, retries, tokens, resposta, sanitização e limites |
 | `npm run test:convite` | sim | validade, uso único e a quem o link abre |
 | `npm run test:admin` | não | o `select` da lista não pode ficar atrás dos campos lidos |
 | `npm run test:cobranca` | sim | Pix, token, baixa |

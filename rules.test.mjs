@@ -317,6 +317,15 @@ await assertSucceeds(getDoc(doc(carla, "tenants/acme/members/carla")), "le o pro
 await assertFails(getDoc(doc(carla, "tenants/acme/members/alice")), "a lista da equipe e de quem gere");
 await assertSucceeds(getDoc(doc(alice, "tenants/acme/members/carla")));
 
+// Avaliações: gestor lê, equipe comum e anônimo não; resposta pública passa pelo servidor.
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/avaliacoes/a1"), { status: "respondida", comentario: "Bom" }));
+await assertSucceeds(getDoc(doc(alice, "tenants/acme/avaliacoes/a1")));
+await assertSucceeds(getDoc(doc(suporte, "tenants/acme/avaliacoes/a1")));
+await assertFails(getDoc(doc(carla, "tenants/acme/avaliacoes/a1")));
+await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), "tenants/acme/avaliacoes/a1")));
+await assertFails(setDoc(doc(alice, "tenants/acme/avaliacoes/a2"), { status: "respondida" }));
+await assertFails(updateDoc(doc(alice, "tenants/acme/avaliacoes/a1"), { comentario: "editado" }));
+
 // o WhatsApp pessoal do dono fica num doc que só o servidor lê: nem o dono (lê pelas ações), nem a equipe
 await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "tenants/acme/privado/whatsapp"), { ownerPhone: "5511988887777", ownerPhoneVerifiedAt: 1 }));
 await assertFails(getDoc(doc(alice, "tenants/acme/privado/whatsapp")), "o dono não lê o privado direto");

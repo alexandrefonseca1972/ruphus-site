@@ -744,7 +744,7 @@ export async function endPlan(db: Firestore, input: { tenantId: string; planId: 
 async function rescheduleContext(tx: Transaction, db: Firestore, q: Omit<RescheduleInput, "time">, exigirAtivo = true) {
   const ref = db.doc(`tenants/${q.tenantId}/appointments/${q.appointmentId}`);
   const appt = await tx.get(ref);
-  if (!appt.exists || !["booked", "confirmed"].includes(appt.get("status"))) return null;
+  if (!appt.exists || appt.get("completedAt") || !["booked", "confirmed"].includes(appt.get("status"))) return null;
   const query = { tenantId: q.tenantId, serviceIds: appt.get("serviceIds") as string[], staffId: appt.get("staffId") as string, date: q.date };
   const ctx = await slotContext(tx, db, query, q.appointmentId, exigirAtivo);
   return ctx && { ...ctx, ref, appt };
@@ -753,6 +753,29 @@ async function rescheduleContext(tx: Transaction, db: Firestore, q: Omit<Resched
 /** exigirAtivo: false no painel (remarca com serviço oculto ou profissional fora do link). */
 export async function rescheduleSlots(db: Firestore, q: Omit<RescheduleInput, "time">, exigirAtivo = true) {
   return db.runTransaction(async (tx) => (await rescheduleContext(tx, db, q, exigirAtivo))?.slots ?? [], { readOnly: true });
+}
+
+export async function concluirAtendimento(
+  db: Firestore,
+  input: { tenantId: string; appointmentId: string },
+  actor: Actor,
+) {
+  const preso = await profissionalDaConta(db, input.tenantId, actor.uid);
+  await db.runTransaction(async (tx) => {
+    const ref = db.doc(`tenants/${input.tenantId}/appointments/${input.appointmentId}`);
+    const agendamento = await tx.get(ref);
+    if (!agendamento.exists) throw new UserError("Agendamento não encontrado.");
+    if (agendamento.get("completedAt")) return;
+    if (!["booked", "confirmed"].includes(agendamento.get("status"))) throw new UserError("Este horário foi cancelado ou marcado como falta.");
+    if (preso && agendamento.get("staffId") !== preso) throw new UserError(DE_OUTRO);
+    const end = agendamento.get("end") as Timestamp | undefined;
+    if (!end || typeof end.toMillis !== "function") throw new UserError("Agendamento inválido.");
+    if (end.toMillis() > Date.now()) throw new UserError("O atendimento ainda não terminou.");
+    const historico = db.collection(`tenants/${input.tenantId}/history`).doc();
+    tx.create(historico, { appointmentId: input.appointmentId, type: "completed", at: FieldValue.serverTimestamp(), by: actor.uid, byName: actor.email ?? null });
+    tx.update(ref, { status: "confirmed", completedAt: FieldValue.serverTimestamp(), lastHistoryId: historico.id });
+  });
+  return { ok: true as const };
 }
 
 /** opcoes.manterStatus: remarcação pelo cliente (WhatsApp) não desfaz a confirmação do dono.

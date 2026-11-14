@@ -39,6 +39,7 @@ export const TEMPLATES = {
   confirmado: "agendamento_confirmado_cliente",
   cancelado: "agendamento_cancelado",
   lembrete: "agendamento_lembrete",
+  avaliacao: "avaliacao_atendimento",
   novoDono: "agendamento_pedido_dono",
   novoDonoBotoes: "agendamento_pedido_dono_botoes",
   lembreteBotoes: "agendamento_lembrete_botoes",
@@ -98,6 +99,10 @@ export function templateCliente(tipo: "recebido" | "confirmado" | "cancelado" | 
     return { nome: nomeTemplate("lembreteBotoes"), parametros, botoes: (["cp", "cr", "cx"] as const).map((a) => idBotao(a, ref.slug, ref.agendamento, ref.horario)) };
   }
   return { nome: nomeTemplate(tipo), parametros };
+}
+
+export function templateAvaliacao(c: { nome: string; negocio: string; servico: string; profissional: string; link: string }): Template {
+  return { nome: TEMPLATES.avaliacao, parametros: [parametro(c.nome), destaque(c.negocio), parametro(c.servico), parametro(c.profissional), parametro(c.link)] };
 }
 
 /** Aviso de novo agendamento ao dono: {{1}} código (CONFIRMADO/RECUSAR + código), {{2}} negócio,

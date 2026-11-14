@@ -7,7 +7,7 @@ import { useCollection } from "@/lib/use-collection";
 
 const Range = z.object({ start: z.instanceof(Timestamp), end: z.instanceof(Timestamp) });
 const Entry = z.object({
-  type: z.enum(["created", "confirmed", "rescheduled", "cancelled", "restored", "no_show"]),
+  type: z.enum(["created", "confirmed", "completed", "rescheduled", "cancelled", "restored", "no_show"]),
   at: z.instanceof(Timestamp),
   by: z.string(),
   byName: z.string().nullish(),
@@ -32,6 +32,8 @@ function describe(e: Entry) {
         : e.reason === "sinal_pago"
           ? `Sinal recebido, confirmado por ${who}`
           : `Confirmado pelo WhatsApp por ${who}`;
+    case "completed":
+      return e.reason === "caixa_recebido" ? `Atendimento concluído ao receber no Caixa, por ${who}` : `Atendimento concluído por ${who}`;
     case "rescheduled":
       return e.from && e.to
         ? `Remarcado de ${when(e.from.start.toDate())} para ${when(e.to.start.toDate())} por ${who}`
