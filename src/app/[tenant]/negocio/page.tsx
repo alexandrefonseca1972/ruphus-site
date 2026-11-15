@@ -20,6 +20,7 @@ import { useTenant } from "../painel-layout";
 import { PageTitle } from "../page-title";
 import { WhatsAppNegocio } from "../whatsapp-negocio";
 import { PixNegocio, SinalNegocio } from "../pix-negocio";
+import { FilaEsperaNegocio } from "../fila-espera-negocio";
 
 // O que o cliente vê do negócio: o site, a bio e o WhatsApp do agendamento saem daqui.
 // Salvar publica na hora (o servidor limpa o cache do site, da imagem e da bio).
@@ -399,6 +400,7 @@ export default function MeuNegocio() {
             <WhatsAppNegocio slug={slug} telefoneNegocio={campos.telefone} />
             <PixNegocio cidadeSugerida={salvo?.campos.cidade ?? ""} />
             <SinalNegocio />
+            {tenant.podeGerir && <FilaEsperaNegocio />}
           </>
         )}
       </div>

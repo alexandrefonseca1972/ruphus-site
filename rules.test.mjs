@@ -278,6 +278,11 @@ await assertFails(setDoc(doc(alice, "tenants/acme/lancamentos/l2"), { tipo: "ent
 await assertFails(updateDoc(lanc(alice), { valorCents: 1 }));
 await assertFails(deleteDoc(lanc(alice)));
 await assertFails(updateDoc(doc(alice, "tenants/acme"), { "modulos.financeiro": false }), "o dono nao liga nem desliga o modulo");
+// fila de espera: ligar o módulo e o pedido são só do servidor (Admin SDK); o dono não mexe
+await assertFails(updateDoc(doc(alice, "tenants/acme"), { "modulos.espera": true }), "o dono nao liga a fila de espera");
+await assertFails(updateDoc(doc(alice, "tenants/acme"), { "solicitacoes.espera": { status: "pendente", em: 1 } }), "o dono nao cria pedido de espera");
+await assertFails(getDoc(doc(alice, "tenants/acme/espera/x")), "o dono nao le a espera direto");
+await assertFails(setDoc(doc(alice, "tenants/acme/espera/x"), { nome: "x" }), "o dono nao grava na espera");
 // contas fixas e comissões: a mesma porta dos lançamentos
 const cfg = (db) => doc(db, "tenants/acme/caixa/config");
 await assertSucceeds(getDoc(cfg(alice)));

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="30">
+<title>Fila de espera · checklist</title>
+<style>
+  :root { --fundo:#FAF9F5; --tinta:#17150F; --suave:#5C5747; --linha:#E6E1D3; --verde:#2C6A53; --verde-claro:#EEF5F1; --azul:#2F5E8C; --azul-claro:#EAF1F8; --ambar:#8A6100; --ambar-claro:#FFF4D6; --verm:#B4472F; --verm-claro:#FBF1EE; }
+  @media (prefers-color-scheme: dark) { :root { --fundo:#16150F; --tinta:#F3F0E8; --suave:#B9B2A0; --linha:#34312A; --verde-claro:#1C2E26; --azul-claro:#1B2836; --ambar-claro:#2E2610; --verm-claro:#33201B; --verde:#7CC4A3; --azul:#8DB7E0; --ambar:#E2B54A; --verm:#E58A74; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--fundo); color:var(--tinta); font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 920px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { margin:0 0 4px; font-size:28px; letter-spacing:-0.01em; }
+  .sub { color:var(--suave); margin:0 0 20px; }
+  .total { display:flex; align-items:center; gap:12px; margin-bottom:28px; }
+  .barra { flex:1; height:10px; border-radius:99px; background:var(--linha); overflow:hidden; }
+  .barra > span { display:block; height:100%; background:var(--verde); }
+  section { border:1px solid var(--linha); border-radius:14px; padding:16px; margin-bottom:14px; }
+  section header { display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+  section h2 { margin:0; font-size:17px; flex:1; min-width:200px; }
+  .pct { font-variant-numeric: tabular-nums; color:var(--suave); font-size:13px; }
+  ul { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+  li { display:flex; gap:10px; align-items:flex-start; padding:8px 10px; border-radius:10px; }
+  .id { font: 600 12px ui-monospace, Menlo, monospace; color:var(--suave); min-width:44px; padding-top:2px; }
+  .txt { flex:1; }
+  .tag { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; border-radius:99px; padding:2px 8px; white-space:nowrap; }
+  .pendente .tag { background:var(--linha); color:var(--suave); }
+  .andamento { background:var(--azul-claro); } .andamento .tag { background:var(--azul); color:#fff; }
+  .feito { background:var(--verde-claro); } .feito .tag { background:var(--verde); color:#fff; }
+  .revisado { background:var(--verde-claro); } .revisado .tag { background:var(--tinta); color:var(--fundo); }
+  .bloqueado { background:var(--verm-claro); } .bloqueado .tag { background:var(--verm); color:#fff; }
+  .voce { background:var(--ambar-claro); } .voce .tag { background:var(--ambar); color:#fff; }
+  .legenda { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 20px; font-size:12px; }
+  .legenda span { padding:2px 8px; border-radius:99px; }
+  footer { color:var(--suave); font-size:13px; margin-top:20px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Fila de espera · serviço extra</h1>
+  <p class="sub">Haiku executa · Opus revisa e corrige no fim de cada fase · branch <code>feat/fila-espera</code></p>
+  <div class="total"><div class="barra"><span id="barra"></span></div><b id="totalPct"></b></div>
+  <div class="legenda">
+    <span style="background:var(--linha)">pendente</span>
+    <span style="background:var(--azul);color:#fff">em andamento</span>
+    <span style="background:var(--verde);color:#fff">feito</span>
+    <span style="background:var(--tinta);color:var(--fundo)">revisado Opus</span>
+    <span style="background:var(--ambar);color:#fff">precisa de você</span>
+    <span style="background:var(--verm);color:#fff">bloqueado</span>
+  </div>
+  <div id="fases"></div>
+  <footer>Atualizado em <b id="quando"></b> · <span id="nota"></span></footer>
+</main>
+<script>
+// ESTADO: pendente | andamento | feito | revisado | voce | bloqueado. Editado pelo Opus a cada entrega.
+const ATUALIZADO = "15/11/2026 15:05";
+const NOTA = "Fase 1 100% (revisada pelo Opus, commit feito). Fase 2 começando.";
+const FASES = [
+  ["Fase 0 · Preparação", [
+    ["F0.1", "Branch feat/fila-espera", "revisado"],
+    ["F0.2", "Plano em tarefas (docs/plano-fila-espera.md)", "revisado"],
+    ["F0.3", "Checklist HTML aberto no navegador", "revisado"],
+    ["F0.4", "Template oferta_espera submetido à Meta (texto sai na F4.1)", "voce"],
+  ]],
+  ["Fase 1 · Serviço extra: solicitar e ligar/desligar", [
+    ["F1.1", "modulos.ts: esperaLigada (opt-in) + teste", "revisado"],
+    ["F1.2", "admin/actions.ts: espera nos módulos, pedido atendido ao ligar", "revisado"],
+    ["F1.3", "plano-gaveta.tsx: linha Fila de espera, etiqueta de pedido, rollback em erro", "revisado"],
+    ["F1.4", "Painel Meu negócio: cartão com 3 estados, solicitar/cancelar, alerta ao admin", "revisado"],
+    ["F1.5", "firestore.rules: espera só pelo servidor + teste", "revisado"],
+    ["F1.6", "espera-solicitacao.test.mts + test:espera-f1 (package.json e CI)", "revisado"],
+    ["F1.G", "Gate: tsc, lint, testes, graphify, revisão Opus, commit", "revisado"],
+  ]],
+  ["Fase 2 · Domínio puro", [
+    ["F2.1", "fila-espera.ts: tipos, Zod, compativel, ordenar, podeAvisar, venceEm", "pendente"],
+    ["F2.2", "ocupadosDoDia + agendaDias devolve ocupados só com o módulo ligado", "pendente"],
+    ["F2.3", "fila-espera.test.mts + regressão test:booking", "pendente"],
+    ["F2.G", "Gate", "pendente"],
+  ]],
+  ["Fase 3 · Grade, folha e entrada (UI pública)", [
+    ["F3.1", "entrarNaFilaAction / sairDaFilaAction: validação, erros, idempotência, limites", "pendente"],
+    ["F3.2", "Grade: selo livre, avisar/esperando, acessibilidade", "pendente"],
+    ["F3.3", "Folha modo esperar, caixa quero trocar, validação em tempo real e máscara", "pendente"],
+    ["F3.4", "Memória local e faixa Esperando… com Sair", "pendente"],
+    ["F3.5", "Aceite da fila (texto, versão, optInDaEspera)", "pendente"],
+    ["F3.6", "espera-entrada.test.mts, build, navegador 390px/1280px", "pendente"],
+    ["F3.G", "Gate", "pendente"],
+  ]],
+  ["Fase 4 · Motor", [
+    ["F4.1", "Template oferta_espera (reserva/troca) com flag + ações de botão", "pendente"],
+    ["F4.2", "Consumo: tipo espera (5¢)", "pendente"],
+    ["F4.3", "processarLiberacoes + expirarAvisos com falhas isoladas", "pendente"],
+    ["F4.4", "Cron /api/cron/fila-espera, crontab, vigiarCron", "pendente"],
+    ["F4.5", "Índices Firestore", "pendente"],
+    ["F4.6", "espera-motor.test.mts + regressão", "pendente"],
+    ["F4.G", "Gate", "pendente"],
+  ]],
+  ["Fase 5 · Respostas no WhatsApp", [
+    ["F5.1", "Botões eq/es/en/et/em2: book, reschedule, Pix", "pendente"],
+    ["F5.2", "Avisos ao dono e origem espera no histórico", "pendente"],
+    ["F5.3", "espera-botoes.test.mts + regressão", "pendente"],
+    ["F5.G", "Gate", "pendente"],
+  ]],
+  ["Fase 6 · Acabamento", [
+    ["F6.1", "Manual do dono", "pendente"],
+    ["F6.2", "Versão 0.43.0", "pendente"],
+    ["F6.3", "Suíte completa + build", "pendente"],
+    ["F6.4", "Ponta a ponta no navegador", "pendente"],
+    ["F6.5", "Revisão final Opus + verificador", "pendente"],
+    ["F6.6", "Merge, deploy e flag do template (dono)", "voce"],
+  ]],
+];
+const ROTULO = { pendente:"pendente", andamento:"em andamento", feito:"feito", revisado:"revisado", voce:"você", bloqueado:"bloqueado" };
+const pronto = (e) => e === "feito" || e === "revisado";
+let total = 0, ok = 0;
+const raiz = document.getElementById("fases");
+for (const [titulo, itens] of FASES) {
+  const feitos = itens.filter(([, , e]) => pronto(e)).length;
+  total += itens.length; ok += feitos;
+  const s = document.createElement("section");
+  const h = document.createElement("header");
+  const h2 = document.createElement("h2"); h2.textContent = titulo;
+  const p = document.createElement("span"); p.className = "pct"; p.textContent = `${feitos}/${itens.length}`;
+  h.append(h2, p); s.append(h);
+  const ul = document.createElement("ul");
+  for (const [id, texto, estado] of itens) {
+    const li = document.createElement("li"); li.className = estado;
+    const a = document.createElement("span"); a.className = "id"; a.textContent = id;
+    const b = document.createElement("span"); b.className = "txt"; b.textContent = texto;
+    const c = document.createElement("span"); c.className = "tag"; c.textContent = ROTULO[estado] ?? estado;
+    li.append(a, b, c); ul.append(li);
+  }
+  s.append(ul); raiz.append(s);
+}
+const pct = Math.round((ok / total) * 100);
+document.getElementById("barra").style.width = pct + "%";
+document.getElementById("totalPct").textContent = pct + "%";
+document.getElementById("quando").textContent = ATUALIZADO;
+document.getElementById("nota").textContent = NOTA;
+</script>
+</body>
+</html>

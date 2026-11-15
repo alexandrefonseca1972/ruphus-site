@@ -32,6 +32,7 @@ import { DIAS_CONVITE } from "@/lib/limites";
 import { recebedorDe } from "@/lib/pix";
 import { ConfigSinal } from "@/lib/sinal-config";
 import { confirmarSinal } from "@/lib/sinal.server";
+import { cancelarSolicitacaoEspera, estadoEspera, solicitarEspera } from "@/lib/espera-solicitacao.server";
 import { FieldValue } from "firebase-admin/firestore";
 import { after } from "next/server";
 import { textoConvite, textoVale } from "@/lib/mensagens";
@@ -303,6 +304,24 @@ export const lerWhatsAppDoNegocioAction = memberAction(SoTenant, async ({ tenant
   await exigeGestor(tenantId, user.uid);
   // negócio novo ainda não tem configuração: {} (nada ligado), não null, que a tela lê como falha
   return (await lerConfigWhatsApp(adminDb, tenantId)) ?? {};
+});
+
+// Fila de espera (serviço extra pedido pelo dono em "Meu negócio"): a Ruphus liga no /admin.
+export const estadoEsperaAction = memberAction(SoTenant, async ({ tenantId }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  return { ok: true as const, dados: await estadoEspera(adminDb, tenantId) };
+});
+
+export const solicitarEsperaAction = memberAction(SoTenant, async ({ tenantId }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  // a senha da demonstração é compartilhada: pedido dela viraria e-mail para o admin
+  if (tenantId === DEMO) throw new UserError("Na demonstração, a fila de espera não pode ser pedida.");
+  return { ok: true as const, dados: await solicitarEspera(adminDb, tenantId, user.uid) };
+});
+
+export const cancelarSolicitacaoEsperaAction = memberAction(SoTenant, async ({ tenantId }, user) => {
+  await exigeGestor(tenantId, user.uid);
+  return { ok: true as const, dados: await cancelarSolicitacaoEspera(adminDb, tenantId) };
 });
 
 /** WhatsApp pessoal do dono no canal oficial: só celular brasileiro (celularDoDono; o fixo do

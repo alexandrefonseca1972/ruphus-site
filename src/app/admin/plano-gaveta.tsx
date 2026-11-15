@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { confirmar } from "@/components/confirmar";
 import { definirModulosAction, modulosDoNegocioAction } from "./actions";
 
-type Modulos = { caixa: boolean; agendamento: boolean };
+type Modulos = { caixa: boolean; agendamento: boolean; espera: boolean; pedidoEspera: { status: string; em: number } | null };
 
 /** O que o plano do negócio inclui. Tudo vem ligado; o suporte desliga o Caixa ou o agendamento
  *  (cliente que quer só o site). Os dados ficam guardados e voltam ao religar. */
@@ -23,7 +23,15 @@ export function PlanoDoNegocio({ slug, token }: { slug: string; token: () => Pro
     };
   }, [slug, token]);
 
-  async function mudar(parte: Partial<Modulos>) {
+  async function mudar(parte: Partial<Pick<Modulos, "caixa" | "agendamento" | "espera">>) {
+    if (parte.espera === true) {
+      const ok = await confirmar({
+        titulo: "Ligar a fila de espera?",
+        texto: "Os horários ocupados passam a aparecer no agendamento online com a opção de aviso. Cada aviso enviado no WhatsApp custa 5¢ do saldo de mensagens do negócio. Precisa do WhatsApp oficial ativo.",
+        acao: "Ligar",
+      });
+      if (!ok) return;
+    }
     if (parte.agendamento === false) {
       const ok = await confirmar({
         titulo: "Deixar este negócio só com o site?",
@@ -60,6 +68,19 @@ export function PlanoDoNegocio({ slug, token }: { slug: string; token: () => Pro
             Caixa (entradas, contas, comissões e recibos)
           </label>
           {!m.agendamento && <p className="pl-6.5 text-xs text-[#6F6A5E]">Sem agendamento não há Caixa: ele vive dos atendimentos.</p>}
+          <label className={opcao}>
+            <input type="checkbox" className={caixa} disabled={busy || !m.agendamento} checked={m.espera && m.agendamento} onChange={(e) => mudar({ espera: e.target.checked })} />
+            <span>
+              Fila de espera <span className="rounded bg-[#2C6A53] px-1.5 py-0.5 text-[10px] font-bold text-white">NOVO</span>
+              <span className="block text-xs text-[#6F6A5E]">Avisa no WhatsApp quando vaga um horário · 5¢ por aviso · serviço extra</span>
+            </span>
+          </label>
+          {!m.agendamento && <p className="pl-6.5 text-xs text-[#6F6A5E]">Sem agendamento não há fila de espera.</p>}
+          {m.pedidoEspera?.status === "pendente" && (
+            <p className="pl-6.5 text-xs font-semibold text-[#8A6100]">
+              Pedido pelo negócio em {new Date(m.pedidoEspera.em).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" })}
+            </p>
+          )}
         </>
       )}
     </section>

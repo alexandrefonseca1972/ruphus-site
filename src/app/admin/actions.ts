@@ -6,6 +6,7 @@ import { conectarDominio, desconectarDominio, verificarDominio } from "@/lib/dom
 import { type Dominio, SITE_BASE } from "@/lib/dominio";
 import { z } from "zod";
 import { adminDb } from "@/lib/admin";
+import { definirEspera, lerEstado } from "@/lib/espera-solicitacao.server";
 import type { Espaco } from "@/lib/painel-tipos";
 import { espacoDe, indiceDoPainel } from "@/lib/painel-indice.server";
 import { numeroSms } from "@/lib/comtele";
@@ -1210,25 +1211,37 @@ export const modulosDoNegocioAction = adminAction(async (_user, slug: string) =>
   slugValido(slug);
   const t = await adminDb.doc(`tenants/${slug}`).get();
   if (!t.exists) throw new ErroPrevisto("Negócio não encontrado.");
-  return { caixa: t.get("modulos.caixa") !== false, agendamento: t.get("modulos.agendamento") !== false };
+  return planoDe(t);
 });
 
 /** Liga ou desliga o Caixa e o agendamento (cliente que quer só o site). Ligado apaga o campo:
  *  o padrão é ligado, e só false desliga. Os dados (lançamentos, agenda) ficam guardados. */
 export const definirModulosAction = adminAction(async (user, slug: string, mudanca: unknown) => {
   slugValido(slug);
-  const m = z.object({ caixa: z.boolean().optional(), agendamento: z.boolean().optional() }).strict().parse(mudanca);
+  const m = z
+    .object({ caixa: z.boolean().optional(), agendamento: z.boolean().optional(), espera: z.boolean().optional() })
+    .strict()
+    .refine((o) => Object.keys(o).length > 0, "Nada para mudar.")
+    .parse(mudanca);
   const ref = adminDb.doc(`tenants/${slug}`);
   if (!(await ref.get()).exists) throw new ErroPrevisto("Negócio não encontrado.");
   const campo = (v: boolean) => (v ? FieldValue.delete() : false);
-  await ref.update({
-    ...(m.caixa !== undefined && { "modulos.caixa": campo(m.caixa) }),
-    ...(m.agendamento !== undefined && { "modulos.agendamento": campo(m.agendamento) }),
-  });
+  if (m.caixa !== undefined || m.agendamento !== undefined) {
+    await ref.update({
+      ...(m.caixa !== undefined && { "modulos.caixa": campo(m.caixa) }),
+      ...(m.agendamento !== undefined && { "modulos.agendamento": campo(m.agendamento) }),
+    });
+  }
+  if (m.espera !== undefined) await definirEspera(adminDb, slug, m.espera);
   // a página de agendar e a bio mostram "Agendar" ou a lista de preços conforme o plano
   revalidatePath(`/agendar/${slug}`);
   revalidatePath(`/bio/${slug}`);
   console.log(`[admin] plano de ${slug}: ${JSON.stringify(m)} por ${user.email ?? user.uid}`);
-  const t = await ref.get();
-  return { caixa: t.get("modulos.caixa") !== false, agendamento: t.get("modulos.agendamento") !== false };
+  return planoDe(await ref.get());
 });
+
+/** O plano lido de um só documento: Caixa e agendamento (só false desliga) e a fila (só true liga). */
+function planoDe(t: FirebaseFirestore.DocumentSnapshot) {
+  const espera = lerEstado(t);
+  return { caixa: t.get("modulos.caixa") !== false, agendamento: t.get("modulos.agendamento") !== false, espera: espera.ligado, pedidoEspera: espera.pedido };
+}

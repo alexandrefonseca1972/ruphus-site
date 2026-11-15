@@ -3,10 +3,12 @@
 // Só false desliga: negócio de antes deste campo segue com tudo. Sem agendamento não há Caixa — ele
 // vive dos atendimentos —, e o painel fica com Serviços (a lista de preços do site) e Meu negócio.
 
-export type Modulos = { caixa?: unknown; agendamento?: unknown } | null | undefined;
+export type Modulos = { caixa?: unknown; agendamento?: unknown; espera?: unknown } | null | undefined;
 
 export const agendamentoLigado = (m: Modulos) => m?.agendamento !== false;
 export const caixaLigado = (m: Modulos) => m?.caixa !== false && agendamentoLigado(m);
+// Fila de espera é serviço extra, opt-in: só true liga (ao contrário de caixa/agendamento, em que só false desliga); sem agendamento não há fila.
+export const esperaLigada = (m: Modulos) => m?.espera === true && agendamentoLigado(m);
 
 /** As telas do painel que existem sem agendamento ("só site"). */
 const SO_SITE = new Set(["servicos", "negocio"]);
