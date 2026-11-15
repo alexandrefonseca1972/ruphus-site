@@ -11,6 +11,8 @@ assert.equal(tipoDoTemplate("agendamento_pedido_dono_botoes"), "pedido_dono");
 assert.equal(tipoDoTemplate("outro_template"), "outro");
 assert.equal(tipoDoTemplate("ruphus_saldo_baixo"), "saldo");
 assert.equal(tipoDoTemplate("ruphus_confirmar_whatsapp_dono"), "confirmar_dono");
+assert.equal(tipoDoTemplate("ruphus_fila_espera_vaga"), "espera");
+assert.equal(tipoDoTemplate("ruphus_fila_espera_troca"), "espera");
 
 // agendamento: do aceite (eventId) ou do id dos botões, só do mesmo negócio
 assert.equal(agendamentoDoEnvio("loja", "ruphus-agendamento:loja:AB12cd"), "AB12cd");
@@ -18,6 +20,7 @@ assert.equal(agendamentoDoEnvio("loja", "ruphus-agendamento:outra:AB12cd"), unde
 assert.equal(agendamentoDoEnvio("loja", undefined, ["rph:cp:loja:XY9:2026-11-14T15:00"]), "XY9");
 assert.equal(agendamentoDoEnvio("loja", undefined, ["rph:cp:outra:XY9"]), undefined);
 assert.equal(agendamentoDoEnvio("loja"), undefined);
+assert.equal(agendamentoDoEnvio("loja", undefined, ["rph:eq:loja:ab12cd34:2026-11-14T15:00"]), undefined, "botão da fila leva o id da espera, não o do agendamento");
 
 // máscara: DDD e os 4 últimos, nunca o número inteiro
 assert.equal(mascararDestino("5591988776389"), "(91) •••••-6389");

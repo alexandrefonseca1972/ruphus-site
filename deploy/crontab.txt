@@ -8,3 +8,5 @@
 # config/prospeccao.ativo e na janela seg-sex 9h-11h30/14h-17h30; fora disso responde sem enviar).
 0 7 * * 1-5  . /opt/ruphus-site/cron.env && curl -fsS -m 120 -H "Authorization: Bearer $CRON_SECRET" http://localhost:3001/api/cron/prospeccao-produtor >/dev/null || logger -t ruphus-cron "prospeccao-produtor falhou"
 * * * * *    . /opt/ruphus-site/cron.env && curl -fsS -m 55 -H "Authorization: Bearer $CRON_SECRET" http://localhost:3001/api/cron/prospeccao >/dev/null || logger -t ruphus-cron "prospeccao falhou"
+# Fila de espera (F4): libera vagas e expira avisos, a cada minuto. Falha vai para o syslog.
+* * * * *    . /opt/ruphus-site/cron.env && curl -fsS -m 55 -H "Authorization: Bearer $CRON_SECRET" http://localhost:3001/api/cron/fila-espera >/dev/null || logger -t ruphus-cron "fila-espera falhou"

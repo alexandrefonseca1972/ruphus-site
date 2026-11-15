@@ -1,6 +1,6 @@
 // Rode: npx tsx --conditions=react-server canal-oficial.test.mts  (só funções puras do canal oficial)
 import assert from "node:assert/strict";
-import { contatoDoNegocio, idBotao, lerBotao, parametro, respostaForaDoFluxo, templateAvaliacao, templateCliente, templateConfirmarDono, templateNovoDono, templateSaldoBaixo, TEMPLATES } from "@/lib/canal-oficial.server";
+import { contatoDoNegocio, esperaNoWhatsApp, idBotao, lerBotao, parametro, respostaForaDoFluxo, templateAvaliacao, templateCliente, templateConfirmarDono, templateEspera, templateNovoDono, templateSaldoBaixo, TEMPLATES } from "@/lib/canal-oficial.server";
 
 assert.deepEqual(templateAvaliacao({ nome: "Maria\nSouza", negocio: "Salão *Bela*", servico: "Corte", profissional: "Ana", link: "https://www.ruphus.site/avaliar/bela/a1?t=abc" }), {
   nome: "avaliacao_atendimento",
@@ -96,4 +96,32 @@ assert.equal(respostaForaDoFluxo("   ", null), null);
   const tres = { ...previsao, diasRestantesEstimados: 3, pacoteIndicado: CONFIG_PADRAO.pacotes[0] };
   assert.deepEqual(templateSaldoBaixo({ negocio: "B", slug: "b", saldoCents: 420, previsao: tres }).parametros.slice(2, 4), ["3 dias", "R$ 20,00"]);
 }
+// fila de espera: os cinco botões novos leem com id de espera (40 hex) e o horário oferecido; os antigos seguem
+const ESPERA = "0123456789abcdef0123456789abcdef01234567";
+for (const acao of ["eq", "es", "en", "et", "em"] as const) {
+  assert.deepEqual(lerBotao(idBotao(acao, "bela", ESPERA, "2026-11-16T10:00")), { acao, slug: "bela", agendamento: ESPERA, extra: "2026-11-16T10:00" }, acao);
+}
+assert.equal(lerBotao(`rph:cxx:bela:A1`)?.acao, "cxx");
+assert.equal(lerBotao(`rph:cx:bela:A1`)?.acao, "cx");
+assert.equal(lerBotao(`rph:cm:bela:A1`)?.acao, "cm");
+assert.equal(lerBotao(`rph:eqq:bela:${ESPERA}`), null, "ação fora da lista");
+
+// templates da fila: nomes, quatro parâmetros (+ o atual na troca) e os ids dos botões
+const refEspera = { slug: "bela", espera: ESPERA, horario: "2026-11-16T10:00" };
+const pessoaEspera = { nome: "Maria", negocio: "Salão Bela", servico: "Corte", quando: "sexta, 10:00" };
+assert.deepEqual(templateEspera("esperar", pessoaEspera, refEspera), {
+  nome: "ruphus_fila_espera_vaga",
+  parametros: ["Maria", "*Salão Bela*", "Corte", "*sexta, 10:00*"],
+  botoes: [`rph:eq:bela:${ESPERA}:2026-11-16T10:00`, `rph:es:bela:${ESPERA}:2026-11-16T10:00`, `rph:en:bela:${ESPERA}:2026-11-16T10:00`],
+});
+assert.deepEqual(templateEspera("troca", { ...pessoaEspera, atual: "quinta, 14:00" }, refEspera), {
+  nome: "ruphus_fila_espera_troca",
+  parametros: ["Maria", "*Salão Bela*", "Corte", "*sexta, 10:00*", "*quinta, 14:00*"],
+  botoes: [`rph:et:bela:${ESPERA}:2026-11-16T10:00`, `rph:em:bela:${ESPERA}:2026-11-16T10:00`],
+});
+process.env.ATENDYS_TEMPLATE_ESPERA = "1";
+assert.equal(esperaNoWhatsApp(), true);
+delete process.env.ATENDYS_TEMPLATE_ESPERA;
+assert.equal(esperaNoWhatsApp(), false);
+
 console.log("canal-oficial: ok");

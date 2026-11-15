@@ -69,10 +69,23 @@ export async function alertarAdmin(db: Firestore, chave: string, assunto: string
  *  config/cron. Marca com mais de 30 min quer dizer que o cron parou (crontab apagado, CRON_SECRET
  *  trocado) e os lembretes pararam calados. Sem marca (antes do primeiro cron), não avisa. */
 export async function vigiarCron(db: Firestore, { enviar = enviarEmail, agora = Date.now() }: Opcoes = {}) {
-  const ultima = (await db.doc("config/cron").get()).get("ultimaExecucao") as Timestamp | undefined;
-  if (!ultima || agora - ultima.toMillis() < 30 * 60_000) return false;
+  const cron = await db.doc("config/cron").get();
+  // a fila de espera roda a cada minuto (/api/cron/fila-espera): 10 min sem marca já é parada
+  const espera = cron.get("esperaUltimaExecucao") as Timestamp | undefined;
+  const filaParada =
+    !!espera &&
+    agora - espera.toMillis() >= 10 * 60_000 &&
+    (await alertarAdmin(db, "cron-espera-parado", "O cron da fila de espera parou", {
+      resumo: "A fila de espera parou: os horários que vagam não avisam ninguém e os avisos sem resposta não passam para a próxima pessoa.",
+      blocos: [
+        { dados: [["Última execução", `${espera.toDate().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} (horário de Brasília)`]] },
+        { tecnico: "crontab -u ruphus -l\njournalctl -t ruphus-cron -n 20", titulo: "Na VPS" },
+      ],
+    }, { enviar, agora }));
+  const ultima = cron.get("ultimaExecucao") as Timestamp | undefined;
+  if (!ultima || agora - ultima.toMillis() < 30 * 60_000) return filaParada;
   const quando = ultima.toDate().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-  return alertarAdmin(db, "cron-parado", "O cron dos lembretes parou", {
+  const lembretesParados = await alertarAdmin(db, "cron-parado", "O cron dos lembretes parou", {
     resumo: "As tarefas de cada 10 minutos pararam: lembretes por WhatsApp e SMS, sinais Pix vencidos e comandos do WhatsApp que ficaram pendentes.",
     blocos: [
       { dados: [["Última execução", `${quando} (horário de Brasília)`]] },
@@ -80,4 +93,5 @@ export async function vigiarCron(db: Firestore, { enviar = enviarEmail, agora = 
       { tecnico: "crontab -u ruphus -l\njournalctl -t ruphus-cron -n 20", titulo: "Na VPS" },
     ],
   }, { enviar, agora });
+  return lembretesParados || filaParada;
 }

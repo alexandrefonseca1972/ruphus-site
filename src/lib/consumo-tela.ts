@@ -22,6 +22,7 @@ export const ROTULO_TIPO: Record<TipoEnvio, string> = {
   reagendado: "Remarcação",
   lembrete: "Lembrete",
   avaliacao: "Pedido de avaliação",
+  espera: "Fila de espera",
   pix: "Pix do sinal",
   recibo: "Recibo",
   resposta: "Resposta a quem escreveu",

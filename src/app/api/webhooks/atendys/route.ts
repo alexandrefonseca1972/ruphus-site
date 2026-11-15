@@ -138,6 +138,8 @@ export async function POST(req: Request) {
       if (oficial) after(() => enviarTexto(oficial, evento.phone!, texto, OPTIN_DONO, undefined, { resposta: true }).catch((e) => console.error("[atendys] resposta ao Sou eu", e)));
       return responder(200, { ok: true });
     }
+    // F5: respostas da fila de espera
+    if (botao?.acao.startsWith("e")) return responder(200, { ok: true });
     // botão do cliente (lembrete/lista de horários): a caixa de entrada é o dedupe das reentregas
     if (botao && botao.acao.startsWith("c")) {
       // id é dado de fora: só grava na caixa de um negócio do canal oficial (o resto confere acaoDoCliente)

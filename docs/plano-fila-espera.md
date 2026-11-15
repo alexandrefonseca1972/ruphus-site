@@ -42,13 +42,13 @@ O checklist visual fica em `docs/plano-fila-espera.html`. A página recarrega a 
 - [x] F3.G Gate
 
 ## Fase 4: motor
-- [ ] F4.1 Template `oferta_espera` (reserva e troca) com flag; ações `eq`, `es`, `en`, `et` e `em2` em `lerBotao`
-- [ ] F4.2 Consumo: tipo `espera` (5¢)
-- [ ] F4.3 `fila-espera.server.ts`: `processarLiberacoes` (cursor, idempotência, falhas isoladas) e `expirarAvisos`
-- [ ] F4.4 Cron `/api/cron/fila-espera`, `deploy/crontab.txt` e `vigiarCron`
-- [ ] F4.5 Índices em `firestore.indexes.json`
-- [ ] F4.6 `espera-motor.test.mts` e script `test:espera-f4`; regressão
-- [ ] F4.G Gate
+- [x] F4.1 Template `oferta_espera` (reserva e troca) com flag; ações `eq`, `es`, `en`, `et` e `em2` em `lerBotao`
+- [x] F4.2 Consumo: tipo `espera` (5¢)
+- [x] F4.3 `fila-espera.server.ts`: `processarLiberacoes` (cursor, idempotência, falhas isoladas) e `expirarAvisos`
+- [x] F4.4 Cron `/api/cron/fila-espera`, `deploy/crontab.txt` e `vigiarCron`
+- [x] F4.5 Índices em `firestore.indexes.json`
+- [x] F4.6 `espera-motor.test.mts` e script `test:espera-f4`; regressão
+- [x] F4.G Gate
 
 ## Fase 5: respostas no WhatsApp
 - [ ] F5.1 Botões `eq`, `es`, `en`, `et` e `em2` em `botoes-whatsapp.server.ts` (`book`/`reschedule` e Pix)
@@ -97,3 +97,21 @@ O checklist visual fica em `docs/plano-fila-espera.html`. A página recarrega a 
   - 390px e 1280px sem erro no console.
 
   Capturas em `docs/fila-espera/`. Gate: tsc, lint e build verdes; `test:espera-f1`, `test:espera-f2`, `test:espera-f3`, `test:booking`, `test:rules` e `test:admin` verdes; graphify atualizado.
+- 2026-11-15: F4 (Haiku: templates e motor; Opus: revisão com 6 MUST-FIX e 5 SHOULD-FIX, todas corrigidas por um executor Opus).
+  - Janela da vaga: só se oferece início dentro do horário liberado.
+  - Marcador por vaga (`esperaVagas`) e cursor `>=` com ids, o que torna o reprocessamento inofensivo.
+  - Lease no cron.
+  - Mudanças de estado só em transação condicional.
+  - Esperas expiram pela data mesmo com o módulo desligado, no demo ou sem negócio.
+  - Limite por telefone em `esperaFones`, dentro da transação, entre esperas e negócios.
+  - Chave de envio com `eventoId`.
+  - Evento que falha vira pendência.
+  - `nao_sai` pula para o próximo candidato.
+  - Pendência com 5 falhas alerta o admin.
+  - Cache por execução.
+  - Índices com COLLECTION e COLLECTION_GROUP.
+  - Consumo não trata a espera como agendamento.
+  - `vigiarCron` vigia o cron da fila.
+  - Webhook ignora os botões `e*` até a F5.
+
+  Textos para a Meta em `docs/fila-espera/templates-meta.md` (🙋 dono). Gate: tsc, lint e build verdes; `test:espera-f1` a `f4`, `canal-oficial`, `consumo`, `integracoes`, `booking`, `sinal`, `rules` e `admin` verdes. `test:atendys` falha também no `main` (b0a3586f), antes do branch: a previsão de saldo ("deve acabar em ~N dias") depende da data. Não é da fila; fica anotado para o dono.

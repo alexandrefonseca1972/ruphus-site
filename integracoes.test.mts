@@ -60,6 +60,11 @@ assert.equal((await integracoesNaTela()).find((i) => i.nome === "COMTELE_API_KEY
   assert.equal(await vigiarCron(db, { enviar, agora: 1_000_000_000_000 + 10 * 60_000 }), false, "10 min: em dia");
   assert.equal(await vigiarCron(db, { enviar, agora: 1_000_000_000_000 + 40 * 60_000 }), true, "40 min: avisa");
   assert.match(saidos.at(-1)!.texto, /crontab -u ruphus -l/, "o que fazer na VPS vai junto");
+  // fila de espera: roda a cada minuto, então 10 min sem marca já avisa (com chave própria)
+  await db.doc("config/cron").set({ ultimaExecucao: Timestamp.fromMillis(2_000_000_000_000), esperaUltimaExecucao: Timestamp.fromMillis(2_000_000_000_000) });
+  assert.equal(await vigiarCron(db, { enviar, agora: 2_000_000_000_000 + 5 * 60_000 }), false, "fila em dia");
+  assert.equal(await vigiarCron(db, { enviar, agora: 2_000_000_000_000 + 11 * 60_000 }), true, "fila parada há 11 min: avisa");
+  assert.match(saidos.at(-1)!.texto, /fila de espera/, "o aviso é o da fila");
   delete process.env.GMAIL_USER;
 }
 

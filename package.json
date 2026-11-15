@@ -68,6 +68,7 @@
     "test:sinal": "firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server sinal.test.mts'",
     "test:espera-f2": "tsx fila-espera.test.mts && tsx fila-espera-grade.test.mts",
     "test:espera-f3": "NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-siteflow firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server espera-entrada.test.mts'",
+    "test:espera-f4": "NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-siteflow firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server espera-motor.test.mts'",
     "test:espera-f1": "tsx modulos.test.mts && firebase emulators:exec --only firestore --project demo-siteflow 'tsx --conditions=react-server espera-solicitacao.test.mts'",
     "test:sinal-puro": "tsx sinal-puro.test.mts",
     "test:conexao": "tsx conexao.test.mts",

@@ -17,7 +17,7 @@ import { dateIn } from "@/lib/datetime";
 export type Canal = "whatsapp" | "sms";
 // "salao": só no histórico, do número próprio por QR que saiu; nada novo grava
 export type Via = "oficial" | "salao";
-export const TIPOS_ENVIO = ["recebido", "pedido_dono", "confirmado", "cancelado", "reagendado", "lembrete", "avaliacao", "pix", "recibo", "resposta", "saldo", "confirmar_dono", "outro"] as const;
+export const TIPOS_ENVIO = ["recebido", "pedido_dono", "confirmado", "cancelado", "reagendado", "lembrete", "avaliacao", "pix", "recibo", "resposta", "saldo", "confirmar_dono", "espera", "outro"] as const;
 export type TipoEnvio = (typeof TIPOS_ENVIO)[number];
 /** Mensagens da Ruphus ao dono sobre a própria plataforma (aviso de saldo baixo, confirmação do
  *  WhatsApp do dono): o negócio não escolheu receber, então não custam e sempre saem. */
@@ -216,6 +216,7 @@ export function tipoDoTemplate(nome: string): TipoEnvio {
   if (base === "agendamento_pedido_dono") return "pedido_dono";
   if (base === "ruphus_saldo_baixo") return "saldo";
   if (base === "ruphus_confirmar_whatsapp_dono") return "confirmar_dono";
+  if (base === "ruphus_fila_espera_vaga" || base === "ruphus_fila_espera_troca") return "espera";
   return "outro";
 }
 
@@ -226,7 +227,8 @@ export function agendamentoDoEnvio(slug: string, eventId?: string, botoes?: stri
   if (doAceite && /^[A-Za-z0-9]{1,40}$/.test(doAceite)) return doAceite;
   for (const b of botoes ?? []) {
     const p = b.split(":");
-    if (p[0] === "rph" && p[2] === slug && /^[A-Za-z0-9]{1,40}$/.test(p[3] ?? "")) return p[3];
+    // botões da fila de espera (eq/es/en/et/em) levam o id da espera, não o do agendamento
+    if (p[0] === "rph" && !["eq", "es", "en", "et", "em"].includes(p[1]) && p[2] === slug &&/^[A-Za-z0-9]{1,40}$/.test(p[3] ?? "")) return p[3];
   }
   return undefined;
 }

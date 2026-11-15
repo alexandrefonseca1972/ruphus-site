@@ -47,6 +47,10 @@ export const TEMPLATES = {
   saldoBaixo: "ruphus_saldo_baixo",
   /** ao dono que cadastrou o WhatsApp no painel: {{1}} negócio, botão "Sou eu" (rph:ok:{slug}:dono) */
   confirmarDono: "ruphus_confirmar_whatsapp_dono",
+  /** fila de espera, horário vago: cliente: {{1}} nome, {{2}} negócio, {{3}} serviço, {{4}} quando; botões "Quero este horário", "Só serve o meu", "Não quero mais" */
+  esperaVaga: "ruphus_fila_espera_vaga",
+  /** fila de espera, troca: {{1}} nome, {{2}} negócio, {{3}} serviço, {{4}} quando (o horário que vagou), {{5}} o horário atual; botões "Trocar de horário", "Manter o meu" */
+  esperaTroca: "ruphus_fila_espera_troca",
 } as const;
 
 /** Templates com botões (Confirmar/Recusar ao dono; presença/remarcar/cancelar no lembrete).
@@ -65,10 +69,11 @@ const nomeTemplate = (chave: keyof typeof TEMPLATES) => (v2() ? `${TEMPLATES[cha
 export const idBotao = (acao: AcaoBotao, slug: string, agendamento: string, extra?: string) =>
   ["rph", acao, slug, agendamento, ...(extra ? [extra] : [])].join(":");
 // cx pede a confirmação; só cxx cancela, cm mantém; ok: o dono confirma que o WhatsApp é dele ("dono" no lugar do agendamento)
-export type AcaoBotao = "dc" | "dr" | "cp" | "cr" | "cx" | "cxx" | "cm" | "ch" | "ok";
+// eq/es/en: fila de espera (quero o horário / só o preferido / não quero mais); et/em: troca (trocar / manter o meu). No lugar do agendamento vai o id da espera.
+export type AcaoBotao = "dc" | "dr" | "cp" | "cr" | "cx" | "cxx" | "cm" | "ch" | "ok" | "eq" | "es" | "en" | "et" | "em";
 export function lerBotao(id: unknown): { acao: AcaoBotao; slug: string; agendamento: string; extra?: string } | null {
   if (typeof id !== "string") return null;
-  const m = /^rph:(dc|dr|cp|cr|cxx|cx|cm|ch|ok):([a-z0-9][a-z0-9-]{0,62}):([A-Za-z0-9]{1,40})(?::([0-9T:_-]{1,40}))?$/.exec(id);
+  const m = /^rph:(dc|dr|cp|cr|cxx|cx|cm|ch|ok|eq|es|en|et|em):([a-z0-9][a-z0-9-]{0,62}):([A-Za-z0-9]{1,40})(?::([0-9T:_-]{1,40}))?$/.exec(id);
   return m ? { acao: m[1] as AcaoBotao, slug: m[2], agendamento: m[3], ...(m[4] ? { extra: m[4] } : {}) } : null;
 }
 
@@ -128,6 +133,16 @@ export function templateSaldoBaixo(c: { negocio: string; slug: string; saldoCent
       parametro(`${SITE_BASE.replace(/^https?:\/\//, "")}/${c.slug}/consumo`),
     ],
   };
+}
+
+/** Fila de espera: liga com ATENDYS_TEMPLATE_ESPERA=1 depois que a Meta aprovar os dois templates. */
+export const esperaNoWhatsApp = () => process.env.ATENDYS_TEMPLATE_ESPERA === "1";
+/** Aviso da fila: "esperar" = horário vago para quem entrou na fila; "troca" = horário melhor vago para quem já tem um.
+ *  ref.espera: id da espera (40 hex) e ref.horario: início oferecido ("YYYY-MM-DDTHH:MM"), no id dos botões. */
+export function templateEspera(tipo: "esperar" | "troca", c: { nome: string; negocio: string; servico: string; quando: string; atual?: string }, ref: { slug: string; espera: string; horario: string }): Template {
+  const parametros = [parametro(c.nome), destaque(c.negocio), parametro(c.servico), destaque(c.quando)];
+  if (tipo === "esperar") return { nome: TEMPLATES.esperaVaga, parametros, botoes: (["eq", "es", "en"] as const).map((a) => idBotao(a, ref.slug, ref.espera, ref.horario)) };
+  return { nome: TEMPLATES.esperaTroca, parametros: [...parametros, destaque(c.atual ?? "")], botoes: (["et", "em"] as const).map((a) => idBotao(a, ref.slug, ref.espera, ref.horario)) };
 }
 
 async function lerCredenciais(db: Firestore): Promise<Credenciais | null> {
