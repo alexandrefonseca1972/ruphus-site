@@ -739,6 +739,7 @@ button,a,input{touch-action:manipulation}
         <li><a href="#agenda">Site e agenda <small>24h, sem cadastro</small></a></li>
         <li><a href="#falta">WhatsApp* e SMS* <small>confirmação e lembrete</small></a></li>
         <li><a href="#caixa">Caixa e comissões <small>incluído no plano</small></a></li>
+        <li><a href="#falta">Fila de espera <small>novo · horário vago preenchido</small></a></li>
       </ul>
 
       <div class="busca entra" style="--atraso:900ms">
@@ -907,15 +908,16 @@ button,a,input{touch-action:manipulation}
   <section class="wrap sec" id="falta" aria-labelledby="falta-t">
     <div class="duas">
       <div style="display:flex;flex-direction:column;gap:24px">
-        <span class="tag">Comunicação e sinal · mediante ativação</span>
+        <span class="tag">Comunicação, sinal e fila de espera · mediante ativação</span>
         <h2 class="sec-t revela" id="falta-t">Lembretes por WhatsApp* e SMS*.</h2>
         <p class="revela" style="--atraso:80ms;font-size:18px;line-height:1.45;color:var(--ardosia);max-width:46ch">
-          A falta é o prejuízo que ninguém vê: a cadeira vazia no horário que estava reservado. Dois recursos disponíveis no painel
-          ajudam a evitar isso — <b style="font-weight:500;color:var(--preto)">o cliente lembra, e quem reserva se compromete</b>.
+          A falta é o prejuízo que ninguém vê: a cadeira vazia no horário que estava reservado. Três recursos disponíveis no painel
+          ajudam a evitar isso — <b style="font-weight:500;color:var(--preto)">o cliente lembra, quem reserva se compromete, e o horário desmarcado volta a ser ocupado</b>.
         </p>
         <ul class="lista-t revela" style="--atraso:160ms">
           <li><b>WhatsApp* e SMS*</b><span>O cliente pode receber a confirmação e um lembrete antes do horário, conforme o canal ativado. Quem não puder vir avisa, e o negócio cancela ou remarca pelo painel.</span></li>
           <li><b>sinal pelo pix</b><span>Na hora de reservar, o cliente paga um sinal pelo Pix: uma porcentagem do serviço ou um valor fixo, você decide. O horário fica guardado pelo prazo definido, e o negócio confere o Pix e registra o recebimento no painel.</span></li>
+          <li><b>fila de espera</b><span>Horário lotado? O cliente pede para ser avisado. Se alguém desmarcar, ele recebe o aviso pelo WhatsApp* e agenda com um toque. A cadeira que ia ficar vazia volta a faturar, sem você parar o atendimento.</span></li>
         </ul>
         <div class="calc revela" style="--atraso:200ms" role="group" aria-labelledby="calc-t">
           <p class="mono" id="calc-t">Faça a conta do seu negócio</p>
@@ -936,6 +938,15 @@ button,a,input{touch-action:manipulation}
         <div class="zap-msg zap-dela">
           <p>Confirmado, até amanhã!</p>
           <span class="zap-hora">14:16</span>
+        </div>
+        <span class="mono" style="color:var(--ardosia);margin-top:12px">exemplo de aviso da fila de espera</span>
+        <div class="zap-msg" role="img" aria-label="Exemplo de aviso da fila de espera no WhatsApp">
+          <p>Oi, Juliana! Você pediu aviso na lista de espera de Barbearia Force. O horário que você aguardava ficou disponível: Corte, amanhã às 11:00. Deseja reservar?</p>
+          <span class="zap-hora">09:02 ✓✓</span>
+        </div>
+        <div class="zap-msg zap-dela">
+          <p>Quero este horário</p>
+          <span class="zap-hora">09:03</span>
         </div>
         <p class="mono" style="color:var(--ardosia);font-size:11px;line-height:1.5">* Ativação e condições comerciais de WhatsApp e SMS informadas na proposta e no contrato. O sinal pelo Pix usa a chave Pix do próprio negócio.</p>
       </div>
@@ -1113,6 +1124,7 @@ button,a,input{touch-action:manipulation}
           <tr><th scope="row">O cliente marca sozinho, 24 horas</th><td data-l="Caderno"><span class="cel"><span class="ic nao" aria-hidden="true">✕</span><span class="sr">não tem: </span><span class="nota">só quando você responde</span></span></td><td data-l="App comum"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">pelo app ou link</span></span></td><td class="nos" data-l="Ruphus"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">pelo link, sem cadastro nem app</span></span></td></tr>
           <tr><th scope="row">Lembrete automático antes do horário</th><td data-l="Caderno"><span class="cel"><span class="ic nao" aria-hidden="true">✕</span><span class="sr">não tem: </span><span class="nota">você manda um por um</span></span></td><td data-l="App comum"><span class="cel"><span class="ic par" aria-hidden="true">~</span><span class="sr">depende: </span><span class="nota">depende do app</span></span></td><td class="nos" data-l="Ruphus"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">por WhatsApp* e SMS*</span></span></td></tr>
           <tr><th scope="row">Sinal pelo Pix para segurar o horário</th><td data-l="Caderno"><span class="cel"><span class="ic nao" aria-hidden="true">✕</span><span class="sr">não tem: </span><span class="nota">cobrar na conversa</span></span></td><td data-l="App comum"><span class="cel"><span class="ic par" aria-hidden="true">~</span><span class="sr">depende: </span><span class="nota">depende do app</span></span></td><td class="nos" data-l="Ruphus"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">direto na sua chave Pix</span></span></td></tr>
+          <tr><th scope="row">Horário desmarcado oferecido a quem espera</th><td data-l="Caderno"><span class="cel"><span class="ic nao" aria-hidden="true">✕</span><span class="sr">não tem: </span><span class="nota">você procura um por um</span></span></td><td data-l="App comum"><span class="cel"><span class="ic par" aria-hidden="true">~</span><span class="sr">depende: </span><span class="nota">poucos apps têm</span></span></td><td class="nos" data-l="Ruphus"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">fila de espera pelo WhatsApp*</span></span></td></tr>
           <tr><th scope="row">Site com o nome e as fotos do negócio</th><td data-l="Caderno"><span class="cel"><span class="ic nao" aria-hidden="true">✕</span><span class="sr">não tem: </span><span class="nota">só o perfil do Instagram</span></span></td><td data-l="App comum"><span class="cel"><span class="ic par" aria-hidden="true">~</span><span class="sr">depende: </span><span class="nota">perfil dentro do app</span></span></td><td class="nos" data-l="Ruphus"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">site próprio e link da bio</span></span></td></tr>
           <tr><th scope="row">Sem taxa por agendamento</th><td data-l="Caderno"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">sem custo, mas toma seu tempo</span></span></td><td data-l="App comum"><span class="cel"><span class="ic par" aria-hidden="true">~</span><span class="sr">depende: </span><span class="nota">alguns cobram por agendamento</span></span></td><td class="nos" data-l="Ruphus"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">mensalidade fixa</span></span></td></tr>
           <tr><th scope="row">Alguém monta com você</th><td data-l="Caderno"><span class="cel"><span class="ic nao" aria-hidden="true">✕</span><span class="sr">não tem: </span><span class="nota">você faz tudo</span></span></td><td data-l="App comum"><span class="cel"><span class="ic par" aria-hidden="true">~</span><span class="sr">depende: </span><span class="nota">geralmente você configura</span></span></td><td class="nos" data-l="Ruphus"><span class="cel"><span class="ic sim" aria-hidden="true">✓</span><span class="sr">tem: </span><span class="nota">a gente monta com você</span></span></td></tr>
@@ -1120,7 +1132,7 @@ button,a,input{touch-action:manipulation}
         </tbody>
       </table>
     </div>
-    <p class="mono revela" style="--atraso:160ms;color:var(--ardosia);font-size:11px;line-height:1.5;margin-top:12px">Lembrete e sinal são ligados por você no painel. * WhatsApp e SMS dependem de ativação e das condições comerciais informadas na proposta e no contrato. Detalhes e limites nos <a href="/termos">Termos</a>.</p>
+    <p class="mono revela" style="--atraso:160ms;color:var(--ardosia);font-size:11px;line-height:1.5;margin-top:12px">Lembrete e sinal são ligados por você no painel; a fila de espera é ativada pela Ruphus a pedido do negócio. * WhatsApp e SMS dependem de ativação e das condições comerciais informadas na proposta e no contrato. Detalhes e limites nos <a href="/termos">Termos</a>.</p>
   </section>
 
   <section class="wrap sec" id="preco" data-demo="https://barbearia-force.ruphus.site/agendar" data-demo-rot="Ver uma agenda" data-demo-txt="agenda mediante configuração" aria-labelledby="preco-t">
@@ -1162,9 +1174,10 @@ button,a,input{touch-action:manipulation}
 
   <section class="wrap sec detalhes-oferta" aria-labelledby="extras-t">
     <h2 class="disp t-md" id="extras-t">Incluídos e adicionais</h2>
-    <p>WhatsApp, SMS e sinal por Pix estão disponíveis mediante ativação. * As condições comerciais dos envios por WhatsApp e SMS são informadas na proposta e no contrato. O sinal é recebido na chave Pix do negócio, que confere e registra o pagamento no painel.</p>
+    <p>WhatsApp, SMS, sinal por Pix e fila de espera estão disponíveis mediante ativação. * As condições comerciais dos envios por WhatsApp e SMS são informadas na proposta e no contrato. O sinal é recebido na chave Pix do negócio, que confere e registra o pagamento no painel.</p>
     <ul class="inclui">
       <li><b>Domínio próprio</b><span>R$ 100 uma vez pela configuração. Registro e renovação pagos pelo cliente.</span></li>
+      <li><b>Fila de espera</b><span>Ativada a pedido do negócio. Cada aviso de horário vago sai pelo WhatsApp* e usa o saldo de mensagens.</span></li>
       <li><b>Caixa e comissões</b><span>Incluídos no plano, sem adicional: entradas, saídas, contas fixas e percentual de cada profissional.</span></li>
       <li><b>Mais profissionais</b><span>R$ 15/mês por profissional além dos 5 incluídos.</span></li>
       <li><b>Outro negócio</b><span>70% da mensalidade vigente por negócio adicional na conta.</span></li>
@@ -1182,6 +1195,7 @@ button,a,input{touch-action:manipulation}
       <details><summary>Meu cliente precisa baixar aplicativo ou criar conta?</summary><p>Não. Ele abre o link, escolhe o serviço, o profissional e o horário, e pronto. O negócio confirma o horário com você; se você autorizar, a confirmação pode ser enviada pelo WhatsApp.</p></details>
       <details><summary>Já tenho Instagram e marco tudo pelo WhatsApp. Por que mudar?</summary><p>Você não muda: o link da agenda vai na bio do Instagram e no seu WhatsApp. A diferença é que o cliente marca sozinho, de madrugada ou no domingo, sem você parar o atendimento para responder.</p></details>
       <details><summary>Tem taxa por agendamento ou comissão?</summary><p>Não. A mensalidade é fixa: tanto faz receber 10 ou 1.000 agendamentos no mês. O sinal pelo Pix cai direto na chave do seu negócio, sem passar pela Ruphus.</p></details>
+      <details><summary>E quando o cliente desmarca em cima da hora?</summary><p>Com a fila de espera ativada, quem pediu para ser avisado daquele horário recebe a mensagem pelo WhatsApp e agenda com um toque. Avisamos uma pessoa por vez, até 1 hora antes do horário, e você vê tudo no painel.</p></details>
       <details><summary>Funciona para o meu tipo de negócio?</summary><p>A Ruphus é feita para quem atende com hora marcada: salão, barbearia, esmalteria, estética, sobrancelha, spa. Cada profissional tem os próprios serviços e horários, e o cliente escolhe com quem quer ser atendido.</p></details>
       <details><summary>Em quanto tempo fica pronto?</summary><p>O site já está pronto. Depois de fechar, a gente cadastra com você os serviços e quem atende. A agenda pode abrir no mesmo dia; o prazo de implantação está nos <a href="/termos">Termos</a>.</p></details>
       <details><summary>O que entra na manutenção?</summary><p>Contato e funcionamento: até um pedido por dia útil; serviços e preços: 4 pedidos por mês; fotos: 10 por mês; textos: 3 por mês, até 600 caracteres cada. Atendimento em até 2 dias úteis. Edição de imagem e vídeo não está incluída.</p></details>
