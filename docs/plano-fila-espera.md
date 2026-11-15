@@ -27,10 +27,10 @@ O checklist visual fica em `docs/plano-fila-espera.html`. A página recarrega a 
 - [x] F1.G Gate: tsc, lint, testes, graphify, revisão Opus, commit
 
 ## Fase 2: domínio puro
-- [ ] F2.1 `src/lib/fila-espera.ts`: tipos, Zod, `compativel`, `ordenar`, `podeAvisar`, `venceEm` e constantes
-- [ ] F2.2 `ocupadosDoDia` em `datetime.ts`; `agendaDias` devolve `ocupados` só com o módulo ligado
-- [ ] F2.3 `fila-espera.test.mts` e script `test:espera-f2`; regressão `test:booking`
-- [ ] F2.G Gate
+- [x] F2.1 `src/lib/fila-espera.ts`: tipos, Zod, `compativel`, `ordenar`, `podeAvisar`, `venceEm` e constantes
+- [x] F2.2 `ocupadosDoDia` em `datetime.ts`; `agendaDias` devolve `ocupados` só com o módulo ligado
+- [x] F2.3 `fila-espera.test.mts` e script `test:espera-f2`; regressão `test:booking`
+- [x] F2.G Gate
 
 ## Fase 3: grade, folha e entrada (UI pública)
 - [ ] F3.1 `entrarNaFilaAction` e `sairDaFilaAction`: validação, erros previstos, idempotência, limites, `vagou`
@@ -67,3 +67,4 @@ O checklist visual fica em `docs/plano-fila-espera.html`. A página recarrega a 
 ## Registro
 - 2026-11-15: F0 (Opus). Branch `feat/fila-espera` criado a partir de `b0a3586f`. Plano e checklist criados. O working tree tem alterações alheias à fila, que não entram nos commits.
 - 2026-11-15: F1 (Haiku: F1.1–F1.6; Opus: revisão e correções). Revisão Opus: 2 MUST-FIX corrigidos (a chave do alerta passa a ser por pedido, porque o `alertarAdmin` segura 6 h por chave; negócio "só site" não pede nem liga, com `UserError`). NITs corrigidos: `CAMPOS_DA_LISTA` sem campos não lidos (o `test:admin` acusou), plano lido de um só documento (`planoDe`/`lerEstado`), schema recusa `{}`, demo não pede, `aria-live` persistente, `role=alert` só na mensagem, texto "vai ativar o serviço", `mudar` tipado, dica "sem agendamento". Testes novos: cancelar sem pedido, ligar sem pedido, só site, pedido concorrente com 1 alerta. Gate: tsc 0, eslint 0, `test:admin`, `test:espera-f1` e `test:rules` verdes; `graphify update` feito. Pendente na F6.1: âncora `/ajuda#fila-espera`.
+- 2026-11-15: F2 (Haiku: F2.1 e F2.2; Opus: revisão e correções). Revisão Opus: 2 MUST-FIX corrigidos. (1) A grade só mostra ocupados com 60 min ou mais de antecedência (`ANTECEDENCIA_MIN`), alinhada a `compativel`. (2) `ocupadosDoDia` recebe as janelas de toda a equipe e rareia depois de juntar, então não intercala 09:00/09:15. Também: `Set` para os livres, `DiaDaAgenda` tipado com `ocupados?`, a troca vence 60 min antes do preferido, JSDoc do fuso em `compativel`, `hhmm`/`toMin` exportados (sem duplicar) e "qualquer profissional" vira `staffId: null`. Testes novos: equipe com janelas defasadas; módulo ligado em `agendaDias` (Ana ocupada e Bia livre) no `booking.test.mts`. Gate: tsc 0, eslint 0, `test:booking`, `test:espera-f2` e `test:bio` verdes; `graphify update` feito.

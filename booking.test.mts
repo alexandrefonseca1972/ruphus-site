@@ -484,6 +484,16 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
   const combo2 = await agendaDias(db, { tenantId: "salao", serviceIds: ["corte", "luzes"], staffId: "", from: semana }, [semana]);
   assert.ok(combo2[0].horarios.every((h) => h.staffId === "ana"));
 
+  // Fila de espera: os ocupados só vêm com o módulo ligado, e só o que ninguém pode atender
+  assert.ok(!("ocupados" in soAnaDepois[0]), "módulo desligado: a resposta fica como antes");
+  await db.doc("tenants/salao").update({ "modulos.espera": true });
+  const comFilaAna = await agendaDias(db, { ...corte, staffId: "ana", from: semana }, dias);
+  assert.ok(comFilaAna[0].ocupados?.includes("09:00"), "para quem pediu Ana, 09:00 aparece como ocupado");
+  assert.deepEqual(comFilaAna[0].horarios, soAnaDepois[0].horarios, "os livres não mudam");
+  const comFilaQualquer = await agendaDias(db, { ...corte, staffId: "", from: semana }, dias);
+  assert.ok(!comFilaQualquer[0].ocupados?.includes("09:00"), "Bia está livre às 09:00: não é ocupado");
+  await db.doc("tenants/salao").update({ "modulos.espera": FieldValue.delete() });
+
   // fechado é dia em que ninguém atende; dia com equipe e sem horário é lotação
   assert.equal(soAna[0].fechado, false);
   const diaDaSemana = String(new Date(`${semana}T12:00:00Z`).getUTCDay());

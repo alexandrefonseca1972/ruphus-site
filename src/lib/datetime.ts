@@ -7,7 +7,7 @@ export const MAX_DAYS_AHEAD = 90;
 export const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 export type Window = { start: string; end: string };
 
-const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+export const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 const toHHMM = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
 function offsetMinutes(at: Date, tz: string) {
@@ -207,4 +207,27 @@ export function freeSlots(args: {
     slots.push(toHHMM(m));
   }
   return slots;
+}
+
+/** Inícios ocupados do dia, para a fila de espera: os da grade de qualquer janela (uma por
+ *  profissional) que não estão livres nem antes de `now`, juntos e depois rareados para no máximo
+ *  um a cada duração do serviço (um corte de 1h não vira quatro botões de 15 min). Rarear depois de
+ *  juntar: janelas que começam em horas diferentes não intercalam 09:00, 09:15, 10:00, 10:15. */
+export function ocupadosDoDia(args: { date: string; windows: (Window | undefined)[]; durationMin: number; livres: ReadonlySet<string>; now: Date }) {
+  const { date, windows, durationMin, livres, now } = args;
+  const candidatos = new Set<number>();
+  for (const w of windows) {
+    if (!w) continue;
+    for (let m = toMin(w.start); m + durationMin <= toMin(w.end); m += SLOT_STEP_MIN) candidatos.add(m);
+  }
+  const ocupados: string[] = [];
+  let ultimo = -Infinity;
+  for (const m of [...candidatos].sort((a, b) => a - b)) {
+    const hora = toHHMM(m);
+    if (livres.has(hora) || m < ultimo + durationMin) continue;
+    if (zonedTime(date, hora) <= now) continue;
+    ocupados.push(hora);
+    ultimo = m;
+  }
+  return ocupados;
 }

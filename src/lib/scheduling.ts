@@ -5,7 +5,7 @@ import { erroNome } from "@/lib/nome";
 import { DadosCliente } from "@/lib/cliente-dados";
 
 
-const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário inválido");
+export const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário inválido");
 const id = z.string().min(1).max(128).regex(/^[^/]+$/);
 
 export const Service = z.object({

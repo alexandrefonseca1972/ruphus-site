@@ -54,8 +54,8 @@
 </main>
 <script>
 // ESTADO: pendente | andamento | feito | revisado | voce | bloqueado. Editado pelo Opus a cada entrega.
-const ATUALIZADO = "15/11/2026 15:05";
-const NOTA = "Fase 1 100% (revisada pelo Opus, commit feito). Fase 2 começando.";
+const ATUALIZADO = "15/11/2026 15:45";
+const NOTA = "Fase 2 100% (revisada pelo Opus, commit feito). Fase 3 (UI pública) começando.";
 const FASES = [
   ["Fase 0 · Preparação", [
     ["F0.1", "Branch feat/fila-espera", "revisado"],
@@ -73,10 +73,10 @@ const FASES = [
     ["F1.G", "Gate: tsc, lint, testes, graphify, revisão Opus, commit", "revisado"],
   ]],
   ["Fase 2 · Domínio puro", [
-    ["F2.1", "fila-espera.ts: tipos, Zod, compativel, ordenar, podeAvisar, venceEm", "pendente"],
-    ["F2.2", "ocupadosDoDia + agendaDias devolve ocupados só com o módulo ligado", "pendente"],
-    ["F2.3", "fila-espera.test.mts + regressão test:booking", "pendente"],
-    ["F2.G", "Gate", "pendente"],
+    ["F2.1", "fila-espera.ts: tipos, Zod, compativel, ordenar, podeAvisar, venceEm", "revisado"],
+    ["F2.2", "ocupadosDoDia + agendaDias devolve ocupados só com o módulo ligado", "revisado"],
+    ["F2.3", "fila-espera.test.mts + regressão test:booking", "revisado"],
+    ["F2.G", "Gate", "revisado"],
   ]],
   ["Fase 3 · Grade, folha e entrada (UI pública)", [
     ["F3.1", "entrarNaFilaAction / sairDaFilaAction: validação, erros, idempotência, limites", "pendente"],

@@ -5,7 +5,9 @@ import { sessaoRevogada } from "@/lib/revogacao";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { createHash } from "node:crypto";
 import { FieldValue, type Firestore, type Timestamp, type Transaction } from "firebase-admin/firestore";
-import { addDays, agoraNaParede, customerKey, datasDoPlano, dateIn, dentroDaJanela, formatTime, freeSlots, fusoDe, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import { addDays, agoraNaParede, customerKey, datasDoPlano, dateIn, dentroDaJanela, formatTime, freeSlots, fusoDe, ocupadosDoDia, todayIn, weekday, zonedTime } from "@/lib/datetime";
+import { ANTECEDENCIA_MIN } from "@/lib/fila-espera";
+import { esperaLigada, type Modulos } from "@/lib/modulos";
 import type { DadosCliente } from "@/lib/cliente-dados";
 import { prazoDoSinal, type SinalDoAgendamento, valorDoSinal } from "@/lib/sinal";
 import { ConfigSinal } from "@/lib/sinal-config";
@@ -77,6 +79,8 @@ async function lerCatalogo(db: Firestore, tenantId: string) {
     recadoDono: String(tenant.get("agenda.recado") ?? "").trim() || null,
     // desligada: a página mostra o WhatsApp no lugar da grade
     agendaOnline: !agendaDesligada(tenant),
+    // fila de espera ligada (módulo do /admin): a grade mostra também os horários ocupados
+    espera: esperaLigada(tenant.get("modulos") as Modulos),
     // quantos serviços e quanto tempo somado o cliente marca de uma vez
     limites: limitesDe(tenant.get("agenda")),
     // o negócio está no canal oficial (a página confere à parte se o dono confirmou o WhatsApp);
@@ -334,7 +338,11 @@ export async function availableSlots(db: Firestore, q: SlotQuery) {
  * consulta só (eram dias × equipe transações, ~150 leituras por carga). Quem
  * garante o horário é a transação da reserva, que confere tudo de novo.
  */
-export async function agendaDias(db: Firestore, q: AgendaQuery, dias: string[]) {
+/** Um dia da página pública. `ocupados` só existe com a fila de espera ligada (e falta nos retornos
+ *  de serviço que saiu ou fora do limite): quem lê trata como opcional. */
+export type DiaDaAgenda = { date: string; horarios: { hora: string; staffId: string }[]; fechado: boolean; ocupados?: string[] };
+
+export async function agendaDias(db: Firestore, q: AgendaQuery, dias: string[]): Promise<DiaDaAgenda[]> {
   const lido = await lerCatalogo(db, q.tenantId);
   if (!lido || !dias.length) return [];
   const { catalogo, horas } = lido;
@@ -385,12 +393,23 @@ export async function agendaDias(db: Firestore, q: AgendaQuery, dias: string[]) 
       });
       for (const hora of livres) if (!horarios.has(hora)) horarios.set(hora, p.id);
     }
-    return {
+    const dia: DiaDaAgenda = {
       date,
       horarios: [...horarios].sort(([a], [b]) => a.localeCompare(b)).map(([hora, staffId]) => ({ hora, staffId })),
       // ninguém atende neste dia da semana: fechado. Com equipe e sem horário, é lotação
       fechado: doDia.length === 0,
     };
+    if (!catalogo.espera) return dia;
+    // fila de espera: início que ninguém de quem atende neste dia pode pegar. Só a partir de
+    // ANTECEDENCIA_MIN: antes disso o aviso nunca sairia (compativel recusa), e o botão seria mentira
+    const ocupados = ocupadosDoDia({
+      date,
+      windows: doDia.map((p) => horas.get(p.id)?.[String(weekday(date)) as keyof Staff["hours"]]),
+      durationMin,
+      livres: new Set(horarios.keys()),
+      now: new Date(agora.getTime() + ANTECEDENCIA_MIN * 60_000),
+    });
+    return { ...dia, ocupados };
   });
 }
 
