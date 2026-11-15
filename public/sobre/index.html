@@ -388,6 +388,23 @@ button{font:inherit;color:inherit}
 .horas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .hora{min-height:44px;border:1px solid var(--cinza);border-radius:10px;background:var(--branco);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:14px}
 .hora.on{border:1.5px solid var(--preto);background:var(--preto);color:var(--branco)}
+.ag-lista{border:1px solid var(--cinza);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+.ag-serv{display:flex;flex-direction:column;border-bottom:1px solid var(--nevoa)}
+.ag-serv:last-child{border-bottom:0}
+.ag-linha{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px}
+.ag-nome{display:flex;flex-direction:column;gap:1px;min-width:0}
+.ag-nome b{font-size:14px;font-weight:500}
+.ag-nome small{font-family:var(--mono);font-size:10px;letter-spacing:-.03em;color:var(--ardosia)}
+.ag-marca{width:30px;height:30px;flex:none;border-radius:50%;border:1px solid var(--cinza);display:flex;align-items:center;justify-content:center;font-size:15px}
+.ag-marca.on{background:var(--preto);border-color:var(--preto);color:var(--branco);font-size:13px}
+.ag-painel{margin:0 10px 12px;padding:12px;border-radius:12px;background:var(--nevoa);display:flex;flex-direction:column;gap:9px}
+.ag-r{font-size:12px;font-weight:600}
+.ag-tres{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.ag-h{min-height:46px;border:1px solid var(--preto);border-radius:10px;background:var(--branco);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--mono);font-size:14px;font-weight:600}
+.ag-h small{font-family:var(--corpo);font-size:10px;font-weight:400;color:var(--ardosia)}
+.ag-lot{border:1px dashed var(--fumo);background:#f3f0e8;color:#5c5747}
+.ag-lot span{display:inline-flex;align-items:center;gap:3px}
+.ag-outro{display:flex;justify-content:space-between;font-size:13px;font-weight:500;padding-top:2px}
 .agenda-pe{display:flex;align-items:center;gap:12px;padding-top:14px;border-top:1px solid var(--nevoa)}
 .agenda-pe div{flex-grow:1;display:flex;flex-direction:column;gap:2px;min-width:0}
 .agenda-pe .mono{color:var(--ardosia)}
@@ -854,7 +871,8 @@ button,a,input{touch-action:manipulation}
           no painel e a casa confirma pelo WhatsApp — e <b style="font-weight:500;color:var(--preto)">a agenda abre depois de configurar serviços, profissionais e horários</b>.
         </p>
         <ul class="lista-t revela" style="--atraso:160ms">
-          <li><b>horários</b><span>Cada dia mostra quantas vagas tem antes de você tocar nele.</span></li>
+          <li><b>horários</b><span>Ao tocar no serviço, os três horários mais cedo já aparecem. Outro dia ou horário fica a um toque.</span></li>
+          <li><b>lotado</b><span>Com a fila de espera, o horário ocupado vira "avisar": se alguém desmarcar, o cliente recebe o aviso pelo WhatsApp e agenda com um toque.</span></li>
           <li><b>quem atende</b><span>Nasce em "qualquer profissional livre". Quem tem preferência troca em um toque.</span></li>
           <li><b>confirmação</b><span>O horário fica reservado na hora. A casa confirma com o cliente pelo WhatsApp, com a mensagem já escrita.</span></li>
         </ul>
@@ -866,38 +884,29 @@ button,a,input{touch-action:manipulation}
 
       <div class="revela" style="--atraso:120ms;display:flex;flex-direction:column;gap:12px">
         <span class="mono" style="color:var(--ardosia)">barbearia-force.ruphus.site/agendar</span>
-        <div class="agenda">
+        <div class="agenda" role="img" aria-label="Exemplo da agenda: serviço escolhido, os três horários mais cedo e os horários lotados com aviso se vagar">
           <div class="agenda-cab">
             <span class="agenda-av">BF</span>
             <span class="agenda-t">Barbearia Force</span>
           </div>
-          <div style="display:flex;flex-direction:column;gap:9px">
-            <span class="agenda-t">O que você quer fazer?</span>
-            <div class="chips">
-              <span class="chip on"><b>Corte</b><small>45 min · R$ 45</small></span>
-              <span class="chip"><b>Barba</b><small>30 min · R$ 35</small></span>
-              <span class="chip"><b>Corte + barba</b><small>1h15 · R$ 70</small></span>
+          <span class="agenda-t">O que você quer fazer?</span>
+          <div class="ag-lista">
+            <div class="ag-serv">
+              <div class="ag-linha"><span class="ag-nome"><b>Corte</b><small>45 min · R$ 45</small></span><span class="ag-marca on">✓</span></div>
+              <div class="ag-painel">
+                <span class="ag-r">Mais cedo possível</span>
+                <div class="ag-tres">
+                  <span class="ag-h"><small>Hoje</small>15:15</span><span class="ag-h"><small>Hoje</small>16:00</span><span class="ag-h"><small>Amanhã</small>09:30</span>
+                </div>
+                <span class="ag-r">Lotado? Avisamos se vagar</span>
+                <div class="ag-tres">
+                  <span class="ag-h ag-lot"><small>Hoje</small><span>13:00 <svg class="ag-sino" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span></span><span class="ag-h ag-lot"><small>Hoje</small><span>14:00 <svg class="ag-sino" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span></span><span class="ag-h ag-lot"><small>Amanhã</small><span>10:00 <svg class="ag-sino" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span></span>
+                </div>
+                <span class="ag-outro">Outro dia ou horário <span aria-hidden="true">›</span></span>
+              </div>
             </div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:9px">
-            <span class="agenda-t">Quando?</span>
-            <div class="dias">
-              <span class="dia on"><u>hoje</u><strong>21</strong><small>7 livres</small></span>
-              <span class="dia"><u>amanhã</u><strong>22</strong><small>11 livres</small></span>
-              <span class="dia off"><u>seg</u><strong>23</strong><small>fechado</small></span>
-              <span class="dia"><u>ter</u><strong>24</strong><small>12 livres</small></span>
-            </div>
-            <div class="horas">
-              <span class="hora">11:15</span><span class="hora">13:00</span><span class="hora">13:45</span>
-              <span class="hora on">15:15</span><span class="hora">16:00</span><span class="hora">16:45</span>
-            </div>
-          </div>
-          <div class="agenda-pe">
-            <div>
-              <span class="mono">sáb 21 · 15:15 — 16:00</span>
-              <b>Corte · R$ 45</b>
-            </div>
-            <span class="bt-cheio">Confirmar</span>
+            <div class="ag-serv"><div class="ag-linha"><span class="ag-nome"><b>Barba</b><small>30 min · R$ 35</small></span><span class="ag-marca">+</span></div></div>
+            <div class="ag-serv"><div class="ag-linha"><span class="ag-nome"><b>Corte + barba</b><small>1h15 · R$ 70</small></span><span class="ag-marca">+</span></div></div>
           </div>
         </div>
         <p class="mono" style="color:var(--ardosia)">o cliente não cria conta · o dono não paga por agendamento</p>
