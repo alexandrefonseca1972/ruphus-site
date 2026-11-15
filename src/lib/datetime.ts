@@ -209,25 +209,16 @@ export function freeSlots(args: {
   return slots;
 }
 
-/** Inícios ocupados do dia, para a fila de espera: os da grade de qualquer janela (uma por
- *  profissional) que não estão livres nem antes de `now`, juntos e depois rareados para no máximo
- *  um a cada duração do serviço (um corte de 1h não vira quatro botões de 15 min). Rarear depois de
- *  juntar: janelas que começam em horas diferentes não intercalam 09:00, 09:15, 10:00, 10:15. */
-export function ocupadosDoDia(args: { date: string; windows: (Window | undefined)[]; durationMin: number; livres: ReadonlySet<string>; now: Date }) {
-  const { date, windows, durationMin, livres, now } = args;
-  const candidatos = new Set<number>();
-  for (const w of windows) {
-    if (!w) continue;
-    for (let m = toMin(w.start); m + durationMin <= toMin(w.end); m += SLOT_STEP_MIN) candidatos.add(m);
+/** Inícios ocupados do dia, para a fila de espera: o começo de cada atendimento marcado (o que
+ *  o cliente reconhece: "10:00 está ocupado"), sem os que alguém da equipe ainda pode atender
+ *  (livres) e sem os de antes de `now`. Só a hora: nada de quem marcou. */
+export function ocupadosDoDia(args: { date: string; inicios: Date[]; livres: ReadonlySet<string>; now: Date }) {
+  const { date, inicios, livres, now } = args;
+  const horas = new Set<string>();
+  for (const inicio of inicios) {
+    if (inicio <= now || dateIn(inicio) !== date) continue;
+    const hora = formatTime(inicio);
+    if (!livres.has(hora)) horas.add(hora);
   }
-  const ocupados: string[] = [];
-  let ultimo = -Infinity;
-  for (const m of [...candidatos].sort((a, b) => a - b)) {
-    const hora = toHHMM(m);
-    if (livres.has(hora) || m < ultimo + durationMin) continue;
-    if (zonedTime(date, hora) <= now) continue;
-    ocupados.push(hora);
-    ultimo = m;
-  }
-  return ocupados;
+  return [...horas].sort();
 }

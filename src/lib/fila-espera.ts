@@ -44,6 +44,8 @@ export const EntradaEsperaInput = BookingInput.pick({
   // "qualquer profissional" (vazio) vira null: a espera vale para quem estiver livre
   staffId: AgendaQuery.shape.staffId.transform((v) => v || null),
   preferido: hhmm,
+  // presente = troca: o cliente já tem um horário livre marcado e quer trocar pelo preferido
+  agendamentoId: z.string().min(1).max(128).regex(/^[^/]+$/).optional(),
   aceite: z.literal(true, { error: "Marque o aceite para receber o aviso no WhatsApp." }),
   token: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/),
 });

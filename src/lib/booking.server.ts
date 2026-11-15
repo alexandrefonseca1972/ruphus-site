@@ -400,12 +400,12 @@ export async function agendaDias(db: Firestore, q: AgendaQuery, dias: string[]):
       fechado: doDia.length === 0,
     };
     if (!catalogo.espera) return dia;
-    // fila de espera: início que ninguém de quem atende neste dia pode pegar. Só a partir de
-    // ANTECEDENCIA_MIN: antes disso o aviso nunca sairia (compativel recusa), e o botão seria mentira
+    // fila de espera: o início dos atendimentos de quem atende neste dia, sem o que ainda está
+    // livre para alguém. Só a partir de ANTECEDENCIA_MIN: antes disso o aviso nunca sairia
+    // (compativel recusa), e o botão seria mentira
     const ocupados = ocupadosDoDia({
       date,
-      windows: doDia.map((p) => horas.get(p.id)?.[String(weekday(date)) as keyof Staff["hours"]]),
-      durationMin,
+      inicios: doDia.flatMap((p) => (ocupado.get(p.id) ?? []).map((b) => b.start)),
       livres: new Set(horarios.keys()),
       now: new Date(agora.getTime() + ANTECEDENCIA_MIN * 60_000),
     });
@@ -428,7 +428,7 @@ export function redeDoIp(ip: string) {
   const grupos = [...a, ...Array(Math.max(0, 8 - a.length - b.length)).fill("0"), ...b];
   return `${grupos.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":")}::/64`;
 }
-const deviceId = (ip: string) => createHash("sha256").update(`siteflow:${redeDoIp(ip)}`).digest("hex").slice(0, 16);
+export const deviceId = (ip: string) => createHash("sha256").update(`siteflow:${redeDoIp(ip)}`).digest("hex").slice(0, 16);
 
 /** Conta e valida limites do dia. Devolve a mensagem quando estourou.
  *  agora: hora de parede do negócio (agoraNaParede), a mesma convenção do "start" gravado. */

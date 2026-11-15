@@ -33,13 +33,13 @@ O checklist visual fica em `docs/plano-fila-espera.html`. A página recarrega a 
 - [x] F2.G Gate
 
 ## Fase 3: grade, folha e entrada (UI pública)
-- [ ] F3.1 `entrarNaFilaAction` e `sairDaFilaAction`: validação, erros previstos, idempotência, limites, `vagou`
-- [ ] F3.2 Grade: selo "livre", variante "avisar" ou "esperando" e acessibilidade
-- [ ] F3.3 Folha em modo `esperar`; caixa "quero trocar"; linha no estado "acabou de ser marcado"; validação em tempo real e máscara
-- [ ] F3.4 Memória local `espera:<tenant>` e faixa "Esperando…" com "Sair"
-- [ ] F3.5 `TEXTO_ACEITE_ESPERA`, `TERMO_ESPERA_VERSAO` e `optInDaEspera`
-- [ ] F3.6 `espera-entrada.test.mts` e script `test:espera-f3`; build; conferência no navegador em 390px e 1280px
-- [ ] F3.G Gate
+- [x] F3.1 `entrarNaFilaAction` e `sairDaFilaAction`: validação, erros previstos, idempotência, limites, `vagou`
+- [x] F3.2 Grade: selo "livre", variante "avisar" ou "esperando" e acessibilidade
+- [x] F3.3 Folha em modo `esperar`; caixa "quero trocar"; linha no estado "acabou de ser marcado"; validação em tempo real e máscara
+- [x] F3.4 Memória local `espera:<tenant>` e faixa "Esperando…" com "Sair"
+- [x] F3.5 `TEXTO_ACEITE_ESPERA`, `TERMO_ESPERA_VERSAO` e `optInDaEspera`
+- [x] F3.6 `espera-entrada.test.mts` e script `test:espera-f3`; build; conferência no navegador em 390px e 1280px
+- [x] F3.G Gate
 
 ## Fase 4: motor
 - [ ] F4.1 Template `oferta_espera` (reserva e troca) com flag; ações `eq`, `es`, `en`, `et` e `em2` em `lerBotao`
@@ -68,3 +68,32 @@ O checklist visual fica em `docs/plano-fila-espera.html`. A página recarrega a 
 - 2026-11-15: F0 (Opus). Branch `feat/fila-espera` criado a partir de `b0a3586f`. Plano e checklist criados. O working tree tem alterações alheias à fila, que não entram nos commits.
 - 2026-11-15: F1 (Haiku: F1.1–F1.6; Opus: revisão e correções). Revisão Opus: 2 MUST-FIX corrigidos (a chave do alerta passa a ser por pedido, porque o `alertarAdmin` segura 6 h por chave; negócio "só site" não pede nem liga, com `UserError`). NITs corrigidos: `CAMPOS_DA_LISTA` sem campos não lidos (o `test:admin` acusou), plano lido de um só documento (`planoDe`/`lerEstado`), schema recusa `{}`, demo não pede, `aria-live` persistente, `role=alert` só na mensagem, texto "vai ativar o serviço", `mudar` tipado, dica "sem agendamento". Testes novos: cancelar sem pedido, ligar sem pedido, só site, pedido concorrente com 1 alerta. Gate: tsc 0, eslint 0, `test:admin`, `test:espera-f1` e `test:rules` verdes; `graphify update` feito. Pendente na F6.1: âncora `/ajuda#fila-espera`.
 - 2026-11-15: F2 (Haiku: F2.1 e F2.2; Opus: revisão e correções). Revisão Opus: 2 MUST-FIX corrigidos. (1) A grade só mostra ocupados com 60 min ou mais de antecedência (`ANTECEDENCIA_MIN`), alinhada a `compativel`. (2) `ocupadosDoDia` recebe as janelas de toda a equipe e rareia depois de juntar, então não intercala 09:00/09:15. Também: `Set` para os livres, `DiaDaAgenda` tipado com `ocupados?`, a troca vence 60 min antes do preferido, JSDoc do fuso em `compativel`, `hhmm`/`toMin` exportados (sem duplicar) e "qualquer profissional" vira `staffId: null`. Testes novos: equipe com janelas defasadas; módulo ligado em `agendaDias` (Ana ocupada e Bia livre) no `booking.test.mts`. Gate: tsc 0, eslint 0, `test:booking`, `test:espera-f2` e `test:bio` verdes; `graphify update` feito.
+- 2026-11-15: F3 (Haiku: servidor e UI; Opus: revisão, correções e conferência no navegador). Correções do Opus:
+  - Ocupados passam a ser o início dos atendimentos marcados ("09h, 10h, 11h ocupados", como no cenário), e não uma grade rareada.
+  - Ninguém toma a espera de outra pessoa: sem o token, a espera não muda.
+  - A troca fecha a espera simples do mesmo dia.
+  - O limite por aparelho é checado antes de ler a agenda; sem IP, todos dividem um balde.
+  - A transação faz todas as leituras antes das escritas.
+  - Semana ou dia só com ocupados não aparece como "cheio".
+  - No painel (ficha do cliente), sem fila.
+  - Sair só some da tela quando o servidor confirma.
+  - A lista local é atualizada por id e de forma funcional.
+  - Agendar o horário esperado encerra a espera.
+  - O aceite da troca vem desmarcado e com texto próprio.
+  - O botão sem aceite mostra o erro e foca a caixa.
+  - Faixa única, só com o módulo ligado.
+  - Token gerado com `getRandomValues`.
+  - `aria-disabled` no "esperando" e rótulos em 11px.
+
+  Conferência no navegador, com o dev apontado para o emulador (sem tocar em produção), negócio semeado "fila-demo" e 16/11 com 09h/10h/11h ocupados:
+  - grade com os ocupados e o selo "livre";
+  - folha "Avisar se 10:00 vagar";
+  - erro sem aceite, com foco;
+  - máscara do telefone;
+  - entrada gravada com `staffId: null`;
+  - faixa "Esperando 16/11 às 10:00";
+  - Sair grava `saiu`;
+  - módulo desligado deixa a grade igual à de antes;
+  - 390px e 1280px sem erro no console.
+
+  Capturas em `docs/fila-espera/`. Gate: tsc, lint e build verdes; `test:espera-f1`, `test:espera-f2`, `test:espera-f3`, `test:booking`, `test:rules` e `test:admin` verdes; graphify atualizado.

@@ -34,6 +34,19 @@ export function optInDoAgendamento(c: { tenantId: string; agendamentoId: string;
   };
 }
 
+/** Aceite da fila de espera: versão própria, para o texto do aviso de horário livre. */
+export const TERMO_ESPERA_VERSAO = "espera-2026-11";
+export const TEXTO_ACEITE_ESPERA = "Aceito receber pelo WhatsApp o aviso de horário livre deste negócio para este dia. Posso responder SAIR para parar.";
+
+export function optInDaEspera(c: { tenantId: string; esperaId: string; em: Date }) {
+  return {
+    eventId: `ruphus-espera:${c.tenantId}:${c.esperaId}`.slice(0, 128),
+    occurredAt: c.em.toISOString(),
+    origem: "ruphus-fila-espera",
+    evidencia: `Aceite marcado pelo cliente na fila de espera de ${c.tenantId} (ruphus.site). Texto: "${TEXTO_ACEITE_ESPERA}" Versão ${TERMO_ESPERA_VERSAO}. Em ${c.em.toISOString()}. Espera ${c.esperaId}.`,
+  };
+}
+
 /** O opt-in de um agendamento já gravado, ou null quando o cliente não aceitou. Agendamento
  *  anterior a este campo (sem whatsappConsent) conta como sem aceite: conservador. */
 export function optInDoDoc(tenantId: string, d: { id: string; get(campo: string): unknown }) {
