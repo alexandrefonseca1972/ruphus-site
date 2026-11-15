@@ -4,7 +4,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore, Timestamp } from "firebase-admin/firestore";
 import { verifyFirebaseToken } from "@/lib/verify-token";
-import { agendaDias, availableSlots, book, createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, LIMITS, loadCatalog, redeDoIp, renameCustomer, requireMember, reschedule, rescheduleSlots, restaurarAgendamento, salvarDadosCliente } from "@/lib/booking.server";
+import { agendaDias, availableSlots, book, createPlan, criarCliente, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, LIMITS, loadCatalog, redeDoIp, renameCustomer, requireMember, reschedule, rescheduleSlots, restaurarAgendamento, salvarDadosCliente } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
 import { addDays, agoraNaParede, customerKey, formatPhone, fusoDaUF, maskBRL, freeSlots, phoneError, planDates, datasDoPlano, todayIn, weekday, zonedTime } from "@/lib/datetime";
 import { BookingInput, PlanInput } from "@/lib/scheduling";
@@ -396,6 +396,15 @@ assert.match(("error" in global && global.error) || "", /Muitos agendamentos com
     /Cliente não encontrado/,
   );
 
+  // Cliente cadastrado à mão: id = telefone canônico (o mesmo do agendamento), sem duplicar
+  const novo = await criarCliente(db, { tenantId: "salao", name: "Joana", phone: "(11) 95555-1234" }, { uid: "owner" });
+  assert.deepEqual(novo, { ok: true, id: "5511955551234" });
+  const doc = (await t.collection("customers").doc(novo.id).get()).data()!;
+  assert.deepEqual([doc.name, doc.phone, doc.updatedAt], ["Joana", "(11) 95555-1234", undefined], "sem updatedAt: ainda não veio");
+  assert.deepEqual(await criarCliente(db, { tenantId: "salao", name: "Outra", phone: "11955551234" }, { uid: "owner" }), { ok: false, error: "Já existe um cliente com esse telefone.", id: "5511955551234" });
+  assert.equal((await t.collection("customers").doc(novo.id).get()).get("name"), "Joana", "o existente não é trocado");
+  await assert.rejects(criarCliente(db, { tenantId: "salao", name: "Recepção", phone: "11955550000" }, { uid: "recepcao" }), /dono ou um administrador/);
+
   // Nascimento e e-mail: o dono registra; o servidor limpa e confere de novo
   const dados = DadosCliente.parse({ nascimento: "1990-12-31", email: " Marcia@Email.COM " });
   assert.deepEqual(dados, { nascimento: "1990-12-31", email: "marcia@email.com", cpf: "", telefoneContato: "", cuidados: "" }, "e-mail sem espaço e minúsculo");
@@ -682,12 +691,14 @@ const envioOk = () => ({ envioId: crypto.randomUUID(), textoEnviado: "mensagem e
   const slug = "dela-limite";
   const hoje = todayIn();
   let x = await saudeDe(db, slug, hoje);
-  // criado pelo próprio dono no /painel: o dono já está dentro, e o negócio nasce
-  // com os serviços do ramo e uma equipe — falta só o primeiro agendamento
-  assert.deepEqual(x.passos, { convite: true, servicos: true, profissionais: true, agendamento: false });
+  // criado pelo próprio dono no /painel: o dono já está dentro; o negócio nasce sem serviços
+  // nem equipe (a equipe nasce com o 1º serviço) — faltam os três
+  assert.deepEqual(x.passos, { convite: true, servicos: false, profissionais: false, agendamento: false });
   assert.equal(x.saude, "atencao");
   await db.doc(`tenants/${slug}/members/dono-saude`).set({ uid: "dono-saude", role: "admin", email: "dono@teste.dev", createdAt: Timestamp.now() });
   await db.doc(`tenants/${slug}/services/corte`).set({ name: "Corte", durationMin: 30, priceCents: 4000, active: true });
+  // o 1º serviço cria a equipe (servicos/page.tsx → criarProfissionalAction)
+  await db.doc(`tenants/${slug}/staff/equipe`).set({ name: "Equipe", serviceIds: ["corte"], hours: { "1": { start: "09:00", end: "19:00" } }, active: true });
   await db.collection("cobrancas").doc(`${slug}-mensal`).set({ slug, tipo: "mensal", competencia: "2026-01", valorCents: 5990, vencimento: addDays(hoje, -2), status: "aberta" });
   x = await saudeDe(db, slug, hoje);
   assert.deepEqual([x.passos.convite, x.passos.servicos, x.passos.profissionais], [true, true, true]);

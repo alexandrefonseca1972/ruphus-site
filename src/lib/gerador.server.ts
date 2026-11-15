@@ -93,11 +93,14 @@ export function registrosDoSite(
   if (!o.novo) return escritas;
 
   escritas.push({ ref: t.collection("members").doc(o.ownerId), dados: { uid: o.ownerId, role: "owner", createdAt: agora } });
-  const servicos = (lead.servicos.length ? lead.servicos.map(montar) : porRamo(`${RAMO[n.sub]} ${lead.categoria}`))
+  // quem se cadastra sozinho começa sem serviços: os do ramo eram exemplo (preço e duração
+  // inventados) e iam para o link como se fossem do negócio. A prospecção mantém, no site de demonstração
+  const servicos = (o.origem === "cadastro" ? [] : lead.servicos.length ? lead.servicos.map(montar) : porRamo(`${RAMO[n.sub]} ${lead.categoria}`))
     // saúde não anuncia preço (regra dos conselhos): o valor fica "a combinar"
     .map((s) => (n.nicho === "saude" ? { ...s, priceCents: 0 } : s));
   servicos.forEach(({ id, ...s }, ordem) => escritas.push({ ref: t.collection("services").doc(id), dados: { ...s, ordem } }));
-  escritas.push({
+  // profissional sem serviço não é válido (as telas o descartam): sem serviços, a equipe nasce com o 1º
+  if (servicos.length) escritas.push({
     ref: t.collection("staff").doc("equipe"),
     dados: { ...EQUIPE, ...(o.equipe && { name: o.equipe }), serviceIds: servicos.map((s) => s.id), createdAt: agora },
   });

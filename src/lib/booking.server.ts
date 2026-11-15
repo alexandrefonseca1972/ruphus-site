@@ -145,6 +145,27 @@ export async function renameCustomer(
   return { ok: true as const, name, agendamentos: futuros.size };
 }
 
+/** Cliente cadastrado à mão pelo dono (sem agendamento nem plano). O id é o telefone canônico,
+ *  o mesmo que o agendamento usa: quem marcar depois pelo link cai nesta ficha. Sem updatedAt:
+ *  na lista ele é a data do último agendamento, e este cliente ainda não tem nenhum. */
+export async function criarCliente(
+  db: Firestore,
+  { tenantId, name, phone }: { tenantId: string; name: string; phone: string },
+  user: { uid: string },
+) {
+  await exigeDono(db, tenantId, user.uid, "cadastrar clientes");
+  const id = customerKey(phone);
+  const cliente = db.collection("tenants").doc(tenantId).collection("customers").doc(id);
+  try {
+    await cliente.create({ name, phone, createdAt: FieldValue.serverTimestamp() });
+  } catch (e) {
+    // ALREADY_EXISTS: o telefone já é de um cliente; a tela leva até a ficha dele
+    if ((e as { code?: number }).code === 6) return { ok: false as const, error: "Já existe um cliente com esse telefone.", id };
+    throw e;
+  }
+  return { ok: true as const, id };
+}
+
 /** Nascimento, e-mail, CPF, outro telefone e cuidados do cliente, que o dono registra. Dados pessoais: só
  *  dono ou admin do negócio grava, e só pelo servidor, que confere de novo (as regras
  *  do Firestore não deixam o navegador escrever esses campos). Vazio apaga. */

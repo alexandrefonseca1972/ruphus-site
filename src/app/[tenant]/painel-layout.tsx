@@ -117,7 +117,8 @@ export function PainelLayout({ children }: { children: React.ReactNode }) {
     { href: `/${slug}/servicos`, label: "Serviços", curto: "Serviços", icone: ICONES.servicos },
     { href: `/${slug}/profissionais`, label: "Profissionais", curto: "Equipe", icone: ICONES.equipe },
     { href: `/${slug}/clientes`, label: "Clientes", curto: "Clientes", icone: ICONES.clientes },
-    ...(state.podeGerir ? [{ href: `/${slug}/avaliacoes`, label: "Avaliações", curto: "Notas", icone: ICONES.avaliacoes }] : []),
+    // só com "Pedir avaliação após concluir o atendimento" ligado em Meu negócio
+    ...(state.podeGerir && state.avaliacoes?.enabled ? [{ href: `/${slug}/avaliacoes`, label: "Avaliações", curto: "Notas", icone: ICONES.avaliacoes }] : []),
     // Caixa incluído no plano; dinheiro só para quem gere
     ...(state.podeGerir ? [{ href: `/${slug}/caixa`, label: "Caixa", curto: "Caixa", icone: ICONES.caixa }] : []),
     // mensagens enviadas e saldo: custo é dinheiro, só para quem gere

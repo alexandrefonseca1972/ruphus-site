@@ -1,16 +1,19 @@
 "use client";
 
-import { addDoc, collection, deleteDoc, doc, orderBy, setDoc, updateDoc } from "firebase/firestore";
+import { addDoc, arrayUnion, collection, deleteDoc, doc, orderBy, setDoc, updateDoc } from "firebase/firestore";
 import { useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/auth-errors";
+import { EQUIPE } from "@/lib/catalogo";
+import { auth, idToken } from "@/lib/firebase";
 import { db } from "@/lib/firebase-db";
 import { formatBRL, formatDuration, maskBRL, precoDe, type TipoPreco } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
 import { useCollection } from "@/lib/use-collection";
+import { criarProfissionalAction } from "../actions";
 import { useTenant } from "../painel-layout";
 import { PageTitle } from "../page-title";
 import { ConfirmDialog } from "../confirm-dialog";
@@ -192,7 +195,21 @@ export default function ServicesPage() {
     try {
       // merge: o formulário manda sempre todos os campos do serviço; sem merge, o setDoc apagava
       // usos e ordem (a ordem de popularidade da página pública), e na demo a regra recusava
-      await (editing ? setDoc(doc(col, editing.id), data, { merge: true }) : addDoc(col, data));
+      if (editing) await setDoc(doc(col, editing.id), data, { merge: true });
+      else {
+        const novo = await addDoc(col, data);
+        // sem isto o serviço novo ficava "Ninguém faz ainda" e fora do link. O negócio do cadastro
+        // nasce sem equipe (profissional sem serviço não é válido): o 1º serviço cria a equipe com o
+        // horário padrão. Uma pessoa só: o serviço é dela. Com mais gente, o dono escolhe em Equipe
+        const ativos = staff?.filter((p) => p.active);
+        if (staff?.length === 0) {
+          const r = await criarProfissionalAction(await idToken(), {
+            tenantId: tenant.id,
+            dados: { ...EQUIPE, name: auth.currentUser?.displayName?.trim().slice(0, 80) || EQUIPE.name, serviceIds: [novo.id] },
+          });
+          if (!r.ok) throw new Error(r.error);
+        } else if (ativos?.length === 1) await updateDoc(doc(db, "tenants", tenant.id, "staff", ativos[0].id), { serviceIds: arrayUnion(novo.id) });
+      }
       setEditing(null);
     } catch (err) {
       setError(errorMessage(err));

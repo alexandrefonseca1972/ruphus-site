@@ -194,7 +194,7 @@ assert.equal((await pagina("../etc")).status, 404);
   assert.equal((await adminBucket().file("sites/navalha/fotos/bio.jpg").exists())[0], false);
 }
 
-// ─── Cadastro pelo dono: o negócio já nasce com site, agenda, equipe e funil ───
+// ─── Cadastro pelo dono: o negócio já nasce com site e funil; serviços e equipe são do dono ───
 {
   const dona = { uid: "dona-cadastro", email: "dona@exemplo.com", name: "Dra. Ana" };
   const base = { name: "Sorriso Leve", slug: "sorriso-leve", sub: "odonto", telefone: "(96) 99111-2222", cidade: "Macapá", uf: "ap", bairro: "Centro" };
@@ -207,12 +207,10 @@ assert.equal((await pagina("../etc")).status, 404);
   assert.deepEqual([t.gerado.sub, t.gerado.origem], ["odonto", "cadastro"]);
   const membro = (await db.doc("tenants/sorriso-leve/members/dona-cadastro").get()).data()!;
   assert.deepEqual([membro.role, membro.email, membro.nome], ["owner", "dona@exemplo.com", "Dra. Ana"]);
-  const servicos = await db.collection("tenants/sorriso-leve/services").get();
-  assert.ok(servicos.size >= 3, "a agenda já nasce com os serviços do ramo");
-  assert.ok(servicos.docs.every((d) => d.get("priceCents") === 0), "saúde sem preço");
-  const equipe = (await db.doc("tenants/sorriso-leve/staff/equipe").get()).data()!;
-  assert.equal(equipe.name, "Dra. Ana", "a equipe começa com o nome do dono");
-  assert.equal(equipe.serviceIds.length, servicos.size, "e faz todos os serviços: a agenda abre no primeiro minuto");
+  // sem serviços de exemplo (preço e duração inventados iam para o link): o dono cadastra os dele,
+  // e a equipe nasce com o 1º serviço (profissional sem serviço não é válido)
+  assert.equal((await db.collection("tenants/sorriso-leve/services").get()).size, 0, "nasce sem serviços");
+  assert.equal((await db.doc("tenants/sorriso-leve/staff/equipe").get()).exists, false, "e sem equipe");
   const crm = (await db.doc("crm/sorriso-leve").get()).data()!;
   assert.deepEqual([crm.origem, crm.donoEmail, crm.donoNome], ["cadastro", "dona@exemplo.com", "Dra. Ana"]);
   // ninguém é avisado de um cadastro: ele já entra no funil com o contato combinado para hoje
@@ -235,7 +233,8 @@ assert.equal((await pagina("../etc")).status, 404);
   assert.equal((await db.doc("tenants/outro-sorriso").get()).exists, false, "e nada foi gravado");
 
   // "Meu negócio": muda os dados e o ramo sem mexer na agenda
-  await db.doc("tenants/sorriso-leve/services/limpeza").update({ priceCents: 12000 });
+  // o serviço que o dono cadastrou (o negócio nasce sem nenhum)
+  await db.doc("tenants/sorriso-leve/services/limpeza").set({ name: "Limpeza", durationMin: 30, priceCents: 12000, active: true });
   await salvarNegocio(db, "sorriso-leve", { name: "Sorriso Leve Odonto", sub: "odonto", telefone: "96991113333", cidade: "Macapá", uf: "AP", instagram: "@sorrisoleve", horario: "Seg a sex, 8h às 18h" });
   const t2 = (await db.doc("tenants/sorriso-leve").get()).data()!;
   assert.deepEqual([t2.name, t2.site.phone, t2.site.instagram, t2.gerado.horario, t2.gerado.origem], ["Sorriso Leve Odonto", "5596991113333", "sorrisoleve", "Seg a sex, 8h às 18h", "cadastro"]);

@@ -4,13 +4,18 @@ import { orderBy, Timestamp, where } from "firebase/firestore";
 import { useValores } from "@/lib/valores";
 import { TituloOrdenavel } from "@/components/titulo-ordenavel";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ativosDesde, casaBusca, DIA_EM_MS, JANELAS, MAIOR_JANELA, resumoPorCliente } from "@/lib/clientes";
-import { whatsappLink } from "@/lib/datetime";
+import { formatPhone, whatsappLink } from "@/lib/datetime";
+import { errorMessage } from "@/lib/auth-errors";
+import { idToken } from "@/lib/firebase";
+import { erroNome } from "@/lib/nome";
+import { criarClienteAction } from "../actions";
 import { useCollection } from "@/lib/use-collection";
 import { useTenant } from "../painel-layout";
 import { PageTitle } from "../page-title";
@@ -66,6 +71,7 @@ export default function CustomersPage() {
   const [customers, error] = useCollection(tenant.id, "customers", Customer, [orderBy("name")]);
   const [search, setSearch] = useState("");
   const [planning, setPlanning] = useState(false);
+  const [novo, setNovo] = useState(false);
   const [janela, setJanela] = useState<number | null>(null);
   const [copiado, setCopiado] = useState(false);
   const [ordem, setOrdem] = useState<{ por: Ordem; sobe: boolean }>({ por: "nome", sobe: true });
@@ -142,11 +148,17 @@ export default function CustomersPage() {
     <>
       <PageTitle valores
         title="Clientes"
-        sub={customers && visitas && (customers.length ? `${customers.length} cliente(s) · ${sumidos60} sem vir há mais de 60 dias` : "Aparecem aqui a partir do primeiro agendamento")}
+        sub={customers && visitas && (customers.length ? `${customers.length} cliente(s) · ${sumidos60} sem vir há mais de 60 dias` : "Aparecem aqui a partir do primeiro agendamento, ou cadastre em Novo cliente")}
       >
-        {!planning && <Button className="h-10 px-4" onClick={() => setPlanning(true)}>Novo plano recorrente</Button>}
+        {!planning && !novo && (
+          <div className="flex flex-wrap gap-2">
+            {tenant.podeGerir && <Button className="h-10 px-4" onClick={() => setNovo(true)}>Novo cliente</Button>}
+            <Button variant={tenant.podeGerir ? "outline" : "default"} className="h-10 px-4" onClick={() => setPlanning(true)}>Novo plano recorrente</Button>
+          </div>
+        )}
       </PageTitle>
 
+      {novo && <NovoCliente tenantId={tenant.id} onClose={() => setNovo(false)} />}
       {planning && <PlanForm tenantId={tenant.id} onClose={() => setPlanning(false)} />}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -326,5 +338,57 @@ export default function CustomersPage() {
         </section>
       )}
     </>
+  );
+}
+
+/** Cadastro à mão: nome e WhatsApp (o id do cliente é o telefone, como no agendamento). O resto
+ *  (nascimento, CPF, e-mail, cuidados, etiquetas) se completa na ficha, que abre em seguida. */
+function NovoCliente({ tenantId, onClose }: { tenantId: string; onClose: () => void }) {
+  const router = useRouter();
+  const [nome, setNome] = useState("");
+  const [fone, setFone] = useState("");
+  const [erro, setErro] = useState("");
+  const [existente, setExistente] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function salvar(e: React.FormEvent) {
+    e.preventDefault();
+    setErro("");
+    setExistente("");
+    const errNome = erroNome(nome.trim());
+    if (errNome) return setErro(errNome);
+    setBusy(true);
+    const r = await criarClienteAction(await idToken(), { tenantId, name: nome.trim(), phone: fone }).catch((err) => ({ ok: false as const, error: errorMessage(err) }));
+    setBusy(false);
+    if (r.ok) return router.push(`/${tenantId}/clientes/${r.id}`);
+    setErro(r.error);
+    if ("id" in r && r.id) setExistente(r.id);
+  }
+
+  return (
+    <form onSubmit={salvar} noValidate aria-labelledby="novo-cliente-t" className="grid gap-4 rounded-2xl border bg-card p-5">
+      <h2 id="novo-cliente-t" className="font-semibold">Novo cliente</h2>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-1.5">
+          <Label htmlFor="novo-cliente-nome">Nome</Label>
+          <Input id="novo-cliente-nome" value={nome} maxLength={80} autoComplete="off" autoFocus onChange={(e) => setNome(e.target.value)} className="h-11" />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="novo-cliente-fone">WhatsApp</Label>
+          <Input id="novo-cliente-fone" value={fone} inputMode="tel" autoComplete="off" placeholder="(11) 91234-5678" onChange={(e) => setFone(formatPhone(e.target.value))} className="h-11" />
+        </div>
+      </div>
+      {erro && (
+        <p role="alert" className="text-sm text-destructive">
+          {erro}{" "}
+          {existente && <Link href={`/${tenantId}/clientes/${existente}`} className="underline underline-offset-4">Abrir a ficha</Link>}
+        </p>
+      )}
+      <p className="text-[13px] text-muted-foreground">Os outros dados (nascimento, CPF, e-mail, cuidados) você completa na ficha, que abre em seguida.</p>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Button type="button" variant="ghost" className="h-11 px-4" onClick={onClose}>Cancelar</Button>
+        <Button type="submit" disabled={busy} className="h-11 px-5">{busy ? "Salvando…" : "Cadastrar cliente"}</Button>
+      </div>
+    </form>
   );
 }

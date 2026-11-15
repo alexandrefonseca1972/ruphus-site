@@ -145,6 +145,8 @@ export function WhatsAppNegocio({ slug, telefoneNegocio }: { slug: string; telef
         return;
       }
       avaliacoesConfirmadas.current = { on: enabled, delay: delayMin };
+      // o menu mostra Avaliações só com o pedido ligado: muda já, sem recarregar
+      tenant?.atualizar?.({ avaliacoes: { enabled, delayMin } });
       setAviso({ ok: true, texto: enabled ? `Pedidos de avaliação ativados: saem ${delayMin} minutos após a conclusão.` : "Pedidos de avaliação desativados." });
     });
   }

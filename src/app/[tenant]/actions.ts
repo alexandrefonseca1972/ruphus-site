@@ -6,12 +6,12 @@ import { painelDeConsumo, resumoDoSaldo } from "@/lib/consumo-painel.server";
 import { abrirCobranca, listarCobrancas } from "@/lib/cobranca";
 import { cadastrarDonoOficial, enviarConfirmacaoDono, exigeNaoPausado, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { adminDb } from "@/lib/admin";
-import { concluirAtendimento, createPlan, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, restaurarAgendamento, salvarDadosCliente, UserError } from "@/lib/booking.server";
+import { concluirAtendimento, createPlan, criarCliente, deleteCustomer, endPlan, exigeProfissionalSemCompromisso, profissionalDaConta, renameCustomer, requireMember, reschedule, rescheduleSlots, restaurarAgendamento, salvarDadosCliente, UserError } from "@/lib/booking.server";
 import { DadosCliente } from "@/lib/cliente-dados";
 import { erroNome } from "@/lib/nome";
 import { z } from "zod";
 import { ConfigAvaliacoes } from "@/lib/avaliacoes";
-import { LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
+import { BookingInput, LimitesAgenda, PlanInput, Recado, RescheduleInput, Staff } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { renovarSite } from "@/lib/renovar-site.server";
 import { criarProfissional, gastarCota, lerNegocio, salvarNegocio } from "@/lib/negocios.server";
@@ -123,6 +123,11 @@ export const renameCustomerAction = memberAction(
       .refine((v) => !erroNome(v), "Use só letras no nome, com pelo menos 2."),
   }),
   (data, user) => renameCustomer(adminDb, data, user),
+);
+
+export const criarClienteAction = memberAction(
+  z.object({ tenantId: docId, name: BookingInput.shape.customerName, phone: BookingInput.shape.customerPhone }),
+  (data, user) => criarCliente(adminDb, data, user),
 );
 
 export const salvarDadosClienteAction = memberAction(
