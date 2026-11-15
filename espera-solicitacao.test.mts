@@ -45,6 +45,13 @@ assert.deepEqual(e3.pedido, { status: "pendente", em: 5000 });
 assert.equal(chamadas.length, 2, "alerta do segundo pedido");
 assert.notEqual(chamadas[1], chamadas[0], "chave nova, senão o e-mail ficaria preso na janela de 6 h");
 
+// 6a. Sem os templates da Meta liberados, ligar é recusado e o pedido continua pendente
+delete process.env.ATENDYS_TEMPLATE_ESPERA;
+await assert.rejects(definirEspera(db, slug, true, 5500), { message: "Os avisos da fila ainda não foram liberados (templates da Meta). Ligue ATENDYS_TEMPLATE_ESPERA antes." });
+assert.equal((await estadoEspera(db, slug)).ligado, false);
+assert.equal((await estadoEspera(db, slug)).pedido?.status, "pendente");
+process.env.ATENDYS_TEMPLATE_ESPERA = "1";
+
 // 6. Ligar pelo admin atende o pedido pendente
 const e4 = await definirEspera(db, slug, true, 6000);
 assert.equal(e4.ligado, true);

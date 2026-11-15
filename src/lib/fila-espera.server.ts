@@ -90,7 +90,7 @@ export async function entrarNaFila(db: Firestore, input: EntradaEspera, ip?: str
     if (atual.exists && ATIVAS.includes(atual.get("status"))) {
       // só quem tem o token muda a espera: o id sai de dados públicos (telefone, dia, serviço), e sem
       // isso qualquer um trocava o horário e o token de outra pessoa
-      if (atual.get("tokenHash") !== tokenHash) return { ok: false, error: "Este aviso já foi pedido em outro aparelho. Para mudar, saia por lá ou responda SAIR no WhatsApp." };
+      if (atual.get("tokenHash") !== tokenHash) return { ok: false, error: "Não foi possível alterar este aviso por aqui. Se você já pediu em outro aparelho, use aquele ou responda SAIR no WhatsApp." };
       tx.update(ref, { preferido, nome: input.customerName.trim(), ...agendamento });
       return { ok: true, id, tipo, data: date, preferido };
     }
@@ -304,7 +304,7 @@ async function notificar(x: Execucao, t: Negocio, e: Espera, vaga: Vaga, h: { ho
         { nome: e.nome.trim().split(/\s+/)[0] ?? "", negocio: t.nome, servico, quando, ...(horaAtual ? { atual: horaAtual } : {}) },
         { slug: t.id, espera: e.id, horario: `${vaga.data}T${h.hora}` },
       ),
-      optIn: optInDaEspera({ tenantId: t.id, esperaId: e.id, em: reserva }),
+      optIn: optInDaEspera({ tenantId: t.id, esperaId: e.id, em: reserva, tipo: e.tipo }),
       prazo: new Date(prazoDoAviso(em)),
       chave: chaveDeEnvio("espera", t.id, e.id, `${vaga.data}T${h.hora}`, vaga.eventoId),
     });

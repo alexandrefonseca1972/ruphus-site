@@ -5,6 +5,9 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Fila de espera (serviço extra): o dono pede em Meu negócio e a Ruphus liga no /admin. Quando um horário ocupado vaga, o cliente recebe o aviso no WhatsApp e responde com um toque: agenda na hora ou pede a troca de horário.
+- Agendamento online: horários ocupados mostram “Avisar” para entrar na fila, e os livres ganham o selo “livre”.
+- Fila de espera: cada aviso custa 5¢ do saldo de mensagens. Precisa do WhatsApp oficial e dos modelos de mensagem aprovados pela Meta.
 - E-mail de confirmação de conta no modelo da Ruphus (antes era o texto padrão do Firebase): saudação pelo primeiro nome, botão “Confirmar e-mail”, próximos passos e o link em www.ruphus.site em vez de firebaseapp.com. Vale ao criar conta, no “Reenviar e-mail” e no convite; até 1 envio por minuto e 8 por dia por conta. Se o servidor não conseguir enviar, sai o e-mail padrão do Firebase.
 - E-mail do aceite dos Termos: nome do negócio (com o endereço), saudação pelo primeiro nome e o resumo do que foi aceito.
 - /admin, negócio criado pelo próprio dono: no lugar de “Convite do dono · pendente”, aparece “Acesso do dono · já tem acesso”.

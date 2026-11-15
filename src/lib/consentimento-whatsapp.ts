@@ -37,13 +37,15 @@ export function optInDoAgendamento(c: { tenantId: string; agendamentoId: string;
 /** Aceite da fila de espera: versão própria, para o texto do aviso de horário livre. */
 export const TERMO_ESPERA_VERSAO = "espera-2026-11";
 export const TEXTO_ACEITE_ESPERA = "Aceito receber pelo WhatsApp o aviso de horário livre deste negócio para este dia. Posso responder SAIR para parar.";
+/** Aceite da troca: marcado no agendamento, para o aviso de que o horário preferido vagou. */
+export const TEXTO_ACEITE_TROCA = "Se o horário que eu queria vagar, aceito receber o aviso no WhatsApp para trocar o meu horário. Posso responder SAIR para parar.";
 
-export function optInDaEspera(c: { tenantId: string; esperaId: string; em: Date }) {
+export function optInDaEspera(c: { tenantId: string; esperaId: string; em: Date; tipo: string }) {
   return {
     eventId: `ruphus-espera:${c.tenantId}:${c.esperaId}`.slice(0, 128),
     occurredAt: c.em.toISOString(),
     origem: "ruphus-fila-espera",
-    evidencia: `Aceite marcado pelo cliente na fila de espera de ${c.tenantId} (ruphus.site). Texto: "${TEXTO_ACEITE_ESPERA}" Versão ${TERMO_ESPERA_VERSAO}. Em ${c.em.toISOString()}. Espera ${c.esperaId}.`,
+    evidencia: `Aceite marcado pelo cliente na fila de espera de ${c.tenantId} (ruphus.site). Texto: "${c.tipo === "troca" ? TEXTO_ACEITE_TROCA : TEXTO_ACEITE_ESPERA}" Versão ${TERMO_ESPERA_VERSAO}. Em ${c.em.toISOString()}. Espera ${c.esperaId}.`,
   };
 }
 

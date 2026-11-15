@@ -29,6 +29,9 @@ export async function GET(request: NextRequest) {
     await cron.set({ esperaUltimaExecucao: FieldValue.serverTimestamp() }, { merge: true });
     return Response.json({ ok: true, liberacoes, expiracoes });
   } finally {
-    await cron.set({ esperaLease: FieldValue.delete() }, { merge: true });
+    // só solta a trava se ainda é a nossa: vencida, outra execução pode ter pego a dela
+    await adminDb.runTransaction(async (tx) => {
+      if ((await tx.get(cron)).get("esperaLease.ate") === agora + 50_000) tx.update(cron, { esperaLease: FieldValue.delete() });
+    });
   }
 }

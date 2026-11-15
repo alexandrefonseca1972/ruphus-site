@@ -52,7 +52,6 @@ export async function respostaDaEspera(
   if (!["eq", "es", "en", "et", "em"].includes(b.acao)) return "não é da fila";
   const agora = opts.agora ?? new Date();
   const tenant = await db.doc(`tenants/${b.slug}`).get();
-  if (!esperaLigada(tenant.get("modulos") as Modulos)) return "desligado";
   const ref = db.doc(`tenants/${b.slug}/espera/${b.agendamento}`);
   const e = await ref.get();
   const numero = soDigitosComDDI(telefone);
@@ -66,7 +65,7 @@ export async function respostaDaEspera(
   const negocio = destaque(String(tenant.get("name") ?? "").trim() || b.slug);
   const contato = contatoDoNegocio(tenant);
   const nome = String(e.get("nome") ?? "").trim().split(/\s+/)[0] || "cliente";
-  const optIn = optInDaEspera({ tenantId: b.slug, esperaId: b.agendamento, em: consentimento });
+  const optIn = optInDaEspera({ tenantId: b.slug, esperaId: b.agendamento, em: consentimento, tipo: String(e.get("tipo")) });
   const responder =
     opts.responder ??
     (async (texto: string) => {
@@ -74,6 +73,11 @@ export async function respostaDaEspera(
       if (oficial) await enviarTexto(oficial, numero, texto, optIn, undefined, { resposta: true });
     });
   const dizer = (texto: string) => responder(texto).catch((erro) => console.error(`[fila] resposta ao cliente em ${b.slug}`, erro));
+  // módulo desligado depois do aviso: quem tocou é o dono da espera (conferido acima) e fica sabendo
+  if (!esperaLigada(tenant.get("modulos") as Modulos)) {
+    await dizer(`A fila de espera de ${negocio} foi encerrada.`);
+    return "desligado";
+  }
   const status = String(e.get("status"));
   const ativa = ATIVAS.includes(status);
   const venceu = () => (ativa ? "Esse aviso já venceu. Você continua na fila e avisamos se vagar outro horário." : "Essa espera já terminou.");

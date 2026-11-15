@@ -21,6 +21,7 @@ export default function ManualDoUsuario() {
           ["planos", "Planos recorrentes"],
           ["negocio", "Meu negócio"],
           ["sinal", "Sinal no agendamento"],
+          ["fila-espera", "Fila de espera"],
           ["caixa", "Caixa"],
           ["recibo", "Recibo"],
           ["divulgar", "Divulgar o link"],
@@ -306,6 +307,61 @@ export default function ManualDoUsuario() {
           Confira sempre no app do banco antes de marcar “Sinal recebido”: o Pix cai direto na sua conta, e a Ruphus não
           vê o pagamento. Tirar a chave Pix desliga o sinal.
         </Atencao>
+      </Secao>
+
+      <Secao id="fila-espera" titulo="Fila de espera">
+        <P>
+          <Termo>O que é.</Termo> Um serviço extra. Quando um horário está ocupado, o cliente pode tocar nele no
+          agendamento online e pedir para ser avisado no WhatsApp se vagar. Isso não é um agendamento: a pessoa só entra
+          na fila.
+        </P>
+        <P>
+          <Termo>Como pedir.</Termo> Em <Termo>Meu negócio</Termo>, no cartão <Termo>Fila de espera</Termo>, toque em{" "}
+          <Termo>Quero este serviço</Termo>. A equipe Ruphus ativa. Precisa ter o WhatsApp oficial ativo (o mesmo dos
+          lembretes) e saldo de mensagens.
+        </P>
+        <P>
+          <Termo>Como funciona.</Termo> Quando alguém cancela ou remarca, avisamos uma pessoa por vez: primeiro quem
+          pediu aquele horário, depois quem pediu o mais perto, por ordem de chegada. Ela tem 10 minutos de vantagem; se
+          não responder, avisamos a próxima, até 3 por horário. O horário continua aberto no site: quem confirmar
+          primeiro fica com ele.
+        </P>
+        <P>O cliente responde com um toque:</P>
+        <Lista
+          itens={[
+            <>
+              <Termo>“Quero este horário”</Termo> agenda na hora. Se o serviço pede sinal, chega o Pix copia e cola.
+            </>,
+            <>
+              As outras respostas são <Termo>“Só serve o meu”</Termo> e <Termo>“Não quero mais”</Termo>.
+            </>,
+            <>
+              Quem já tem horário naquele dia pode pedir a troca: <Termo>“Trocar de horário”</Termo> ou{" "}
+              <Termo>“Manter o meu”</Termo>. Se houver sinal ou pagamento, a troca não é feita pela fila: o cliente é
+              orientado a falar com você e você recebe um aviso. Os pedidos de troca são avisados depois de quem
+              espera sem horário.
+            </>,
+          ]}
+        />
+        <P>
+          Você recebe um aviso no celular quando a Ruphus avisa alguém e quando alguém agenda ou troca pela fila.
+        </P>
+        <P>
+          O horário marcado pela fila não recebe confirmação nem lembrete pelo WhatsApp (o aceite do cliente foi só para
+          o aviso da fila); confirme por você.
+        </P>
+        <P>
+          <Termo>Custo.</Termo> Cada aviso enviado custa 5¢ do saldo de mensagens. As respostas aos toques não custam.
+          Aparece em <Termo>Consumo</Termo> como <Termo>Fila de espera</Termo>.
+        </P>
+        <P>
+          <Termo>Limites.</Termo> No máximo 2 avisos por cliente a cada 24 horas, com 6 horas de intervalo. Avisos só com
+          pelo menos 1 hora de antecedência. A espera vale só para aquele dia.
+        </P>
+        <P>
+          <Termo>Para parar.</Termo> O cliente responde <Termo>SAIR</Termo> ou toca em <Termo>Sair</Termo> no site. Para
+          desligar o serviço, peça à Ruphus.
+        </P>
       </Secao>
 
       <Secao id="caixa" titulo="Caixa">

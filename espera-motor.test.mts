@@ -306,6 +306,34 @@ assert.equal((await rodar()).avisos, 0);
 assert.deepEqual(doDia(d12), [], "a troca não recebe vaga de outro profissional");
 assert.equal(await status(idTB), "aguardando");
 
+// 16c. DEMO com o módulo ligado, espera e cancelamento: nada sai para a DEMO
+const d13 = dia(19);
+const demo = db.doc(`tenants/${DEMO}`);
+const demoAntes = await demo.get();
+await demo.set({ name: "Demo", modulos: { espera: true } }, { merge: true });
+await demo.collection("services").doc("motor-corte").set({ name: "Corte", durationMin: 60, priceCents: 5000, active: true });
+await demo.collection("appointments").doc("motor-ag").set({ status: "cancelled", staffId: "ana", start: Timestamp.fromDate(zonedTime(d13, "10:00")), durationMin: 60 });
+await demo.collection("history").doc("motor-h").set({ appointmentId: "motor-ag", type: "cancelled", at: tick() });
+const esperaDemo = demo.collection("espera").doc("motor-demo");
+await esperaDireta(esperaDemo, fone(29), d13, { serviceIds: ["motor-corte"] });
+await rodar();
+assert.equal(enviados.some((e) => e.slug === DEMO), false, "a DEMO nunca manda aviso");
+assert.equal((await esperaDemo.get()).get("status"), "aguardando");
+await Promise.all([esperaDemo, demo.collection("services").doc("motor-corte"), demo.collection("appointments").doc("motor-ag"), demo.collection("history").doc("motor-h")].map((r) => r.delete()));
+await (demoAntes.exists ? demo.set(demoAntes.data()!) : demo.delete());
+
+// 16d. Espera sem consentimento.em não é avisada: a vaga vai à próxima, e nada sai para aquele telefone
+const apt13 = await marcar(d13, "10:00", "Outro Cliente", fone(28));
+const idSemAceite = "motor-sem-aceite";
+const idComAceite = "motor-com-aceite";
+await esperaDireta(t.collection("espera").doc(idSemAceite), fone(26), d13, { consentimento: null, criadaEm: 0 });
+await esperaDireta(t.collection("espera").doc(idComAceite), fone(27), d13, { criadaEm: 2 });
+await cancelar(apt13);
+assert.equal((await rodar()).avisos, 1);
+assert.deepEqual(doDia(d13).map((a) => a.telefone), [customerKey(fone(27))], "sem aceite não recebe; a próxima sim");
+assert.equal(await status(idSemAceite), "aguardando");
+assert.equal(await status(idComAceite), "avisada");
+
 // 17. Trava do cron: com outra execução em andamento, a rota sai sem trabalho
 process.env.CRON_SECRET = "segredo-teste";
 await db.doc("config/cron").set({ esperaLease: { ate: Date.now() + 60_000 } }, { merge: true });

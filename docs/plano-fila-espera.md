@@ -42,7 +42,7 @@ O checklist visual fica em `docs/plano-fila-espera.html`. A página recarrega a 
 - [x] F3.G Gate
 
 ## Fase 4: motor
-- [x] F4.1 Template `oferta_espera` (reserva e troca) com flag; ações `eq`, `es`, `en`, `et` e `em2` em `lerBotao`
+- [x] F4.1 Template `oferta_espera` (reserva e troca) com flag; ações `eq`, `es`, `en`, `et` e `em` em `lerBotao`
 - [x] F4.2 Consumo: tipo `espera` (5¢)
 - [x] F4.3 `fila-espera.server.ts`: `processarLiberacoes` (cursor, idempotência, falhas isoladas) e `expirarAvisos`
 - [x] F4.4 Cron `/api/cron/fila-espera`, `deploy/crontab.txt` e `vigiarCron`
@@ -51,17 +51,17 @@ O checklist visual fica em `docs/plano-fila-espera.html`. A página recarrega a 
 - [x] F4.G Gate
 
 ## Fase 5: respostas no WhatsApp
-- [x] F5.1 Botões `eq`, `es`, `en`, `et` e `em2` em `botoes-whatsapp.server.ts` (`book`/`reschedule` e Pix)
+- [x] F5.1 Botões `eq`, `es`, `en`, `et` e `em` em `src/lib/fila-espera-botoes.server.ts` (`book`/`reschedule` e Pix)
 - [x] F5.2 Avisos ao dono e `origem:"espera"` no histórico
 - [x] F5.3 `espera-botoes.test.mts` e script `test:espera-f5`; regressão
 - [x] F5.G Gate
 
 ## Fase 6: acabamento
-- [ ] F6.1 Manual (`ajuda/conteudo.tsx`)
-- [ ] F6.2 Versão 0.43.0
-- [ ] F6.3 Suíte completa e build
-- [ ] F6.4 Ponta a ponta no navegador
-- [ ] F6.5 Revisão final Opus e verificador
+- [x] F6.1 Manual (`ajuda/conteudo.tsx`)
+- [x] F6.2 Versão 0.43.0
+- [x] F6.3 Suíte completa e build
+- [x] F6.4 Ponta a ponta no navegador
+- [x] F6.5 Revisão final Opus e verificador
 - [ ] F6.6 🙋 Merge, deploy e flag do template (dono)
 
 ## Registro
@@ -128,3 +128,11 @@ O checklist visual fica em `docs/plano-fila-espera.html`. A página recarrega a 
   - Prazo do sinal com data.
 
   Gate: tsc, lint e build verdes; `test:espera-f1` a `f5`, `canal-oficial`, `consumo`, `booking`, `sinal`, `rules`, `admin` e `integracoes` verdes. `test:atendys` tem só a falha que já existia no `main` (previsão de saldo, dependente da data).
+- 2026-11-15: F6 (Haiku: manual e changelog; Opus: revisão final do branch inteiro e verificador).
+  - Revisão final: 1 MUST-FIX corrigido (a caixa de troca voltava marcada a cada abertura, o que era inscrição sem consentimento).
+  - SHOULD corrigidos: botão com o módulo desligado responde "encerrada"; o admin não liga sem `ATENDYS_TEMPLATE_ESPERA`; `TEXTO_ACEITE_TROCA` próprio na evidência; o manual corrigido (sinal na troca, sem lembrete no horário marcado pela fila, ordem da troca); `.env.example`; lease do cron só apaga o próprio; mensagem neutra contra enumeração.
+  - O verificador pediu e entraram 4 testes: corrida entre "Quero" e reserva do site, remarcação × reserva e restauração × reserva, DEMO sem envio, espera sem aceite sem envio.
+  - Gate: tsc, lint, `test:espera-f1` a `f5`, `booking`, `rules`, `admin`, `canal-oficial`, `consumo`, `integracoes`, `sinal` e `bio` verdes. Build verde no worktree limpo do commit. No working tree, o build falha só por `gerador.server.ts` (outra frente em andamento, campo `sobrancelha`).
+  - A ponta a ponta no navegador foi feita na F3 (grade, folha, entrar e sair). O motor e os botões têm ponta a ponta nos testes do emulador.
+
+  Pendente com o dono: F0.4 (templates na Meta) e F6.6 (merge, deploy com crontab e índices, flag).

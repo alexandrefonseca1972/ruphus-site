@@ -213,6 +213,27 @@ await corte.ref.update({ status: "cancelled" });
 assert.equal((await book(db, { ...base, ...outro(), serviceIds: ["corte"], date: D1, time: "11:30" })).ok, true, "outro cliente ocupa o horário cancelado");
 assert.equal((await restaurarAgendamento(db, { tenantId: "salao", appointmentId: corte.id, status: "booked" }, actor)).ok, false, "não restaura sobre outra reserva");
 
+// Fila de espera: a vaga é disputada no mesmo instante; remarcar ou restaurar contra agendar deixa um só
+const D3 = addDays(todayIn(), 43);
+const ativosAs = async (hora: string) =>
+  (await t.collection("appointments").where("staffId", "==", "ana").where("start", "==", zonedTime(D3, hora)).get()).docs.filter((d) => ["booked", "confirmed"].includes(d.get("status"))).length;
+const daCorrida = await book(db, { ...base, ...outro(), serviceIds: ["corte"], date: D3, time: "09:00" });
+const corridaId = daCorrida.ok ? daCorrida.id : assert.fail();
+const disputa = await Promise.all([
+  reschedule(db, { tenantId: "salao", appointmentId: corridaId, date: D3, time: "10:00" }, actor),
+  book(db, { ...base, ...outro(), serviceIds: ["corte"], date: D3, time: "10:00" }),
+]);
+assert.equal(disputa.filter((r) => r.ok).length, 1, "remarcar x agendar: só um fica com o horário");
+assert.equal(await ativosAs("10:00"), 1);
+const aRestaurar = await book(db, { ...base, ...outro(), serviceIds: ["corte"], date: D3, time: "11:00" });
+const restaurarId = aRestaurar.ok ? aRestaurar.id : assert.fail();
+await t.collection("appointments").doc(restaurarId).update({ status: "cancelled" });
+await Promise.all([
+  restaurarAgendamento(db, { tenantId: "salao", appointmentId: restaurarId, status: "booked" }, actor),
+  book(db, { ...base, ...outro(), serviceIds: ["corte"], date: D3, time: "11:00" }),
+]);
+assert.equal(await ativosAs("11:00"), 1, "restaurar x agendar: um só ativo no horário");
+
 // Membro do tenant (emulador de Auth)
 const auth = getAuth(app);
 async function tokenFor(uid: string) {

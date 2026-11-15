@@ -99,6 +99,7 @@ assert.equal(doc2.nome, "Maria Souza");
 // 5b. Outra pessoa com o mesmo telefone (token diferente) não muda nem toma a espera
 const sequestro = await entrarNaFila(db, entrada({ preferido: "10:00", token: "tokenBBBBBBBBBBBBBBBB" }), "203.0.113.9");
 assert.equal(sequestro.ok, false, "sem o token não muda");
+assert.equal(!sequestro.ok && sequestro.error, "Não foi possível alterar este aviso por aqui. Se você já pediu em outro aparelho, use aquele ou responda SAIR no WhatsApp.", "neutra: não confirma que o telefone tem espera");
 const doc2b = (await t.collection("espera").doc(r1.id).get()).data()!;
 assert.equal(doc2b.preferido, "11:00");
 assert.equal(doc2b.tokenHash, sha("tokenAAAAAAAAAAAAAAAA"), "o token de quem pediu continua");

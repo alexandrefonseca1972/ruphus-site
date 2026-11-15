@@ -4,6 +4,7 @@ import { UserError } from "@/lib/booking.server";
 import { agendamentoLigado, esperaLigada } from "@/lib/modulos";
 import { alertarAdmin } from "@/lib/alerta-admin.server";
 import { SITE_BASE } from "@/lib/dominio";
+import { esperaNoWhatsApp } from "@/lib/canal-oficial.server";
 
 // Fila de espera: o dono pede e a Ruphus liga no /admin. O pedido fica em tenants/{slug}.solicitacoes.espera.
 
@@ -81,6 +82,8 @@ export async function definirEspera(db: Firestore, slug: string, ligar: boolean,
       return;
     }
     if (!agendamentoLigado(t.get("modulos"))) throw new UserError(SEM_AGENDA);
+    // sem os templates aprovados nenhum aviso sai: a fila ligada só juntaria esperas
+    if (!esperaNoWhatsApp()) throw new UserError("Os avisos da fila ainda não foram liberados (templates da Meta). Ligue ATENDYS_TEMPLATE_ESPERA antes.");
     const pendente = (t.get("solicitacoes.espera") as Pedido | undefined)?.status === "pendente";
     tx.update(ref, {
       "modulos.espera": true,

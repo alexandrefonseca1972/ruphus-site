@@ -25,7 +25,7 @@ import { getAgenda } from "./actions";
 import { textoDoSinal, valorDoSinal } from "@/lib/sinal";
 import type { ConfigSinal } from "@/lib/sinal-config";
 import { foraDoLimite, limitesDe, type LimitesAgenda } from "@/lib/scheduling";
-import { TERMO_ESPERA_VERSAO, TERMO_WHATSAPP_VERSAO, TEXTO_ACEITE_ESPERA, TEXTO_ACEITE_WHATSAPP } from "@/lib/consentimento-whatsapp";
+import { TERMO_ESPERA_VERSAO, TERMO_WHATSAPP_VERSAO, TEXTO_ACEITE_ESPERA, TEXTO_ACEITE_TROCA, TEXTO_ACEITE_WHATSAPP } from "@/lib/consentimento-whatsapp";
 import { telefoneDoNegocio, telefoneFixo, whatsappDoNegocio } from "@/lib/contato";
 
 type Resposta = Awaited<ReturnType<typeof book>>;
@@ -524,7 +524,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     setEscolha({ hora: v.hora, staffId: v.staffId });
     setModo("agendar");
     setVagouNota(false);
-    setTrocar(true);
+    setTrocar(false);
     setTomado(null);
     setSubmitError("");
     setFolha("confirmar");
@@ -693,7 +693,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       const mesma = esperas.find((e) => e.data === vaga.date && e.preferido === vaga.hora);
       if (mesma) void sairDaFila(mesma);
       const espera = esperas.find((e) => e.data === vaga.date && e.preferido !== vaga.hora);
-      if (trocar && espera && aceiteWhatsapp && !contato && result.id) {
+      if (comOcupados && trocar && espera && aceiteWhatsapp && !contato && result.id) {
         const token = novoToken();
         fetch("/api/espera", {
           method: "POST",
@@ -1709,7 +1709,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                     onChange={(e) => setTrocar(e.target.checked)}
                     className="mt-0.5 size-5 shrink-0 accent-[#17150F] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17150F]"
                   />
-                  <span>Se {esperaDaTroca.preferido} vagar, quero trocar e aceito o aviso no WhatsApp para isso</span>
+                  {/* o texto gravado como evidência, com a hora no lugar de "o horário que eu queria" */}
+                  <span>{TEXTO_ACEITE_TROCA.replace("o horário que eu queria", `o horário das ${esperaDaTroca.preferido}`)}</span>
                 </label>
               )}
 

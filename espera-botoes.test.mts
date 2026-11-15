@@ -270,6 +270,24 @@ assert.equal(await get("e9", "motivo"), "manteve");
 assert.equal(await ocupados("11:00"), 1);
 assert.ok(textos[0]?.includes("mantivemos"), textos[0]);
 
+// 10b. eq e um agendamento pelo site no mesmo instante, pelo mesmo horário: só um fica com ele, e a espera
+//      fica coerente (agendada se ganhou, de volta a aguardando se perdeu)
+{
+  const dc = dia(10);
+  // telefone próprio: o de Maria já está no limite de marcações
+  const telC = "11 93333-0016";
+  await seed("e16", { data: dc, telefone: customerKey(telC), customerKey: customerKey(telC), avisoAtual: aviso("10:00", Date.now() + 10 * 60_000, dc) });
+  const [r] = await Promise.all([
+    tocar(botao("eq", "e16", `${dc}T10:00`), telC),
+    book(db, { tenantId: slug, serviceIds: ["corte"], staffId: "ana", date: dc, time: "10:00", customerName: "Outro Cliente", customerPhone: "11 90000-1010" }),
+  ]);
+  const ativos = (await t.collection("appointments").where("start", "==", Timestamp.fromDate(zonedTime(dc, "10:00"))).get()).docs.filter((x) =>
+    ["booked", "confirmed"].includes(String(x.get("status"))),
+  ).length;
+  assert.equal(ativos, 1, "um só agendamento ativo no horário");
+  assert.equal(await get("e16", "status"), r === "agendada" ? "agendada" : "aguardando", r);
+}
+
 // 11. sinal ligado: a resposta de reserva traz o Pix copia e cola numa segunda mensagem
 await t.update({ pix: { chave: "52998224725", nome: "Ana Souza", cidade: "Belem" }, sinal: { ativo: true, tipo: "percentual", valor: 30, prazoMin: 30 } });
 await seed("e10", { avisoAtual: aviso("15:00") });
@@ -278,3 +296,14 @@ assert.equal(await tocar(botao("eq", "e10", `${d}T15:00`)), "agendada");
 assert.equal(textos.length, 2, JSON.stringify(textos));
 assert.ok(textos[0].includes("sinal"), textos[0]);
 assert.ok(textos[1].startsWith("000201"), textos[1]);
+
+// 12. módulo desligado depois do aviso: só o telefone da espera fica sabendo; nada muda
+await t.update({ "modulos.espera": false });
+await seed("e17", { avisoAtual: aviso("16:30") });
+textos = [];
+assert.equal(await tocar(botao("en", "e17", `${d}T16:30`), telB), "outro telefone");
+assert.equal(textos.length, 0, "outro telefone não recebe nada");
+assert.equal(await tocar(botao("en", "e17", `${d}T16:30`)), "desligado");
+assert.equal(textos.length, 1, JSON.stringify(textos));
+assert.ok(textos[0].includes("Salão Botões") && textos[0].endsWith("foi encerrada."), textos[0]);
+assert.equal(await get("e17", "status"), "avisada");
