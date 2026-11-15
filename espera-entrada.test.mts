@@ -5,7 +5,7 @@ import { adminDb as db } from "@/lib/admin";
 import { book, deviceId } from "@/lib/booking.server";
 import { addDays, customerKey, todayIn } from "@/lib/datetime";
 import { EntradaEsperaInput } from "@/lib/fila-espera";
-import { entrarNaFila, sairDaFila } from "@/lib/fila-espera.server";
+import { entrarNaFila, esperasAtivas, sairDaFila } from "@/lib/fila-espera.server";
 import { TERMO_ESPERA_VERSAO } from "@/lib/consentimento-whatsapp";
 
 const slug = "espera-site";
@@ -130,11 +130,15 @@ assert.equal(rt.tipo, "troca");
 assert.equal(rt.id === r1.id, false, "troca é outro documento");
 assert.equal((await t.collection("espera").doc(rt.id).get()).get("agendamentoId"), aptB);
 
+// 8b. Ativas: só as do token certo e ainda aguardando/avisadas (a página tira as outras)
+assert.deepEqual(await esperasAtivas(db, slug, [{ id: r1.id, token: "tokenAAAAAAAAAAAAAAAA" }, { id: rt.id, token: "tokenZZZZZZZZZZZZZZZZ" }, { id: "nao-existe", token: "tokenAAAAAAAAAAAAAAAA" }]), [r1.id]);
+
 // 9. Sair: token errado não sai; o certo sai, e de novo também
 assert.deepEqual(await sairDaFila(db, slug, r1.id, "tokenZZZZZZZZZZZZZZZZ"), { ok: false, error: "Não encontramos esta espera." });
 assert.deepEqual(await sairDaFila(db, slug, r1.id, "tokenAAAAAAAAAAAAAAAA"), { ok: true });
 assert.equal((await t.collection("espera").doc(r1.id).get()).get("status"), "saiu");
 assert.deepEqual(await sairDaFila(db, slug, r1.id, "tokenAAAAAAAAAAAAAAAA"), { ok: true }, "repetir é idempotente");
+assert.deepEqual(await esperasAtivas(db, slug, [{ id: r1.id, token: "tokenAAAAAAAAAAAAAAAA" }]), [], "a que saiu não é mais ativa");
 
 // 10. Troca fecha a espera simples do mesmo dia (não avisa o mesmo cliente duas vezes)
 const simples = await entrarNaFila(db, entrada({ customerPhone: telC, customerName: "Carla Dias", preferido: "10:00", token: "tokenEEEEEEEEEEEEEEEE" }), ip);

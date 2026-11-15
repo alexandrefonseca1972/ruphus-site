@@ -4,7 +4,7 @@ import { adminDb } from "@/lib/admin";
 import { dentroDaJanela, MAX_DAYS_AHEAD } from "@/lib/datetime";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { EntradaEsperaInput } from "@/lib/fila-espera";
-import { entrarNaFila, sairDaFila } from "@/lib/fila-espera.server";
+import { entrarNaFila, esperasAtivas, sairDaFila } from "@/lib/fila-espera.server";
 
 // Fila de espera da página pública: entrar (acao "entrar") e sair (acao "sair", com o token que entrar devolveu).
 // Chamável por qualquer pessoa: toda entrada é validada aqui.
@@ -14,6 +14,12 @@ const SairInput = z.object({
   tenantId: z.string().min(1).max(128).regex(/^[^/]+$/),
   id: z.string().min(1).max(128).regex(/^[^/]+$/),
   token: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/, "Espera inválida"),
+});
+
+const AtivasInput = z.object({
+  acao: z.literal("ativas"),
+  tenantId: SairInput.shape.tenantId,
+  itens: z.array(SairInput.pick({ id: true, token: true })).max(10),
 });
 
 export async function POST(req: Request) {
@@ -28,6 +34,11 @@ export async function POST(req: Request) {
       const s = SairInput.safeParse(corpo);
       if (!s.success) return NextResponse.json({ ok: false, error: s.error.issues[0].message });
       return NextResponse.json(await sairDaFila(adminDb, s.data.tenantId, s.data.id, s.data.token));
+    }
+    if (corpo?.acao === "ativas") {
+      const a = AtivasInput.safeParse(corpo);
+      if (!a.success) return NextResponse.json({ ok: false, error: a.error.issues[0].message });
+      return NextResponse.json({ ok: true, ids: await esperasAtivas(adminDb, a.data.tenantId, a.data.itens) });
     }
     if (corpo?.acao === "entrar") {
       const e = EntradaEsperaInput.safeParse(corpo);

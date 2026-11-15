@@ -132,6 +132,14 @@ export async function sairDaFila(db: Firestore, tenantId: string, id: string, to
   });
 }
 
+/** Das esperas guardadas no navegador, as que ainda estão ativas (o token confere). A que virou
+ *  agendamento, venceu ou saiu pelo WhatsApp some da página. */
+export async function esperasAtivas(db: Firestore, tenantId: string, itens: { id: string; token: string }[]): Promise<string[]> {
+  if (!itens.length) return [];
+  const docs = await db.getAll(...itens.map((i) => db.doc(`tenants/${tenantId}/espera/${i.id}`)));
+  return docs.filter((d, i) => d.exists && d.get("tokenHash") === sha256(itens[i].token) && ATIVAS.includes(d.get("status"))).map((d) => d.id);
+}
+
 // ---------------------------------------------------------------------------------------------
 // Motor (F4): quando um horário fica livre, avisa por WhatsApp a espera certa. Quem não responde no
 // prazo libera a vaga para a próxima. Roda pelo cron a cada minuto (/api/cron/fila-espera).

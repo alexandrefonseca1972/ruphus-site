@@ -348,7 +348,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   const [esperas, setEsperas] = useState<Espera[]>([]);
   const [aceiteEspera, setAceiteEspera] = useState(false);
   // desmarcado: a troca é um aceite de aviso no WhatsApp, e aceite não vem marcado
-  const [trocar, setTrocar] = useState(false);
+  // troca: o horário lotado do dia que o cliente prefere ao livre que está marcando (null: nenhum)
+  const [trocaPara, setTrocaPara] = useState<string | null>(null);
   const [vagouNota, setVagouNota] = useState(false);
   const [vagaPendente, setVagaPendente] = useState<{ date: string; hora: string } | null>(null);
   const [erroEspera, setErroEspera] = useState("");
@@ -381,6 +382,11 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   // fila: o horário ocupado vira "avisar" (ou "esperando", se já estou nele); só aparece com o módulo ligado
   const comOcupados = !!agenda?.some((d) => d.ocupados);
   const esperando = (hora: string) => esperas.some((e) => e.data === date && e.preferido === hora);
+  // os 3 ocupados mais cedo da semana (fora os que já espero): a fila à vista, sem abrir a grade
+  const ocupadosProximos = (agenda ?? [])
+    .flatMap((d) => (d.ocupados ?? []).map((hora) => ({ date: d.date, hora })))
+    .filter((o) => !esperas.some((e) => e.data === o.date && e.preferido === o.hora))
+    .slice(0, 3);
 
   // Contato e último pedido lembrados neste navegador
   useEffect(() => {
@@ -411,9 +417,23 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   useEffect(() => {
     try {
       const lidas: unknown = JSON.parse(localStorage.getItem(ESPERA_KEY(tenantId)) ?? "[]");
-      if (Array.isArray(lidas)) setEsperas(lidas.filter((e: Espera) => e && typeof e.id === "string" && typeof e.token === "string" && typeof e.data === "string" && typeof e.preferido === "string" && e.data >= today)); // eslint-disable-line react-hooks/set-state-in-effect -- leitura única do localStorage
+      if (!Array.isArray(lidas)) return;
+      const validas = lidas.filter((e: Espera) => e && typeof e.id === "string" && typeof e.token === "string" && typeof e.data === "string" && typeof e.preferido === "string" && e.data >= today) as Espera[];
+      setEsperas(validas); // eslint-disable-line react-hooks/set-state-in-effect -- leitura única do localStorage
+      if (!validas.length) return;
+      // a que virou agendamento, venceu ou saiu pelo WhatsApp deixa de aparecer como "esperando"
+      fetch("/api/espera", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ acao: "ativas", tenantId, itens: validas.slice(0, 10).map(({ id, token }) => ({ id, token })) }),
+      })
+        .then((r) => r.json() as Promise<{ ok: boolean; ids?: string[] }>)
+        .then((r) => {
+          if (r.ok && r.ids) guardaEsperas((l) => l.filter((e) => r.ids!.includes(e.id)));
+        })
+        .catch(() => {});
     } catch {}
-  }, [tenantId, today]);
+  }, [tenantId, today]); // eslint-disable-line react-hooks/exhaustive-deps -- guardaEsperas só usa o setter
 
   // a vaga que estava ocupada voltou (agenda recarregada): a folha vira reserva normal, no horário esperado
   useEffect(() => {
@@ -524,7 +544,7 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
     setEscolha({ hora: v.hora, staffId: v.staffId });
     setModo("agendar");
     setVagouNota(false);
-    setTrocar(false);
+    setTrocaPara(null);
     setTomado(null);
     setSubmitError("");
     setFolha("confirmar");
@@ -692,18 +712,17 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
       // agendou justamente o horário que esperava: a espera acabou
       const mesma = esperas.find((e) => e.data === vaga.date && e.preferido === vaga.hora);
       if (mesma) void sairDaFila(mesma);
-      const espera = esperas.find((e) => e.data === vaga.date && e.preferido !== vaga.hora);
-      if (comOcupados && trocar && espera && aceiteWhatsapp && !contato && result.id) {
+      if (comOcupados && trocaPara && trocaPara !== vaga.hora && !contato && result.id) {
         const token = novoToken();
         fetch("/api/espera", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ acao: "entrar", tenantId, serviceIds, staffId, date: vaga.date, customerName, customerPhone, preferido: espera.preferido, aceite: true, termoEspera: TERMO_ESPERA_VERSAO, token, agendamentoId: result.id }),
+          body: JSON.stringify({ acao: "entrar", tenantId, serviceIds, staffId, date: vaga.date, customerName, customerPhone, preferido: trocaPara, aceite: true, termoEspera: TERMO_ESPERA_VERSAO, token, agendamentoId: result.id }),
         })
           .then((r) => r.json() as Promise<RespostaEspera>)
           .then((r) => {
             // o servidor fecha a espera simples do dia; aqui ela vira a troca
-            if (r.ok) guardaEsperas((l) => [...l.filter((e) => e.id !== espera.id && e.id !== r.id), { id: r.id, token, data: r.data, preferido: r.preferido, tipo: r.tipo }]);
+            if (r.ok) guardaEsperas((l) => [...l.filter((e) => !(e.data === vaga.date && e.tipo === "esperar") && e.id !== r.id), { id: r.id, token, data: r.data, preferido: r.preferido, tipo: r.tipo }]);
           })
           .catch(() => {});
       }
@@ -1095,7 +1114,8 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
   // A fila deste dia: o aviso fica à vista até a pessoa sair (ou o dia passar)
   // só com a fila ligada (sem o módulo, nada muda na página), uma vez só, no topo
   const esperasDoDia = comOcupados ? esperas : [];
-  const esperaDaTroca = esperas.find((e) => e.data === date && e.preferido !== escolha?.hora);
+  // lotados deste dia para a troca (com a fila ligada; pela ficha do painel não há)
+  const lotadosDoDia = modo === "agendar" && comOcupados && !contato ? (dia?.ocupados ?? []) : [];
   const bannerEsperas = (
     <>
       {esperasDoDia.map((e) => (
@@ -1162,6 +1182,28 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 <span className={cn(MONO, "text-base font-semibold")}>{v.hora}</span>
               </button>
             ))}
+          </div>
+        )}
+        {ocupadosProximos.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <span className="text-[13px] font-semibold">Lotado? Avisamos se vagar</span>
+            <div className="grid grid-cols-3 gap-2">
+              {ocupadosProximos.map((o) => (
+                <button
+                  key={`${o.date}${o.hora}`}
+                  type="button"
+                  onClick={() => abrirEspera(o.date, o.hora)}
+                  aria-label={`${rotuloDia(o.date, today)} ${o.hora}, ocupado, pedir aviso se vagar`}
+                  className="flex h-14 min-w-0 flex-col items-center justify-center rounded-xl border border-dashed border-[#A39C89] bg-[#F3F0E8] text-[#5C5747]"
+                >
+                  <span className="text-xs">{rotuloDia(o.date, today)}</span>
+                  <span className="flex items-center gap-1">
+                    <span className={cn(MONO, "text-base font-semibold")}>{o.hora}</span>
+                    <Sino className="size-3" />
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {!semanaCheia && (
@@ -1701,17 +1743,30 @@ export function BookingForm({ tenantId, today, name, phone, rating, reviews, cit
                 </label>
               )}
 
-              {modo === "agendar" && comOcupados && esperaDaTroca && aceiteWhatsapp && !contato && (
-                <label className="flex min-h-11 items-start gap-3 text-sm leading-snug">
-                  <input
-                    type="checkbox"
-                    checked={trocar}
-                    onChange={(e) => setTrocar(e.target.checked)}
-                    className="mt-0.5 size-5 shrink-0 accent-[#17150F] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17150F]"
-                  />
-                  {/* o texto gravado como evidência, com a hora no lugar de "o horário que eu queria" */}
-                  <span>{TEXTO_ACEITE_TROCA.replace("o horário que eu queria", `o horário das ${esperaDaTroca.preferido}`)}</span>
-                </label>
+              {lotadosDoDia.length > 0 && (
+                <div className="flex flex-col gap-2 rounded-xl bg-[#F6F4EE] p-3">
+                  <span className="text-[13px] font-semibold">Preferia um horário lotado? Se vagar, avisamos para trocar</span>
+                  <div className="flex flex-wrap gap-2">
+                    {lotadosDoDia.map((hora) => (
+                      <button
+                        key={hora}
+                        type="button"
+                        aria-pressed={trocaPara === hora}
+                        onClick={() => setTrocaPara(trocaPara === hora ? null : hora)}
+                        className={cn(
+                          MONO,
+                          "flex h-11 items-center gap-1 rounded-xl px-3 text-[15px]",
+                          trocaPara === hora ? "border-2 border-[#2C6A53] bg-[#EEF5F1] text-[#1F4D3C]" : "border border-dashed border-[#A39C89] bg-white text-[#5C5747]",
+                        )}
+                      >
+                        {hora}
+                        <Sino className="size-3" />
+                      </button>
+                    ))}
+                  </div>
+                  {/* o texto gravado como evidência, com a hora no lugar de "o horário que eu queria"; escolher a hora é o aceite */}
+                  {trocaPara && <p className="text-xs leading-snug text-[#5C5747]">{TEXTO_ACEITE_TROCA.replace("o horário que eu queria", `o horário das ${trocaPara}`)}</p>}
+                </div>
               )}
 
               {submitError && (
