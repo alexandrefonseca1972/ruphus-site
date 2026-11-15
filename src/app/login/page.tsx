@@ -223,7 +223,8 @@ function Login() {
         // o nome só entra no token depois de renovar, e é dele que o servidor lê
         .then(() => user.getIdToken(true))
         .catch(() => {});
-      const retorno = urlDeVerificacao(location.origin, proximo);
+      // sem convite, o link do e-mail volta ao /painel, onde o cadastro do negócio espera
+      const retorno = urlDeVerificacao(location.origin, proximo || "/painel");
       await sendEmailVerification(user, retorno ? { url: retorno } : undefined).catch(() => {});
     });
   }

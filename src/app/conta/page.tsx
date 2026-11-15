@@ -2,7 +2,7 @@
 
 import { applyActionCode, confirmPasswordReset, verifyPasswordResetCode } from "firebase/auth";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +34,7 @@ const APLICAR: Record<string, { titulo: string; botao: string; feito: string }> 
 };
 
 function Acao() {
+  const router = useRouter();
   const params = useSearchParams();
   const modo = params.get("mode") ?? "";
   const codigo = params.get("oobCode") ?? "";
@@ -54,10 +55,13 @@ function Acao() {
 
   async function rodar(acao: () => Promise<string>) {
     setErro("");
-    setRetorno(destinoInterno(params.get("continueUrl"), location.origin) || "/login");
+    // e-mail confirmado: o próximo passo é o cadastro do negócio, não o login de novo
+    const destino = destinoInterno(params.get("continueUrl"), location.origin) || (modo === "verifyEmail" ? "/painel" : "/login");
+    setRetorno(destino);
     setBusy(true);
     try {
       setFeito(await acao());
+      if (modo === "verifyEmail") router.replace(destino);
     } catch (e) {
       setErro(errorMessage(e));
     } finally {

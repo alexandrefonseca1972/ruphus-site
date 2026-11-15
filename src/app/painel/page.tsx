@@ -3,7 +3,7 @@
 import { onAuthStateChanged, type User } from "firebase/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ehAdminDaPlataforma } from "@/app/admin/actions";
 import { AccountMenu } from "@/app/[tenant]/account-menu";
 import { serifa, useSerifaNoBody } from "@/app/fonte-serifa";
@@ -20,6 +20,7 @@ import { CONTRATO_RECUSADO } from "@/lib/contrato";
 import { criarNegocioAction, meusNegocios, minhaCota, slugLivre } from "./actions";
 import { lerUtm, pixel } from "@/lib/anuncios";
 import { CamposNegocio, errosDe, VAZIO } from "@/components/campos-negocio";
+import { ConfirmarEmail } from "./confirmar-email";
 
 type Negocio = { id: string; name: string; role: Role };
 
@@ -48,6 +49,9 @@ export default function MeusNegocios() {
   const [negocios, setNegocios] = useState<Negocio[] | null>(null);
   const [erro, setErro] = useState("");
   const [cadastrando, setCadastrando] = useState(false);
+  // conta com senha e e-mail ainda sem confirmar: a confirmação vem antes do formulário
+  const [semConfirmar, setSemConfirmar] = useState(false);
+  const confirmou = useCallback(() => setSemConfirmar(false), []);
   // null = sem limite (admin da plataforma) ou ainda sem resposta
   const [cota, setCota] = useState<{ usados: number; limite: number | null } | null>(null);
   const form = useRef<HTMLElement>(null);
@@ -64,6 +68,7 @@ export default function MeusNegocios() {
         const admin = await ehAdminDaPlataforma(await u.getIdToken()).catch(() => ({ ok: false as const }));
         if (admin.ok) return router.replace("/admin");
         setUser(u);
+        setSemConfirmar(!!u.email && !u.emailVerified);
         minhaCota(await u.getIdToken()).then((c) => c.ok && setCota({ usados: c.usados, limite: c.limite }));
         // falha ao ler (rede, site reiniciando) não é "nenhum negócio": mostrar o cadastro do
         // primeiro negócio aqui mandava o dono preencher tudo para esbarrar na cota no fim
@@ -137,7 +142,11 @@ export default function MeusNegocios() {
                   ))}
                 </ol>
               </section>
-              <NegocioForm titulo="Cadastrar negócio" onCriado={(slug) => router.push(`/${slug}`)} />
+              {semConfirmar && user ? (
+                <ConfirmarEmail user={user} onConfirmado={confirmou} />
+              ) : (
+                <NegocioForm titulo="Cadastrar negócio" onCriado={(slug) => router.push(`/${slug}`)} onSemConfirmar={() => setSemConfirmar(true)} />
+              )}
             </div>
           </>
         ) : (
@@ -200,14 +209,18 @@ export default function MeusNegocios() {
                 <Mais /> Cadastrar outro negócio
               </Button>
             )}
-            {cadastrando && (
-              <NegocioForm
-                ref={form}
-                titulo="Cadastrar outro negócio"
-                onCriado={(slug) => router.push(`/${slug}`)}
-                onCancelar={() => setCadastrando(false)}
-              />
-            )}
+            {cadastrando &&
+              (semConfirmar && user ? (
+                <ConfirmarEmail user={user} onConfirmado={confirmou} />
+              ) : (
+                <NegocioForm
+                  ref={form}
+                  titulo="Cadastrar outro negócio"
+                  onCriado={(slug) => router.push(`/${slug}`)}
+                  onCancelar={() => setCadastrando(false)}
+                  onSemConfirmar={() => setSemConfirmar(true)}
+                />
+              ))}
           </>
         )}
       </main>
@@ -236,24 +249,49 @@ const Mais = () => (
 
 type Disponibilidade = "" | "verificando" | "livre" | "ocupado";
 
+/** O que já foi digitado fica no aparelho até o negócio ser criado: trocar de aba, recarregar ou
+ *  voltar do e-mail de confirmação não apaga o formulário. Por conta, para o aparelho dividido.
+ *  O aceite dos Termos não entra: é marcado de novo, de propósito. */
+type Rascunho = { name: string; slug: string; slugEditado: boolean; campos: typeof VAZIO };
+const chaveRascunho = () => `ruphus:rascunho-negocio:${auth.currentUser?.uid ?? ""}`;
+function lerRascunho(): Rascunho | null {
+  try {
+    const r = JSON.parse(localStorage.getItem(chaveRascunho()) ?? "null") as Rascunho | null;
+    return r && typeof r.name === "string" && typeof r.slug === "string" ? { ...r, campos: { ...VAZIO, ...r.campos } } : null;
+  } catch {
+    return null;
+  }
+}
+function gravarRascunho(r: Rascunho | null) {
+  try {
+    if (r) localStorage.setItem(chaveRascunho(), JSON.stringify(r));
+    else localStorage.removeItem(chaveRascunho());
+  } catch {
+    // navegação privada ou armazenamento cheio: o formulário só não sobrevive à recarga
+  }
+}
+
 function NegocioForm({
   ref,
   titulo,
   onCriado,
   onCancelar,
+  onSemConfirmar,
 }: {
   ref?: React.Ref<HTMLElement>;
   titulo: string;
   onCriado: (slug: string) => void;
   onCancelar?: () => void;
+  onSemConfirmar: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
+  const [rascunho] = useState(lerRascunho);
+  const [name, setName] = useState(rascunho?.name ?? "");
+  const [slug, setSlug] = useState(rascunho?.slug ?? "");
   // Enquanto a pessoa não mexe no endereço, ele acompanha o nome
-  const [slugEditado, setSlugEditado] = useState(false);
+  const [slugEditado, setSlugEditado] = useState(rascunho?.slugEditado ?? false);
   const [slugAberto, setSlugAberto] = useState(false);
   const [touched, setTouched] = useState({ name: false, slug: false });
-  const [campos, setCampos] = useState(VAZIO);
+  const [campos, setCampos] = useState(rascunho?.campos ?? VAZIO);
   // os campos do negócio só mostram erro depois da primeira tentativa de criar
   const [tentou, setTentou] = useState(false);
   const [aceito, setAceito] = useState(false);
@@ -261,6 +299,11 @@ function NegocioForm({
   const [disp, setDisp] = useState<{ para: string; estado: Disponibilidade }>({ para: "", estado: "" });
   const [erro, setErro] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const vazio = !name && !slug && JSON.stringify(campos) === JSON.stringify(VAZIO);
+    gravarRascunho(vazio ? null : { name, slug, slugEditado, campos });
+  }, [name, slug, slugEditado, campos]);
 
   const final = slugify(slug);
   const erroNome = TenantInput.shape.name.safeParse(name).error?.issues[0].message ?? "";
@@ -296,6 +339,11 @@ function NegocioForm({
     // quem confirmou o e-mail em outra aba: o token só sabe depois de recarregar a conta e renovar
     const conta = auth.currentUser;
     if (conta && !conta.emailVerified) await conta.reload().then(() => conta.getIdToken(true)).catch(() => {});
+    // ainda sem confirmar: volta para a espera (o que foi preenchido fica guardado)
+    if (conta?.email && !conta.emailVerified) {
+      setBusy(false);
+      return onSemConfirmar();
+    }
     // No servidor: é lá que o limite de negócios por conta é conferido
     // o anúncio que trouxe a pessoa vai junto: é o que o funil do /admin agrupa por campanha
     const r = await criarNegocioAction(await idToken(), { name, slug: final, ...campos }, lerUtm(), aceito).catch(() => ({
@@ -305,6 +353,7 @@ function NegocioForm({
     if (r.ok) {
       // a conversão que os anúncios otimizam: negócio criado, não só conta aberta
       void pixel("CompleteRegistration");
+      gravarRascunho(null);
       return onCriado(r.slug);
     }
     setErro(r.error);

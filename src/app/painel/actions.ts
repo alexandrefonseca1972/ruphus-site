@@ -61,7 +61,7 @@ export async function criarNegocioAction(idToken: string, input: unknown, utm: u
     // dispara convites e recibos em nome da Ruphus
     if (!user.email) {
       throw new UserError(user.emailPendente
-        ? `Confirme o e-mail ${user.emailPendente} pelo link que enviamos e toque em Criar de novo.`
+        ? `Falta confirmar o e-mail ${user.emailPendente}. Abra o link que enviamos e o cadastro continua.`
         : "Entre com uma conta de e-mail confirmado para cadastrar o negócio.");
     }
     const slug = await criarNegocio(adminDb, user, input, utm, await dadosDoAceite(user, "cadastro"));

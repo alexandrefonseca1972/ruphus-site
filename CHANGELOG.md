@@ -5,6 +5,7 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- Cadastro do primeiro negócio: quem criou conta com e-mail e senha confirma o e-mail antes do formulário, numa tela que confere sozinha e segue assim que o link é aberto (aqui ou no celular), com “Reenviar e-mail” e “Usar outro e-mail”. Antes, a pessoa preenchia tudo e só no “Criar negócio” descobria que faltava confirmar. O que foi preenchido fica salvo no aparelho até o negócio ser criado, e o “Confirmar e-mail” do link leva direto ao /painel em vez do login.
 - Ficha do cliente (painel do dono): o cadastro ganha CPF, outro telefone e “Cuidados no atendimento” (alergias, gestação…), além de nascimento e e-mail. Os cuidados aparecem numa faixa no topo da ficha para toda a equipe. O cadastro abre em leitura com “Editar”; máscaras e validação em tempo real (data sem dia ou mês impossível, CPF com dígito verificador, telefone com DDD, sugestão para e-mail com domínio errado), conferidas de novo no servidor. Só dono e administrador editam; a equipe vê o CPF mascarado.
 - Ficha do cliente: botão “Agendar” abre a página de agendamento com nome e telefone já preenchidos. Pela ficha o horário sai sem aceite de WhatsApp (o aceite é do próprio cliente) e o contato do navegador do dono não é trocado.
 - Lista de clientes: a busca acha por nome, e-mail, etiqueta, celular (também digitado sem o 9), outro telefone e CPF.
