@@ -6,6 +6,7 @@ import { atualizarParada, avisarFalhaDeEnvio, lerIndice, NAO_SAI_A_TEMPO } from 
 import { codigoDoAgendamento, executarComandoPendente, idDoComando, registrarMensagemRecebida } from "@/lib/whatsapp.server";
 import { confirmarDono, conexaoOficial, instanciaPlataforma, lerBotao, negocioDoComando, negociosDoDono, responderForaDoFluxo, segredoPlataforma, usaCanalOficial } from "@/lib/canal-oficial.server";
 import { acaoDoCliente, pedidoDesatualizado } from "@/lib/botoes-whatsapp.server";
+import { respostaDaEspera } from "@/lib/fila-espera-botoes.server";
 import { atenderProspeccao, configProspeccao, falhaDeEnvio, resumoDoErro } from "@/lib/prospeccao-agente.server";
 
 // Onde o atendys avisa o que acontece no número da plataforma (canal oficial): mensagem recebida
@@ -138,8 +139,13 @@ export async function POST(req: Request) {
       if (oficial) after(() => enviarTexto(oficial, evento.phone!, texto, OPTIN_DONO, undefined, { resposta: true }).catch((e) => console.error("[atendys] resposta ao Sou eu", e)));
       return responder(200, { ok: true });
     }
-    // F5: respostas da fila de espera
-    if (botao?.acao.startsWith("e")) return responder(200, { ok: true });
+    // F5: respostas da fila de espera (eq, es, en, et, em): mesma caixa de entrada como dedupe
+    if (botao?.acao.startsWith("e")) {
+      if (!(await usaCanalOficial(adminDb, botao.slug))) return responder(200, { ok: true });
+      const nova = await registrarMensagemRecebida(adminDb, botao.slug, { phone: evento.phone, messageId: evento.messageId, data: { text: evento.text ?? "" }, timestamp: evento.at });
+      if (nova) after(() => respostaDaEspera(adminDb, botao, evento.phone!).then((r) => console.log(`[atendys] fila de espera em ${botao.slug}: ${r}`)).catch((e) => console.error("[atendys] resposta da fila de espera", e)));
+      return responder(200, { ok: true });
+    }
     // botão do cliente (lembrete/lista de horários): a caixa de entrada é o dedupe das reentregas
     if (botao && botao.acao.startsWith("c")) {
       // id é dado de fora: só grava na caixa de um negócio do canal oficial (o resto confere acaoDoCliente)

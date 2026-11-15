@@ -77,6 +77,7 @@ jobs:
       - run: npm run test:espera-f2
       - run: npm run test:espera-f3
       - run: npm run test:espera-f4
+      - run: npm run test:espera-f5
       - run: npm run test:gerador-banco
       - run: npm run test:booking
       - run: npm run test:scale

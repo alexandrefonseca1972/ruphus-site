@@ -51,10 +51,10 @@ O checklist visual fica em `docs/plano-fila-espera.html`. A página recarrega a 
 - [x] F4.G Gate
 
 ## Fase 5: respostas no WhatsApp
-- [ ] F5.1 Botões `eq`, `es`, `en`, `et` e `em2` em `botoes-whatsapp.server.ts` (`book`/`reschedule` e Pix)
-- [ ] F5.2 Avisos ao dono e `origem:"espera"` no histórico
-- [ ] F5.3 `espera-botoes.test.mts` e script `test:espera-f5`; regressão
-- [ ] F5.G Gate
+- [x] F5.1 Botões `eq`, `es`, `en`, `et` e `em2` em `botoes-whatsapp.server.ts` (`book`/`reschedule` e Pix)
+- [x] F5.2 Avisos ao dono e `origem:"espera"` no histórico
+- [x] F5.3 `espera-botoes.test.mts` e script `test:espera-f5`; regressão
+- [x] F5.G Gate
 
 ## Fase 6: acabamento
 - [ ] F6.1 Manual (`ajuda/conteudo.tsx`)
@@ -115,3 +115,16 @@ O checklist visual fica em `docs/plano-fila-espera.html`. A página recarrega a 
   - Webhook ignora os botões `e*` até a F5.
 
   Textos para a Meta em `docs/fila-espera/templates-meta.md` (🙋 dono). Gate: tsc, lint e build verdes; `test:espera-f1` a `f4`, `canal-oficial`, `consumo`, `integracoes`, `booking`, `sinal`, `rules` e `admin` verdes. `test:atendys` falha também no `main` (b0a3586f), antes do branch: a previsão de saldo ("deve acabar em ~N dias") depende da data. Não é da fila; fica anotado para o dono.
+- 2026-11-15: F5 (Haiku: respostas aos botões; Opus: revisão com 2 MUST-FIX e 3 médias, corrigidas por um executor Opus).
+  - A vaga recusada (es/en/em ou beco sem saída) é reoferecida na hora (`reofertar`).
+  - Botão antigo não reagenda horário cancelado, e o `extra` precisa bater com o aviso atual.
+  - Corrida "Quero" × expiração: a cliente fica `agendada`.
+  - Texto sem prometer confirmação pelo WhatsApp (o agendamento nasce com `aceiteWhatsapp: false`, porque o aceite da espera não cobre as mensagens do atendimento).
+  - Troca só com o mesmo profissional.
+  - Troca com sinal ou pagamento vai para o negócio.
+  - "Quero" numa espera de troca é recusado.
+  - Telefone sem truncar.
+  - Push de oferta agrupado por vaga.
+  - Prazo do sinal com data.
+
+  Gate: tsc, lint e build verdes; `test:espera-f1` a `f5`, `canal-oficial`, `consumo`, `booking`, `sinal`, `rules`, `admin` e `integracoes` verdes. `test:atendys` tem só a falha que já existia no `main` (previsão de saldo, dependente da data).

@@ -294,6 +294,18 @@ for (const min of [11, 22, 33]) await expirarAvisos(db, { agora: new Date(base +
 assert.deepEqual(doDia(d11).map((a) => a.telefone), [20, 21, 22].map((n) => customerKey(fone(n))));
 assert.equal(await status(idC[3]), "aguardando");
 
+// 16b. Troca só com o profissional do agendamento: vagou 10:00 com a Bia, o agendamento é com a Ana
+const d12 = dia(18);
+await t.collection("staff").doc("bia").set({ name: "Bia", serviceIds: ["corte"], hours, active: true });
+const aptAna = await marcar(d12, "09:00", "Tadeu Lins", fone(24));
+const aptBia = agendou(await book(db, { tenantId: slug, serviceIds: ["corte"], staffId: "bia", date: d12, time: "10:00", customerName: "Outro Cliente", customerPhone: fone(25) }));
+const idTB = "motor-troca-bia";
+await esperaDireta(t.collection("espera").doc(idTB), fone(24), d12, { tipo: "troca", agendamentoId: aptAna, preferido: "10:00" });
+await cancelar(aptBia);
+assert.equal((await rodar()).avisos, 0);
+assert.deepEqual(doDia(d12), [], "a troca não recebe vaga de outro profissional");
+assert.equal(await status(idTB), "aguardando");
+
 // 17. Trava do cron: com outra execução em andamento, a rota sai sem trabalho
 process.env.CRON_SECRET = "segredo-teste";
 await db.doc("config/cron").set({ esperaLease: { ate: Date.now() + 60_000 } }, { merge: true });

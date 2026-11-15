@@ -22,6 +22,7 @@ import { chaveDeEnvio, enviarTemplateSemOperador, saiuDepoisDoAceite, type OptIn
 import { conexaoOficial, esperaNoWhatsApp, templateEspera } from "@/lib/canal-oficial.server";
 import { SemSaldo } from "@/lib/consumo.server";
 import { alertarAdmin } from "@/lib/alerta-admin.server";
+import { avisar } from "@/lib/avisos.server";
 import { DEMO } from "@/lib/demo";
 
 // Entrada e saída da fila de espera pela página pública. Quem entra recebe um token (só o hash é gravado):
@@ -168,7 +169,7 @@ type Servico = { name: string; durationMin: number };
 type Negocio = { id: string; nome: string; fuso: string; ativo: boolean; servicos: Map<string, Servico> };
 /** Uma vaga: o horário que ficou livre, [inicio, ateMin) no dia. exato: só o início já oferecido (reoferta). */
 type Vaga = { data: string; inicio: string; ateMin: number; staffId: string; eventoId: string; tentativa: number; exato: boolean };
-type AvisoAtual = { data: string; inicio: string; ateMin: number; staffId: string; eventoId: string; tentativa: number; prazo: number };
+export type AvisoAtual = { data: string; inicio: string; ateMin: number; staffId: string; eventoId: string; tentativa: number; prazo: number };
 type Resultado = "avisada" | "pulou" | "saiu" | "nao-sai" | "ofertada" | "sem-saldo" | "sem-canal" | "falhou";
 /** Uma execução do cron: relógio, envio e o que já foi lido (negócio por slug, grade por serviço/equipe/dia). */
 type Execucao = { db: Firestore; enviar: Enviar; agora: Date; negocios: Map<string, Promise<Negocio | null>>; grades: Map<string, Promise<DiaDaAgenda | null>> };
@@ -318,6 +319,9 @@ async function notificar(x: Execucao, t: Negocio, e: Espera, vaga: Vaga, h: { ho
       return "nao-sai";
     }
     if (destino === "falhou") throw new Error(`aviso da espera ${e.id}: ${destino}`);
+    // o negócio vê que o aviso saiu (a cliente já recebeu o WhatsApp)
+    avisar(db, t.id, { title: "Fila de espera", body: `Avisamos ${e.nome.trim().split(/\s+/)[0] ?? ""} do horário ${quando}.`, url: `/${t.id}`, tag: `espera-vaga-${vaga.eventoId}` }, { soGestores: true })
+      .catch((erro) => console.error(`[fila] aviso ao negócio ${t.id}`, erro));
     return "avisada";
   } catch (erro) {
     // o cliente pediu SAIR antes deste aviso: não é falha, e a espera fica fora da fila
@@ -344,6 +348,8 @@ async function ofertar(x: Execucao, t: Negocio, vaga: Vaga): Promise<Resultado |
     const servicos = e.serviceIds.map((id) => t.servicos.get(id));
     if (servicos.some((s) => !s)) continue; // serviço apagado do catálogo: não há como garantir o horário
     if (e.staffId && vaga.staffId && e.staffId !== vaga.staffId) continue; // vagou com outra pessoa da equipe
+    // a troca remarca com o profissional do agendamento: vaga de outra pessoa da equipe não serve
+    if (e.tipo === "troca" && String((await x.db.doc(`tenants/${t.id}/appointments/${e.agendamentoId ?? "sem-agendamento"}`).get()).get("staffId") ?? "") !== vaga.staffId) continue;
     if ((await x.db.doc(`tenants/${t.id}/espera/${e.id}/envios/${vaga.eventoId}`).get()).exists) continue; // já avisada por este evento
     const duracaoMin = servicos.reduce((soma, s) => soma + s!.durationMin, 0);
     // a grade de quem vagou: "qualquer profissional" vê a agenda de quem liberou o horário
@@ -442,6 +448,18 @@ export async function processarLiberacoes(db: Firestore, opts: { agora?: Date; e
   return { eventos: feitos.length, avisos };
 }
 
+/** A vaga de um aviso que acabou sem reserva, para a próxima espera: o mesmo início, a tentativa seguinte. */
+const vagaDaReoferta = (a: AvisoAtual): Vaga => ({ data: a.data, inicio: a.inicio, ateMin: a.ateMin, staffId: a.staffId, eventoId: a.eventoId, tentativa: a.tentativa + 1, exato: true });
+
+/** A espera largou o aviso antes do prazo (botão do WhatsApp): a vaga vai já à próxima espera, com a mesma
+ *  marca e o mesmo teto de avisos por vaga do expirarAvisos. Quem chama já tirou a espera do aviso. */
+export async function reofertar(db: Firestore, slug: string, aviso: AvisoAtual, opts: { agora?: Date; enviar?: Enviar } = {}): Promise<Resultado | "vazio" | "parou"> {
+  if (!ligado() || aviso.tentativa >= MAX_AVISOS_POR_VAGA) return "parou";
+  const x = execucao(db, opts);
+  const t = await lerNegocio(x, slug);
+  return t?.ativo ? ofertar(x, t, vagaDaReoferta(aviso)) : "parou";
+}
+
 /** Avisos sem resposta no prazo voltam a aguardando e a vaga vai à próxima espera (no mesmo início); esperas
  *  cujo dia (ou a hora da troca) já passou expiram, com o módulo ligado ou não. */
 export async function expirarAvisos(db: Firestore, opts: { agora?: Date; enviar?: Enviar } = {}): Promise<{ expiradas: number; avisos: number }> {
@@ -465,7 +483,7 @@ export async function expirarAvisos(db: Firestore, opts: { agora?: Date; enviar?
       });
       if (mudou && !t?.ativo) expiradas++;
       if (!mudou || !t?.ativo || !com || aviso.tentativa >= MAX_AVISOS_POR_VAGA) continue;
-      const r = await ofertar(x, t, { data: aviso.data, inicio: aviso.inicio, ateMin: aviso.ateMin, staffId: aviso.staffId, eventoId: aviso.eventoId, tentativa: aviso.tentativa + 1, exato: true });
+      const r = await ofertar(x, t, vagaDaReoferta(aviso));
       if (r === "avisada") avisos++;
     } catch (erro) {
       console.error(`[fila] expirar aviso ${d.ref.path}`, erro);

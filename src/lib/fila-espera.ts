@@ -29,6 +29,8 @@ export type Espera = {
   data: string;
   preferido: string;
   agendamentoId?: string;
+  /** só serve o horário preferido ("Só serve o meu" no WhatsApp) */
+  exato?: boolean;
   status: StatusEspera;
   criadaEm: number;
   avisos: { inicio: string; staffId: string; em: number }[];
@@ -69,7 +71,7 @@ export function compativel(
     (e.staffId === null || e.staffId === vaga.staffId) &&
     inicioMin + ctx.duracaoMin <= vaga.livreAteMin &&
     (vaga.data > ctx.hoje || (vaga.data === ctx.hoje && inicioMin - ctx.agoraMin >= ANTECEDENCIA_MIN)) &&
-    (e.tipo !== "troca" || vaga.inicio === e.preferido)
+    ((e.tipo !== "troca" && !e.exato) || vaga.inicio === e.preferido)
   );
 }
 
