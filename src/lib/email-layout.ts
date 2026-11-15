@@ -3,6 +3,12 @@
 // Sem React nem Firebase: o HTML sai daqui e o texto puro também, porque é ele que aparece onde o
 // HTML não é exibido (e o par ajuda a não cair no spam). Tudo que é dado entra escapado.
 
+/** "ALEXANDRE FONSECA" → "Alexandre": a saudação usa só o primeiro nome, sem gritar. */
+export const primeiroNome = (nome?: string | null) => {
+  const p = nome?.trim().split(/\s+/)[0] ?? "";
+  return p ? p.charAt(0).toLocaleUpperCase("pt-BR") + p.slice(1).toLocaleLowerCase("pt-BR") : "";
+};
+
 export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 export type Bloco =
@@ -14,6 +20,8 @@ export type Bloco =
   | { dados: [string, string][] }
   /** passos ou orientação (lista numerada) */
   | { passos: string[]; titulo?: string }
+  /** itens sem ordem (resumo de cláusulas, o que está incluído) */
+  | { lista: string[]; titulo?: string }
   /** texto técnico em fonte fixa (erro, comando da VPS) */
   | { tecnico: string; titulo?: string };
 
@@ -86,6 +94,10 @@ ${b.dados.map(([r, v]) => `<tr><td width="1%" style="padding:10px 24px 10px 0;bo
     return `${b.titulo ? titulo(b.titulo) : ""}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;">
 ${b.passos.map((t, i) => `<tr><td width="34" style="padding:0 0 12px;vertical-align:top;"><span style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:12px;background:${i === 0 ? COR.tinta : "#EFEBE2"};color:${i === 0 ? "#FFFFFF" : COR.tinta};font-size:12px;font-weight:700;">${i + 1}</span></td><td style="padding:2px 0 12px;vertical-align:top;font-size:14px;line-height:1.55;color:${COR.texto};">${linhas(t)}</td></tr>`).join("\n")}
 </table>`;
+  if ("lista" in b)
+    return `${b.titulo ? titulo(b.titulo) : ""}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;background:${COR.caixa};border-radius:14px;"><tr><td style="padding:16px 20px 6px;">
+${b.lista.map((t) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td width="20" style="padding:0 0 10px;vertical-align:top;font-size:14px;line-height:1.55;color:${COR.verde};">&#10003;</td><td style="padding:0 0 10px;vertical-align:top;font-size:14px;line-height:1.55;color:${COR.texto};">${linhas(t)}</td></tr></table>`).join("\n")}
+</td></tr></table>`;
   return `${b.titulo ? titulo(b.titulo) : ""}<pre style="margin:0 0 18px;padding:14px 16px;background:${COR.caixa};border-radius:12px;font-family:Menlo,Consolas,monospace;font-size:12px;line-height:1.5;color:${COR.tinta};white-space:pre-wrap;word-break:break-word;">${esc(b.tecnico)}</pre>`;
 }
 
@@ -108,6 +120,7 @@ function textoDe(b: Bloco) {
   if ("destaque" in b) return `${b.rotulo}: ${b.destaque}${b.nota ? `\n${b.nota}` : ""}`;
   if ("dados" in b) return b.dados.map(([r, v]) => `${r}: ${v}`).join("\n");
   if ("passos" in b) return `${b.titulo ? `${b.titulo}\n` : ""}${b.passos.map((t, i) => `${i + 1}. ${t}`).join("\n")}`;
+  if ("lista" in b) return `${b.titulo ? `${b.titulo}\n` : ""}${b.lista.map((t) => `- ${t}`).join("\n")}`;
   return `${b.titulo ? `${b.titulo}\n` : ""}${b.tecnico}`;
 }
 

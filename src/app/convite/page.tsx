@@ -1,6 +1,7 @@
 "use client";
 
-import { onAuthStateChanged, sendEmailVerification, type User } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
+import { enviarConfirmacao } from "@/lib/confirmacao";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -76,8 +77,7 @@ function Convite() {
     setBusy(true);
     setAviso("");
     try {
-      const url = new URL(`/convite?c=${token}`, location.origin).toString();
-      await sendEmailVerification(usuario, { url });
+      await enviarConfirmacao(usuario, `/convite?c=${token}`);
       setAviso(`Enviamos uma nova confirmação para ${usuario.email}. Depois de confirmar, volte aqui e toque em “Já confirmei, continuar”.`);
     } catch (err) {
       setErro(errorMessage(err));

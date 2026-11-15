@@ -1,6 +1,7 @@
 "use client";
 
-import { sendEmailVerification, type User } from "firebase/auth";
+import type { User } from "firebase/auth";
+import { enviarConfirmacao } from "@/lib/confirmacao";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/auth-errors";
@@ -55,7 +56,7 @@ export function ConfirmarEmail({ user, onConfirmado }: { user: User; onConfirmad
     setAviso(null);
     setEspera(ESPERA_REENVIO_S);
     try {
-      await sendEmailVerification(user, { url: `${location.origin}/painel` });
+      await enviarConfirmacao(user, "/painel");
       setAviso({ ok: true, texto: "Enviamos de novo. Confira também a caixa de spam e promoções." });
     } catch (e) {
       setAviso({ ok: false, texto: errorMessage(e) });

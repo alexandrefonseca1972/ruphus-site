@@ -3,9 +3,10 @@ import { FieldValue } from "firebase-admin/firestore";
 import { after } from "next/server";
 import { headers } from "next/headers";
 import { CONTRATO_VERSAO, emailDoAceite } from "@/lib/contrato";
+import { adminDb } from "@/lib/admin";
 import { enviarEmail } from "@/lib/email.server";
 
-type Quem = { uid: string; email?: string; emailPendente?: string };
+type Quem = { uid: string; email?: string; emailPendente?: string; name?: string };
 
 /** O registro do aceite (aceites/{id}, mais o slug do negócio): quem, quando, de onde e qual versão.
  *
@@ -33,8 +34,14 @@ export function confirmarAceite(user: Quem, slug: string) {
   const para = user.email ?? user.emailPendente;
   if (!para) return;
   // o endereço canônico dos Termos: o link do e-mail tem de abrir em qualquer ambiente
-  after(() =>
-    enviarEmail({ para, ...emailDoAceite({ slug, versao: CONTRATO_VERSAO, quando: new Date(), site: "https://www.ruphus.site" }) })
-      .catch((err) => console.error("[contrato] confirmação do aceite não saiu", slug, err)),
-  );
+  const quando = new Date();
+  after(async () => {
+    try {
+      // o nome do negócio é o que o dono reconhece; sem ele, fica o endereço
+      const negocio = await adminDb.doc(`tenants/${slug}`).get().then((t) => t.get("name") as string | undefined, () => undefined);
+      await enviarEmail({ para, ...emailDoAceite({ slug, versao: CONTRATO_VERSAO, quando, site: "https://www.ruphus.site", negocio, dono: user.name }) });
+    } catch (err) {
+      console.error("[contrato] confirmação do aceite não saiu", slug, err);
+    }
+  });
 }

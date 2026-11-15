@@ -2426,6 +2426,17 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* quem se cadastrou sozinho já é o dono (é o único membro): convite não faz sentido, e o
+                selo contava "mais de um acesso" (cliente + plataforma), como nos sites da fábrica */}
+            {crm[aberto.slug]?.origem === "cadastro" ? (
+            <section aria-label="Convite" className="flex flex-col gap-2 rounded-2xl border border-[#E2DDD3] bg-[#FBFAF8] p-5">
+              <div className="flex items-center gap-2.5">
+                <h3 className="text-[15px] font-semibold">Acesso do dono</h3>
+                <span className="rounded-full bg-[#E7EEE9] px-2.5 py-0.5 text-xs font-semibold text-[#2C6A53]">já tem acesso</span>
+              </div>
+              <p className="text-[13px] leading-relaxed text-[#4A4639]">O dono criou o negócio pelo site, com a conta dele: não precisa de convite.</p>
+            </section>
+            ) : (
             <section aria-label="Convite" className="flex flex-col gap-3 rounded-2xl border border-[#E2DDD3] bg-[#FBFAF8] p-5">
               <div className="flex items-center gap-2.5">
                 <h3 className="text-[15px] font-semibold">Convite do dono</h3>
@@ -2488,6 +2499,7 @@ export default function AdminPage() {
                 </span>
               )}
             </section>
+            )}
 
             {/* O plano inclui 5 profissionais; daqui o admin libera mais para este negócio */}
             <section aria-label="Limite de profissionais" className="flex items-center justify-between gap-3 rounded-2xl border border-[#E2DDD3] p-4">

@@ -4,7 +4,6 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   onAuthStateChanged,
-  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -24,7 +23,8 @@ import { handleSubmit } from "@/lib/utils";
 import { guardarUtm } from "@/lib/anuncios";
 import { DIAS_CONVITE } from "@/lib/limites";
 import { erroNome, mascaraNome } from "@/lib/nome";
-import { destinoInterno, urlDeVerificacao } from "@/lib/retorno";
+import { destinoInterno } from "@/lib/retorno";
+import { enviarConfirmacao } from "@/lib/confirmacao";
 
 // Máscaras: o que o campo aceita enquanto a pessoa digita. O schema confere de novo no envio.
 /** E-mail: sem espaço e em minúsculas, como o Firebase compara. */
@@ -224,8 +224,7 @@ function Login() {
         .then(() => user.getIdToken(true))
         .catch(() => {});
       // sem convite, o link do e-mail volta ao /painel, onde o cadastro do negócio espera
-      const retorno = urlDeVerificacao(location.origin, proximo || "/painel");
-      await sendEmailVerification(user, retorno ? { url: retorno } : undefined).catch(() => {});
+      await enviarConfirmacao(user, destinoInterno(proximo, location.origin) || "/painel").catch(() => {});
     });
   }
 

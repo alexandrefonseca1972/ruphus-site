@@ -5,6 +5,9 @@ o PR, onde está o porquê.
 
 ## Não publicado
 
+- E-mail de confirmação de conta no modelo da Ruphus (antes era o texto padrão do Firebase): saudação pelo primeiro nome, botão “Confirmar e-mail”, próximos passos e o link em www.ruphus.site em vez de firebaseapp.com. Vale ao criar conta, no “Reenviar e-mail” e no convite; até 1 envio por minuto e 8 por dia por conta. Se o servidor não conseguir enviar, sai o e-mail padrão do Firebase.
+- E-mail do aceite dos Termos: nome do negócio (com o endereço), saudação pelo primeiro nome e o resumo do que foi aceito.
+- /admin, negócio criado pelo próprio dono: no lugar de “Convite do dono · pendente”, aparece “Acesso do dono · já tem acesso”.
 - Cadastro de negócio pelo dono: o negócio nasce sem os serviços de exemplo do ramo (preço e duração inventados iam para o link) e sem equipe. O primeiro serviço que o dono cria já cria a equipe com o nome dele e o horário padrão; com uma pessoa só na equipe, cada serviço novo entra para ela (antes ficava "Ninguém faz ainda" e fora do link). Os sites da prospecção continuam com os serviços do ramo.
 - Painel do dono: o item Avaliações do menu só aparece com "Pedir avaliação após concluir o atendimento" ligado em Meu negócio, e muda na hora ao ligar ou desligar.
 - Clientes: botão "Novo cliente" (dono e administrador) cadastra nome e WhatsApp e abre a ficha para completar o resto; antes o cliente só nascia de um agendamento ou de um plano. Telefone já cadastrado não duplica: a tela leva à ficha existente.

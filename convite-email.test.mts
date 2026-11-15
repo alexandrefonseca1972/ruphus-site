@@ -59,6 +59,27 @@ console.log("convite-email html: ok");
   assert.ok(a.texto.includes("12:30"), "horário de Brasília, não UTC");
   assert.ok(a.texto.includes("7 dias"), "lembra o direito de desistência");
   assert.ok(a.html.includes("Ler os Termos aceitos") && a.html.includes("https://www.ruphus.site/termos/1.0"), "no layout da Ruphus, com o botão");
+  assert.ok(a.texto.includes("Sem fidelidade"), "o resumo do que foi aceito vai junto");
+  const b = emailDoAceite({ slug: "bela-vista", versao: "1.0", quando: new Date(), site: "https://www.ruphus.site", negocio: "Salão <Bela> Vista", dono: "ANA MARIA" });
+  assert.ok(b.texto.includes("Oi, Ana!") && b.texto.includes("Salão <Bela> Vista") && b.texto.includes("bela-vista.ruphus.site"), "nome do negócio, endereço e primeiro nome");
+  assert.ok(b.html.includes("Salão &lt;Bela&gt; Vista") && !b.html.includes("<Bela>"), "nome do negócio escapado");
+}
+
+// lista sem ordem: escapada no HTML, com hífen no texto puro
+{
+  const l = montarEmail({ assunto: "L", faixa: "F", titulo: "T", blocos: [{ lista: ["item <a>"], titulo: "Resumo" }], motivo: "M" });
+  assert.ok(l.html.includes("item &lt;a&gt;") && l.texto.includes("Resumo\n- item <a>"));
+}
+
+// confirmação de e-mail no modelo da Ruphus: link em ruphus.site e saudação sem gritar
+{
+  const { emailDeConfirmacao } = await import("@/lib/conta-email");
+  const url = "https://www.ruphus.site/conta?mode=verifyEmail&oobCode=x&continueUrl=https%3A%2F%2Fwww.ruphus.site%2Fpainel";
+  const c = emailDeConfirmacao({ nome: "ALEXANDRE FONSECA", email: "a@b.com", url });
+  assert.ok(c.texto.includes("Oi, Alexandre!") && c.texto.includes("a@b.com"));
+  assert.ok(c.html.includes("Confirmar e-mail") && c.html.includes("oobCode=x&amp;continueUrl"), "botão com o link escapado");
+  assert.ok(!c.html.includes("firebaseapp.com"));
+  assert.ok(emailDeConfirmacao({ email: "a@b.com", url }).texto.startsWith("Confirme seu e-mail") && emailDeConfirmacao({ email: "a@b.com", url }).texto.includes("Oi! Recebemos"));
 }
 
 // layout padrão dos avisos: dado digitado vira texto (sem HTML), e o texto puro acompanha
@@ -84,7 +105,7 @@ console.log("convite-email html: ok");
 
 // A confirmação do e-mail devolve ao convite, sem aceitar retorno para fora do site.
 {
-  const { destinoInterno, urlDeVerificacao } = await import("@/lib/retorno");
+  const { destinoInterno } = await import("@/lib/retorno");
   const origem = "https://www.ruphus.site";
   assert.equal(destinoInterno("/convite?c=abc#entrar", origem), "/convite?c=abc#entrar");
   assert.equal(destinoInterno(`${origem}/convite?c=abc`, origem), "/convite?c=abc");
@@ -92,7 +113,5 @@ console.log("convite-email html: ok");
   assert.equal(destinoInterno("/\\evil.com/convite", origem), "");
   assert.equal(destinoInterno("https://evil.com/convite", origem), "");
   assert.equal(destinoInterno(null, origem), "");
-  assert.equal(urlDeVerificacao(origem, "/convite?c=abc"), `${origem}/convite?c=abc`);
-  assert.equal(urlDeVerificacao(origem, "https://evil.com/convite"), undefined);
   console.log("retorno da verificação: ok");
 }

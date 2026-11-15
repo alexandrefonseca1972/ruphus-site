@@ -9,8 +9,3 @@ export function destinoInterno(valor: string | null | undefined, origem: string)
     return "";
   }
 }
-
-export function urlDeVerificacao(origem: string, destino: string | null | undefined) {
-  const interno = destinoInterno(destino, origem);
-  return interno ? new URL(interno, origem).toString() : undefined;
-}
