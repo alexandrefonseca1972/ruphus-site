@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { idToken as tokenAtual } from "@/lib/firebase";
 import type { DefModelo } from "@/lib/modelos/tipos";
 import { publicar, type Uso, usoDoModelo } from "../modelos-actions";
-import { BOTAO_CLARO, BOTAO_ESCURO, Dialogo, type Item, mudancas, n, Numero } from "./util";
+import { BOTAO_CLARO, BOTAO_ESCURO, Dialogo, type Item, mudancas, Numero, pl } from "./util";
 
 // Publicar os rascunhos: quantos de prospecção mudam e quantos clientes ficam na versão atual,
 // e o que muda em cada modelo. Regra fixa: cliente ativo nunca muda sozinho.
@@ -52,7 +52,7 @@ export function PublicarDialogo({ itens, fora, edicoes, aoFechar, aoPublicar }: 
     return (
       <Dialogo titulo="Publicado" aoFechar={aoFechar}>
         <div className="rounded-[10px] bg-[#E7EEE9] px-3 py-2.5 font-semibold text-[#2C6A53]">
-          No ar. {n(v.reduce((s, x) => s + x.prospeccao, 0))} em prospecção já mostram a versão nova; {n(v.reduce((s, x) => s + x.clientes, 0))} clientes ficaram na versão de antes.
+          No ar. {pl(v.reduce((s, x) => s + x.prospeccao, 0), "em prospecção já mostra", "em prospecção já mostram")} a versão nova; {pl(v.reduce((s, x) => s + x.clientes, 0), "cliente ficou", "clientes ficaram")} na versão de antes.
         </div>
         <div className="flex justify-end">
           <button type="button" onClick={aoFechar} className={BOTAO_ESCURO}>
@@ -66,11 +66,11 @@ export function PublicarDialogo({ itens, fora, edicoes, aoFechar, aoPublicar }: 
   return (
     <Dialogo titulo={`Publicar ${itens.length} ${itens.length === 1 ? "modelo" : "modelos"}?`} aoFechar={aoFechar}>
       <p className="m-0 font-semibold">
-        {contado ? `${n(pros)} em prospecção mudam · ${n(cli)} clientes ficam na versão atual` : "Contando quem usa…"}
+        {contado ? `${pl(pros, "em prospecção muda", "em prospecção mudam")} · ${pl(cli, "cliente fica", "clientes ficam")} na versão atual` : "Contando quem usa…"}
       </p>
       <div className="grid grid-cols-2 gap-2">
-        <Numero valor={pros} texto="em prospecção mudam na hora" />
-        <Numero valor={cli} texto="clientes ativos ficam na versão atual" />
+        <Numero valor={pros} texto={pros === 1 ? "em prospecção muda na hora" : "em prospecção mudam na hora"} />
+        <Numero valor={cli} texto={cli === 1 ? "cliente ativo fica na versão atual" : "clientes ativos ficam na versão atual"} />
       </div>
       <p className="m-0 text-[#6F6A5E]">{REGRA}</p>
       <div>
@@ -85,9 +85,9 @@ export function PublicarDialogo({ itens, fora, edicoes, aoFechar, aoPublicar }: 
               <span className="ml-auto text-right whitespace-nowrap tabular-nums">
                 {usos[i.def.id] ? (
                   <>
-                    {n(usos[i.def.id].prospeccao)} mudam
+                    {pl(usos[i.def.id].prospeccao, "muda", "mudam")}
                     <br />
-                    {n(usos[i.def.id].clientes)} congelados
+                    {pl(usos[i.def.id].clientes, "congelado", "congelados")}
                   </>
                 ) : (
                   "…"

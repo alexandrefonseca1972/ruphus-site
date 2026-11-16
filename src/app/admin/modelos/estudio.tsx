@@ -6,7 +6,7 @@ import { idToken as tokenAtual } from "@/lib/firebase";
 import { SUBS } from "@/lib/gerador";
 import type { Aviso } from "@/lib/modelos/checagem";
 import { type Caso, type DefModelo, doNichoAtivo } from "@/lib/modelos/tipos";
-import { checar, definirPadrao, descartar, ligar, listarModelos, salvarRascunho } from "../modelos-actions";
+import { apagarModelo, checar, definirPadrao, descartar, ligar, listarModelos, salvarRascunho } from "../modelos-actions";
 import { Arvore, SeletorCelular } from "./arvore";
 import { Grade } from "./grade";
 import { type Aba, Inspetor, type Opcoes } from "./inspetor";
@@ -15,7 +15,7 @@ import { negociosDoModelo } from "./negocios-actions";
 import { NovoDialogo } from "./novo-dialogo";
 import { PublicarDialogo } from "./publicar-dialogo";
 import { type FormatoTela, Tela } from "./tela";
-import { BOTAO_CLARO, BOTAO_ESCURO, defDe, familiaDe, FOCO, type Item, type Lista, type Negocios, ramoDe, SERIFA, type Tipo } from "./util";
+import { BOTAO_CLARO, BOTAO_ESCURO, defDe, ehPadrao, familiaDe, FOCO, type Item, type Lista, type Negocios, ramoDe, SERIFA, type Tipo } from "./util";
 
 // Estúdio de modelos (docs/plano-estudio-modelos.md, F6): árvore | tela | inspetor, com a barra de
 // Grade/Editor, caminho, rascunho, Aplicar em lote, Descartar e Publicar.
@@ -54,7 +54,8 @@ export function Estudio({ idToken }: { idToken: string }) {
   const [vista, setVista] = useState<"editor" | "grade">("editor");
   const [busca, setBusca] = useState("");
   const [edicoes, setEdicoes] = useState<Record<string, DefModelo>>({});
-  const [formato, setFormato] = useState<FormatoTela>("cel");
+  // site abre em "Todos", bio no celular (mudarTipo troca junto)
+  const [formato, setFormato] = useState<FormatoTela>("todos");
   const [slugEscolhido, setSlug] = useState("");
   const [caso, setCaso] = useState<Caso>("normal");
   const [comp, setComp] = useState("");
@@ -87,14 +88,15 @@ export function Estudio({ idToken }: { idToken: string }) {
   const lista = listas[tipo];
   const itens = lista?.modelos ?? [];
   const padroes = lista?.padroes ?? {};
-  const item = itens.find((i) => i.def.id === selId) ?? itens.find((i) => padroes[i.def.sub] === i.def.id) ?? itens[0];
+  const item = itens.find((i) => i.def.id === selId) ?? itens.find((i) => ehPadrao(padroes, i.def)) ?? itens[0];
   const def = item ? defDe(item, edicoes) : null;
   const todos = [...(listas.site?.modelos ?? []), ...(listas.bio?.modelos ?? [])];
   const alterados = todos.filter((i) => i.rascunho || edicoes[i.def.id]);
   // vão ao ar só os com rascunho salvo no servidor e sem edição local diferente dele
   const publicaveis = alterados.filter((i) => i.rascunho && (!edicoes[i.def.id] || edicoes[i.def.id] === i.rascunho));
   const fora = alterados.filter((i) => !publicaveis.includes(i)).map((i) => defDe(i, edicoes).nome.trim() || i.def.nome);
-  const travado = Object.keys(falhas).length > 0;
+  // falha de um modelo que saiu da lista (apagado) não trava
+  const travado = Object.keys(falhas).some((id) => todos.some((i) => i.def.id === id));
 
   // negócios do ramo (prévia) e quem usa o modelo (aba Uso)
   const chaveNeg = item ? `${item.def.tipo}:${item.def.sub}:${item.def.id}` : "";
@@ -213,6 +215,7 @@ export function Estudio({ idToken }: { idToken: string }) {
 
   function mudarTipo(t: Tipo) {
     setTipo(t);
+    setFormato(t === "site" ? "todos" : "cel");
     setSelId("");
     setComp("");
   }
@@ -242,7 +245,7 @@ export function Estudio({ idToken }: { idToken: string }) {
   const site = listas.site?.modelos ?? [];
   const busq = busca.trim().toLowerCase();
   const naGrade = itens.filter((i) => !busq || defDe(i, edicoes).nome.toLowerCase().includes(busq));
-  const padrao = padroes[def.sub] === def.id;
+  const padrao = ehPadrao(padroes, def);
   const ramosLote = def.tipo === "site" ? [...new Set(site.filter((i) => i.def.layout === def.layout).map((i) => i.def.sub))] : Object.keys(SUBS).filter(doNichoAtivo);
 
   return (
@@ -261,11 +264,12 @@ export function Estudio({ idToken }: { idToken: string }) {
             </button>
           ))}
         </div>
-        <h2 className={`${SERIFA} m-0 min-w-0 flex-1 truncate text-[22px] leading-none font-normal`}>
-          <span className="text-[#6F6A5E]">
+        {/* no celular o caminho fica numa linha só dele, em cima, e só o nome do modelo é cortado */}
+        <h2 className={`${SERIFA} order-first m-0 flex w-full min-w-0 items-baseline gap-[.3em] text-[22px] leading-tight font-normal whitespace-nowrap min-[980px]:order-none min-[980px]:w-auto min-[980px]:flex-1`}>
+          <span className="max-w-[75%] flex-none truncate text-[#6F6A5E]">
             {def.tipo === "bio" ? "Bio" : "Site"} › {familiaDe(def.sub)} › {ramoDe(def.sub)} ›
-          </span>{" "}
-          {def.nome}
+          </span>
+          <span className="min-w-0 truncate">{def.nome}</span>
         </h2>
         {alterados.length > 0 && (
           <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#8A4520]" aria-live="polite">
@@ -330,6 +334,8 @@ export function Estudio({ idToken }: { idToken: string }) {
             item={item}
             def={def}
             padrao={padrao}
+            padroes={padroes}
+            outros={itens}
             opcoes={opcoesDe(def, site)}
             avisos={avisos?.chave === chaveChk ? avisos.dados : null}
             negocios={neg}
@@ -340,12 +346,20 @@ export function Estudio({ idToken }: { idToken: string }) {
               if (edicoes[def.id]) editar({ ativo });
               recarregar(def.tipo);
             }}
-            definirPadrao={async (on) => {
-              const r = await definirPadrao(await tokenAtual(), def.tipo, def.sub, on ? def.id : null).catch(() => null);
+            definirPadrao={async (sub, id) => {
+              const r = await definirPadrao(await tokenAtual(), def.tipo, sub, id).catch(() => null);
               if (!r?.ok) return setAviso(r?.error ?? "Não foi possível trocar o padrão.");
               recarregar(def.tipo);
             }}
             aoDuplicar={() => setDialogo({ qual: "novo", duplicando: true })}
+            aoApagar={async () => {
+              if (!(await confirmar({ titulo: "Apagar o modelo?", texto: `Apagar o modelo ${def.nome}? Não dá para desfazer.`, acao: "Apagar" }))) return;
+              cancelarPendentes([def.id]);
+              const r = await apagarModelo(await tokenAtual(), def.id).catch(() => null);
+              if (!r?.ok) return setAviso(r?.error ?? "Não foi possível apagar o modelo.");
+              selecionar(itens.find((i) => i.def.id !== def.id)?.def.id ?? "");
+              esquecer([def.id]);
+            }}
             aoLote={() => setDialogo({ qual: "lote" })}
             aoRestaurar={() => esquecer([def.id])}
             cancelarPendente={() => cancelarPendentes([def.id])}
@@ -365,7 +379,7 @@ export function Estudio({ idToken }: { idToken: string }) {
           aoCriar={(id, t) => {
             setDialogo(null);
             recarregar(t);
-            setTipo(t);
+            if (t !== tipo) mudarTipo(t);
             selecionar(id);
           }}
         />

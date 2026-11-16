@@ -66,12 +66,12 @@ assert.equal(await ref("outra-cidade"), undefined, "fora do filtro de cidade");
 
 // desfazer devolve o anterior (apaga o campo de quem não tinha); a segunda vez não faz nada
 await db.doc("tenants/p-livre").update({ "gerado.escolha": { kit: 0, cor: 0 } }); // mexida que não é no modelo
-assert.deepEqual(await desfazerLote(l1.id!), { restaurados: 2, mudaram: 0, viraramClientes: 0, jaDesfeito: false });
+assert.deepEqual(await desfazerLote(l1.id!), { restaurados: 2, mudaram: 0, viraramClientes: 0, semModelo: 0, jaDesfeito: false });
 assert.equal(await ref("p-livre"), undefined, "quem não tinha modelo volta a não ter o campo");
 assert.deepEqual(await ref("p-manual"), { id: "barbearia-2", versao: null });
 assert.ok((await db.doc(`lotes/${l1.id}`).get()).get("desfeitoEm"));
 await db.doc("tenants/p-manual").update({ "gerado.modelo": { id: "barbearia-1", versao: null } });
-assert.deepEqual(await desfazerLote(l1.id!), { restaurados: 0, mudaram: 0, viraramClientes: 0, jaDesfeito: true });
+assert.deepEqual(await desfazerLote(l1.id!), { restaurados: 0, mudaram: 0, viraramClientes: 0, semModelo: 0, jaDesfeito: true });
 assert.deepEqual(await ref("p-manual"), { id: "barbearia-1", versao: null }, "o segundo desfazer não mexe em ninguém");
 await db.doc("tenants/p-manual").update({ "gerado.modelo": { id: "barbearia-2", versao: null } });
 
@@ -106,6 +106,15 @@ assert.deepEqual(await ref("c-cadastro"), { id: "barbearia-2", versao: 1 });
   await db.doc(`lotes/${l.id}`).update({ feitoEm: Timestamp.fromMillis(Date.now() - 8 * 86_400_000) });
   await assert.rejects(desfazerLote(l.id!), /7 dias/);
   await assert.rejects(desfazerLote("nao-existe"), /não encontrado/);
+}
+
+// revisão Fable 2 H1: o modelo de antes saiu do catálogo (apagado): o desfazer não grava ref para o nada
+{
+  await negocio("sm-1", { origem: "prospeccao", modelo: { id: "modelo-apagado", versao: null } }, undefined, "Sumiu");
+  const l = await aplicarLote({ ...f, cidade: "Sumiu" }, {});
+  assert.deepEqual(await desfazerLote(l.id!), { restaurados: 0, mudaram: 0, viraramClientes: 0, semModelo: 1, jaDesfeito: false });
+  assert.deepEqual(await ref("sm-1"), { id: ID, versao: null }, "fica no modelo do lote");
+  await db.doc("tenants/sm-1").delete();
 }
 
 // lote grande: o "antes" vai em partes (teto de 1 MB do doc) e o desfazer as junta
@@ -210,6 +219,23 @@ assert.equal(await ref("c-fechado"), undefined, "a recusa não mexeu em ninguém
   assert.ok(!sem.ok && /confirme/.test(sem.error));
   const torto = await acoes.aplicarLote(admin, { ...f, tipo: "nada" } as never, {});
   assert.ok(!torto.ok && torto.error.startsWith("Confira tipo"));
+}
+
+// revisão Fable 2 M3: padrão da bio por ramo (o que a ação definirPadrao grava; a ação em si chama
+// revalidateTag, que exige requisição). A bio "todos" vale de padrão para qualquer ramo.
+{
+  await definirPadrao("bio", "salao", "bio-galeria");
+  await definirPadrao("bio", "odonto", "bio-galeria");
+  let bio = (await lerConfig()).padroes.bio;
+  assert.deepEqual([bio.salao, bio.odonto], ["bio-galeria", "bio-galeria"]);
+  const l = await acoes.listarModelos(admin, "bio");
+  assert.ok(l.ok && Object.values(l.dados.padroes).filter((x) => x === "bio-galeria").length === 2);
+  const { catalogo } = await lerCatalogoDireto();
+  assert.equal(resolverModelo({ gerado: { sub: "odonto", origem: "prospeccao" } }, catalogo, await lerConfig(), "bio").def?.id, "bio-galeria");
+  await definirPadrao("bio", "salao", null);
+  bio = (await lerConfig()).padroes.bio;
+  assert.deepEqual([bio.salao, bio.odonto], [undefined, "bio-galeria"]);
+  await definirPadrao("bio", "odonto", null);
 }
 
 // ————— F7: congelar quem vira cliente, a gaveta e a migração —————
@@ -383,7 +409,7 @@ assert.equal(await ref("c-fechado"), undefined, "a recusa não mexeu em ninguém
   const l = await aplicarLote({ ...f, cidade: "Sobral" }, {});
   assert.equal(l.total, 2);
   await db.doc("crm/m1-a").set({ estagio: "fechado" });
-  assert.deepEqual(await desfazerLote(l.id!), { restaurados: 1, mudaram: 0, viraramClientes: 1, jaDesfeito: false });
+  assert.deepEqual(await desfazerLote(l.id!), { restaurados: 1, mudaram: 0, viraramClientes: 1, semModelo: 0, jaDesfeito: false });
   assert.deepEqual(await ref("m1-a"), { id: ID, versao: null }, "cliente novo fica no modelo do lote");
   assert.equal(await ref("m1-b"), undefined);
 

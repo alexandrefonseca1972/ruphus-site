@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { confirmar } from "@/components/confirmar";
 import { idToken as tokenAtual } from "@/lib/firebase";
 import type { Aviso } from "@/lib/modelos/checagem";
-import { type DefModelo, LAYOUTS_BIO } from "@/lib/modelos/tipos";
+import { SUBS } from "@/lib/gerador";
+import { type DefModelo, doNichoAtivo, LAYOUTS_BIO } from "@/lib/modelos/tipos";
 import { NOMES_FONTE } from "@/lib/site-editorial";
 import { historico, restaurar, type Uso as ContagemUso, usoDoModelo } from "../modelos-actions";
-import { BIO_PRONTOS, BOTAO_CLARO, BOTAO_ESCURO, CAMPO, FOCO, fotoDoKit, type Item, n, type Negocios, Numero, ramoDe, ROTULO_GRUPO, ROTULO_LAYOUT, SERIFA } from "./util";
+import { BIO_PRONTOS, BOTAO_CLARO, BOTAO_ESCURO, CAMPO, FOCO, fotoDoKit, type Item, n, type Negocios, Numero, pl, ramoDe, ROTULO_GRUPO, ROTULO_LAYOUT, SERIFA } from "./util";
 
 // A coluna da direita: Ajustes, Checar, Números, Uso e Histórico. Ajustes editam a cópia local
 // (rascunho); ligar e padrão valem na hora, como no servidor.
@@ -18,6 +19,8 @@ export type Opcoes = { kits: string[]; paletas: DefModelo["paleta"][] };
 
 const GRP = "grid gap-2.5 border-b border-[#E2DDD3] p-3.5";
 const NOTA = "m-0 text-[12px] text-[#6F6A5E]";
+/** Ramos que a bio pode ter de padrão: os dos nichos ativos e "todos" (quem não tem padrão próprio). */
+const RAMOS_BIO = [...Object.keys(SUBS).filter(doNichoAtivo), "todos"];
 
 function Chave({ ligado, rotulo, aoMudar, ocupado }: { ligado: boolean; rotulo: string; aoMudar: () => void; ocupado: boolean }) {
   return (
@@ -40,13 +43,19 @@ type Props = {
   item: Item;
   def: DefModelo;
   padrao: boolean;
+  /** Os padrões do tipo (ramo → id) e os modelos do tipo, para dizer quem é o padrão de cada ramo hoje. */
+  padroes: Record<string, string>;
+  outros: Item[];
   opcoes: Opcoes;
   avisos: Aviso[] | null;
   negocios: Negocios | null;
   editar: (mudanca: Partial<DefModelo>) => void;
   ligar: (ativo: boolean) => Promise<void>;
-  definirPadrao: (on: boolean) => Promise<void>;
+  /** Grava (id) ou tira (null) o padrão do ramo. */
+  definirPadrao: (sub: string, id: string | null) => Promise<void>;
   aoDuplicar: () => void;
+  /** Só para modelo criado no Estúdio (não embutido); o servidor ainda recusa se houver uso ou padrão. */
+  aoApagar: () => Promise<void>;
   aoLote: () => void;
   aoRestaurar: () => void;
   /** Antes de restaurar: o ajuste ainda por salvar deste modelo não pode cair por cima. */
@@ -55,7 +64,7 @@ type Props = {
   aoMudarAba: (aba: Aba) => void;
 };
 
-export function Inspetor({ item, def, padrao, opcoes, avisos, negocios, editar, ligar, definirPadrao, aoDuplicar, aoLote, aoRestaurar, cancelarPendente, aoMudarAba }: Props) {
+export function Inspetor({ item, def, padrao, padroes, outros, opcoes, avisos, negocios, editar, ligar, definirPadrao, aoDuplicar, aoApagar, aoLote, aoRestaurar, cancelarPendente, aoMudarAba }: Props) {
   const [aba, setAba] = useState<Aba>("aj");
   const [ocupado, setOcupado] = useState(false);
   const alertas = avisos?.filter((a) => a.nivel !== "ok").length ?? 0;
@@ -88,16 +97,45 @@ export function Inspetor({ item, def, padrao, opcoes, avisos, negocios, editar, 
       {aba === "aj" && (
         <>
           <div className={GRP}>
-            {padrao && <span className="justify-self-start rounded-full bg-[#E7EEE9] px-2 py-0.5 text-[11px] font-semibold text-[#2C6A53]">★ Padrão de {ramoDe(def.sub)}</span>}
+            {padrao && (
+              <span className="justify-self-start rounded-full bg-[#E7EEE9] px-2 py-0.5 text-[11px] font-semibold text-[#2C6A53]">
+                ★ {def.tipo === "bio" ? `Padrão da bio em ${pl(RAMOS_BIO.filter((s) => padroes[s] === def.id).length, "ramo", "ramos")}` : `Padrão de ${ramoDe(def.sub)}`}
+              </span>
+            )}
             <label className="grid gap-1.5 text-[12.5px] font-semibold">
               Nome
               <input type="text" value={def.nome} maxLength={60} onChange={(e) => editar({ nome: e.target.value })} className={CAMPO} aria-invalid={!def.nome.trim()} />
               {!def.nome.trim() && <span className="font-normal text-[#8A2F2F]">Dê um nome para salvar o rascunho.</span>}
             </label>
             <Chave rotulo="Ligado na gaveta dos negócios" ligado={item.ativo} ocupado={ocupado} aoMudar={ocupar(() => ligar(!item.ativo))} />
-            <Chave rotulo="Padrão do ramo" ligado={padrao} ocupado={ocupado} aoMudar={ocupar(() => definirPadrao(!padrao))} />
-            <p className={NOTA}>Ligar e padrão valem na hora. O padrão vale para prospecção sem escolha manual; clientes ativos não mudam.</p>
+            {def.tipo === "site" && <Chave rotulo="Padrão do ramo" ligado={padrao} ocupado={ocupado} aoMudar={ocupar(() => definirPadrao(def.sub, padrao ? null : def.id))} />}
+            <p className={NOTA}>Ligar e padrão valem na hora. {def.tipo === "site" && "O padrão vale para prospecção sem escolha manual; clientes ativos não mudam."}</p>
           </div>
+          {def.tipo === "bio" && (
+            <div role="group" aria-labelledby="padrao-bio" className={GRP}>
+              <h4 id="padrao-bio" className={`${ROTULO_GRUPO} m-0`}>Padrão da bio para os ramos</h4>
+              <p className={NOTA}>Vale para negócios de prospecção sem escolha manual; clientes ativos não mudam. Marcar um ramo que já tem outra bio troca o padrão dele.</p>
+              {RAMOS_BIO.map((s) => {
+                const atual = padroes[s];
+                const outro = atual && atual !== def.id ? (outros.find((i) => i.def.id === atual)?.def.nome ?? atual) : "";
+                return (
+                  <label key={s} className="flex min-h-11 items-center gap-2.5 text-[13px]">
+                    <input
+                      type="checkbox"
+                      checked={atual === def.id}
+                      disabled={ocupado}
+                      onChange={ocupar(() => definirPadrao(s, atual === def.id ? null : def.id))}
+                      className={`h-[18px] w-[18px] flex-none accent-[#2C6A53] ${FOCO}`}
+                    />
+                    <span>
+                      {s === "todos" ? "Todos os outros ramos" : ramoDe(s)}
+                      {outro && <small className="block text-[#6F6A5E]">hoje: {outro}</small>}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
           <div className={GRP}>
             <h4 className={`${ROTULO_GRUPO} m-0`}>Layout</h4>
             {def.tipo === "site" ? (
@@ -172,6 +210,14 @@ export function Inspetor({ item, def, padrao, opcoes, avisos, negocios, editar, 
             <button type="button" onClick={aoDuplicar} className={BOTAO_CLARO}>
               Duplicar modelo
             </button>
+            {!item.embutido && (
+              <>
+                <button type="button" onClick={ocupar(aoApagar)} disabled={ocupado || item.ativo} className={`${BOTAO_CLARO} text-[#8A2F2F]`}>
+                  Apagar modelo
+                </button>
+                {item.ativo && <p className={NOTA}>Desligue o modelo para poder apagá-lo.</p>}
+              </>
+            )}
           </div>
         </>
       )}
@@ -244,13 +290,15 @@ function Uso({ item, negocios, aoLote }: { item: Item; negocios: Negocios | null
     <>
       <div className={GRP}>
         {erro && <p role="alert" className="m-0 text-[12.5px] text-[#8A2F2F]">{erro}</p>}
-        <div className={`${SERIFA} text-[40px] leading-none`}>{u ? n(prospeccao + clientes) : "…"}</div>
-        <span className="text-[#6F6A5E]">negócios apontam para este modelo</span>
+        {/* só quem aponta para o modelo (ref ou escolha manual); o sorteio pelo slug não é contado */}
+        <div className={`${SERIFA} text-[40px] leading-none`}>{u ? n(prospeccao + clientes + legado) : "…"}</div>
+        <span className="text-[#6F6A5E]">{u && prospeccao + clientes + legado === 1 ? "negócio escolheu este modelo" : "negócios escolheram este modelo"}</span>
         <div className="grid grid-cols-2 gap-2">
-          <Numero valor={prospeccao} texto="em prospecção · seguem a versão no ar" />
-          <Numero valor={clientes} texto="clientes ativos · versão congelada" />
+          <Numero valor={prospeccao} texto={prospeccao === 1 ? "em prospecção · segue a versão no ar" : "em prospecção · seguem a versão no ar"} />
+          <Numero valor={clientes} texto={clientes === 1 ? "cliente ativo · versão congelada" : "clientes ativos · versão congelada"} />
         </div>
-        {legado > 0 && <p className={NOTA}>Mais {n(legado)} pela escolha antiga da gaveta (a F7 converte).</p>}
+        {legado > 0 && <p className={NOTA}>Desse total, {legado === 1 ? "1 escolheu pela gaveta antiga e segue" : `${n(legado)} escolheram pela gaveta antiga e seguem`} a versão no ar.</p>}
+        <p className={NOTA}>Negócios que recebem este modelo pelo sorteio automático (sem escolha) não entram nesta conta.</p>
         <button type="button" onClick={aoLote} disabled={!item.ativo} className={BOTAO_ESCURO}>
           Aplicar a mais negócios
         </button>

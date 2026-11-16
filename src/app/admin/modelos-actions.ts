@@ -139,6 +139,14 @@ export const ligar = adminAction(async (user, id: string, ativo: boolean) => {
   return v;
 });
 
+/** Só modelo criado no Estúdio, sem uso e fora dos padrões (repo.apagar recusa o resto). */
+export const apagarModelo = adminAction(async (user, id: string) => {
+  const m = Id.parse(id);
+  await repo.apagar(m);
+  console.info(`[modelos] ${porQuem(user)} apagou o modelo ${m}`);
+  invalidar();
+});
+
 export const definirPadrao = adminAction(async (_user, tipo: "site" | "bio", sub: string, id: string | null) => {
   const t = Tipo.parse(tipo), s = DefModelo.shape.sub.parse(sub);
   await repo.definirPadrao(t, s, Id.nullable().parse(id));
@@ -184,8 +192,10 @@ export const checar = adminAction(async (_user, def: DefModelo, negocio: { fotos
   const m = DefModelo.parse(def);
   const n = z.object({ fotos: z.number().int().min(0).max(20), nome: z.string().max(200), avaliacoes: z.number().int().min(0) }).partial().parse(negocio);
   const avisos = checarModelo(m, n);
+  // "todos" lê todos os negócios: só com a aba Checar aberta, como os outros (cache de 5 min)
   const poucasFotos = z.boolean().parse(fotos) && (m.layout === "galeria" || m.layout === "stories") ? await comPoucasFotos(m.sub) : null;
-  if (poucasFotos) avisos.push({ nivel: "aviso", titulo: "Negócios com poucas fotos", texto: `${poucasFotos} negócio(s) do ramo têm menos de 3 fotos próprias na galeria; neles a bio volta para a Clara.` });
+  const doRamo = m.sub === "todos" ? "" : " do ramo";
+  if (poucasFotos) avisos.push({ nivel: "aviso", titulo: "Negócios com poucas fotos", texto: `${poucasFotos === 1 ? `1 negócio${doRamo} tem` : `${poucasFotos} negócios${doRamo} têm`} menos de 3 fotos próprias na galeria; neles a bio volta para a Clara.` });
   return { avisos, poucasFotos };
 });
 

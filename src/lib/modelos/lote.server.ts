@@ -1,5 +1,5 @@
 import "server-only";
-import { type DocumentSnapshot, FieldValue, type Query, type Timestamp } from "firebase-admin/firestore";
+import { type DocumentSnapshot, FieldValue, type Query, Timestamp } from "firebase-admin/firestore";
 import { z } from "zod";
 import { adminDb } from "@/lib/admin";
 import { ESTAGIOS } from "@/lib/crm-tipos";
@@ -132,6 +132,14 @@ const antesDoLote = async (d: DocumentSnapshot): Promise<Antes> => d.get("partes
   ? (await d.ref.collection("partes").get()).docs.sort((a, b) => Number(a.id) - Number(b.id)).flatMap((p) => p.get("antes"))
   : d.get("antes") ?? [];
 
+/** Algum lote ainda desfazível (7 dias, não desfeito) devolveria um negócio ao modelo `id`? */
+export async function loteDevolveria(id: string) {
+  const desde = Timestamp.fromMillis(Date.now() - DIAS_DESFAZER * 86_400_000);
+  const q = await adminDb.collection("lotes").where("feitoEm", ">", desde).get();
+  for (const d of q.docs) if (!d.get("desfeitoEm") && (await antesDoLote(d)).some((a) => a.anterior?.id === id)) return true;
+  return false;
+}
+
 /** O tipo do lote e os negócios que ele pegou (os mesmos ao aplicar e ao desfazer). */
 export async function negociosDoLote(id: string) {
   const d = await adminDb.collection("lotes").doc(id).get();
@@ -140,12 +148,13 @@ export async function negociosDoLote(id: string) {
 
 /** Devolve a cada negócio o modelo que tinha (apaga o campo se não tinha nenhum). Até 7 dias; a
  *  segunda chamada não faz nada. Quem trocou de modelo depois do lote fica como está, e quem virou
- *  cliente depois dele também (`viraramClientes`): cliente nunca muda sozinho. */
+ *  cliente depois dele também (`viraramClientes`): cliente nunca muda sozinho. Quem tinha um modelo
+ *  que saiu do catálogo (apagado) também fica (`semModelo`): nunca grava uma ref para o nada. */
 export async function desfazerLote(id: string) {
   const ref = adminDb.collection("lotes").doc(id);
   const d = await ref.get();
   if (!d.exists) throw new ErroPrevisto("Lote não encontrado.");
-  if (d.get("desfeitoEm")) return { restaurados: 0, mudaram: 0, viraramClientes: 0, jaDesfeito: true };
+  if (d.get("desfeitoEm")) return { restaurados: 0, mudaram: 0, viraramClientes: 0, semModelo: 0, jaDesfeito: true };
   const feitoEm = d.get("feitoEm") as Timestamp | undefined;
   if (!feitoEm || Date.now() - feitoEm.toMillis() > DIAS_DESFAZER * 86_400_000)
     throw new ErroPrevisto(`Só dá para desfazer um lote em até ${DIAS_DESFAZER} dias.`);
@@ -154,7 +163,8 @@ export async function desfazerLote(id: string) {
   const modelo = d.get("modelo") as string;
 
   const convites = antes.length ? await comConvite() : new Set<string>();
-  let restaurados = 0, mudaram = 0, viraramClientes = 0;
+  const catalogo = antes.some((a) => a.anterior) ? (await lerCatalogoDireto()).catalogo : null;
+  let restaurados = 0, mudaram = 0, viraramClientes = 0, semModelo = 0;
   for (let i = 0; i < antes.length; i += LOTE) {
     const parte = antes.slice(i, i + LOTE);
     const [atuais, crm] = await Promise.all([
@@ -169,11 +179,12 @@ export async function desfazerLote(id: string) {
       // lote antigo (sem `cliente`) vale como prospecção na época
       const cliente = ehClienteAtivo(atuais[j].get("gerado") ?? {}, crm[j].get("estagio"), convites.has(a.slug));
       if (cliente && !a.cliente) return void viraramClientes++;
+      if (a.anterior && !catalogo?.has(a.anterior.id)) return void semModelo++;
       lote.update(atuais[j].ref, { [`gerado.${campo}`]: a.anterior ?? FieldValue.delete() });
       restaurados++;
     });
     await lote.commit();
   }
   await ref.update({ desfeitoEm: FieldValue.serverTimestamp() });
-  return { restaurados, mudaram, viraramClientes, jaDesfeito: false };
+  return { restaurados, mudaram, viraramClientes, semModelo, jaDesfeito: false };
 }

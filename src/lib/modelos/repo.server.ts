@@ -5,6 +5,7 @@ import { z } from "zod";
 import { adminDb } from "@/lib/admin";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { EMBUTIDOS } from "@/lib/modelos/embutidos";
+import { loteDevolveria } from "@/lib/modelos/lote.server";
 import { type Catalogo, type EntradaCatalogo, ehClienteAtivo } from "@/lib/modelos/resolver";
 import { CONFIG_VAZIA, ConfigModelos, DefModelo, DefModeloLida, RefModelo } from "@/lib/modelos/tipos";
 
@@ -245,6 +246,32 @@ export async function definirPadrao(tipo: DefModelo["tipo"], sub: string, id: st
     { padroes: { [tipo]: { [sub]: id ?? FieldValue.delete() } }, atualizadoEm: FieldValue.serverTimestamp() },
     { merge: true },
   );
+}
+
+/** Apaga um modelo criado no Estúdio que ninguém usa: some o doc e o histórico (versoes).
+ *  Embutido, modelo ligado, com negócio apontando (ref, bio ou escolha da gaveta), padrão de algum
+ *  ramo ou que um lote ainda desfazível devolveria a alguém não se apaga. ponytail: conferir e
+ *  apagar fora de transação; um negócio que aponte para ele no meio cai no legado (sorteio), como
+ *  um id que saiu do catálogo. */
+export async function apagar(id: string) {
+  if (EMBUTIDO.has(id)) throw new ErroPrevisto("Modelo embutido não se apaga; desligue-o.");
+  const d = await refModelo(id).get();
+  if (!d.exists) throw new ErroPrevisto(`Modelo ${id} não existe.`);
+  if (d.get("embutido")) throw new ErroPrevisto("Modelo embutido não se apaga; desligue-o.");
+  if (d.get("publicado.ativo") !== false) throw new ErroPrevisto("Desligue o modelo antes de apagar.");
+  const t = adminDb.collection("tenants");
+  const conta = async (q: FirebaseFirestore.Query) => (await q.count().get()).data().count;
+  // os três campos, sem olhar o tipo: id de outro tipo também é uma referência
+  const emUso = await Promise.all([t.where("gerado.modelo.id", "==", id), t.where("gerado.bio.id", "==", id), t.where("gerado.escolha.modelo", "==", id)].map(conta));
+  if (emUso.some((x) => x > 0)) throw new ErroPrevisto("Não dá para apagar: há negócios usando este modelo. Desligue-o.");
+  // config crua, sem o lerConfig (que vira vazia ao falhar): erro de leitura recusa, e vale qualquer chave
+  const padroes = ((await adminDb.doc(DOC_CONFIG).get()).get("padroes") ?? {}) as Record<string, Record<string, unknown> | undefined>;
+  if ([...Object.values(padroes.site ?? {}), ...Object.values(padroes.bio ?? {})].includes(id))
+    throw new ErroPrevisto("Não dá para apagar o padrão de um ramo. Troque o padrão antes.");
+  if (await loteDevolveria(id)) throw new ErroPrevisto("Não dá para apagar: um lote dos últimos 7 dias devolveria negócios a este modelo ao ser desfeito.");
+  // o histórico antes e o doc por último: se cair no meio, o doc segue lá e apagar de novo termina
+  await adminDb.recursiveDelete(refModelo(id).collection("versoes"));
+  await refModelo(id).delete();
 }
 
 export type ItemHistorico = { n: number; def: DefModelo; publicadoEm: Date | null; por?: string; nota?: string };

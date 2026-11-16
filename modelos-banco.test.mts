@@ -1,9 +1,10 @@
 // Rode: npm run test:modelos-banco  (repositório do Estúdio de modelos no emulador do Firestore)
 import assert from "node:assert/strict";
+import { Timestamp } from "firebase-admin/firestore";
 import { adminDb as db } from "@/lib/admin";
 import { EMBUTIDOS } from "@/lib/modelos/embutidos";
 import {
-  criar, definirPadrao, descartar, duplicar, historico, lerCatalogoDireto, lerConfig, ligar, publicar, restaurar, salvarRascunho,
+  apagar, criar, definirPadrao, descartar, duplicar, historico, lerCatalogoDireto, lerConfig, ligar, publicar, restaurar, salvarRascunho,
 } from "@/lib/modelos/repo.server";
 import { CONFIG_VAZIA } from "@/lib/modelos/tipos";
 import { lerSite } from "@/lib/gerador.server";
@@ -182,6 +183,47 @@ await assert.rejects(criar({ ...base, id: "kit-fora", kit: "/assets/beleza/\"><s
   assert.equal(e.publicado.fonte, undefined, "fonte desconhecida vira a do modelo");
   await db.doc("modelos/barbearia-teste").update({ "publicado.kit": 42 });
   assert.equal((await lerCatalogoDireto()).catalogo.has("barbearia-teste"), false, "dado quebrado sai do catálogo");
+}
+
+// QA produção 15/11: apagar só modelo criado no Estúdio, sem uso e fora dos padrões
+{
+  await assert.rejects(apagar("barbearia-2"), /embutido/, "embutido com doc no banco");
+  await assert.rejects(apagar("barbearia-3"), /embutido/, "embutido sem doc");
+  await assert.rejects(apagar("nao-existe"), /não existe/);
+  const usado = await criar({ ...base, id: "apagar-usado", nome: "Usado" });
+  await db.doc("tenants/usa-apagar").set({ gerado: { sub: "barbearia", escolha: { modelo: usado } } });
+  await assert.rejects(apagar(usado), /há negócios usando/);
+  await db.doc("tenants/usa-apagar").set({ gerado: { sub: "barbearia", bio: { id: usado, versao: null } } });
+  await assert.rejects(apagar(usado), /há negócios usando/);
+  await db.doc("tenants/usa-apagar").delete();
+  await definirPadrao("site", "barbearia", usado);
+  await assert.rejects(apagar(usado), /padrão/);
+  await definirPadrao("site", "barbearia", null);
+  // revisão Fable 2 M1: a config crua, com qualquer chave, mesmo inválida para o lerConfig
+  await db.doc("config/modelos").set({ padroes: { site: { barbearia: 42 }, bio: { qualquer: usado } } });
+  assert.deepEqual(await lerConfig(), CONFIG_VAZIA);
+  await assert.rejects(apagar(usado), /padrão/);
+  await db.doc("config/modelos").delete();
+  // M2: ligado não se apaga
+  await ligar(usado, true);
+  await assert.rejects(apagar(usado), /Desligue o modelo antes de apagar/);
+  await ligar(usado, false);
+  // H1: lote desfazível (7 dias, não desfeito) que devolveria alguém a ele, no doc ou nas partes
+  const antes = [{ slug: "x", anterior: { id: usado, versao: null }, cliente: false }];
+  await db.doc("lotes/l-doc").set({ modelo: "barbearia-1", tipo: "site", antes, feitoEm: Timestamp.now() });
+  await assert.rejects(apagar(usado), /lote/);
+  await db.doc("lotes/l-doc").update({ desfeitoEm: Timestamp.now() });
+  await db.doc("lotes/l-partes").set({ modelo: "barbearia-1", tipo: "site", partes: 1, feitoEm: Timestamp.now() });
+  await db.doc("lotes/l-partes/partes/0").set({ antes });
+  await assert.rejects(apagar(usado), /lote/, "antes nas partes");
+  await db.doc("lotes/l-partes").update({ feitoEm: Timestamp.fromMillis(Date.now() - 8 * 86_400_000) });
+  await salvarRascunho(usado, { ...base, id: usado, nome: "Usado 2", ativo: false });
+  await publicar([usado]);
+  assert.equal((await db.collection(`modelos/${usado}/versoes`).get()).size, 4, "criado, ligado, desligado, publicado");
+  await apagar(usado);
+  assert.equal((await db.doc(`modelos/${usado}`).get()).exists, false);
+  assert.equal((await db.collection(`modelos/${usado}/versoes`).get()).size, 0, "versoes vão junto");
+  assert.equal((await lerCatalogoDireto()).catalogo.has(usado), false);
 }
 
 console.log("modelos-banco ok");

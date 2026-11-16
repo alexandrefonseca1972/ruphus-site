@@ -1,7 +1,7 @@
 "use client";
 
 import type { DefModelo } from "@/lib/modelos/tipos";
-import { BOTAO_CLARO, CAMPO, defDe, familiaDe, FOCO, type Item, ramoDe, ROTULO_GRUPO, type Tipo } from "./util";
+import { BOTAO_CLARO, CAMPO, defDe, ehPadrao, familiaDe, FOCO, type Item, ramoDe, ROTULO_GRUPO, type Tipo } from "./util";
 
 // A coluna da esquerda: Bio/Site, busca e família › ramo › modelo, com os pontos de ligado,
 // rascunho e padrão. No celular vira um <select> (SeletorCelular).
@@ -68,7 +68,7 @@ export function Arvore({ tipo, setTipo, itens, edicoes, padroes, selId, selecion
               {ms.map((m) => {
                 const sel = m.def.id === selId;
                 const rascunho = !!(m.rascunho || edicoes[m.def.id]);
-                const padrao = padroes[m.def.sub] === m.def.id;
+                const padrao = ehPadrao(padroes, m.def);
                 return (
                   <button
                     key={m.def.id}
@@ -80,7 +80,7 @@ export function Arvore({ tipo, setTipo, itens, edicoes, padroes, selId, selecion
                     <span title={m.ativo ? "Ligado" : "Desligado"} className={`h-[7px] w-[7px] flex-none rounded-full ${m.ativo ? "bg-[#2C6A53]" : "bg-[#CFC9BD]"}`} />
                     <span className="min-w-0 truncate">{defDe(m, edicoes).nome}</span>
                     {rascunho && <span title="Rascunho" className="h-[7px] w-[7px] flex-none rounded-full bg-[#E8A33D]" />}
-                    <span className="sr-only">{[m.ativo ? "ligado" : "desligado", rascunho && "rascunho", padrao && "padrão do ramo"].filter(Boolean).join(", ")}</span>
+                    <span className="sr-only">{[m.ativo ? "ligado" : "desligado", rascunho && "rascunho", padrao && (m.def.tipo === "bio" ? "padrão da bio" : "padrão do ramo")].filter(Boolean).join(", ")}</span>
                     {padrao && <span aria-hidden="true" className="ml-auto text-[11px]">★</span>}
                   </button>
                 );

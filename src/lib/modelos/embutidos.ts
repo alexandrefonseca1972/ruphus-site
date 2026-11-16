@@ -39,20 +39,21 @@ const claros: DefModelo[] = (Object.keys(SUBS) as Sub[]).filter(ehClaro).flatMap
   }),
 );
 
-// Um modelo de bio por layout pronto (F4), com foto e cor de um modelo do ramo sugerido.
-// "atual" vale para todos: é a bio de hoje, que segue a foto e a cor do site.
-const BIOS: [LayoutBio, DefModelo["sub"], string, string][] = [
-  ["atual", "todos", "cabeleireira-1", "Bio atual"],
-  ["clara", "estetica", "esteticista-1", "Bio clara"],
-  ["galeria", "unhas", "esmalteria-1", "Bio galeria"],
-  ["agenda", "barbearia", "barbearia-1", "Bio agenda"],
+// Um modelo de bio por layout pronto (F4), com foto e cor de amostra de um modelo de site. Todos
+// valem para qualquer ramo ("todos"): o layout da bio não é de um ramo, e a foto e a cor de cada
+// negócio vêm do site dele. "atual" é a bio de hoje.
+const BIOS: [LayoutBio, string, string][] = [
+  ["atual", "cabeleireira-1", "Bio atual"],
+  ["clara", "esteticista-1", "Bio clara"],
+  ["galeria", "esmalteria-1", "Bio galeria"],
+  ["agenda", "barbearia-1", "Bio agenda"],
 ];
-const bios: DefModelo[] = BIOS.map(([layout, sub, base, nome]) => {
+const bios: DefModelo[] = BIOS.map(([layout, base, nome]) => {
   const m = modeloDoId(base)!;
   return {
     id: `bio-${layout}`,
     tipo: "bio",
-    sub,
+    sub: "todos",
     layout,
     kit: m.pasta,
     paleta: { ink: m.paleta[0], acc: m.paleta[1], deep: m.paleta[2], tint: m.paleta[3] },

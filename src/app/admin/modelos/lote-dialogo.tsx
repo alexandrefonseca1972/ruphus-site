@@ -5,7 +5,7 @@ import { ESTAGIOS, ROTULO } from "@/lib/crm-tipos";
 import { idToken as tokenAtual } from "@/lib/firebase";
 import type { DefModelo } from "@/lib/modelos/tipos";
 import { aplicarLote, contarLote, desfazerLote } from "../modelos-actions";
-import { BOTAO_CLARO, BOTAO_ESCURO, CAMPO, Dialogo, n, Numero, ramoDe } from "./util";
+import { BOTAO_CLARO, BOTAO_ESCURO, CAMPO, Dialogo, n, Numero, pl, ramoDe } from "./util";
 
 // Aplicar um modelo em lote: filtros, contagem antes de trocar, segunda confirmação para incluir
 // clientes e "Desfazer" no resultado (vale por 7 dias).
@@ -73,16 +73,16 @@ export function LoteDialogo({ def, ramos, aoFechar, aoMudar }: { def: DefModelo;
     setOcupado(false);
     if (!r?.ok) return setErro(r?.error ?? "Não foi possível desfazer agora.");
     const d = r.dados;
-    setDesfeito(d.jaDesfeito ? "Este lote já tinha sido desfeito." : `${n(d.restaurados)} negócios voltaram ao modelo de antes${d.mudaram ? `; ${n(d.mudaram)} já tinham trocado de modelo e ficaram como estão` : ""}${d.viraramClientes ? `; ${n(d.viraramClientes)} viraram clientes depois do lote e ficaram como estão (cliente não muda sozinho)` : ""}.`);
+    setDesfeito(d.jaDesfeito ? "Este lote já tinha sido desfeito." : `${pl(d.restaurados, "negócio voltou", "negócios voltaram")} ao modelo de antes${d.mudaram ? `; ${pl(d.mudaram, "já tinha trocado de modelo e ficou como está", "já tinham trocado de modelo e ficaram como estão")}` : ""}${d.viraramClientes ? `; ${pl(d.viraramClientes, "virou cliente depois do lote e ficou como está", "viraram clientes depois do lote e ficaram como estão")} (cliente não muda sozinho)` : ""}${d.semModelo ? `; ${pl(d.semModelo, "tinha um modelo que foi apagado e ficou como está", "tinham um modelo que foi apagado e ficaram como estão")}` : ""}.`);
     aoMudar();
   }
 
-  const coisa = def.tipo === "bio" ? "bios" : "sites";
+  const coisa: [string, string] = def.tipo === "bio" ? ["bio", "bios"] : ["site", "sites"];
   if (feito)
     return (
       <Dialogo titulo={desfeito ? "Desfeito" : "Pronto"} aoFechar={aoFechar}>
         <div className="rounded-[10px] bg-[#E7EEE9] px-3 py-2.5 font-semibold text-[#2C6A53]">
-          {desfeito || (feito.total ? `${n(feito.total)} negócios trocados para ${def.nome}${feito.clientes ? ` (${n(feito.clientes)} clientes, congelados na versão de agora)` : ""}. Dá para desfazer por 7 dias.` : "Nada a trocar: nenhum negócio entrou nos filtros.")}
+          {desfeito || (feito.total ? `${pl(feito.total, "negócio trocado", "negócios trocados")} para ${def.nome}${feito.clientes ? ` (${pl(feito.clientes, "cliente, congelado", "clientes, congelados")} na versão de agora)` : ""}. Dá para desfazer por 7 dias.` : "Nada a trocar: nenhum negócio entrou nos filtros.")}
         </div>
         {erro && <p role="alert" className="m-0 text-[#8A2F2F]">{erro}</p>}
         <div className="flex justify-end gap-2">
@@ -156,14 +156,14 @@ export function LoteDialogo({ def, ramos, aoFechar, aoMudar }: { def: DefModelo;
       {erro && <p role="alert" className="m-0 text-[#8A2F2F]">{erro}</p>}
       {conf2 && conta ? (
         <div className="grid gap-2 rounded-[14px] border-2 border-[#E8A33D] bg-[#FFF7E6] p-3">
-          <b>Trocar o {def.tipo === "bio" ? "bio" : "site"} de {n(conta.clientes)} clientes que já pagam?</b>
+          <b>Trocar o {def.tipo === "bio" ? "bio" : "site"} de {pl(conta.clientes, "cliente que já paga", "clientes que já pagam")}?</b>
           <span className="text-[#6F6A5E]">Muda na hora, sem aviso ao dono, e fica congelado na versão de agora. Recomendado só depois de combinar com cada um.</span>
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setConf2(false)} className={BOTAO_CLARO}>
               Voltar
             </button>
             <button type="button" onClick={fazer} disabled={ocupado} className={BOTAO_ESCURO}>
-              {ocupado ? "Trocando…" : `Sim, incluir os ${n(conta.clientes)} clientes`}
+              {ocupado ? "Trocando…" : conta.clientes === 1 ? "Sim, incluir o cliente" : `Sim, incluir os ${n(conta.clientes)} clientes`}
             </button>
           </div>
         </div>
@@ -178,7 +178,7 @@ export function LoteDialogo({ def, ramos, aoFechar, aoMudar }: { def: DefModelo;
             onClick={() => (comCli && conta?.clientes ? setConf2(true) : fazer())}
             className={BOTAO_ESCURO}
           >
-            {ocupado ? "Trocando…" : conta && !total ? "Nada a trocar" : `Trocar ${n(total)} ${coisa}`}
+            {ocupado ? "Trocando…" : conta && !total ? "Nada a trocar" : `Trocar ${pl(total, ...coisa)}`}
           </button>
         </div>
       )}

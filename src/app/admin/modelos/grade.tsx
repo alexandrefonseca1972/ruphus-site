@@ -2,7 +2,7 @@
 
 import type { DefModelo } from "@/lib/modelos/tipos";
 import { Miniatura } from "./tela";
-import { defDe, FOCO, type Item, ramoDe } from "./util";
+import { defDe, ehPadrao, FOCO, type Item, ramoDe } from "./util";
 
 // A vista em grade: todos os modelos do tipo, com selos de padrão, rascunho e desligado.
 // Tocar num cartão abre o modelo no editor.
@@ -26,7 +26,7 @@ export function Grade({ itens, edicoes, padroes, selId, abrir }: { itens: Item[]
             <div className="relative">
               <Miniatura def={d} alta={200} />
               <div className="absolute top-2 left-2 flex flex-wrap gap-1">
-                {padroes[i.def.sub] === i.def.id && <span className={`${CHIP} bg-[#E7EEE9] text-[#2C6A53]`}>★ Padrão</span>}
+                {ehPadrao(padroes, i.def) && <span className={`${CHIP} bg-[#E7EEE9] text-[#2C6A53]`}>★ Padrão</span>}
                 {!i.embutido && <span className={`${CHIP} bg-[#E8EEFB] text-[#2F5BD3]`}>Novo</span>}
                 {(i.rascunho || edicoes[i.def.id]) && <span className={`${CHIP} bg-[#FFF1D6] text-[#8A5A12]`}>Rascunho</span>}
               </div>

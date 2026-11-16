@@ -60,11 +60,17 @@ export function Moldura({ previa, formato, titulo }: { previa: Previa; formato: 
   const [largura, setLargura] = useState(0);
   useEffect(() => {
     if (!caixa) return;
-    const medir = () => setLargura(caixa.clientWidth);
+    // medido 0 (ainda sem layout, ou escondido numa troca de tela) não pode virar escala 0 nem
+    // sumir com a prévia: cai na largura do pai ou da janela; o observador mede de novo depois
+    const medir = () => setLargura(caixa.clientWidth || caixa.parentElement?.clientWidth || window.innerWidth);
     medir();
     const obs = new ResizeObserver(medir);
     obs.observe(caixa);
-    return () => obs.disconnect();
+    window.addEventListener("resize", medir);
+    return () => {
+      obs.disconnect();
+      window.removeEventListener("resize", medir);
+    };
   }, [caixa]);
   const chaves: Chave[] = formato === "todos" ? ["mon", "note", "tab", "cel"] : [formato];
   const total = largura - 24;
@@ -74,6 +80,7 @@ export function Moldura({ previa, formato, titulo }: { previa: Previa; formato: 
         {largura > 0 &&
           chaves.map((k) => {
             const F = FORMATOS[k];
+            // pelo menos 90 px de tela: a escala nunca fica 0 nem negativa em caixa estreita
             const larg = Math.max(90, Math.min(F.cap, formato === "todos" ? total * PARTE[k] : total) - F.borda);
             const s = larg / F.w;
             return (

@@ -23,8 +23,13 @@ export const ROTULO_GRUPO = "text-[10.5px] font-bold tracking-[.12em] text-[#6F6
 export const SERIFA = "font-[family-name:var(--fonte-serifa)]";
 
 export const n = (x: number) => x.toLocaleString("pt-BR");
+/** Número com o texto no singular ou no plural: pl(1, "negócio", "negócios") = "1 negócio". */
+export const pl = (x: number, um: string, varios: string) => `${n(x)} ${x === 1 ? um : varios}`;
 export const ramoDe = (sub: string) => (sub === "todos" ? "Todos" : (SUBS[sub as Sub]?.rotulo ?? sub));
 export const familiaDe = (sub: string) => (sub === "todos" ? "Geral" : (GRUPOS.find(([, s]) => s.includes(sub as Sub))?.[0] ?? "Outros"));
+/** Padrão de algum ramo? Site: o do próprio ramo. Bio: qualquer ramo (a bio "todos" vale para vários). */
+export const ehPadrao = (padroes: Record<string, string>, d: Pick<DefModelo, "tipo" | "sub" | "id">) =>
+  d.tipo === "bio" ? Object.values(padroes).includes(d.id) : padroes[d.sub] === d.id;
 /** A foto de capa do kit: pasta com hero.jpg (editorial e bio) ou foto do banco sem extensão (claro). */
 export const fotoDoKit = (d: Pick<DefModelo, "layout" | "kit">) => (d.layout === "claro" ? `/s${d.kit}-800.jpg` : `/s${d.kit}/hero.jpg`);
 /** O que o Estúdio mostra do modelo: a edição local, o rascunho salvo ou a publicada. */
