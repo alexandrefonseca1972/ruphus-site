@@ -6,8 +6,8 @@ import type { CSSProperties } from "react";
 import { Inter, Sora } from "next/font/google";
 import { claro, duracao, hhmm, Horarios, IconeZap, ListaServicos, abasCss, montar, precoServico, resumoSemana, type PropsBio } from "../partes";
 
-const titulo = Sora({ subsets: ["latin"], weight: ["500", "600"], variable: "--bio-noturno-titulo" });
-const sans = Inter({ subsets: ["latin"], variable: "--bio-noturno-sans" });
+const titulo = Sora({ subsets: ["latin"], preload: false, weight: ["500", "600"], variable: "--bio-noturno-titulo" });
+const sans = Inter({ subsets: ["latin"], preload: false, variable: "--bio-noturno-sans" });
 
 const GRAO = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E")`;
 

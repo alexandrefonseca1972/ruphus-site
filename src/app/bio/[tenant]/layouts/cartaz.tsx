@@ -5,8 +5,8 @@ import type { CSSProperties } from "react";
 import { Archivo, Inter } from "next/font/google";
 import { claro, duracao, hhmm, Horarios, IconeZap, ListaServicos, abasCss, montar, precoServico, resumoSemana, type PropsBio } from "../partes";
 
-const titulo = Archivo({ subsets: ["latin"], axes: ["wdth"], variable: "--bio-cartaz-titulo" });
-const sans = Inter({ subsets: ["latin"], variable: "--bio-cartaz-sans" });
+const titulo = Archivo({ subsets: ["latin"], preload: false, axes: ["wdth"], variable: "--bio-cartaz-titulo" });
+const sans = Inter({ subsets: ["latin"], preload: false, variable: "--bio-cartaz-sans" });
 
 const CSS = `.bz{background:#F4F1EC;color:#141212;font:15px/1.5 var(--bio-cartaz-sans),sans-serif;min-height:100dvh;padding-bottom:104px;-webkit-font-smoothing:antialiased}
 .bz .col{max-width:520px;margin:0 auto}

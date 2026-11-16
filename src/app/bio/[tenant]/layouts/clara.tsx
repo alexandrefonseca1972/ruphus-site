@@ -5,8 +5,8 @@ import { Figtree, Fraunces } from "next/font/google";
 import { formatBRL } from "@/lib/datetime";
 import { duracao, hhmm, Horarios, IconeZap, ListaServicos, abasCss, montar, precoServico, resumoSemana, type PropsBio } from "../partes";
 
-const serifa = Fraunces({ subsets: ["latin"], weight: "600", variable: "--bio-clara-serifa" });
-const sans = Figtree({ subsets: ["latin"], variable: "--bio-clara-sans" });
+const serifa = Fraunces({ subsets: ["latin"], preload: false, weight: "600", variable: "--bio-clara-serifa" });
+const sans = Figtree({ subsets: ["latin"], preload: false, variable: "--bio-clara-sans" });
 
 const CSS = `.bc{background:#FAF7F2;color:#1F1B18;font:15px/1.5 var(--bio-clara-sans),sans-serif;min-height:100dvh;padding-bottom:104px;-webkit-font-smoothing:antialiased}
 .bc .col{max-width:520px;margin:0 auto}

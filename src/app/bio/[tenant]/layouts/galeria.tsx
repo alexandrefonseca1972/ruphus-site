@@ -5,8 +5,8 @@ import type { CSSProperties } from "react";
 import { Instrument_Sans, Instrument_Serif } from "next/font/google";
 import { duracao, hhmm, Horarios, IconeZap, ListaServicos, abasCss, montar, precoServico, resumoSemana, type PropsBio } from "../partes";
 
-const sans = Instrument_Sans({ subsets: ["latin"], variable: "--bio-galeria-sans" });
-const serifa = Instrument_Serif({ subsets: ["latin"], weight: "400", style: "italic", variable: "--bio-galeria-serifa" });
+const sans = Instrument_Sans({ subsets: ["latin"], preload: false, variable: "--bio-galeria-sans" });
+const serifa = Instrument_Serif({ subsets: ["latin"], preload: false, weight: "400", style: "italic", variable: "--bio-galeria-serifa" });
 
 const CSS = `.bg{background:#fff;color:#111;font:15px/1.5 var(--bio-galeria-sans),sans-serif;min-height:100dvh;padding-bottom:104px;-webkit-font-smoothing:antialiased}
 .bg .col{max-width:520px;margin:0 auto}

@@ -6,8 +6,8 @@ import type { CSSProperties } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { claro, duracao, hhmm, Horarios, IconeZap, ListaServicos, abasCss, montar, precoServico, resumoSemana, type PropsBio } from "../partes";
 
-const sans = Geist({ subsets: ["latin"], variable: "--bio-vidro-sans" });
-const mono = Geist_Mono({ subsets: ["latin"], variable: "--bio-vidro-mono" });
+const sans = Geist({ subsets: ["latin"], preload: false, variable: "--bio-vidro-sans" });
+const mono = Geist_Mono({ subsets: ["latin"], preload: false, variable: "--bio-vidro-mono" });
 
 const CSS = `.bv{position:relative;isolation:isolate;background:#121014;color:#fff;font:15px/1.5 var(--bio-vidro-sans),sans-serif;min-height:100dvh;padding-bottom:110px;-webkit-font-smoothing:antialiased}
 .bv .col{max-width:520px;margin:0 auto}.bv .mono{font-family:var(--bio-vidro-mono),monospace}
@@ -19,7 +19,7 @@ const CSS = `.bv{position:relative;isolation:isolate;background:#121014;color:#f
 .bv .meta{font-size:13px;opacity:.8;margin:0}
 .bv .pills{display:flex;gap:6px;flex-wrap:wrap;font-size:12px;font-weight:500;margin:0}.bv .pills span{border-radius:999px;padding:5px 10px}
 .bv .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#5BE08F;margin-right:6px}
-.bv .g{background:color-mix(in srgb,var(--c) 14%,rgba(255,255,255,.12));-webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);border:1px solid rgba(255,255,255,.22)}
+.bv .g{background:#2a2630;background:color-mix(in srgb,var(--c) 14%,rgba(255,255,255,.12));-webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);border:1px solid rgba(255,255,255,.22)}
 .bv .at{display:flex;justify-content:space-around;padding:16px 10px 6px}
 .bv .at a{display:grid;justify-items:center;gap:6px;font-size:11px;font-weight:500;opacity:.92;min-width:64px}.bv .at i{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-style:normal}
 .bv .p{margin:12px 12px 0;border-radius:24px;padding:16px}
@@ -41,8 +41,8 @@ ${abasCss(".bv-d", "background:#fff;color:#121014;opacity:1;font-weight:600", "#
 .bv .bar .ag{flex:1;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:0 18px;height:48px;font-weight:700;background:var(--c);color:var(--on);border-radius:999px}
 .bv .bar .ag small{font-weight:500;opacity:.85;font-size:12px}
 .bv .bar .wa{width:48px;height:48px;background:#1F9D55;color:#fff;display:grid;place-items:center;flex:none;border-radius:50%}
-@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.bv .g{background:color-mix(in srgb,var(--c) 18%,#221f25)}}
-@media (prefers-reduced-transparency:reduce){.bv .g{background:color-mix(in srgb,var(--c) 18%,#221f25);-webkit-backdrop-filter:none;backdrop-filter:none}}`;
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.bv .g{background:#2a2630;background:color-mix(in srgb,var(--c) 18%,#221f25)}}
+@media (prefers-reduced-transparency:reduce){.bv .g{background:#2a2630;background:color-mix(in srgb,var(--c) 18%,#221f25);-webkit-backdrop-filter:none;backdrop-filter:none}}`;
 
 export default function Vidro(props: PropsBio) {
   const { bio, livres } = props;

@@ -7,10 +7,10 @@ import { formatBRL } from "@/lib/datetime";
 import type { Servico } from "../carregar";
 import { claro, duracao, hhmm, Horarios, IconeZap, abasCss, montar, precoServico, resumoSemana, type PropsBio } from "../partes";
 
-const titulo = Bricolage_Grotesque({ subsets: ["latin"], weight: ["600", "700", "800"], variable: "--bio-painel-titulo" });
-const sans = DM_Sans({ subsets: ["latin"], variable: "--bio-painel-sans" });
+const titulo = Bricolage_Grotesque({ subsets: ["latin"], preload: false, weight: ["600", "700", "800"], variable: "--bio-painel-titulo" });
+const sans = DM_Sans({ subsets: ["latin"], preload: false, variable: "--bio-painel-sans" });
 
-const CSS = `.bp{background:color-mix(in srgb,var(--c) 6%,#F2F1EE);color:#17161A;font:14px/1.45 var(--bio-painel-sans),sans-serif;min-height:100dvh;padding-bottom:104px;-webkit-font-smoothing:antialiased}
+const CSS = `.bp{background:#F2F1EE;background:color-mix(in srgb,var(--c) 6%,#F2F1EE);color:#17161A;font:14px/1.45 var(--bio-painel-sans),sans-serif;min-height:100dvh;padding-bottom:104px;-webkit-font-smoothing:antialiased}
 .bp .col{max-width:520px;margin:0 auto}
 .bp .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px}
 .bp .t{background:#fff;border-radius:22px;padding:14px;min-width:0;transition:transform .15s}.bp a.t:active{transform:scale(.97)}

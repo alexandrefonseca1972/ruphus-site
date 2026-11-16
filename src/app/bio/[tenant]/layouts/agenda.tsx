@@ -6,8 +6,8 @@ import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import { addDays, formatDuration, todayIn, weekday, WEEKDAYS } from "@/lib/datetime";
 import { Horarios, ListaServicos, abasCss, hhmm, montar, precoServico, resumoSemana, type PropsBio } from "../partes";
 
-const sans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--bio-agenda-sans" });
-const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--bio-agenda-mono" });
+const sans = IBM_Plex_Sans({ subsets: ["latin"], preload: false, weight: ["400", "500", "600", "700"], variable: "--bio-agenda-sans" });
+const mono = IBM_Plex_Mono({ subsets: ["latin"], preload: false, weight: ["400", "500", "600"], variable: "--bio-agenda-mono" });
 
 const CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const INICIAL = ["D", "S", "T", "Q", "Q", "S", "S"];

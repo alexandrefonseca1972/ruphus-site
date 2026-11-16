@@ -16,6 +16,6 @@ const LAYOUTS = { agenda: Agenda, cartaz: Cartaz, clara: Clara, galeria: Galeria
 export default function LayoutDaBio(props: PropsBio) {
   const { layout, fotos } = props.bio;
   if ((layout === "galeria" || layout === "stories") && fotos.length < 3) return <Clara {...props} />;
-  const Layout = layout in LAYOUTS ? LAYOUTS[layout as keyof typeof LAYOUTS] : Atual;
+  const Layout = Object.hasOwn(LAYOUTS, layout) ? LAYOUTS[layout as keyof typeof LAYOUTS] : Atual;
   return <Layout {...props} />;
 }

@@ -8,7 +8,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import { formatBRL } from "@/lib/datetime";
 import { claro, duracao, hhmm, Horarios, IconeZap, ListaServicos, abasCss, montar, precoServico, resumoSemana, type PropsBio } from "../partes";
 
-const sans = Plus_Jakarta_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--bio-stories-sans" });
+const sans = Plus_Jakarta_Sans({ subsets: ["latin"], preload: false, weight: ["400", "500", "600", "700", "800"], variable: "--bio-stories-sans" });
 
 const CSS = `.bs{background:#fff;color:#141316;font:15px/1.5 var(--bio-stories-sans),sans-serif;min-height:100dvh;padding-bottom:104px;-webkit-font-smoothing:antialiased;--anel:conic-gradient(from 200deg,var(--c),color-mix(in srgb,var(--c) 35%,#FFD27A),var(--c))}
 .bs .col{max-width:520px;margin:0 auto}
@@ -106,7 +106,7 @@ export default function Stories(props: PropsBio) {
           <div className="who">
             <span className="av">
               {/* eslint-disable-next-line @next/next/no-img-element -- foto do site do cliente */}
-              <img src={fotoSrc ?? fotos[0]} alt="" width={37} height={37} decoding="async" />
+              <img src={fotoSrc || fotos[0]} alt="" width={37} height={37} decoding="async" />
             </span>
             <span>
               <b>{bio.nome}</b>
