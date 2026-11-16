@@ -12,6 +12,7 @@ import { destaqueNoTopo } from "@/lib/contraste";
 import { AUTOMOTIVO } from "@/lib/nichos/automotivo";
 import { FITNESS } from "@/lib/nichos/fitness";
 import { z } from "zod";
+import type { DefModelo } from "@/lib/modelos/tipos";
 
 /** O que muda de um nicho para outro no modelo editorial. */
 export type Estilo = {
@@ -326,17 +327,19 @@ const VARIANTES = {
 };
 const sorteio = <T,>(lista: T[], slug: string, sal: string): T => lista[variante(slug, lista.length, sal)];
 
-/** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. */
-export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha & { modelo?: string }, personal?: Personal | null) {
+/** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. Com `def` (modelo do
+ *  Estúdio), kit, paleta e fonte vêm dela por valor, no lugar da escolha. */
+export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha & { modelo?: string }, personal?: Personal | null, def?: DefModelo) {
   const ramo = estiloDe(sub);
   const padrao = escolhaEditorial(sub, slug);
   // modelo gravado: foto e paleta vêm dele, mesmo que o ramo do negócio seja outro
-  const doModelo = escolha?.modelo ? modeloDoId(escolha.modelo) : undefined;
-  // e o rótulo, as frases e os serviços padrão, quando o modelo tem os seus (salão infantil)
-  const m = doModelo?.estilo;
+  const doModelo = def ? undefined : escolha?.modelo ? modeloDoId(escolha.modelo) : undefined;
+  // e o rótulo, as frases e os serviços padrão, quando o modelo tem os seus (salão infantil);
+  // com def, os do embutido de mesmo id
+  const m = (def ? modeloDoId(def.id) : doModelo)?.estilo;
   const e: Estilo = m ? { ...ramo, rotulo: m.rotulo ?? ramo.rotulo, textos: m.textos, padrao: m.padrao ?? ramo.padrao } : ramo;
-  const paleta = doModelo?.paleta ?? e.paletas[escolha?.cor ?? padrao.cor];
-  const kit = doModelo?.pasta ?? [...e.kits, ...(e.extras ?? [])][escolha?.kit ?? padrao.kit] ?? e.kits[padrao.kit];
+  const paleta = def ? [def.paleta.ink, def.paleta.acc, def.paleta.deep, def.paleta.tint] : doModelo?.paleta ?? e.paletas[escolha?.cor ?? padrao.cor];
+  const kit = def?.kit ?? doModelo?.pasta ?? [...e.kits, ...(e.extras ?? [])][escolha?.kit ?? padrao.kit] ?? e.kits[padrao.kit];
   // personalização por cima de tudo: cor de destaque própria arrasta deep e tint, salvo se vieram também
   const c = personal?.cores ?? {};
   const derivada = c.acc ? paletaDe(c.acc) : null;
@@ -344,7 +347,7 @@ export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha & { mo
   const acc = c.acc ?? paleta[1];
   const deep = c.deep ?? derivada?.deep ?? paleta[2];
   const tint = c.tint ?? derivada?.tint ?? paleta[3];
-  const fonte = FONTES.find(([n]) => n === personal?.fonte) ?? FONTES[variante(slug, FONTES.length, "fonte")];
+  const fonte = FONTES.find(([n]) => n === (personal?.fonte ?? def?.fonte)) ?? FONTES[variante(slug, FONTES.length, "fonte")];
   const p = personal?.fotos ?? {};
   // foto própria leva o carimbo da publicação: "fotos/hero.jpg?v=1730000000000"
   const propria = (ref: string | undefined) => (ref && personal?.versao ? `${ref}?v=${personal.versao}` : ref);
@@ -356,14 +359,14 @@ export function visualEditorial(slug: string, sub: Sub, escolha?: Escolha & { mo
 
 /** A imagem de compartilhamento: a foto do topo do kit e a fonte de título do próprio site. */
 export function capaEditorial(d: DadosSite): Capa {
-  const { e, cor, fonte, fotos } = visualEditorial(d.slug, d.sub, d.escolha, d.personal);
+  const { e, cor, fonte, fotos } = visualEditorial(d.slug, d.sub, d.escolha, d.personal, d.def);
   // a rota do og.jpg pede `/s${foto}`: a do banco é /assets/…, a própria é /{slug}/fotos/hero.jpg
   const foto = fotos.hero.startsWith("/assets/") ? fotos.hero : `/${d.slug}/${fotos.hero}`;
   return { foto, cor, fonte: fonte[0], linha: [e.rotulo, d.cidade].filter(Boolean).join(" em ") };
 }
 
 export function renderEditorial(d: DadosSite): string {
-  const { e, ink, acc, deep, tint, fonte, fotos } = visualEditorial(d.slug, d.sub, d.escolha, d.personal);
+  const { e, ink, acc, deep, tint, fonte, fotos } = visualEditorial(d.slug, d.sub, d.escolha, d.personal, d.def);
   const onde = lugar(d);
   const rotulo = e.rotulo;
   const tag = [rotulo, [d.cidade, d.uf].filter(Boolean).join("/")].filter(Boolean).join(" · ");

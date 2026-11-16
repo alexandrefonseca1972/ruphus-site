@@ -362,5 +362,19 @@ for (const p of ["prospeccaoFila/acme__primeiro", "prospeccaoConversas/551190000
 }
 for (const c of ["prospeccaoFila", "prospeccaoConversas", "prospeccaoEnvios", "prospeccaoDias", "crm"]) await assertFails(getDocs(collection(suporte, c)), `admin da plataforma não lista ${c}`);
 
+// Estúdio de modelos: só o Admin SDK
+const doEstudio = ["modelos/salao-1", "modelos/salao-1/versoes/1", "lotes/l1", "lotes/l1/partes/0", "metricas/salao-1_20261115", "config/modelos"];
+await env.withSecurityRulesDisabled(async (ctx) => {
+  for (const p of doEstudio) await setDoc(doc(ctx.firestore(), p), { x: 1 });
+});
+for (const p of doEstudio) {
+  for (const [quem, db] of [["dono", alice], ["admin da plataforma", suporte], ["visitante", env.unauthenticatedContext().firestore()]]) {
+    await assertFails(getDoc(doc(db, p)), `${quem} não lê ${p}`);
+    await assertFails(setDoc(doc(db, p), { x: 2 }), `${quem} não grava ${p}`);
+  }
+}
+for (const c of ["modelos", "lotes", "metricas"]) await assertFails(getDocs(collection(suporte, c)), `admin da plataforma não lista ${c}`);
+await assertFails(getDocs(collectionGroup(suporte, "versoes")), "nem as versões");
+
 await env.cleanup();
 console.log("rules ok");

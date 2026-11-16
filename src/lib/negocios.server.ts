@@ -4,7 +4,7 @@ import { type DocumentSnapshot, FieldValue, type Firestore } from "firebase-admi
 import { z } from "zod";
 import { UserError } from "@/lib/booking.server";
 import { DadosFabrica, DadosNegocio, leadDoDono, NegocioInput, type Sub, SUBS, UtmInput } from "@/lib/gerador";
-import { personalDe, registrosDoSite } from "@/lib/gerador.server";
+import { defDoSite, personalDe, registrosDoSite } from "@/lib/gerador.server";
 import { FUSOS, todayIn } from "@/lib/datetime";
 import { limiteStaffDe } from "@/lib/limites";
 import { Role } from "@/lib/tenant-input";
@@ -92,6 +92,10 @@ export async function criarNegocio(db: Firestore, user: { uid: string; email?: s
     // se o negócio não for criado, o aceite também não fica gravado
     if (aceite) tx.set(db.collection("aceites").doc(), { ...aceite, slug });
   });
+  // o dono é cliente desde já: o modelo do padrão do ramo, se houver, fica congelado (D6). Nunca lança
+  const congelado = await import("@/lib/modelos/congelar.server").then((m) => m.congelarNegocio(db, slug, "cadastro")).catch((e) => console.error(`[modelos] não congelei ${slug}`, e));
+  // nasceu num modelo de site (o padrão do ramo): a cor e a foto da bio, gravadas pelo caminho de hoje, passam a ser as dele
+  if (congelado?.modelo) await import("@/lib/modelos/copias.server").then((m) => m.atualizarCopias(db, [slug])).catch((e) => console.error(`[modelos] não refiz a cópia da bio de ${slug}`, e));
   // mensagens pré-pagas: o negócio novo nasce com o crédito de boas-vindas (uma vez só). Import na
   // hora: consumo.server abre o app do Admin SDK, e quem só importa este arquivo (testes) abre o seu
   await (await import("@/lib/consumo.server")).boasVindas(slug);
@@ -211,14 +215,19 @@ export async function salvarNegocio(db: Firestore, slug: string, input: unknown,
   // o modelo (kit e cor) é de um ramo: noutro ramo os índices apontam para fotos e
   // paletas que não existem. Trocou o ramo, volta ao visual padrão do ramo novo.
   const mudouRamo = t.get("gerado.sub") !== d.sub;
+  // a cor e a foto da bio pelo modelo do Estúdio que o site vai usar (no ramo novo, sem o modelo
+  // nem a escolha do antigo, que caem logo abaixo)
+  const def = await defDoSite(db, slug, { sub: d.sub, origem, publicadoEm: t.get("gerado.publicadoEm"), ...(!mudouRamo && { modelo: t.get("gerado.modelo"), escolha: t.get("gerado.escolha") }) });
   const [negocio] = registrosDoSite(db, slug, { ...leadDoDono(d), ...google }, { nicho: SUBS[d.sub].nicho, sub: d.sub, tipo: SUBS[d.sub].tipo }, {
     // fotos, cores e textos próprios são do negócio, não do ramo: ficam mesmo trocando o ramo
-    novo: false, ownerId: String(t.get("ownerId")), origem, escolha: mudouRamo ? undefined : t.get("gerado.escolha"), personal: personalDe(t.get("gerado.personal")),
+    novo: false, ownerId: String(t.get("ownerId")), origem, escolha: mudouRamo ? undefined : t.get("gerado.escolha"), personal: personalDe(t.get("gerado.personal")), def,
   });
   const { rating: _nota, reviews: _avaliacoes, ...site } = negocio.dados.site as Record<string, unknown>;
   // editadoEm: a planilha e a coleta (gerarNoBanco) não regravam o que foi editado aqui
   await ref.set({ ...negocio.dados, gerado: { ...(negocio.dados.gerado as Record<string, unknown>), editadoEm: FieldValue.serverTimestamp() }, site: { ...(google ? negocio.dados.site : site), fuso: d.fuso || null } }, { merge: true });
   if (mudouRamo && t.get("gerado.escolha")) await ref.update({ "gerado.escolha": FieldValue.delete() });
+  // o modelo do Estúdio também é de um ramo (kit e fotos): noutro ramo, volta ao caminho de hoje
+  if (mudouRamo && t.get("gerado.modelo")) await ref.update({ "gerado.modelo": FieldValue.delete() });
 }
 
 /** O admin da plataforma libera (ou reduz) quantos negócios uma conta pode ter. */

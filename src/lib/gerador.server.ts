@@ -12,6 +12,12 @@ import { telefoneDaMeta } from "@/lib/telefone";
 import { numerosReservadosMeta, reservadosDaProspeccao } from "@/lib/telefones-meta.server";
 import { combinacoesEditorial, escolhaEditorial, Personal, visualEditorial } from "@/lib/site-editorial";
 import { combinacoesClaro, ehClaro, escolhaClaro, visualClaro } from "@/lib/site-claro";
+import { type Catalogo, resolverModelo } from "@/lib/modelos/resolver";
+import { type ConfigModelos, type DefModelo, RefModelo } from "@/lib/modelos/tipos";
+
+/** O visual do site (cor e foto que a bio copia, fotos, paleta), pelo modelo do Estúdio quando `def`. */
+export const visualDoSite = (slug: string, sub: Sub, escolha: Escolha | undefined, personal: Personal | null, def?: DefModelo) =>
+  ehClaro(sub) ? visualClaro(slug, sub, escolha, personal, def) : visualEditorial(slug, sub, escolha, personal, def);
 
 /** Kits e paletas do modelo do nicho, e o que o slug sorteia quando o site não tem escolha. */
 const familiaVisual = (sub: Sub) =>
@@ -60,10 +66,11 @@ export function registrosDoSite(
   slug: string,
   lead: Lead,
   n: Nicho,
-  o: { novo: boolean; ownerId: string; origem: "prospeccao" | "cadastro"; equipe?: string; donoNome?: string; utm?: Utm | null; escolha?: Escolha; personal?: Personal | null },
+  o: { novo: boolean; ownerId: string; origem: "prospeccao" | "cadastro"; equipe?: string; donoNome?: string; utm?: Utm | null; escolha?: Escolha; personal?: Personal | null; def?: DefModelo },
 ): Escrita[] {
-  // a personalização do admin segue valendo: a cor e a foto que a bio lê saem dela
-  const visual = ehClaro(n.sub) ? visualClaro(slug, n.sub, o.escolha, o.personal) : visualEditorial(slug, n.sub, o.escolha, o.personal);
+  // a personalização do admin segue valendo: a cor e a foto que a bio lê saem dela, sobre o
+  // modelo do Estúdio que o site vai usar (`def`, de defDoSite), quando há um
+  const visual = visualDoSite(slug, n.sub, o.escolha, o.personal ?? null, o.def);
   const t = db.collection("tenants").doc(slug);
   const agora = FieldValue.serverTimestamp();
   const escritas: Escrita[] = [{
@@ -141,7 +148,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   // O mesmo celular aparece com e sem o 9 (levantamento antigo, número salvo antes da
   // mudança): procura as duas formas e guarda o achado nas duas, para casar com a planilha.
   const telefones = [...new Set(lida.data.flatMap(({ lead }) => [lead.telefone, outraForma(lead.telefone)].filter((t): t is string => !!t)))];
-  const porTelefone = new Map<string, { slug: string; gerado: boolean; cadastro: boolean; publicado: boolean; editado: boolean; escolha?: Escolha; personal?: Personal | null }>();
+  const porTelefone = new Map<string, { slug: string; gerado: boolean; cadastro: boolean; publicado: boolean; editado: boolean; escolha?: Escolha; personal?: Personal | null; modelo?: unknown }>();
   for (let i = 0; i < telefones.length; i += 30) { // o "in" do Firestore aceita até 30
     const achados = await tenants.where("site.phone", "in", telefones.slice(i, i + 30)).select("site.phone", "gerado").get();
     for (const d of achados.docs) {
@@ -149,7 +156,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
       for (const t of [achado, outraForma(achado)].filter((t): t is string => !!t)) {
         // entre um gerado e outro qualquer com o mesmo número, o que não é gerado decide: não duplicar
         if (!porTelefone.has(t) || !d.get("gerado")) {
-          porTelefone.set(t, { slug: d.id, gerado: !!d.get("gerado"), cadastro: d.get("gerado.origem") === "cadastro", publicado: !!d.get("gerado.publicadoEm"), editado: !!d.get("gerado.editadoEm"), escolha: d.get("gerado.escolha"), personal: personalDe(d.get("gerado.personal")) });
+          porTelefone.set(t, { slug: d.id, gerado: !!d.get("gerado"), cadastro: d.get("gerado.origem") === "cadastro", publicado: !!d.get("gerado.publicadoEm"), editado: !!d.get("gerado.editadoEm"), escolha: d.get("gerado.escolha"), personal: personalDe(d.get("gerado.personal")), modelo: d.get("gerado.modelo") });
         }
       }
     }
@@ -181,6 +188,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
     return usosDaRegiao.get(chave)!;
   };
   const escolhas = new Map<string, Escolha | undefined>();
+  const modelos = new Map<string, unknown>();
   const personais = new Map<string, Personal | null | undefined>();
 
   // Um endereço está livre se não há tenant nele. Site da fábrica ou negócio real
@@ -222,6 +230,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
     if (ja) {
       // o que já está no ar fica como está: a escolha dele não muda com a planilha
       escolhas.set(ja.slug, ja.escolha);
+      modelos.set(ja.slug, ja.modelo);
       personais.set(ja.slug, ja.personal);
       saida.push({ ...base, slug: ja.slug, acao: "atualizar" });
       continue;
@@ -259,6 +268,16 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   const resposta = saida.map(({ lead: _, ...r }) => r);
   if (!aplicar) return resposta;
 
+  // a cor e a foto da bio saem do modelo que o site vai usar: catálogo e config lidos uma vez só
+  // (se o catálogo não vier, cada defDoSite tenta de novo e, falhando, fica no caminho de hoje)
+  const { lerCatalogoDireto, lerConfig } = await import("@/lib/modelos/repo.server");
+  const lido = await Promise.all([lerCatalogoDireto(), lerConfig()]).then(([l, config]) => ({ catalogo: l.catalogo, config })).catch((e) => {
+    console.error("[gerador] não li o catálogo de modelos", e);
+    return undefined;
+  });
+  const defs = new Map(await Promise.all(saida.filter((s) => s.acao !== "pular").map(async (s) =>
+    [s.slug, await defDoSite(db, s.slug, { sub: nichoDe(s.lead)!.sub, origem: "prospeccao", modelo: modelos.get(s.slug), escolha: escolhas.get(s.slug) }, lido)] as const)));
+
   const writer = db.bulkWriter();
   // close() e flush() nunca rejeitam: a falha de cada escrita só aparece na promessa dela
   const falharam = new Set<string>();
@@ -268,7 +287,7 @@ export async function gerarNoBanco(db: Firestore, entrada: unknown, aplicar: boo
   };
   const gravar = saida
     .filter((s) => s.acao !== "pular")
-    .map((s) => ({ ...s, escritas: registrosDoSite(db, s.slug, s.lead, nichoDe(s.lead)!, { novo: s.acao === "criar", ownerId, origem: "prospeccao", escolha: escolhas.get(s.slug), personal: personais.get(s.slug) }) }));
+    .map((s) => ({ ...s, escritas: registrosDoSite(db, s.slug, s.lead, nichoDe(s.lead)!, { novo: s.acao === "criar", ownerId, origem: "prospeccao", escolha: escolhas.get(s.slug), personal: personais.get(s.slug), def: defs.get(s.slug) }) }));
   // 1º o documento do negócio (o primeiro de registrosDoSite). "criar" usa create, que falha se
   // alguém tomou o endereço depois da prévia (cadastro, outra aba): sem isto o merge misturava os dois
   for (const { slug, acao, escritas: [tenant] } of gravar) {
@@ -292,6 +311,8 @@ export async function publicarSite(db: Firestore, slug: string) {
   const t = db.collection("tenants").doc(slug);
   if (!(await t.get()).get("gerado.sub")) return false;
   await t.update({ "gerado.publicadoEm": FieldValue.serverTimestamp() });
+  // site publicado = cliente: o modelo fica na versão de agora (docs/plano-estudio-modelos.md, D6)
+  await import("@/lib/modelos/congelar.server").then((m) => m.congelarNegocio(db, slug, "publicou")).catch((e) => console.error(`[modelos] não congelei ${slug}`, e));
   return true;
 }
 
@@ -312,8 +333,9 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
       return undefined;
     }),
   ]);
-  const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; origem?: string; publicadoEm?: unknown; atualizadoEm?: { toDate(): Date }; escolha?: Escolha; variantes?: boolean; personal?: unknown } | undefined;
+  const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; origem?: string; publicadoEm?: unknown; atualizadoEm?: { toDate(): Date }; escolha?: Escolha; variantes?: boolean; personal?: unknown; modelo?: unknown } | undefined;
   if (!tenant.exists || !gerado?.sub) return null;
+  const def = await defDoSite(db, slug, { ...gerado, sub: gerado.sub });
 
   const quando = gerado.atualizadoEm?.toDate() ?? new Date();
   const s = (campo: string) => String(tenant.get(`site.${campo}`) ?? "");
@@ -348,7 +370,45 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
     ...(gerado.escolha && { escolha: gerado.escolha }),
     ...(gerado.variantes && { variantes: true }),
     ...(personalDe(gerado.personal) && { personal: personalDe(gerado.personal) }),
+    ...(def && { def }),
   };
+}
+
+// unstable_cache só roda dentro de requisição: script e teste leem direto do banco
+const emCache = <T,>(cache: () => Promise<T>, direto: () => Promise<T>) => cache().catch(() => direto());
+
+/** O modelo do Estúdio que o site usa (D5), ou undefined no caminho de hoje (escolha/hash).
+ *  Catálogo e CRM só são lidos quando podem pesar: o negócio aponta para um modelo (gerado.modelo
+ *  ou a escolha manual gerado.escolha.modelo), ou o ramo tem padrão (aí o estágio do CRM diz se é
+ *  cliente). `lido`: catálogo e config já lidos (lote, script), sem cache. Falha = caminho de hoje. */
+export async function defDoSite(db: Firestore, slug: string, gerado: { sub: Sub; origem?: string; publicadoEm?: unknown; modelo?: unknown; escolha?: unknown }, lido?: { catalogo: Catalogo; config: ConfigModelos }): Promise<DefModelo | undefined> {
+  try {
+    const ref = RefModelo.safeParse(gerado.modelo);
+    const modelo = ref.success ? ref.data : null;
+    const escolhido = (gerado.escolha as { modelo?: unknown } | undefined)?.modelo;
+    const escolha = typeof escolhido === "string" ? { modelo: escolhido } : null;
+    // import tardio: repo.server abre o app padrão do firebase-admin (@/lib/admin), e quem importa
+    // este arquivo (scripts, testes) pode ter aberto o seu antes
+    const repo = lido ? null : await import("@/lib/modelos/repo.server");
+    const config = lido?.config ?? await emCache(repo!.lerConfigCache, repo!.lerConfig);
+    const temPadrao = !!config.padroes.site[gerado.sub];
+    if (!modelo && !escolha && !temPadrao) return undefined;
+    const origem = gerado.origem === "cadastro" ? "cadastro" : "prospeccao";
+    // o CRM e o convite só decidem quando o padrão do ramo pode valer: nada escolhido, não é do
+    // cadastro nem publicado (esses sinais de cliente já estão no tenant)
+    const lerCrm = !modelo && !escolha && origem !== "cadastro" && !gerado.publicadoEm;
+    const [catalogo, crm, convite] = await Promise.all([
+      lido?.catalogo ?? emCache(repo!.lerCatalogo, repo!.lerCatalogoDireto).then((l) => l.catalogo),
+      lerCrm ? db.collection("crm").doc(slug).get() : null,
+      lerCrm ? db.collection(`tenants/${slug}/members`).where("viaConvite", "==", true).limit(1).get() : null,
+    ]);
+    const r = resolverModelo({ gerado: { sub: gerado.sub, origem, publicadoEm: gerado.publicadoEm, modelo, escolha }, crmEstagio: crm?.get("estagio"), conviteAceito: !!convite && !convite.empty }, catalogo, config, "site");
+    // layout de outra família (bio, claro num ramo editorial) quebraria a página: caminho de hoje
+    return r.def?.layout === (ehClaro(gerado.sub) ? "claro" : "editorial") ? r.def : undefined;
+  } catch (e) {
+    console.error(`[gerador] não resolvi o modelo de ${slug}; sigo pela escolha`, e);
+    return undefined;
+  }
 }
 
 /** gerado.personal como foi gravado, ou null se não passa na validação (o site sai sem ela, não quebra). */

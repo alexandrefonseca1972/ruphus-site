@@ -13,6 +13,7 @@ import { PET } from "@/lib/nichos/pet";
 import { AULAS } from "@/lib/nichos/aulas";
 import { SAUDE } from "@/lib/nichos/saude";
 import { FONTES, type Personal } from "@/lib/site-editorial";
+import type { DefModelo } from "@/lib/modelos/tipos";
 
 /** O que muda de um nicho para outro no modelo claro. Os textos entram no HTML
  *  como estão: são nossos, não da planilha. */
@@ -90,22 +91,36 @@ export function galeriaClaro(slug: string, sub: Sub) {
 // texto branco ou escuro por cima de uma cor: o claro escreve nos botões (--accent) e nos selos (--gold)
 export const tintaSobre = (hex: string) => (luminancia(hex) > 0.4 ? "#1B1208" : "#FFFFFF");
 
+/** Uma DefModelo claro em índices do ramo: o topo cujo caminho é o kit e a primeira paleta com o
+ *  mesmo --accent e --gold. Paleta sem par devolve ink/acc para entrar como cor própria. */
+function doDef(c: Conteudo, def: DefModelo): { kit?: number; cor?: number; cores?: { ink: string; acc: string } } {
+  const kit = c.topo.findIndex((t) => `/assets/${c.pasta}/${t}` === def.kit);
+  const mesma = (re: RegExp, tema: string, hex: string) => re.exec(tema)?.[1].toLowerCase() === hex.toLowerCase();
+  const cor = c.paletas.findIndex(([tema]) => mesma(/--accent:(#[0-9A-F]{6})/i, tema, def.paleta.ink) && mesma(/--gold:(#[0-9A-F]{6})/i, tema, def.paleta.acc));
+  return { ...(kit >= 0 && { kit }), ...(cor >= 0 ? { cor } : { cores: { ink: def.paleta.ink, acc: def.paleta.acc } }) };
+}
+
 /** Cor e foto principal: o que o tenant guarda para o /admin e a /bio. Com `personal`, as
  *  cores (tinta = --accent, destaque = --gold), a fonte dos títulos e as fotos próprias entram
  *  por cima da paleta e do topo do modelo. */
-export function visualClaro(slug: string, sub: Sub, escolha?: Escolha, personal?: Personal | null) {
+export function visualClaro(slug: string, sub: Sub, escolha?: Escolha, personal?: Personal | null, def?: DefModelo) {
   const c = conteudoDe(sub);
   const padrao = escolhaClaro(sub, slug);
+  // com def (modelo do Estúdio), a foto e a paleta do código que batem com ela; senão a escolha.
+  // ponytail: foto fora do banco do ramo e tema escuro próprio não existem; cai na escolha ou no slug
+  const daDef = def ? doDef(c, def) : undefined;
   // índice fora do ramo (modelo de outro sub, dado antigo) cai no que o slug sorteia
-  const base = c.paletas[escolha?.cor ?? padrao.cor] ?? c.paletas[padrao.cor];
-  const topo = c.topo[escolha?.kit ?? padrao.kit] ?? c.topo[padrao.kit];
-  const accent = personal?.cores?.ink ?? /--accent:(#[0-9A-F]{6})/i.exec(base[0])![1];
-  const gold = personal?.cores?.acc ?? /--gold:(#[0-9A-F]{6})/i.exec(base[0])![1];
-  const proprias = personal?.cores?.ink || personal?.cores?.acc;
+  const base = c.paletas[daDef?.cor ?? escolha?.cor ?? padrao.cor] ?? c.paletas[padrao.cor];
+  const topo = c.topo[daDef?.kit ?? escolha?.kit ?? padrao.kit] ?? c.topo[padrao.kit];
+  // paleta sem par no código: ink e acc da def por cima, como as cores próprias
+  const cores = { ...daDef?.cores, ...personal?.cores };
+  const accent = cores.ink ?? /--accent:(#[0-9A-F]{6})/i.exec(base[0])![1];
+  const gold = cores.acc ?? /--gold:(#[0-9A-F]{6})/i.exec(base[0])![1];
+  const proprias = cores.ink || cores.acc;
   // cor própria vale nos dois temas, com o texto por cima calculado pelo contraste
   const extra = proprias ? `--accent:${accent};--gold:${gold};--accent-ink:${tintaSobre(accent)};--gold-ink:${tintaSobre(gold)};` : "";
   const paleta: [string, string] = [base[0] + extra, base[1] + extra];
-  const fonte = FONTES.find(([n]) => n === personal?.fonte) ?? null;
+  const fonte = FONTES.find(([n]) => n === (personal?.fonte ?? def?.fonte)) ?? null;
   const p = personal?.fotos ?? {};
   const propria = (ref: string | undefined) => (ref && personal?.versao ? `${ref}?v=${personal.versao}` : ref);
   // referências das fotos: do banco ("/assets/{pasta}/{nome}", sem extensão: o HTML põe -800/1400)
@@ -123,7 +138,7 @@ export function visualClaro(slug: string, sub: Sub, escolha?: Escolha, personal?
 /** A imagem de compartilhamento: a foto do topo, na versão grande, e a fonte de título do site. */
 export function capaClaro(d: DadosSite): Capa {
   const c = conteudoDe(d.sub);
-  const { fotos, cor, fonte } = visualClaro(d.slug, d.sub, d.escolha, d.personal);
+  const { fotos, cor, fonte } = visualClaro(d.slug, d.sub, d.escolha, d.personal, d.def);
   // a rota do og.jpg pede `/s${foto}`: a do banco é /assets/…, a própria é /{slug}/fotos/hero.jpg
   const foto = fotos.hero.startsWith("/assets/") ? `${fotos.hero}.jpg` : `/${d.slug}/${fotos.hero}`;
   return { foto, cor, fonte: fonte?.[0] ?? "Bricolage Grotesque", linha: [c.rotulo, lugar(d)].filter(Boolean).join(" em ") };
@@ -155,7 +170,7 @@ const girar = <T,>(lista: T[], d: DadosSite, sal: string): T[] => {
 
 export function renderClaro(d: DadosSite): string {
   const c = conteudoDe(d.sub);
-  const { paleta, topo, cor, gold: ouro, fonte, fotos: proprias } = visualClaro(d.slug, d.sub, d.escolha, d.personal);
+  const { paleta, topo, cor, gold: ouro, fonte, fotos: proprias } = visualClaro(d.slug, d.sub, d.escolha, d.personal, d.def);
   const t = d.personal?.textos ?? {};
   const [titulo, destaque, chamadaModelo] = c.titulos[variante(d.slug, c.titulos.length, "titulo")];
   const chamada = t.frase || chamadaModelo;

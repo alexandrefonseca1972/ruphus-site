@@ -58,6 +58,7 @@ import { SmsDoNegocio } from "./sms-gaveta";
 import { MensagensDoNegocio } from "./mensagens-gaveta";
 import { PlanoDoNegocio } from "./plano-gaveta";
 import { Ajustes } from "./ajustes";
+import { Estudio } from "./modelos/estudio";
 import { Prospeccao } from "./prospeccao";
 import { WhatsAppDoNegocio } from "./whatsapp-gaveta";
 import { EnviarPorEmail } from "./enviar-email";
@@ -175,10 +176,10 @@ export default function AdminPage() {
   const levantamento = eventos?.find(doLevantamento)?.detalhe ?? null;
   // qual negócio está sendo marcado como perdido (pela gaveta ou soltando no funil)
   const [perdendo, setPerdendo] = useState<string | null>(null);
-  const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca" | "coleta" | "prospeccao" | "ajustes">("lista");
+  const [tela, setTela] = useState<"lista" | "funil" | "clientes" | "cobranca" | "coleta" | "prospeccao" | "modelos" | "ajustes">("lista");
   // Coleta, Ajustes, Clientes (carteira) e Cobrança não são recortes da lista: sem visões, filtros
   // nem alertas do funil (os contadores só vêm do servidor na Lista e no Funil e ali ficavam em 0)
-  const ferramenta = tela === "coleta" || tela === "prospeccao" || tela === "ajustes" || tela === "clientes" || tela === "cobranca";
+  const ferramenta = tela === "coleta" || tela === "prospeccao" || tela === "modelos" || tela === "ajustes" || tela === "clientes" || tela === "cobranca";
   // os sites novos (da Coleta) entram na lista e no funil na próxima página; o índice
   // do servidor os recebe pelo listener (~1 s), daí a segunda recarga
   function juntarGerados(slugs: string[]) {
@@ -1107,7 +1108,7 @@ export default function AdminPage() {
         </span>
 
         <div role="group" aria-label="Visão" className="hidden rounded-[10px] bg-[#EFEBE2] p-[3px] sm:flex">
-          {(["lista", "funil", "clientes", "cobranca", "coleta", "prospeccao", "ajustes"] as const).map((v) => (
+          {(["lista", "funil", "clientes", "cobranca", "coleta", "prospeccao", "modelos", "ajustes"] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -1115,7 +1116,7 @@ export default function AdminPage() {
               onClick={() => setTela(v)}
               className={`h-8 rounded-lg px-3 text-[12px] ${tela === v ? "bg-white font-semibold shadow-[0_1px_2px_rgba(23,21,15,.12)]" : "text-[#6F6A5E] hover:text-[#17150F]"}`}
             >
-              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : v === "clientes" ? "Clientes" : v === "cobranca" ? "Cobrança" : v === "coleta" ? "Coleta" : v === "prospeccao" ? "Prospecção" : "Ajustes"}
+              {v === "lista" ? "Lista" : v === "funil" ? "Funil" : v === "clientes" ? "Clientes" : v === "cobranca" ? "Cobrança" : v === "coleta" ? "Coleta" : v === "prospeccao" ? "Prospecção" : v === "modelos" ? "Modelos" : "Ajustes"}
               {v === "cobranca" && atrasadas > 0 && (
                 <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${tela === v ? "bg-[#FBF0EE] text-[#8A2F2F]" : "bg-[#F1E7E7] text-[#8A2F2F]"}`}>
                   {atrasadas}
@@ -1635,6 +1636,8 @@ export default function AdminPage() {
           <ColetaMaps idToken={idToken} aoGerar={juntarGerados} />
         ) : tela === "prospeccao" ? (
           <Prospeccao idToken={idToken} assinatura={assinatura} textos={textos} onTextos={setTextos} />
+        ) : tela === "modelos" ? (
+          <Estudio idToken={idToken} />
         ) : tela === "ajustes" ? (
           <Ajustes idToken={idToken} />
         ) : tela === "clientes" ? (
@@ -1959,7 +1962,7 @@ export default function AdminPage() {
       </main>
 
       {/* No celular as telas moram embaixo, ao alcance do polegar: no topo não cabiam */}
-      <nav aria-label="Telas do admin" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-7 border-t border-[#E2DDD3] bg-white pb-[env(safe-area-inset-bottom)] sm:hidden">
+      <nav aria-label="Telas do admin" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-8 border-t border-[#E2DDD3] bg-white pb-[env(safe-area-inset-bottom)] sm:hidden">
         {(
           [
             ["lista", "Lista", <path key="l" d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />],
@@ -1968,6 +1971,7 @@ export default function AdminPage() {
             ["cobranca", "Cobrança", <><rect key="r" x="3" y="6" width="18" height="12" rx="2" /><path key="p" d="M3 10h18M7 15h3" /></>],
             ["coleta", "Coleta", <><path key="p" d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" /><circle key="c" cx="12" cy="10" r="2.3" /></>],
             ["prospeccao", "Prospecção", <path key="m" d="M4 5h16v11H8l-4 4z" />],
+            ["modelos", "Modelos", <><rect key="a" x="3" y="3" width="7.5" height="7.5" rx="1.5" /><rect key="b" x="13.5" y="3" width="7.5" height="7.5" rx="1.5" /><rect key="c" x="3" y="13.5" width="7.5" height="7.5" rx="1.5" /><rect key="d" x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" /></>],
             ["ajustes", "Ajustes", <><circle key="c" cx="12" cy="12" r="3" /><path key="p" d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" /></>],
           ] as const
         ).map(([v, rotulo, icone]) => (

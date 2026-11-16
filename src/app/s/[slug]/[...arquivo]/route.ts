@@ -35,10 +35,10 @@ function pagina404(d: DadosSite | null) {
   let destaque = tinta;
   let fonte: [string, string] | null = null;
   if (d && ehClaro(d.sub)) {
-    const v = visualClaro(d.slug, d.sub, d.escolha, d.personal);
+    const v = visualClaro(d.slug, d.sub, d.escolha, d.personal, d.def);
     [tinta, destaque, fonte] = [v.cor, v.gold, v.fonte];
   } else if (d) {
-    const v = visualEditorial(d.slug, d.sub, d.escolha, d.personal);
+    const v = visualEditorial(d.slug, d.sub, d.escolha, d.personal, d.def);
     [tinta, destaque, fonte] = [v.ink, v.acc, v.fonte];
   }
   const texto = tintaSobre(tinta);

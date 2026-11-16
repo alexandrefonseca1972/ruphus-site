@@ -169,7 +169,7 @@ export async function entrarNaEquipe(db: Firestore, c: Aceite & { staffId: strin
 export async function assumirNegocio(db: Firestore, c: Aceite, uid: string, quem: Record<string, unknown>, aceiteContrato?: Record<string, unknown>) {
   const tenant = db.doc(`tenants/${c.tenantId}`);
   const membro = tenant.collection("members").doc(uid);
-  return db.runTransaction(async (tx) => {
+  const recusa = await db.runTransaction(async (tx) => {
     const [t, plataforma, ja, usado, corte] = await tx.getAll(tenant, db.doc("config/admin"), membro, db.doc(`${USADOS}/${c.jti}`), db.doc(`${REVOGADOS}/${c.tenantId}`));
     // o aceite dos Termos só fica gravado junto do acesso: convite recusado não deixa registro.
     // Vai depois de todas as leituras: a transação não aceita ler depois de escrever
@@ -195,6 +195,9 @@ export async function assumirNegocio(db: Firestore, c: Aceite, uid: string, quem
     if (antigo?.exists) tx.update(antigo.ref, { role: "admin" });
     return null;
   });
+  // convite aceito = cliente: o modelo fica na versão de agora (docs/plano-estudio-modelos.md, D6)
+  if (recusa === null) await import("@/lib/modelos/congelar.server").then((m) => m.congelarNegocio(db, c.tenantId, "convite")).catch((e) => console.error(`[modelos] não congelei ${c.tenantId}`, e));
+  return recusa;
 }
 
 /** Tira da equipe quem entrava como este profissional e cancela os links dele ainda não usados. */

@@ -69,6 +69,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Estúdio de modelos (catálogo, versões, lotes aplicados e métricas): só pelo servidor, com
+    // adminAction. Nem o admin da plataforma lê pelo SDK do navegador. config/modelos já cai no
+    // nega-tudo, como o resto de config sem match.
+    match /modelos/{id=**} {
+      allow read, write: if false;
+    }
+    match /lotes/{id=**} {
+      allow read, write: if false;
+    }
+    match /metricas/{id} {
+      allow read, write: if false;
+    }
+
     // "Meus tenants": collectionGroup("members") where uid == me
     match /{path=**}/members/{uid} {
       allow read: if request.auth != null && naoRevogado() && resource.data.uid == request.auth.uid;

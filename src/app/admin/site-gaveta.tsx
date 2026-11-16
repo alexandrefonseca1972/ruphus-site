@@ -93,8 +93,12 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
   // a prévia é o passo entre editar e gravar: o que o servidor diz que vai mudar
   const [previa, setPrevia] = useState<Mudanca[] | null>(null);
   const [versao, setVersao] = useState(0);
-  // modelo editorial: o da lista, o que o site usa hoje e o escolhido no seletor
+  // modelo: o da lista (catálogo do Estúdio), o que o site usa hoje e o escolhido no seletor
   const [modelos, setModelos] = useState<{ id: string; rotulo: string }[]>([]);
+  // cliente fica na versão do modelo que tinha; `versaoModelo` diz se já saiu uma mais nova
+  const [cliente, setCliente] = useState(false);
+  const [versaoModelo, setVersaoModelo] = useState<{ congelada: number; atual: number; data: string | null } | null>(null);
+  const [confirmandoAtualizar, setConfirmandoAtualizar] = useState(false);
   const [modeloAtual, setModeloAtual] = useState("");
   const [modelo, setModelo] = useState("");
   const [avisoModelo, setAvisoModelo] = useState<{ ok: boolean; texto: string } | null>(null);
@@ -110,8 +114,10 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
   }
   function mostrar(r: Awaited<ReturnType<typeof ler>>) {
     if (!r?.ok) return setErroCarga(r ? r.error : "Sem conexão.");
-    const { name, tipo, google, fabrica: _f, publicado, modelos: lista, modeloAtual: atual, personal, doModelo, fontes, temIA, ...resto } = r.dados;
+    const { name, tipo, google, fabrica: _f, publicado, modelos: lista, modeloAtual: atual, cliente: ehCliente, versao: v, personal, doModelo, fontes, temIA, ...resto } = r.dados;
     setModelos(lista);
+    setCliente(ehCliente);
+    setVersaoModelo(v);
     setVisual({ personal, doModelo, fontes, temIA });
     setModeloAtual(atual ?? "");
     setModelo(atual ?? "");
@@ -181,16 +187,29 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
     setPreviaModelo(r.dados);
   }
 
-  async function aplicarModelo() {
+  // `id` diferente do seletor: o "Atualizar" do cliente, que regrava o modelo em uso na versão nova
+  async function aplicarModelo(id = modelo) {
     setConfirmandoModelo(false);
+    setConfirmandoAtualizar(false);
     setBusy(true);
     setAvisoModelo(null);
-    const r = await (async () => definirModelo(await token(), slug, modelo || null))().catch(() => null);
+    const r = await (async () => definirModelo(await token(), slug, id || null))().catch(() => null);
     setBusy(false);
     if (!r?.ok) return setAvisoModelo({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
-    setModeloAtual(modelo);
-    setAvisoModelo({ ok: true, texto: "Modelo aplicado. O site e a bio já mostram o novo layout." });
+    setModeloAtual(id);
+    setVersaoModelo(null);
+    setAvisoModelo({ ok: true, texto: id === modelo ? "Modelo aplicado. O site e a bio já mostram o novo layout." : "Modelo atualizado para a versão nova. O site e a bio já mostram." });
     setVersao((v) => v + 1);
+  }
+
+  // prévia da versão publicada do modelo em uso (a que o "Atualizar" traria)
+  async function visualizarNova() {
+    setVisualizando(true);
+    setAvisoModelo(null);
+    const r = await previewModelo(await token(), slug, modeloAtual).catch(() => null);
+    setVisualizando(false);
+    if (!r?.ok) return setAvisoModelo({ ok: false, texto: r ? r.error : "Sem conexão. Tente de novo." });
+    setPreviaModelo(r.dados);
   }
 
   const site = `https://${slug}.ruphus.site`;
@@ -230,7 +249,27 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
               {modelo === modeloAtual
                 ? `Em uso: ${modelos.find((m) => m.id === modeloAtual)?.rotulo ?? (modeloAtual ? "Personalizado" : "Padrão do sistema")}`
                 : `Escolhido: ${modelos.find((m) => m.id === modelo)?.rotulo ?? "Padrão do sistema"}. Ainda não aplicado.`}
+              {cliente && " · Cliente: o modelo fica na versão de hoje até você atualizar."}
             </p>
+            {versaoModelo && (
+              <div className="flex flex-col gap-2 rounded-[10px] bg-[#FBF3DC] px-3 py-2.5 text-xs text-[#7A5A2E]">
+                <p>{versaoModelo.data ? `Versão de ${versaoModelo.data}` : `Versão ${versaoModelo.congelada}`} · há versão nova</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className={`${BOTAO_CLARO} flex-1 whitespace-nowrap`} disabled={busy} onClick={visualizarNova}>{visualizando ? "Abrindo…" : "Prévia da nova"}</button>
+                  <button type="button" className={`${BOTAO_ESCURO} flex-1 whitespace-nowrap`} disabled={busy} onClick={() => { setConfirmandoModelo(false); setConfirmandoAtualizar(true); }}>Atualizar</button>
+                </div>
+              </div>
+            )}
+            {confirmandoAtualizar && (
+              <div role="alertdialog" aria-label="Confirmar a atualização do modelo" className="flex flex-col gap-3 rounded-xl border border-[#17150F] bg-[#FAF8F3] p-4">
+                <p className="text-[15px] font-semibold">Atualizar o site de {dados?.name} para a versão nova do modelo?</p>
+                <p className="text-sm text-[#6F6A5E]">O site e a bio mudam na hora.</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className={BOTAO_ESCURO} disabled={busy} onClick={() => aplicarModelo(modeloAtual)}>Atualizar</button>
+                  <button type="button" className={BOTAO_CLARO} onClick={() => setConfirmandoAtualizar(false)}>Voltar</button>
+                </div>
+              </div>
+            )}
             {/* a gaveta tem no máximo 520px: o seletor numa linha, os dois botões dividindo a de baixo */}
             <div className="flex flex-wrap gap-2">
               <select
@@ -240,6 +279,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
                 onChange={(e) => {
                   setModelo(e.target.value);
                   setConfirmandoModelo(false);
+                  setConfirmandoAtualizar(false);
                   setAvisoModelo(null);
                   setPreviaModelo(null);
                 }}
@@ -260,6 +300,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
                 disabled={busy || modelo === "personalizado"}
                 onClick={() => {
                   setAvisoModelo(null);
+                  setConfirmandoAtualizar(false);
                   setConfirmandoModelo(true);
                 }}
               >
@@ -271,7 +312,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
                 <p className="text-[15px] font-semibold">Trocar o modelo de {dados?.name} para {modelos.find((m) => m.id === modelo)?.rotulo ?? "Padrão do sistema"}?</p>
                 <p className="text-sm text-[#6F6A5E]">O site e a bio mudam na hora.</p>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" className={BOTAO_ESCURO} disabled={busy} onClick={aplicarModelo}>Trocar o modelo</button>
+                  <button type="button" className={BOTAO_ESCURO} disabled={busy} onClick={() => aplicarModelo()}>Trocar o modelo</button>
                   <button type="button" className={BOTAO_CLARO} onClick={() => setConfirmandoModelo(false)}>Voltar</button>
                 </div>
               </div>

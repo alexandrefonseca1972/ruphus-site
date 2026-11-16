@@ -272,7 +272,7 @@ export async function salvarCrm(db: Firestore, slug: string, entrada: CrmInput, 
   const ref = db.collection(RAIZ).doc(slug);
   // Numa transação: dois salvamentos ao mesmo tempo liam o mesmo estágio de antes e gravavam
   // a mudança duas vezes na linha do tempo; e evento sem o doc gravado ficava órfão
-  await db.runTransaction(async (tx) => {
+  const fechou = await db.runTransaction(async (tx) => {
     const atual = await tx.get(ref);
     const antes = (atual.get("estagio") as Crm["estagio"] | undefined) ?? "novo";
     const mudou = dados.estagio && dados.estagio !== antes;
@@ -314,7 +314,11 @@ export async function salvarCrm(db: Firestore, slug: string, entrada: CrmInput, 
       },
       { merge: true },
     );
+    return virouFechado;
   });
+  // virou cliente: o modelo do site e da bio fica na versão de agora (D6). Nunca lança. Import na
+  // hora: congelar.server abre o app padrão do Admin SDK, e quem importa este arquivo (testes) abre o seu
+  if (fechou) await import("@/lib/modelos/congelar.server").then((m) => m.congelarNegocio(db, slug, "fechou")).catch((e) => console.error(`[modelos] não congelei ${slug}`, e));
 }
 
 export async function listarNotas(db: Firestore, slug: string): Promise<Nota[]> {

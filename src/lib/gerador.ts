@@ -9,6 +9,7 @@ import { FUSOS } from "@/lib/datetime";
 import { slugify, TenantInput } from "@/lib/tenant-input";
 import { type Dominio, urlDoSite } from "@/lib/dominio";
 import type { Personal } from "@/lib/site-editorial";
+import type { DefModelo } from "@/lib/modelos/tipos";
 
 // ─── Planilha ────────────────────────────────────────────────────────────────
 
@@ -471,6 +472,8 @@ export type DadosSite = {
   variantes?: boolean;
   /** o que o admin personalizou (fotos próprias, cores, fonte, textos); só no modelo editorial */
   personal?: Personal | null;
+  /** modelo do Estúdio resolvido (lerSite): kit, paleta e fonte por valor, no lugar da escolha */
+  def?: DefModelo;
   endereco: string;
   bairro: string;
   cidade: string;
