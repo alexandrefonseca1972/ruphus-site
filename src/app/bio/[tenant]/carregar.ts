@@ -5,7 +5,7 @@ import { adminDb } from "@/lib/admin";
 import { agendaDesligada, agendaDias, foraDoAr } from "@/lib/booking.server";
 import { addDays, fusoDe, todayIn, weekday, WEEKDAYS, type TipoPreco } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
-import type { Escolha, Sub } from "@/lib/gerador";
+import { type Escolha, type Sub, SUBS } from "@/lib/gerador";
 import { defDoSite, personalDe } from "@/lib/gerador.server";
 import { ehClaro, galeriaClaro, visualClaro } from "@/lib/site-claro";
 import { visualEditorial } from "@/lib/site-editorial";
@@ -39,6 +39,8 @@ export type Bio = {
   fotos: string[];
   /** o layout da bio que o negócio usa (D5); "atual" é a bio de sempre */
   layout: LayoutBio;
+  /** ramo de saúde (odonto, fisio…): Cartaz e Noturno ficam sóbrios */
+  saude: boolean;
 };
 
 export type Livres = { servico: Servico; dias: { date: string; rotulo: string; horarios: string[] }[] };
@@ -154,6 +156,7 @@ export const carregar = cache(async (slug: string): Promise<Bio | null> => {
     categoria: tenant.get("site.category") || null,
     fotos,
     layout,
+    saude: !!doGerado && SUBS[doGerado.sub]?.nicho === "saude",
   };
 });
 

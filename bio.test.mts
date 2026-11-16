@@ -38,7 +38,7 @@ console.log("bio e contato: ok");
 const require = createRequire(import.meta.url);
 const fonte = () => ({ className: "fonte", variable: "fonte", style: { fontFamily: "fonte" } });
 const caminhoFonte = require.resolve("next/font/google");
-require.cache[caminhoFonte] = { id: caminhoFonte, filename: caminhoFonte, loaded: true, exports: { Fraunces: fonte, Figtree: fonte, Instrument_Sans: fonte, Instrument_Serif: fonte, IBM_Plex_Sans: fonte, IBM_Plex_Mono: fonte } } as unknown as NodeJS.Module;
+require.cache[caminhoFonte] = { id: caminhoFonte, filename: caminhoFonte, loaded: true, exports: { Fraunces: fonte, Figtree: fonte, Instrument_Sans: fonte, Instrument_Serif: fonte, IBM_Plex_Sans: fonte, IBM_Plex_Mono: fonte, Archivo: fonte, Inter: fonte, Geist: fonte, Geist_Mono: fonte, Bricolage_Grotesque: fonte, DM_Sans: fonte, Sora: fonte, Plus_Jakarta_Sans: fonte } } as unknown as NodeJS.Module;
 
 // relógio fixo: quinta 12/11/2026, 10h30 em São Paulo (o mesmo da captura do snapshot)
 const snap = JSON.parse(readFileSync(new URL("./bio-atual.snap.json", import.meta.url), "utf8"));
@@ -66,15 +66,18 @@ const html = (el: ReturnType<typeof createElement>) => renderToStaticMarkup(el);
 for (const c of snap.casos) {
   const bio = { ...c.bio, categoria: null, fotos: [], layout: "atual" } as Bio;
   assert.equal(html(createElement(Atual, { tenant: snap.tenant, bio, livres: c.livres })), c.html, `atual mudou: ${c.nome}`);
-  // e o seletor manda a "atual" (e layout sem código ainda) para ela
-  for (const layout of ["atual", "cartaz"] as const) assert.equal(html(createElement(LayoutDaBio, { tenant: snap.tenant, bio: { ...bio, layout }, livres: c.livres })), c.html);
+  // e o seletor manda a "atual" (e layout desconhecido) para ela
+  for (const layout of ["atual", "inventado"]) assert.equal(html(createElement(LayoutDaBio, { tenant: snap.tenant, bio: { ...bio, layout } as Bio, livres: c.livres })), c.html);
 }
 
 const [completo, minimo] = snap.casos as { bio: Bio; livres: Livres }[];
 const fotos = ["/s/assets/beleza/sobrancelha-1/ga1.jpg", "/s/assets/beleza/sobrancelha-1/ga2.jpg", "/s/slug-teste/fotos/ga3.jpg?v=1"];
 const base = { ...completo.bio, categoria: "Design de sobrancelha", fotos } as Bio;
-const raiz = { clara: 'class="fonte fonte bc"', galeria: 'class="fonte fonte bg"', agenda: 'class="fonte fonte ba"' };
-for (const layout of ["clara", "galeria", "agenda"] as const) {
+const raiz = {
+  clara: 'class="fonte fonte bc"', galeria: 'class="fonte fonte bg"', agenda: 'class="fonte fonte ba"',
+  cartaz: 'class="fonte fonte bz"', vidro: 'class="fonte fonte bv"', painel: 'class="fonte fonte bp"', noturno: 'class="fonte fonte bn"', stories: 'class="fonte bs"',
+};
+for (const layout of ["clara", "galeria", "agenda", "cartaz", "vidro", "painel", "noturno", "stories"] as const) {
   const r = (bio: Bio, livres: Livres | null = completo.livres) => html(createElement(LayoutDaBio, { tenant: "slug-teste", bio: { ...bio, layout }, livres }));
   const cheio = r(base);
   assert.ok(cheio.includes(raiz[layout]), `${layout}: layout errado`);
@@ -97,8 +100,19 @@ for (const layout of ["clara", "galeria", "agenda"] as const) {
   const vazio = r({ ...minimo.bio, telefone: "559132364727", categoria: null, fotos: [] } as Bio, null);
   assert.ok(vazio.includes("Ligar para o negócio") && vazio.includes("tel:+559132364727") && !vazio.includes("<img"), `${layout}: mínimo`);
 }
-// Galeria com menos de 3 fotos cai na Clara
-assert.ok(html(createElement(LayoutDaBio, { tenant: "t", bio: { ...base, layout: "galeria", fotos: fotos.slice(0, 2) }, livres: null })).includes("fonte fonte bc"));
+// Galeria e Stories com menos de 3 fotos caem na Clara
+for (const layout of ["galeria", "stories"] as const) assert.ok(html(createElement(LayoutDaBio, { tenant: "t", bio: { ...base, layout, fotos: fotos.slice(0, 2) }, livres: null })).includes("fonte fonte bc"), `${layout} com 2 fotos`);
+// saúde: Cartaz escuro e sóbrio, Noturno na versão clara "amanhecer"
+const saude = { ...base, saude: true };
+assert.ok(html(createElement(LayoutDaBio, { tenant: "t", bio: { ...saude, layout: "cartaz" }, livres: null })).includes("--c:#0E3B3A"));
+assert.ok(html(createElement(LayoutDaBio, { tenant: "t", bio: { ...saude, layout: "noturno" }, livres: null })).includes('class="fonte fonte bn am"'));
+assert.ok(!html(createElement(LayoutDaBio, { tenant: "t", bio: { ...base, layout: "cartaz" }, livres: null })).includes("#0E3B3A"));
+// Stories: as três fotos passam no topo e o adesivo abre o primeiro horário livre
+const st = html(createElement(LayoutDaBio, { tenant: "t", bio: { ...base, layout: "stories" }, livres: completo.livres }));
+assert.equal(st.match(/class="fr"/g)?.length, 3);
+assert.ok(st.includes("Próximo horário") && st.includes("prefers-reduced-motion"));
+// Vidro degrada para painel sólido
+assert.ok(html(createElement(LayoutDaBio, { tenant: "t", bio: { ...base, layout: "vidro" }, livres: null })).includes("prefers-reduced-transparency"));
 // a galeria usa as fotos do site, a 3ª é a própria do negócio
 assert.ok(html(createElement(LayoutDaBio, { tenant: "t", bio: { ...base, layout: "galeria" }, livres: null })).includes('src="/s/slug-teste/fotos/ga3.jpg?v=1"'));
 

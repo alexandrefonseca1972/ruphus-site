@@ -39,8 +39,8 @@ export const ROTULO_LAYOUT: Record<string, string> = {
   editorial: "Editorial", claro: "Claro", atual: "Bio atual", clara: "Clara", galeria: "Galeria", agenda: "Agenda",
   cartaz: "Cartaz", vidro: "Vidro", painel: "Painel", noturno: "Noturno", stories: "Stories",
 };
-/** Layouts de bio que já têm código (F4); os outros entram na F4.5. */
-export const BIO_PRONTOS = ["atual", "clara", "galeria", "agenda"];
+/** Layouts de bio que já têm código (F4 e F4.5): hoje, todos. */
+export const BIO_PRONTOS = ["atual", "clara", "galeria", "agenda", "cartaz", "vidro", "painel", "noturno", "stories"];
 
 /** O que mudou entre a publicada e o rascunho, em palavras. */
 export function mudancas(antes: DefModelo, depois: DefModelo) {

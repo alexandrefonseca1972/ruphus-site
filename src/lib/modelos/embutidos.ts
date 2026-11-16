@@ -47,6 +47,11 @@ const BIOS: [LayoutBio, string, string][] = [
   ["clara", "esteticista-1", "Bio clara"],
   ["galeria", "esmalteria-1", "Bio galeria"],
   ["agenda", "barbearia-1", "Bio agenda"],
+  ["cartaz", "barbearia-2", "Bio cartaz"],
+  ["vidro", "sobrancelha-1", "Bio vidro"],
+  ["painel", "tatuador-1", "Bio painel"],
+  ["noturno", "cabeleireira-2", "Bio noturno"],
+  ["stories", "cilios-1", "Bio stories"],
 ];
 const bios: DefModelo[] = BIOS.map(([layout, base, nome]) => {
   const m = modeloDoId(base)!;
