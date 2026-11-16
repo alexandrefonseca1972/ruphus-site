@@ -227,8 +227,8 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
         {temSite && !fabrica && (
           <p className={`rounded-[10px] px-3 py-2.5 text-xs ${dados.publicado ? "bg-[#E7EEE9] text-[#2C6A53]" : "bg-[#FBFAF8] text-[#4A4639]"}`}>
             {dados.publicado
-              ? "Publicado: a taxa de ativação foi paga, o site está sem faixa e aberto ao Google."
-              : "Proposta: com faixa e fora do Google até a taxa de ativação ser paga. A baixa da taxa, na aba Cobrança, publica o site."}
+              ? "Publicado: a publicação do site foi paga, o site está sem faixa e aberto ao Google."
+              : "Proposta: com faixa e fora do Google até a publicação do site ser paga. A baixa dessa cobrança, na aba Cobrança, publica o site."}
           </p>
         )}
         {temSite && !fabrica && (
@@ -374,7 +374,7 @@ export function SiteDoNegocio({ slug, token }: { slug: string; token: () => Prom
           </ul>
           <p className="text-xs text-[#6F6A5E]">
             {fabrica ? "A página da fábrica não muda." : "Publica na hora. Serviços, equipe e agenda do negócio não mudam."}
-            {dados.tipo === "cadastro" && !dados.publicado && " O site continua como prévia até a taxa de ativação ser paga."}
+            {dados.tipo === "cadastro" && !dados.publicado && " O site continua como prévia até a publicação do site ser paga."}
           </p>
           <div className="flex justify-end gap-2">
             <button type="button" className={BOTAO_CLARO} disabled={busy} onClick={() => setPrevia(null)}>Voltar e editar</button>

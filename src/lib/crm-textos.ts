@@ -23,7 +23,7 @@ export const MARCADORES_TEXTO = {
   cliente: "nome do negócio (igual a {nome})",
   prova: "nota do Google ou quem indicou",
   site: "endereço do site do lead",
-  entrada: "taxa de ativação",
+  entrada: "valor da publicação do site",
   mensal: "mensalidade",
   proposta: "linha com o link da proposta (some se não houver link)",
 } as const;
@@ -35,7 +35,7 @@ export const TEXTOS_PADRAO: Record<ChaveTexto, string> = {
   primeiro: "{oi} {prova} Estou montando agendas online para negócios da região, onde o cliente marca sozinho. Posso mandar um exemplo do {nome}? Se não fizer sentido, responda PARE e não escrevo mais.",
   lembrete: `{oi} A prévia do {nome} está pronta: {site}. Ela mostra serviços, preço e horários. Quer que eu ajuste algo? ${SAIDA}`,
   ultima: `{oi} Não vou insistir. A prévia fica no ar em {site}. Se quiser ver depois, é só responder. ${SAIDA}`,
-  proposta: `{oi} Combinado: o {nome} em {site}.\n\nInclui serviços com preço e duração, horário de cada profissional e link na bio do Instagram.\n\nValores: taxa de ativação de {entrada} e {mensal} por mês, sem taxa por agendamento.\n\n{proposta}\n\nPosso liberar seu acesso para testar com um cliente hoje?\n\n${SAIDA}`,
+  proposta: `{oi} Combinado: o {nome} em {site}.\n\nInclui serviços com preço e duração, horário de cada profissional e link na bio do Instagram.\n\nValores: {entrada} uma vez, para montar, publicar e hospedar o site, e {mensal} por mês, sem taxa por agendamento.\n\n{proposta}\n\nPosso liberar seu acesso para testar com um cliente hoje?\n\n${SAIDA}`,
   boasVindas: `{oi} Que bom. A agenda do {nome} está em {site}.\n\nVamos finalizar juntos: serviços, horários da equipe e link na bio. Qual horário funciona para você hoje ou amanhã?\n\n${SAIDA}`,
 };
 

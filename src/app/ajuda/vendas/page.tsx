@@ -262,8 +262,8 @@ export default function ManualDoVendedor() {
       <Secao id="fechar" titulo="Fechar e perder">
         <P>
           <Termo>Fechou</Termo> abre uma confirmação que faz três coisas de uma vez, e você escolhe quais: gera a
-          cobrança da taxa de ativação, abre as boas-vindas no WhatsApp e inclui o convite do painel. Taxa em branco é venda
-          sem ativação; a mensalidade é obrigatória. Sem o e-mail do dono cadastrado, o convite não sai — e o aviso no
+          cobrança da publicação do site, abre as boas-vindas no WhatsApp e inclui o convite do painel. Valor em branco é venda
+          sem publicação; a mensalidade é obrigatória. Sem o e-mail do dono cadastrado, o convite não sai — e o aviso no
           fim diz isso, para as boas-vindas não irem sem o acesso sem ninguém notar.
         </P>
         <P>
@@ -311,7 +311,7 @@ export default function ManualDoVendedor() {
         <Lista
           itens={[
             <>
-              Na gaveta, aba Cobrança: <Termo>Cobrar taxa de ativação</Termo> e <Termo>Cobrar mês atual</Termo>. O valor vem do
+              Na gaveta, aba Cobrança: <Termo>Cobrar publicação do site</Termo> e <Termo>Cobrar mês atual</Termo>. O valor vem do
               bloco Proposta — sem valor cadastrado, não gera.
             </>,
             <>
@@ -323,7 +323,7 @@ export default function ManualDoVendedor() {
               que chega no WhatsApp que fecha a conta.
             </>,
             <>
-              <Termo>Dar baixa na taxa de ativação publica o site.</Termo> Até lá, o site é uma proposta: abre e recebe
+              <Termo>A baixa da cobrança de publicação é o que publica o site.</Termo> Até lá, o site é uma proposta: abre e recebe
               agendamentos, mas com a faixa “ainda não publicado” e fora do Google.
             </>,
             <>Cobrança cancelada libera o mês para gerar outra.</>,

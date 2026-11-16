@@ -1146,7 +1146,7 @@ export function VendaFechada({
   const invalido = !(cents(mensal) > 0) || Number.isNaN(entradaCents) || entradaCents < 0;
 
   const opcoes = [
-    { id: "cobrar", rotulo: "Gerar a cobrança da taxa de ativação", detalhe: "Pix com link", on: cobrarEntrada, set: setCobrarEntrada, mostrar: entradaCents > 0 },
+    { id: "cobrar", rotulo: "Gerar a cobrança da publicação do site", detalhe: "Pix com link", on: cobrarEntrada, set: setCobrarEntrada, mostrar: entradaCents > 0 },
     { id: "boas", rotulo: "Enviar boas-vindas no WhatsApp", detalhe: crm.donoNome ? `para ${crm.donoNome.split(" ")[0]}` : "para o dono", on: boasVindas, set: setBoasVindas, mostrar: true },
     { id: "convite", rotulo: "Incluir o convite do painel", detalhe: "o dono ainda não entrou", on: convite, set: setConvite, mostrar: precisaConvite },
   ];
@@ -1163,7 +1163,7 @@ export function VendaFechada({
           <div className="grid grid-cols-2 gap-3">
             {(
               [
-                ["Taxa de ativação", entrada, setEntrada],
+                ["Publicação do site", entrada, setEntrada],
                 ["Mensalidade", mensal, setMensal],
               ] as const
             ).map(([rotulo, valor, set]) => (
@@ -1181,7 +1181,7 @@ export function VendaFechada({
               </label>
             ))}
           </div>
-          {invalido && <p role="alert" className="text-xs text-[#8A2F2F]">Informe a mensalidade (e a taxa de ativação, se houver).</p>}
+          {invalido && <p role="alert" className="text-xs text-[#8A2F2F]">Informe a mensalidade (e a publicação do site, se houver).</p>}
           <fieldset className="grid gap-2">
             <legend className="mb-2 text-xs text-[#6F6A5E]">Já fazer agora</legend>
             {opcoes

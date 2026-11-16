@@ -36,7 +36,7 @@ const SITUACAO: Record<CobrancaEnviavel["status"], { rotulo: string; cor: string
   cancelada: { rotulo: "cancelada", cor: "bg-[#F1EFE4] text-[#8B8578]" },
 };
 
-const oque = (c: CobrancaEnviavel) => (c.tipo === "entrada" ? "Taxa de ativação" : c.tipo === "recarga" ? "Recarga de mensagens" : (c.competencia ?? ""));
+const oque = (c: CobrancaEnviavel) => (c.tipo === "entrada" ? "Publicação do site" : c.tipo === "recarga" ? "Recarga de mensagens" : (c.competencia ?? ""));
 
 async function copiar(texto: string) {
   try {
@@ -70,7 +70,7 @@ export function Cobrancas({ slug, idToken, aviso }: { slug: string; idToken: str
     const r = await cobrar(await tokenAtual(), slug, tipo, null).finally(() => setOcupado(""));
     if (!r.ok) return aviso(r.error);
     setLista(r.dados);
-    aviso(tipo === "entrada" ? "Cobrança da taxa de ativação pronta." : "Cobrança do mês pronta.");
+    aviso(tipo === "entrada" ? "Cobrança da publicação do site pronta." : "Cobrança do mês pronta.");
   }
 
   async function darBaixa() {
@@ -98,7 +98,7 @@ export function Cobrancas({ slug, idToken, aviso }: { slug: string; idToken: str
 
       <div className="flex flex-wrap gap-2">
         <button type="button" className={CLARO} disabled={!!ocupado} onClick={() => gerar("entrada")}>
-          {ocupado === "entrada" ? "Gerando…" : "Cobrar taxa de ativação"}
+          {ocupado === "entrada" ? "Gerando…" : "Cobrar publicação do site"}
         </button>
         <button type="button" className={ESCURO} disabled={!!ocupado} onClick={() => gerar("mensal")}>
           {ocupado === "mensal" ? "Gerando…" : "Cobrar mês atual"}
