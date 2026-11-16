@@ -49,7 +49,7 @@ export function montar({ tenant, bio, livres }: PropsBio) {
   const dias = [...bio.expediente].sort((a, b) => ((a.dia + 6) % 7) - ((b.dia + 6) % 7));
   // Caminho completo nos dois endereços: em www é o arquivo; no subdomínio o proxy o deixa
   // passar sem prefixar de novo. Sem ler o host, a página inteira pode ficar em cache.
-  // A foto do banco compartilhado (/assets/…: pets e sites gerados) mora em /s/assets,
+  // A foto do banco compartilhado (/assets/…: sites gerados) mora em /s/assets,
   // não na pasta do negócio — prefixar o slug nela dava 404
   const fotoSrc = bio.foto && (bio.foto.startsWith("/assets/") ? `/s${bio.foto}` : `/s/${tenant}${bio.foto}`);
   // Cor clara demais some sobre o fundo creme (#faf3f1 no Amanda): o destaque vira tinta

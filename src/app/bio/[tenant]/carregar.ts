@@ -5,7 +5,7 @@ import { adminDb } from "@/lib/admin";
 import { agendaDesligada, agendaDias, foraDoAr } from "@/lib/booking.server";
 import { addDays, fusoDe, todayIn, weekday, WEEKDAYS, type TipoPreco } from "@/lib/datetime";
 import { Service, Staff } from "@/lib/scheduling";
-import { type Escolha, type Sub, SUBS } from "@/lib/gerador";
+import { type Escolha, ehSub, type Sub, SUBS } from "@/lib/gerador";
 import { defDoSite, personalDe } from "@/lib/gerador.server";
 import { ehClaro, galeriaClaro, visualClaro } from "@/lib/site-claro";
 import { visualEditorial } from "@/lib/site-editorial";
@@ -123,7 +123,8 @@ export const carregar = cache(async (slug: string): Promise<Bio | null> => {
     }
   }
   const gerado = tenant.get("gerado") as Gerado | undefined;
-  const doGerado = gerado?.sub ? { ...gerado, sub: gerado.sub } : null;
+  // ramo que saiu do código (tenant antigo): a bio sai como a de quem não tem site gerado
+  const doGerado = gerado && ehSub(gerado.sub) ? { ...gerado, sub: gerado.sub } : null;
   const [fotos, layout] = doGerado
     ? await Promise.all([
         fotosDoSite(adminDb, slug, doGerado).catch((e) => {

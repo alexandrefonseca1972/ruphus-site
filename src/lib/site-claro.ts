@@ -1,6 +1,6 @@
-// Modelo claro do gerador: a página dos 241 sites de pet da fábrica (seções, textos
-// e camada Ruphus), com o conteúdo de cada nicho vindo de src/lib/nichos. O CSS é
-// public/s/assets/gerado/pet.css (o nome ficou: é o arquivo que os sites já pedem).
+// Modelo claro do gerador: nasceu da página dos sites de pet da fábrica (seções, textos
+// e camada Ruphus) e hoje serve a saúde, com o conteúdo de cada nicho vindo de src/lib/nichos.
+// O CSS é public/s/assets/gerado/pet.css (o nome ficou: é o arquivo que os sites já pedem).
 import {
   AVISO, cabecaComum, type Capa, type DadosSite, type Escolha, esc, faixaProposta, foneBR, jsonLd, jsonLdNegocio, lugar, mapa, notaBR, type Sub, variante, zap,
   fixo,
@@ -9,8 +9,6 @@ import {
 import { BOTAO_AGENDAR, BOTAO_TOPO, ESTILO_AGENDAR, itemMenu } from "@/lib/botao-agendar";
 import { destaqueNoTopo, luminancia } from "@/lib/contraste";
 export { destaqueNoTopo };
-import { PET } from "@/lib/nichos/pet";
-import { AULAS } from "@/lib/nichos/aulas";
 import { SAUDE } from "@/lib/nichos/saude";
 import { FONTES, type Personal } from "@/lib/site-editorial";
 import type { DefModelo } from "@/lib/modelos/tipos";
@@ -48,11 +46,11 @@ export type Conteudo = {
   };
 };
 
-const CONTEUDO: Partial<Record<Sub, Conteudo>> = { ...PET, ...SAUDE, ...AULAS };
+const CONTEUDO: Partial<Record<Sub, Conteudo>> = { ...SAUDE };
 
 /** Se o nicho é do modelo claro (e não do editorial). */
 export const ehClaro = (sub: Sub) => sub in CONTEUDO;
-const conteudoDe = (sub: Sub) => CONTEUDO[sub] ?? CONTEUDO.petshop!;
+const conteudoDe = (sub: Sub) => CONTEUDO[sub] ?? CONTEUDO.odonto!;
 
 const WA = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.7-.8-1.9-.9-.3-.1-.4-.1-.6.1s-.7.9-.9 1-.3.2-.6.1a7.6 7.6 0 0 1-2.2-1.4 8.4 8.4 0 0 1-1.6-2c-.2-.3 0-.5.1-.6l.4-.5c.1-.1.2-.3.2-.4a.6.6 0 0 0 0-.5c-.1-.1-.6-1.5-.8-2s-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-1 2.2c0 1.3.9 2.6 1.1 2.8.1.1 2 3.1 4.8 4.3.7.3 1.2.5 1.6.6a3.8 3.8 0 0 0 1.8.1c.5-.1 1.7-.7 2-1.4s.3-1.3.2-1.4-.2-.2-.5-.3z"/><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2z"/></svg>';
 const ESTRELA = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.7-4.9 4.5 1.3 6.5L12 17l-5.9 3.2 1.3-6.5L2.5 9.2l6.6-.7L12 2.5z"/></svg>';

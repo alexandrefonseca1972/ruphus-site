@@ -3,7 +3,7 @@ import "server-only";
 import { type DocumentSnapshot, FieldValue, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { UserError } from "@/lib/booking.server";
-import { DadosFabrica, DadosNegocio, leadDoDono, NegocioInput, type Sub, SUBS, UtmInput } from "@/lib/gerador";
+import { DadosFabrica, DadosNegocio, ehSub, leadDoDono, NegocioInput, type Sub, SUBS, UtmInput } from "@/lib/gerador";
 import { defDoSite, personalDe, registrosDoSite } from "@/lib/gerador.server";
 import { FUSOS, todayIn } from "@/lib/datetime";
 import { limiteStaffDe } from "@/lib/limites";
@@ -112,7 +112,8 @@ export async function lerNegocio(db: Firestore, slug: string) {
   return {
     name: s("name"),
     erroContato: "erro" in contato ? contato.erro : null,
-    sub: (t.get("gerado.sub") as Sub | undefined) ?? "",
+    // ramo que saiu do código (tenant antigo) volta vazio: o dono escolhe de novo
+    sub: ehSub(t.get("gerado.sub")) ? (t.get("gerado.sub") as Sub) : "",
     telefone: s("site.phone"),
     cidade: s("site.city"),
     uf: s("site.uf"),

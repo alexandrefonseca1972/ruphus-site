@@ -10,35 +10,31 @@ import { candidatos, type DadosSite, faixaProposta, fixo, lerPlanilha as lerAbas
 const lerPlanilha = (linhas: unknown[][]) => lerAbasDaPlanilha([{ aba: "Leads", linhas }]);
 import { renderEditorial as renderBeleza } from "@/lib/site-editorial";
 import { existsSync, readFileSync } from "node:fs";
-import { AULAS } from "@/lib/nichos/aulas";
-import { AUTOMOTIVO } from "@/lib/nichos/automotivo";
-import { FITNESS } from "@/lib/nichos/fitness";
-import { PET } from "@/lib/nichos/pet";
 import { SAUDE } from "@/lib/nichos/saude";
-import { ehClaro, renderClaro, renderClaro as renderPet } from "@/lib/site-claro";
+import { ehClaro, renderClaro } from "@/lib/site-claro";
 
 // cabeçalho com acento, maiúscula e nome em inglês, depois de uma linha de título
 {
   const { leads, erros, ignoradas } = lerPlanilha([
     ["Leads de setembro"],
     ["Nome", "WhatsApp", "Categoria", "Endereço", "Cidade", "UF", "Nota", "Reviews", "Instagram", "Serviços", "E-mail", "Tempo de atividade"],
-    ["Pet Feliz", "(91) 99372-1156", "Pet shop", "Av. Nazaré, 10", "Belém", "pa", "4,6", 59, "https://instagram.com/petfeliz/", "Banho, Tosa; Banho", "Dono@Pet.com", "x"],
+    ["Studio Bella", "(91) 99372-1156", "Estética", "Av. Nazaré, 10", "Belém", "pa", "4,6", 59, "https://instagram.com/studiobella/", "Limpeza, Depilação; Limpeza", "Dono@Bella.com", "x"],
     ["Barbearia do Zé", 92991234567, "Barbearia", "", "Manaus", "AM", 4.9, "120", "@barbadoze", "", "", ""],
     [],
-    ["Sem Telefone", "", "Pet shop"],
+    ["Sem Telefone", "", "Estética"],
     ["Restaurante do Zé", "(11) 97531-2468", "Restaurante"],
-    ["Pet Repetido", "91 99372 1156", "Pet shop"],
+    ["Bella Repetida", "91 99372 1156", "Estética"],
   ]);
   assert.deepEqual(ignoradas, ["Tempo de atividade"], "coluna desconhecida é avisada, não quebra");
   assert.equal(leads.length, 2);
-  const [pet, barba] = leads.map((l) => l.lead);
+  const [bella, barba] = leads.map((l) => l.lead);
   assert.equal(leads[0].linha, 3, "linha como o Excel numera, contando o título");
-  assert.equal(pet.telefone, "5591993721156");
-  assert.equal(pet.nota, 4.6, "vírgula decimal");
-  assert.equal(pet.uf, "PA");
-  assert.equal(pet.instagram, "petfeliz", "URL do Instagram vira o perfil");
-  assert.deepEqual(pet.servicos, ["Banho", "Tosa"], "vírgula e ponto e vírgula separam, repetido sai");
-  assert.equal(pet.email, "dono@pet.com");
+  assert.equal(bella.telefone, "5591993721156");
+  assert.equal(bella.nota, 4.6, "vírgula decimal");
+  assert.equal(bella.uf, "PA");
+  assert.equal(bella.instagram, "studiobella", "URL do Instagram vira o perfil");
+  assert.deepEqual(bella.servicos, ["Limpeza", "Depilação"], "vírgula e ponto e vírgula separam, repetido sai");
+  assert.equal(bella.email, "dono@bella.com");
   assert.equal(barba.telefone, "5592991234567", "número vindo como número da planilha");
   assert.equal(barba.avaliacoes, 120);
   assert.equal(barba.instagram, "barbadoze");
@@ -52,7 +48,7 @@ import { ehClaro, renderClaro, renderClaro as renderPet } from "@/lib/site-claro
   // a aba "Como preencher" não tem cabeçalho de leads e é pulada sem erro
   const modelo = lerAbasDaPlanilha((await lerAbas("public/modelo-leads.xlsx")).map(({ sheet, data }) => ({ aba: sheet, linhas: data as unknown[][] })));
   assert.deepEqual([modelo.leads.length, modelo.erros, modelo.ignoradas], [2, [], []]);
-  assert.deepEqual(modelo.leads.map((l) => nichoDe(l.lead)?.sub), ["petshop", "barbearia"]);
+  assert.deepEqual(modelo.leads.map((l) => nichoDe(l.lead)?.sub), ["estetica", "barbearia"]);
   assert.equal(modelo.leads[0].lead.nota, 4.7);
 }
 // várias abas (levas de um levantamento): o mesmo negócio em duas abas entra uma vez só,
@@ -171,10 +167,10 @@ assert.deepEqual(
 );
 assert.deepEqual(["5586999990000", "5596991112222", "5592991112222", "5511988887777", "5500123456789"].map(ufDoTelefone), ["PI", "AP", "AM", "SP", ""]);
 
-// nicho: veterinária antes de pet shop, unha antes de salão,
-// e o nome só decide quando não há categoria
-assert.equal(nichoDe({ categoria: "Clínica Veterinária", nome: "" })?.sub, "vet");
-assert.equal(nichoDe({ categoria: "Banho e tosa", nome: "" })?.sub, "petshop");
+// nicho: unha antes de salão, e o nome só decide quando não há categoria. Ramo que o gerador
+// não faz mais (pet, aulas, fitness, automotivo) sai null, sem cair em beleza ou saúde
+assert.equal(nichoDe({ categoria: "Clínica Veterinária", nome: "" }), null, "veterinária não vira clínica médica");
+assert.equal(nichoDe({ categoria: "Banho e tosa", nome: "" }), null);
 assert.equal(nichoDe({ categoria: "Esmalteria", nome: "" })?.sub, "unhas");
 assert.equal(nichoDe({ categoria: "Salão de Beleza", nome: "" })?.tipo, "HairSalon");
 assert.equal(nichoDe({ categoria: "Design de sobrancelhas", nome: "" })?.sub, "sobrancelha");
@@ -184,12 +180,12 @@ assert.equal(nichoDe({ categoria: "Restaurante", nome: "Petisco Bar" }), null);
 // nomes que as regras confundiam (revisão de ramos, 08/11/2026)
 for (const [nome, sub] of [
   ["Bárbara Cílios e Sobrancelhas", "estetica"], ["Ana Paula Barbie das unhas", "unhas"], ["Barbearia Status", "barbearia"], ["Salão Status", "salao"],
-  ["Salão Beleza Absoluta", "salao"], ["Muay Thai Luta Livre", "lutas"],
-  ["MS encanto beauty", "salao"], ["Recanto da Beleza", "salao"], ["Escola de Canto Vozes", "musica"],
-  ["Cléo Estética Personalizada", "estetica"], ["Rafa Personal Trainer", "academia"],
-  ["Pétalas Esmalteria e Estética", "unhas"], ["Le Petit Atelier Hair", "salao"], ["Pet Shop Amigo", "petshop"], ["Petshop do Bairro", "petshop"], ["Ki Linda Estética Animal", "petshop"],
-  ["Oficina da Beleza", "salao"], ["Oficina GT Barbearia", "barbearia"], ["Oficina do Zé Mecânica", "oficina"],
-  ["Auto Estética Dirceu", "lavagem"], ["Clínica Estética - Lauane Cunha", "estetica"], ["Funilaria e pintura Martelinho de ouro Leandro", "oficina"], ["Unhas da Bia", "unhas"], ["Studio Unha Bonita", "unhas"], ["CJS ESTÉTICA CAR", "lavagem"], ["Front Car Estética Automotiva", "lavagem"],
+  ["Salão Beleza Absoluta", "salao"], ["Muay Thai Luta Livre", undefined],
+  ["MS encanto beauty", "salao"], ["Recanto da Beleza", "salao"], ["Escola de Canto Vozes", undefined],
+  ["Cléo Estética Personalizada", "estetica"], ["Rafa Personal Trainer", undefined],
+  ["Pétalas Esmalteria e Estética", "unhas"], ["Le Petit Atelier Hair", "salao"], ["Pet Shop Amigo", undefined], ["Petshop do Bairro", undefined], ["Ki Linda Estética Animal", undefined],
+  ["Oficina da Beleza", "salao"], ["Oficina GT Barbearia", "barbearia"], ["Oficina do Zé Mecânica", undefined],
+  ["Auto Estética Dirceu", undefined], ["Clínica Estética - Lauane Cunha", "estetica"], ["Funilaria e pintura Martelinho de ouro Leandro", undefined], ["Unhas da Bia", "unhas"], ["Studio Unha Bonita", "unhas"], ["CJS ESTÉTICA CAR", undefined], ["Front Car Estética Automotiva", undefined],
   ["Clínica Remove - Remoção de Tatuagem", "estetica"], ["Kaos Tattoo Studio", "tatuagem"],
 ] as const) assert.equal(nichoDe({ categoria: "", nome })?.sub, sub, nome);
 // categoria genérica de clínica: o nome diz a especialidade
@@ -198,14 +194,13 @@ assert.equal(nichoDe({ categoria: "Clínica médica", nome: "Clínica Sorriso Od
 assert.equal(nichoDe({ categoria: "Clínica médica", nome: "Clínica São Lucas" })?.sub, "clinica");
 assert.equal(nichoDe({ categoria: "Salão de Beleza", nome: "Oficina do Zé" })?.sub, "salao", "a categoria específica continua valendo");
 assert.equal(nichoDe({ categoria: "", nome: "Barbearia Navalha" })?.sub, "barbearia");
-// cursos profissionalizantes: formação vence o ramo ensinado, e cursinho continua reforço
-assert.equal(nichoDe({ categoria: "Escola de cabeleireiro", nome: "" })?.sub, "profissionalizante");
-assert.equal(nichoDe({ categoria: "", nome: "Curso de Manicure Profissional" })?.sub, "profissionalizante");
-assert.equal(nichoDe({ categoria: "Escola técnica", nome: "" })?.sub, "profissionalizante");
-assert.equal(nichoDe({ categoria: "Centro de formação profissional", nome: "" })?.sub, "profissionalizante");
-assert.equal(nichoDe({ categoria: "Cursinho pré-vestibular", nome: "" })?.sub, "reforco");
+// cursos profissionalizantes: formação vence o ramo ensinado ("escola de cabeleireiro" não é salão)
+assert.equal(nichoDe({ categoria: "Escola de cabeleireiro", nome: "" }), null);
+assert.equal(nichoDe({ categoria: "", nome: "Curso de Manicure Profissional" }), null);
+assert.equal(nichoDe({ categoria: "Escola técnica", nome: "" }), null);
 assert.equal(nichoDe({ categoria: "Salão de beleza", nome: "" })?.sub, "salao");
-assert.equal(nichoDe({ categoria: "Autoescola", nome: "" })?.sub, "autoescola");
+// categoria de clínica e nome de ramo que saiu: fora, não clínica médica
+assert.equal(nichoDe({ categoria: "Clínica", nome: "Academia Corpo em Forma" }), null);
 
 // endereço: nome, depois nome + cidade; reservado e acento resolvidos
 assert.deepEqual(candidatos({ nome: "Salão da Ná", cidade: "São Luís", slug: "" }).slice(0, 2), ["salao-da-na", "salao-da-na-sao-luis"]);
@@ -214,18 +209,18 @@ assert.equal(candidatos({ nome: "Qualquer", cidade: "", slug: "meu-pet" })[0], "
 assert.ok(candidatos({ nome: "x".repeat(90), cidade: "Manaus", slug: "" }).every((s) => s.length <= 63));
 
 // variante: estável para o mesmo slug, e espalha
-assert.equal(variante("pet-feliz", 7), variante("pet-feliz", 7));
+assert.equal(variante("sorriso-feliz", 7), variante("sorriso-feliz", 7));
 assert.ok(new Set(["a", "b", "c", "d", "e", "f", "g", "h"].map((s) => variante(s, 4))).size > 1);
 
 // HTML: o que vem da planilha sai escapado, e a camada da Ruphus vai em todo site
 const base: DadosSite = {
-  slug: "pet-feliz", nome: 'Pet <script>alert("x")</script> Feliz', telefone: "5591993721156", sub: "petshop", tipo: "PetStore",
+  slug: "sorriso-feliz", nome: 'Sorriso <script>alert("x")</script> Feliz', telefone: "5591993721156", sub: "odonto", tipo: "Dentist",
   endereco: "Av. Nazaré, 10", bairro: "Nazaré", cidade: "Belém", uf: "PA", nota: 4.6, avaliacoes: 59, instagram: "",
-  horario: "seg-sab 8h às 18h", servicos: ["Banho", "Tosa"], consultado: "setembro de 2026",
+  horario: "seg-sab 8h às 18h", servicos: ["Limpeza", "Clareamento"], consultado: "setembro de 2026",
 };
 for (const [nome, html] of [
-  ["pet", renderPet(base)],
-  ["vet", renderPet({ ...base, sub: "vet", tipo: "VeterinaryCare" })],
+  ["odonto", renderClaro(base)],
+  ["fisio", renderClaro({ ...base, sub: "fisio", tipo: "Physiotherapy" })],
   ["barbearia", renderBeleza({ ...base, sub: "barbearia", tipo: "BarberShop" })],
   ["unhas", renderBeleza({ ...base, sub: "unhas", tipo: "NailSalon", nota: null, avaliacoes: null })],
   ["tatuagem", renderBeleza({ ...base, sub: "tatuagem", tipo: "TattooParlor", servicos: ["Fine line", "Orçamento"] })],
@@ -236,9 +231,9 @@ for (const [nome, html] of [
   assert.ok(!html.includes("sobreassets"), `${nome}: caminho da imagem do JSON-LD`);
   assert.ok(!html.includes("instagram.com/"), `${nome}: sem Instagram, sem link de Instagram`);
   assert.ok(html.includes('data-ysis="proposta"') && html.includes('data-agendar="1"') && html.includes('data-ysis="aviso"'), `${nome}: camada Ruphus`);
-  assert.ok(html.includes('<link rel="canonical" href="https://pet-feliz.ruphus.site/">'), `${nome}: canonical`);
+  assert.ok(html.includes('<link rel="canonical" href="https://sorriso-feliz.ruphus.site/">'), `${nome}: canonical`);
   assert.ok(html.includes('content="noindex, nofollow"'), `${nome}: fora do Google`);
-  assert.ok(html.includes('<meta property="og:image" content="https://pet-feliz.ruphus.site/og.jpg">') && html.includes('content="1200"'), `${nome}: prévia do WhatsApp em og.jpg 1200×630`);
+  assert.ok(html.includes('<meta property="og:image" content="https://sorriso-feliz.ruphus.site/og.jpg">') && html.includes('content="1200"'), `${nome}: prévia do WhatsApp em og.jpg 1200×630`);
   assert.ok(!html.includes("undefined") && !html.includes("null"), `${nome}: nenhum campo vazio vazou`);
   assert.ok(html.includes('../assets/site-ui.js') && html.includes('../assets/site-ui.css'), `${nome}: comportamento compartilhado`);
   assert.ok(!html.includes("init3D") && !html.includes("fx3d"), `${nome}: sem WebGL morto`);
@@ -246,15 +241,15 @@ for (const [nome, html] of [
 }
 // domínio próprio ativo vira o endereço oficial; pendente, segue o subdomínio
 {
-  const ativo = renderBeleza({ ...base, sub: "barbearia", tipo: "BarberShop", dominio: { host: "www.petfeliz.com.br", status: "ativo" } });
-  assert.ok(ativo.includes('<link rel="canonical" href="https://www.petfeliz.com.br/">'), "canonical no domínio do cliente");
-  assert.ok(ativo.includes('<meta property="og:image" content="https://www.petfeliz.com.br/og.jpg">'), "og.jpg no domínio do cliente");
-  assert.ok(ativo.includes('"url":"https://www.petfeliz.com.br/"') && !ativo.includes("pet-feliz.ruphus.site"), "JSON-LD no domínio e nada do subdomínio");
-  const pendente = renderBeleza({ ...base, sub: "barbearia", tipo: "BarberShop", dominio: { host: "www.petfeliz.com.br", status: "pendente" } });
-  assert.ok(pendente.includes('<link rel="canonical" href="https://pet-feliz.ruphus.site/">'), "domínio pendente não muda o endereço");
+  const ativo = renderBeleza({ ...base, sub: "barbearia", tipo: "BarberShop", dominio: { host: "www.sorrisofeliz.com.br", status: "ativo" } });
+  assert.ok(ativo.includes('<link rel="canonical" href="https://www.sorrisofeliz.com.br/">'), "canonical no domínio do cliente");
+  assert.ok(ativo.includes('<meta property="og:image" content="https://www.sorrisofeliz.com.br/og.jpg">'), "og.jpg no domínio do cliente");
+  assert.ok(ativo.includes('"url":"https://www.sorrisofeliz.com.br/"') && !ativo.includes("sorriso-feliz.ruphus.site"), "JSON-LD no domínio e nada do subdomínio");
+  const pendente = renderBeleza({ ...base, sub: "barbearia", tipo: "BarberShop", dominio: { host: "www.sorrisofeliz.com.br", status: "pendente" } });
+  assert.ok(pendente.includes('<link rel="canonical" href="https://sorriso-feliz.ruphus.site/">'), "domínio pendente não muda o endereço");
 }
 // JSON-LD não fecha a tag com "</script>" no nome
-assert.ok(renderPet({ ...base, nome: "A</script><b>" }).includes("A\\u003c/script>\\u003cb>"));
+assert.ok(renderClaro({ ...base, nome: "A</script><b>" }).includes("A\\u003c/script>\\u003cb>"));
 // tatuagem: fotos, rótulo e textos do estúdio, não os de salão
 {
   const html = renderBeleza({ ...base, sub: "tatuagem", tipo: "TattooParlor", servicos: ["Fine line", "Cobertura de tatuagem", "Orçamento"] });
@@ -265,12 +260,12 @@ assert.ok(renderPet({ ...base, nome: "A</script><b>" }).includes("A\\u003c/scrip
 }
 // sem nota, a seção de avaliações some
 assert.ok(!renderBeleza({ ...base, sub: "salao", nota: null, avaliacoes: null }).includes('id="depoimentos"'));
-assert.ok(!renderPet({ ...base, nota: null, avaliacoes: null }).includes('id="avaliacoes"'));
+assert.ok(!renderClaro({ ...base, nota: null, avaliacoes: null }).includes('id="avaliacoes"'));
 // com Instagram, o link aparece
-assert.ok(renderPet({ ...base, instagram: "petfeliz" }).includes("https://www.instagram.com/petfeliz/"));
+assert.ok(renderClaro({ ...base, instagram: "sorrisofeliz" }).includes("https://www.instagram.com/sorrisofeliz/"));
 
 // ─── Os modelos-base: todo nicho completo, sem foto faltando nem repetida ───
-for (const [sub, c] of Object.entries({ ...PET, ...SAUDE, ...AULAS })) {
+for (const [sub, c] of Object.entries(SAUDE)) {
   const citadas = [...c.topo, ...c.galeria, ...c.passos.map(([f]) => f)];
   for (const f of citadas) {
     assert.ok(c.fotos[f], `${sub}: ${f} sem alt`);
@@ -284,29 +279,24 @@ for (const [sub, c] of Object.entries({ ...PET, ...SAUDE, ...AULAS })) {
     assert.equal(new Set(fotos).size, 3, `${sub}: galeria repetida em site-${i}`);
   }
 }
-for (const [sub, e] of Object.entries({ ...FITNESS, ...AUTOMOTIVO })) {
-  for (const kit of e.kits) for (const f of ["hero", "ga1", "ga2", "ga3"]) assert.ok(existsSync(`public/s${kit}/${f}.jpg`), `${sub}: falta ${kit}/${f}.jpg`);
-}
 
-// cada nicho novo reconhecido pela categoria, com a ordem das regras respeitada
+// cada nicho reconhecido pela categoria, com a ordem das regras respeitada; ramo que saiu é null
 for (const [categoria, sub] of [
   ["Clínica odontológica", "odonto"], ["Dentista", "odonto"], ["Fisioterapia", "fisio"], ["RPG e pilates", "fisio"],
   ["Psicóloga", "psico"], ["Nutricionista", "nutri"], ["Clínica médica", "clinica"], ["Consultório pediátrico", "clinica"],
-  ["Escola de inglês", "idiomas"], ["Reforço escolar", "reforco"], ["Escola de música", "musica"], ["Autoescola", "autoescola"], ["CFC Centro de Formação de Condutores", "autoescola"],
-  ["Academia", "academia"], ["Crossfit", "academia"], ["Studio de Pilates", "pilates"], ["Academia de Jiu-jitsu", "lutas"], ["Escola de dança", "danca"],
-  ["Oficina mecânica", "oficina"], ["Estética automotiva", "lavagem"], ["Lava-jato", "lavagem"], ["Borracharia", "pneus"], ["Baterias automotivas", "oficina"],
+  ["Escola de inglês", undefined], ["Reforço escolar", undefined], ["Escola de música", undefined], ["Autoescola", undefined], ["CFC Centro de Formação de Condutores", undefined],
+  // "studio" e "academia de dança" não caem em salão; "estética automotiva" não cai em estética
+  ["Academia", undefined], ["Crossfit", undefined], ["Studio de Pilates", undefined], ["Academia de Jiu-jitsu", undefined], ["Escola de dança", undefined], ["Studio de Dança", undefined],
+  ["Oficina mecânica", undefined], ["Estética automotiva", undefined], ["Lava-jato", undefined], ["Borracharia", undefined], ["Baterias automotivas", undefined],
   // o que já existia continua onde estava
-  ["Clínica de Estética", "estetica"], ["Clínica veterinária", "vet"], ["Biomedicina estética", "estetica"], ["Salão de Beleza", "salao"], ["Studio de Tatuagem", "tatuagem"],
+  ["Clínica de Estética", "estetica"], ["Clínica veterinária", undefined], ["Biomedicina estética", "estetica"], ["Salão de Beleza", "salao"], ["Studio de Tatuagem", "tatuagem"],
 ] as const) assert.equal(nichoDe({ categoria, nome: "" })?.sub, sub, categoria);
-assert.equal(nichoDe({ categoria: "Academia de competição", nome: "" })?.sub, "academia", "“competição” não é pet");
 assert.equal(nichoDe({ categoria: "Salão / Coloração", nome: "" })?.sub, "salao", "“coloração” não é ração");
-assert.equal(nichoDe({ categoria: "Ração e acessórios", nome: "" })?.sub, "petshop");
 assert.equal(nichoDe({ categoria: "Espaço de Beleza", nome: "" })?.sub, "salao", "“espaço” não é spa");
 assert.equal(nichoDe({ categoria: "Day Spa", nome: "" })?.sub, "estetica");
 // os serviços padrão leem o mesmo texto: "Coloração" não traz banho e tosa, "Espaço" não traz massagem
 assert.deepEqual(porRamo("salão cabelo Salão / Coloração").map((s) => s.name), ["Corte", "Escova", "Coloração", "Hidratação"]);
 assert.deepEqual(porRamo("estética Espaço de Beleza").map((s) => s.name), ["Limpeza de pele", "Avaliação estética"]);
-assert.deepEqual(porRamo("pet shop Ração e acessórios").map((s) => s.name), ["Banho", "Tosa", "Banho e tosa"]);
 // preço e duração pelo nome: massagem não é relaxamento capilar, harmonização facial não é limpeza de pele
 assert.deepEqual([montar("Massagem relaxante").durationMin, montar("Massagem relaxante").priceCents], [60, 12000]);
 assert.deepEqual([montar("Relaxamento").durationMin, montar("Relaxamento").priceCents], [180, 25000]);
@@ -448,47 +438,44 @@ console.log("gerador: ok");
 // personalização no modelo claro: modelos por ramo, cores em --accent/--gold, fonte, fotos próprias e textos
 {
   const { modelosClaro, modeloClaroDoId, visualClaro, capaClaro, renderClaro } = await import("@/lib/site-claro");
-  const m = modelosClaro("petshop");
-  assert.equal(m.length, 4, "um modelo por foto de topo");
-  assert.deepEqual(m.map((x) => x.id), ["petshop-1", "petshop-2", "petshop-3", "petshop-4"]);
-  assert.equal(modeloClaroDoId("petshop", "petshop-2")?.escolha.kit, 1);
-  assert.equal(modeloClaroDoId("vet", "petshop-2"), undefined, "modelo de outro ramo não vale");
-  assert.equal(modelosClaro("profissionalizante").length, 4);
-  // destaque do topo legível sobre a foto: o azul escuro do idiomas clareia, o dourado fica
+  const m = modelosClaro("odonto");
+  assert.equal(m.length, 3, "um modelo por foto de topo");
+  assert.deepEqual(m.map((x) => x.id), ["odonto-1", "odonto-2", "odonto-3"]);
+  assert.equal(modeloClaroDoId("odonto", "odonto-2")?.escolha.kit, 1);
+  assert.equal(modeloClaroDoId("fisio", "odonto-2"), undefined, "modelo de outro ramo não vale");
+  // destaque do topo legível sobre a foto: o azul escuro clareia, o dourado fica
   const { destaqueNoTopo } = await import("@/lib/site-claro");
   assert.equal(destaqueNoTopo("#F0B429"), "#F0B429", "cor que já passa volta igual");
   assert.notEqual(destaqueNoTopo("#2F5D8A"), "#2F5D8A", "azul escuro clareia");
   assert.match(destaqueNoTopo("#2F5D8A"), /^#[0-9A-F]{6}$/);
-  assert.equal(modelosClaro("idiomas").length, 3);
   const { MODELOS } = await import("@/lib/site-editorial");
   const { SUBS } = await import("@/lib/gerador");
-  assert.equal(MODELOS.filter((x) => SUBS[x.sub].nicho === "fitness").length, 12, "3 por ramo de fitness");
-  assert.equal(MODELOS.filter((x) => SUBS[x.sub].nicho === "automotivo").length, 9, "3 por ramo automotivo");
   assert.equal(MODELOS.filter((x) => SUBS[x.sub].nicho === "beleza").length, 36, "30 de beleza + 3 do salão infantil + 3 de sobrancelha");
+  assert.equal(MODELOS.length, 36, "editorial só de beleza");
   const { galeriaClaro } = await import("@/lib/site-claro");
-  const g = galeriaClaro("pet-feliz", "petshop");
+  const g = galeriaClaro("sorriso-feliz", "odonto");
   assert.equal(new Set(g).size, 3, "três fotos distintas");
   assert.ok(renderClaro({ ...base }).includes(`/${g[0]}-800.jpg`) && renderClaro({ ...base }).includes(`/${g[2]}-800.jpg`), "o site mostra as mesmas três que a gaveta");
-  const semNada = visualClaro("x", "petshop");
-  const v = visualClaro("x", "petshop", undefined, { cores: { ink: "#112233", acc: "#ffcc00" }, fonte: "Italiana", fotos: { ga2: "fotos/ga2.jpg", bio: "fotos/bio.jpg" }, versao: 5 });
+  const semNada = visualClaro("x", "odonto");
+  const v = visualClaro("x", "odonto", undefined, { cores: { ink: "#112233", acc: "#ffcc00" }, fonte: "Italiana", fotos: { ga2: "fotos/ga2.jpg", bio: "fotos/bio.jpg" }, versao: 5 });
   assert.equal(v.cor, "#112233", "tinta vira --accent (a cor da bio)");
   assert.ok(v.paleta[0].includes("--accent:#112233;--gold:#ffcc00;--accent-ink:#FFFFFF;--gold-ink:#1B1208;"), "as duas cores nos dois temas, com o texto pelo contraste");
   assert.ok(v.paleta[1].includes("--accent:#112233"));
   assert.equal(v.fonte?.[0], "Italiana");
   assert.equal(v.fotos.hero, semNada.fotos.hero, "sem topo próprio, o do modelo");
   assert.deepEqual([v.fotos.ga2, v.foto], ["fotos/ga2.jpg?v=5", "/fotos/bio.jpg?v=5"]);
-  assert.ok(visualClaro("x", "petshop", { kit: 99, cor: 99 }).cor.startsWith("#"), "índice fora do ramo não quebra");
-  const d: DadosSite = { ...base, slug: "pet-feliz", personal: { fotos: { hero: "fotos/hero.jpg", ga1: "fotos/ga1.jpg" }, cores: { ink: "#112233" }, fonte: "Marcellus", textos: { frase: "Banho sem estresse.", sobre: "Desde 2015 no bairro.", galeria: "Nosso espaço" }, versao: 7 } };
+  assert.ok(visualClaro("x", "odonto", { kit: 99, cor: 99 }).cor.startsWith("#"), "índice fora do ramo não quebra");
+  const d: DadosSite = { ...base, slug: "sorriso-feliz", personal: { fotos: { hero: "fotos/hero.jpg", ga1: "fotos/ga1.jpg" }, cores: { ink: "#112233" }, fonte: "Marcellus", textos: { frase: "Atendimento sem pressa.", sobre: "Desde 2015 no bairro.", galeria: "Nosso espaço" }, versao: 7 } };
   const html = renderClaro(d);
   assert.ok(html.includes('url("fotos/hero.jpg?v=7")') && html.includes('href="fotos/hero.jpg?v=7"'), "topo próprio no CSS e no preload");
   assert.ok(html.includes('<img src="fotos/ga1.jpg?v=7"') && html.includes("-800.jpg"), "galeria mistura própria e do banco");
   assert.ok(html.includes("--accent:#112233") && html.includes("--font-display:'Marcellus',serif") && html.includes("family=Marcellus"), "cor e fonte próprias");
-  assert.ok(html.includes("Banho sem estresse.") && html.includes('<div class="sobre-box">Desde 2015 no bairro.</div>') && html.includes("<h2 class=\"section-title\">Nosso espaço</h2>"), "textos próprios");
+  assert.ok(html.includes("Atendimento sem pressa.") && html.includes('<div class="sobre-box">Desde 2015 no bairro.</div>') && html.includes("<h2 class=\"section-title\">Nosso espaço</h2>"), "textos próprios");
   assert.ok(html.includes("Algumas fotos são ilustrativas"), "ainda há foto do banco (passos e galeria)");
-  assert.ok(html.includes('"image":"https://pet-feliz.ruphus.site/fotos/hero.jpg?v=7"'), "JSON-LD aponta o topo próprio");
-  assert.equal(capaClaro(d).foto, "/pet-feliz/fotos/hero.jpg?v=7");
+  assert.ok(html.includes('"image":"https://sorriso-feliz.ruphus.site/fotos/hero.jpg?v=7"'), "JSON-LD aponta o topo próprio");
+  assert.equal(capaClaro(d).foto, "/sorriso-feliz/fotos/hero.jpg?v=7");
   assert.equal(capaClaro(d).fonte, "Marcellus");
-  assert.ok(capaClaro({ ...d, personal: null }).foto.startsWith("/assets/pet/") && capaClaro({ ...d, personal: null }).foto.endsWith(".jpg"));
+  assert.ok(capaClaro({ ...d, personal: null }).foto.startsWith("/assets/saude/") && capaClaro({ ...d, personal: null }).foto.endsWith(".jpg"));
   assert.ok(!renderClaro({ ...d, personal: null }).includes('id="sobre"'), "sem Sobre próprio não há seção Sobre");
   console.log("personalização no claro: ok");
 }
@@ -544,7 +531,7 @@ assert.deepEqual(["5591993721156", "559193721156", "559632178751", "14155550100"
 console.log("nono dígito: ok");
 
 // número fixo: o WhatsApp não atende — tudo vira ligação, nos dois modelos e em todos os ramos
-for (const sub of ["petshop", "vet", "odonto", "salao", "barbearia", "estetica", "sobrancelha", "unhas", "podologia"] as const) {
+for (const sub of ["odonto", "fisio", "salao", "barbearia", "estetica", "sobrancelha", "unhas", "podologia"] as const) {
   const d = { ...base, nome: "Casa Teste", sub, telefone: "559232364727" };
   const html = ehClaro(sub) ? renderClaro(d) : renderBeleza(d);
   assert.ok(!html.includes("wa.me/559232364727"), `${sub} fixo: sem link de WhatsApp do negócio`);
@@ -565,14 +552,14 @@ console.log("telefone fixo vira ligação: ok");
 // O módulo Agendamento controla o botão principal nos dois modelos de site.
 {
   const editorial = renderBeleza({ ...base, sub: "barbearia", agendamento: false });
-  const claro = renderClaro({ ...base, sub: "petshop", agendamento: false });
+  const claro = renderClaro({ ...base, sub: "odonto", agendamento: false });
   assert.ok(!editorial.includes('data-agendar="1"'), "editorial sem Agendamento não mostra o botão");
   assert.ok(!claro.includes('data-agendar="1"'), "claro sem Agendamento não mostra o botão");
   assert.ok(!editorial.includes('href="/agendar"') && !editorial.includes("Ver valores e horários"), "editorial sem agenda não promete horários online");
   assert.ok(editorial.includes("Valores com o negócio") && editorial.includes('href="#agendar"'), "editorial sem agenda oferece contato alternativo");
   assert.ok(!claro.includes('href="/agendar"'), "claro sem agenda não linka a grade online");
   assert.ok(renderBeleza({ ...base, sub: "barbearia", agendamento: true }).includes('data-agendar="1"'));
-  assert.ok(renderClaro({ ...base, sub: "petshop", agendamento: true }).includes('data-agendar="1"'));
+  assert.ok(renderClaro({ ...base, sub: "odonto", agendamento: true }).includes('data-agendar="1"'));
   console.log("botão do site conforme o plano: ok");
 }
 
@@ -601,7 +588,7 @@ console.log("telefone fixo vira ligação: ok");
 
 // Formulários e sites personalizados usam o mesmo comportamento acessível.
 {
-  const claro = renderClaro({ ...base, sub: "petshop" });
+  const claro = renderClaro({ ...base, sub: "odonto" });
   for (const atributo of ['name="telefone"', 'type="tel"', 'inputmode="tel"', 'autocomplete="tel-national"', 'name="dia"', 'name="msg"']) {
     assert.ok(claro.includes(atributo), `modelo claro: ${atributo}`);
   }

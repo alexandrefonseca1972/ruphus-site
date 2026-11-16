@@ -63,7 +63,7 @@ import { iaDisponivel, type Mensagem, sugerirVisual } from "@/lib/ia.server";
 import { apagarFotosFora, apagarRascunho, fotosFaltando, lerFoto, publicarFotos, SLOTS, type Slot, slotsEmRascunho, tenantGerado } from "@/lib/foto.server";
 import { SLUG_SITE } from "@/lib/site-arquivo";
 import { comBase, slugValido } from "@/lib/admin-html";
-import { type DadosSite, type Escolha, type Sub, SUBS } from "@/lib/gerador";
+import { type DadosSite, ehSub, type Escolha, type Sub, SUBS } from "@/lib/gerador";
 import { FieldValue } from "firebase-admin/firestore";
 
 export type { Espaco };
@@ -763,7 +763,7 @@ const defDoTenant = (slug: string, sub: Sub, tenant: FirebaseFirestore.DocumentS
 /** Convite aceito (membro com viaConvite): um dos sinais de cliente de ehClienteAtivo. */
 const conviteAceito = async (slug: string) => !(await adminDb.collection(`tenants/${slug}/members`).where("viaConvite", "==", true).limit(1).get()).empty;
 /** Modelos de site da família do negócio: o editorial compartilha entre ramos do mesmo nicho
- *  (beleza com beleza; oficina não recebe foto de salão), o claro é por ramo. */
+ *  (beleza com beleza), o claro é por ramo. */
 const daFamilia = (sub: Sub) => (d: DefModelo) =>
   d.tipo === "site" && d.layout === (ehClaro(sub) ? "claro" : "editorial") && (ehClaro(sub) ? d.sub === sub : SUBS[d.sub as Sub]?.nicho === SUBS[sub].nicho);
 const dataCurta = (d: Date) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" });
@@ -979,8 +979,8 @@ export const definirModelo = adminAction(async (_user, slug: string, id: string 
   slugValido(slug);
   const t = adminDb.collection("tenants").doc(slug);
   const [tenant, crm, { tipo }, convite] = await Promise.all([t.get(), adminDb.doc(`crm/${slug}`).get(), lerSiteDoNegocio(adminDb, slug), conviteAceito(slug)]);
-  const sub = tenant.get("gerado.sub") as Sub | undefined;
-  if (!tenant.exists || !sub || tipo === "fabrica") throw new ErroPrevisto("Este site não usa modelo.");
+  const sub: unknown = tenant.get("gerado.sub");
+  if (!tenant.exists || !ehSub(sub) || tipo === "fabrica") throw new ErroPrevisto("Este site não usa modelo.");
   const e = id === null ? undefined : await modeloDe(sub, id);
   // desligado só fica para quem já usa (a lista da gaveta o mostra só para esse negócio)
   const emUso = id !== null && (tenant.get("gerado.modelo.id") === id || tenant.get("gerado.escolha.modelo") === id);

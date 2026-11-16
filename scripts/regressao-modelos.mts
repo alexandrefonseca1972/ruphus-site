@@ -47,7 +47,6 @@ function casos(): [string, DadosSite][] {
   // (d) personalização por cima do modelo e do sorteio
   lista.push(["personal:barbearia-2", dados("navalha", "barbearia", { escolha: MODELOS.find((m) => m.id === "barbearia-2")!.escolha, personal: PERSONAL })]);
   lista.push(["personal:salao-hash", dados("tesoura", "salao", { personal: { cores: { acc: "#7a2244" }, textos: { frase: "Só a frase." } } })]);
-  lista.push(["personal:petshop-1", dados("pet-feliz", "petshop", { escolha: modelosClaro("petshop")[0].escolha as Escolha, personal: PERSONAL })]);
   lista.push(["personal:odonto-hash", dados("sorriso", "odonto", { personal: { fonte: "Marcellus", fotos: { ga1: "fotos/ga1.jpg" }, versao: 7 } })]);
   return lista;
 }

@@ -9,16 +9,12 @@ import { z } from "zod";
 export const FORMAS = ["pix", "dinheiro", "cartao", "outro"] as const;
 export const ROTULO_FORMA: Record<(typeof FORMAS)[number], string> = { pix: "Pix", dinheiro: "Dinheiro", cartao: "Cartão", outro: "Outro" };
 
-export type Familia = "pet" | "beleza" | "saude" | "aulas" | "fitness" | "automotivo";
+export type Familia = "beleza" | "saude";
 
 // As do nicho vêm primeiro: são as que o dono procura
 const EXTRAS: Record<Familia, { entrada: string[]; saida: string[] }> = {
-  pet: { entrada: ["Ração e acessórios"], saida: ["Estoque de ração"] },
   beleza: { entrada: [], saida: ["Produtos de beleza"] },
   saude: { entrada: [], saida: ["Material clínico"] },
-  aulas: { entrada: ["Mensalidade", "Matrícula"], saida: ["Material didático"] },
-  fitness: { entrada: ["Plano/mensalidade"], saida: ["Equipamentos"] },
-  automotivo: { entrada: ["Peças"], saida: ["Peças e estoque", "Ferramentas"] },
 };
 const BASE = {
   entrada: ["Atendimento", "Produto", "Pacote/mensalidade", "Outro"],

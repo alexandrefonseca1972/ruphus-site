@@ -12,10 +12,8 @@ export const LAYOUTS_SITE = ["editorial", "claro"] as const;
 
 const SUB_IDS = Object.keys(SUBS) as [Sub, ...Sub[]];
 
-/** Nichos em que a Ruphus opera hoje: o Estúdio só lista modelos destes (e a bio "todos"). Os
- *  embutidos dos outros nichos (pet, aulas, fitness, automotivo…) seguem no código e valendo para
- *  quem já os usa; só não aparecem nas listas, no lote nem no padrão. Voltou a operar num nicho?
- *  Ponha aqui. */
+/** Nichos em que a Ruphus opera hoje: o Estúdio só lista modelos destes (e a bio "todos").
+ *  Desde 15/11/2026 o código só tem beleza e saúde (SUBS), então o filtro só barra sub desconhecido. */
 export const NICHOS_ATIVOS: readonly string[] = ["beleza", "saude"];
 export const doNichoAtivo = (sub: string) => sub === "todos" || NICHOS_ATIVOS.includes(SUBS[sub as Sub]?.nicho ?? "");
 const HEX = z.string().regex(/^#[0-9a-f]{6}$/i, "cor em hex de 6 dígitos");

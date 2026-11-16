@@ -40,7 +40,7 @@ import { CONFIG_VAZIA, ConfigModelos, DefModelo, DefModeloLida, doNichoAtivo } f
   // leitura tolerante: fonte e ramo que saíram do código não derrubam o modelo
   const lido = DefModeloLida.safeParse({ ...base, fonte: "Sumiu", sub: "ramo-velho" });
   assert.ok(lido.success && lido.data.fonte === undefined && lido.data.sub === "ramo-velho");
-  // nichos ativos: beleza e saúde (e a bio "todos"); pet fica fora das listas
+  // nichos ativos: beleza e saúde (e a bio "todos"); ramo que saiu do código (petshop) fica fora
   assert.deepEqual([doNichoAtivo("salao"), doNichoAtivo("odonto"), doNichoAtivo("todos"), doNichoAtivo("petshop"), doNichoAtivo("x")], [true, true, true, false, false]);
   assert.deepEqual(ConfigModelos.parse({}), CONFIG_VAZIA);
   console.log("esquemas: ok");

@@ -180,9 +180,9 @@ assert.equal(await ref("c-fechado"), undefined, "a recusa não mexeu em ninguém
   const m = r.dados.modelos.find((x) => x.def.id === ID)!;
   assert.deepEqual([m.versao, m.embutido, m.rascunho], [2, true, null]);
   assert.ok(r.dados.modelos.every((x) => x.def.tipo === "site"));
-  // só os nichos em que a Ruphus opera: pet (e os outros) ficam fora das listas, mas no catálogo
-  assert.ok(r.dados.modelos.every((x) => doNichoAtivo(x.def.sub)) && !r.dados.modelos.some((x) => x.def.id === "petshop-1"));
-  assert.ok((await lerCatalogoDireto()).catalogo.has("petshop-1"));
+  // só os nichos em que a Ruphus opera; os embutidos de pet (e dos outros que saíram) nem existem mais
+  assert.ok(r.dados.modelos.every((x) => doNichoAtivo(x.def.sub)));
+  assert.ok(!(await lerCatalogoDireto()).catalogo.has("petshop-1"));
   assert.ok(r.dados.modelos.some((x) => x.def.sub === "odonto"), "saúde aparece");
   assert.ok(!("uso" in m), "a lista não conta o uso");
   await db.doc("tenants/p-livre").update({ "gerado.modelo": { id: ID, versao: null } });

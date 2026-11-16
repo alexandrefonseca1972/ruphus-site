@@ -314,7 +314,7 @@ function sorteio(semente: number) {
 const NOMES = ["Ana", "Ána", "José", "Jose", "Salão", "Barbearia", "Studio", "Ébano", "Zé", "Bella", "Bela", "Ômega", "nail", "Nail", "Espaço"];
 // "pa" e "Pará": a UF do cadastro é texto livre, e o chip tem de filtrar o que estiver gravado
 const CIDADES = [["Belém", "PA"], ["São José", "SC"], ["Brasília", "DF"], ["Macapá", "AP"], ["Belo Horizonte", "MG"], ["Sem UF", null], [null, null], ["Ananindeua", "pa"], ["Marabá", "Pará"]] as const;
-const NICHOS = ["Barbearia", "Cabeleireiro", "Unhas", "Estética e beleza", "Pet shop", "Outros"];
+const NICHOS = ["Barbearia", "Cabeleireiro", "Unhas", "Estética e beleza", "Odontologia", "Outros"];
 const DIAS = ["2026-10-29", "2026-10-31", "2026-11-01", "2026-11-02", "2026-11-04"];
 
 function base(semente: number, n: number) {

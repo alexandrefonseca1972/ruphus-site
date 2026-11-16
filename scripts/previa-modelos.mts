@@ -1,7 +1,7 @@
 // Gera a página de cada modelo da gaveta com dados de exemplo e abre no navegador, para aprovar
 // modelo novo sem publicar nada. As fotos vêm de public/s/assets (base file://).
 //
-//   npx tsx --conditions=react-server scripts/previa-modelos.mts idiomas-3 academia-1 …
+//   npx tsx --conditions=react-server scripts/previa-modelos.mts odonto-1 barbearia-2 …
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

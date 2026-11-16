@@ -238,14 +238,14 @@ assert.equal((await statusDaInstancia(conn)).phone, "5511900000042");
     },
   };
   const numero = "5511948680554";
-  const aceite = (id: string, em: string) => optInDoAgendamento({ tenantId: "ruphusbel", agendamentoId: id, versao: "2026-11-08", em: new Date(em) });
+  const aceite = (id: string, em: string) => optInDoAgendamento({ tenantId: "salao-teste", agendamentoId: id, versao: "2026-11-08", em: new Date(em) });
 
   // (a) o opt-in leva eventId (um por agendamento) e occurredAt (o momento do aceite)
   novo(simulado);
   await enviarTexto(conn, numero, "recibo 1", aceite("AgA1", "2026-11-09T01:00:00.000Z"));
   assert.deepEqual(
     (({ eventId, occurredAt }) => ({ eventId, occurredAt }))(chamadas[1].corpo as unknown as { eventId: string; occurredAt: string }),
-    { eventId: "ruphus-agendamento:ruphusbel:AgA1", occurredAt: "2026-11-09T01:00:00.000Z" },
+    { eventId: "ruphus-agendamento:salao-teste:AgA1", occurredAt: "2026-11-09T01:00:00.000Z" },
   );
 
   // o cliente responde SAIR às 02:00

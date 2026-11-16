@@ -25,8 +25,6 @@ export type Espaco = {
 
 // os tipos do schema.org viram nichos que a gente reconhece (e junta variações)
 const NICHOS: Record<string, string> = {
-  petstore: "Pet shop",
-  veterinarycare: "Veterinária",
   beautysalon: "Estética e beleza",
   healthandbeautybusiness: "Estética e beleza",
   hairsalon: "Cabeleireiro",
@@ -37,18 +35,10 @@ const NICHOS: Record<string, string> = {
   medicalclinic: "Saúde",
   dentist: "Odontologia",
   physician: "Saúde",
-  healthclub: "Fitness",
   podiatric: "Podologia",
   // os do gerador de sites
   physiotherapy: "Fisioterapia",
   medicalbusiness: "Saúde",
-  educationalorganization: "Aulas e cursos",
-  drivingschool: "Autoescola",
-  exercisegym: "Fitness",
-  sportsactivitylocation: "Fitness",
-  autorepair: "Automotivo",
-  autowash: "Automotivo",
-  tireshop: "Automotivo",
 };
 export const NICHO_OUTROS = "Outros";
 export const nichoDe = (tipo: unknown) => NICHOS[String(tipo ?? "").toLowerCase()] ?? NICHO_OUTROS;

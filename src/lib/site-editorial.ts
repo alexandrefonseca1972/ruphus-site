@@ -1,7 +1,6 @@
 // Modelo editorial do gerador: a página dos sites de barbearia, salão e tatuagem da
 // fábrica (hero com fx.js, marquee, serviços numerados, reputação). O CSS é
-// public/s/assets/gerado/beleza.css; cada nicho traz o seu Estilo (os de beleza
-// estão aqui, os demais em src/lib/nichos) e os seus kits de fotos.
+// public/s/assets/gerado/beleza.css; cada nicho traz o seu Estilo e os seus kits de fotos.
 import {
   AVISO, cabecaComum, type Capa, type DadosSite, type Escolha, esc, faixaProposta, foneBR, jsonLdNegocio, lugar, mapa, notaBR, type Sub, variante, zap,
   fixo,
@@ -9,13 +8,11 @@ import {
 } from "@/lib/gerador";
 import { BOTAO_AGENDAR, BOTAO_TOPO, ESTILO_AGENDAR, itemMenu } from "@/lib/botao-agendar";
 import { destaqueNoTopo } from "@/lib/contraste";
-import { AUTOMOTIVO } from "@/lib/nichos/automotivo";
-import { FITNESS } from "@/lib/nichos/fitness";
 import { z } from "zod";
 import type { DefModelo } from "@/lib/modelos/tipos";
 
 /** O que muda de um nicho para outro no modelo editorial. */
-export type Estilo = {
+type Estilo = {
   rotulo: string;
   /** a frase do topo e do "Sobre"; uma por site, pela variante */
   textos: string[];
@@ -232,8 +229,6 @@ const ESTILOS: Partial<Record<Sub, Estilo>> = {
   unhas: beleza("unhas", "Nail designer", DELICADAS),
   tatuagem: beleza("tatuagem", "Estúdio de tatuagem", TINTAS),
   podologia: { ...beleza("podologia", "Podologia", CLINICAS), descricoes: PODOLOGIA },
-  ...FITNESS,
-  ...AUTOMOTIVO,
 };
 const estiloDe = (sub: Sub) => ESTILOS[sub] ?? ESTILOS.salao!;
 
@@ -247,7 +242,7 @@ export const escolhaEditorial = (sub: Sub, slug: string): Required<Escolha> => (
 // Três templates por nicho, cada um um par [kit, cor] do estilo do sub. Esmalteria é o
 // sub "unhas"; cílios, bronzeamento, depilação, esteticista e maquiagem dividem "estetica"
 // (kit 6 é cílios-1, kit 5 é bronze-1, kit 4 é depilação-1). Escolha gravada (gerado.escolha) continua valendo; isto só
-// cataloga as opções. Fitness e automotivo: um template por sub, um kit em cada modelo.
+// cataloga as opções.
 export const TEMPLATES = {
   barbearia: { sub: "barbearia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
   podologia: { sub: "podologia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 1 }] },
@@ -274,19 +269,10 @@ export const TEMPLATES = {
   esteticista: { sub: "estetica", escolhas: [{ kit: 0, cor: 1 }, { kit: 1, cor: 3 }, { kit: 3, cor: 5 }] },
   maquiagem: { sub: "estetica", escolhas: [{ kit: 2, cor: 0 }, { kit: 0, cor: 2 }, { kit: 1, cor: 4 }] },
   tatuador: { sub: "tatuagem", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 1 }, { kit: 2, cor: 2 }] },
-  // ENERGIA tem 5 cores; LEVE e GRAFITE, 4
-  academia: { sub: "academia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
-  pilates: { sub: "pilates", escolhas: [{ kit: 0, cor: 1 }, { kit: 1, cor: 3 }, { kit: 2, cor: 0 }] },
-  lutas: { sub: "lutas", escolhas: [{ kit: 0, cor: 1 }, { kit: 1, cor: 3 }, { kit: 2, cor: 0 }] },
-  danca: { sub: "danca", escolhas: [{ kit: 0, cor: 3 }, { kit: 1, cor: 2 }, { kit: 2, cor: 0 }] },
-  oficina: { sub: "oficina", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 3 }, { kit: 2, cor: 1 }] },
-  lavagem: { sub: "lavagem", escolhas: [{ kit: 0, cor: 3 }, { kit: 1, cor: 1 }, { kit: 2, cor: 0 }] },
-  pneus: { sub: "pneus", escolhas: [{ kit: 0, cor: 2 }, { kit: 1, cor: 3 }, { kit: 2, cor: 0 }] },
 } satisfies Record<string, { sub: Sub; escolhas: Required<Escolha>[]; rotulo?: string; textos?: string[]; padrao?: string[] }>;
 const ROTULO_MODELO: Record<keyof typeof TEMPLATES, string> = {
   barbearia: "Barbearia", podologia: "Podologia", sobrancelha: "Sobrancelha", esmalteria: "Esmalteria", cilios: "Cílios", bronzeamento: "Bronzeamento", depilacao: "Depilação", cabeleireira: "Cabeleireira",
   esteticista: "Esteticista", maquiagem: "Maquiagem", tatuador: "Tatuador", infantil: "Salão infantil",
-  academia: "Academia", pilates: "Pilates", lutas: "Lutas", danca: "Dança", oficina: "Oficina", lavagem: "Estética automotiva", pneus: "Pneus",
 };
 
 /** Todos os modelos, para qualquer ramo editorial: id estável (nicho-n), a escolha que ele

@@ -113,8 +113,6 @@ const MENOR = "inline-flex h-9 items-center rounded-[8px] border border-[#D8D2C6
 const BOTAO_CLARO = `${BOTAO} border border-[#D8D2C6] bg-white text-[#17150F] hover:border-[#17150F]`;
 
 const CORES_NICHO: Record<string, string> = {
-  "Pet shop": "bg-[#F0E6DE] text-[#8A4520]",
-  Veterinária: "bg-[#EEF2F0] text-[#2C6A53]",
   "Estética e beleza": "bg-[#F5EBF0] text-[#8A3A63]",
   Cabeleireiro: "bg-[#F5EBF0] text-[#8A3A63]",
   Barbearia: "bg-[#F3EFE7] text-[#4A4639]",

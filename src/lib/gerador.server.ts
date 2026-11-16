@@ -5,7 +5,7 @@ import { z } from "zod";
 import { EQUIPE, montar, porRamo } from "@/lib/catalogo";
 import { ErroPrevisto } from "@/lib/erro-previsto";
 import { AUTOR_LEVANTAMENTO } from "@/lib/crm-tipos";
-import { candidatos, type DadosSite, type Escolha, fixo, Lead, type Nicho, nichoDe, outraForma, type Sub, sortearVisual } from "@/lib/gerador";
+import { candidatos, type DadosSite, ehSub, type Escolha, fixo, Lead, type Nicho, nichoDe, outraForma, type Sub, sortearVisual } from "@/lib/gerador";
 import type { Utm } from "@/lib/crm-tipos";
 import { dateIn } from "@/lib/datetime";
 import { telefoneDaMeta } from "@/lib/telefone";
@@ -47,11 +47,8 @@ const semAcento = (s: unknown) => String(s ?? "").normalize("NFD").replace(/[\u0
 
 // o ramo por extenso, para o catálogo sair certo quando a planilha não lista serviços
 const RAMO: Record<Sub, string> = {
-  petshop: "pet shop", vet: "veterinária", barbearia: "barbearia", salao: "salão cabelo", estetica: "estética", sobrancelha: "design de sobrancelha", unhas: "unhas", tatuagem: "tatuagem", podologia: "podologia",
+  barbearia: "barbearia", salao: "salão cabelo", estetica: "estética", sobrancelha: "design de sobrancelha", unhas: "unhas", tatuagem: "tatuagem", podologia: "podologia",
   odonto: "odontologia", fisio: "fisioterapia", psico: "psicologia", nutri: "nutrição", clinica: "clínica médica",
-  idiomas: "idiomas", reforco: "reforço escolar", musica: "música", autoescola: "autoescola", profissionalizante: "cursos profissionalizantes",
-  academia: "academia", pilates: "pilates", lutas: "lutas", danca: "dança",
-  oficina: "oficina mecânica", lavagem: "estética automotiva", pneus: "pneus",
 };
 
 type Escrita = { ref: DocumentReference; dados: DocumentData };
@@ -334,7 +331,8 @@ export async function lerSite(db: Firestore, slug: string): Promise<DadosSite | 
     }),
   ]);
   const gerado = tenant.get("gerado") as { sub?: Sub; bairro?: string; horario?: string; origem?: string; publicadoEm?: unknown; atualizadoEm?: { toDate(): Date }; escolha?: Escolha; variantes?: boolean; personal?: unknown; modelo?: unknown } | undefined;
-  if (!tenant.exists || !gerado?.sub) return null;
+  // ramo que saiu do código (petshop, academia…: tenant antigo) = sem site gerado, como sem gerado.sub
+  if (!tenant.exists || !gerado || !ehSub(gerado.sub)) return null;
   const def = await defDoSite(db, slug, { ...gerado, sub: gerado.sub });
 
   const quando = gerado.atualizadoEm?.toDate() ?? new Date();

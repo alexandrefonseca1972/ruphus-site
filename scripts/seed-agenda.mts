@@ -154,9 +154,9 @@ function selfCheck() {
   assert.deepEqual(extrairServicos("<section id=x><h3>Nada</h3></section>"), []);
   assert.equal(idDe("Coloração & Mechas"), "coloracao-mechas");
   // sem nada agendável, o catálogo sai do ramo lido do título
-  const pet = porRamo('<title>Agropet Bicho Bom — pet shop em Manaus</title>');
-  assert.deepEqual(pet.map((s) => s.name), ["Banho", "Tosa", "Banho e tosa"]);
-  assert.equal(pet[0].durationMin, 60);
+  const barba = porRamo('<title>Navalha de Ouro — barbearia em Manaus</title>');
+  assert.deepEqual(barba.map((s) => s.name), ["Corte", "Barba", "Corte + barba"]);
+  assert.equal(barba[0].durationMin, 45);
   assert.deepEqual(porRamo("<title>Negócio</title>").map((s) => s.name), ["Atendimento"]);
   console.log("self-check ok");
 }

@@ -11,8 +11,8 @@ const quem = { uid: "dona", email: "dona@teste.dev" };
 const hoje = todayIn();
 
 // categorias: as do nicho primeiro, as comuns depois, sem repetir
-assert.deepEqual(categorias("entrada", "aulas").slice(0, 3), ["Mensalidade", "Matrícula", "Atendimento"]);
-assert.equal(categorias("saida", "pet")[0], "Estoque de ração");
+assert.equal(categorias("saida", "saude")[0], "Material clínico");
+assert.deepEqual(categorias("entrada", "pet"), categorias("entrada"), "família que saiu: só as comuns");
 assert.deepEqual(categorias("entrada"), ["Atendimento", "Produto", "Pacote/mensalidade", "Outro"], "sem nicho, só as comuns");
 
 // os três números

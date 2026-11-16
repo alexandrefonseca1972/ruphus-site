@@ -1,7 +1,7 @@
 import "server-only";
 import { adminBucket, adminDb } from "@/lib/admin";
 import { ErroPrevisto } from "@/lib/erro-previsto";
-import type { Sub } from "@/lib/gerador";
+import { ehSub } from "@/lib/gerador";
 import { objetoDoSite, SLUG_SITE } from "@/lib/site-arquivo";
 
 // Fotos próprias do negócio, enviadas pelo /admin: uma por posição do site editorial, com
@@ -27,8 +27,8 @@ const MEDIDA: Record<Slot, { width: number; height?: number }> = {
 export async function tenantGerado(slug: string) {
   if (!SLUG_SITE.test(slug)) throw new ErroPrevisto("Negócio inválido.");
   const tenant = await adminDb.doc(`tenants/${slug}`).get();
-  const sub = tenant.get("gerado.sub") as Sub | undefined;
-  if (!tenant.exists || !sub) throw new ErroPrevisto("Este site não tem personalização.");
+  const sub: unknown = tenant.get("gerado.sub");
+  if (!tenant.exists || !ehSub(sub)) throw new ErroPrevisto("Este site não tem personalização.");
   return { tenant, sub };
 }
 

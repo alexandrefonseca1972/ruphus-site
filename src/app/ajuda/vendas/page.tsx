@@ -89,7 +89,7 @@ export default function ManualDoVendedor() {
               dele. Cada opção traz quantos negócios tem.
             </>,
             <>
-              <Termo>Nicho</Termo> — barbearia, salão, pet shop, estética…
+              <Termo>Nicho</Termo> — barbearia, salão, estética, odontologia…
             </>,
             <>
               <Termo>Funil</Termo> e <Termo>Compromisso</Termo> — em que etapa está a conversa e se o combinado está

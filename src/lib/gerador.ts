@@ -201,7 +201,7 @@ export function lerPlanilha(abas: { aba: string; linhas: unknown[][] }[]): Leitu
         return;
       }
       if (telefoneFalso(telefone)) return erro("Telefone com cara de inventado: confira no Google antes de gerar.");
-      if (!nichoDe(bruto)) return erro(`Não reconheci o nicho (“${bruto.categoria || bruto.nome}”): o gerador faz pet e beleza.`);
+      if (!nichoDe(bruto)) return erro(`Não reconheci o nicho (“${bruto.categoria || bruto.nome}”): o gerador faz beleza e saúde.`);
       if (vistos.has(telefone)) return erro(`Mesmo telefone da ${vistos.get(telefone)}.`);
       const lido = Lead.safeParse(bruto);
       if (!lido.success) return erro(`Valor inválido em “${String(lido.error.issues[0].path[0] ?? "")}”.`);
@@ -234,20 +234,15 @@ export const fixo = (telefone: string) => telefone.length === 12;
 // ─── Nicho ───────────────────────────────────────────────────────────────────
 
 export type Sub =
-  | "petshop" | "vet"
   | "barbearia" | "salao" | "estetica" | "sobrancelha" | "unhas" | "tatuagem" | "podologia"
-  | "odonto" | "fisio" | "psico" | "nutri" | "clinica"
-  | "idiomas" | "reforco" | "musica" | "autoescola" | "profissionalizante"
-  | "academia" | "pilates" | "lutas" | "danca"
-  | "oficina" | "lavagem" | "pneus";
-export type Nicho = { nicho: "pet" | "beleza" | "saude" | "aulas" | "fitness" | "automotivo"; sub: Sub; tipo: string };
+  | "odonto" | "fisio" | "psico" | "nutri" | "clinica";
+export type Nicho = { nicho: "beleza" | "saude"; sub: Sub; tipo: string };
 
 /** A ficha de cada nicho: família, tipo schema.org e o nome que a pessoa reconhece.
  *  Um lugar só para o gerador (que lê a categoria da planilha) e o cadastro (que
- *  mostra a lista para o dono escolher). */
+ *  mostra a lista para o dono escolher). Desde 15/11/2026 só beleza e saúde: um tenant
+ *  antigo com sub fora daqui (petshop, academia…) é lido como sem site gerado. */
 export const SUBS: Record<Sub, { nicho: Nicho["nicho"]; tipo: string; rotulo: string }> = {
-  petshop: { nicho: "pet", tipo: "PetStore", rotulo: "Pet shop" },
-  vet: { nicho: "pet", tipo: "VeterinaryCare", rotulo: "Clínica veterinária" },
   barbearia: { nicho: "beleza", tipo: "BarberShop", rotulo: "Barbearia" },
   salao: { nicho: "beleza", tipo: "HairSalon", rotulo: "Salão de beleza" },
   estetica: { nicho: "beleza", tipo: "BeautySalon", rotulo: "Estética" },
@@ -260,51 +255,41 @@ export const SUBS: Record<Sub, { nicho: Nicho["nicho"]; tipo: string; rotulo: st
   psico: { nicho: "saude", tipo: "MedicalBusiness", rotulo: "Psicologia" },
   nutri: { nicho: "saude", tipo: "MedicalBusiness", rotulo: "Nutrição" },
   clinica: { nicho: "saude", tipo: "MedicalClinic", rotulo: "Clínica médica" },
-  idiomas: { nicho: "aulas", tipo: "EducationalOrganization", rotulo: "Escola de idiomas" },
-  reforco: { nicho: "aulas", tipo: "EducationalOrganization", rotulo: "Reforço escolar" },
-  musica: { nicho: "aulas", tipo: "EducationalOrganization", rotulo: "Escola de música" },
-  autoescola: { nicho: "aulas", tipo: "DrivingSchool", rotulo: "Autoescola" },
-  profissionalizante: { nicho: "aulas", tipo: "EducationalOrganization", rotulo: "Cursos profissionalizantes" },
-  academia: { nicho: "fitness", tipo: "ExerciseGym", rotulo: "Academia" },
-  pilates: { nicho: "fitness", tipo: "SportsActivityLocation", rotulo: "Pilates e yoga" },
-  lutas: { nicho: "fitness", tipo: "SportsActivityLocation", rotulo: "Artes marciais e lutas" },
-  danca: { nicho: "fitness", tipo: "SportsActivityLocation", rotulo: "Dança" },
-  oficina: { nicho: "automotivo", tipo: "AutoRepair", rotulo: "Oficina mecânica" },
-  lavagem: { nicho: "automotivo", tipo: "AutoWash", rotulo: "Estética automotiva e lava-jato" },
-  pneus: { nicho: "automotivo", tipo: "TireShop", rotulo: "Pneus e alinhamento" },
 };
+
+/** Sub que o código ainda conhece: o banco pode guardar um ramo que saiu (tenant antigo). */
+export const ehSub = (sub: unknown): sub is Sub => typeof sub === "string" && Object.hasOwn(SUBS, sub);
 
 /** Os nichos em grupos, na ordem em que o dono os procura na lista. */
 export const GRUPOS: [string, Sub[]][] = [
   ["Beleza", ["barbearia", "salao", "estetica", "sobrancelha", "unhas", "podologia", "tatuagem"]],
   ["Saúde", ["odonto", "fisio", "psico", "nutri", "clinica"]],
-  ["Pet", ["petshop", "vet"]],
-  ["Fitness", ["academia", "pilates", "lutas", "danca"]],
-  ["Aulas e cursos", ["idiomas", "reforco", "musica", "autoescola", "profissionalizante"]],
-  ["Automotivo", ["oficina", "lavagem", "pneus"]],
 ];
 
-// A primeira regra que casar vence, então a ordem é a regra de negócio:
+// A primeira regra que casar vence, então a ordem é a regra de negócio. Regra com `null` é ramo
+// que o gerador não faz mais (pet, aulas, fitness, automotivo): fica na lista só para segurar o
+// negócio antes de uma regra de beleza ou saúde pegar ("estética automotiva" não é estética,
+// "curso de manicure" não é unhas, "academia de dança" não é salão por "studio"):
 // - automotivo antes de estética ("estética automotiva") e antes de música ("baterias automotivas");
 // - veterinária antes de pet shop; unha antes de salão;
 // - saúde específica (odonto, fisio, psico, nutri) antes de estética, e clínica médica por
 //   último, para "clínica de estética" e "clínica veterinária" ficarem onde estão;
 // - luta e dança antes de academia ("academia de lutas"); pilates e academia antes de salão,
 //   que pega "studio"; idiomas e música antes de reforço ("escola de …").
-const RAMOS: [RegExp, Sub][] = [
+const RAMOS: [RegExp, Sub | null][] = [
   // "remoção de tatuagem" é clínica de estética, não estúdio; "Status" não é tatuagem
   [/(?<!remocao de )(\btatu|tattoo)|piercing/, "tatuagem"],
-  [/auto ?escola|\bcfc\b|formacao de condutores|habilitacao/, "autoescola"],
+  [/auto ?escola|\bcfc\b|formacao de condutores|habilitacao/, null],
   // antes de barbearia, unhas, estética e salão: "escola de cabeleireiro" e "curso de manicure" são
   // formação profissional, não o salão; antes de reforço: "curso técnico" não é cursinho
-  [/profissionaliz|curso(s)? tecnico|escola tecnica|formacao profissional|qualificacao profissional|curso(s)? (de |profissional|livre)|senai|senac|escola de (cabel|barb|estetic|manicure|maquiag|gastronom|inform)|treinamento profissional|capacitacao/, "profissionalizante"],
-  [/estetica automotiva|auto ?estetica|estetica (car|veicular|auto)\b|lava[ -]?jato|lava[ -]?rapido|lavagem (automotiva|de (carro|veiculo))|polimento|detailing|higienizacao automotiva/, "lavagem"],
-  [/pneu|borracharia|alinhamento|balanceamento/, "pneus"],
+  [/profissionaliz|curso(s)? tecnico|escola tecnica|formacao profissional|qualificacao profissional|curso(s)? (de |profissional|livre)|senai|senac|escola de (cabel|barb|estetic|manicure|maquiag|gastronom|inform)|treinamento profissional|capacitacao/, null],
+  [/estetica automotiva|auto ?estetica|estetica (car|veicular|auto)\b|lava[ -]?jato|lava[ -]?rapido|lavagem (automotiva|de (carro|veiculo))|polimento|detailing|higienizacao automotiva/, null],
+  [/pneu|borracharia|alinhamento|balanceamento/, null],
   // "Oficina da Beleza", "Oficina GT Barbearia": a palavra oficina sem ser de carro
-  [/^(?!.*(barb|beleza|cabel|unha|esmalt|sobrancel|visual)).*(oficina|mecanic|auto ?center|centro automotivo|funilaria|martelinho|injecao eletronica|automotiv|retifica)/, "oficina"],
-  [/veterin|clinica animal|hospital animal|\bvet\b/, "vet"],
+  [/^(?!.*(barb|beleza|cabel|unha|esmalt|sobrancel|visual)).*(oficina|mecanic|auto ?center|centro automotivo|funilaria|martelinho|injecao eletronica|automotiv|retifica)/, null],
+  [/veterin|clinica animal|hospital animal|\bvet\b/, null],
   // pet como palavra: "Pétalas", "Petit", "Petúnia" não são pet shop
-  [/\bpets?\b|pet ?shop|petz|agropet|banho e tosa|\btosa|\bracao|aquario|estetica animal/, "petshop"],
+  [/\bpets?\b|pet ?shop|petz|agropet|banho e tosa|\btosa|\bracao|aquario|estetica animal/, null],
   // podologia antes de unhas e de estética: "podologia e manicure" e "spa dos pés" são do podólogo
   [/podolog|podiatr|quiropod|onicomicos|unha encravada|spa dos pes|(tratamento|saude|cuidado)s? dos pes/, "podologia"],
   // "Bárbara", "Barbie": nome de gente, não barbearia
@@ -315,19 +300,19 @@ const RAMOS: [RegExp, Sub][] = [
   [/fisioterap|\brpg\b|quiropraxi|osteopat/, "fisio"],
   [/psicolog|psicoterap|psicanal/, "psico"],
   [/nutri/, "nutri"],
-  [/jiu|muay|boxe|kickbox|karate|judo|taekwon|\bmma\b|capoeira|\blutas?\b|artes marciais/, "lutas"],
-  [/danca|ballet|\bbale|zumba|forro|dance/, "danca"],
-  [/pilates|yoga|ioga/, "pilates"],
+  [/jiu|muay|boxe|kickbox|karate|judo|taekwon|\bmma\b|capoeira|\blutas?\b|artes marciais/, null],
+  [/danca|ballet|\bbale|zumba|forro|dance/, null],
+  [/pilates|yoga|ioga/, null],
   // "personal" sozinho pega "Personalizada" e "Personalité"
-  [/academia|crossfit|cross ?training|musculacao|treino funcional|personal trainer|fitness|\bgym\b/, "academia"],
+  [/academia|crossfit|cross ?training|musculacao|treino funcional|personal trainer|fitness|\bgym\b/, null],
   // só sobrancelha: quem também faz cabelo, unha, cílios ou estética no nome fica no ramo
   // largo ("Studio de Cílios e Sobrancelhas" é estética); antes de estética, que pega "sobrancel"
   [/^(?!.*(cabel|hair|salao|unha|nail|estetic|make|maquiag|depila|barb|\bspa\b|beleza|beauty|cilio|lash|tattoo|tatu|podolog))(?=.*(sobrancel|\bbrows?\b))/, "sobrancelha"],
   [/estetic|remocao de tatuage|sobrancel|cilio|lash|micropigment|depila|\bspa|day ?spa|pele|massag|massoterap|bronze|dermat|biomedic|maquiag|make|harmoniza/, "estetica"],
-  [/idioma|ingles|espanhol|frances|english|language/, "idiomas"],
+  [/idioma|ingles|espanhol|frances|english|language/, null],
   // "canto" sozinho pega "Encanto" e "Recanto"
-  [/musica|violao|piano|aulas? de canto|escola de canto|canto e voz|guitarra|bateria|teclado/, "musica"],
-  [/reforco|aulas? particular|explicador|pre-?vestibular|preparatorio|cursinho|apoio escolar/, "reforco"],
+  [/musica|violao|piano|aulas? de canto|escola de canto|canto e voz|guitarra|bateria|teclado/, null],
+  [/reforco|aulas? particular|explicador|pre-?vestibular|preparatorio|cursinho|apoio escolar/, null],
   [/salao|cabel|hair|beleza|beauty|cachos|escova|tranca|penteado|studio|selagem|progressiva|alisamento/, "salao"],
   [/clinica|consultorio|medic|pediatr|cardiolog|ginecolog|posto de saude|check-?up/, "clinica"],
 ];
@@ -335,12 +320,13 @@ const RAMOS: [RegExp, Sub][] = [
 /** O nicho, lido da categoria — e só do nome quando não há categoria: "Petisco
  *  Bar" com categoria "Restaurante" não é pet shop. null = fora do que o gerador faz. */
 export function nichoDe(l: { categoria: string; nome: string }): Nicho | null {
+  // undefined: nenhuma regra casou; null: casou com um ramo que o gerador não faz mais
   const ramo = (s: string) => RAMOS.find(([re]) => re.test(s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()))?.[1];
   const doNome = ramo(l.nome);
   const daCategoria = l.categoria ? ramo(l.categoria) : doNome;
   // categoria genérica de clínica e o nome dizendo a especialidade ("AC Clinic Estética
   // Avançada"): vale o nome. Eram 249 clínicas de estética no modelo de clínica médica
-  const sub = daCategoria === "clinica" && doNome && doNome !== "clinica" ? doNome
+  const sub = daCategoria === "clinica" && doNome !== undefined && doNome !== "clinica" ? doNome
     // o Google chama a designer de sobrancelha de "salão de beleza": o nome decide
     : doNome === "sobrancelha" && (daCategoria === "salao" || daCategoria === "estetica") ? doNome
     : daCategoria;

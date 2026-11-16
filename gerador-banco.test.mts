@@ -12,15 +12,15 @@ const db = getFirestore(initializeApp({ projectId: "demo-siteflow" }));
 const planilha = (...linhas: unknown[][]) =>
   lerPlanilha([{ aba: "Leads", linhas: [["nome", "telefone", "categoria", "cidade", "uf", "nota", "avaliacoes", "servicos", "email", "score", "gancho"], ...linhas] }]).leads;
 
-// um site da fábrica já mora em "pet-feliz": o gerador não pode encostar nele
-await db.collection("tenants").doc("pet-feliz").set({ name: "Pet Feliz (fábrica)", site: { phone: "5591987650123", city: "Belém" } });
+// um site da fábrica já mora em "sorriso-feliz": o gerador não pode encostar nele
+await db.collection("tenants").doc("sorriso-feliz").set({ name: "Sorriso Feliz (fábrica)", site: { phone: "5591987650123", city: "Belém" } });
 
 const lote = planilha(
-  ["Pet Feliz", "(91) 99372-1156", "Pet shop", "Belém", "PA", 4.6, 59, "Banho, Tosa", "dono@petfeliz.com", "ALTA", "Nota 4,6 e nenhum site"],
-  ["Pet Feliz", "(91) 98123-0001", "Pet shop", "Belém", "PA", "", "", "", "", "", ""],
+  ["Sorriso Feliz", "(91) 99372-1156", "Dentista", "Belém", "PA", 4.6, 59, "Limpeza, Clareamento", "dono@sorrisofeliz.com", "ALTA", "Nota 4,6 e nenhum site"],
+  ["Sorriso Feliz", "(91) 98123-0001", "Dentista", "Belém", "PA", "", "", "", "", "", ""],
   ["Navalha", "(92) 99123-4567", "Barbearia", "Manaus", "AM", "", "", "", "", "", ""],
   // o mesmo negócio da fábrica, com outro nome na planilha: não ganha segundo site
-  ["Patinhas do Umarizal", "(91) 98765-0123", "Pet shop", "Belém", "PA", "", "", "", "", "", ""],
+  ["Dental Umarizal", "(91) 98765-0123", "Dentista", "Belém", "PA", "", "", "", "", "", ""],
   ["Salão Fixo", "(96) 3217-8751", "Salão de beleza", "Macapá", "AP", "", "", "", "", "", ""],
 );
 
@@ -28,13 +28,13 @@ const lote = planilha(
 const previa = await gerarNoBanco(db, lote, false, "dono-plataforma");
 assert.deepEqual(previa.map((l) => [l.slug, l.acao, l.conflito, l.aviso]), [
   // o nome estava ocupado pela fábrica, na mesma cidade e com outro telefone: gera, mas avisa
-  ["pet-feliz-belem", "criar", "pet-feliz", "possível duplicado de pet-feliz"],
-  ["pet-feliz-belem-2", "criar", "pet-feliz", "possível duplicado de pet-feliz"],
+  ["sorriso-feliz-belem", "criar", "sorriso-feliz", "possível duplicado de sorriso-feliz"],
+  ["sorriso-feliz-belem-2", "criar", "sorriso-feliz", "possível duplicado de sorriso-feliz"],
   ["navalha", "criar", null, null],
-  ["pet-feliz", "pular", null, null],
+  ["sorriso-feliz", "pular", null, null],
   ["salao-fixo", "criar", null, "telefone fixo: o botão de WhatsApp do site não vai funcionar"],
 ]);
-assert.equal(previa[3].motivo, "já tem site: pet-feliz.ruphus.site");
+assert.equal(previa[3].motivo, "já tem site: sorriso-feliz.ruphus.site");
 assert.equal((await db.collection("tenants").doc("navalha").get()).exists, false, "prévia não grava");
 
 // grava: tenant, dono, agenda e CRM no mesmo formato do importador
@@ -48,62 +48,62 @@ assert.deepEqual(feito, previa, "o que a prévia mostrou é o que foi gravado");
   assert.equal(new Set(slugs).size, slugs.length, "dois 'criar' nunca gravam no mesmo endereço");
 }
 assert.equal((await db.collection("tenants").doc("patinhas-do-umarizal").get()).exists, false, "linha pulada não grava");
-assert.equal((await db.doc("tenants/pet-feliz").get()).get("site.phone"), "5591987650123", "e não mexe no site que já existe");
-const t = (await db.collection("tenants").doc("pet-feliz-belem").get()).data()!;
-assert.equal(t.name, "Pet Feliz");
+assert.equal((await db.doc("tenants/sorriso-feliz").get()).get("site.phone"), "5591987650123", "e não mexe no site que já existe");
+const t = (await db.collection("tenants").doc("sorriso-feliz-belem").get()).data()!;
+assert.equal(t.name, "Sorriso Feliz");
 assert.equal(t.ownerId, "dono-plataforma");
 assert.equal(t.site.phone, "5591993721156");
-assert.equal(t.site.category, "PetStore");
+assert.equal(t.site.category, "Dentist");
 assert.equal(t.site.rating, 4.6);
-assert.match(t.site.photo, /^\/assets\/pet\/.+-800\.jpg$/);
-assert.equal(t.gerado.sub, "petshop");
-assert.equal((await db.doc("tenants/pet-feliz-belem/members/dono-plataforma").get()).get("role"), "owner");
-const servicos = await db.collection("tenants/pet-feliz-belem/services").orderBy("ordem").get();
-assert.deepEqual(servicos.docs.map((d) => [d.id, d.get("durationMin")]), [["banho", 60], ["tosa", 90]]);
-assert.deepEqual((await db.doc("tenants/pet-feliz-belem/staff/equipe").get()).get("serviceIds"), ["banho", "tosa"]);
-const crm = (await db.doc("crm/pet-feliz-belem").get()).data()!;
-assert.deepEqual([crm.origem, crm.donoEmail, crm.notas], ["importado", "dono@petfeliz.com", 1]);
+assert.match(t.site.photo, /^\/assets\/saude\/.+-800\.jpg$/);
+assert.equal(t.gerado.sub, "odonto");
+assert.equal((await db.doc("tenants/sorriso-feliz-belem/members/dono-plataforma").get()).get("role"), "owner");
+const servicos = await db.collection("tenants/sorriso-feliz-belem/services").orderBy("ordem").get();
+assert.deepEqual(servicos.docs.map((d) => [d.id, d.get("durationMin")]), [["limpeza", 60], ["clareamento", 60]]);
+assert.deepEqual((await db.doc("tenants/sorriso-feliz-belem/staff/equipe").get()).get("serviceIds"), ["limpeza", "clareamento"]);
+const crm = (await db.doc("crm/sorriso-feliz-belem").get()).data()!;
+assert.deepEqual([crm.origem, crm.donoEmail, crm.notas], ["importado", "dono@sorrisofeliz.com", 1]);
 // o levantamento do lead vira nota no funil
-const notas = await db.collection("crm/pet-feliz-belem/notas").get();
+const notas = await db.collection("crm/sorriso-feliz-belem/notas").get();
 assert.deepEqual(notas.docs.map((d) => [d.get("texto"), d.get("autor")]), [["Score do levantamento: ALTA. Abordagem sugerida: Nota 4,6 e nenhum site", "Gerador de sites"]]);
 assert.equal((await db.collection("crm/navalha/notas").get()).size, 0, "sem levantamento, sem nota");
 // sem serviços na planilha, o catálogo sai do ramo
 assert.deepEqual((await db.collection("tenants/navalha/services").get()).docs.map((d) => d.id).sort(), ["barba", "corte", "corte-barba"]);
 // a fábrica continua intacta
-assert.equal((await db.doc("tenants/pet-feliz").get()).get("name"), "Pet Feliz (fábrica)");
+assert.equal((await db.doc("tenants/sorriso-feliz").get()).get("name"), "Sorriso Feliz (fábrica)");
 
 // o dono mexeu no negócio: preço, serviço desligado e estágio no funil
-await db.doc("tenants/pet-feliz-belem/services/banho").update({ priceCents: 7500 });
-await db.doc("crm/pet-feliz-belem").update({ estagio: "negociando" });
+await db.doc("tenants/sorriso-feliz-belem/services/limpeza").update({ priceCents: 7500 });
+await db.doc("crm/sorriso-feliz-belem").update({ estagio: "negociando" });
 
 // reenviar a planilha atualiza o site (mesmo telefone = mesmo lead), sem duplicar
 // nem apagar o que o dono e o funil fizeram
-const reenvio = planilha(["Pet Feliz", "91993721156", "Pet shop", "Belém", "PA", 4.8, 70, "Banho, Tosa, Hotel", "", "ALTA", "outra nota"]);
+const reenvio = planilha(["Sorriso Feliz", "91993721156", "Dentista", "Belém", "PA", 4.8, 70, "Limpeza, Clareamento, Canal", "", "ALTA", "outra nota"]);
 const [de_novo] = await gerarNoBanco(db, reenvio, true, "outro-admin");
-assert.deepEqual([de_novo.slug, de_novo.acao], ["pet-feliz-belem", "atualizar"]);
-const t2 = (await db.doc("tenants/pet-feliz-belem").get()).data()!;
+assert.deepEqual([de_novo.slug, de_novo.acao], ["sorriso-feliz-belem", "atualizar"]);
+const t2 = (await db.doc("tenants/sorriso-feliz-belem").get()).data()!;
 assert.deepEqual([t2.site.rating, t2.site.reviews], [4.8, 70], "dados do Google atualizados");
 assert.equal(t2.ownerId, "dono-plataforma", "dono não troca no reenvio");
-assert.equal((await db.doc("tenants/pet-feliz-belem/services/banho").get()).get("priceCents"), 7500, "preço do dono fica");
-assert.equal((await db.doc("tenants/pet-feliz-belem/services/hotel").get()).exists, false, "agenda não é refeita no reenvio");
-assert.equal((await db.doc("crm/pet-feliz-belem").get()).get("estagio"), "negociando", "funil fica");
-assert.equal((await db.doc("crm/pet-feliz-belem").get()).get("donoEmail"), "dono@petfeliz.com", "e-mail do dono fica");
-assert.equal((await db.collection("crm/pet-feliz-belem/notas").get()).size, 1, "reenvio não repete a nota");
+assert.equal((await db.doc("tenants/sorriso-feliz-belem/services/limpeza").get()).get("priceCents"), 7500, "preço do dono fica");
+assert.equal((await db.doc("tenants/sorriso-feliz-belem/services/canal").get()).exists, false, "agenda não é refeita no reenvio");
+assert.equal((await db.doc("crm/sorriso-feliz-belem").get()).get("estagio"), "negociando", "funil fica");
+assert.equal((await db.doc("crm/sorriso-feliz-belem").get()).get("donoEmail"), "dono@sorrisofeliz.com", "e-mail do dono fica");
+assert.equal((await db.collection("crm/sorriso-feliz-belem/notas").get()).size, 1, "reenvio não repete a nota");
 
 // o lead mudou de nome na planilha, mas o telefone é o mesmo: atualiza o site que já
 // existe, em vez de abrir outro endereço para o mesmo negócio
-const [renomeado] = await gerarNoBanco(db, planilha(["Pet Feliz Nazaré", "(91) 99372-1156", "Pet shop", "Belém", "PA", 4.8, 70, "", "", "", ""]), true, "a");
-assert.deepEqual([renomeado.slug, renomeado.acao], ["pet-feliz-belem", "atualizar"]);
-assert.equal((await db.doc("tenants/pet-feliz-nazare").get()).exists, false);
-assert.equal((await db.doc("tenants/pet-feliz-belem").get()).get("name"), "Pet Feliz Nazaré", "o nome novo vale");
+const [renomeado] = await gerarNoBanco(db, planilha(["Sorriso Feliz Nazaré", "(91) 99372-1156", "Dentista", "Belém", "PA", 4.8, 70, "", "", "", ""]), true, "a");
+assert.deepEqual([renomeado.slug, renomeado.acao], ["sorriso-feliz-belem", "atualizar"]);
+assert.equal((await db.doc("tenants/sorriso-feliz-nazare").get()).exists, false);
+assert.equal((await db.doc("tenants/sorriso-feliz-belem").get()).get("name"), "Sorriso Feliz Nazaré", "o nome novo vale");
 
 // o dono entrou pelo convite e editou o negócio: o reenvio pula, para não apagar o que ele fez
-await db.doc("tenants/pet-feliz-belem/members/dono-real").set({ uid: "dono-real", role: "admin", viaConvite: true });
-await db.doc("tenants/pet-feliz-belem").update({ "site.instagram": "petfelizreal" });
-const [assumido] = await gerarNoBanco(db, planilha(["Pet Feliz Outro Nome", "91993721156", "Pet shop", "Belém", "PA", 4.9, 80, "", "", "", ""]), true, "a");
-assert.deepEqual([assumido.slug, assumido.acao], ["pet-feliz-belem", "pular"]);
-assert.equal((await db.doc("tenants/pet-feliz-belem").get()).get("site.instagram"), "petfelizreal", "edição do dono fica");
-await db.doc("tenants/pet-feliz-belem/members/dono-real").delete();
+await db.doc("tenants/sorriso-feliz-belem/members/dono-real").set({ uid: "dono-real", role: "admin", viaConvite: true });
+await db.doc("tenants/sorriso-feliz-belem").update({ "site.instagram": "sorrisofelizreal" });
+const [assumido] = await gerarNoBanco(db, planilha(["Sorriso Feliz Outro Nome", "91993721156", "Dentista", "Belém", "PA", 4.9, 80, "", "", "", ""]), true, "a");
+assert.deepEqual([assumido.slug, assumido.acao], ["sorriso-feliz-belem", "pular"]);
+assert.equal((await db.doc("tenants/sorriso-feliz-belem").get()).get("site.instagram"), "sorrisofelizreal", "edição do dono fica");
+await db.doc("tenants/sorriso-feliz-belem/members/dono-real").delete();
 
 // editado pela gaveta: o reenvio pula em vez de regravar
 {
@@ -119,34 +119,39 @@ const grande = planilha(...Array.from({ length: 35 }, (_, i) =>
   [`Loja ${i}`, i === 32 ? "91987650123" : `(96) 99${String(i).padStart(3, "0")}-0000`, "Barbearia", "Macapá", "AP", "", "", "", "", "", ""]));
 const conferido = await gerarNoBanco(db, grande, false, "a");
 assert.equal(conferido.length, 35);
-assert.deepEqual([conferido[32].acao, conferido[32].slug], ["pular", "pet-feliz"]);
+assert.deepEqual([conferido[32].acao, conferido[32].slug], ["pular", "sorriso-feliz"]);
 assert.equal(conferido.filter((l) => l.acao === "pular").length, 1);
 
 // o número da fábrica sem o 9 (levantamento antigo) é o mesmo negócio: pula, não cria outro site
-const [semNove] = await gerarNoBanco(db, planilha(["Pet Feliz Antigo", "(91) 8765-0123", "Pet shop", "Belém", "PA", "", "", "", "", "", ""]), false, "a");
-assert.deepEqual([semNove.acao, semNove.slug], ["pular", "pet-feliz"]);
+const [semNove] = await gerarNoBanco(db, planilha(["Sorriso Feliz Antigo", "(91) 8765-0123", "Dentista", "Belém", "PA", "", "", "", "", "", ""]), false, "a");
+assert.deepEqual([semNove.acao, semNove.slug], ["pular", "sorriso-feliz"]);
 
 // a rota monta a página do que foi gravado; site da fábrica e slug estranho não passam por ela
 const { GET } = await import("@/app/s/[slug]/index.html/route");
 const pagina = (slug: string) => GET(new Request(`http://x/s/${slug}/index.html`), { params: Promise.resolve({ slug }) });
-const r = await pagina("pet-feliz-belem");
+const r = await pagina("sorriso-feliz-belem");
 assert.equal(r.status, 200);
 assert.match(r.headers.get("content-type") ?? "", /text\/html/);
 const html = await r.text();
-assert.ok(html.includes("<title>Pet Feliz Nazaré | Pet shop em Belém</title>"), "nome (já renomeado) e cidade do tenant");
+assert.ok(html.includes("<title>Sorriso Feliz Nazaré | Consultório odontológico em Belém</title>"), "nome (já renomeado) e cidade do tenant");
 assert.ok(html.includes("4,8 &middot; 70 avaliações"), "nota atualizada no reenvio");
-assert.ok(html.includes("<h3>Banho</h3>") && html.includes("<h3>Tosa</h3>"), "serviços vêm da agenda");
+assert.ok(html.includes("<h3>Limpeza</h3>") && html.includes("<h3>Clareamento</h3>"), "serviços vêm da agenda");
 // site da fábrica publicado no Storage responde antes do gerador; apagado, o gerador volta
 const { adminBucket } = await import("@/lib/admin");
-const publicado = adminBucket().file("sites/pet-feliz-belem/index.html");
+const publicado = adminBucket().file("sites/sorriso-feliz-belem/index.html");
 await publicado.save("<h1>da fábrica</h1>", { contentType: "text/html; charset=utf-8" });
-assert.equal(await (await pagina("pet-feliz-belem")).text(), "<h1>da fábrica</h1>");
+assert.equal(await (await pagina("sorriso-feliz-belem")).text(), "<h1>da fábrica</h1>");
 await publicado.delete();
-assert.match(await (await pagina("pet-feliz-belem")).text(), /Pet Feliz Nazaré/);
+assert.match(await (await pagina("sorriso-feliz-belem")).text(), /Sorriso Feliz Nazaré/);
 assert.equal((await pagina("navalha")).status, 200);
 assert.match(await (await pagina("navalha")).text(), /assets\/gerado\/beleza\.css/, "barbearia usa o modelo beleza");
-assert.equal((await pagina("pet-feliz")).status, 404, "tenant da fábrica não é gerado");
+assert.equal((await pagina("sorriso-feliz")).status, 404, "tenant da fábrica não é gerado");
 assert.equal((await pagina("nao-existe")).status, 404);
+// tenant antigo de um ramo que saiu do código (pet, aulas, fitness, automotivo): sem site gerado, sem quebrar
+await db.doc("tenants/legado-pet").set({ name: "Legado Pet", site: { phone: "5591987650999", city: "Belém" }, gerado: { nicho: "pet", sub: "petshop", origem: "prospeccao" } });
+assert.equal(await lerSite(db, "legado-pet"), null, "ramo que saiu = como sem gerado");
+assert.equal((await pagina("legado-pet")).status, 404);
+assert.equal((await lerNegocio(db, "legado-pet")).sub, "", "o dono escolhe o ramo de novo");
 assert.equal((await pagina("../etc")).status, 404);
 // fotos próprias do admin: redimensionadas por posição e gravadas em sites/{slug}/fotos/
 {
@@ -184,8 +189,9 @@ assert.equal((await pagina("../etc")).status, 404);
   await publicarFotos("navalha", { bio: "fotos/bio.jpg" });
   assert.ok(!(await slotsEmRascunho("navalha")).includes("bio"), "publicada sai do rascunho");
   assert.ok((await lerFoto("navalha", "bio"))!.length > 0, "e fica no nome fixo");
-  assert.equal((await tenantGerado("pet-feliz-belem")).sub, "petshop", "o modelo claro também personaliza");
+  assert.equal((await tenantGerado("sorriso-feliz-belem")).sub, "odonto", "o modelo claro também personaliza");
   await assert.rejects(tenantGerado("nao-existe"), /não tem personalização/);
+  await assert.rejects(tenantGerado("legado-pet"), /não tem personalização/, "ramo que saiu do código");
   await assert.rejects(tenantGerado("../x"), /inválido/);
   assert.equal((await tenantGerado("navalha")).sub, "barbearia");
   await apagarFotosFora("navalha", { bio: "fotos/bio.jpg" });
@@ -263,7 +269,7 @@ assert.equal((await pagina("../etc")).status, 404);
 {
   await db.doc("tenants/fabrica-x").set({ name: "Fábrica X", ownerId: "p", site: { url: "https://fabrica-x.ruphus.site", phone: "5591000000001", rating: 4.8 } });
   assert.equal((await lerNegocio(db, "fabrica-x")).fabrica, true);
-  await salvarNegocio(db, "fabrica-x", { name: "Fábrica X", sub: "petshop", telefone: "91986123456", cidade: "Belém", uf: "PA" });
+  await salvarNegocio(db, "fabrica-x", { name: "Fábrica X", sub: "odonto", telefone: "91986123456", cidade: "Belém", uf: "PA" });
   const f = (await db.doc("tenants/fabrica-x").get()).data()!;
   assert.deepEqual([f.site.phone, f.site.rating, f.gerado], ["5591986123456", 4.8, undefined]);
 }
