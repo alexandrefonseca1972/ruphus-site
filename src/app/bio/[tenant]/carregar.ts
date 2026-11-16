@@ -154,7 +154,8 @@ export const carregar = cache(async (slug: string): Promise<Bio | null> => {
     }),
     expediente: [...horas].map(([dia, j]) => ({ dia, ...j })),
     agendaOnline: !agendaDesligada(tenant),
-    categoria: tenant.get("site.category") || null,
+    // site.category guarda o tipo schema.org ("HairSalon"): para gente, vale o nome do ramo
+    categoria: doGerado ? SUBS[doGerado.sub].rotulo : /^[A-Z][A-Za-z]+$/.test(String(tenant.get("site.category") ?? "")) ? null : tenant.get("site.category") || null,
     fotos,
     layout,
     saude: !!doGerado && SUBS[doGerado.sub]?.nicho === "saude",
