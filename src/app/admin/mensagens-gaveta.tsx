@@ -88,7 +88,7 @@ export function MensagensDoNegocio({ slug, token }: { slug: string; token: () =>
     for (const [k, t] of Object.entries(precos)) {
       if (!t.trim()) continue;
       const c = centavos(t);
-      if (c === null || c < 0) return setAviso("Preço inválido: use reais com vírgula, como 0,05.");
+      if (c === null || c < 0) return setAviso("Preço inválido: use reais com vírgula, como 0,27.");
       p[k] = c;
     }
     definir({ cobrar: dados?.conta.proprio.cobrar ?? null, precos: Object.keys(p).length ? p : null });

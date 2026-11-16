@@ -57,8 +57,8 @@ assert.equal(cobra("sms", "enviado"), true);
 assert.equal(cobra("sms", "falhou"), false);
 
 // preço: padrão documentado; resposta na janela é "service"
-assert.deepEqual(PRECOS_PADRAO, { whatsappUtilityCents: 5, whatsappServiceCents: 0, smsCents: 12 });
-assert.equal(precoDe(PRECOS_PADRAO, "whatsapp", false), 5);
+assert.deepEqual(PRECOS_PADRAO, { whatsappUtilityCents: 27, whatsappServiceCents: 0, smsCents: 20 });
+assert.equal(precoDe(PRECOS_PADRAO, "whatsapp", false), 27);
 assert.equal(precoDe(PRECOS_PADRAO, "whatsapp", true), 0);
 assert.equal(precoDe({ ...PRECOS_PADRAO, smsCents: 15 }, "sms", true), 15, "SMS não tem service");
 
@@ -96,7 +96,7 @@ assert.equal(deltaDoConsumo(e, null, "sem-saldo").custoCents, undefined);
 assert.deepEqual(CONFIG_PADRAO.pacotes.map((p) => [p.valorCents, p.bonusCents]), [[2000, 0], [5000, 500], [10000, 2000]]);
 assert.deepEqual([CONFIG_PADRAO.cobrar, CONFIG_PADRAO.modelo, CONFIG_PADRAO.semSaldo, CONFIG_PADRAO.avisoSaldoCents, CONFIG_PADRAO.boasVindasCents], [true, "prepago", "pausar-clientes", 500, 1000]);
 const proprio = configDoNegocio(CONFIG_PADRAO, { cobrar: false, precos: { smsCents: 3, whatsappUtilityCents: -1 } });
-assert.deepEqual([proprio.cobrar, proprio.smsCents, proprio.whatsappUtilityCents], [false, 3, 5], "preço inválido no override fica o geral");
+assert.deepEqual([proprio.cobrar, proprio.smsCents, proprio.whatsappUtilityCents], [false, 3, 27], "preço inválido no override fica o geral");
 assert.equal(configDoNegocio(CONFIG_PADRAO, null).cobrar, true);
 
 // podeEnviar: todos os ramos

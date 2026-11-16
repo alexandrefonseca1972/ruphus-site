@@ -3,7 +3,7 @@ import { montarEmail, primeiroNome } from "@/lib/email-layout";
 // para public/termos/{versão}/ (npm run termos). Uma versão publicada não muda: mudou
 // o texto, suba CONTRATO_VERSAO e a versão no topo do contrato. O aceite guarda a
 // versão que a pessoa leu, e o link aponta para ela para sempre.
-export const CONTRATO_VERSAO = "1.2";
+export const CONTRATO_VERSAO = "1.3";
 export const CONTRATO_URL = `/termos/${CONTRATO_VERSAO}`;
 export const CONTRATO_RECUSADO = "Para continuar, aceite os Termos de Contratação.";
 
@@ -12,7 +12,8 @@ export const CONTRATO_RECUSADO = "Para continuar, aceite os Termos de Contrataç
 export const RESUMO_CONTRATO = [
   "Sem fidelidade: cancele quando quiser, sem multa.",
   "7 dias para desistir, com devolução de tudo o que você pagou.",
-  "Taxa de ativação e mensalidade pré-paga (dia 10), nos valores da proposta ou da tabela dos Termos. Reajuste só uma vez por ano, pelo IPCA.",
+  "Publicação do site, paga uma vez, e mensalidade pré-paga (dia 10), nos valores da proposta ou da tabela dos Termos. Reajuste só uma vez por ano, pelo IPCA.",
+  "Mensagens por WhatsApp e SMS saem de um saldo pré-pago do negócio. Sem saldo, os envios aos seus clientes param até a recarga; o agendamento continua. Saldo não usado não é devolvido no cancelamento.",
   "Caixa e comissões incluídos, sem adicional na mensalidade.",
   "Depois de 10 dias de atraso, o site e o agendamento podem sair do ar. Nada é apagado.",
   "Manutenção incluída dentro dos limites mensais. Edição de imagem e vídeo não está incluída.",

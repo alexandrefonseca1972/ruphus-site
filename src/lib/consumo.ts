@@ -28,8 +28,8 @@ export type Destinatario = "cliente" | "dono";
 
 /** Preço por mensagem em centavos, definido no /admin (config/mensagens). */
 export type Precos = { whatsappUtilityCents: number; whatsappServiceCents: number; smsCents: number };
-/** Sem config/mensagens: WhatsApp utilidade R$ 0,05, resposta (service) grátis, SMS R$ 0,12. */
-export const PRECOS_PADRAO: Precos = { whatsappUtilityCents: 5, whatsappServiceCents: 0, smsCents: 12 };
+/** Sem config/mensagens: WhatsApp utilidade R$ 0,27, resposta (service) grátis, SMS R$ 0,20. */
+export const PRECOS_PADRAO: Precos = { whatsappUtilityCents: 27, whatsappServiceCents: 0, smsCents: 20 };
 
 export const MODOS_SEM_SALDO = ["pausar-clientes", "pausar-tudo", "negativo"] as const;
 export type SemSaldo = (typeof MODOS_SEM_SALDO)[number];

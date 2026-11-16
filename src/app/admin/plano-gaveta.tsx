@@ -27,7 +27,7 @@ export function PlanoDoNegocio({ slug, token }: { slug: string; token: () => Pro
     if (parte.espera === true) {
       const ok = await confirmar({
         titulo: "Ligar a fila de espera?",
-        texto: "Os horários ocupados passam a aparecer no agendamento online com a opção de aviso. Cada aviso enviado no WhatsApp custa 5¢ do saldo de mensagens do negócio. Precisa do WhatsApp oficial ativo.",
+        texto: "Os horários ocupados passam a aparecer no agendamento online com a opção de aviso. Cada aviso enviado no WhatsApp custa R$ 0,27 do saldo de mensagens do negócio. Precisa do WhatsApp oficial ativo.",
         acao: "Ligar",
       });
       if (!ok) return;
@@ -72,7 +72,7 @@ export function PlanoDoNegocio({ slug, token }: { slug: string; token: () => Pro
             <input type="checkbox" className={caixa} disabled={busy || !m.agendamento} checked={m.espera && m.agendamento} onChange={(e) => mudar({ espera: e.target.checked })} />
             <span>
               Fila de espera <span className="rounded bg-[#2C6A53] px-1.5 py-0.5 text-[10px] font-bold text-white">NOVO</span>
-              <span className="block text-xs text-[#6F6A5E]">Avisa no WhatsApp quando vaga um horário · 5¢ por aviso · serviço extra</span>
+              <span className="block text-xs text-[#6F6A5E]">Avisa no WhatsApp quando vaga um horário · R$ 0,27 por aviso · serviço extra</span>
             </span>
           </label>
           {!m.agendamento && <p className="pl-6.5 text-xs text-[#6F6A5E]">Sem agendamento não há fila de espera.</p>}

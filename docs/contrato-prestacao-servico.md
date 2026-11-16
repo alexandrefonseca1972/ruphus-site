@@ -5,7 +5,7 @@
      CONTRATO_VERSAO em src/lib/contrato.ts. O script recusa sobrescrever uma versão
      já publicada e recusa gerar com marcador [[...]] pendente. -->
 
-**Versão 1.2 — vigente a partir de 10 de novembro de 2026**
+**Versão 1.3 — vigente a partir de 16 de novembro de 2026**
 
 Estes Termos são o contrato de prestação de serviço entre a Ruphus e quem
 contrata o site e a agenda online. Ao marcar "Li e aceito", o Cliente declara
@@ -15,8 +15,13 @@ que leu, entendeu e concorda com eles.
 >
 > - **Sem fidelidade:** cancele quando quiser, sem multa.
 > - **7 dias para desistir:** dentro desse prazo, devolvemos tudo o que você pagou.
-> - **Preço:** taxa de ativação e mensalidade pré-paga, com vencimento no dia 10,
->   nos valores da proposta ou do Anexo I. Reajuste só uma vez por ano, pelo IPCA.
+> - **Preço:** publicação do site, paga uma vez, e mensalidade pré-paga, com
+>   vencimento no dia 10, nos valores da proposta ou do Anexo I. Reajuste só uma
+>   vez por ano, pelo IPCA.
+> - **Mensagens:** confirmações, lembretes e avisos por WhatsApp e SMS saem de um
+>   saldo pré-pago do negócio, pelos preços do Anexo I. Sem saldo, os envios aos
+>   seus clientes param até a recarga; o agendamento continua funcionando. Saldo
+>   não usado não é devolvido no cancelamento.
 > - **Caixa e comissões incluídos:** entradas, saídas, contas fixas e o percentual
 >   de cada profissional, sem adicional na mensalidade.
 > - **Atraso:** depois de 10 dias de atraso, o site e o agendamento podem sair do
@@ -47,9 +52,10 @@ veracidade dessa declaração.
 A Ruphus presta ao Cliente, por assinatura mensal, um serviço de **site e agenda
 online** para atendimento ao público, composto por:
 
-1. **Site do negócio** no endereço `{nome}.ruphus.site`, com serviços, preços,
-   horário, localização e contato, e uma página de links para a bio das redes
-   sociais.
+1. **Site do negócio** no endereço `{nome}.ruphus.site`, montado, publicado e
+   hospedado pela Ruphus enquanto o contrato estiver em vigor, com serviços,
+   preços, horário, localização e contato, e uma página de links para a bio das
+   redes sociais.
 2. **Agendamento online**, disponível para uso a qualquer hora, observada a
    cláusula 10, em que o cliente final escolhe serviço, profissional e horário
    livre, sem intervenção do Cliente.
@@ -69,10 +75,18 @@ Mediante ativação, com os preços do **Anexo I**:
 - **Domínio próprio**: o site responde em um domínio do Cliente (ex.:
   `www.salao.com.br`). O registro e a renovação do domínio são do Cliente
   (cláusula 7).
-- **Lembretes por WhatsApp**: mensagem automática ao cliente final antes do
-  horário, enviada pelo número do próprio Cliente (cláusula 10.3).
+- **Mensagens por WhatsApp e SMS**: confirmação do agendamento, lembrete antes
+  do horário e avisos ao cliente final. O WhatsApp sai pelo canal oficial (API
+  da Meta), a partir de um número da Ruphus; o SMS é ativado pela Ruphus a
+  pedido do Cliente. Cada envio consome o saldo de mensagens (cláusulas 8.9 e
+  10.3).
+- **Fila de espera**: ativada pela Ruphus a pedido do Cliente. Quando um horário
+  lotado vaga, o cliente final que pediu aviso recebe a oferta pelo WhatsApp e
+  reserva com um toque. Cada aviso consome o saldo de mensagens.
+- **Pedido de avaliação**: depois do atendimento, o cliente final recebe pelo
+  WhatsApp um convite para avaliar o serviço. As respostas ficam no painel.
 - **Sinal por Pix**: o cliente final paga parte do valor para garantir o horário,
-  na chave Pix do Cliente.
+  na chave Pix do Cliente, que confere o recebimento e o registra no painel.
 - **Profissionais além de 5**: o plano inclui até 5 profissionais ativos.
 - **Mais de um negócio na conta**: o plano inclui 1 negócio por conta.
 
@@ -89,7 +103,7 @@ qualquer integração com sistemas de terceiros não listados acima.
    O convite é pessoal e só abre com aquele e-mail; ao abri-lo, o responsável
    aceita estes Termos. Se o convite vencer, a Ruphus envia outro.
 2. As partes cadastram juntas os serviços, os profissionais e os horários.
-3. O pagamento da taxa de ativação **publica o site**: ele deixa de ser
+3. O pagamento da publicação do site **coloca o site no ar como oficial**: ele deixa de ser
    demonstração e passa a aparecer nos buscadores.
 4. A implantação é considerada concluída quando o site está publicado e o painel
    está acessível ao Cliente, o que ocorrerá em até **5 dias úteis** contados do
@@ -97,8 +111,8 @@ qualquer integração com sistemas de terceiros não listados acima.
    ocorrer por último.
 5. **Cadastro pelo próprio Cliente.** Quem cria a conta e o negócio direto no
    site da Ruphus monta o site no painel, mas **não há período de avaliação**:
-   até o pagamento da taxa de ativação o site é só demonstração, fora dos
-   buscadores. Pago a taxa, vale o item 3. Sem pagamento em 14 dias corridos do
+   até o pagamento da publicação o site é só demonstração, fora dos
+   buscadores. Feito o pagamento, vale o item 3. Sem pagamento em 14 dias corridos do
    cadastro, a Ruphus pode tirar a demonstração do ar, e os dados são apagados
    90 dias depois, salvo pedido de cópia (cláusula 12.5).
 
@@ -176,8 +190,10 @@ dele.
 - Informar aos seus clientes a própria política de cancelamento, de falta e de
   sinal, respeitando o Código de Defesa do Consumidor, e manter um aviso de
   privacidade para quem agenda.
-- Usar os lembretes por WhatsApp apenas com clientes que forneceram o telefone
-  para esse fim, e respeitar quem pedir para não receber mensagens.
+- Enviar mensagens apenas a clientes que deram o telefone e autorizaram o
+  recebimento. No agendamento online, a autorização é pedida ao cliente final e
+  fica registrada; para quem o próprio Cliente cadastra ou agenda pelo painel,
+  cabe a ele ter essa autorização. Quem responder SAIR deixa de receber.
 - Pagar em dia.
 
 ## 6. Uso aceitável
@@ -204,11 +220,14 @@ com o Cliente; o endereço `{nome}.ruphus.site` deixa de responder por ele.
 1. **Valores.** Os valores são os da **proposta comercial** enviada ao Cliente.
    Na falta dela, valem os do **Anexo I**. A proposta vale para preço e condições
    comerciais; para todo o resto, valem estes Termos.
-2. **Taxa de ativação.** Paga à vista, remunera a configuração e a publicação
-   do site. O uso até o primeiro vencimento da mensalidade é cortesia.
-3. **Mensalidade pré-paga.** Vence todo dia **10** e cobre o próprio mês. A
-   primeira vence no dia 10 do mês seguinte à publicação do site.
-4. **Recursos opcionais** são cobrados junto com a mensalidade.
+2. **Publicação do site.** Valor único, pago à vista, que remunera a montagem,
+   a configuração e a publicação do site e da página de links. Nas versões
+   anteriores destes Termos, chamava-se "taxa de ativação". O uso até o primeiro
+   vencimento da mensalidade é cortesia.
+3. **Mensalidade pré-paga.** Vence todo dia **10** e cobre o próprio mês: a
+   hospedagem do site, o agendamento, o painel e a manutenção. A primeira vence
+   no dia 10 do mês seguinte à publicação do site.
+4. **Recursos opcionais** de valor mensal são cobrados junto com a mensalidade.
 5. **Forma de pagamento.** Pix, pelo código enviado pela Ruphus. A baixa é feita
    após a confirmação do recebimento; o Cliente pode enviar o comprovante pelo
    WhatsApp.
@@ -220,6 +239,21 @@ com o Cliente; o endereço `{nome}.ruphus.site` deixa de responder por ele.
 8. **Reajuste.** Os valores são reajustados uma vez a cada 12 meses pela
    variação do **IPCA**, com aviso de 30 dias. Fora isso, o preço não muda
    durante o contrato.
+9. **Saldo de mensagens.** As mensagens por WhatsApp e SMS são pré-pagas: cada
+   envio desconta do saldo do negócio o preço do Anexo I ou o da proposta. O
+   Cliente recarrega por Pix e acompanha o extrato no painel. Envio que falha
+   volta para o saldo. Mensagens da Ruphus ao Cliente sobre a própria plataforma
+   não são cobradas. Sem saldo, os envios aos clientes finais ficam pausados até
+   a recarga, e o agendamento continua funcionando. O saldo não vence durante o
+   contrato.
+
+> **Atenção: saldo de mensagens não é devolvido.**
+>
+> 10. No cancelamento ou no encerramento do contrato, o saldo de mensagens não
+>     usado, pago ou recebido como cortesia ou bônus, **não é devolvido** e fica
+>     com a Ruphus a título de manutenção do serviço. Fica ressalvado o direito
+>     de desistência da cláusula 12.2, em que o Cliente recebe de volta tudo o
+>     que pagou, incluídas as recargas.
 
 ## 9. Atraso no pagamento
 
@@ -254,13 +288,15 @@ com o Cliente; o endereço `{nome}.ruphus.site` deixa de responder por ele.
    possível; falhas gerais de internet ou de energia fora do
    controle da Ruphus; e caso fortuito ou força maior (art. 393 do Código Civil).
 
-> **Atenção: lembretes por WhatsApp.**
+> **Atenção: mensagens por WhatsApp e SMS.**
 >
-> 3. Os lembretes usam o número do próprio Cliente, conectado por QR code. Essa
->    conexão **não é a API oficial do WhatsApp** e pode levar a Meta a restringir
->    ou **bloquear o número**. O Cliente ativa o recurso **por sua conta e
->    risco**, depois de aceitar esse aviso no painel, e a Ruphus não responde por
->    restrições ou bloqueios.
+> 3. As mensagens saem pelo **canal oficial do WhatsApp** (API da Meta), a partir
+>    de um número da Ruphus, e por SMS. A entrega depende da Meta, das
+>    operadoras e do aparelho do cliente final: a Ruphus **não garante que toda
+>    mensagem chegue ou seja lida**. Os textos seguem modelos aprovados pela
+>    Meta e podem mudar por exigência dela; recurso que depende dessa aprovação,
+>    como a fila de espera, fica disponível depois dela. Lembretes não são
+>    enviados entre 22h e 8h.
 
 4. Em indisponibilidade total do agendamento por mais de **24 horas seguidas**
    por falha da Ruphus, o Cliente terá desconto na mensalidade seguinte,
@@ -296,7 +332,7 @@ com o Cliente; o endereço `{nome}.ruphus.site` deixa de responder por ele.
 6. **Suboperadores e transferência internacional.** O serviço usa provedores de
    infraestrutura e comunicação: Google (Firebase — banco de dados, login e
    arquivos), servidor dedicado contratado pela Ruphus, serviço de e-mail
-   transacional e plataforma de envio por WhatsApp. Alguns armazenam dados fora
+   transacional e plataformas de envio por WhatsApp (canal oficial da Meta) e por SMS. Alguns armazenam dados fora
    do Brasil; nesses casos, a transferência segue um dos mecanismos do art. 33
    da LGPD, como as cláusulas-padrão contratuais aprovadas pela ANPD. A lista
    atualizada é fornecida a pedido, e mudanças relevantes são avisadas.
@@ -319,7 +355,7 @@ com o Cliente; o endereço `{nome}.ruphus.site` deixa de responder por ele.
 
 1. **Sem fidelidade.** O contrato vale por prazo indeterminado a partir do aceite.
 2. **Direito de desistência.** O Cliente pode desistir em até **7 dias
-   corridos**, contados do aceite ou do pagamento da taxa de ativação, o que
+   corridos**, contados do aceite ou do pagamento da publicação do site, o que
    ocorrer por último, por WhatsApp ou e-mail. Ele recebe de volta **tudo o que
    pagou**, em até 10 dias, pelo mesmo meio de pagamento, e o site e o
    agendamento saem do ar.
@@ -329,8 +365,9 @@ com o Cliente; o endereço `{nome}.ruphus.site` deixa de responder por ele.
 > 3. **Cancelamento pelo Cliente.** A qualquer tempo, sem multa, por mensagem no
 >    WhatsApp ou e-mail da Ruphus. O serviço continua até o fim do mês já pago, e
 >    **não há devolução proporcional** da mensalidade em curso. Ressalvado o
->    direito de desistência do item 2, a **taxa de ativação não é devolvida**
->    após a publicação do site.
+>    direito de desistência do item 2, o **valor da publicação do site não é
+>    devolvido** depois que o site vai ao ar, nem o saldo de mensagens não usado
+>    (cláusula 8.10).
 
 4. **Encerramento pela Ruphus.** Com aviso de 30 dias, ou imediatamente em caso
    de atraso conforme a cláusula 9.5, de violação grave da cláusula 6, ou de
@@ -392,15 +429,20 @@ acesso por causa deste contrato, durante a vigência e por 2 anos depois dela.
 
 ## Anexo I — Tabela de preços
 
-Vigente desde 1º de novembro de 2026. Vale quando a proposta comercial não
+Vigente desde 16 de novembro de 2026. Vale quando a proposta comercial não
 trouxer outro valor.
 
 | Item | Valor | Cobrança |
 |---|---|---|
-| Taxa de ativação | R$ 250,00 | uma vez, à vista |
+| Publicação do site (montagem, configuração e publicação) | R$ 250,00 | uma vez, à vista |
 | Mensalidade | R$ 89,90 | por mês, pré-paga, dia 10 |
 | Domínio próprio | R$ 100,00 | uma vez, pela configuração |
-| Lembretes por WhatsApp | incluído | — |
+| Mensagem por WhatsApp (confirmação, lembrete, aviso da fila de espera, pedido de avaliação e demais avisos) | R$ 0,27 | por mensagem enviada, do saldo |
+| Resposta por WhatsApp em conversa aberta pelo cliente final | sem custo | — |
+| SMS | R$ 0,20 | por mensagem enviada, do saldo |
+| Crédito inicial de mensagens | R$ 10,00 | cortesia, uma vez |
+| Recarga de mensagens | a partir de R$ 10,00 | por Pix, no painel |
+| Fila de espera | sem mensalidade | cada aviso consome o saldo |
 | Sinal por Pix | incluído | — |
 | Caixa e comissões | incluído | — |
 | Profissional além de 5 | R$ 15,00 | por mês, por profissional |

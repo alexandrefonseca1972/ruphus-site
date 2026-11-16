@@ -100,7 +100,7 @@ export function FilaEsperaNegocio() {
     corpo = (
       <div className="grid gap-3">
         <p className="text-sm text-muted-foreground">
-          Quando um horário está ocupado, o cliente pode pedir para ser avisado no WhatsApp se ele vagar. Se vagar, ele agenda com um toque. Cada aviso custa 5¢ do saldo de mensagens.
+          Quando um horário está ocupado, o cliente pode pedir para ser avisado no WhatsApp se ele vagar. Se vagar, ele agenda com um toque. Cada aviso custa R$ 0,27 do saldo de mensagens.
         </p>
         <div>
           <Button type="button" disabled={busy} onClick={() => executar((t) => solicitarEsperaAction(t, { tenantId: tenant.id }))} className="h-12 px-5 text-[15px] sm:h-11 sm:text-sm">

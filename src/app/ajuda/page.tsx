@@ -351,7 +351,7 @@ export default function ManualDoUsuario() {
           o aviso da fila); confirme por você.
         </P>
         <P>
-          <Termo>Custo.</Termo> Cada aviso enviado custa 5¢ do saldo de mensagens. As respostas aos toques não custam.
+          <Termo>Custo.</Termo> Cada aviso enviado custa R$ 0,27 do saldo de mensagens. As respostas aos toques não custam.
           Aparece em <Termo>Consumo</Termo> como <Termo>Fila de espera</Termo>.
         </P>
         <P>
