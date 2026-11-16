@@ -2,7 +2,7 @@
 //   npm run test:gerador
 import assert from "node:assert/strict";
 import lerAbas from "read-excel-file/node";
-import { montar, porRamo } from "@/lib/catalogo";
+import { montar, normalizar, porRamo } from "@/lib/catalogo";
 import { slugDaEntrada } from "@/lib/prospeccao-canal";
 import { candidatos, type DadosSite, faixaProposta, fixo, lerPlanilha as lerAbasDaPlanilha, nichoDe, outraForma, SUBS, ufDe, ufDoTelefone, variante } from "@/lib/gerador";
 
@@ -83,6 +83,16 @@ import { ehClaro, renderClaro, renderClaro as renderPet } from "@/lib/site-claro
 for (const [categoria, sub] of [["Massoterapia", "estetica"], ["Podologia", "podologia"], ["Salão de bronzeamento", "estetica"], ["Biomedicina estética", "estetica"],
   ["Studio de Maquiagem / Beleza", "estetica"], ["Clínica de dermatologia", "estetica"], ["Tranças / Penteados Afro", "salao"], ["Esmalteria (shopping)", "unhas"]] as const) {
   assert.equal(nichoDe({ categoria, nome: "" })?.sub, sub, categoria);
+}
+
+// só sobrancelha vira o sub próprio, mesmo com o Google dizendo "salão de beleza"; com outro serviço no nome, não
+for (const [categoria, nome, sub] of [
+  ["Salão de beleza", "Carla Barroso Design de Sobrancelhas", "sobrancelha"], ["", "Dani Braz especialista em sobrancelhas", "sobrancelha"],
+  ["Estética", "Ana Brows", "sobrancelha"], ["Designer de sobrancelhas", "", "sobrancelha"],
+  ["Salão de beleza", "Studio Fabiola Cílios e Sobrancelhas", "salao"], ["", "Sobrancelha e Unhas da Bia", "unhas"],
+  ["", "Barbearia e Sobrancelha", "barbearia"], ["Estética", "Clínica Estética e Sobrancelha", "estetica"],
+] as const) {
+  assert.equal(nichoDe({ categoria, nome })?.sub, sub, `${categoria} / ${nome}`);
 }
 
 // sem coluna de nome não há o que ler
@@ -167,7 +177,7 @@ assert.equal(nichoDe({ categoria: "Clínica Veterinária", nome: "" })?.sub, "ve
 assert.equal(nichoDe({ categoria: "Banho e tosa", nome: "" })?.sub, "petshop");
 assert.equal(nichoDe({ categoria: "Esmalteria", nome: "" })?.sub, "unhas");
 assert.equal(nichoDe({ categoria: "Salão de Beleza", nome: "" })?.tipo, "HairSalon");
-assert.equal(nichoDe({ categoria: "Design de sobrancelhas", nome: "" })?.sub, "estetica");
+assert.equal(nichoDe({ categoria: "Design de sobrancelhas", nome: "" })?.sub, "sobrancelha");
 assert.equal(nichoDe({ categoria: "Studio de tatuagem", nome: "" })?.tipo, "TattooParlor", "tatuagem antes de “studio” virar salão");
 assert.equal(nichoDe({ categoria: "", nome: "Kaos Tattoo Studio" })?.sub, "tatuagem");
 assert.equal(nichoDe({ categoria: "Restaurante", nome: "Petisco Bar" }), null);
@@ -454,7 +464,7 @@ console.log("gerador: ok");
   const { SUBS } = await import("@/lib/gerador");
   assert.equal(MODELOS.filter((x) => SUBS[x.sub].nicho === "fitness").length, 12, "3 por ramo de fitness");
   assert.equal(MODELOS.filter((x) => SUBS[x.sub].nicho === "automotivo").length, 9, "3 por ramo automotivo");
-  assert.equal(MODELOS.filter((x) => SUBS[x.sub].nicho === "beleza").length, 33, "30 de beleza + 3 do salão infantil");
+  assert.equal(MODELOS.filter((x) => SUBS[x.sub].nicho === "beleza").length, 36, "30 de beleza + 3 do salão infantil + 3 de sobrancelha");
   const { galeriaClaro } = await import("@/lib/site-claro");
   const g = galeriaClaro("pet-feliz", "petshop");
   assert.equal(new Set(g).size, 3, "três fotos distintas");
@@ -528,11 +538,13 @@ assert.deepEqual(["PB", "pb", "Paraíba", "Paraná", "Minas Gerais", "São Paulo
 console.log("uf por extenso: ok");
 
 // o mesmo celular com e sem o 9; fixo não tem outra forma
+// celular sem o 9 entra com o 9 (senão o mesmo número vira dois sites); fixo fica
+assert.deepEqual(["(91) 9372-1156", "559193721156", "5591993721156", "559632178751"].map(normalizar), ["5591993721156", "5591993721156", "5591993721156", "559632178751"]);
 assert.deepEqual(["5591993721156", "559193721156", "559632178751", "14155550100"].map(outraForma), ["559193721156", "5591993721156", null, null]);
 console.log("nono dígito: ok");
 
 // número fixo: o WhatsApp não atende — tudo vira ligação, nos dois modelos e em todos os ramos
-for (const sub of ["petshop", "vet", "odonto", "salao", "barbearia", "estetica", "unhas", "podologia"] as const) {
+for (const sub of ["petshop", "vet", "odonto", "salao", "barbearia", "estetica", "sobrancelha", "unhas", "podologia"] as const) {
   const d = { ...base, nome: "Casa Teste", sub, telefone: "559232364727" };
   const html = ehClaro(sub) ? renderClaro(d) : renderBeleza(d);
   assert.ok(!html.includes("wa.me/559232364727"), `${sub} fixo: sem link de WhatsApp do negócio`);

@@ -2,6 +2,7 @@
 // de sites lê da planilha. Um lugar só, para a agenda de um site importado e a de
 // um site gerado darem o mesmo preço ao mesmo serviço. Sem "server-only": a prévia
 // do gerador roda no navegador.
+import { canonicalBrMobile } from "@/lib/telefone";
 
 // duração (min) e preço (R$) típicos por tipo de serviço; a primeira regra que casar vence
 export const TABELA: [RegExp, number, number][] = [
@@ -52,6 +53,7 @@ export const TABELA: [RegExp, number, number][] = [
   // e anunciava 30min/R$40 num procedimento de horas e centenas de reais — erro de 10x no
   // preço que aparece na bio do cliente. Valores de mercado; confirme com cada profissional.
   [/micropigment|microblading|nanoblading|fio a fio|dermopigment/i, 120, 450],
+  [/brow lamination|lamina[çc][ãa]o/i, 60, 120],
   [/sobrancelha|henna|design/i, 30, 40],
   [/cíli|cili|lash|extens/i, 120, 150],
   [/depila|cera|laser/i, 45, 70],
@@ -93,6 +95,7 @@ export const PADRAO: [RegExp, string[]][] = [
   [/^podologia|podolog/i, ["Avaliação podológica", "Podologia completa", "Unha encravada", "Calosidade"]],
   [/depila|laser/i, ["Depilação a laser", "Avaliação"]],
   [/massag|massot|\bspa|terapi/i, ["Massagem relaxante", "Drenagem linfática"]],
+  [/^design de sobrancelha/i, ["Design de sobrancelha", "Design com henna", "Brow lamination", "Micropigmentação de sobrancelha"]],
   [/sobrancelha|cíli|cili|lash|micropigment/i, ["Design de sobrancelha", "Extensão de cílios"]],
   [/cabelei|cabelo|hair|mechas|cachos|tranç|escova|salão|salao/i, ["Corte", "Escova", "Coloração", "Hidratação"]],
   [/estétic|estetic|beleza|pele|dermat|clínic|clinic/i, ["Limpeza de pele", "Avaliação estética"]],
@@ -131,11 +134,12 @@ function h() {
 
 export const RUPHUS = "5511948680554";
 
-/** Só dígitos com DDI, pelo tamanho — 55 também é DDD, então prefixo não decide. */
+/** Só dígitos com DDI, pelo tamanho — 55 também é DDD, então prefixo não decide.
+ *  Celular sem o 9º dígito ganha o 9: o mesmo número não entra em duas formas (site duplicado). */
 export function normalizar(bruto: string) {
   const d = bruto.replace(/\D/g, "");
-  if (d.length === 10 || d.length === 11) return `55${d}`;
-  if ((d.length === 12 || d.length === 13) && d.startsWith("55")) return d;
+  if (d.length === 10 || d.length === 11) return canonicalBrMobile(`55${d}`);
+  if ((d.length === 12 || d.length === 13) && d.startsWith("55")) return canonicalBrMobile(d);
   // 15 dígitos = DDI dobrado na importação (55 + 5592…)
   if (d.length === 15 && d.startsWith("5555")) return d.slice(2);
   return "";

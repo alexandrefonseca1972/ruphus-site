@@ -137,6 +137,11 @@ const TEXTOS = {
     "Unha encravada, calosidade e micose tratadas com instrumental esterilizado.",
     "Pés tratados com atenção: avaliação, procedimento e orientação para o dia a dia.",
   ],
+  sobrancelha: [
+    "Sobrancelhas desenhadas para o seu rosto, com técnica, medida e hora marcada.",
+    "Design, henna e brow lamination para um olhar alinhado e natural.",
+    "Do desenho com pinça à micropigmentação fio a fio, sem exagero e com cuidado.",
+  ],
   tatuagem: [
     "Arte na pele com traço autoral, biossegurança e atendimento próximo.",
     "Da ideia ao desenho final, um projeto feito com você e para você.",
@@ -150,6 +155,7 @@ const PADRAO = {
   estetica: ["Limpeza de pele", "Design de sobrancelha", "Extensão de cílios"],
   unhas: ["Manicure", "Pedicure", "Alongamento em gel"],
   podologia: ["Avaliação podológica", "Podologia completa", "Unha encravada", "Calosidade"],
+  sobrancelha: ["Design de sobrancelha", "Design com henna", "Brow lamination", "Micropigmentação de sobrancelha"],
   tatuagem: ["Tatuagem autoral", "Fine line", "Blackwork", "Cobertura e reforma", "Orçamento"],
 };
 
@@ -179,6 +185,8 @@ const DESCRICOES: [RegExp, string | string[], string][] = [
   [/corte\s*(e|\+)\s*barba|combo/i, ["O pacote completo para sair pronto da cadeira em uma única visita.", "Corte e barba feitos na mesma visita, com o alinhamento que combina com o seu rosto.", "Cabelo e barba no mesmo ritmo: sai da cadeira com o visual fechado de ponta a ponta."], "Mais pedido"],
   [/barba/i, ["Desenho, alinhamento e toalha quente para um acabamento limpo e confortável.", "Barba desenhada com navalha e finalizada com óleo, do contorno ao pescoço.", "Da máquina à navalha: o desenho da barba certo para o seu formato de rosto."], "Toalha quente"],
   [/pigment/i, ["Cobertura de falhas com aspecto natural."], "Acabamento"],
+  [/henna/i, ["Desenho com henna que preenche as falhas e dura alguns dias na pele."], "Henna"],
+  [/lamina/i, ["Fios alinhados e penteados para cima, com efeito que dura semanas."], "Lamination"],
   [/sobrancel/i, ["Desenho que valoriza o olhar, sem exageros.", "Sobrancelha alinhada com pinça e navalha, respeitando o formato do seu rosto."], "Detalhe"],
   [/corte/i, ["Do clássico ao moderno, com acabamento caprichado e finalização profissional.", "Tesoura e máquina na medida certa, com a degradê que você pedir.", "Corte pensado para o seu tipo de cabelo e para o dia a dia, com finalização rápida."], "Clássico & moderno"],
   [/escova|finaliz/i, ["Brilho, movimento e fios alinhados para o dia a dia ou para a ocasião."], "Finalização"],
@@ -219,6 +227,8 @@ const ESTILOS: Partial<Record<Sub, Estilo>> = {
   // bronze-2: cabine/solário; bronze-3: bronzeamento natural na praia (Pexels); escolha.kit = 9 e 10
   // depilacao-2: cera em faixa; depilacao-3: depilação a laser (Pexels); escolha.kit = 11 e 12
   estetica: { ...beleza("estetica", "Estética", DELICADAS), extras: ["/assets/beleza/depilacao-1", "/assets/beleza/bronze-1", "/assets/beleza/cilios-1", "/assets/beleza/cilios-2", "/assets/beleza/cilios-3", "/assets/beleza/bronze-2", "/assets/beleza/bronze-3", "/assets/beleza/depilacao-2", "/assets/beleza/depilacao-3"] },
+  // sobrancelha-1 a -3: design de sobrancelha (Pexels); três kits, não quatro
+  sobrancelha: { ...beleza("sobrancelha", "Design de sobrancelha", DELICADAS), kits: [1, 2, 3].map((n) => `/assets/beleza/sobrancelha-${n}`) },
   unhas: beleza("unhas", "Nail designer", DELICADAS),
   tatuagem: beleza("tatuagem", "Estúdio de tatuagem", TINTAS),
   podologia: { ...beleza("podologia", "Podologia", CLINICAS), descricoes: PODOLOGIA },
@@ -242,6 +252,7 @@ export const TEMPLATES = {
   barbearia: { sub: "barbearia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
   podologia: { sub: "podologia", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 1 }] },
   esmalteria: { sub: "unhas", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
+  sobrancelha: { sub: "sobrancelha", escolhas: [{ kit: 0, cor: 0 }, { kit: 1, cor: 2 }, { kit: 2, cor: 4 }] },
   cilios: { sub: "estetica", escolhas: [{ kit: 6, cor: 0 }, { kit: 7, cor: 2 }, { kit: 8, cor: 4 }] },
   // paletas quentes do DELICADAS: dourado, terracota, coral
   bronzeamento: { sub: "estetica", escolhas: [{ kit: 5, cor: 5 }, { kit: 9, cor: 4 }, { kit: 10, cor: 1 }] },
@@ -273,7 +284,7 @@ export const TEMPLATES = {
   pneus: { sub: "pneus", escolhas: [{ kit: 0, cor: 2 }, { kit: 1, cor: 3 }, { kit: 2, cor: 0 }] },
 } satisfies Record<string, { sub: Sub; escolhas: Required<Escolha>[]; rotulo?: string; textos?: string[]; padrao?: string[] }>;
 const ROTULO_MODELO: Record<keyof typeof TEMPLATES, string> = {
-  barbearia: "Barbearia", podologia: "Podologia", esmalteria: "Esmalteria", cilios: "Cílios", bronzeamento: "Bronzeamento", depilacao: "Depilação", cabeleireira: "Cabeleireira",
+  barbearia: "Barbearia", podologia: "Podologia", sobrancelha: "Sobrancelha", esmalteria: "Esmalteria", cilios: "Cílios", bronzeamento: "Bronzeamento", depilacao: "Depilação", cabeleireira: "Cabeleireira",
   esteticista: "Esteticista", maquiagem: "Maquiagem", tatuador: "Tatuador", infantil: "Salão infantil",
   academia: "Academia", pilates: "Pilates", lutas: "Lutas", danca: "Dança", oficina: "Oficina", lavagem: "Estética automotiva", pneus: "Pneus",
 };
@@ -421,7 +432,7 @@ export function renderEditorial(d: DadosSite): string {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=${fonte[1]}&family=Archivo:ital,wght@0,400;0,500;0,700;0,800;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/gerado/beleza.css">
-<style>:root{--ink:${ink};--paper:#ffffff;--acc:${acc};--deep:${deep};--tint:${tint};--grey:#8b8587;--serif:'${fonte[0]}',serif}${destaqueNoTopo(acc) === acc.toUpperCase() ? "" : `.hero h1 .row2{color:${destaqueNoTopo(acc)}}`}</style>
+<style>:root{--ink:${ink};--paper:#ffffff;--acc:${acc};--deep:${deep};--tint:${tint};--grey:#8b8587;--serif:'${fonte[0]}',serif}${destaqueNoTopo(acc) === acc.toUpperCase() ? "" : `.hero h1 .row2{color:${destaqueNoTopo(acc)}}`}${/\/sobrancelha-\d\//.test(fotos.hero) ? ".bgimg img{object-position:50% 20%}" : ""}</style>
 ${cabecaComum(d, tituloPag, descr, d.publicado)}
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${ink}"/><text x="32" y="45" font-family="Arial Narrow,Arial,sans-serif" font-size="36" font-weight="700" fill="${acc}" text-anchor="middle">${esc(d.nome[0].toUpperCase())}</text></svg>`)}">
 ${jsonLdNegocio(d, descr, naRaiz(fotos.hero))}

@@ -7,7 +7,7 @@ import type { EtapaCadencia } from "@/lib/crm-tipos";
 import { paraVarianteId, type VarianteId } from "@/lib/tipos-marca";
 
 /** Os nichos reais da base (gerado.sub); `geral` é a reserva de quem não tem texto próprio. */
-export const NICHOS = ["salao", "barbearia", "estetica", "unhas", "podologia", "tatuagem", "geral"] as const;
+export const NICHOS = ["salao", "barbearia", "estetica", "sobrancelha", "unhas", "podologia", "tatuagem", "geral"] as const;
 export type Nicho = (typeof NICHOS)[number];
 export const ANGULOS = ["elogio_google", "agenda_online", "faltas", "pergunta_aberta", "vizinhanca"] as const;
 export type Angulo = (typeof ANGULOS)[number];
@@ -80,6 +80,15 @@ const VARIANTES_F2: Variante[] = [
   v("estetica", "lembrete", "faltas", `{oi} Deixei a prévia do {nome} em {site}. O lembrete do horário ajuda a cliente a não faltar no procedimento. Posso ajustar? ${SAIDA}`),
   v("estetica", "ultima", "pergunta_aberta", `{oi} Não vou insistir. A prévia do {nome} fica em {site}. Se não for prioridade, me conta o que pesa mais aí? ${SAIDA}`),
   v("estetica", "ultima", "vizinhanca", `{oi} Último recado: clínicas de estética da região já recebem horário pela agenda online. A do {nome} fica em {site}. ${SAIDA}`),
+
+  // sobrancelha
+  v("sobrancelha", "primeiro", "elogio_google", `{oi} {prova} Estou montando agendas online para designers de sobrancelha da região, onde a cliente marca o design e a henna sozinha. Posso mandar um exemplo do {nome}? ${PARE}`),
+  v("sobrancelha", "primeiro", "faltas", `{oi} {prova} Horário de sobrancelha vago por falta pesa no fim do mês. Montei uma prévia de agenda para o {nome} que lembra a cliente do horário. Quer ver? ${PARE}`),
+  v("sobrancelha", "primeiro", "pergunta_aberta", `{oi} {prova} Pergunta rápida: no {nome}, a cliente marca o design de sobrancelha pelo WhatsApp ou pelo Instagram? ${PARE}`),
+  v("sobrancelha", "lembrete", "agenda_online", `{oi} A agenda do {nome} está pronta: {site}. A cliente escolhe design, henna ou lamination e o horário sozinha. Quer ajustar algo? ${SAIDA}`),
+  v("sobrancelha", "lembrete", "faltas", `{oi} Deixei a prévia do {nome} em {site}. O lembrete ajuda a segurar o horário marcado. Posso ajustar os serviços? ${SAIDA}`),
+  v("sobrancelha", "ultima", "pergunta_aberta", `{oi} Não vou insistir. A prévia do {nome} fica em {site}. Se não for a hora, me conta o que pesa mais aí? ${SAIDA}`),
+  v("sobrancelha", "ultima", "vizinhanca", `{oi} Último recado: designers de sobrancelha da região já recebem horário pela agenda online. A do {nome} fica em {site}. ${SAIDA}`),
 
   // unhas
   v("unhas", "primeiro", "elogio_google", `{oi} {prova} Estou montando agendas online para estúdios de unhas da região, onde a cliente marca esmaltação e alongamento sozinha. Posso mandar um exemplo do {nome}? ${PARE}`),

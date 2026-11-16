@@ -235,7 +235,7 @@ export const fixo = (telefone: string) => telefone.length === 12;
 
 export type Sub =
   | "petshop" | "vet"
-  | "barbearia" | "salao" | "estetica" | "unhas" | "tatuagem" | "podologia"
+  | "barbearia" | "salao" | "estetica" | "sobrancelha" | "unhas" | "tatuagem" | "podologia"
   | "odonto" | "fisio" | "psico" | "nutri" | "clinica"
   | "idiomas" | "reforco" | "musica" | "autoescola" | "profissionalizante"
   | "academia" | "pilates" | "lutas" | "danca"
@@ -251,6 +251,7 @@ export const SUBS: Record<Sub, { nicho: Nicho["nicho"]; tipo: string; rotulo: st
   barbearia: { nicho: "beleza", tipo: "BarberShop", rotulo: "Barbearia" },
   salao: { nicho: "beleza", tipo: "HairSalon", rotulo: "Salão de beleza" },
   estetica: { nicho: "beleza", tipo: "BeautySalon", rotulo: "Estética" },
+  sobrancelha: { nicho: "beleza", tipo: "BeautySalon", rotulo: "Design de sobrancelha" },
   unhas: { nicho: "beleza", tipo: "NailSalon", rotulo: "Manicure e unhas" },
   tatuagem: { nicho: "beleza", tipo: "TattooParlor", rotulo: "Estúdio de tatuagem" },
   podologia: { nicho: "beleza", tipo: "HealthAndBeautyBusiness", rotulo: "Podologia" },
@@ -275,7 +276,7 @@ export const SUBS: Record<Sub, { nicho: Nicho["nicho"]; tipo: string; rotulo: st
 
 /** Os nichos em grupos, na ordem em que o dono os procura na lista. */
 export const GRUPOS: [string, Sub[]][] = [
-  ["Beleza", ["barbearia", "salao", "estetica", "unhas", "podologia", "tatuagem"]],
+  ["Beleza", ["barbearia", "salao", "estetica", "sobrancelha", "unhas", "podologia", "tatuagem"]],
   ["Saúde", ["odonto", "fisio", "psico", "nutri", "clinica"]],
   ["Pet", ["petshop", "vet"]],
   ["Fitness", ["academia", "pilates", "lutas", "danca"]],
@@ -319,6 +320,9 @@ const RAMOS: [RegExp, Sub][] = [
   [/pilates|yoga|ioga/, "pilates"],
   // "personal" sozinho pega "Personalizada" e "Personalité"
   [/academia|crossfit|cross ?training|musculacao|treino funcional|personal trainer|fitness|\bgym\b/, "academia"],
+  // só sobrancelha: quem também faz cabelo, unha, cílios ou estética no nome fica no ramo
+  // largo ("Studio de Cílios e Sobrancelhas" é estética); antes de estética, que pega "sobrancel"
+  [/^(?!.*(cabel|hair|salao|unha|nail|estetic|make|maquiag|depila|barb|\bspa\b|beleza|beauty|cilio|lash|tattoo|tatu|podolog))(?=.*(sobrancel|\bbrows?\b))/, "sobrancelha"],
   [/estetic|remocao de tatuage|sobrancel|cilio|lash|micropigment|depila|\bspa|day ?spa|pele|massag|massoterap|bronze|dermat|biomedic|maquiag|make|harmoniza/, "estetica"],
   [/idioma|ingles|espanhol|frances|english|language/, "idiomas"],
   // "canto" sozinho pega "Encanto" e "Recanto"
@@ -336,7 +340,10 @@ export function nichoDe(l: { categoria: string; nome: string }): Nicho | null {
   const daCategoria = l.categoria ? ramo(l.categoria) : doNome;
   // categoria genérica de clínica e o nome dizendo a especialidade ("AC Clinic Estética
   // Avançada"): vale o nome. Eram 249 clínicas de estética no modelo de clínica médica
-  const sub = daCategoria === "clinica" && doNome && doNome !== "clinica" ? doNome : daCategoria;
+  const sub = daCategoria === "clinica" && doNome && doNome !== "clinica" ? doNome
+    // o Google chama a designer de sobrancelha de "salão de beleza": o nome decide
+    : doNome === "sobrancelha" && (daCategoria === "salao" || daCategoria === "estetica") ? doNome
+    : daCategoria;
   return sub ? { nicho: SUBS[sub].nicho, sub, tipo: SUBS[sub].tipo } : null;
 }
 
